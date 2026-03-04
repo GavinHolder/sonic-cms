@@ -1,5 +1,9 @@
 # CLAUDE.md
 
+> ⚠️ **WHITE-LABEL PROJECT — Read `docs/WHITELABEL_TODO.md` first.**
+> This is a fork of `sonic-website` being stripped for generic business use.
+> The source project at `D:\Projects\2026\sonic-website` must NEVER be modified from here.
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ---
