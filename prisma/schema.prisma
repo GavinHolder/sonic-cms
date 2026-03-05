@@ -53,7 +53,14 @@ model Page {
   title           String
   type            PageType    @default(LANDING)
   metaDescription String?
+  metaTitle       String?
+  metaKeywords    String?
   ogImage         String?
+  ogTitle         String?
+  ogDescription   String?
+  canonicalUrl    String?
+  noindex         Boolean     @default(false)
+  nofollow        Boolean     @default(false)
   status          PageStatus  @default(DRAFT)
   publishedAt     DateTime?
   publishedBy     String?

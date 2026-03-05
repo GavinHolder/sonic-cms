@@ -50,6 +50,12 @@ const menuItems: MenuItem[] = [
         icon: "bi-compass",
         href: "/admin/content/navbar",
       },
+      {
+        id: "seo",
+        label: "SEO",
+        icon: "bi-search",
+        href: "/admin/content/seo",
+      },
     ],
   },
   {

@@ -1,0 +1,28 @@
+{
+  "runAt": "2026-03-05T14:39:09.629Z",
+  "totalPages": 1,
+  "passed": 0,
+  "warnings": 0,
+  "errors": 1,
+  "pages": [
+    {
+      "slug": "/",
+      "title": "Home",
+      "status": "error",
+      "issues": [
+        {
+          "severity": "warning",
+          "message": "No custom meta title set — page title will be used"
+        },
+        {
+          "severity": "error",
+          "message": "Missing meta description"
+        },
+        {
+          "severity": "warning",
+          "message": "No OG image — social shares will use site default"
+        }
+      ]
+    }
+  ]
+}

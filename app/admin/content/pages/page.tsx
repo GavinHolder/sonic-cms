@@ -7,6 +7,7 @@ import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import PDFPageEditor from "@/components/admin/PDFPageEditor";
 import FormPageEditor from "@/components/admin/FormPageEditor";
 import DesignerPageEditorModal from "@/components/admin/DesignerPageEditorModal";
+import SeoPageEditorModal from "@/components/admin/SeoPageEditorModal";
 import {
   getPages,
   deletePage,
@@ -53,6 +54,7 @@ export default function PagesManager() {
   const [editingFormPage, setEditingFormPage] = useState<FormPageConfig | null>(null);
   const [editingDesignerPage, setEditingDesignerPage] = useState<DesignerPageConfig | null>(null);
   const [designerPageData, setDesignerPageData] = useState<string | null>(null);
+  const [seoEditingPage, setSeoEditingPage] = useState<PageConfig | null>(null);
 
   const setEditParam = useCallback((slug: string | null) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -470,6 +472,14 @@ export default function PagesManager() {
                         )}
 
                         <button
+                          onClick={() => setSeoEditingPage(page)}
+                          className="btn btn-sm btn-outline-info"
+                          title="SEO settings"
+                        >
+                          <i className="bi bi-search"></i>
+                        </button>
+
+                        <button
                           onClick={() => handleToggleEnabled(page.slug)}
                           className={`btn btn-sm ${page.enabled ? "btn-outline-warning" : "btn-outline-success"}`}
                           title={page.enabled ? "Disable page" : "Enable page"}
@@ -553,6 +563,15 @@ export default function PagesManager() {
           designerData={designerPageData}
           onSave={handleSaveDesigner}
           onClose={() => { setEditingDesignerPage(null); setDesignerPageData(null); setEditParam(null); }}
+        />
+      )}
+
+      {/* SEO Page Editor */}
+      {seoEditingPage && (
+        <SeoPageEditorModal
+          slug={seoEditingPage.slug}
+          pageTitle={seoEditingPage.title}
+          onClose={() => setSeoEditingPage(null)}
         />
       )}
     </AdminLayout>
