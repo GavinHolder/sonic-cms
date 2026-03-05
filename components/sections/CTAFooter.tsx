@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import type { CTAFooterSection, BackgroundColor } from "@/types/section";
+import type { CTASection, BackgroundColor, ButtonConfig } from "@/types/section";
 import type { FormField } from "@/types/page";
 import OtpVerificationModal from "@/components/ui/OtpVerificationModal";
 
@@ -14,9 +14,9 @@ import OtpVerificationModal from "@/components/ui/OtpVerificationModal";
 interface CTAFooterProps {
   heading: string;
   subheading?: string;
-  buttons?: CTAFooterSection["buttons"];
-  contactInfo?: CTAFooterSection["contactInfo"];
-  socialLinks?: CTAFooterSection["socialLinks"];
+  buttons?: ButtonConfig[];
+  contactInfo?: { phone?: string; email?: string; address?: string };
+  socialLinks?: Array<{ platform: string; url: string }>;
   background?: BackgroundColor;
   paddingTop?: number;
   paddingBottom?: number;

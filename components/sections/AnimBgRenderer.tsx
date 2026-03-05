@@ -121,8 +121,9 @@ export default function AnimBgRenderer({ config, colorPalette, sectionRef, secti
         const sectionEl = sectionRef?.current || (sectionId ? document.getElementById(sectionId) : null) || layerEl;
         handle = tiltAnimator(layerEl, layerConfig as Parameters<typeof tiltAnimator>[1], sectionEl);
       } else if (type === "3d-scene") {
-        const { threeDSceneAnimator } = await import("@/lib/anim-bg/animators");
-        handle = threeDSceneAnimator(layerEl, layerConfig as Parameters<typeof threeDSceneAnimator>[1]);
+        // threeDSceneAnimator not yet implemented — skip gracefully
+        console.warn("AnimBgRenderer: 3d-scene animator not implemented");
+        return;
       } else if (type === "custom-code") {
         const { customCodeAnimator } = await import("@/lib/anim-bg/animators");
         handle = customCodeAnimator(layerEl, layerConfig as Parameters<typeof customCodeAnimator>[1]);

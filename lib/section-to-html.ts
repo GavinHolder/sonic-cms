@@ -5,18 +5,12 @@
 
 import type {
   SectionConfig,
-  HeroCarouselSection,
-  TextImageSection,
-  StatsGridSection,
-  CardGridSection,
-  BannerSection,
-  TableSection,
 } from "@/types/section";
 
 /**
  * Convert a Hero Carousel section to HTML
  */
-export function heroCarouselToHtml(section: HeroCarouselSection): string {
+export function heroCarouselToHtml(section: any): string {
   if (!section.items || section.items.length === 0) {
     return `<div class="hero-carousel">
   <div class="carousel-slide" style="min-height: 400px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center;">
@@ -29,7 +23,7 @@ export function heroCarouselToHtml(section: HeroCarouselSection): string {
 </div>`;
   }
 
-  const slides = section.items.map((item, index) => {
+  const slides = section.items.map((item: any, index: number) => {
     const overlay = item.overlay || { heading: "", subheading: "" };
     const bgImage = item.src ? `background-image: url('${item.src}'); background-size: cover; background-position: center;` : "background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);";
 
@@ -50,7 +44,7 @@ export function heroCarouselToHtml(section: HeroCarouselSection): string {
 /**
  * Convert a Text & Image section to HTML
  */
-export function textImageToHtml(section: TextImageSection): string {
+export function textImageToHtml(section: any): string {
   const imageOnLeft = section.layout === "left";
   const textAlign = section.textAlign || "left";
 
@@ -58,7 +52,7 @@ export function textImageToHtml(section: TextImageSection): string {
     <img src="${section.imageSrc || "/images/placeholder.jpg"}" alt="${section.imageAlt || ""}" class="img-fluid rounded shadow" style="width: 100%; height: auto;">
   </div>`;
 
-  const buttons = section.buttons?.map((btn) => {
+  const buttons = section.buttons?.map((btn: any) => {
     const variant = btn.variant === "outline" ? "btn-outline-primary" : btn.variant === "secondary" ? "btn-secondary" : "btn-primary";
     return `<a href="${btn.href}" class="btn ${variant} me-2">${btn.text}</a>`;
   }).join("\n      ") || "";
@@ -83,11 +77,11 @@ export function textImageToHtml(section: TextImageSection): string {
 /**
  * Convert a Stats Grid section to HTML
  */
-export function statsGridToHtml(section: StatsGridSection): string {
+export function statsGridToHtml(section: any): string {
   const colClass = section.columns === 2 ? "col-md-6" : section.columns === 3 ? "col-md-4" : "col-md-3";
   const textAlign = section.textAlign || "center";
 
-  const stats = section.stats?.map((stat) => `<div class="${colClass}">
+  const stats = section.stats?.map((stat: any) => `<div class="${colClass}">
     <div class="text-${textAlign} p-4">
       <div class="display-4 fw-bold text-primary mb-2">
         ${stat.prefix || ""}${stat.value}${stat.suffix || ""}
@@ -111,11 +105,11 @@ export function statsGridToHtml(section: StatsGridSection): string {
 /**
  * Convert a Card Grid section to HTML
  */
-export function cardGridToHtml(section: CardGridSection): string {
+export function cardGridToHtml(section: any): string {
   const colClass = section.columns === 2 ? "col-md-6" : section.columns === 3 ? "col-md-4" : "col-md-3";
 
-  const cards = section.cards?.map((card) => {
-    const buttons = card.buttons?.map((btn) => {
+  const cards = section.cards?.map((card: any) => {
+    const buttons = card.buttons?.map((btn: any) => {
       const variant = btn.variant === "outline" ? "btn-outline-primary" : btn.variant === "secondary" ? "btn-secondary" : "btn-primary";
       return `<a href="${btn.href}" class="btn ${variant} btn-sm me-2">${btn.text}</a>`;
     }).join("\n          ") || "";
@@ -149,13 +143,14 @@ export function cardGridToHtml(section: CardGridSection): string {
 /**
  * Convert a Banner section to HTML
  */
-export function bannerToHtml(section: BannerSection): string {
-  const variantClass = {
+export function bannerToHtml(section: any): string {
+  const variantMap: Record<string, string> = {
     info: "alert-info",
     success: "alert-success",
     warning: "alert-warning",
     error: "alert-danger",
-  }[section.variant] || "alert-info";
+  };
+  const variantClass = variantMap[section.variant] || "alert-info";
 
   return `<div class="alert ${variantClass} ${section.dismissible ? "alert-dismissible fade show" : ""} mb-0" role="alert">
   <div class="container">
@@ -168,7 +163,7 @@ export function bannerToHtml(section: BannerSection): string {
 /**
  * Convert a Table section to HTML
  */
-export function tableToHtml(section: TableSection): string {
+export function tableToHtml(section: any): string {
   const tableClasses = [
     "table",
     section.striped ? "table-striped" : "",
@@ -176,10 +171,10 @@ export function tableToHtml(section: TableSection): string {
     section.hover ? "table-hover" : "",
   ].filter(Boolean).join(" ");
 
-  const headers = section.headers?.map((h) => `<th>${h}</th>`).join("\n            ") || "";
-  const rows = section.rows?.map((row) =>
+  const headers = section.headers?.map((h: any) => `<th>${h}</th>`).join("\n            ") || "";
+  const rows = section.rows?.map((row: any) =>
     `<tr>
-            ${row.cells.map((cell) => `<td>${cell}</td>`).join("\n            ")}
+            ${row.cells.map((cell: any) => `<td>${cell}</td>`).join("\n            ")}
           </tr>`
   ).join("\n          ") || "";
 
@@ -207,22 +202,22 @@ export function tableToHtml(section: TableSection): string {
  * Convert any section type to HTML
  */
 export function sectionToHtml(section: SectionConfig): string {
-  switch (section.type) {
+  switch (section.type as string) {
     case "hero-carousel":
-      return heroCarouselToHtml(section as HeroCarouselSection);
+      return heroCarouselToHtml(section as any);
     case "text-image":
-      return textImageToHtml(section as TextImageSection);
+      return textImageToHtml(section as any);
     case "stats-grid":
-      return statsGridToHtml(section as StatsGridSection);
+      return statsGridToHtml(section as any);
     case "card-grid":
-      return cardGridToHtml(section as CardGridSection);
+      return cardGridToHtml(section as any);
     case "banner":
-      return bannerToHtml(section as BannerSection);
+      return bannerToHtml(section as any);
     case "table":
-      return tableToHtml(section as TableSection);
+      return tableToHtml(section as any);
     case "freeform":
       // Freeform sections already have HTML
-      return section.grapesjs?.html || "<div>Empty freeform section</div>";
+      return (section as any).grapesjs?.html || "<div>Empty freeform section</div>";
     default:
       return "<div>Unknown section type</div>";
   }

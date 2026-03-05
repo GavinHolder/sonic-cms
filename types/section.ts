@@ -14,6 +14,31 @@ import type { FormField } from "@/types/page";
 export type SectionType = "HERO" | "FOOTER" | "CTA" | "NORMAL" | "FLEXIBLE";
 
 /**
+ * Legacy type aliases for backward compatibility.
+ * Old code referenced these kebab-case section types.
+ */
+export type HeroCarouselSection = HeroSection;
+export type TextImageSection = NormalSection;
+export type StatsGridSection = NormalSection;
+export type CardGridSection = NormalSection;
+export type BannerSection = NormalSection;
+export type TableSection = NormalSection;
+export type CTAFooterSection = CTASection;
+
+/** CSS isolation mode for freeform sections */
+export type CSSIsolationMode = "global" | "scoped" | "shadow";
+
+/** Page config type (used in section-data.ts localStorage layer) */
+export interface PageConfig {
+  id: string;
+  slug: string;
+  title: string;
+  type: string;
+  enabled: boolean;
+  sections?: SectionConfig[];
+}
+
+/**
  * Section Category - Used for positioning logic
  * - special: Hero and Footer (non-movable, fixed positions)
  * - movable: CTA and Normal (can be reordered between hero and footer)

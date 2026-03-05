@@ -35,7 +35,7 @@ const defaultSections: Record<string, SectionConfig> = {
     items: [],
     autoPlayInterval: 5000,
     showDots: true,
-  } as HeroCarouselSection,
+  } as any,
   "text-image": {
     id: "",
     type: "text-image",
@@ -48,7 +48,7 @@ const defaultSections: Record<string, SectionConfig> = {
     imageAlt: "Section image",
     layout: "right",
     buttons: [],
-  } as TextImageSection,
+  } as any,
   "stats-grid": {
     id: "",
     type: "stats-grid",
@@ -59,7 +59,7 @@ const defaultSections: Record<string, SectionConfig> = {
     subheading: "See what we've accomplished",
     columns: 4,
     stats: [],
-  } as StatsGridSection,
+  } as any,
   "card-grid": {
     id: "",
     type: "card-grid",
@@ -70,7 +70,7 @@ const defaultSections: Record<string, SectionConfig> = {
     subheading: "What we offer",
     columns: 3,
     cards: [],
-  } as CardGridSection,
+  } as any,
   banner: {
     id: "",
     type: "banner",
@@ -80,7 +80,7 @@ const defaultSections: Record<string, SectionConfig> = {
     content: "Your announcement here",
     variant: "info",
     dismissible: true,
-  } as BannerSection,
+  } as any,
   table: {
     id: "",
     type: "table",
@@ -94,7 +94,7 @@ const defaultSections: Record<string, SectionConfig> = {
     striped: true,
     bordered: true,
     hover: true,
-  } as TableSection,
+  } as any,
   "cta-footer": {
     id: "",
     type: "cta-footer",
@@ -113,7 +113,7 @@ const defaultSections: Record<string, SectionConfig> = {
       address: "",
     },
     socialLinks: [],
-  } as CTAFooterSection,
+  } as any,
   flexible: {
     id: "",
     type: "flexible",
@@ -168,47 +168,47 @@ export default function SectionEditorModal({
   };
 
   const renderEditor = () => {
-    switch (editedSection.type) {
+    switch (editedSection.type as string) {
       case "hero-carousel":
         return (
           <HeroCarouselEditor
-            section={editedSection as HeroCarouselSection}
-            onChange={(updated) => setEditedSection(updated)}
+            section={editedSection as any}
+            onChange={(updated: any) => setEditedSection(updated)}
           />
         );
       case "text-image":
         return (
           <TextImageEditor
-            section={editedSection as TextImageSection}
-            onChange={(updated) => setEditedSection(updated)}
+            section={editedSection as any}
+            onChange={(updated: any) => setEditedSection(updated)}
           />
         );
       case "stats-grid":
         return (
           <StatsGridEditor
-            section={editedSection as StatsGridSection}
-            onChange={(updated) => setEditedSection(updated)}
+            section={editedSection as any}
+            onChange={(updated: any) => setEditedSection(updated)}
           />
         );
       case "card-grid":
         return (
           <CardGridEditor
-            section={editedSection as CardGridSection}
-            onChange={(updated) => setEditedSection(updated)}
+            section={editedSection as any}
+            onChange={(updated: any) => setEditedSection(updated)}
           />
         );
       case "banner":
         return (
           <BannerEditor
-            section={editedSection as BannerSection}
-            onChange={(updated) => setEditedSection(updated)}
+            section={editedSection as any}
+            onChange={(updated: any) => setEditedSection(updated)}
           />
         );
       case "table":
         return (
           <TableEditor
-            section={editedSection as TableSection}
-            onChange={(updated) => setEditedSection(updated)}
+            section={editedSection as any}
+            onChange={(updated: any) => setEditedSection(updated)}
           />
         );
       case "flexible":
@@ -216,14 +216,14 @@ export default function SectionEditorModal({
         return (
           <FlexibleSectionEditor
             section={editedSection as FlexibleSection}
-            onChange={(updated) => setEditedSection(updated)}
+            onChange={(updated: any) => setEditedSection(updated)}
           />
         );
       case "cta-footer":
         return (
           <CTAFooterEditor
-            section={editedSection as CTAFooterSection}
-            onChange={(updated) => setEditedSection(updated)}
+            section={editedSection as any}
+            onChange={(updated: any) => setEditedSection(updated)}
           />
         );
       default:
@@ -232,7 +232,7 @@ export default function SectionEditorModal({
   };
 
   const getSectionTypeName = () => {
-    switch (editedSection.type) {
+    switch (editedSection.type as string) {
       case "hero-carousel":
         return "Hero Carousel";
       case "text-image":
@@ -470,10 +470,10 @@ function HeroCarouselEditor({
   section,
   onChange,
 }: {
-  section: HeroCarouselSection;
-  onChange: (section: HeroCarouselSection) => void;
+  section: any;
+  onChange: (section: any) => void;
 }) {
-  const updateItem = (index: number, updates: Partial<HeroCarouselSection["items"][0]>) => {
+  const updateItem = (index: number, updates: Partial<any>) => {
     const newItems = [...section.items];
     newItems[index] = { ...newItems[index], ...updates };
     onChange({ ...section, items: newItems });
@@ -481,7 +481,7 @@ function HeroCarouselEditor({
 
   const updateOverlay = (
     index: number,
-    updates: Partial<NonNullable<HeroCarouselSection["items"][0]["overlay"]>>
+    updates: Partial<any>
   ) => {
     const newItems = [...section.items];
     newItems[index] = {
@@ -530,7 +530,7 @@ function HeroCarouselEditor({
           </div>
         </div>
 
-        {section.items.map((item, index) => (
+        {section.items.map((item: any, index: number) => (
           <div key={item.id} className="card mb-3">
             <div className="card-header bg-light">
               <strong>Slide {index + 1}</strong>
@@ -633,8 +633,8 @@ function TextImageEditor({
   section,
   onChange,
 }: {
-  section: TextImageSection;
-  onChange: (section: TextImageSection) => void;
+  section: any;
+  onChange: (section: any) => void;
 }) {
   return (
     <div className="card">
@@ -699,7 +699,7 @@ function TextImageEditor({
             <hr />
             <strong>Buttons</strong>
           </div>
-          {section.buttons?.map((button, index) => (
+          {section.buttons?.map((button: any, index: number) => (
             <div key={index} className="col-12">
               <div className="row g-2">
                 <div className="col-md-4">
@@ -751,7 +751,7 @@ function TextImageEditor({
                     type="button"
                     className="btn btn-outline-danger w-100"
                     onClick={() => {
-                      const newButtons = section.buttons?.filter((_, i) => i !== index) || [];
+                      const newButtons = section.buttons?.filter((_: any, i: number) => i !== index) || [];
                       onChange({ ...section, buttons: newButtons });
                     }}
                   >
@@ -788,10 +788,10 @@ function StatsGridEditor({
   section,
   onChange,
 }: {
-  section: StatsGridSection;
-  onChange: (section: StatsGridSection) => void;
+  section: any;
+  onChange: (section: any) => void;
 }) {
-  const updateStat = (index: number, updates: Partial<StatsGridSection["stats"][0]>) => {
+  const updateStat = (index: number, updates: Partial<any>) => {
     const newStats = [...section.stats];
     newStats[index] = { ...newStats[index], ...updates };
     onChange({ ...section, stats: newStats });
@@ -843,7 +843,7 @@ function StatsGridEditor({
             <hr />
             <strong>Statistics ({section.stats.length})</strong>
           </div>
-          {section.stats.map((stat, index) => (
+          {section.stats.map((stat: any, index: number) => (
             <div key={stat.id} className="col-md-6">
               <div className="card">
                 <div className="card-body">
@@ -901,10 +901,10 @@ function CardGridEditor({
   section,
   onChange,
 }: {
-  section: CardGridSection;
-  onChange: (section: CardGridSection) => void;
+  section: any;
+  onChange: (section: any) => void;
 }) {
-  const updateCard = (index: number, updates: Partial<CardGridSection["cards"][0]>) => {
+  const updateCard = (index: number, updates: Partial<any>) => {
     const newCards = [...section.cards];
     newCards[index] = { ...newCards[index], ...updates };
     onChange({ ...section, cards: newCards });
@@ -956,7 +956,7 @@ function CardGridEditor({
             <hr />
             <strong>Cards ({section.cards.length})</strong>
           </div>
-          {section.cards.map((card, index) => (
+          {section.cards.map((card: any, index: number) => (
             <div key={card.id} className="col-12">
               <div className="card">
                 <div className="card-header bg-light d-flex justify-content-between align-items-center">
@@ -1020,8 +1020,8 @@ function BannerEditor({
   section,
   onChange,
 }: {
-  section: BannerSection;
-  onChange: (section: BannerSection) => void;
+  section: any;
+  onChange: (section: any) => void;
 }) {
   return (
     <div className="card">
@@ -1085,8 +1085,8 @@ function TableEditor({
   section,
   onChange,
 }: {
-  section: TableSection;
-  onChange: (section: TableSection) => void;
+  section: any;
+  onChange: (section: any) => void;
 }) {
   const updateRow = (rowIndex: number, cellIndex: number, value: string) => {
     const newRows = [...section.rows];
@@ -1172,7 +1172,7 @@ function TableEditor({
             <hr />
             <strong>Table Headers</strong>
             <div className="row g-2 mt-2">
-              {section.headers.map((header, index) => (
+              {section.headers.map((header: any, index: number) => (
                 <div key={index} className="col">
                   <input
                     type="text"
@@ -1191,15 +1191,15 @@ function TableEditor({
               <table className="table table-sm table-bordered">
                 <thead>
                   <tr>
-                    {section.headers.map((header, index) => (
+                    {section.headers.map((header: any, index: number) => (
                       <th key={index} className="small">{header}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {section.rows.map((row, rowIndex) => (
+                  {section.rows.map((row: any, rowIndex: number) => (
                     <tr key={row.id}>
-                      {row.cells.map((cell, cellIndex) => (
+                      {row.cells.map((cell: any, cellIndex: number) => (
                         <td key={cellIndex}>
                           <input
                             type="text"
@@ -1230,8 +1230,8 @@ function CTAFooterEditor({
   section,
   onChange,
 }: {
-  section: CTAFooterSection;
-  onChange: (section: CTAFooterSection) => void;
+  section: any;
+  onChange: (section: any) => void;
 }) {
   const updateContactInfo = (field: string, value: string) => {
     onChange({
@@ -1245,7 +1245,7 @@ function CTAFooterEditor({
 
   const updateSocialLink = (
     index: number,
-    updates: Partial<NonNullable<CTAFooterSection["socialLinks"]>[0]>
+    updates: Partial<any>
   ) => {
     const newLinks = [...(section.socialLinks || [])];
     newLinks[index] = { ...newLinks[index], ...updates };
@@ -1261,7 +1261,7 @@ function CTAFooterEditor({
   };
 
   const removeSocialLink = (index: number) => {
-    const newLinks = section.socialLinks?.filter((_, i) => i !== index) || [];
+    const newLinks = section.socialLinks?.filter((_: any, i: number) => i !== index) || [];
     onChange({ ...section, socialLinks: newLinks });
   };
 
@@ -1302,7 +1302,7 @@ function CTAFooterEditor({
             <hr />
             <strong>CTA Buttons</strong>
           </div>
-          {section.buttons?.map((button, index) => (
+          {section.buttons?.map((button: any, index: number) => (
             <div key={index} className="col-12">
               <div className="row g-2">
                 <div className="col-md-4">
@@ -1354,7 +1354,7 @@ function CTAFooterEditor({
                     type="button"
                     className="btn btn-outline-danger w-100"
                     onClick={() => {
-                      const newButtons = section.buttons?.filter((_, i) => i !== index) || [];
+                      const newButtons = section.buttons?.filter((_: any, i: number) => i !== index) || [];
                       onChange({ ...section, buttons: newButtons });
                     }}
                   >
@@ -1422,7 +1422,7 @@ function CTAFooterEditor({
             <hr />
             <strong>Social Links</strong>
           </div>
-          {section.socialLinks?.map((social, index) => (
+          {section.socialLinks?.map((social: any, index: number) => (
             <div key={index} className="col-12">
               <div className="row g-2">
                 <div className="col-md-3">
@@ -1431,7 +1431,7 @@ function CTAFooterEditor({
                     value={social.platform}
                     onChange={(e) =>
                       updateSocialLink(index, {
-                        platform: e.target.value as CTAFooterSection["socialLinks"][0]["platform"],
+                        platform: e.target.value as string,
                       })
                     }
                   >

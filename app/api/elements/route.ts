@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       return errorResponse("SECTION_NOT_FOUND", "Section not found", 404);
     }
 
-    if (!section.isCustom) {
+    if (!(section as any).isCustom) {
       return errorResponse(
         "INVALID_SECTION_TYPE",
         "Elements can only be added to custom sections",

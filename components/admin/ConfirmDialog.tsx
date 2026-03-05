@@ -139,9 +139,9 @@ export default function ConfirmDialog({
                 className={`btn ${buttonClass}`}
                 onClick={handleConfirm}
                 disabled={
-                  requiresTextInput &&
+                  !!(requiresTextInput &&
                   expectedInput &&
-                  inputValue !== expectedInput
+                  inputValue !== expectedInput)
                 }
               >
                 {confirmText}

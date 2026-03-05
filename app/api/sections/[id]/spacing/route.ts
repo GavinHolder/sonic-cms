@@ -61,20 +61,21 @@ export async function PUT(
 
     // Merge with existing spacing
     const updatedSpacing = {
-      ...(existingSection.spacing as any),
+      ...((existingSection as any).spacing ?? {}),
       ...newSpacing,
     };
 
-    // Update section spacing
+    // Update section spacing (paddingTop/paddingBottom are the direct fields)
     const section = await prisma.section.update({
       where: { id },
       data: {
-        spacing: updatedSpacing,
+        paddingTop: updatedSpacing.paddingTop,
+        paddingBottom: updatedSpacing.paddingBottom,
       },
     });
 
     return successResponse({
-      spacing: section.spacing,
+      spacing: { paddingTop: section.paddingTop, paddingBottom: section.paddingBottom },
       message: "Spacing updated successfully",
     });
   } catch (error) {

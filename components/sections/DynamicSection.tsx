@@ -67,7 +67,10 @@ export default function DynamicSection({ section, isFirstAfterHero = false }: Dy
     return null;
   }
 
-  switch (section.type) {
+  // Cast to any for legacy kebab-case branches that access non-typed properties
+  const s = section as any;
+
+  switch (section.type as string) {
     case "hero":
     case "hero-carousel":
     case "HERO":
@@ -76,19 +79,19 @@ export default function DynamicSection({ section, isFirstAfterHero = false }: Dy
     case "text-image": {
       const el = (
         <TextImageSection
-          id={section.id}
-          heading={section.heading}
-          content={section.content}
-          imageSrc={section.imageSrc}
-          imageAlt={section.imageAlt}
-          layout={section.layout}
-          buttons={section.buttons}
-          background={section.background}
-          banner={section.banner}
-          paddingTop={section.paddingTop}
-          paddingBottom={section.paddingBottom}
-          fullScreen={section.fullScreen}
-          snapThreshold={section.snapThreshold}
+          id={s.id}
+          heading={s.heading}
+          content={s.content}
+          imageSrc={s.imageSrc}
+          imageAlt={s.imageAlt}
+          layout={s.layout}
+          buttons={s.buttons}
+          background={s.background}
+          banner={s.banner}
+          paddingTop={s.paddingTop}
+          paddingBottom={s.paddingBottom}
+          fullScreen={s.fullScreen}
+          snapThreshold={s.snapThreshold}
         />
       );
       if (shouldShowTriangle(section, isFirstAfterHero)) {
@@ -100,17 +103,17 @@ export default function DynamicSection({ section, isFirstAfterHero = false }: Dy
     case "stats-grid": {
       const el = (
         <StatsGrid
-          id={section.id}
-          heading={section.heading}
-          subheading={section.subheading}
-          stats={section.stats}
-          columns={section.columns}
-          background={section.background}
-          banner={section.banner}
-          paddingTop={section.paddingTop}
-          paddingBottom={section.paddingBottom}
-          fullScreen={section.fullScreen}
-          snapThreshold={section.snapThreshold}
+          id={s.id}
+          heading={s.heading}
+          subheading={s.subheading}
+          stats={s.stats}
+          columns={s.columns}
+          background={s.background}
+          banner={s.banner}
+          paddingTop={s.paddingTop}
+          paddingBottom={s.paddingBottom}
+          fullScreen={s.fullScreen}
+          snapThreshold={s.snapThreshold}
         />
       );
       if (shouldShowTriangle(section, isFirstAfterHero)) {
@@ -122,17 +125,17 @@ export default function DynamicSection({ section, isFirstAfterHero = false }: Dy
     case "card-grid": {
       const el = (
         <CardGrid
-          id={section.id}
-          heading={section.heading}
-          subheading={section.subheading}
-          cards={section.cards}
-          columns={section.columns}
-          background={section.background}
-          banner={section.banner}
-          paddingTop={section.paddingTop}
-          paddingBottom={section.paddingBottom}
-          fullScreen={section.fullScreen}
-          snapThreshold={section.snapThreshold}
+          id={s.id}
+          heading={s.heading}
+          subheading={s.subheading}
+          cards={s.cards}
+          columns={s.columns}
+          background={s.background}
+          banner={s.banner}
+          paddingTop={s.paddingTop}
+          paddingBottom={s.paddingBottom}
+          fullScreen={s.fullScreen}
+          snapThreshold={s.snapThreshold}
         />
       );
       if (shouldShowTriangle(section, isFirstAfterHero)) {
@@ -155,9 +158,9 @@ export default function DynamicSection({ section, isFirstAfterHero = false }: Dy
             padding: 0,
           }}
         >
-          <Banner variant={section.variant}>
+          <Banner variant={s.variant}>
             <div dangerouslySetInnerHTML={{
-              __html: DOMPurify.sanitize(section.content, {
+              __html: DOMPurify.sanitize(s.content, {
                 ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a', 'p', 'br', 'ul', 'ol', 'li'],
                 ALLOWED_ATTR: ['href', 'target', 'rel']
               })
@@ -174,38 +177,38 @@ export default function DynamicSection({ section, isFirstAfterHero = false }: Dy
     case "table":
       return (
         <Section
-          background={section.background}
+          background={s.background}
           containerSize="lg"
-          paddingTop={section.paddingTop}
-          paddingBottom={section.paddingBottom}
-          banner={section.banner}
-          fullScreen={section.fullScreen}
-          snapThreshold={section.snapThreshold}
+          paddingTop={s.paddingTop}
+          paddingBottom={s.paddingBottom}
+          banner={s.banner}
+          fullScreen={s.fullScreen}
+          snapThreshold={s.snapThreshold}
         >
-          {section.heading && (
-            <h2 className="h2 fw-bold text-center mb-2">{section.heading}</h2>
+          {s.heading && (
+            <h2 className="h2 fw-bold text-center mb-2">{s.heading}</h2>
           )}
-          {section.subheading && (
-            <p className="text-center text-muted mb-4">{section.subheading}</p>
+          {s.subheading && (
+            <p className="text-center text-muted mb-4">{s.subheading}</p>
           )}
 
           <div className="table-responsive">
             <table
-              className={`table ${section.striped ? "table-striped" : ""} ${
-                section.bordered ? "table-bordered" : ""
-              } ${section.hover ? "table-hover" : ""}`}
+              className={`table ${s.striped ? "table-striped" : ""} ${
+                s.bordered ? "table-bordered" : ""
+              } ${s.hover ? "table-hover" : ""}`}
             >
               <thead>
                 <tr>
-                  {section.headers.map((header, index) => (
+                  {s.headers.map((header: any, index: number) => (
                     <th key={index}>{header}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {section.rows.map((row) => (
+                {s.rows.map((row: any) => (
                   <tr key={row.id}>
-                    {row.cells.map((cell, cellIndex) => (
+                    {row.cells.map((cell: any, cellIndex: number) => (
                       <td key={cellIndex} dangerouslySetInnerHTML={{
                         __html: DOMPurify.sanitize(cell, {
                           ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a', 'span', 'br'],
@@ -224,16 +227,16 @@ export default function DynamicSection({ section, isFirstAfterHero = false }: Dy
     case "cta-footer": {
       const el = (
         <CTAFooter
-          heading={section.heading}
-          subheading={section.subheading}
-          buttons={section.buttons}
-          contactInfo={section.contactInfo}
-          socialLinks={section.socialLinks}
-          background={section.background}
-          paddingTop={section.paddingTop}
-          paddingBottom={section.paddingBottom}
-          fullScreen={section.fullScreen}
-          snapThreshold={section.snapThreshold}
+          heading={s.heading}
+          subheading={s.subheading}
+          buttons={s.buttons}
+          contactInfo={s.contactInfo}
+          socialLinks={s.socialLinks}
+          background={s.background}
+          paddingTop={s.paddingTop}
+          paddingBottom={s.paddingBottom}
+          fullScreen={s.fullScreen}
+          snapThreshold={s.snapThreshold}
         />
       );
       if (shouldShowTriangle(section, isFirstAfterHero)) {
@@ -655,7 +658,7 @@ function CTARenderer({ section }: { section: CTASection }) {
         background={background}
         paddingTop={paddingTop}
         paddingBottom={paddingBottom}
-        snapThreshold={section.snapThreshold}
+        snapThreshold={(section as any).snapThreshold}
         style="contact-form"
         formFields={content.formFields}
         formTitle={content.formTitle}

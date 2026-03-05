@@ -760,7 +760,7 @@ function DesignerSubElement({ sub }: { sub: { type: string; props?: Record<strin
             function stepCount(now: number) {
               const t = Math.min((now - start) / animDuration, 1);
               const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
-              span.textContent = Math.round(eased * target).toLocaleString();
+              span!.textContent = Math.round(eased * target).toLocaleString();
               if (t < 1) requestAnimationFrame(stepCount);
             }
             requestAnimationFrame(stepCount);
@@ -794,7 +794,7 @@ function DesignerSubElement({ sub }: { sub: { type: string; props?: Record<strin
             let i = 0;
             const charDur = animDuration / Math.max(fullText.length, 1);
             function typeNext() {
-              if (i < fullText.length) { span.textContent = fullText.slice(0, ++i); setTimeout(typeNext, charDur); }
+              if (i < fullText.length) { span!.textContent = fullText.slice(0, ++i); setTimeout(typeNext, charDur); }
             }
             typeNext();
             break;
@@ -1508,6 +1508,17 @@ function HeroElement({ element }: { element: FlexibleElement }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ISPPriceCard placeholder — component not yet implemented
+function ISPPriceCard(props: Record<string, any>) {
+  return (
+    <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, textAlign: "center" }}>
+      <strong>{props.packageName || "Package"}</strong>
+      <div style={{ fontSize: 24, fontWeight: 700 }}>{props.price || "R0"}</div>
+      <div>{props.downloadSpeed ?? 0} {props.speedUnit || "Mbps"}</div>
     </div>
   );
 }

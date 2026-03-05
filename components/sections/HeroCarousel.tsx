@@ -149,8 +149,8 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
     return {};
   };
 
-  const getPositionClasses = (position: typeof slides[0]["overlay"]["position"]) => {
-    const positionMap: Record<typeof position, string> = {
+  const getPositionClasses = (position: string) => {
+    const positionMap: Record<string, string> = {
       topLeft: "align-items-start justify-content-start",
       topCenter: "align-items-start justify-content-center",
       topRight: "align-items-start justify-content-end",
@@ -199,7 +199,7 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
     <div
       id={section.id}
       className="hero-carousel position-relative w-100"
-      style={{ minHeight: "100vh", minHeight: "100dvh", overflow: "hidden" }}
+      style={{ minHeight: "100dvh", overflow: "hidden" }}
     >
       <AnimatePresence mode="wait">
         <motion.div
@@ -345,7 +345,7 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                             textDecoration: "none",
                             borderRadius: "8px",
                             border: button.variant === "outline" ? `2px solid ${button.backgroundColor}` : "none",
-                            marginRight: index < slide.overlay.buttons.length - 1 ? `${slide.overlay.spacing.betweenButtons}px` : "0",
+                            marginRight: index < (slide.overlay?.buttons?.length ?? 0) - 1 ? `${slide.overlay?.spacing?.betweenButtons ?? 0}px` : "0",
                             boxShadow: `
                               0 2px 8px rgba(0, 0, 0, 0.2),
                               0 4px 16px rgba(0, 0, 0, 0.15),

@@ -83,7 +83,7 @@ export default function Home() {
 
   // Find the index of the first section after the hero
   const heroIndex = enabledSections.findIndex(
-    (s) => s.type === "HERO" || s.type === "hero" || s.type === "hero-carousel"
+    (s) => s.type === "HERO" || (s.type as string) === "hero" || (s.type as string) === "hero-carousel"
   );
 
   return (

@@ -7,7 +7,6 @@ const nextConfig: NextConfig = {
   output: "standalone",
   // Allow deployment despite pre-existing TS errors — fix incrementally
   typescript: { ignoreBuildErrors: true },
-  eslint: { ignoreDuringBuilds: true },
   images: {
     remotePatterns: [
       {

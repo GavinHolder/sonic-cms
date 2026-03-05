@@ -38,6 +38,8 @@ async function fixHeroSection() {
       console.log('❌ Hero section not found. Creating new one...');
 
       // Create new hero section with correct structure
+      // Find admin user to use as creator
+      const adminUser = await prisma.user.findFirst({ where: { role: 'SUPER_ADMIN' } });
       const newHero = await prisma.section.create({
         data: {
           pageId: homePage.id,
@@ -48,6 +50,7 @@ async function fixHeroSection() {
           background: 'transparent',
           paddingTop: 0,
           paddingBottom: 0,
+          createdBy: adminUser?.id || 'system',
           content: {
             slides: [
               {

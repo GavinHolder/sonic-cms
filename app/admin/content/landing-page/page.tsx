@@ -592,7 +592,7 @@ export default function LandingPageManager() {
         />
       )}
 
-      {editingSection && (editingSection.type === "FLEXIBLE" || editingSection.type === "flexible") && (
+      {editingSection && (editingSection.type === "FLEXIBLE" || (editingSection.type as string) === "flexible") && (
         <FlexibleSectionEditorModal
           section={editingSection as FlexibleSection}
           onSave={async (updates, shouldClose = true) => {
