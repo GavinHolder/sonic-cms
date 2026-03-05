@@ -50,7 +50,7 @@ export default function Services() {
             <div className="card border rounded-3 bg-white p-4 shadow-sm h-100">
               <h3 className="h5 fw-semibold" style={{ color: "#9333ea" }}>VOIP</h3>
               <p className="mt-3 text-muted">
-                Crystal‑clear voice calls over your Sonic connection. Reliable,
+                Crystal‑clear voice calls over your connection. Reliable,
                 affordable, and business‑ready.
               </p>
               <Link

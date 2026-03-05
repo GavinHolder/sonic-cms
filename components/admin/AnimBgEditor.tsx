@@ -65,8 +65,6 @@ const TYPE_LABELS: Record<AnimBgType, { label: string; icon: string; desc: strin
   "3d-tilt":         { label: "3D Tilt",          icon: "bi-box",        desc: "Mouse/auto perspective warp" },
   "custom-code":     { label: "Custom Code",      icon: "bi-code-slash", desc: "Your own Anime.js code" },
   "3d-scene":        { label: "3D Scene",         icon: "bi-badge-3d",   desc: "Three.js WebGL model" },
-  "fibre-pulse":     { label: "Fibre Pulse",      icon: "bi-lightning",  desc: "Light pulses along fibre-optic cables" },
-  "wifi-pulse":      { label: "WiFi Pulse",       icon: "bi-wifi",       desc: "Expanding signal rings from a source point" },
   "svg-animation":   { label: "SVG Animation",    icon: "bi-filetype-svg", desc: "Custom SVG with built-in or native animations" },
   "text-effects":    { label: "Text Effects",     icon: "bi-type",         desc: "Animated text — typewriter, scramble, glitch, clip fill, intro reveal" },
 };
@@ -132,59 +130,6 @@ const ANIM_BG_SCHEMAS: Record<AnimBgType, FieldDef[]> = {
     { key: "perspective", label: "Perspective", type: "slider", min: 800, max: 2000, unit: "px", hint: "Higher = flatter" },
   ],
   "custom-code": [],  // rendered specially below
-  "fibre-pulse": [
-    { key: "cableCount",   label: "Cable Count",   type: "slider",      min: 3,  max: 16,  unit: "",   hint: "Number of fibre paths (desktop only)" },
-    { key: "pulseCount",   label: "Pulses/Cable",  type: "slider",      min: 1,  max: 4,   unit: "" },
-    { key: "pulseSpeed",   label: "Pulse Speed",   type: "slider",      min: 1,  max: 15,  unit: "s",  hint: "Seconds to traverse the full cable" },
-    { key: "pulseSize",    label: "Glow Radius",   type: "slider",      min: 5,  max: 60,  unit: "px" },
-    { key: "cableWidth",   label: "Cable Width",   type: "slider",      min: 1,  max: 4,   unit: "px" },
-    { key: "cableOpacity", label: "Cable Opacity", type: "slider",      min: 0,  max: 100, unit: "%" },
-    { key: "curvature",    label: "Curvature",     type: "slider",      min: 0,  max: 100, unit: "",   hint: "How much the cables curve (0 = straight)" },
-    { key: "origin",       label: "Origin Corner", type: "select",      options: [
-      { value: "top-left",     label: "Top Left" },
-      { value: "bottom-left",  label: "Bottom Left" },
-      { value: "top-right",    label: "Top Right" },
-      { value: "bottom-right", label: "Bottom Right" },
-      { value: "random",       label: "Random — cables from scattered edge positions" },
-    ]},
-    { key: "cableColor",   label: "Cable Colour",  type: "colorPicker", hint: "Overrides layer palette for cable strands (leave #000000 or clear to use palette)" },
-    { key: "pulseColor",   label: "Pulse Colour",  type: "colorPicker", hint: "Overrides cable colour for the light pulses (leave #000000 or clear to use cable colour)" },
-    { key: "pulseDirection", label: "Pulse Direction", type: "select", options: [
-      { value: "source-to-end",  label: "Source → End (default)" },
-      { value: "end-to-source",  label: "End → Source (reverse)" },
-      { value: "random",         label: "Random — each pulse picks its own direction" },
-      { value: "bidirectional",  label: "Bidirectional — pulses travel both ways at once" },
-    ], hint: "Controls which direction light pulses travel along each cable" },
-    { key: "randomPulseCount", label: "Random Pulse Count", type: "toggle",
-      hint: "Each cable gets a random 1–N active pulses for burst-like data-packet patterns" },
-  ],
-  "wifi-pulse": [
-    { key: "style",         label: "Style",             type: "select", options: [
-      { value: "rings", label: "Rings — full concentric circles (water ripple)" },
-      { value: "arcs",  label: "Arcs — partial arc facing direction (WiFi signal)" },
-    ], hint: "Rings = water drop ripple effect. Arcs = directed WiFi signal." },
-    { key: "ringCount",     label: "Rings / Burst",     type: "slider", min: 1,   max: 6,    unit: "",   defaultValue: 3,    hint: "Rings emitted per burst" },
-    { key: "interval",      label: "Emission Interval", type: "slider", min: 500, max: 6000, unit: "ms", defaultValue: 2000, hint: "Time between bursts — higher = more subtle and less distracting" },
-    { key: "speed",         label: "Ring Lifetime",     type: "slider", min: 1,   max: 8,    unit: "s",  defaultValue: 2.5,  hint: "How long each ring expands before fading", step: 0.5 },
-    { key: "maxRadius",     label: "Max Radius",        type: "slider", min: 10,  max: 150,  unit: "%",  defaultValue: 70,   hint: "Max ring size as % of section's largest dimension. Over 100 = extends beyond edges." },
-    { key: "thickness",     label: "Ring Thickness",    type: "slider", min: 1,   max: 8,    unit: "px", defaultValue: 2 },
-    { key: "posX",          label: "AP1 Position X",    type: "slider", min: 0,   max: 100,  unit: "%",  defaultValue: 50, hint: "Horizontal position of access point 1. Additional APs auto-spread." },
-    { key: "posY",          label: "AP1 Position Y",    type: "slider", min: 0,   max: 100,  unit: "%",  defaultValue: 50, hint: "Vertical position of access point 1. 0=top · 100=bottom." },
-    { key: "direction",     label: "Arc Direction",     type: "slider", min: 0,   max: 360,  unit: "°",  defaultValue: 270, hint: "Direction arcs face. 0°=right · 90°=down · 180°=left · 270°=up (WiFi pointing up)", showWhen: { key: "style", value: "arcs" } },
-    { key: "arcSpread",     label: "Arc Spread",        type: "slider", min: 10,  max: 120,  unit: "°",  defaultValue: 45,  hint: "Total width of the arc wedge. 20°=narrow beam · 45°=tight WiFi · 60°=standard WiFi · 90°=wide fan. Use 'rings' style for full circles.", showWhen: { key: "style", value: "arcs" } },
-    { key: "ringColor",     label: "Ring Colour",       type: "colorPicker", hint: "Override colour. Leave #000000 or blank to use layer palette." },
-    { key: "shadowOpacity", label: "Glow / Shadow",     type: "slider", min: 0,   max: 100,  unit: "%",  hint: "Adds a glow halo around each ring for depth effect" },
-    { key: "perspective3d",      label: "3D Perspective",    type: "toggle", hint: "Squish rings into ellipses for a top-down pond-drop 3D look" },
-    { key: "mouseInterference",  label: "Mouse Interference", type: "toggle", hint: "Rings warp and deflect around the mouse cursor as you hover" },
-    { key: "mouseStrength",      label: "Interference Strength", type: "slider", min: 1, max: 100, unit: "%", hint: "How strongly the mouse or touch pushes the rings — higher = more dramatic", showWhen: { key: "mouseInterference", value: true } },
-    { key: "objectInterference", label: "Object Interference", type: "toggle", hint: "Rings fade out where they intersect visible elements — signal blocked by obstacles" },
-    // ── Multi-AP network ──────────────────────────────────────────────────────
-    { key: "apCount",       label: "Access Points",     type: "slider", min: 1, max: 5, unit: "", defaultValue: 1, hint: "Number of independent WiFi APs — each emits rings from its own position. 2+ APs use additive blending: where arcs cross they visibly brighten, simulating constructive interference." },
-    { key: "apDrift",       label: "Drift / Move",      type: "toggle", hint: "Access points slowly drift around the canvas — like a roaming hotspot" },
-    { key: "apDriftSpeed",  label: "Drift Speed",       type: "slider", min: 1, max: 10, unit: "", defaultValue: 3, hint: "How fast access points drift. 1=barely moving · 10=constant motion", showWhen: { key: "apDrift", value: true } },
-    { key: "apRotate",      label: "Rotate Direction",  type: "toggle", hint: "Each AP's arc direction slowly rotates — useful for arcs style to create sweeping signal patterns" },
-    { key: "apRotateSpeed", label: "Rotation Speed",    type: "slider", min: 1, max: 10, unit: "", defaultValue: 3, hint: "How fast arc directions rotate. 1=very slow sweep · 10=fast spin", showWhen: { key: "apRotate", value: true } },
-  ],
   "3d-scene": [
     { key: "modelUrl",       label: "3D Model",        type: "imageUpload", hint: "Upload a .glb or .gltf file" },
     { key: "autoRotate",     label: "Auto-rotate",     type: "toggle" },
@@ -353,7 +298,7 @@ function SequenceEditor({
     const entry: SequenceEntry = {
       id: `seq-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       type,
-      text: type === "text" ? "SONIC" : "",
+      text: type === "text" ? "YOUR COMPANY" : "",
       animationType: "typewriter",
       mediaUrl: "",
       holdMs: 1000,
@@ -1037,7 +982,7 @@ export default function AnimBgEditor({ config, onChange, colorPalette, sectionBa
 
           <div className="alert alert-secondary small py-2 mt-2">
             <i className="bi bi-phone me-1" />
-            On mobile (&lt;768px), only <strong>Floating Shapes</strong> and <strong>Moving Gradient</strong> run — all other types (including Fibre Pulse) are skipped for performance.
+            On mobile (&lt;768px), only <strong>Floating Shapes</strong> and <strong>Moving Gradient</strong> run — all other types are skipped for performance.
           </div>
         </>
       )}

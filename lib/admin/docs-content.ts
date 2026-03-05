@@ -1,5 +1,5 @@
 /**
- * Sonic CMS — Complete Documentation Content
+ * Your Company CMS — Complete Documentation Content
  * Organized as a topic tree with markdown content for each topic.
  */
 
@@ -16,9 +16,9 @@ export interface DocTopic {
 // ─────────────────────────────────────────────
 
 const OVERVIEW = `
-# Sonic CMS — Platform Overview
+# Your Company CMS — Platform Overview
 
-Sonic CMS is a full-stack content management platform built for **SONIC**, a South African ISP.
+Your Company CMS is a full-stack content management platform built for business websites.
 It gives non-technical administrators complete control over the public website without touching code.
 
 ---
@@ -134,7 +134,7 @@ The bottom section of the page. Contains contact info, navigation columns, socia
 
 ## 4. FLEXIBLE — Visual Designer Section
 
-A free-form canvas section designed using the drag-and-drop **Flexible Section Designer**. Supports 11 element types (including ISP Price Card), animated backgrounds, glass/glow effects, and custom gradients.
+A free-form canvas section designed using the drag-and-drop **Flexible Section Designer**. Supports 10 element types, animated backgrounds, glass/glow effects, and custom gradients.
 
 > See the **Flexible Sections** documentation for full details.
 
@@ -431,77 +431,6 @@ Smooth sinusoidal waves that flow horizontally across the section.
 - Use with a dark blue section + light blue/teal colors for a nautical look
 `;
 
-const ANIM_FIBRE = `
-# AnimBg — Fibre Pulse
-
-Simulates fiber optic cables with light pulses racing along them.
-
----
-
-## Settings
-
-| Parameter | Range | Default | Description |
-|-----------|-------|---------|-------------|
-| **Cable Count** | 3–16 | 8 | Number of cable strands |
-| **Pulse Count** | 1–4 | 2 | Simultaneous pulses per cable |
-| **Pulse Speed** | 1–20s | 4s | Seconds to traverse one cable |
-| **Pulse Size** | 5–60px | 20px | Glow radius of each pulse |
-| **Cable Width** | 0.5–5px | 1px | Thickness of cable strand |
-| **Cable Opacity** | 0–100% | 30% | Visibility of cable strand |
-| **Origin** | top-left / bottom-left / top-right / bottom-right / random | random | Where cables originate |
-| **Curvature** | 0–100 | 50 | How curved the cables are (0=straight, 100=max bend) |
-| **Cable Color** | hex | — | Override strand colour (empty = use palette) |
-| **Pulse Color** | hex | — | Override pulse glow colour (empty = use cable colour) |
-
----
-
-## Tips
-
-- **origin: random** = cables spread from all corners for a spiderweb look
-- **low cable opacity + high pulse size** = subtle glow trails without visible cables
-- Pair with a dark section + teal/cyan colors for a fiber-optic tech aesthetic
-`;
-
-const ANIM_WIFI = `
-# AnimBg — WiFi Pulse
-
-Expanding arc or ring pulses radiating from a configurable emission point.
-
----
-
-Arc spread controls how wide the arc fans out from 30° (narrow beam) to 120° (WiFi icon shape) to 360° (full circle).
-
----
-
-## Settings
-
-| Parameter | Range | Default | Description |
-|-----------|-------|---------|-------------|
-| **Style** | rings / arcs | arcs | Full circles or partial arc |
-| **Ring Count** | 1–6 | 3 | Rings emitted per burst |
-| **Interval** | 500–6000ms | 2000ms | Milliseconds between bursts |
-| **Speed** | 0.5–10s | 2.5s | Seconds to expand to max radius |
-| **Max Radius** | 20–150% | 80% | Max ring size as % of section |
-| **Thickness** | 1–8px | 2px | Ring stroke width |
-| **posX** | 0–100% | 50% | Horizontal emission point |
-| **posY** | 0–100% | 50% | Vertical emission point |
-| **Direction** | 0–360° | 270° | Arc facing direction |
-| **Arc Spread** | 30–360° | 120° | Width of arc fan |
-| **Ring Color** | hex | — | Override ring colour |
-| **Shadow Opacity** | 0–100% | 40% | Glow/shadow intensity |
-| **Perspective 3D** | on/off | off | Squish into ellipses for top-down perspective |
-
----
-
-## Preset Positions
-
-| Use Case | posX | posY | Direction | Spread |
-|----------|------|------|-----------|--------|
-| WiFi router (bottom center) | 50 | 100 | 270 | 120 |
-| Broadcast (center) | 50 | 50 | — | 360 |
-| Corner beacon (top-left) | 0 | 0 | 135 | 90 |
-| Bottom-left beacon | 0 | 100 | 315 | 90 |
-`;
 
 const ANIM_PARALLAX = `
 # AnimBg — Parallax Drift
@@ -896,7 +825,7 @@ The designer auto-saves to the parent modal every time you make a change. When y
 const FLEXIBLE_ELEMENTS = `
 # Flexible Sections — Element Types
 
-The block panel on the left contains 11 element types. **Card, Banner, and Stats** now use the same free-positioning sub-element system as Text Block — all content is draggable, dblclick editable, and the block auto-resizes in all directions.
+The block panel on the left contains 10 element types. **Card, Banner, and Stats** now use the same free-positioning sub-element system as Text Block — all content is draggable, dblclick editable, and the block auto-resizes in all directions.
 
 ---
 
@@ -1152,36 +1081,6 @@ A full-height hero banner element within a flexible section — stretches to fil
 
 ---
 
-## 11. ISP Price Card
-
-A styled internet package pricing card with speed animation and glow effects.
-
-| Property | Options | Description |
-|----------|---------|-------------|
-| Package Name | text | e.g. "Fibre 100" |
-| Package Type | fibre / wifi / lte / fwa | Sets icon and colour theme |
-| Price | number | Monthly price |
-| Price Label | text | e.g. "per month" |
-| Download Speed | number | Download Mbps |
-| Upload Speed | number | Upload Mbps |
-| Speed Unit | text | e.g. "Mbps" |
-| Features | multi-line text | One feature per line |
-| Featured Card | on/off | Enables glow border effect |
-| Featured Label | text | e.g. "Most Popular" |
-| Accent Color | hex | Border/button highlight color |
-| Button Text | text | CTA button label |
-| Nav Target | section ID | Scroll to section on button click |
-
-### Glow Variants (featured cards only)
-
-| Package Type | Glow Color |
-|-------------|------------|
-| fibre | Warm orange / fire glow |
-| wifi | Cyan pulse ring |
-| lte | Purple glow |
-| fwa | Default |
-
-> ℹ️ Speed values animate from 0 to target on hover using a smooth ease-out count-up animation.
 `;
 
 const FLEXIBLE_STYLING = `
@@ -1303,8 +1202,6 @@ Section editor → **Animation** tab → click **+ Add Layer**.
 | **Moving Gradient** | Slow colour mesh gradient shifts | continuous |
 | **Particle Field** | Dots/stars with linking lines | continuous |
 | **Waves** | Animated SVG wave bands | continuous |
-| **Fibre Pulse** | ISP-themed fibre-optic light pulses | continuous |
-| **WiFi Pulse** | Expanding WiFi ring pulses | continuous |
 | **Parallax Drift** | Image/colour layer that drifts on scroll | scroll-linked |
 | **3D Tilt** | Section tilts with mouse cursor movement | mouse-linked |
 | **Custom Code** | Raw JavaScript canvas/WebGL | custom |
@@ -1497,7 +1394,7 @@ These slugs cannot be used (they conflict with existing routes):
 const NAVIGATION = `
 # Navigation — Navbar
 
-The Sonic website navbar adapts its appearance based on scroll position and screen size.
+The navbar adapts its appearance based on scroll position and screen size.
 
 ---
 
@@ -1570,7 +1467,7 @@ Access via **Admin → Settings**.
 
 | Setting | Description |
 |---------|-------------|
-| **Meta Title Template** | Format: \`{Page Title} | Sonic\` |
+| **Meta Title Template** | Format: \`{Page Title} | Your Company\` |
 | **Meta Description** | Default meta description |
 | **OG Image** | Default social sharing image |
 | **Google Analytics ID** | Tracking code (e.g. G-XXXXXXX) |
@@ -1622,7 +1519,7 @@ Access via **Admin → Settings → Email & SMTP** tab.
 | **SMTP Secure** | Toggle ON for port 465 only; leave OFF for port 587 |
 | **SMTP Username** | Login email / username for the mail account |
 | **SMTP Password** | Account password — stored securely; shown as ●●●●●●●● once saved |
-| **From Address** | The \`From:\` name/email shown to recipients (e.g. \`Sonic ISP <info@sonic.co.za>\`) |
+| **From Address** | The \`From:\` name/email shown to recipients (e.g. \`Your Company <info@yourcompany.co.za>\`) |
 | **Admin Notification Email** | Where contact form submissions are forwarded after OTP verification |
 
 ---
@@ -1658,7 +1555,7 @@ Access via **Admin → Settings → Email & SMTP** tab.
 | SMTP Host | \`mail.yourdomain.co.za\` |
 | Port | \`587\` |
 | Secure | OFF |
-| Username | full email address (e.g. \`info@sonic.co.za\`) |
+| Username | full email address (e.g. \`info@yourcompany.co.za\`) |
 | Password | email account password |
 
 ---
@@ -1899,8 +1796,6 @@ export const DOC_TOPICS: DocTopic[] = [
       { id: "anim-gradient", label: "Moving Gradient", icon: "bi-palette", content: ANIM_GRADIENT },
       { id: "anim-particles", label: "Particle Field", icon: "bi-dot", content: ANIM_PARTICLES },
       { id: "anim-waves", label: "Waves", icon: "bi-water", content: ANIM_WAVES },
-      { id: "anim-fibre", label: "Fibre Pulse", icon: "bi-lightning", content: ANIM_FIBRE },
-      { id: "anim-wifi", label: "WiFi Pulse", icon: "bi-wifi", content: ANIM_WIFI },
       { id: "anim-parallax", label: "Parallax Drift", icon: "bi-layers", content: ANIM_PARALLAX },
       { id: "anim-tilt", label: "3D Tilt", icon: "bi-box", content: ANIM_TILT },
       { id: "anim-custom", label: "Custom Code", icon: "bi-code-slash", content: ANIM_CUSTOM },

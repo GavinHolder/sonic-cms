@@ -50,7 +50,7 @@ function ArchitectureDiagram() {
         {/* Background */}
         <rect x="0" y="0" width="680" height="300" rx="12" fill="#f8f9fa" />
         {/* Title */}
-        <text x="340" y="15" textAnchor="middle" fill="#9ca3af" fontSize="10" fontWeight="600" letterSpacing="0.8">SONIC CMS ARCHITECTURE</text>
+        <text x="340" y="15" textAnchor="middle" fill="#9ca3af" fontSize="10" fontWeight="600" letterSpacing="0.8">CMS ARCHITECTURE</text>
         {/* Top row: 3 equally spaced boxes */}
         {boxes.map(({ x, label, sub, color }) => (
           <g key={label}>
@@ -405,14 +405,14 @@ function NavbarDiagram() {
         <rect x="10" y="28" width="290" height="50" rx="6" fill="rgba(0,0,0,0.6)" />
         <text x="155" y="43" textAnchor="middle" fill="#adb5bd" fontSize="8" fontWeight="500">TRANSPARENT (at top)</text>
         <text x="30" y="62" fill="#fff" fontSize="10">☰</text>
-        <text x="155" y="62" textAnchor="middle" fill="#fff" fontSize="11" fontWeight="700">SONIC</text>
+        <text x="155" y="62" textAnchor="middle" fill="#fff" fontSize="11" fontWeight="700">CMS</text>
         <rect x="218" y="52" width="72" height="20" rx="4" fill="#0d6efd" />
         <text x="254" y="66" textAnchor="middle" fill="#fff" fontSize="8" fontWeight="600">Client Login</text>
         {/* Scrolled state */}
         <rect x="318" y="28" width="290" height="50" rx="6" fill="#fff" stroke="#dee2e6" strokeWidth="1" />
         <text x="463" y="43" textAnchor="middle" fill="#adb5bd" fontSize="8" fontWeight="500">SCROLLED (white + shadow)</text>
         <text x="338" y="62" fill="#212529" fontSize="10">☰</text>
-        <text x="370" y="62" fill="#212529" fontSize="9" fontWeight="600">SONIC</text>
+        <text x="370" y="62" fill="#212529" fontSize="9" fontWeight="600">CMS</text>
         <text x="430" y="62" fill="#0d6efd" fontSize="8.5">Home</text>
         <text x="465" y="62" fill="#0d6efd" fontSize="8.5">Plans</text>
         <text x="499" y="62" fill="#0d6efd" fontSize="8.5">Support</text>

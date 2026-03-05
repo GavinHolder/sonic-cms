@@ -104,7 +104,7 @@ section[data-content-mode="multi"] .section-content-wrapper {
 }
 
 /* Gavin branch: CSS custom properties for dynamic CMS values */
-.sonic-section {
+.cms-section {
   position: relative; /* Required for absolutely-positioned children (AnimBgRenderer, overlays) */
   background-color: var(--section-bg, #ffffff);
 }

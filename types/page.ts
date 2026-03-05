@@ -25,7 +25,7 @@ export interface PageConfig {
 
 /**
  * Full page with sections (uses same section system as landing page)
- * Sections stored separately in sonic_sections_{slug}
+ * Sections stored separately in cms_sections_{slug}
  */
 export interface FullPageConfig extends PageConfig {
   type: 'full';
@@ -57,7 +57,7 @@ export interface FormPageConfig extends PageConfig {
 
 /**
  * Designer page — visual page builder (flexible-designer.html)
- * Content stored separately in sonic_designer_{slug} localStorage key.
+ * Content stored separately in cms_designer_{slug} localStorage key.
  */
 export interface DesignerPageConfig extends PageConfig {
   type: 'designer';

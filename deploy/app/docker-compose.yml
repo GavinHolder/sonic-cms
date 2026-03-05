@@ -1,9 +1,9 @@
 # =============================================================================
-# Sonic Website — App Stack
+# White-Label CMS — App Stack
 # =============================================================================
 # Managed via Portainer. Create this stack using the Repository method:
-#   Repository URL: https://github.com/GavinHolder/sonic-website.git
-#   Branch:         refs/heads/gavin
+#   Repository URL: https://github.com/GavinHolder/white-label-cms.git
+#   Branch:         refs/heads/main
 #   Compose path:   deploy/app/docker-compose.yml
 #
 # Set all environment variables in Portainer's "Environment variables" editor.
@@ -16,9 +16,9 @@ services:
     build:
       context: ../../       # Repo root — where Dockerfile lives
       dockerfile: Dockerfile
-    image: sonic-website:latest
+    image: white-label-cms:latest
     pull_policy: build      # Always rebuild from source on deploy
-    container_name: sonic-app
+    container_name: app
     restart: unless-stopped
     depends_on:
       db:
@@ -41,27 +41,27 @@ services:
       - internal
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.sonic-app.rule=Host(`${DOMAIN}`)"
-      - "traefik.http.routers.sonic-app.entrypoints=websecure"
-      - "traefik.http.routers.sonic-app.tls=true"
-      - "traefik.http.routers.sonic-app.tls.certresolver=letsencrypt"
-      - "traefik.http.services.sonic-app.loadbalancer.server.port=3000"
+      - "traefik.http.routers.app.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.app.entrypoints=websecure"
+      - "traefik.http.routers.app.tls=true"
+      - "traefik.http.routers.app.tls.certresolver=letsencrypt"
+      - "traefik.http.services.app.loadbalancer.server.port=3000"
 
   # ── PostgreSQL Database ──────────────────────────────────────────────────────
   db:
     image: postgres:16-alpine
-    container_name: sonic-db
+    container_name: db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-sonic}
+      POSTGRES_USER: ${POSTGRES_USER:-cms}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB:-sonic_cms}
+      POSTGRES_DB: ${POSTGRES_DB:-cms_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - internal
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sonic} -d ${POSTGRES_DB:-sonic_cms}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cms} -d ${POSTGRES_DB:-cms_db}"]
       interval: 10s
       timeout: 5s
       retries: 5

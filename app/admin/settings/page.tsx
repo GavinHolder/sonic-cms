@@ -583,8 +583,8 @@ export default function SettingsPage() {
                       className="btn btn-sm btn-outline-secondary"
                       onClick={() => {
                         const data = {
-                          sections: localStorage.getItem("sonic_cms_sections_home"),
-                          settings: localStorage.getItem("sonic_cms_settings"),
+                          sections: localStorage.getItem("cms_sections_home"),
+                          settings: localStorage.getItem("cms_settings"),
                         };
                         const blob = new Blob([JSON.stringify(data, null, 2)], {
                           type: "application/json",
@@ -592,7 +592,7 @@ export default function SettingsPage() {
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement("a");
                         a.href = url;
-                        a.download = `sonic-cms-backup-${new Date().toISOString().split("T")[0]}.json`;
+                        a.download = `cms-backup-${new Date().toISOString().split("T")[0]}.json`;
                         a.click();
                         URL.revokeObjectURL(url);
                       }}
@@ -789,9 +789,9 @@ export default function SettingsPage() {
                       <i className="bi bi-speedometer2 text-white fs-5"></i>
                     </div>
                     <div>
-                      <h6 className="mb-1">Sonic CMS</h6>
+                      <h6 className="mb-1">Your Company CMS</h6>
                       <p className="mb-0 small text-muted">
-                        Version 1.0.0 | Content Management System for SONIC
+                        Version 1.0.0 | Content Management System
                       </p>
                     </div>
                   </div>

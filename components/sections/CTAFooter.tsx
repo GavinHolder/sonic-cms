@@ -161,7 +161,7 @@ export default function CTAFooter({
 
   return (
     <section
-      className={`sonic-section ${bgClass}`}
+      className={`cms-section ${bgClass}`}
       data-snap-threshold={snapThreshold}
       style={{
         "--section-bg": bgColorValue,

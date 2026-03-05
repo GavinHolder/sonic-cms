@@ -636,7 +636,7 @@ export const DEFAULT_SECTION_SEEDS: Record<
           },
           overlay: {
             heading: {
-              text: "Welcome to SONIC",
+              text: "Welcome to Your Company",
               fontSize: 56,
               fontWeight: 700,
               fontFamily: "inherit",
@@ -646,7 +646,7 @@ export const DEFAULT_SECTION_SEEDS: Record<
               animationDelay: 200,
             },
             subheading: {
-              text: "Fast, Reliable Fiber Internet in the Overberg",
+              text: "Fast, Reliable Service",
               fontSize: 24,
               fontWeight: 400,
               fontFamily: "inherit",
@@ -698,12 +698,12 @@ export const DEFAULT_SECTION_SEEDS: Record<
     paddingBottom: 40,
     content: {
       logo: "/images/logo.png",
-      tagline: "Fast, reliable internet for the Overberg region",
+      tagline: "Fast, reliable service for your region",
       companyInfo: {
-        name: "SONIC",
-        address: "123 Main Road, Hermanus, Overberg",
+        name: "Your Company",
+        address: "123 Main Road, Your City, 0000",
         phone: "+27 28 123 4567",
-        email: "info@sonic.co.za",
+        email: "info@yourcompany.co.za",
         position: "top-left",
       },
       columns: [
@@ -735,7 +735,7 @@ export const DEFAULT_SECTION_SEEDS: Record<
           ],
         },
       ],
-      copyright: "© 2026 SONIC. All rights reserved.",
+      copyright: "© 2026 Your Company. All rights reserved.",
       socialLinks: [
         { platform: "facebook", url: "#", icon: "bi-facebook" },
         { platform: "twitter", url: "#", icon: "bi-twitter-x" },

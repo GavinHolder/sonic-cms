@@ -126,13 +126,6 @@ export default function AnimBgRenderer({ config, colorPalette, sectionRef, secti
       } else if (type === "custom-code") {
         const { customCodeAnimator } = await import("@/lib/anim-bg/animators");
         handle = customCodeAnimator(layerEl, layerConfig as Parameters<typeof customCodeAnimator>[1]);
-      } else if (type === "fibre-pulse") {
-        const { fibrePulseAnimator } = await import("@/lib/anim-bg/animators");
-        handle = fibrePulseAnimator(layerEl, layerConfig as Parameters<typeof fibrePulseAnimator>[1], colors);
-      } else if (type === "wifi-pulse") {
-        const { wifiPulseAnimator } = await import("@/lib/anim-bg/animators");
-        const sectionEl = sectionRef?.current || (sectionId ? document.getElementById(sectionId) : null);
-        handle = wifiPulseAnimator(layerEl, layerConfig as Parameters<typeof wifiPulseAnimator>[1], colors, sectionEl);
       } else if (type === "svg-animation") {
         const { svgAnimationAnimator } = await import("@/lib/anim-bg/animators");
         handle = svgAnimationAnimator(layerEl, layerConfig as Parameters<typeof svgAnimationAnimator>[1], colors);

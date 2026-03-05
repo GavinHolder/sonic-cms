@@ -6,11 +6,11 @@ import HelpText from "@/components/admin/HelpText";
 
 export default function AdminDashboard() {
   return (
-    <AdminLayout title="Dashboard" subtitle="Welcome back to Sonic CMS">
+    <AdminLayout title="Dashboard" subtitle="Welcome back to Your Company CMS">
       <div style={{ maxWidth: "1320px" }}>
         {/* Welcome Message */}
         <HelpText variant="info" collapsible={false}>
-          <strong>Welcome to Sonic CMS!</strong>
+          <strong>Welcome to Your Company CMS!</strong>
           <div className="mt-2">
             This is your central hub for managing all website content. Use the navigation menu on
             the left to access different areas of the CMS. Need help? Check out the help icons

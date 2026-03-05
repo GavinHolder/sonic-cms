@@ -7,8 +7,8 @@
  *   3. Paste this script and press Enter
  *
  * CREATES:
- *   client    / SonicDemo2026  (VIEWER — read only, no editing)
- *   assistant / SonicDemo2026  (VIEWER — read only, no editing)
+ *   client    / CmsDemo2026  (VIEWER — read only, no editing)
+ *   assistant / CmsDemo2026  (VIEWER — read only, no editing)
  *
  * ADMIN URL: http://localhost:3000/admin/login
  */
@@ -34,15 +34,15 @@
 
   console.log('\n👤 Creating demo users...');
 
-  await createUser('client',    'Client',    'Demo',      'client@sonicinternet.co.za',    'SonicDemo2026', 'SUPER_ADMIN');
-  await createUser('assistant', 'Assistant', 'Demo',      'assistant@sonicinternet.co.za', 'SonicDemo2026', 'SUPER_ADMIN');
+  await createUser('client',    'Client',    'Demo',      'client@yourcompany.co.za',    'CmsDemo2026', 'SUPER_ADMIN');
+  await createUser('assistant', 'Assistant', 'Demo',      'assistant@yourcompany.co.za', 'CmsDemo2026', 'SUPER_ADMIN');
 
   console.log('\n🎉 Done!');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('  Admin login:     http://localhost:3000/admin/login');
   console.log('');
-  console.log('  Username: client       Password: SonicDemo2026');
-  console.log('  Username: assistant    Password: SonicDemo2026');
+  console.log('  Username: client       Password: CmsDemo2026');
+  console.log('  Username: assistant    Password: CmsDemo2026');
   console.log('');
   console.log('  Both accounts are SUPER_ADMIN — full access.');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');

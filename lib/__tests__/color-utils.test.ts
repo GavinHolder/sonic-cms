@@ -56,7 +56,7 @@ describe('getLuminance', () => {
     expect(luminance).toBeLessThan(0.9);
   });
 
-  test('Sonic brand blue (#1E3A5F) is dark', () => {
+  test('Dark blue (#1E3A5F) is dark', () => {
     const luminance = getLuminance(30, 58, 95);
     expect(luminance).toBeLessThan(0.5);
   });
@@ -112,7 +112,7 @@ describe('getContrastColor', () => {
   });
 
   test('dark backgrounds return white text', () => {
-    expect(getContrastColor('#1E3A5F')).toBe('white'); // Sonic brand blue
+    expect(getContrastColor('#1E3A5F')).toBe('white'); // Dark blue
     expect(getContrastColor('#333333')).toBe('white'); // Dark gray
   });
 

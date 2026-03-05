@@ -21,8 +21,8 @@ import type {
   PageConfig,
 } from "@/types/section-v2";
 
-const STORAGE_KEY = "sonic_cms_sections_v2";
-const V1_STORAGE_KEY = "sonic_cms_sections";
+const STORAGE_KEY = "cms_sections_v2";
+const V1_STORAGE_KEY = "cms_sections";
 
 // ─── V1 Background Mapping ───────────────────────────────────────────────────
 
@@ -236,8 +236,8 @@ function migrateV1ToV2(v1Sections: any[]): SectionConfig[] {
               order: 1,
               heading: v1.heading || "Ready to Get Connected?",
               content: ctaHtml,
-              imageSrc: "/images/sonic-dc.jpeg",
-              imageAlt: "SONIC",
+              imageSrc: "/images/placeholder-hero.jpg",
+              imageAlt: "Your Company",
               layout: "right",
               buttons: v1.buttons || [],
               textAlign: "center",
@@ -301,7 +301,7 @@ function buildCtaHtml(v1: any): string {
  *
  * Mirrors the original V1 default sections, converted to unified V2 model:
  * 1. Hero Carousel (hero.enabled=true)
- * 2. Why Choose Sonic (text-image block)
+ * 2. Why Choose Us (text-image block)
  * 3. Trusted by Thousands (stats-grid block)
  * 4. Our Services (card-grid block)
  * 5. Fibre Pricing Plans (table block)
@@ -324,11 +324,11 @@ export const defaultHomepageSections: SectionConfig[] = [
         {
           id: "1",
           type: "image",
-          src: "/images/sonic-dc.jpeg",
-          alt: "SONIC Data Center",
+          src: "/images/placeholder-hero.jpg",
+          alt: "Your Company Infrastructure",
           overlay: {
             heading: "Fast, Reliable Internet",
-            subheading: "Across the Overberg Region",
+            subheading: "Across the Your Region Region",
             button: {
               text: "Check Coverage",
               href: "/coverage",
@@ -343,8 +343,8 @@ export const defaultHomepageSections: SectionConfig[] = [
         {
           id: "2",
           type: "image",
-          src: "/images/sonicsupport2.jpg",
-          alt: "Sonic Support Team",
+          src: "/images/placeholder-support.jpg",
+          alt: "Support Team",
           overlay: {
             heading: "Locally Supported",
             subheading: "Real people, real solutions",
@@ -365,12 +365,12 @@ export const defaultHomepageSections: SectionConfig[] = [
     blocks: [],
   },
 
-  // ── Section 2: Why Choose Sonic ───────────────────────────────────────────
+  // ── Section 2: Why Choose Us ───────────────────────────────────────────
   {
     id: "text-image-1",
     enabled: true,
     order: 2,
-    displayName: "Why Choose Sonic",
+    displayName: "Why Choose Us",
     fullScreen: true,
     background: { type: "solid", color: "rgba(37, 99, 235, 0.1)" },
     layout: "single-column",
@@ -379,11 +379,11 @@ export const defaultHomepageSections: SectionConfig[] = [
         id: "block-ti-1",
         type: "text-image",
         order: 1,
-        heading: "Why Choose SONIC?",
+        heading: "Why Choose Us?",
         content:
-          '<p class="lead mb-4">We\'re a local ISP committed to providing fast, reliable internet across the Overberg region. No hidden fees, no throttling, just honest connectivity backed by real people who care.</p><h5 class="mt-4 mb-3">What Makes Us Different:</h5><ul class="list-unstyled mb-4"><li class="mb-3">&#10003; <strong>No Contracts:</strong> Month-to-month service with no lock-in periods</li><li class="mb-3">&#10003; <strong>Transparent Pricing:</strong> What you see is what you pay</li><li class="mb-3">&#10003; <strong>Local Support:</strong> Real people in your community</li><li class="mb-3">&#10003; <strong>99.9% Uptime:</strong> Reliable connectivity you can count on</li><li class="mb-3">&#10003; <strong>No Throttling:</strong> Use your full speed 24/7</li><li class="mb-3">&#10003; <strong>Free Installation:</strong> We cover all setup costs</li></ul>',
-        imageSrc: "/images/sonic-dc.jpeg",
-        imageAlt: "Sonic Data Center Infrastructure",
+          '<p class="lead mb-4">We\'re a local ISP committed to providing fast, reliable internet across the Your Region region. No hidden fees, no throttling, just honest connectivity backed by real people who care.</p><h5 class="mt-4 mb-3">What Makes Us Different:</h5><ul class="list-unstyled mb-4"><li class="mb-3">&#10003; <strong>No Contracts:</strong> Month-to-month service with no lock-in periods</li><li class="mb-3">&#10003; <strong>Transparent Pricing:</strong> What you see is what you pay</li><li class="mb-3">&#10003; <strong>Local Support:</strong> Real people in your community</li><li class="mb-3">&#10003; <strong>99.9% Uptime:</strong> Reliable connectivity you can count on</li><li class="mb-3">&#10003; <strong>No Throttling:</strong> Use your full speed 24/7</li><li class="mb-3">&#10003; <strong>Free Installation:</strong> We cover all setup costs</li></ul>',
+        imageSrc: "/images/placeholder-hero.jpg",
+        imageAlt: "Your Company Infrastructure",
         layout: "right",
         buttons: [
           { text: "Our Story", href: "/about", variant: "primary" },
@@ -415,7 +415,7 @@ export const defaultHomepageSections: SectionConfig[] = [
             value: "10,000",
             suffix: "+",
             label: "Happy Customers",
-            description: "Across the Overberg region",
+            description: "Across the Your Region region",
           },
           {
             id: "2",
@@ -595,9 +595,9 @@ export const defaultHomepageSections: SectionConfig[] = [
         order: 1,
         heading: "Local Support You Can Trust",
         content:
-          '<p class="lead">Unlike big ISPs, we\'re a local company that cares about our community. Our support team is based right here in the Overberg, and they know the area inside and out.</p><h4 class="mt-4 mb-3">Why Choose Local Support?</h4><div class="row mt-4"><div class="col-md-6"><h5>No Overseas Call Centers</h5><p>Speak to real locals who understand your needs.</p></div><div class="col-md-6"><h5>Faster Response Times</h5><p>Average response time: 15 minutes.</p></div></div><h4 class="mt-5 mb-3">24/7 Support Channels:</h4><ul class="list-unstyled"><li class="mb-2"><strong>Phone:</strong> 028 123 4567</li><li class="mb-2"><strong>Email:</strong> support@sonicinternet.co.za</li><li class="mb-2"><strong>WhatsApp:</strong> 082 123 4567</li><li class="mb-2"><strong>Live Chat:</strong> Available on our website</li></ul>',
-        imageSrc: "/images/sonicsupport2.jpg",
-        imageAlt: "Sonic Support Team",
+          '<p class="lead">Unlike big ISPs, we\'re a local company that cares about our community. Our support team is based right here in the Your Region, and they know the area inside and out.</p><h4 class="mt-4 mb-3">Why Choose Local Support?</h4><div class="row mt-4"><div class="col-md-6"><h5>No Overseas Call Centers</h5><p>Speak to real locals who understand your needs.</p></div><div class="col-md-6"><h5>Faster Response Times</h5><p>Average response time: 15 minutes.</p></div></div><h4 class="mt-5 mb-3">24/7 Support Channels:</h4><ul class="list-unstyled"><li class="mb-2"><strong>Phone:</strong> 028 123 4567</li><li class="mb-2"><strong>Email:</strong> support@yourcompany.co.za</li><li class="mb-2"><strong>WhatsApp:</strong> 082 123 4567</li><li class="mb-2"><strong>Live Chat:</strong> Available on our website</li></ul>',
+        imageSrc: "/images/placeholder-support.jpg",
+        imageAlt: "Support Team",
         layout: "left",
         buttons: [
           { text: "Contact Support", href: "/support", variant: "primary" },
@@ -627,9 +627,9 @@ export const defaultHomepageSections: SectionConfig[] = [
         order: 1,
         heading: "Ready to Get Connected?",
         content:
-          '<p class="lead mb-4">Join thousands of happy customers across the Overberg</p><div class="mt-4"><p class="mb-2"><strong>Phone:</strong> 028 123 4567</p><p class="mb-2"><strong>Email:</strong> info@sonicinternet.co.za</p><p class="mb-2"><strong>Address:</strong> 123 Main Street, Hermanus, 7200</p></div><div class="mt-3"><strong>Follow Us:</strong> <a href="https://facebook.com/sonicinternet" class="me-3">Facebook</a><a href="https://instagram.com/sonicinternet" class="me-3">Instagram</a><a href="https://linkedin.com/company/sonicinternet" class="me-3">LinkedIn</a></div>',
-        imageSrc: "/images/sonic-dc.jpeg",
-        imageAlt: "SONIC",
+          '<p class="lead mb-4">Join thousands of happy customers across the Your Region</p><div class="mt-4"><p class="mb-2"><strong>Phone:</strong> 028 123 4567</p><p class="mb-2"><strong>Email:</strong> info@yourcompany.co.za</p><p class="mb-2"><strong>Address:</strong> 123 Main Street, Your City, 7200</p></div><div class="mt-3"><strong>Follow Us:</strong> <a href="https://facebook.com/yourcompany" class="me-3">Facebook</a><a href="https://instagram.com/yourcompany" class="me-3">Instagram</a><a href="https://linkedin.com/company/yourcompany" class="me-3">LinkedIn</a></div>',
+        imageSrc: "/images/placeholder-hero.jpg",
+        imageAlt: "Your Company",
         layout: "right",
         buttons: [
           { text: "Check Coverage", href: "/coverage", variant: "primary" },

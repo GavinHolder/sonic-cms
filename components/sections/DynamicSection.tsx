@@ -682,7 +682,7 @@ function CTARenderer({ section }: { section: CTASection }) {
   return (
     <section
       id={section.id}
-      className="sonic-section"
+      className="cms-section"
       style={{
         "--section-bg": bgColor,
         "--section-pt": `${paddingTop ?? 80}px`,
@@ -829,7 +829,7 @@ function NormalRenderer({ section }: { section: NormalSection }) {
   return (
     <section
       id={section.id}
-      className="sonic-section"
+      className="cms-section"
       data-content-mode={section.contentMode || "single"}
       style={{
         ...backgroundStyles,

@@ -603,7 +603,7 @@ export default function FooterSectionEditor({
                     className="form-control"
                     value={formData.companyInfo.name}
                     onChange={(e) => updateCompanyInfo({ name: e.target.value })}
-                    placeholder="SONIC"
+                    placeholder="Your Company"
                   />
                 </div>
                 <div className="col-md-6 mb-3">
@@ -617,7 +617,7 @@ export default function FooterSectionEditor({
                       className="form-control"
                       value={formData.companyInfo.email}
                       onChange={(e) => updateCompanyInfo({ email: e.target.value })}
-                      placeholder="info@sonic.co.za"
+                      placeholder="info@yourcompany.co.za"
                     />
                   </div>
                 </div>
@@ -647,7 +647,7 @@ export default function FooterSectionEditor({
                       className="form-control"
                       value={formData.companyInfo.address}
                       onChange={(e) => updateCompanyInfo({ address: e.target.value })}
-                      placeholder="123 Main Road, Hermanus"
+                      placeholder="123 Main Road, Your City"
                     />
                   </div>
                 </div>
@@ -939,7 +939,7 @@ export default function FooterSectionEditor({
               {formData.certificationLogos.length === 0 ? (
                 <div className="alert alert-info mb-4">
                   <i className="bi bi-info-circle me-2"></i>
-                  No certification logos yet. Click &quot;Add Logo&quot; to add logos like ICASA, partner badges, or certifications.
+                  No certification logos yet. Click &quot;Add Logo&quot; to add logos like Regulatory, partner badges, or certifications.
                 </div>
               ) : (
                 <div className="row g-3 mb-4">
@@ -966,7 +966,7 @@ export default function FooterSectionEditor({
                               onChange={(url) =>
                                 updateCertificationLogo(cert.id, { image: url })
                               }
-                              placeholder="/images/icasa-logo.png"
+                              placeholder="/images/regulatory-badge.png"
                               helpText="Upload certification or partner logo"
                             />
                           </div>
@@ -981,7 +981,7 @@ export default function FooterSectionEditor({
                               onChange={(e) =>
                                 updateCertificationLogo(cert.id, { text: e.target.value })
                               }
-                              placeholder="ICASA Licensed ISP&#10;License: 123456"
+                              placeholder="Regulatory Licensed ISP&#10;License: 123456"
                               rows={2}
                             />
                             <small className="form-text text-muted">
@@ -1032,7 +1032,7 @@ export default function FooterSectionEditor({
                   onChange={(e) =>
                     setFormData({ ...formData, copyright: e.target.value })
                   }
-                  placeholder="&copy; 2026 SONIC. All rights reserved."
+                  placeholder="&copy; 2026 Your Company. All rights reserved."
                 />
               </div>
 

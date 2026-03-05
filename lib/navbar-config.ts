@@ -64,8 +64,8 @@ export interface NavbarConfig {
 }
 
 export const defaultNavbarConfig: NavbarConfig = {
-  logoSrc: "/images/sonic-logo.png",
-  logoAlt: "SONIC",
+  logoSrc: "/images/logo-placeholder.png",
+  logoAlt: "Your Company",
   logoHeight: 44,
   logoWidth: 0,
   cta: {

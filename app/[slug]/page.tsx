@@ -22,9 +22,9 @@ const FlexibleSectionRenderer = dynamic(
  * Uses the same section system as the landing page.
  *
  * ASSUMPTIONS:
- * 1. Page slug exists in sonic_cms_pages localStorage
+ * 1. Page slug exists in cms_pages localStorage
  * 2. Page is enabled (disabled pages return 404)
- * 3. For full pages, sections stored in sonic_sections_{slug}
+ * 3. For full pages, sections stored in cms_sections_{slug}
  * 4. Navbar automatically rendered by root layout
  *
  * FAILURE MODES:

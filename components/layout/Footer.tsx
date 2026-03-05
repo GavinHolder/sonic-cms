@@ -24,50 +24,26 @@ interface SocialLink {
 interface FooterProps {
   branches?: Branch[];
   socialLinks?: SocialLink[];
-  showIcasa?: boolean;
+  showRegulatory?: boolean;
 }
 
 // TODO: Fetch branch data from API endpoint: GET /api/branches
 // Expected response format: Array<Branch>
-// Example: [{ id: "1", name: "Kleinmond Office", phone: "028 271 5494", email: "support@sonic.co.za", address: { street: "123 Main St", city: "Kleinmond", postalCode: "7195" } }]
 
 // TODO: Fetch social media links from API endpoint: GET /api/social-links
 // Expected response format: Array<SocialLink>
-// Example: [{ platform: "facebook", url: "https://facebook.com/sonicisp", label: "Facebook" }]
 
 export default function Footer({
   branches = [
     {
       id: "1",
-      name: "Kleinmond Office",
-      phone: "028 271 5494",
-      email: "support@sonic.co.za",
+      name: "Main Office",
+      phone: "+27 00 000 0000",
+      email: "info@yourcompany.co.za",
       address: {
-        street: "123 Main Street",
-        city: "Kleinmond",
-        postalCode: "7195",
-      },
-    },
-    {
-      id: "2",
-      name: "Hermanus Office",
-      phone: "028 XXX XXXX",
-      email: "hermanus@sonic.co.za",
-      address: {
-        street: "456 Harbor Road",
-        city: "Hermanus",
-        postalCode: "7200",
-      },
-    },
-    {
-      id: "3",
-      name: "Gansbaai Office",
-      phone: "028 XXX XXXX",
-      email: "gansbaai@sonic.co.za",
-      address: {
-        street: "789 Main Road",
-        city: "Gansbaai",
-        postalCode: "7220",
+        street: "123 Main Road",
+        city: "City",
+        postalCode: "0000",
       },
     },
   ],
@@ -76,7 +52,7 @@ export default function Footer({
     { platform: "instagram", url: "#", label: "Instagram" },
     { platform: "twitter", url: "#", label: "Twitter/X" },
   ],
-  showIcasa = true,
+  showRegulatory = true,
 }: FooterProps) {
   const socialIcons = {
     facebook: (
@@ -102,16 +78,9 @@ export default function Footer({
         <div className="row g-5">
           {/* Logo + About */}
           <div className="col-12 col-md-6 col-lg-3">
-            <Image
-              src="/images/sonic-logo.png"
-              alt="SONIC"
-              width={180}
-              height={60}
-              className="img-fluid"
-            />
-            <p className="mt-3 small text-muted">
-              Fast, reliable Wireless & Fibre Internet across the Overberg.
-              Locally supported. No nonsense.
+            <p className="fw-bold text-white fs-5 mb-0">Your Company</p>
+            <p className="mt-2 small text-muted">
+              Replace this with your company tagline or a short description.
             </p>
 
             {/* Social Links */}
@@ -133,14 +102,11 @@ export default function Footer({
               ))}
             </div>
 
-            {/* ICASA Certification */}
-            {showIcasa && (
+            {/* Regulatory / Compliance badge — configure as needed */}
+            {showRegulatory && (
               <div className="mt-4">
-                {/* TODO: Add ICASA logo image to /public/images/icasa-logo.png */}
-                {/* TODO: Verify correct ICASA certification number from business documents */}
-                {/* TODO: Link to ICASA website or certification page */}
                 <p className="small text-muted mb-0">
-                  ICASA Licensed Internet Service Provider
+                  Regulatory / Compliance
                 </p>
               </div>
             )}
@@ -315,7 +281,7 @@ export default function Footer({
 
         {/* Bottom Bar */}
         <div className="border-top border-secondary pt-4 mt-5 text-center small text-muted">
-          © {new Date().getFullYear()} SONIC. All rights reserved.
+          © {new Date().getFullYear()} Your Company. All rights reserved.
         </div>
       </div>
     </footer>

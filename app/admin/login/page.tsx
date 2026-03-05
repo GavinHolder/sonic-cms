@@ -89,8 +89,8 @@ export default function AdminLoginPage() {
             {/* Logo and Title */}
             <div className="text-center mb-4">
               <img
-                src="/images/sonic-logo.png"
-                alt="SONIC"
+                src="/images/logo-placeholder.png"
+                alt="Your Company"
                 style={{ height: "60px", marginBottom: "1.5rem" }}
               />
               <h1 className="h3 mb-2 fw-normal">Admin Portal</h1>
@@ -202,7 +202,7 @@ export default function AdminLoginPage() {
                   <p className="text-muted small mb-0">
                     Need access?{" "}
                     <a
-                      href="mailto:admin@sonicinternet.co.za"
+                      href="mailto:admin@yourcompany.co.za"
                       className="text-decoration-none"
                     >
                       Contact your administrator
@@ -215,7 +215,7 @@ export default function AdminLoginPage() {
             {/* Footer */}
             <div className="text-center mt-4">
               <p className="text-muted small">
-                Intellectual Property of Sonic. All rights reserved.
+                All rights reserved.
               </p>
             </div>
           </div>

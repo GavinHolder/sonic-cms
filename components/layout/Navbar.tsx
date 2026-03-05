@@ -251,11 +251,9 @@ export default function Navbar() {
             }}
           >
             <Link href="/" className="d-flex align-items-center gap-2 text-decoration-none">
-              <img
-                src="/images/sonic-logo.png"
-                alt="SONIC"
-                style={{ height: "44px", width: "auto" }}
-              />
+              <span style={{ height: "44px", display: "flex", alignItems: "center", fontWeight: 700, fontSize: "1.2rem", color: "#fff" }}>
+                Your Company
+              </span>
             </Link>
           </div>
 

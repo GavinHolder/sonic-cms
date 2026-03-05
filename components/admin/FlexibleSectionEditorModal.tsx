@@ -54,7 +54,7 @@ export default function FlexibleSectionEditorModal({
     (section.content as any)?.designerData || null
   );
   // Draft key — persists unsaved designer work to localStorage so it survives unexpected closes
-  const draftKey = `sonic_flexible_draft_${section.id}`;
+  const draftKey = `cms_flexible_draft_${section.id}`;
   // Track which designer blocks are expanded in the accordion
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string | number>>(new Set());
 

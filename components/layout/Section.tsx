@@ -91,7 +91,7 @@ export default function Section({
   return (
     <section
       id={id}
-      className={`sonic-section ${className}`}
+      className={`cms-section ${className}`}
       style={cssVars}
       data-fullscreen={fullScreen ? "true" : "false"}
       data-background={background}

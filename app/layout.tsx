@@ -20,9 +20,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SONIC - Wireless & Fibre Internet",
+  title: "Your Company - Website",
   description:
-    "Fast, reliable Wireless & Fibre Internet across the Overberg. Locally supported.",
+    "Professional services for your region.",
 };
 
 export default async function RootLayout({

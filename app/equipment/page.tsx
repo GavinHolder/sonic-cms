@@ -8,8 +8,8 @@ export default function EquipmentPage() {
         {/* Header Image (optional) */}
         <div className="flex justify-center">
           <Image
-            src="/images/sonic-dc.jpeg"
-            alt="Sonic Equipment"
+            src="/images/placeholder-hero.jpg"
+            alt="Equipment"
             width={800}
             height={300}
             className="w-full max-w-3xl rounded-lg"
@@ -19,7 +19,7 @@ export default function EquipmentPage() {
 
         {/* Intro */}
         <p className="mt-8 text-lg text-gray-700">
-          Sonic supplies high‑quality networking equipment for both Fibre and
+          We supply high‑quality networking equipment for both Fibre and
           Wireless installations. Whether you're connecting a home, a farm, or a
           business, we provide reliable hardware that keeps your connection
           fast, stable, and headache‑free.
@@ -82,7 +82,7 @@ export default function EquipmentPage() {
               </h3>
               <p className="mt-2 text-gray-600">
                 Optical Network Terminals for FTTH and FTTB installations.
-                Reliable, fast, and fully compatible with Sonic fibre.
+                Reliable, fast, and fully compatible with our services.
               </p>
             </div>
 
@@ -100,7 +100,7 @@ export default function EquipmentPage() {
               </h3>
               <p className="mt-2 text-gray-600">
                 Customer‑premises equipment for wireless installations. Strong
-                signal, stable performance, and built for the Overberg’s
+                signal, stable performance, and built for the Your Region’s
                 weather.
               </p>
             </div>

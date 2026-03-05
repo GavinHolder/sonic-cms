@@ -61,6 +61,7 @@ yarn-error.log*
 .env
 
 # Deployment — secrets and generated files (never commit these)
+deploy/app/.env
 deploy/traefik/.env
 deploy/traefik/acme/acme.json
 deploy/portainer/.env

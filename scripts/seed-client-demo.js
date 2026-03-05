@@ -1,5 +1,5 @@
 /**
- * SONIC Client Demo Seed — COMPLETE REBUILD v2
+ * Client Demo Seed — COMPLETE REBUILD v2
  *
  * HOW TO RUN:
  *   1. Log in at http://localhost:3000/admin/login
@@ -20,7 +20,7 @@
  *   Demo Pages: /packages  /about
  */
 
-(async function sonicClientDemo() {
+(async function clientDemo() {
 
   // ═══════════════════════════════════════════════════════════════
   // HELPERS
@@ -197,7 +197,7 @@
   // ═══════════════════════════════════════════════════════════════
   console.log('\n📄 Ensuring demo pages...');
   await Page('packages', 'Packages & Pricing');
-  await Page('about', 'About Sonic');
+  await Page('about', 'About Us');
 
   // ═══════════════════════════════════════════════════════════════
   // PHASE 3 — LANDING PAGE
@@ -209,15 +209,15 @@
     type: 'HERO', name: 'Hero Carousel', bg: 'transparent', pt: 0, pb: 0,
     content: {
       slides: [
-        Slide('s1', '/images/sonic-dc.jpeg', 'bottom', '#03091a', 82,
+        Slide('s1', '/images/placeholder-hero.jpg', 'bottom', '#03091a', 82,
           'Superfast Fibre Internet', 70,
-          "Up to 1 Gbps · No contracts · Overberg's most trusted ISP",
+          "Up to 1 Gbps · No contracts · Your Region's most trusted ISP",
           '#cbd5e1',
           [Btn('View Packages', '/packages', '#2563eb', 'filled', 800),
-           Btn('About Sonic',   '/about',    'transparent', 'outline', 1000)]),
-        Slide('s2', '/images/sonicsupport2.jpg', 'right', '#0d2400', 88,
+           Btn('About Us',   '/about',    'transparent', 'outline', 1000)]),
+        Slide('s2', '/images/placeholder-support.jpg', 'right', '#0d2400', 88,
           'Local Team. World-Class Support.', 62,
-          'Based in Hermanus · Average response under 3 minutes · Real people, not bots',
+          'Based in Your City · Average response under 3 minutes · Real people, not bots',
           '#dcfce7',
           [Btn('Contact Support', '/support', '#16a34a', 'filled', 800)], 'left'),
       ],
@@ -246,7 +246,7 @@
     elements: [
       // Row 1: Full-width intro heading
       E('text', 1, 1, 4, {
-        heading:    'Built for South African ISPs',
+        heading:    'Built for business website platforms',
         subheading: 'A complete visual CMS — every feature you need to launch, manage, and grow your ISP website. Scroll to explore.',
         headingAlign: 'center',
       }, { type:'fadeIn', duration:800, delay:0 },
@@ -794,7 +794,7 @@
     layers: [
       L('te-d','text-effects',{
         mode:'background',
-        text:'SONIC', animation:'wave',
+        text:'Your Company', animation:'wave',
         posX:50, posY:50,
         fontSize:20, fontWeight:'900',
         letterSpacing:0.1,
@@ -1100,7 +1100,7 @@
       }, { type:'slideUp', duration:700, delay:100 }),
       E('banner', 3, 1, 1, {
         bannerType:'image',
-        bannerSrc:'/images/sonicsupport2.jpg',
+        bannerSrc:'/images/placeholder-support.jpg',
         bannerHeight:180, bannerHeading:'Image Banner — Photo Background',
         bannerSubheading:'Photo with dark overlay. Heading and subheading float on top.',
         bannerTextPosition:'left',
@@ -1109,8 +1109,8 @@
       E('banner', 4, 1, 1, {
         bannerType:'gradient',
         bannerGradient:'linear-gradient(90deg,#065f46 0%,#047857 100%)',
-        bannerHeight:130, bannerHeading:'24/7 Local Overberg Support',
-        bannerSubheading:'Real humans in Hermanus — not a call centre.',
+        bannerHeight:130, bannerHeading:'24/7 Local Your Region Support',
+        bannerSubheading:'Real humans in Your City — not a call centre.',
         bannerTextPosition:'left',
         bannerButton:{ text:'Contact Us', href:'/support', icon:'bi-headset' },
         bannerFloat:'left', bannerFloatWidth:'58%',
@@ -1193,7 +1193,7 @@
       E('html', 2, 1, 1, {
         html:`<div style="display:flex;flex-direction:column;gap:14px;padding:8px">
 <a href="/packages" style="display:inline-flex;align-items:center;gap:8px;padding:12px 28px;background:#2563eb;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;box-shadow:0 4px 18px rgba(37,99,235,.35);transition:transform .2s,box-shadow .2s" onmouseover="this.style.transform='translateY(-3px)';this.style.boxShadow='0 8px 28px rgba(37,99,235,.5)'" onmouseout="this.style.transform='';this.style.boxShadow='0 4px 18px rgba(37,99,235,.35)'"><i class="bi bi-tags-fill"></i> Filled — View Packages</a>
-<a href="/about" style="display:inline-flex;align-items:center;gap:8px;padding:12px 28px;background:transparent;color:#60a5fa;border:2px solid #60a5fa;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;transition:all .2s" onmouseover="this.style.background='rgba(96,165,250,.12)'" onmouseout="this.style.background='transparent'"><i class="bi bi-building"></i> Outline — About Sonic</a>
+<a href="/about" style="display:inline-flex;align-items:center;gap:8px;padding:12px 28px;background:transparent;color:#60a5fa;border:2px solid #60a5fa;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;transition:all .2s" onmouseover="this.style.background='rgba(96,165,250,.12)'" onmouseout="this.style.background='transparent'"><i class="bi bi-building"></i> Outline — About Us</a>
 <a href="/support" style="display:inline-flex;align-items:center;gap:8px;padding:12px 28px;background:#1e293b;color:#f1f5f9;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;transition:all .2s" onmouseover="this.style.background='#334155'" onmouseout="this.style.background='#1e293b'"><i class="bi bi-headset"></i> Dark — Get Support</a>
 <a href="#" style="display:inline-flex;align-items:center;gap:8px;padding:12px 28px;background:transparent;color:#64748b;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;transition:all .2s" onmouseover="this.style.color='#94a3b8'" onmouseout="this.style.color='#64748b'"><i class="bi bi-eye"></i> Ghost — Transparent BG</a>
 </div>`,
@@ -1219,7 +1219,7 @@
         buttonSize:'lg', buttonFullWidth:true,
       }, { type:'slideInLeft', duration:700, delay:100 }),
       E('button', 4, 2, 1, {
-        buttonText:'About Sonic Internet', buttonHref:'/about',
+        buttonText:'About Us Internet', buttonHref:'/about',
         buttonVariant:'outline', buttonIcon:'bi-building',
         buttonSize:'lg', buttonFullWidth:true,
       }, { type:'slideInRight', duration:700, delay:200 }),
@@ -1231,17 +1231,17 @@
   await Special({
     type: 'FOOTER', name: 'Footer', bg: '#060b14', pt: 60, pb: 40,
     content: {
-      logo: '/images/sonic-logo.png',
-      tagline: 'Connecting the Overberg since 2010',
+      logo: '/images/logo-placeholder.png',
+      tagline: 'Serving your region since 2010',
       companyInfo: {
-        name: 'SONIC', position: 'top-left',
-        address: '12 Harbour Road, Hermanus, Western Cape, 7200',
-        phone: '+27 28 312 4567', email: 'info@sonicinternet.co.za',
+        name: 'Your Company', position: 'top-left',
+        address: '12 Harbour Road, Your City, Western Cape, 7200',
+        phone: '+27 28 312 4567', email: 'info@yourcompany.co.za',
       },
       columns: [
         { id:'c1', title:'Quick Links', links:[
           { text:'View Packages', href:'/packages' },
-          { text:'About Sonic', href:'/about' },
+          { text:'About Us', href:'/about' },
           { text:'Coverage Map', href:'/coverage' },
           { text:'Get Support', href:'/support' },
         ]},
@@ -1258,7 +1258,7 @@
           { text:'Terms of Service', href:'#' },
         ]},
       ],
-      copyright: '© 2026 SONIC Internet (Pty) Ltd. All rights reserved.',
+      copyright: '© 2026 Your Company (Pty) Ltd. All rights reserved.',
       socialLinks: [
         { platform:'facebook', url:'https://facebook.com', icon:'bi-facebook' },
         { platform:'twitter', url:'https://twitter.com', icon:'bi-twitter-x' },
@@ -1278,7 +1278,7 @@
     bg: 'transparent', pt: 0, pb: 0,
     content: {
       slides: [
-        Slide('ph1', '/images/sonic-dc.jpeg', 'bottom', '#0d1117', 84,
+        Slide('ph1', '/images/placeholder-hero.jpg', 'bottom', '#0d1117', 84,
           'Internet Packages', 72,
           'Fibre · WiFi · LTE · Fixed Wireless · No contracts · Local support',
           '#cbd5e1',
@@ -1319,7 +1319,7 @@
 
   await Special({
     type:'FOOTER', name:'Packages Footer', slug:'packages', bg:'#060b14', pt:60, pb:40,
-    content:{ tagline:'Connecting the Overberg since 2010', columns:[{ id:'c1', title:'Quick Links', links:[{ text:'Home', href:'/' },{ text:'About Sonic', href:'/about' },{ text:'Get Support', href:'/support' }] }], copyright:'© 2026 SONIC Internet (Pty) Ltd.' },
+    content:{ tagline:'Serving your region since 2010', columns:[{ id:'c1', title:'Quick Links', links:[{ text:'Home', href:'/' },{ text:'About Us', href:'/about' },{ text:'Get Support', href:'/support' }] }], copyright:'© 2026 Your Company (Pty) Ltd.' },
   });
 
   // ═══════════════════════════════════════════════════════════════
@@ -1332,9 +1332,9 @@
     bg:'transparent', pt:0, pb:0,
     content:{
       slides:[
-        Slide('ah1','/images/sonicsupport2.jpg','right','#0d2400',88,
-          'About SONIC Internet', 66,
-          "South Africa's Overberg region's leading ISP since 2010 — local team, world-class infrastructure.",
+        Slide('ah1','/images/placeholder-support.jpg','right','#0d2400',88,
+          'About Your Company', 66,
+          "South Africa's Your Region region's leading ISP since 2010 — local team, world-class infrastructure.",
           '#dcfce7',
           [Btn('View Packages','/packages','#16a34a')], 'left'),
       ],
@@ -1348,9 +1348,9 @@
     layers:[L('fp3','fibre-pulse',{ cableCount:8, pulseCount:3, pulseSpeed:5, pulseSize:14, cableWidth:1.2, cableOpacity:22, origin:'top-right', curvature:50, cableColor:'#34d399', pulseColor:'#10b981', pulseDirection:'source-to-end' }, ['#34d399','#10b981'], 60)],
     layout:{ type:'grid', gridRows:2, gridCols:3, gridGap:28 },
     elements:[
-      E('text', 1, 1, 2, { badge:'🏢 OUR STORY', badgeColor:'#34d399', heading:'Local Since 2010', subheading:'SONIC Internet started with a single tower in Hermanus. Today we serve 4,800+ homes and businesses across the Overberg.', text:'<p style="color:#94a3b8;font-size:15px;line-height:1.85;margin-top:12px">Our engineers live here. When you call us, you speak to a local who knows your street — not a script-reader in a distant call centre.</p>' }, { type:'slideInLeft', duration:800, delay:0 }, { textColor:'#f1f5f9' }),
-      E('stats', 1, 3, 1, { statsNumber:'2010', statsLabel:'Founded', statsSubLabel:'Hermanus, Western Cape', statsIcon:'bi-building', statsAccentColor:'#34d399', statsGlass:true }, { type:'slideInRight', duration:700, delay:100 }),
-      E('stats', 2, 1, 1, { statsNumber:'4,800+', statsLabel:'Active Customers', statsSubLabel:'Overberg region', statsIcon:'bi-people-fill', statsAccentColor:'#34d399', statsTrend:'up', statsTrendValue:'+18% this year', statsGlass:true }, { type:'bounceIn', duration:700, delay:0 }),
+      E('text', 1, 1, 2, { badge:'🏢 OUR STORY', badgeColor:'#34d399', heading:'Local Since 2010', subheading:'Your Company started with a single tower in Your City. Today we serve 4,800+ homes and businesses across the Your Region.', text:'<p style="color:#94a3b8;font-size:15px;line-height:1.85;margin-top:12px">Our engineers live here. When you call us, you speak to a local who knows your street — not a script-reader in a distant call centre.</p>' }, { type:'slideInLeft', duration:800, delay:0 }, { textColor:'#f1f5f9' }),
+      E('stats', 1, 3, 1, { statsNumber:'2010', statsLabel:'Founded', statsSubLabel:'Your City, Western Cape', statsIcon:'bi-building', statsAccentColor:'#34d399', statsGlass:true }, { type:'slideInRight', duration:700, delay:100 }),
+      E('stats', 2, 1, 1, { statsNumber:'4,800+', statsLabel:'Active Customers', statsSubLabel:'Your Region region', statsIcon:'bi-people-fill', statsAccentColor:'#34d399', statsTrend:'up', statsTrendValue:'+18% this year', statsGlass:true }, { type:'bounceIn', duration:700, delay:0 }),
       E('stats', 2, 2, 1, { statsNumber:'99.7%', statsLabel:'Network Uptime', statsSubLabel:'Past 12 months', statsIcon:'bi-graph-up-arrow', statsAccentColor:'#10b981', statsTrend:'up', statsTrendValue:'+0.2% vs 2025', statsGlass:true }, { type:'bounceIn', duration:700, delay:150 }),
       E('stats', 2, 3, 1, { statsNumber:'< 3 min', statsLabel:'Support Response', statsSubLabel:'Average call wait time', statsIcon:'bi-headset', statsAccentColor:'#6ee7b7', statsTrend:'neutral', statsTrendValue:'Industry best', statsGlass:true }, { type:'bounceIn', duration:700, delay:300 }),
     ],
@@ -1358,13 +1358,13 @@
   });
 
   await S({
-    name:'About — Why Choose SONIC', slug:'about',
+    name:'About — Why Choose Us', slug:'about',
     bg:'#04080f',
     layers:[L('pf3','particle-field',{ count:40, speed:0.6, size:2, connectDistance:100, connectOpacity:0.1, shape:'circle', drawConnections:true }, ['#34d399','#059669'], 50)],
     layout:{ type:'grid', gridRows:2, gridCols:3, gridGap:24 },
     elements:[
-      E('text', 1, 1, 3, { heading:'Why Choose SONIC?', subheading:'Beyond just internet — we build the infrastructure your community depends on.', headingAlign:'center', badge:'OUR VALUES', badgeColor:'#10b981' }, { type:'fadeIn', duration:700, delay:0 }, { textColor:'#f1f5f9', textAlign:'center' }),
-      E('card', 2, 1, 1, { cardIcon:'bi-geo-alt-fill', cardTitle:'Genuinely Local', cardBody:"Our team lives and works in the Overberg. We're invested in the community — not a distant corporation.", cardBgType:'gradient', cardBgGradient:'linear-gradient(135deg,#052e16,#14532d)', cardEffect:'glass', cardTextColor:'#a7f3d0' }, { type:'slideInLeft', duration:700, delay:0 }),
+      E('text', 1, 1, 3, { heading:'Why Choose Us?', subheading:'Beyond just internet — we build the infrastructure your community depends on.', headingAlign:'center', badge:'OUR VALUES', badgeColor:'#10b981' }, { type:'fadeIn', duration:700, delay:0 }, { textColor:'#f1f5f9', textAlign:'center' }),
+      E('card', 2, 1, 1, { cardIcon:'bi-geo-alt-fill', cardTitle:'Genuinely Local', cardBody:"Our team lives and works in the Your Region. We're invested in the community — not a distant corporation.", cardBgType:'gradient', cardBgGradient:'linear-gradient(135deg,#052e16,#14532d)', cardEffect:'glass', cardTextColor:'#a7f3d0' }, { type:'slideInLeft', duration:700, delay:0 }),
       E('card', 2, 2, 1, { cardIcon:'bi-lightning-charge-fill', cardTitle:'Real Infrastructure', cardBody:'We own our fibre, towers, and core network. No middlemen — direct from your home to the internet.', cardBgType:'gradient', cardBgGradient:'linear-gradient(135deg,#0a2744,#1e40af)', cardEffect:'glow', cardGlowColor:'#34d399', cardTextColor:'#bae6fd' }, { type:'fadeIn', duration:700, delay:150 }),
       E('card', 2, 3, 1, { cardIcon:'bi-shield-check-fill', cardTitle:'No Surprises', cardBody:'Transparent pricing, no lock-in, no hidden fees. The price you see is the price you pay — forever.', cardBgType:'gradient', cardBgGradient:'linear-gradient(135deg,#1a0a2e,#4c1d95)', cardEffect:'shimmer', cardTextColor:'#e2e8f0' }, { type:'slideInRight', duration:700, delay:300 }),
     ],
@@ -1373,7 +1373,7 @@
 
   await Special({
     type:'FOOTER', name:'About Footer', slug:'about', bg:'#060b14', pt:60, pb:40,
-    content:{ tagline:'Connecting the Overberg since 2010', columns:[{ id:'c1', title:'Quick Links', links:[{ text:'Home', href:'/' },{ text:'View Packages', href:'/packages' },{ text:'Get Support', href:'/support' }] }], copyright:'© 2026 SONIC Internet (Pty) Ltd.' },
+    content:{ tagline:'Serving your region since 2010', columns:[{ id:'c1', title:'Quick Links', links:[{ text:'Home', href:'/' },{ text:'View Packages', href:'/packages' },{ text:'Get Support', href:'/support' }] }], copyright:'© 2026 Your Company (Pty) Ltd.' },
   });
 
   // ═══════════════════════════════════════════════════════════════

@@ -1,25 +1,14 @@
-import Image from "next/image";
-
 export default function SupportPage() {
   return (
     <main className="w-full bg-white py-20">
       <div className="mx-auto max-w-5xl px-4">
         {/* Page Title */}
-        {/* Image Header */}
-        <div className="flex justify-center">
-          <Image
-            src="/images/sonicsupport2.jpg"
-            alt="Sonic Support"
-            width={600}
-            height={400}
-            className="rounded-2xl shadow-lg"
-            priority
-          />
+        <div className="text-center">
+          <h1 className="text-4xl font-bold text-gray-900">Support</h1>
+          <p className="mt-4 text-lg text-gray-600">
+            Need help? We&apos;ve got your back — reach out and we&apos;ll get you sorted.
+          </p>
         </div>
-        <p className="mt-4 text-lg text-gray-600">
-          Need help with your SONIC connection? We’ve got your back —
-          minus the hold music and "the ice-cream machine is broken” attitude.
-        </p>
 
         {/* Contact Options */}
         <section className="mt-12 justify-items-center">
@@ -27,15 +16,15 @@ export default function SupportPage() {
 
           <div className="mt-6 space-y-4 text-gray-700">
             <p>
-              <strong>Phone:</strong> 028 271 5494
+              <strong>Phone:</strong> +27 00 000 0000
             </p>
             <p>
               <strong>Email:</strong>{" "}
               <a
-                href="mailto:support@sonic.co.za"
-                className="text-red-600 hover:underline"
+                href="mailto:support@yourcompany.co.za"
+                className="text-blue-600 hover:underline"
               >
-                support@sonic.co.za
+                support@yourcompany.co.za
               </a>
             </p>
             <p>
@@ -56,18 +45,18 @@ export default function SupportPage() {
 
           <ul className="mt-6 list-disc space-y-3 pl-6 text-gray-700">
             <li>
-              Check if your router is powered on and all cables are firmly
+              Check that your equipment is powered on and all cables are firmly
               connected.
             </li>
             <li>
-              Restart your router (turn it off for 30 seconds, then back on).
+              Restart your equipment (turn it off for 30 seconds, then back on).
             </li>
             <li>
               Ensure your account is active and not suspended for billing.
             </li>
-            <li>Check if only one device is affected or your whole network.</li>
+            <li>Check if only one device is affected or your whole setup.</li>
             <li>
-              Verify if there’s an outage in your area (call us if unsure).
+              Verify if there&apos;s a known issue in your area (call us if unsure).
             </li>
           </ul>
         </section>
@@ -79,19 +68,18 @@ export default function SupportPage() {
           </h2>
 
           <ul className="mt-6 list-disc space-y-3 pl-6 text-gray-700">
-            <li>Your internet is down and rebooting didn’t help.</li>
-            <li>You’re experiencing slow speeds or high latency.</li>
-            <li>Your wireless link is unstable or dropping.</li>
-            <li>You need help with fibre installation or upgrades.</li>
+            <li>Your service is down and rebooting didn&apos;t help.</li>
+            <li>You&apos;re experiencing performance issues.</li>
             <li>You want to change your package or update account details.</li>
+            <li>You need help with installation or upgrades.</li>
           </ul>
         </section>
 
         {/* Final CTA */}
         <section className="mt-20 text-center">
           <a
-            href="mailto:support@sonic.co.za"
-            className="inline-block rounded bg-red-600 px-8 py-3 font-semibold text-white hover:bg-red-700"
+            href="mailto:support@yourcompany.co.za"
+            className="inline-block rounded bg-blue-600 px-8 py-3 font-semibold text-white hover:bg-blue-700"
           >
             Contact Support
           </a>

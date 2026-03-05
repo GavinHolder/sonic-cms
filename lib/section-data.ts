@@ -30,8 +30,8 @@
 
 import type { SectionConfig, PageConfig, SectionType } from "@/types/section";
 
-const STORAGE_KEY = "sonic_cms_sections";
-const PAGES_STORAGE_KEY = "sonic_cms_pages";
+const STORAGE_KEY = "cms_sections";
+const PAGES_STORAGE_KEY = "cms_pages";
 
 /**
  * Default section configurations for the homepage
@@ -52,7 +52,7 @@ export const defaultHomepageSections: SectionConfig[] = [
         {
           id: "1",
           type: "image",
-          src: "/images/sonic-dc.jpeg",
+          src: "/images/placeholder-hero.jpg",
           overlay: {
             heading: {
               text: "Fast, Reliable Internet",
@@ -65,7 +65,7 @@ export const defaultHomepageSections: SectionConfig[] = [
               animationDelay: 200,
             },
             subheading: {
-              text: "Across the Overberg Region",
+              text: "Across the Your Region Region",
               fontSize: 24,
               fontWeight: 400,
               fontFamily: "inherit",
@@ -113,7 +113,7 @@ export const defaultHomepageSections: SectionConfig[] = [
         {
           id: "2",
           type: "image",
-          src: "/images/sonicsupport2.jpg",
+          src: "/images/placeholder-support.jpg",
           overlay: {
             heading: {
               text: "Locally Supported",
@@ -187,12 +187,12 @@ export const defaultHomepageSections: SectionConfig[] = [
     enabled: true,
     order: 2,
     fullScreen: true, // Enable full-screen snap mode with internal scrolling
-    heading: "Why Choose SONIC? - LONG TEST SECTION",
+    heading: "Why Choose Us? - LONG TEST SECTION",
     content: `
-      <p class="lead mb-4">We're a local ISP committed to providing fast, reliable internet across the Overberg region. No hidden fees, no throttling, just honest connectivity backed by real people who care.</p>
+      <p class="lead mb-4">We're a local ISP committed to providing fast, reliable internet across the Your Region region. No hidden fees, no throttling, just honest connectivity backed by real people who care.</p>
 
       <h4 class="mt-5 mb-3">Our Commitment to You</h4>
-      <p class="mb-4">At SONIC, we believe that reliable internet connectivity is no longer a luxury—it's a necessity. Whether you're working from home, streaming your favorite shows, or running a business, we've got you covered.</p>
+      <p class="mb-4">We believe that reliable internet connectivity is no longer a luxury—it's a necessity. Whether you're working from home, streaming your favorite shows, or running a business, we've got you covered.</p>
 
       <h5 class="mt-5 mb-3">What Makes Us Different:</h5>
       <ul class="list-unstyled mb-4">
@@ -204,28 +204,28 @@ export const defaultHomepageSections: SectionConfig[] = [
         <li class="mb-3">&#10003; <strong>Free Installation:</strong> We cover all setup costs</li>
       </ul>
 
-      <h5 class="mt-5 mb-3">Serving the Overberg Since 2010:</h5>
-      <p class="mb-4">With over 10,000 satisfied customers across the region, we've built our reputation on reliability, transparency, and exceptional customer service. Our local team understands the unique connectivity challenges of the Overberg, and we've invested millions in building infrastructure that serves our community.</p>
+      <h5 class="mt-5 mb-3">Serving the Your Region Since 2010:</h5>
+      <p class="mb-4">With over 10,000 satisfied customers across the region, we've built our reputation on reliability, transparency, and exceptional customer service. Our local team understands the unique connectivity challenges of the Your Region, and we've invested millions in building infrastructure that serves our community.</p>
 
-      <p class="mb-4">From Hermanus to Swellendam, from Betty's Bay to Napier, we're here to connect you to what matters most.</p>
+      <p class="mb-4">From Your City to Swellendam, from Betty's Bay to Napier, we're here to connect you to what matters most.</p>
 
       <h4 class="mt-5 mb-3">SECTION 1 LONG CONTENT - Our Network Infrastructure</h4>
-      <p class="mb-4">Our state-of-the-art network infrastructure ensures that you get the fastest, most reliable connection possible. We've invested heavily in fiber optic technology and wireless towers across the Overberg region.</p>
+      <p class="mb-4">Our state-of-the-art network infrastructure ensures that you get the fastest, most reliable connection possible. We've invested heavily in fiber optic technology and wireless towers across the Your Region region.</p>
 
       <h5 class="mt-4 mb-3">Coverage Areas:</h5>
       <ul class="mb-4">
-        <li class="mb-2">Hermanus - Full fiber coverage in CBD and most suburbs</li>
-        <li class="mb-2">Kleinmond - Wireless and fiber options available</li>
+        <li class="mb-2">Your City - Full fiber coverage in CBD and most suburbs</li>
+        <li class="mb-2">City 3 - Wireless and fiber options available</li>
         <li class="mb-2">Betty's Bay - Wireless coverage with plans for fiber expansion</li>
-        <li class="mb-2">Gansbaai - Complete wireless coverage</li>
-        <li class="mb-2">Stanford - Growing fiber network</li>
+        <li class="mb-2">City 2 - Complete wireless coverage</li>
+        <li class="mb-2">City 4 - Growing fiber network</li>
         <li class="mb-2">Swellendam - Wireless and select fiber areas</li>
       </ul>
 
       <h4 class="mt-5 mb-3">MORE SCROLL CONTENT - Customer Testimonials</h4>
-      <p class="mb-3"><em>"Sonic has been a game-changer for our business. The reliable connection and local support make all the difference."</em> - Sarah M., Hermanus</p>
-      <p class="mb-3"><em>"After years of struggling with other ISPs, Sonic's honest pricing and no-contract policy won us over. Best decision we made!"</em> - John D., Kleinmond</p>
-      <p class="mb-4"><em>"The customer service is incredible. Real people who actually care about solving your problems."</em> - Lisa K., Gansbaai</p>
+      <p class="mb-3"><em>"This company has been a game-changer for our business. The reliable connection and local support make all the difference."</em> - Sarah M., Your City</p>
+      <p class="mb-3"><em>"After years of struggling with other providers, our honest pricing and no-contract policy won us over. Best decision we made!"</em> - John D., City 3</p>
+      <p class="mb-4"><em>"The customer service is incredible. Real people who actually care about solving your problems."</em> - Lisa K., City 2</p>
 
       <h4 class="mt-5 mb-3">ADDITIONAL CONTENT - Technical Specifications</h4>
       <p class="mb-4">Our network utilizes cutting-edge technology to deliver consistent performance. Whether you're on fiber or wireless, we guarantee speeds that match your package.</p>
@@ -248,7 +248,7 @@ export const defaultHomepageSections: SectionConfig[] = [
       </ul>
 
       <h4 class="mt-5 mb-3">EVEN MORE CONTENT - Our History</h4>
-      <p class="mb-4">SONIC started in 2010 with a simple mission: bring reliable, affordable internet to the Overberg region. What began as a small wireless ISP serving Hermanus has grown into a comprehensive fiber and wireless network spanning the entire region.</p>
+      <p class="mb-4">Your Company started with a simple mission: bring excellent service to the region. What began as a small operation has grown into a comprehensive service spanning the entire area.</p>
 
       <p class="mb-4">Our founder, a local entrepreneur frustrated with poor service from national ISPs, saw an opportunity to do things differently. Today, we're proud to serve over 10,000 households and businesses, always staying true to our roots as a local, community-focused provider.</p>
 
@@ -266,10 +266,10 @@ export const defaultHomepageSections: SectionConfig[] = [
       <h4 class="mt-5 mb-3">CONTENT SECTION 8 - Environmental Responsibility</h4>
       <p class="mb-4">We're committed to reducing our environmental impact. Our data centers run on renewable energy, and we've partnered with local conservation efforts to minimize the footprint of our wireless infrastructure.</p>
 
-      <p class="mb-4">Every year, we plant 100 trees for every 100 new customers, contributing to the reforestation of the Overberg region. It's our way of giving back to the land that supports our business and our community.</p>
+      <p class="mb-4">Every year, we plant 100 trees for every 100 new customers, contributing to the reforestation of the Your Region region. It's our way of giving back to the land that supports our business and our community.</p>
 
       <h4 class="mt-5 mb-3">FINAL SECTION - Ready to Switch?</h4>
-      <p class="mb-4">Join thousands of satisfied customers who've made the switch to SONIC. Whether you're looking for reliable fiber connectivity or extensive wireless coverage, we have a solution that fits your needs and budget.</p>
+      <p class="mb-4">Join our satisfied customers. We have a solution that fits your needs.</p>
 
       <p class="mb-4"><strong>This section is now approximately 4-5x viewport height and thoroughly tests internal scrolling before transitioning to the next section.</strong></p>
 
@@ -284,8 +284,8 @@ export const defaultHomepageSections: SectionConfig[] = [
         </ul>
       </div>
     `,
-    imageSrc: "/images/sonic-dc.jpeg",
-    imageAlt: "Sonic Data Center Infrastructure",
+    imageSrc: "/images/placeholder-hero.jpg",
+    imageAlt: "Your Company Infrastructure",
     layout: "right",
     buttons: [
       { text: "Our Story", href: "/about", variant: "primary" },
@@ -309,7 +309,7 @@ export const defaultHomepageSections: SectionConfig[] = [
         value: "10,000",
         suffix: "+",
         label: "Happy Customers",
-        description: "Across the Overberg region",
+        description: "Across the Your Region region",
       },
       {
         id: "2",
@@ -393,11 +393,11 @@ export const defaultHomepageSections: SectionConfig[] = [
           Speeds up to 50Mbps
 
           Coverage Areas:
-          - Hermanus outskirts
-          - Kleinmond rural areas
+          - Your City outskirts
+          - City 3 rural areas
           - Betty's Bay
-          - Gansbaai farms
-          - Stanford surrounds
+          - City 2 farms
+          - City 4 surrounds
         `,
         color: "#16a34a",
         buttons: [{ text: "Check Coverage", href: "/coverage", variant: "primary" }],
@@ -766,7 +766,7 @@ export const defaultHomepageSections: SectionConfig[] = [
     fullScreen: true, // Enable full-screen snap mode
     heading: "Local Support You Can Trust",
     content: `
-      <p class="lead">Unlike big ISPs, we're a local company that cares about our community. Our support team is based right here in the Overberg, and they know the area inside and out.</p>
+      <p class="lead">Unlike big ISPs, we're a local company that cares about our community. Our support team is based right here in the Your Region, and they know the area inside and out.</p>
 
       <h4 class="mt-4 mb-3">Why Choose Local Support?</h4>
 
@@ -795,18 +795,18 @@ export const defaultHomepageSections: SectionConfig[] = [
       <h4 class="mt-5 mb-3">24/7 Support Channels:</h4>
       <ul class="list-unstyled">
         <li class="mb-2"><strong>Phone:</strong> 028 123 4567</li>
-        <li class="mb-2"><strong>Email:</strong> support@sonicinternet.co.za</li>
+        <li class="mb-2"><strong>Email:</strong> support@yourcompany.co.za</li>
         <li class="mb-2"><strong>WhatsApp:</strong> 082 123 4567</li>
         <li class="mb-2"><strong>Live Chat:</strong> Available on our website</li>
-        <li class="mb-2"><strong>Walk-in:</strong> Visit our Hermanus office</li>
+        <li class="mb-2"><strong>Walk-in:</strong> Visit our Your City office</li>
       </ul>
 
       <div class="alert alert-info mt-4">
         <strong>Language Support:</strong> We offer full support in both English and Afrikaans. We're not just your ISP—we're your neighbors.
       </div>
     `,
-    imageSrc: "/images/sonicsupport2.jpg",
-    imageAlt: "Sonic Support Team",
+    imageSrc: "/images/placeholder-support.jpg",
+    imageAlt: "Support Team",
     layout: "left",
     buttons: [
       { text: "Contact Support", href: "/support", variant: "primary" },
@@ -827,20 +827,20 @@ export const defaultHomepageSections: SectionConfig[] = [
     order: 998,
     fullScreen: true,
     heading: "Ready to Get Connected?",
-    subheading: "Join thousands of happy customers across the Overberg",
+    subheading: "Join thousands of happy customers across the Your Region",
     buttons: [
       { text: "Check Coverage", href: "/coverage", variant: "primary" },
       { text: "Contact Us", href: "/support", variant: "outline" },
     ],
     contactInfo: {
       phone: "028 123 4567",
-      email: "info@sonicinternet.co.za",
-      address: "123 Main Street, Hermanus, 7200",
+      email: "info@yourcompany.co.za",
+      address: "123 Main Street, Your City, 7200",
     },
     socialLinks: [
-      { platform: "facebook", url: "https://facebook.com/sonicinternet" },
-      { platform: "instagram", url: "https://instagram.com/sonicinternet" },
-      { platform: "linkedin", url: "https://linkedin.com/company/sonicinternet" },
+      { platform: "facebook", url: "https://facebook.com/yourcompany" },
+      { platform: "instagram", url: "https://instagram.com/yourcompany" },
+      { platform: "linkedin", url: "https://linkedin.com/company/yourcompany" },
     ],
     background: "blue",
   },
@@ -856,14 +856,14 @@ export const defaultHomepageSections: SectionConfig[] = [
     paddingTop: 80, // Space for navbar when scrolling into view
     paddingBottom: 40,
     content: {
-      logo: "/images/sonic-logo.png",
+      logo: "/images/logo-placeholder.png",
       logoPosition: "top-left",
-      tagline: "Fast, reliable internet for the Overberg region",
+      tagline: "Fast, reliable internet for the Your Region region",
       companyInfo: {
-        name: "SONIC",
-        address: "123 Main Street, Hermanus, 7200",
+        name: "Your Company",
+        address: "123 Main Street, Your City, 7200",
         phone: "028 271 5494",
-        email: "info@sonic.co.za",
+        email: "info@yourcompany.co.za",
         position: "top-center",
       },
       columns: [
@@ -895,17 +895,17 @@ export const defaultHomepageSections: SectionConfig[] = [
           ],
         },
       ],
-      copyright: "© 2026 SONIC. All rights reserved.",
+      copyright: "© 2026 Your Company. All rights reserved.",
       socialLinks: [
-        { platform: "facebook", url: "https://facebook.com/sonicinternet", icon: "bi-facebook" },
-        { platform: "instagram", url: "https://instagram.com/sonicinternet", icon: "bi-instagram" },
-        { platform: "twitter", url: "https://twitter.com/sonicinternet", icon: "bi-twitter-x" },
+        { platform: "facebook", url: "https://facebook.com/yourcompany", icon: "bi-facebook" },
+        { platform: "instagram", url: "https://instagram.com/yourcompany", icon: "bi-instagram" },
+        { platform: "twitter", url: "https://twitter.com/yourcompany", icon: "bi-twitter-x" },
       ],
       certificationLogos: [
         {
-          id: "cert-icasa",
-          image: "/images/icasa-logo.png",
-          text: "ICASA Licensed ISP\nLicense: 123456",
+          id: "cert-regulatory",
+          image: "/images/regulatory-badge.png",
+          text: "Regulatory Licensed ISP\nLicense: 123456",
           position: "bottom-right",
         },
         {

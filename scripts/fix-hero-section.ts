@@ -53,7 +53,7 @@ async function fixHeroSection() {
               {
                 id: '1',
                 type: 'image',
-                src: '/images/sonic-dc.jpeg',
+                src: '/images/placeholder-hero.jpg',
                 overlay: {
                   heading: {
                     text: 'Fast, Reliable Internet',
@@ -66,7 +66,7 @@ async function fixHeroSection() {
                     animationDelay: 200,
                   },
                   subheading: {
-                    text: 'Across the Overberg Region',
+                    text: 'Across the Your Region Region',
                     fontSize: 24,
                     fontWeight: 400,
                     fontFamily: 'inherit',
@@ -114,7 +114,7 @@ async function fixHeroSection() {
               {
                 id: '2',
                 type: 'image',
-                src: '/images/sonicsupport2.jpg',
+                src: '/images/placeholder-support.jpg',
                 overlay: {
                   heading: {
                     text: 'Locally Supported',
@@ -202,7 +202,7 @@ async function fixHeroSection() {
               {
                 id: '1',
                 type: 'image',
-                src: '/images/sonic-dc.jpeg',
+                src: '/images/placeholder-hero.jpg',
                 overlay: {
                   heading: {
                     text: 'Fast, Reliable Internet',
@@ -215,7 +215,7 @@ async function fixHeroSection() {
                     animationDelay: 200,
                   },
                   subheading: {
-                    text: 'Across the Overberg Region',
+                    text: 'Across the Your Region Region',
                     fontSize: 24,
                     fontWeight: 400,
                     fontFamily: 'inherit',
@@ -263,7 +263,7 @@ async function fixHeroSection() {
               {
                 id: '2',
                 type: 'image',
-                src: '/images/sonicsupport2.jpg',
+                src: '/images/placeholder-support.jpg',
                 overlay: {
                   heading: {
                     text: 'Locally Supported',

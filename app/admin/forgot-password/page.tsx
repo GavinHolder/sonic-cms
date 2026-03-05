@@ -82,8 +82,8 @@ export default function ForgotPasswordPage() {
             {/* Header */}
             <div className="text-center mb-4">
               <img
-                src="/images/sonic-logo.png"
-                alt="SONIC"
+                src="/images/logo-placeholder.png"
+                alt="Your Company"
                 style={{ height: "60px", marginBottom: "1.5rem" }}
               />
               <h1 className="h3 mb-2 fw-normal">Forgot Password?</h1>
@@ -112,7 +112,7 @@ export default function ForgotPasswordPage() {
                       className="form-control"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="admin@sonicinternet.co.za"
+                      placeholder="admin@yourcompany.co.za"
                       required
                     />
                   </div>
@@ -149,7 +149,7 @@ export default function ForgotPasswordPage() {
 
             {/* Footer */}
             <div className="text-center mt-4">
-              <p className="text-muted small">© 2026 SONIC. All rights reserved.</p>
+              <p className="text-muted small">© 2026 Your Company. All rights reserved.</p>
             </div>
           </div>
         </div>

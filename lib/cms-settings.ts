@@ -5,7 +5,7 @@
  * Settings are stored in localStorage and persist across sessions.
  */
 
-const SETTINGS_KEY = "sonic_cms_settings";
+const SETTINGS_KEY = "cms_settings";
 
 export interface CMSSettings {
   // UI Preferences

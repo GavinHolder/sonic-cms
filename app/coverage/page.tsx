@@ -1,27 +1,20 @@
-import Image from "next/image";
-
 export default function CoveragePage() {
   return (
     <main className="w-full bg-white py-20">
       <div className="mx-auto max-w-6xl px-4">
-        {/* Header Image */}
-        <div className="flex justify-center">
-          <Image
-            src="/images/soniccoverage.jpg"
-            alt="Sonic Coverage Map"
-            width={800}
-            height={300}
-            className="h-auto w-full max-w-2xl rounded-lg"
-            priority
-          />
+        {/* Header */}
+        <div className="text-center">
+          <h1 className="text-4xl font-bold text-gray-900">Coverage Map</h1>
+          <p className="mt-4 text-lg text-gray-600">
+            Check if your area is covered by our network.
+          </p>
         </div>
 
         {/* Intro */}
         <p className="mt-8 text-lg text-gray-700">
-          Sonic provides high‑speed Wireless and Fibre Internet across the
-          Overberg region. Our network covers coastal towns, rural areas, farms,
-          and growing communities — delivering fast, reliable connectivity where
-          it matters most.
+          Your Company provides services across the region. Our network covers
+          towns, rural areas, and growing communities — delivering fast, reliable
+          service where it matters most.
         </p>
 
         {/* Coverage Areas */}
@@ -36,26 +29,20 @@ export default function CoveragePage() {
 
           <div className="mt-10 grid gap-6 text-center md:grid-cols-2">
             <div className="rounded-lg border border-gray-200 bg-gray-50 p-6">
-              <h3 className="text-xl font-semibold text-sky-600">Coastal</h3>
+              <h3 className="text-xl font-semibold text-sky-600">Area 1</h3>
               <ul className="mt-3 space-y-1 text-gray-700">
-                <li>Rooi Els</li>
-                <li>Pringle Bay</li>
-                <li>Betty’s Bay</li>
-                <li>Kleinmond</li>
-                <li>Fisherhaven</li>
-                <li>Hawston</li>
-                <li>Sandbaai</li>
-                <li>Hermanus</li>
+                <li>Town A</li>
+                <li>Town B</li>
+                <li>Town C</li>
               </ul>
             </div>
 
             <div className="rounded-lg border border-gray-200 bg-gray-50 p-6">
-              <h3 className="text-xl font-semibold text-green-700">Inland</h3>
+              <h3 className="text-xl font-semibold text-green-700">Area 2</h3>
               <ul className="mt-3 space-y-1 text-gray-700">
-                <li>Grabouw</li>
-                <li>Botivier</li>
-                <li>Napier</li>
-                <li>Bredasdorp</li>
+                <li>Town D</li>
+                <li>Town E</li>
+                <li>Town F</li>
               </ul>
             </div>
           </div>
@@ -64,7 +51,7 @@ export default function CoveragePage() {
         {/* Map Embed */}
         <section className="mt-20">
           <h2 className="text-3xl font-bold text-gray-900 text-center">
-            Coverage Map
+            Service Area Map
           </h2>
 
           <p className="mt-4 text-center text-gray-600">
@@ -72,14 +59,8 @@ export default function CoveragePage() {
           </p>
 
           <div className="mt-10 flex justify-center">
-            <div className="aspect-video w-full max-w-4xl overflow-hidden rounded-lg shadow-lg">
-              <iframe
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d331651.7700042398!2d19.0000!3d-34.3500!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x1dd1f0b0c0c0c0c0%3A0x0000000000000000!2sOverberg!5e0!3m2!1sen!2sza!4v0000000000000"
-                width="100%"
-                height="100%"
-                loading="lazy"
-                allowFullScreen
-              />
+            <div className="aspect-video w-full max-w-4xl overflow-hidden rounded-lg shadow-lg bg-gray-100 flex items-center justify-center">
+              <p className="text-gray-500 text-lg">Map embed — configure your service area</p>
             </div>
           </div>
         </section>
@@ -88,9 +69,9 @@ export default function CoveragePage() {
         <section className="mt-20 text-center">
           <a
             href="/support"
-            className="inline-block rounded bg-red-600 px-8 py-3 font-semibold text-white hover:bg-red-700"
+            className="inline-block rounded bg-blue-600 px-8 py-3 font-semibold text-white hover:bg-blue-700"
           >
-            Not sure if you're covered?
+            Not sure if you&apos;re covered? Contact us
           </a>
         </section>
       </div>

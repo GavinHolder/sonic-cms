@@ -8,8 +8,6 @@ import type {
   TiltConfig,
   CustomCodeConfig,
   ThreeDSceneConfig,
-  FibrePulseConfig,
-  WifiPulseConfig,
   SVGAnimationConfig,
   TextEffectsConfig,
   AnimBgType,
@@ -106,43 +104,6 @@ export const DEFAULT_3D_SCENE: ThreeDSceneConfig = {
   envOpacity: 80,
 };
 
-export const DEFAULT_FIBRE_PULSE: FibrePulseConfig = {
-  cableCount: 8,
-  pulseCount: 2,
-  pulseSpeed: 4,
-  pulseSize: 20,
-  cableWidth: 1,
-  cableOpacity: 30,
-  origin: "top-left",
-  curvature: 50,
-  cableColor: "",
-  pulseColor: "",
-  pulseDirection: "source-to-end",
-  randomPulseCount: false,
-};
-
-export const DEFAULT_WIFI_PULSE: WifiPulseConfig = {
-  ringCount: 3,
-  speed: 2.5,
-  interval: 2000,
-  maxRadius: 70,
-  thickness: 2,
-  style: "arcs",
-  posX: 50,
-  posY: 50,
-  direction: 270,
-  arcSpread: 45,
-  ringColor: "",
-  shadowOpacity: 40,
-  perspective3d: false,
-  mouseInterference: false,
-  objectInterference: false,
-  apCount: 1,
-  apDrift: false,
-  apDriftSpeed: 3,
-  apRotate: false,
-  apRotateSpeed: 3,
-};
 
 export const DEFAULT_SVG_ANIMATION: SVGAnimationConfig = {
   svgCode: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
@@ -163,7 +124,7 @@ export const DEFAULT_SVG_ANIMATION: SVGAnimationConfig = {
 };
 
 export const DEFAULT_TEXT_EFFECTS: TextEffectsConfig = {
-  text:          "SONIC",
+  text:          "YOUR COMPANY",
   animation:     "typewriter",
   direction:     "left",
   fontSize:      10,
@@ -210,8 +171,6 @@ export const DEFAULT_CONFIGS: Record<AnimBgType, object> = {
   "3d-tilt":         DEFAULT_TILT,
   "custom-code":     DEFAULT_CUSTOM_CODE,
   "3d-scene":        DEFAULT_3D_SCENE,
-  "fibre-pulse":     DEFAULT_FIBRE_PULSE,
-  "wifi-pulse":      DEFAULT_WIFI_PULSE,
   "svg-animation":   DEFAULT_SVG_ANIMATION,
   "text-effects":    DEFAULT_TEXT_EFFECTS,
 };

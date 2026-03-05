@@ -12,8 +12,6 @@ export type AnimBgType =
   | "3d-tilt"
   | "custom-code"
   | "3d-scene"
-  | "fibre-pulse"
-  | "wifi-pulse"
   | "svg-animation"
   | "text-effects";
 
@@ -120,73 +118,6 @@ export interface ThreeDSceneConfig {
   envOpacity: number;      // 0–100, default 80
 }
 
-export interface FibrePulseConfig {
-  cableCount: number;   // 3–16, default 8
-  pulseCount: number;   // 1–4 per cable, default 2
-  pulseSpeed: number;   // seconds per full cable traversal, default 4
-  pulseSize: number;    // glow radius in px, default 20
-  cableWidth: number;   // cable line width in px, default 1
-  cableOpacity: number; // 0–100, default 30
-  origin: "top-left" | "bottom-left" | "top-right" | "bottom-right" | "random";
-  curvature: number;    // 0–100, default 50
-  /** Override cable strand colour. Empty string = use layer colour palette. */
-  cableColor: string;
-  /** Override pulse/glow colour. Empty string = use cable colour. */
-  pulseColor: string;
-  /** Travel direction for light pulses. Default "source-to-end". */
-  pulseDirection: "source-to-end" | "end-to-source" | "random" | "bidirectional";
-  /** If true, each cable independently randomises how many pulses are active (1–pulseCount),
-   *  producing burst-like data-packet patterns instead of uniform even spacing. */
-  randomPulseCount: boolean;
-}
-
-export interface WifiPulseConfig {
-  /** Rings emitted per burst (1–6, default 3) */
-  ringCount: number;
-  /** Ring lifetime — seconds to expand from 0 to maxRadius (default 2.5) */
-  speed: number;
-  /** Milliseconds between emission bursts (500–6000, default 2000) — controls subtlety */
-  interval: number;
-  /** Maximum ring radius as % of section's largest dimension (10–150, default 70) */
-  maxRadius: number;
-  /** Ring stroke width in px (1–8, default 2) */
-  thickness: number;
-  /** "rings" = full circles; "arcs" = partial arc facing direction */
-  style: "rings" | "arcs";
-  /** Emission point X as % of section width (0–100, default 50 = center) */
-  posX: number;
-  /** Emission point Y as % of section height (0–100, default 50 = center) */
-  posY: number;
-  /** Arc facing direction in degrees. 0=right, 90=down, 180=left, 270=up. Default 270 (upward WiFi). */
-  direction: number;
-  /** Arc spread in degrees (10–120, default 45). 45°=tight WiFi · 60°=standard WiFi · 90°=wide fan */
-  arcSpread: number;
-  /** Ring colour override. Empty string / #000000 = use layer colour palette. */
-  ringColor: string;
-  /** Shadow/glow opacity 0–100 (default 40) */
-  shadowOpacity: number;
-  /** True = squish rings into ellipses for a top-down 3D perspective look */
-  perspective3d: boolean;
-  /** Rings warp and deflect around the mouse cursor as you hover (default false) */
-  mouseInterference?: boolean;
-  /** How strongly the mouse/touch pushes rings — 1–100 (default 30) */
-  mouseStrength?: number;
-  /** Rings fade out where they intersect visible child elements — signal blocked by obstacles (default false) */
-  objectInterference?: boolean;
-  /** Number of independent WiFi access points — 1 to 5 (default 1) */
-  apCount?: number;
-  /** Allow access points to slowly drift around the canvas (default false) */
-  apDrift?: boolean;
-  /** Drift movement speed — 1 (very slow) to 10 (fast), default 3 */
-  apDriftSpeed?: number;
-  /** Allow each AP's arc direction to slowly rotate over time (default false) */
-  apRotate?: boolean;
-  /** Rotation speed — 1 (very slow) to 10 (fast), default 3 */
-  apRotateSpeed?: number;
-  /** Legacy origin key — kept for backwards compat, ignored when posX/posY are set */
-  origin?: "center" | "top-center" | "bottom-center" | "left-center" | "right-center"
-         | "top-left" | "top-right" | "bottom-left" | "bottom-right";
-}
 
 export interface SVGAnimationConfig {
   /** Raw SVG markup to display and animate */
@@ -277,8 +208,6 @@ export type AnimBgPresetConfig =
   | TiltConfig
   | CustomCodeConfig
   | ThreeDSceneConfig
-  | FibrePulseConfig
-  | WifiPulseConfig
   | SVGAnimationConfig
   | TextEffectsConfig;
 

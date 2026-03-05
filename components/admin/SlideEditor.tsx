@@ -501,7 +501,7 @@ export default function SlideEditor({
                     },
                   })
                 }
-                placeholder="Welcome to SONIC"
+                placeholder="Welcome to Your Company"
               />
             </div>
 

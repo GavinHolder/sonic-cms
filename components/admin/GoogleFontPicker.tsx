@@ -115,7 +115,7 @@ const BUILTIN_FONTS: GoogleFont[] = [
   { family: "Architects Daughter", category: "handwriting" },
 ];
 
-const STORAGE_KEY = "sonic_installed_fonts";
+const STORAGE_KEY = "cms_installed_fonts";
 
 function loadInstalledFonts(): GoogleFont[] {
   try {

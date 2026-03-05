@@ -4,10 +4,10 @@
 export const AUTH_CONFIG = {
   // Default admin credentials
   username: "admin",
-  password: "sonic2026",
+  password: "admin2026",
 
   // Session settings
-  sessionKey: "sonic_cms_session",
+  sessionKey: "cms_session",
   sessionTimeout: 4 * 60 * 60 * 1000, // 4 hours in milliseconds
 };
 
@@ -27,7 +27,7 @@ export interface Session {
 // Mock user data
 export const MOCK_USER = {
   id: "1",
-  email: "admin@sonicinternet.co.za",
+  email: "admin@yourcompany.co.za",
   username: "admin",
   firstName: "Admin",
   lastName: "User",

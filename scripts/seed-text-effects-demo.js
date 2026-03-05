@@ -69,7 +69,7 @@
   }
 
   // ─── Section A: Image Clip Mask Demo ────────────────────────────────────────
-  // Large "SONIC" text with an image playing THROUGH the letterforms.
+  // Large "Your Company" text with an image playing THROUGH the letterforms.
   // Edit fillMediaUrl in the Animation tab to swap to your own image or video.
   await post(
     "🎭 TEXT CLIP MASK — Image/Video Through Text",
@@ -77,7 +77,7 @@
     0, 0,
     [
       makeLayer("clip-1", "text-effects", {
-        text: "SONIC",
+        text: "Your Company",
         animation: "typewriter",
         direction: "left",
         fontSize: 22,
@@ -88,7 +88,7 @@
         fillType: "image-clip",
         fillColor: "",
         fillGradient: "linear-gradient(135deg, #4ecdc4, #6a82fb)",
-        fillMediaUrl: "/images/sonic-dc.jpeg",  // ← Edit this in admin to your own image/video
+        fillMediaUrl: "/images/placeholder-hero.jpg",  // ← Edit this in admin to your own image/video
         speed: 0.6,
         stagger: 80,
         loop: true,

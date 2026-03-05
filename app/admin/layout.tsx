@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Script from "next/script";
 
 export const metadata: Metadata = {
-  title: "SONIC CMS - Admin Portal",
-  description: "Content Management System for SONIC",
+  title: "CMS Admin Portal",
+  description: "Content Management System",
 };
 
 export default function AdminLayout({

@@ -1002,7 +1002,7 @@
 
 <!-- TOP TOOLBAR -->
 <div id="toolbar">
-  <div class="toolbar-brand">Sonic <span>Layout Designer</span></div>
+  <div class="toolbar-brand">Layout <span>Designer</span></div>
   <div id="mode-badge" class="mode-badge single">Single Section</div>
   <div id="editing-indicator">
     <i class="bi bi-pencil-square"></i>
@@ -1159,11 +1159,6 @@
               <div class="element-card" draggable="true" ondragstart="onLibDragStart(event,'divider')">
                 <div class="ec-icon">➖</div>
                 <div class="ec-name">Divider</div>
-                <span class="ec-badge container">Block</span>
-              </div>
-              <div class="element-card" draggable="true" ondragstart="onLibDragStart(event,'isp-price-card')">
-                <div class="ec-icon">📶</div>
-                <div class="ec-name">ISP Price Card</div>
                 <span class="ec-badge container">Block</span>
               </div>
             </div>
@@ -1377,13 +1372,6 @@ const BLOCK_DEFAULTS = {
   video:       { label:'Video',   src:'', poster:'', autoplay:false, loop:false, customCss:'' },
   html:        { label:'HTML',    html:'<p>Custom HTML</p>', customCss:'' },
   divider:     { label:'Divider', thickness:2, dividerColor:'#dee2e6', customCss:'' },
-  'isp-price-card': { label:'ISP Price Card', packageName:'Fibre 100', packageType:'fibre',
-                      price:'R699', priceLabel:'/pm',
-                      downloadSpeed:100, uploadSpeed:50, speedUnit:'Mbps',
-                      features:'Uncapped data\nLocal support 24/7\nFree router rental\nNo lock-in contract',
-                      isFeatured:false, featuredLabel:'MOST POPULAR',
-                      accentColor:'#4ecdc4', cardBgColor:'#0f172a', textColor:'#ffffff',
-                      buttonText:'Get Started', navTarget:'', customCss:'' }
 };
 
 const SUB_DEFAULTS = {
@@ -1399,7 +1387,7 @@ const SUB_DEFAULTS = {
 // ═══════════════════════════════════════════════════════════
 //  PERSISTENCE & UNDO
 // ═══════════════════════════════════════════════════════════
-const AUTOSAVE_KEY = 'sonic_layout_autosave_v2';
+const AUTOSAVE_KEY = 'cms_layout_autosave_v2';
 
 /**
  * Serialises the current designer state to a JSON string suitable for
@@ -1588,7 +1576,7 @@ function loadNavOptions() {
   ];
   try {
     // Load landing-page sections so users can link directly to section anchors
-    const sectData = localStorage.getItem('sonic_sections_home') || localStorage.getItem('sections');
+    const sectData = localStorage.getItem('cms_sections_home') || localStorage.getItem('sections');
     if (sectData) {
       JSON.parse(sectData).filter(s => s.enabled !== false).forEach(s => {
         opts.push({ value:`#${s.id}`, label:`⚓ Section: ${s.title || s.id}` });
@@ -1597,7 +1585,7 @@ function loadNavOptions() {
   } catch(e) {}
   try {
     // Load CMS pages so users can link to any published page route
-    const pagesData = localStorage.getItem('sonic_cms_pages');
+    const pagesData = localStorage.getItem('cms_pages');
     if (pagesData) {
       JSON.parse(pagesData).filter(p => p.enabled !== false).forEach(p => {
         opts.push({ value:`/${p.slug}`, label:`📄 ${p.title} (/${p.slug})` });
@@ -1999,23 +1987,6 @@ function createBlockPreview(block) {
     case 'divider':
       wrap.innerHTML = `<div style="padding:10px 0;"><hr style="border-top:${p.thickness}px solid ${p.dividerColor};margin:0;"></div>`;
       break;
-    case 'isp-price-card': {
-      const pkgIcon = p.packageType==='wifi' ? '📶' : p.packageType==='lte'||p.packageType==='fwa' ? '📡' : '⚡';
-      const featBadge = p.isFeatured ? `<div style="position:absolute;top:-14px;left:50%;transform:translateX(-50%);background:${p.accentColor||'#4ecdc4'};color:#000;font-size:10px;font-weight:700;padding:2px 12px;border-radius:20px;white-space:nowrap;">${p.featuredLabel||'MOST POPULAR'}</div>` : '';
-      const featureList = (p.features||'').split('\n').filter(Boolean).slice(0,4).map(f=>`<div style="font-size:11px;color:${p.textColor||'#fff'};opacity:0.8;">✓ ${f}</div>`).join('');
-      wrap.innerHTML = `<div style="position:relative;background:${p.cardBgColor||'#0f172a'};color:${p.textColor||'#fff'};border-radius:12px;padding:${p.isFeatured?'28px 20px 20px':'20px'};height:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:10px;border:2px solid ${p.isFeatured?(p.accentColor||'#4ecdc4'):'rgba(255,255,255,0.1)'};">
-        ${featBadge}
-        <div style="font-size:13px;font-weight:600;">${pkgIcon} ${p.packageName||'Package'}</div>
-        <div style="font-size:24px;font-weight:800;color:${p.accentColor||'#4ecdc4'};line-height:1;">${p.price||'R0'}<span style="font-size:12px;font-weight:400;opacity:0.7;">${p.priceLabel||'/pm'}</span></div>
-        <div style="display:flex;gap:16px;">
-          <div style="text-align:center;"><div style="font-size:18px;font-weight:700;">${p.downloadSpeed||0}</div><div style="font-size:10px;opacity:0.6;">↓ ${p.speedUnit||'Mbps'}</div></div>
-          <div style="text-align:center;"><div style="font-size:18px;font-weight:700;">${p.uploadSpeed||0}</div><div style="font-size:10px;opacity:0.6;">↑ ${p.speedUnit||'Mbps'}</div></div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1;">${featureList}</div>
-        <div style="background:${p.accentColor||'#4ecdc4'};color:#000;text-align:center;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700;">${p.buttonText||'Get Started'}</div>
-      </div>`;
-      break;
-    }
     default:
       wrap.innerHTML = `<div style="padding:12px;text-align:center;color:#adb5bd;font-size:12px;">${block.type}</div>`;
   }
@@ -3446,23 +3417,6 @@ function renderTypeProps(block) {
       h+=`<div class="props-row"><label>Thickness</label><input class="props-input" type="range" min="1" max="10" value="${p.thickness||2}" oninput="updateBlockProp('${block.id}','thickness',parseInt(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.thickness||2}px</span></div>`;
       h+=colorRow('Color',p.dividerColor||'#dee2e6',`updateBlockProp('${block.id}','dividerColor',this.value);renderCanvas()`);
       break;
-    case 'isp-price-card':
-      h+=inputRow('Package Name',p.packageName||'Fibre 100',`updateBlockProp('${block.id}','packageName',this.value);renderCanvas()`,'e.g. Fibre 100');
-      h+=selectRow('Package Type',p.packageType||'fibre',[['fibre','Fibre ⚡'],['wifi','WiFi 📶'],['lte','LTE 📡'],['fwa','FWA 📡']],`updateBlockProp('${block.id}','packageType',this.value);renderCanvas()`);
-      h+=inputRow('Price',p.price||'R699',`updateBlockProp('${block.id}','price',this.value);renderCanvas()`,'e.g. R699');
-      h+=inputRow('Price Label',p.priceLabel||'/pm',`updateBlockProp('${block.id}','priceLabel',this.value);renderCanvas()`,'e.g. /pm');
-      h+=`<div class="props-row"><label>Download (${p.speedUnit||'Mbps'})</label><input class="props-input" type="number" min="0" max="10000" value="${p.downloadSpeed||100}" oninput="updateBlockProp('${block.id}','downloadSpeed',parseFloat(this.value)||0);renderCanvas()"></div>`;
-      h+=`<div class="props-row"><label>Upload (${p.speedUnit||'Mbps'})</label><input class="props-input" type="number" min="0" max="10000" value="${p.uploadSpeed||50}" oninput="updateBlockProp('${block.id}','uploadSpeed',parseFloat(this.value)||0);renderCanvas()"></div>`;
-      h+=selectRow('Speed Unit',p.speedUnit||'Mbps',[['Mbps','Mbps'],['Gbps','Gbps']],`updateBlockProp('${block.id}','speedUnit',this.value);renderCanvas()`);
-      h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;"><label style="margin-bottom:4px;font-size:12px;">Features (one per line)</label><textarea class="css-editor" style="color:#198754;min-height:80px;" oninput="updateBlockProp('${block.id}','features',this.value);renderCanvas()">${escHtml(p.features||'')}</textarea></div>`;
-      h+=colorRow('Accent Color',p.accentColor||'#4ecdc4',`updateBlockProp('${block.id}','accentColor',this.value);renderCanvas()`);
-      h+=colorRow('Card Background',p.cardBgColor||'#0f172a',`updateBlockProp('${block.id}','cardBgColor',this.value);renderCanvas()`);
-      h+=colorRow('Text Color',p.textColor||'#ffffff',`updateBlockProp('${block.id}','textColor',this.value);renderCanvas()`);
-      h+=inputRow('Button Text',p.buttonText||'Get Started',`updateBlockProp('${block.id}','buttonText',this.value);renderCanvas()`);
-      h+=inputRow('Button Link',p.navTarget||'',`updateBlockProp('${block.id}','navTarget',this.value)`,'#packages or /contact');
-      h+=`<div class="props-label" style="margin-top:10px;"><i class="bi bi-star"></i> Featured Banner</div>`;
-      h+=`<div class="props-row"><label>Featured</label><input type="checkbox" ${p.isFeatured?'checked':''} onchange="updateBlockProp('${block.id}','isFeatured',this.checked);renderCanvas()"></div>`;
-      if (p.isFeatured) h+=inputRow('Banner Label',p.featuredLabel||'MOST POPULAR',`updateBlockProp('${block.id}','featuredLabel',this.value);renderCanvas()`,'e.g. MOST POPULAR');
       break;
   }
   return h;
@@ -4300,7 +4254,7 @@ function installDesignerFont(bId, sId, safeId) {
  * @returns {string} Bootstrap icon class (e.g. 'bi-layout-text-window').
  */
 function getBlockIcon(type) {
-  return {hero:'bi-layout-text-window',card:'bi-card-text','text-block':'bi-text-paragraph',banner:'bi-megaphone',stats:'bi-graph-up',image:'bi-image',video:'bi-play-circle',html:'bi-code-slash',divider:'bi-dash-lg','isp-price-card':'bi-credit-card-2-front'}[type]||'bi-square';
+  return {hero:'bi-layout-text-window',card:'bi-card-text','text-block':'bi-text-paragraph',banner:'bi-megaphone',stats:'bi-graph-up',image:'bi-image',video:'bi-play-circle',html:'bi-code-slash',divider:'bi-dash-lg'}[type]||'bi-square';
 }
 /**
  * Converts a hex colour and an integer opacity value (0–100) to a CSS rgba()
@@ -4996,13 +4950,13 @@ function buildJson() {
   },null,2);
 }
 /**
- * Saves the current layout to localStorage under 'sonic_layout_draft' and
+ * Saves the current layout to localStorage under 'cms_layout_draft' and
  * sends a FLEXIBLE_DESIGNER_SAVE postMessage to the parent window (when
  * embedded in an iframe). Shows a brief "Saved!" confirmation on the button.
  */
 function saveLayout() {
   const json=buildJson();
-  localStorage.setItem('sonic_layout_draft',json);
+  localStorage.setItem('cms_layout_draft',json);
   if(window.parent&&window.parent!==window){window.parent.postMessage({type:'FLEXIBLE_DESIGNER_SAVE',payload:json},'*');}
   const btn=event.target; const orig=btn.textContent;
   btn.textContent=' Saved!';
@@ -5016,7 +4970,7 @@ function saveLayout() {
  */
 function doneAndClose() {
   const json=buildJson();
-  localStorage.setItem('sonic_layout_draft',json);
+  localStorage.setItem('cms_layout_draft',json);
   if(window.parent&&window.parent!==window){window.parent.postMessage({type:'FLEXIBLE_DESIGNER_DONE',payload:json},'*');}
 }
 /**

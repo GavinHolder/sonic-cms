@@ -3,12 +3,12 @@
  *
  * Mirrors section-manager.ts pattern for consistency.
  * Pages use the same section system - this only manages metadata.
- * Sections stored separately in sonic_sections_{pageSlug}
+ * Sections stored separately in cms_sections_{pageSlug}
  */
 
 import type { PageConfig, PageType, FullPageConfig, PDFPageConfig, FormPageConfig, DesignerPageConfig } from "@/types/page";
 
-const PAGES_KEY = "sonic_cms_pages";
+const PAGES_KEY = "cms_pages";
 
 /**
  * Reserved slugs that cannot be used for pages
@@ -162,7 +162,7 @@ export function createPage(
 
     case 'designer':
       newPage = baseConfig as DesignerPageConfig;
-      // Designer content stored in sonic_designer_{slug} — starts empty
+      // Designer content stored in cms_designer_{slug} — starts empty
       break;
 
     default:
@@ -195,16 +195,16 @@ export function updatePage(slug: string, updates: Partial<PageConfig>): PageConf
 
     // Move sections / designer data to new slug
     if (pages[index].type === 'full') {
-      const oldKey = `sonic_sections_${slug}`;
-      const newKey = `sonic_sections_${updates.slug}`;
+      const oldKey = `cms_sections_${slug}`;
+      const newKey = `cms_sections_${updates.slug}`;
       const sections = localStorage.getItem(oldKey);
       if (sections) {
         localStorage.setItem(newKey, sections);
         localStorage.removeItem(oldKey);
       }
     } else if (pages[index].type === 'designer') {
-      const oldKey = `sonic_designer_${slug}`;
-      const newKey = `sonic_designer_${updates.slug}`;
+      const oldKey = `cms_designer_${slug}`;
+      const newKey = `cms_designer_${updates.slug}`;
       const data = localStorage.getItem(oldKey);
       if (data) {
         localStorage.setItem(newKey, data);
@@ -251,13 +251,13 @@ export function deletePage(slug: string): void {
   // Remove type-specific data
   if (page.type === 'full') {
     try {
-      localStorage.removeItem(`sonic_sections_${slug}`);
+      localStorage.removeItem(`cms_sections_${slug}`);
     } catch (error) {
       console.warn(`Failed to delete sections for page "${slug}":`, error);
     }
   } else if (page.type === 'designer') {
     try {
-      localStorage.removeItem(`sonic_designer_${slug}`);
+      localStorage.removeItem(`cms_designer_${slug}`);
     } catch (error) {
       console.warn(`Failed to delete designer data for page "${slug}":`, error);
     }
@@ -305,14 +305,14 @@ export function duplicatePage(slug: string): PageConfig {
 
   // Copy type-specific data
   if (page.type === 'full') {
-    const sourceSections = localStorage.getItem(`sonic_sections_${slug}`);
+    const sourceSections = localStorage.getItem(`cms_sections_${slug}`);
     if (sourceSections) {
-      localStorage.setItem(`sonic_sections_${newSlug}`, sourceSections);
+      localStorage.setItem(`cms_sections_${newSlug}`, sourceSections);
     }
   } else if (page.type === 'designer') {
-    const sourceData = localStorage.getItem(`sonic_designer_${slug}`);
+    const sourceData = localStorage.getItem(`cms_designer_${slug}`);
     if (sourceData) {
-      localStorage.setItem(`sonic_designer_${newSlug}`, sourceData);
+      localStorage.setItem(`cms_designer_${newSlug}`, sourceData);
     }
   }
 
@@ -324,12 +324,12 @@ export function duplicatePage(slug: string): PageConfig {
  */
 export function getDesignerData(slug: string): string | null {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem(`sonic_designer_${slug}`);
+  return localStorage.getItem(`cms_designer_${slug}`);
 }
 
 /**
  * Save designer page data
  */
 export function saveDesignerData(slug: string, data: string): void {
-  localStorage.setItem(`sonic_designer_${slug}`, data);
+  localStorage.setItem(`cms_designer_${slug}`, data);
 }
