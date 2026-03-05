@@ -53,7 +53,7 @@ export default function CardGrid({
   const columnClasses = {
     2: "row-cols-1 row-cols-md-2",
     3: "row-cols-1 row-cols-md-2 row-cols-lg-3",
-    4: "row-cols-1 row-cols-md-2 row-cols-lg-4",
+    4: "row-cols-1 row-cols-md-2 row-cols-xl-4",
   };
 
   return (
@@ -173,7 +173,7 @@ export default function CardGrid({
                 )}
 
                 <motion.h3
-                  className="h4 fw-semibold"
+                  className="h4 fw-semibold text-truncate"
                   style={card.color ? { color: card.color } : undefined}
                   initial={{ opacity: 0, x: -20 }}
                   whileInView={{ opacity: 1, x: 0 }}
@@ -189,6 +189,7 @@ export default function CardGrid({
 
                 <motion.p
                   className="mt-3 text-muted"
+                  style={{ overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical" }}
                   initial={{ opacity: 0 }}
                   whileInView={{ opacity: 1 }}
                   viewport={{ once: true }}

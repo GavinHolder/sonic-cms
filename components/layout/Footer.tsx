@@ -240,7 +240,7 @@ export default function Footer({
         {branches.length > 2 && (
           <div className="row g-5 border-top border-secondary pt-5 mt-5">
             {branches.slice(2).map((branch) => (
-              <div key={branch.id} className="col-12 col-md-4">
+              <div key={branch.id} className="col-12 col-md-6 col-lg-4">
                 <h3 className="h5 fw-semibold text-white">
                   {branch.name}
                 </h3>
