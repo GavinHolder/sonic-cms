@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useAutoSave } from "@/lib/hooks/useAutoSave";
 import type { NormalSection, GradientOverlay, AnimationType, LayoutPreset } from "@/types/section";
 import type { AnimBgConfig } from "@/lib/anim-bg/types";
 import { DEFAULT_ANIM_BG_CONFIG } from "@/lib/anim-bg/defaults";
@@ -1141,6 +1142,10 @@ export default function NormalSectionEditor({
     } as any;
     onSave(updatedSection as NormalSection, shouldClose);
   };
+
+  // Wire up autosave — reads autoSaveEnabled + autoSaveIntervalMs from admin settings
+  // useAutoSave uses a ref internally so no dependency array issues
+  useAutoSave(() => handleSave(false));
 
   return (
     <div className="modal d-block" style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1115 }}>

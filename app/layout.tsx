@@ -8,6 +8,7 @@ import Navbar from "@/components/layout/Navbar";
 import ClientLayout from "@/components/layout/ClientLayout";
 import ScrollRestoration from "@/components/ScrollRestoration";
 import { headers } from "next/headers";
+import { fetchSeoConfig, buildStructuredData } from "@/lib/metadata-generator";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -39,8 +40,24 @@ export default async function RootLayout({
   const pathname = headersList.get("x-pathname") || "";
   const isAdminRoute = pathname.startsWith("/admin");
 
+  // JSON-LD structured data — only injected when admin has configured it
+  // buildStructuredData() returns null when disabled or business name is empty
+  // Output uses JSON.stringify with </script> escaped — safe to inline
+  const seoConfig = await fetchSeoConfig();
+  const jsonLd = buildStructuredData(seoConfig);
+
   return (
     <html lang="en" style={{ height: "100%" }}>
+      {jsonLd && (
+        <head>
+          <script
+            type="application/ld+json"
+            // Safe: content is server-generated JSON with </script> escaped
+            // eslint-disable-next-line react/no-danger
+            dangerouslySetInnerHTML={{ __html: jsonLd }}
+          />
+        </head>
+      )}
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         style={{ margin: 0, padding: 0 }}

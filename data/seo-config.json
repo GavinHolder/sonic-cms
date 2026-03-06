@@ -1,0 +1,29 @@
+{
+  "siteName": "Your Company",
+  "titleSeparator": "|",
+  "defaultDescription": "Professional services delivered with expertise and care. Serving the local community with quality you can trust.",
+  "canonicalBase": "",
+  "social": {
+    "ogImage": "/images/og-default.jpg",
+    "twitterCard": "summary_large_image",
+    "twitterSite": ""
+  },
+  "robots": {
+    "disallowPaths": [
+      "/admin",
+      "/api"
+    ],
+    "includeSitemap": true
+  },
+  "structuredData": {
+    "enabled": true,
+    "type": "LocalBusiness",
+    "name": "Your Company",
+    "streetAddress": "",
+    "addressLocality": "",
+    "addressCountry": "ZA",
+    "telephone": "",
+    "url": ""
+  },
+  "updatedAt": "2026-03-06T07:39:59.952Z"
+}

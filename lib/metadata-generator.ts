@@ -136,5 +136,6 @@ export function buildStructuredData(seoConfig: SeoConfig): string | null {
       : {}),
   };
 
-  return JSON.stringify(schema);
+  // Escape </script> to prevent injection when inlined in HTML
+  return JSON.stringify(schema).replace(/<\/script>/gi, "<\\/script>");
 }

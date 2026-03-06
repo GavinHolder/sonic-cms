@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useAutoSave } from "@/lib/hooks/useAutoSave";
 import type { CTASection, ButtonConfig, GradientOverlay } from "@/types/section";
 import type { FormField } from "@/types/page";
 import SpacingControls from "@/components/admin/SpacingControls";
@@ -261,6 +262,8 @@ export default function CTASectionEditor({
 
     onSave(updatedSection, shouldClose);
   };
+
+  useAutoSave(() => handleSave(false));
 
   return (
     <div className="modal d-block" style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1115 }}>

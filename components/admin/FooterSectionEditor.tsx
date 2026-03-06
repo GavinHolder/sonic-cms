@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useAutoSave } from "@/lib/hooks/useAutoSave";
 import type { FooterSection, FooterInfoPosition, BackgroundColor } from "@/types/section";
 import { SOCIAL_PLATFORMS } from "@/types/section";
 import ImageFieldWithUpload from "./ImageFieldWithUpload";
@@ -119,6 +120,8 @@ export default function FooterSectionEditor({
   const handleSave = () => {
     onSave(buildUpdates(), false); // Pass false to keep modal open
   };
+
+  useAutoSave(handleSave);
 
   // Company info helpers
   const updateCompanyInfo = (updates: Partial<typeof formData.companyInfo>) => {

@@ -93,8 +93,8 @@ Sections are ordered by the **order** field (a float, which allows fractional or
 | Order | Section |
 |-------|---------|
 | 0 | Hero Carousel |
-| 1 | Coverage Area |
-| 2 | Plans & Pricing |
+| 1 | About Us |
+| 2 | Services |
 | 999999 | Footer (always last) |
 `;
 
@@ -1388,7 +1388,7 @@ When the submit action is **Email**, submissions go through a verification step:
 
 These slugs cannot be used (they conflict with existing routes):
 
-\`admin\`, \`api\`, \`_next\`, \`images\`, \`coverage\`, \`support\`, \`services\`, \`equipment\`, \`client-login\`, \`home\`, \`index\`
+\`admin\`, \`api\`, \`_next\`, \`images\`, \`home\`, \`index\`
 `;
 
 const NAVIGATION = `
@@ -1415,7 +1415,7 @@ Nav links are loaded from the **first 5 non-hero, non-footer sections** on the l
 **Rules:**
 - Only sections with a \`navLabel\` OR a non-default \`displayName\` appear
 - Maximum **5 nav links** — hard limit
-- Nav label = **first word** of the label (e.g. "Coverage Area" → "Coverage")
+- Nav label = **first word** of the label (e.g. "About Us" → "About")
 - Navbar polls for changes every **5 seconds** (auto-updates when admin reorders)
 
 ---
@@ -1436,8 +1436,9 @@ Light background → dark logo + dark hamburger icon
 | Setting | Description |
 |---------|-------------|
 | **Logo** | Upload or URL for the navbar logo |
-| **CTA Button Text** | Label on the "Client Login" button |
-| **CTA Button URL** | Destination link |
+| **CTA Button Show** | Toggle — show or hide the CTA button entirely |
+| **CTA Button Text** | Label displayed on the button (e.g. "Client Login", "Get a Quote") |
+| **CTA Button URL** | Destination link — supports any page or external URL |
 | **CTA Button Style** | solid / outlined / ghost |
 | **Navbar Background** | Opaque color when scrolled (default: transparent) |
 `;
@@ -1748,6 +1749,131 @@ Access via **Admin → Users**.
 | View documents | ✅ | ✅ | ✅ | ✅ |
 `;
 
+const SEO_MANAGEMENT = `
+# SEO Management
+
+Access via **Admin → Content → SEO**.
+
+The SEO system gives you full control over how your website appears in search engines and on social media.
+
+---
+
+## Site-Wide Defaults (Tab: Site Settings)
+
+These apply to every page unless overridden at the page level.
+
+| Setting | Description |
+|---------|-------------|
+| **Site Name** | Appended to all page titles: "Page Title \| Site Name" |
+| **Title Separator** | Character between page title and site name (default: \`\|\`) |
+| **Default Description** | Fallback meta description for pages without their own |
+| **Canonical Base URL** | Full domain (e.g. \`https://www.yourcompany.co.za\`) — enables canonical tags and absolute sitemap URLs |
+
+> 💡 **SERP Preview** updates live as you type — shows exactly how the homepage will look in Google search results.
+
+---
+
+## Social & Open Graph (Tab: Social & OG)
+
+Controls how pages look when shared on Facebook, LinkedIn, WhatsApp, Slack, and Twitter/X.
+
+| Setting | Description |
+|---------|-------------|
+| **Default OG Image** | Shown when pages are shared — recommended size **1200×630px** |
+| **Twitter Card** | \`summary_large_image\` (large preview) or \`summary\` (small thumbnail) |
+| **Twitter Handle** | Your \`@handle\` — shown as "Via @handle" under Twitter cards |
+
+> 💡 **Social Card Preview** shows a realistic WhatsApp/LinkedIn card preview.
+
+---
+
+## Robots & Sitemap (Tab: Robots & Sitemap)
+
+Controls what search engines are allowed to crawl.
+
+| Setting | Description |
+|---------|-------------|
+| **Disallow Paths** | One path per line — crawlers will not index these |
+| **Include Sitemap** | Adds \`Sitemap:\` line to robots.txt pointing to \`/sitemap.xml\` |
+
+**Default disallowed paths:** \`/admin\` and \`/api\` — keep these blocked.
+
+> 💡 **Live robots.txt Preview** shows the exact content of \`/robots.txt\` based on your settings.
+
+---
+
+## Structured Data / JSON-LD (Tab: Structured Data)
+
+LocalBusiness schema is injected into every page's \`<head>\` as JSON-LD.
+This is the most powerful SEO signal for local search results and Google Knowledge Panels.
+
+| Setting | Description |
+|---------|-------------|
+| **Enable** | Toggle structured data injection on/off |
+| **Business Type** | schema.org type (e.g. \`LocalBusiness\`, \`Plumber\`, \`Restaurant\`) |
+| **Business Name** | Exact trading name as registered |
+| **Street Address** | Physical address of the business |
+| **City** | Town or city |
+| **Country** | ISO 3166-1 alpha-2 code (e.g. \`ZA\`, \`US\`, \`GB\`) |
+| **Telephone** | In international format: \`+27 21 555 0100\` |
+| **Website URL** | Canonical homepage URL |
+
+> 💡 **JSON-LD Preview** shows the exact script tag that will be injected.
+
+---
+
+## Per-Page SEO
+
+Set individual SEO metadata for any page via **Admin → Content → Pages → 🔍 SEO** button.
+
+| Field | Description |
+|-------|-------------|
+| **Meta Title** | Custom \`<title>\` tag — shown in browser tab and search results |
+| **Meta Description** | 50–160 char summary — shown under the link in search results |
+| **Meta Keywords** | Comma-separated keywords (low direct ranking impact) |
+| **OG Title** | Title for social sharing (defaults to Meta Title) |
+| **OG Image** | Image URL for social sharing (defaults to site default) |
+| **OG Description** | Description for social sharing (defaults to Meta Description) |
+| **Canonical URL** | Override the auto-generated canonical — leave blank in most cases |
+| **noindex** | Exclude this page from search engines entirely |
+| **nofollow** | Tell crawlers not to follow links on this page |
+
+> 💡 **SERP Preview** in the modal updates live as you type.
+
+---
+
+## SEO Audit (Tab: SEO Audit)
+
+Runs automatically on the **1st of every month** via a Vercel cron job.
+You can also trigger it manually by clicking **Run Audit Now**.
+
+The audit checks:
+- Pages missing a meta title
+- Pages with descriptions that are too short (< 50 chars) or too long (> 160 chars)
+- Duplicate meta titles across pages
+- Duplicate meta descriptions across pages
+- Pages missing an OG image
+
+**Issue severity levels:**
+
+| Severity | Meaning |
+|----------|---------|
+| 🔴 error | Directly hurts SEO — fix immediately |
+| 🟡 warning | Suboptimal — fix when possible |
+| 🔵 info | Suggestion — nice to have |
+
+---
+
+## Dynamic Files
+
+| URL | Description |
+|-----|-------------|
+| \`/sitemap.xml\` | Auto-generated from all published, indexable pages |
+| \`/robots.txt\` | Auto-generated from Robots & Sitemap settings |
+
+> Both update instantly when you save settings or publish/unpublish pages.
+`;
+
 // ─────────────────────────────────────────────
 // TOPIC TREE
 // ─────────────────────────────────────────────
@@ -1826,6 +1952,14 @@ export const DOC_TOPICS: DocTopic[] = [
     icon: "bi-files",
     children: [
       { id: "pages-overview", label: "Full, PDF & Form Pages", icon: "bi-file-earmark", content: PAGES_SYSTEM },
+    ],
+  },
+  {
+    id: "seo",
+    label: "SEO Management",
+    icon: "bi-search",
+    children: [
+      { id: "seo-overview", label: "Site Settings & Per-Page SEO", icon: "bi-search", content: SEO_MANAGEMENT },
     ],
   },
   {

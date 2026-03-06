@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useAutoSave } from "@/lib/hooks/useAutoSave";
 import type { HeroSection, HeroCarouselSlide } from "@/types/section";
 import SlideEditor from "./SlideEditor";
 
@@ -146,6 +147,8 @@ export default function HeroCarouselEditor({
       onCancel();
     }
   };
+
+  useAutoSave(() => handleSave(false));
 
   return (
     <div className="modal d-block" style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1115 }}>
