@@ -24,6 +24,10 @@ export default function ConcreteViz3D({ calcType, dimensions, result: _result }:
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dimsGroupRef = useRef<any>(null);
   const showDimsRef = useRef(false); // persist dims toggle across scene rebuilds
+  // Persist camera position/target across scene rebuilds so adjusting sliders
+  // doesn't snap the user out of their current view
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cameraStateRef = useRef<{ position: any; target: any } | null>(null);
 
   const [isAutoRotating, setIsAutoRotating] = useState(false);
   const [showDims, setShowDims] = useState(false);
@@ -48,6 +52,16 @@ export default function ConcreteViz3D({ calcType, dimensions, result: _result }:
     setShowDims(next);
     if (dimsGroupRef.current) dimsGroupRef.current.visible = next;
   }, []);
+
+  // Clear saved camera state when switching between shape types so the new
+  // shape's default camera framing is used
+  const prevCalcTypeRef = useRef<CalcType | null>(null);
+  useEffect(() => {
+    if (prevCalcTypeRef.current !== null && prevCalcTypeRef.current !== calcType) {
+      cameraStateRef.current = null;
+    }
+    prevCalcTypeRef.current = calcType;
+  }, [calcType]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -297,7 +311,15 @@ export default function ConcreteViz3D({ calcType, dimensions, result: _result }:
       controls.enableDamping = true;
       controls.autoRotate = false;
       controls.autoRotateSpeed = 2.0;
+      // Save the shape-default position as the "home" for the Center button
       controls.saveState();
+      // Restore user's previous camera position/target if they had one
+      // (only when same calcType — shape switch always resets to good default)
+      if (cameraStateRef.current) {
+        camera.position.copy(cameraStateRef.current.position);
+        controls.target.copy(cameraStateRef.current.target);
+        controls.update();
+      }
       controlsRef.current = controls;
 
       const handleKeyDown = (e: KeyboardEvent) => {
@@ -336,6 +358,13 @@ export default function ConcreteViz3D({ calcType, dimensions, result: _result }:
       if (mountRef.current) observer.observe(mountRef.current);
 
       cleanupRef.current = () => {
+        // Persist camera state so the next rebuild restores user's viewpoint
+        if (controlsRef.current) {
+          cameraStateRef.current = {
+            position: camera.position.clone(),
+            target: controlsRef.current.target.clone(),
+          };
+        }
         shouldStop = true;
         cancelAnimationFrame(frameId);
         observer.disconnect();
