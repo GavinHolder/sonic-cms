@@ -71,6 +71,19 @@ const menuItems: MenuItem[] = [
     href: "/admin/users",
   },
   {
+    id: "features",
+    label: "Features",
+    icon: "bi-toggles",
+    subItems: [
+      {
+        id: "concrete-settings",
+        label: "Concrete Calculator",
+        icon: "bi-calculator",
+        href: "/admin/features/concrete-settings",
+      },
+    ],
+  },
+  {
     id: "settings",
     label: "Settings",
     icon: "bi-gear",
