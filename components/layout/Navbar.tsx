@@ -1,11 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import Button from "@/components/ui/Button";
 import { getSections } from "@/lib/section-manager";
 import { defaultNavbarConfig, type NavbarCtaButton } from "@/lib/navbar-config";
+
+// Map feature slug → navbar entry
+const FEATURE_ROUTES: Record<string, { label: string; href: string; icon: string }> = {
+  "concrete-calculator": { label: "Concrete Calculator", href: "/calculator", icon: "bi-calculator" },
+};
 
 const ctaStyleToVariant = (style: NavbarCtaButton["style"]): "primary" | "outline" | "ghost" => {
   if (style === "outlined") return "outline";
@@ -17,8 +22,11 @@ export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [navLinks, setNavLinks] = useState<Array<{ id: string; label: string }>>([]);
-  const [isDarkBackground, setIsDarkBackground] = useState(true); // Default to dark (white text)
+  const [isDarkBackground, setIsDarkBackground] = useState(true);
   const [ctaConfig, setCtaConfig] = useState<NavbarCtaButton>(defaultNavbarConfig.cta);
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [enabledFeatures, setEnabledFeatures] = useState<string[]>([]);
+  const toolsRef = useRef<HTMLDivElement>(null);
 
   // Load dynamic nav links from sections
   useEffect(() => {
@@ -79,6 +87,12 @@ export default function Navbar() {
     loadNavLinks();
     loadCtaConfig();
 
+    // Load enabled public features for Tools dropdown
+    fetch("/api/features/public")
+      .then((r) => r.json())
+      .then((d) => { if (d.slugs) setEnabledFeatures(d.slugs); })
+      .catch(() => {});
+
     // Reload links and CTA config periodically to detect admin updates (every 5 seconds)
     const interval = setInterval(() => {
       if (!document.hidden) {
@@ -90,6 +104,17 @@ export default function Navbar() {
     return () => {
       clearInterval(interval);
     };
+  }, []);
+
+  // Close Tools dropdown when clicking outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (toolsRef.current && !toolsRef.current.contains(e.target as Node)) {
+        setToolsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
   // Detect background color behind navbar
@@ -315,6 +340,73 @@ export default function Navbar() {
                 ))}
               </div>
             )}
+            {/* Tools dropdown — shown when at least one feature is enabled */}
+            {enabledFeatures.filter((s) => FEATURE_ROUTES[s]).length > 0 && (
+              <div
+                ref={toolsRef}
+                className="d-none d-md-block position-relative"
+                style={{
+                  opacity: scrolled || mobileOpen ? 1 : 0,
+                  visibility: scrolled || mobileOpen ? "visible" : "hidden",
+                  transition: "opacity 600ms cubic-bezier(0.4, 0, 0.2, 1), visibility 600ms cubic-bezier(0.4, 0, 0.2, 1)",
+                }}
+              >
+                <button
+                  className="text-decoration-none fw-medium border-0 bg-transparent p-0 d-flex align-items-center gap-1"
+                  style={{
+                    cursor: "pointer",
+                    color: scrolled ? "#111827" : "#ffffff",
+                    fontSize: "0.95rem",
+                    letterSpacing: "0.01em",
+                    transition: "color 600ms cubic-bezier(0.4, 0, 0.2, 1)",
+                    whiteSpace: "nowrap",
+                  }}
+                  onClick={() => setToolsOpen((o) => !o)}
+                  onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.7")}
+                  onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+                >
+                  Tools
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" style={{ marginLeft: 3, transition: "transform 200ms", transform: toolsOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
+                    <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+
+                {/* Tools dropdown panel */}
+                <AnimatePresence>
+                  {toolsOpen && (
+                    <motion.div
+                      className="position-absolute bg-white rounded shadow-lg py-1"
+                      style={{ top: "calc(100% + 10px)", right: 0, minWidth: 200, zIndex: 2000 }}
+                      initial={{ opacity: 0, y: -6, scale: 0.96 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -6, scale: 0.96 }}
+                      transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
+                    >
+                      {enabledFeatures
+                        .filter((s) => FEATURE_ROUTES[s])
+                        .map((slug) => {
+                          const ft = FEATURE_ROUTES[slug];
+                          return (
+                            <Link
+                              key={slug}
+                              href={ft.href}
+                              className="d-flex align-items-center gap-2 px-3 py-2 text-decoration-none"
+                              style={{ color: "#111827", fontSize: "0.9rem", transition: "background 150ms" }}
+                              onClick={() => setToolsOpen(false)}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = "#f3f4f6")}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = "")}
+                            >
+                              <i className={ft.icon} style={{ color: "#3b82f6" }} />
+                              {ft.label}
+                            </Link>
+                          );
+                        })}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+
             {/* CTA button - always visible on desktop, always far right */}
             {ctaConfig.show && (
               <div className="d-none d-md-block">
@@ -377,6 +469,38 @@ export default function Navbar() {
                     {link.label}
                   </motion.button>
                 ))}
+
+                {/* Tools section in mobile menu */}
+                {enabledFeatures.filter((s) => FEATURE_ROUTES[s]).length > 0 && (
+                  <>
+                    <div className="px-4 pt-2 pb-1" style={{ fontSize: "0.7rem", letterSpacing: "0.1em", color: "#9ca3af", textTransform: "uppercase" }}>
+                      Tools
+                    </div>
+                    {enabledFeatures
+                      .filter((s) => FEATURE_ROUTES[s])
+                      .map((slug, index) => {
+                        const ft = FEATURE_ROUTES[slug];
+                        return (
+                          <motion.div key={slug}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ duration: 0.2, delay: (navLinks.length + index) * 0.05 }}
+                          >
+                            <Link
+                              href={ft.href}
+                              className="d-flex align-items-center justify-content-center gap-2 px-4 py-2 text-decoration-none fw-medium"
+                              style={{ color: "#111827", fontSize: "0.95rem" }}
+                              onClick={() => setMobileOpen(false)}
+                            >
+                              <i className={ft.icon} style={{ color: "#3b82f6" }} />
+                              {ft.label}
+                            </Link>
+                          </motion.div>
+                        );
+                      })}
+                  </>
+                )}
+
                 {ctaConfig.show && (
                   <motion.div
                     className="px-4 py-2 text-center"
