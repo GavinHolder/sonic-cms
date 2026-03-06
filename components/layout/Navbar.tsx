@@ -195,6 +195,10 @@ export default function Navbar() {
     };
   }, []);
 
+  // On non-landing pages: always solid navbar, no animations
+  const effectiveScrolled = !isLandingPage || scrolled;
+  const navTransition = isLandingPage ? "600ms cubic-bezier(0.4, 0, 0.2, 1)" : "none";
+
   const scrollToSection = (sectionId: string) => {
     const element = document.getElementById(sectionId);
     if (element) {
@@ -208,7 +212,7 @@ export default function Navbar() {
 
   return (
     <nav
-      className={`navbar fixed-top ${scrolled ? "navbar-scrolled" : "navbar-transparent"}`}
+      className={`navbar fixed-top ${effectiveScrolled ? "navbar-scrolled" : "navbar-transparent"}`}
       style={{
         padding: "1rem 0",
         zIndex: 1050,
@@ -238,10 +242,10 @@ export default function Navbar() {
                   left: 0,
                   outline: "none",
                   cursor: "pointer",
-                  opacity: scrolled || mobileOpen ? 0 : 1,
-                  visibility: scrolled || mobileOpen ? "hidden" : "visible",
-                  transition: "opacity 600ms cubic-bezier(0.4, 0, 0.2, 1), visibility 600ms cubic-bezier(0.4, 0, 0.2, 1)",
-                  pointerEvents: scrolled || mobileOpen ? "none" : "auto",
+                  opacity: effectiveScrolled || mobileOpen ? 0 : 1,
+                  visibility: effectiveScrolled || mobileOpen ? "hidden" : "visible",
+                  transition: `opacity ${navTransition}, visibility ${navTransition}`,
+                  pointerEvents: effectiveScrolled || mobileOpen ? "none" : "auto",
                 }}
               >
                 <svg
@@ -269,10 +273,10 @@ export default function Navbar() {
                   left: 0,
                   outline: "none",
                   cursor: "pointer",
-                  opacity: mobileOpen && !scrolled ? 1 : 0,
-                  visibility: mobileOpen && !scrolled ? "visible" : "hidden",
-                  transition: "opacity 600ms cubic-bezier(0.4, 0, 0.2, 1), visibility 600ms cubic-bezier(0.4, 0, 0.2, 1)",
-                  pointerEvents: mobileOpen && !scrolled ? "auto" : "none",
+                  opacity: mobileOpen && !effectiveScrolled ? 1 : 0,
+                  visibility: mobileOpen && !effectiveScrolled ? "visible" : "hidden",
+                  transition: `opacity ${navTransition}, visibility ${navTransition}`,
+                  pointerEvents: mobileOpen && !effectiveScrolled ? "auto" : "none",
                 }}
               >
                 <svg
@@ -296,15 +300,15 @@ export default function Navbar() {
           <div
             className="d-flex align-items-center"
             style={{
-              position: scrolled || mobileOpen ? "relative" : "absolute",
-              left: scrolled || mobileOpen ? "0" : "50%",
-              transform: scrolled || mobileOpen ? "translateX(0)" : "translateX(-50%)",
-              transition: "all 600ms cubic-bezier(0.4, 0, 0.2, 1)",
+              position: effectiveScrolled || mobileOpen ? "relative" : "absolute",
+              left: effectiveScrolled || mobileOpen ? "0" : "50%",
+              transform: effectiveScrolled || mobileOpen ? "translateX(0)" : "translateX(-50%)",
+              transition: `all ${navTransition}`,
               zIndex: 200,
             }}
           >
             <Link href="/" className="d-flex align-items-center gap-2 text-decoration-none">
-              <span style={{ height: "44px", display: "flex", alignItems: "center", fontWeight: 700, fontSize: "1.2rem", color: "#fff" }}>
+              <span style={{ height: "44px", display: "flex", alignItems: "center", fontWeight: 700, fontSize: "1.2rem", color: effectiveScrolled ? "#111827" : "#fff" }}>
                 Your Company
               </span>
             </Link>
@@ -317,9 +321,9 @@ export default function Navbar() {
               <div
                 className="d-none d-md-flex align-items-center gap-4"
                 style={{
-                  opacity: scrolled || mobileOpen ? 1 : 0,
-                  visibility: scrolled || mobileOpen ? "visible" : "hidden",
-                  transition: "opacity 600ms cubic-bezier(0.4, 0, 0.2, 1), visibility 600ms cubic-bezier(0.4, 0, 0.2, 1)",
+                  opacity: effectiveScrolled || mobileOpen ? 1 : 0,
+                  visibility: effectiveScrolled || mobileOpen ? "visible" : "hidden",
+                  transition: `opacity ${navTransition}, visibility ${navTransition}`,
                 }}
               >
                 {navLinks.map((link, index) => (
@@ -333,10 +337,10 @@ export default function Navbar() {
                     style={{
                       whiteSpace: "nowrap",
                       cursor: "pointer",
-                      color: scrolled ? "#111827" : "#ffffff",
+                      color: effectiveScrolled ? "#111827" : "#ffffff",
                       fontSize: "0.95rem",
                       letterSpacing: "0.01em",
-                      transition: "opacity 200ms ease, color 600ms cubic-bezier(0.4, 0, 0.2, 1)",
+                      transition: `opacity 200ms ease, color ${navTransition}`,
                     }}
                     onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.7")}
                     onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
@@ -352,19 +356,19 @@ export default function Navbar() {
                 ref={toolsRef}
                 className="d-none d-md-block position-relative"
                 style={{
-                  opacity: scrolled || mobileOpen ? 1 : 0,
-                  visibility: scrolled || mobileOpen ? "visible" : "hidden",
-                  transition: "opacity 600ms cubic-bezier(0.4, 0, 0.2, 1), visibility 600ms cubic-bezier(0.4, 0, 0.2, 1)",
+                  opacity: effectiveScrolled || mobileOpen ? 1 : 0,
+                  visibility: effectiveScrolled || mobileOpen ? "visible" : "hidden",
+                  transition: `opacity ${navTransition}, visibility ${navTransition}`,
                 }}
               >
                 <button
                   className="text-decoration-none fw-medium border-0 bg-transparent p-0 d-flex align-items-center gap-1"
                   style={{
                     cursor: "pointer",
-                    color: scrolled ? "#111827" : "#ffffff",
+                    color: effectiveScrolled ? "#111827" : "#ffffff",
                     fontSize: "0.95rem",
                     letterSpacing: "0.01em",
-                    transition: "color 600ms cubic-bezier(0.4, 0, 0.2, 1)",
+                    transition: `color ${navTransition}`,
                     whiteSpace: "nowrap",
                   }}
                   onClick={() => setToolsOpen((o) => !o)}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { useClientFeature } from "@/lib/hooks/useClientFeature";
 import {
@@ -479,6 +479,13 @@ function EstimateModal({ show, onClose, ...reportProps }: EstimateModalProps) {
 function CalculatorInner({ config }: CalculatorInnerProps) {
   const [calcType, setCalcType] = useState<CalcType>("slab");
   const [inputs, setInputs] = useState<Record<string, number>>(initInputs("slab"));
+  // Debounce inputs/type to 3D viewer — prevents scene rebuild on every slider tick
+  const [debouncedInputs, setDebouncedInputs] = useState(inputs);
+  const [debouncedCalcType, setDebouncedCalcType] = useState(calcType);
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedInputs(inputs); setDebouncedCalcType(calcType); }, 350);
+    return () => clearTimeout(t);
+  }, [inputs, calcType]);
   const [strength, setStrength] = useState("25MPa");
   const [result, setResult] = useState<CalcResult | null>(null);
   const [refNumber, setRefNumber] = useState<string>("");
@@ -532,7 +539,7 @@ function CalculatorInner({ config }: CalculatorInnerProps) {
       <div className="row g-3 g-md-4 align-items-start">
         {/* ── 3D viz — appears first on mobile (order-1 → order-md-2) ── */}
         <div className="col-12 col-md-7 order-1 order-md-2">
-          <ConcreteViz3D calcType={calcType} dimensions={inputs} result={result} />
+          <ConcreteViz3D calcType={debouncedCalcType} dimensions={debouncedInputs} result={result} />
           {result && (
             <div className="mt-3 text-center">
               <button
