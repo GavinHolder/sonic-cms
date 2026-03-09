@@ -116,6 +116,12 @@
               <div class="flex-fill"><label class="prop-label">Height px</label><input id="canvas-h" type="number" class="form-control form-control-sm" value="500" min="32" max="4096"></div>
             </div>
             <button id="btn-apply-size" class="btn btn-sm btn-outline-primary w-100">Apply Size</button>
+            <div class="mt-2"><label class="prop-label">Grid Size (px) <span class="text-muted fw-normal">&#8212; Ctrl+click snaps</span></label>
+              <div class="d-flex gap-2 align-items-center">
+                <input id="grid-size" type="number" class="form-control form-control-sm" value="10" min="1" max="200" style="width:72px;">
+                <input id="grid-size-range" type="range" class="form-range" min="1" max="100" value="10" style="flex:1;">
+              </div>
+            </div>
           </div>
         </div>
         <div class="panel">
@@ -132,7 +138,8 @@
             </div>
             <div class="mt-2" style="font-size:10px;color:#6c757d;line-height:1.7;">
               <strong>V</strong> Select &nbsp;<strong>R</strong> Rect &nbsp;<strong>E</strong> Ellipse &nbsp;<strong>L</strong> Line &nbsp;<strong>P</strong> Polygon &nbsp;<strong>S</strong> Slot<br>
-              Polygon: click = add vertex &middot; near start or Enter = close &middot; Esc = cancel
+              Polygon: click = vertex &middot; Enter/near-start = close &middot; Esc = cancel<br>
+              <strong>Alt</strong>+drag = duplicate &nbsp;<strong>Ctrl</strong>+draw/click = snap to grid
             </div>
           </div>
         </div>
@@ -196,7 +203,7 @@
     // ── State ─────────────────────────────────────────────────────────────────
     var state={
       element:{id:'',name:'New Design',mood:null,elementType:'custom',isPublic:false,authorId:'',layers:[],states:[],tags:[],canvasWidth:800,canvasHeight:500},
-      activeTool:'select',selectedLayerId:null,isDirty:false,history:[],historyIndex:-1,zoom:1
+      activeTool:'select',selectedLayerId:null,isDirty:false,history:[],historyIndex:-1,zoom:1,gridSize:10
     };
     // ── Utilities ─────────────────────────────────────────────────────────────
     function nanoid(){return Math.random().toString(36).slice(2,11)+Math.random().toString(36).slice(2,11);}
@@ -306,8 +313,11 @@
       pvx.forEach(function(p,i){var near=polyState.cursorPt&&i===0&&polyState.verts.length>=3&&dist2(polyState.cursorPt,p)<12;var c=svgNs('circle');c.setAttribute('cx',p.x);c.setAttribute('cy',p.y);c.setAttribute('r',near?6:4);c.setAttribute('fill',near?'#22c55e':(i===0?'#0d6efd':'#6366f1'));c.setAttribute('stroke','white');c.setAttribute('stroke-width','1.5');g.appendChild(c);});
       svgEl.appendChild(g);
     }
-    function commitPolygon(){if(polyState.verts.length<3){cancelPolygon();return;}pushHistory();var layer=mkPolygon(polyState.verts);var maxZ=state.element.layers.reduce(function(m,l){return Math.max(m,l.zIndex);},-1);layer.zIndex=maxZ+1;state.element.layers.push(layer);state.selectedLayerId=layer.id;polyState.verts=[];polyState.cursorPt=null;markDirty();renderAll();}
+    function commitPolygon(){if(polyState.verts.length<3){cancelPolygon();return;}pushHistory();var layer=mkPolygon(polyState.verts);var maxZ=state.element.layers.reduce(function(m,l){return Math.max(m,l.zIndex);},-1);layer.zIndex=maxZ+1;state.element.layers.push(layer);state.selectedLayerId=layer.id;polyState.verts=[];polyState.cursorPt=null;markDirty();renderAll();activateTool('select');}
     function cancelPolygon(){polyState.verts=[];polyState.cursorPt=null;renderPolyGhost();}
+    function activateTool(name){var btn=document.querySelector('.tool-btn[data-tool="'+name+'"]');if(btn)btn.click();}
+    function snapPt(pt,doSnap){if(!doSnap||!state.gridSize)return pt;var g=state.gridSize;return{x:Math.round(pt.x/g)*g,y:Math.round(pt.y/g)*g};}
+    function updateDotGrid(){var cg=artboard.querySelector('.cdotgrid');if(cg)cg.style.backgroundSize=state.gridSize+'px '+state.gridSize+'px';}
     // ── Interaction state ─────────────────────────────────────────────────────
     var dragSt=null;    // {layerId,startPt,startX,startY,origPath,moved}
     var resizeSt=null;  // {layerId,handle,startPt,origBounds,origPath}
@@ -324,13 +334,14 @@
         if(sel){var h=hitHandle(pt,sel);if(h){resizeSt={layerId:sel.id,handle:h,startPt:pt,origBounds:{x:sel.x,y:sel.y,w:sel.width,h:sel.height},origPath:sel.vectorData?sel.vectorData.pathData:null};return;}}
         // Hit test
         var hit=hitTest(pt);
-        if(hit&&!hit.locked){dragSt={layerId:hit.id,startPt:pt,startX:hit.x,startY:hit.y,origPath:hit.vectorData?hit.vectorData.pathData:null,moved:false};if(state.selectedLayerId!==hit.id)selectLayer(hit.id);}
+        if(hit&&!hit.locked){dragSt={layerId:hit.id,startPt:pt,startX:hit.x,startY:hit.y,origPath:hit.vectorData?hit.vectorData.pathData:null,moved:false,altDuped:false};if(state.selectedLayerId!==hit.id)selectLayer(hit.id);}
         else{state.selectedLayerId=null;document.getElementById('btn-delete-layer').disabled=true;renderCanvas();renderProps();}
         return;
       }
       // Drawing tools
       svgEl.setPointerCapture(e.pointerId);
-      drawSt={startX:pt.x,startY:pt.y,curX:pt.x,curY:pt.y};
+      var spt0=snapPt(pt,e.ctrlKey);
+      drawSt={startX:spt0.x,startY:spt0.y,curX:spt0.x,curY:spt0.y};
       if(!ghostEl){ghostEl=svgNs('rect');ghostEl.setAttribute('fill',tool==='slot'?'rgba(34,197,94,0.1)':'rgba(99,102,241,0.2)');ghostEl.setAttribute('stroke',tool==='slot'?'#22c55e':'#6366f1');ghostEl.setAttribute('stroke-width','1.5');ghostEl.setAttribute('stroke-dasharray','5 3');ghostEl.setAttribute('pointer-events','none');svgEl.appendChild(ghostEl);}
     });
     svgEl.addEventListener('pointermove',function(e){
@@ -360,17 +371,36 @@
       // Drag move
       if(dragSt){
         var dpx2=pt.x-dragSt.startPt.x,dpy2=pt.y-dragSt.startPt.y;
+        // Alt+drag: duplicate on first significant movement
+        if(e.altKey&&!dragSt.altDuped&&(Math.abs(dpx2)>4||Math.abs(dpy2)>4)){
+          var origIdx=state.element.layers.findIndex(function(l){return l.id===dragSt.layerId;});
+          if(origIdx>=0){
+            var orig=state.element.layers[origIdx];
+            var copy=JSON.parse(JSON.stringify(orig));
+            copy.id=nanoid();copy.name=orig.name+' copy';
+            copy.zIndex=state.element.layers.reduce(function(m,l){return Math.max(m,l.zIndex);},-1)+1;
+            // Restore original to start position
+            state.element.layers[origIdx].x=dragSt.startX;state.element.layers[origIdx].y=dragSt.startY;
+            if(state.element.layers[origIdx].vectorData&&dragSt.origPath)state.element.layers[origIdx].vectorData.pathData=dragSt.origPath;
+            state.element.layers.push(copy);
+            // Redirect drag to the copy
+            dragSt.layerId=copy.id;dragSt.startX=copy.x;dragSt.startY=copy.y;
+            dragSt.origPath=copy.vectorData?copy.vectorData.pathData:null;dragSt.altDuped=true;
+            state.selectedLayerId=copy.id;
+            dpx2=0;dpy2=0;
+          }
+        }
         var ddx2=pct(dpx2,CW),ddy2=pct(dpy2,CH);
         var idx2=state.element.layers.findIndex(function(l){return l.id===dragSt.layerId;});
         if(idx2>=0){state.element.layers[idx2].x=dragSt.startX+ddx2;state.element.layers[idx2].y=dragSt.startY+ddy2;if(dragSt.origPath&&state.element.layers[idx2].vectorData)state.element.layers[idx2].vectorData.pathData=translatePath(dragSt.origPath,ddx2,ddy2);if(Math.abs(dpx2)>2||Math.abs(dpy2)>2)dragSt.moved=true;renderCanvas();}
         return;
       }
       // Polygon ghost
-      if(state.activeTool==='polygon'){polyState.cursorPt=pt;if(polyState.verts.length>=3){var fp={x:topx(polyState.verts[0].x,CW),y:topx(polyState.verts[0].y,CH)};svgEl.style.cursor=dist2(pt,fp)<12?'cell':'crosshair';}renderPolyGhost();return;}
+      if(state.activeTool==='polygon'){polyState.cursorPt=snapPt(pt,e.ctrlKey);if(polyState.verts.length>=3){var fp={x:topx(polyState.verts[0].x,CW),y:topx(polyState.verts[0].y,CH)};svgEl.style.cursor=dist2(polyState.cursorPt,fp)<12?'cell':'crosshair';}renderPolyGhost();return;}
       // Draw ghost
       if(!drawSt)return;
-      drawSt.curX=pt.x;drawSt.curY=pt.y;
-      var gx=Math.min(drawSt.startX,pt.x),gy=Math.min(drawSt.startY,pt.y),gw=Math.abs(pt.x-drawSt.startX),gh=Math.abs(pt.y-drawSt.startY);
+      var spt2=snapPt(pt,e.ctrlKey);drawSt.curX=spt2.x;drawSt.curY=spt2.y;
+      var gx=Math.min(drawSt.startX,drawSt.curX),gy=Math.min(drawSt.startY,drawSt.curY),gw=Math.abs(drawSt.curX-drawSt.startX),gh=Math.abs(drawSt.curY-drawSt.startY);
       if(ghostEl){ghostEl.setAttribute('x',gx);ghostEl.setAttribute('y',gy);ghostEl.setAttribute('width',gw);ghostEl.setAttribute('height',gh);}
     });
     svgEl.addEventListener('pointerup',function(e){
@@ -393,7 +423,7 @@
       else if(tool==='line')layer=mkLine(pct(rawSX,CW),pct(rawSY,CH),pct(rawCX,CW),pct(rawCY,CH));
       if(!layer)return;
       layer.zIndex=maxZ+1;state.element.layers.push(layer);state.selectedLayerId=layer.id;
-      markDirty();renderAll();
+      markDirty();renderAll();activateTool('select');
     });
     // Cursor on hover
     svgEl.addEventListener('mousemove',function(e){
@@ -408,8 +438,9 @@
     svgEl.addEventListener('click',function(e){
       if(state.activeTool==='polygon'){
         var pt=getSvgPt(e);var CW=state.element.canvasWidth,CH=state.element.canvasHeight;
-        if(polyState.verts.length>=3){var fp={x:topx(polyState.verts[0].x,CW),y:topx(polyState.verts[0].y,CH)};if(dist2(pt,fp)<12){commitPolygon();return;}}
-        polyState.verts.push({x:pct(pt.x,CW),y:pct(pt.y,CH)});renderPolyGhost();return;
+        var spt=snapPt(pt,e.ctrlKey);
+        if(polyState.verts.length>=3){var fp={x:topx(polyState.verts[0].x,CW),y:topx(polyState.verts[0].y,CH)};if(dist2(spt,fp)<12){commitPolygon();return;}}
+        polyState.verts.push({x:pct(spt.x,CW),y:pct(spt.y,CH)});renderPolyGhost();return;
       }
       if(!dragSt&&e.target===svgEl){state.selectedLayerId=null;document.getElementById('btn-delete-layer').disabled=true;renderCanvas();renderProps();}
     });
@@ -589,11 +620,15 @@
       document.getElementById('canvas-size-label').textContent=w+'\u00d7'+h+'px';
       document.getElementById('canvas-w').value=w;document.getElementById('canvas-h').value=h;
       document.getElementById('canvas-preset').value='';
-      markDirty();renderAll();
+      markDirty();renderAll();updateDotGrid();
       setTimeout(function(){document.getElementById('btn-zoom-fit').click();},50);
     }
     document.getElementById('canvas-preset').addEventListener('change',function(e){if(!e.target.value)return;var p=e.target.value.split(',');applyCanvasSize(parseInt(p[0]),parseInt(p[1]));});
     document.getElementById('btn-apply-size').addEventListener('click',function(){applyCanvasSize(parseInt(document.getElementById('canvas-w').value)||800,parseInt(document.getElementById('canvas-h').value)||500);});
+    // Grid size
+    function applyGridSize(v){v=Math.max(1,Math.min(200,v||10));state.gridSize=v;document.getElementById('grid-size').value=v;document.getElementById('grid-size-range').value=Math.min(v,100);updateDotGrid();}
+    document.getElementById('grid-size').addEventListener('change',function(e){applyGridSize(parseInt(e.target.value)||10);});
+    document.getElementById('grid-size-range').addEventListener('input',function(e){applyGridSize(parseInt(e.target.value)||10);});
     // ── Collapsible panels ────────────────────────────────────────────────────
     document.querySelectorAll('.panel-header[data-panel]').forEach(function(hdr){hdr.addEventListener('click',function(){var id=hdr.dataset.panel;var body=document.getElementById('pb-'+id);if(!body)return;body.classList.toggle('hidden');hdr.classList.toggle('collapsed');});});
     // ── Tool buttons ──────────────────────────────────────────────────────────
@@ -647,7 +682,7 @@
       markClean();renderAll();setTimeout(function(){document.getElementById('btn-zoom-fit').click();},100);
     });
     // ── Init ──────────────────────────────────────────────────────────────────
-    pushHistory();renderAll();
+    pushHistory();renderAll();updateDotGrid();
     if(window.parent&&window.parent!==window){window.parent.postMessage({type:'VOLT_DESIGNER_READY'},'*');}
     else{state.element.id='preview';state.element.name='Test Design';document.getElementById('el-name').value='Test Design';document.getElementById('element-name-badge').textContent='Test Design';setTimeout(function(){document.getElementById('btn-zoom-fit').click();},200);}
   }());
