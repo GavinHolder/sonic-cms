@@ -70,29 +70,33 @@ export function voltReducer(state: VoltStudioState, action: VoltStudioAction): V
       }
     }
 
-    case 'TOGGLE_LAYER_VISIBILITY':
+    case 'TOGGLE_LAYER_VISIBILITY': {
+      const next = pushHistory(state)
       return {
-        ...state,
+        ...next,
         element: {
-          ...state.element,
-          layers: state.element.layers.map(l =>
+          ...next.element,
+          layers: next.element.layers.map(l =>
             l.id === action.id ? { ...l, visible: !l.visible } : l
           ),
         },
         isDirty: true,
       }
+    }
 
-    case 'TOGGLE_LAYER_LOCK':
+    case 'TOGGLE_LAYER_LOCK': {
+      const next = pushHistory(state)
       return {
-        ...state,
+        ...next,
         element: {
-          ...state.element,
-          layers: state.element.layers.map(l =>
+          ...next.element,
+          layers: next.element.layers.map(l =>
             l.id === action.id ? { ...l, locked: !l.locked } : l
           ),
         },
         isDirty: true,
       }
+    }
 
     case 'SET_ZOOM':
       return { ...state, zoom: Math.min(Math.max(action.zoom, 0.1), 5) }

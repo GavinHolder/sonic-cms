@@ -88,7 +88,7 @@ export default function VoltRenderer({ voltElement, slots = {}, className, style
       activeAnimationsRef.current.forEach(anim => anim.cancel())
       activeAnimationsRef.current = []
     }
-  }, [voltElement, layers, states])
+  }, [voltElement])
 
   const aspectRatio = `${canvasWidth} / ${canvasHeight}`
 
