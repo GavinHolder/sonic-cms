@@ -65,6 +65,12 @@ const menuItems: MenuItem[] = [
     href: "/admin/media",
   },
   {
+    id: "volt",
+    label: "Volt Studio",
+    icon: "bi-lightning-charge-fill",
+    href: "/admin/volt",
+  },
+  {
     id: "users",
     label: "Users",
     icon: "bi-people",
