@@ -29,6 +29,7 @@ model User {
   pages        Page[]
   sections     Section[]
   mediaAssets  MediaAsset[]
+  voltElements VoltElement[]
 
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -173,6 +174,11 @@ model Section {
   lowerThird    Json?
   // Motion/parallax overlay elements (z-index 20, anime.js animated images)
   motionElements Json?
+
+  // Volt Studio element link
+  voltElementId  String?
+  voltElement    VoltElement? @relation("SectionVolt", fields: [voltElementId], references: [id], onDelete: SetNull)
+  voltSlotMap    Json?
 
   // Custom elements (for freeform sections only)
   elements      CustomElement[]
@@ -364,4 +370,57 @@ model ClientFeature {
   updatedAt DateTime @updatedAt
 
   @@map("client_features")
+}
+
+// ============================================
+// VOLT STUDIO
+// ============================================
+
+model VoltElement {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  mood        String?
+  elementType String   @default("custom")
+  isPublic    Boolean  @default(false)
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id])
+
+  layers      Json     @default("[]")
+  slots       Json     @default("[]")
+  states      Json     @default("[]")
+  canvasWidth  Int     @default(800)
+  canvasHeight Int     @default(500)
+  has3D       Boolean  @default(false)
+
+  tags        String[]
+  isPaid      Boolean  @default(false)
+  price       Float?
+  downloads   Int      @default(0)
+
+  assets      VoltAsset[]
+  sections    Section[]   @relation("SectionVolt")
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([authorId])
+  @@index([isPublic])
+  @@map("volt_elements")
+}
+
+model VoltAsset {
+  id         String      @id @default(cuid())
+  voltId     String
+  volt       VoltElement @relation(fields: [voltId], references: [id], onDelete: Cascade)
+  type       String
+  filename   String
+  url        String
+  fileSize   Int
+  metadata   Json?
+
+  createdAt  DateTime    @default(now())
+
+  @@index([voltId])
+  @@map("volt_assets")
 }
