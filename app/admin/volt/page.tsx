@@ -39,15 +39,17 @@ interface VoltListItem {
   updatedAt: string;
 }
 
-// ─── Page shell ───────────────────────────────────────────────────────────────
+// ─── Page shell — AdminLayout provides ToastProvider ──────────────────────────
 
 export default function VoltAdminPage() {
   return (
-    <VoltAdminInner />
+    <AdminLayout title="Volt Studio" subtitle="Design vector elements for your website">
+      <VoltAdminInner />
+    </AdminLayout>
   );
 }
 
-// ─── Inner component ──────────────────────────────────────────────────────────
+// ─── Inner component — runs inside ToastProvider ──────────────────────────────
 
 function VoltAdminInner() {
   const router = useRouter();
@@ -200,16 +202,13 @@ function VoltAdminInner() {
   // ─── Library view ───────────────────────────────────────────────────────────
 
   return (
-    <AdminLayout
-      title="Volt Studio"
-      subtitle="Design vector elements for your website"
-      actions={
+    <div>
+      <div className="d-flex justify-content-end mb-4">
         <button onClick={handleNew} className="btn btn-primary btn-sm">
           <i className="bi bi-plus-lg me-2" />
           New Design
         </button>
-      }
-    >
+      </div>
       {loading ? (
         <div className="text-center py-5 text-muted">
           <div className="spinner-border spinner-border-sm me-2" role="status" />
@@ -293,6 +292,6 @@ function VoltAdminInner() {
           ))}
         </div>
       )}
-    </AdminLayout>
+    </div>
   );
 }

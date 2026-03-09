@@ -19,15 +19,16 @@ import {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const user = requireRole(request, "VIEWER")
     if (user instanceof Response) return user
 
     const volt = await prisma.voltElement.findFirst({
       where: {
-        id: params.id,
+        id,
         OR: [{ authorId: user.userId }, { isPublic: true }],
       },
     })
@@ -48,15 +49,14 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const user = requireRole(request, "EDITOR")
     if (user instanceof Response) return user
 
-    const existing = await prisma.voltElement.findUnique({
-      where: { id: params.id },
-    })
+    const existing = await prisma.voltElement.findUnique({ where: { id } })
 
     if (!existing || existing.authorId !== user.userId) {
       return errorResponse(
@@ -81,7 +81,7 @@ export async function PUT(
     } = body
 
     const volt = await prisma.voltElement.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         ...(name !== undefined && { name: name.trim() }),
         ...(description !== undefined && { description }),
@@ -108,15 +108,14 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const user = requireRole(request, "EDITOR")
     if (user instanceof Response) return user
 
-    const existing = await prisma.voltElement.findUnique({
-      where: { id: params.id },
-    })
+    const existing = await prisma.voltElement.findUnique({ where: { id } })
 
     if (!existing || existing.authorId !== user.userId) {
       return errorResponse(
@@ -126,7 +125,7 @@ export async function DELETE(
       )
     }
 
-    await prisma.voltElement.delete({ where: { id: params.id } })
+    await prisma.voltElement.delete({ where: { id } })
 
     return successResponse({ success: true })
   } catch (error) {
