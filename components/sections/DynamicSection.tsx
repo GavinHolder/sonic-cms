@@ -5,6 +5,7 @@ import HeroCarousel from "./HeroCarousel";
 
 const AnimBgRenderer = dynamic(() => import("./AnimBgRenderer"), { ssr: false });
 const MotionElementRenderer = dynamic(() => import("./MotionElementRenderer"), { ssr: false });
+const VoltRenderer = dynamic(() => import('@/components/volt/VoltRenderer'), { ssr: false })
 import TextImageSection from "./TextImageSection";
 import StatsGrid from "./StatsGrid";
 import CardGrid from "./CardGrid";
@@ -27,6 +28,7 @@ import type {
   NormalSection,
   FlexibleSection,
 } from "@/types/section";
+import type { VoltElementData } from '@/types/volt'
 
 /**
  * DynamicSection Component
@@ -84,6 +86,40 @@ export default function DynamicSection({ section, isFirstAfterHero = false }: Dy
   // Don't render disabled sections
   if (!section.enabled) {
     return null;
+  }
+
+  // ⚡ Volt Studio — renders volt design when applied to this section
+  if ((section as any).voltElementId && (section as any).voltElement) {
+    const voltEl = (section as any).voltElement as VoltElementData
+    const slotMap = (section as any).voltSlotMap ?? {}
+    const sectionContent = (section as any).content ?? {}
+
+    const slots: Record<string, string> = {}
+    for (const [slotId, fieldName] of Object.entries(slotMap)) {
+      const val = sectionContent[fieldName as string]
+      if (typeof val === 'string') slots[slotId] = val
+    }
+
+    const wrapped = wrapSection(section, (
+      <div
+        id={section.id}
+        className="cms-section"
+        style={{
+          '--section-bg': 'transparent',
+          '--section-pt': `${section.paddingTop ?? 80}px`,
+          '--section-pb': `${section.paddingBottom ?? 80}px`,
+        } as React.CSSProperties}
+      >
+        <div className="section-content-wrapper">
+          <VoltRenderer voltElement={voltEl} slots={slots} style={{ width: '100%', height: '100%' }} />
+        </div>
+      </div>
+    ))
+
+    if (shouldShowTriangle(section, isFirstAfterHero)) {
+      return <TriangleSectionWrapper section={section}>{wrapped}</TriangleSectionWrapper>
+    }
+    return wrapped
   }
 
   // Cast to any for legacy kebab-case branches that access non-typed properties
