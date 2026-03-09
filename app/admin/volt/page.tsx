@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import AdminLayout from "@/components/admin/AdminLayout";
+import { useToast } from "@/components/admin/ToastProvider";
 import type { VoltElementData } from "@/types/volt";
 import { createNewVoltElement } from "@/lib/volt/volt-defaults";
 
@@ -50,6 +51,7 @@ export default function VoltAdminPage() {
 
 function VoltAdminInner() {
   const router = useRouter();
+  const toast = useToast();
   const [volts, setVolts] = useState<VoltListItem[]>([]);
   const [userId, setUserId] = useState<string>("");
   const [loading, setLoading] = useState(true);
@@ -87,62 +89,80 @@ function VoltAdminInner() {
 
   async function handleNew() {
     const el = createNewVoltElement(userId, "New Design");
-    const res = await fetch("/api/volt", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: el.name,
-        layers: [],
-        states: el.states,
-        canvasWidth: el.canvasWidth,
-        canvasHeight: el.canvasHeight,
-      }),
-    });
-    if (!res.ok) return;
-    const { data } = await res.json();
-    setEditingElement({ ...el, id: data.volt.id });
+    try {
+      const res = await fetch("/api/volt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: el.name,
+          layers: [],
+          states: el.states,
+          canvasWidth: el.canvasWidth,
+          canvasHeight: el.canvasHeight,
+        }),
+      });
+      if (!res.ok) { toast.error("Failed to create Volt"); return; }
+      const { data } = await res.json();
+      setEditingElement({ ...el, id: data.volt.id });
+    } catch {
+      toast.error("Failed to create Volt");
+    }
   }
 
   async function handleEdit(id: string) {
-    const res = await fetch(`/api/volt/${id}`);
-    if (!res.ok) return;
-    const { data } = await res.json();
-    setEditingElement(data.volt as VoltElementData);
+    try {
+      const res = await fetch(`/api/volt/${id}`);
+      if (!res.ok) { toast.error("Failed to load Volt"); return; }
+      const { data } = await res.json();
+      setEditingElement(data.volt as VoltElementData);
+    } catch {
+      toast.error("Failed to load Volt");
+    }
   }
 
   async function handleSave(element: VoltElementData) {
-    await fetch(`/api/volt/${element.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: element.name,
-        layers: element.layers,
-        states: element.states,
-        isPublic: element.isPublic,
-        mood: element.mood,
-        elementType: element.elementType,
-      }),
-    });
-    setVolts((v) =>
-      v.map((x) =>
-        x.id === element.id
-          ? {
-              ...x,
-              name: element.name,
-              isPublic: element.isPublic,
-              mood: element.mood ?? null,
-              elementType: element.elementType,
-            }
-          : x
-      )
-    );
+    try {
+      const res = await fetch(`/api/volt/${element.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: element.name,
+          layers: element.layers,
+          states: element.states,
+          isPublic: element.isPublic,
+          mood: element.mood,
+          elementType: element.elementType,
+        }),
+      });
+      if (!res.ok) { toast.error("Failed to save Volt"); return; }
+      setVolts((v) =>
+        v.map((x) =>
+          x.id === element.id
+            ? {
+                ...x,
+                name: element.name,
+                isPublic: element.isPublic,
+                mood: element.mood ?? null,
+                elementType: element.elementType,
+              }
+            : x
+        )
+      );
+    } catch {
+      toast.error("Failed to save Volt");
+    }
   }
 
   async function handleDelete(id: string) {
     if (!confirm("Delete this Volt design?")) return;
-    await fetch(`/api/volt/${id}`, { method: "DELETE" });
-    setVolts((v) => v.filter((x) => x.id !== id));
-    if (editingElement?.id === id) setEditingElement(null);
+    try {
+      const res = await fetch(`/api/volt/${id}`, { method: "DELETE" });
+      if (!res.ok) { toast.error("Failed to delete Volt"); return; }
+      setVolts((v) => v.filter((x) => x.id !== id));
+      if (editingElement?.id === id) setEditingElement(null);
+    } catch {
+      toast.error("Failed to delete Volt");
+    }
   }
 
   // ─── Full-screen studio overlay ────────────────────────────────────────────
