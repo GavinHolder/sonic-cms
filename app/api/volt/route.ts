@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
         elementType: true,
         isPublic: true,
         authorId: true,
+        thumbnail: true,
         tags: true,
         has3D: true,
         canvasWidth: true,

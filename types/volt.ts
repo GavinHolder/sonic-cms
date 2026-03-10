@@ -183,6 +183,7 @@ export interface VoltElementData {
   elementType: string
   isPublic: boolean
   authorId: string
+  thumbnail?: string | null
   layers: VoltLayer[]
   states: VoltState[]
   canvasWidth: number

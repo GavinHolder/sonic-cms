@@ -24,6 +24,7 @@ interface VoltListItem {
   elementType: string;
   isPublic: boolean;
   authorId: string;
+  thumbnail?: string | null;
   updatedAt: string;
 }
 
@@ -96,10 +97,10 @@ function VoltLibrary() {
       const res = await fetch(`/api/volt/${element.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: element.name, layers: element.layers, states: element.states, isPublic: element.isPublic, mood: element.mood, elementType: element.elementType }),
+        body: JSON.stringify({ name: element.name, layers: element.layers, states: element.states, isPublic: element.isPublic, mood: element.mood, elementType: element.elementType, thumbnail: element.thumbnail }),
       });
       if (!res.ok) { toast.error("Failed to save Volt"); return; }
-      setVolts(v => v.map(x => x.id === element.id ? { ...x, name: element.name, isPublic: element.isPublic, mood: element.mood ?? null, elementType: element.elementType } : x));
+      setVolts(v => v.map(x => x.id === element.id ? { ...x, name: element.name, isPublic: element.isPublic, mood: element.mood ?? null, elementType: element.elementType, thumbnail: element.thumbnail ?? x.thumbnail } : x));
     } catch { toast.error("Failed to save Volt"); }
   }
 
@@ -156,8 +157,17 @@ function VoltLibrary() {
           {volts.map(volt => (
             <div key={volt.id} className="col-md-4 col-lg-3">
               <div className="card h-100 shadow-sm">
-                <div className="card-img-top d-flex align-items-center justify-content-center" style={{ height: 130, background: "#f8f9fa" }}>
-                  <i className="bi bi-lightning-charge" style={{ fontSize: 32, opacity: 0.2 }} />
+                <div className="card-img-top d-flex align-items-center justify-content-center overflow-hidden" style={{ height: 130, background: "#f8f9fa", position: "relative" }}>
+                  {volt.thumbnail ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={volt.thumbnail}
+                      alt={volt.name}
+                      style={{ width: "100%", height: "100%", objectFit: "contain", padding: "8px" }}
+                    />
+                  ) : (
+                    <i className="bi bi-lightning-charge" style={{ fontSize: 32, opacity: 0.2 }} />
+                  )}
                 </div>
                 <div className="card-body p-3">
                   <h6 className="card-title text-truncate mb-1">{volt.name}</h6>

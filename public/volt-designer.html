@@ -679,7 +679,19 @@
     document.getElementById('toggle-left').addEventListener('click',function(){var s=document.getElementById('sidebar-left'),ic=document.getElementById('toggle-left-icon');s.classList.toggle('collapsed');ic.className=s.classList.contains('collapsed')?'bi bi-chevron-right':'bi bi-chevron-left';});
     document.getElementById('toggle-right').addEventListener('click',function(){var s=document.getElementById('sidebar-right'),ic=document.getElementById('toggle-right-icon');s.classList.toggle('collapsed');ic.className=s.classList.contains('collapsed')?'bi bi-chevron-left':'bi bi-chevron-right';});
     // ── Save / Done ───────────────────────────────────────────────────────────
-    function buildPayload(){return {id:state.element.id,name:state.element.name,mood:state.element.mood,elementType:state.element.elementType,isPublic:state.element.isPublic,layers:state.element.layers,states:state.element.states||[],canvasWidth:state.element.canvasWidth,canvasHeight:state.element.canvasHeight};}
+    function captureThumbnail(){
+      try{
+        // Clone SVG, add white background rect, then serialize
+        var clone=svgEl.cloneNode(true);
+        var bg=svgNs('rect');
+        var CW=state.element.canvasWidth,CH=state.element.canvasHeight;
+        bg.setAttribute('x','0');bg.setAttribute('y','0');bg.setAttribute('width',CW);bg.setAttribute('height',CH);bg.setAttribute('fill','white');
+        clone.insertBefore(bg,clone.firstChild);
+        var xml=new XMLSerializer().serializeToString(clone);
+        return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(xml);
+      }catch(e){return null;}
+    }
+    function buildPayload(){return {id:state.element.id,name:state.element.name,mood:state.element.mood,elementType:state.element.elementType,isPublic:state.element.isPublic,layers:state.element.layers,states:state.element.states||[],canvasWidth:state.element.canvasWidth,canvasHeight:state.element.canvasHeight,thumbnail:captureThumbnail()};}
     document.getElementById('btn-save').addEventListener('click',function(){if(window.parent&&window.parent!==window)window.parent.postMessage({type:'VOLT_DESIGNER_SAVE',payload:buildPayload()},'*');markClean();});
     document.getElementById('btn-done').addEventListener('click',function(){if(window.parent&&window.parent!==window)window.parent.postMessage({type:'VOLT_DESIGNER_DONE',payload:buildPayload()},'*');});
     // ── Load from host ────────────────────────────────────────────────────────

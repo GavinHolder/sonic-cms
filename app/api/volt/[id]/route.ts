@@ -78,6 +78,7 @@ export async function PUT(
       states,
       canvasWidth,
       canvasHeight,
+      thumbnail,
     } = body
 
     const volt = await prisma.voltElement.update({
@@ -93,6 +94,7 @@ export async function PUT(
         ...(states !== undefined && { states }),
         ...(canvasWidth !== undefined && { canvasWidth }),
         ...(canvasHeight !== undefined && { canvasHeight }),
+        ...(thumbnail !== undefined && { thumbnail }),
       },
     })
 
