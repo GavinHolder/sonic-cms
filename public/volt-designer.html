@@ -254,7 +254,7 @@
     // ── Resize handles ────────────────────────────────────────────────────────
     var HNAMES=['nw','n','ne','e','se','s','sw','w'];
     var HCUR={nw:'nw-resize',n:'n-resize',ne:'ne-resize',e:'e-resize',se:'se-resize',s:'s-resize',sw:'sw-resize',w:'w-resize'};
-    var HSIZ_SCREEN=7; // target handle size in screen px — scales inversely with zoom
+    var HSIZ_SCREEN=5; // target handle size in screen px — scales inversely with zoom
     function getHsiz(){return Math.max(2,HSIZ_SCREEN/state.zoom);}
     function handlePos(sel,h){var CW=state.element.canvasWidth,CH=state.element.canvasHeight;var x=topx(sel.x,CW),y=topx(sel.y,CH),w=topx(sel.width,CW),ht=topx(sel.height,CH);if(h==='nw')return{x:x,y:y};if(h==='n')return{x:x+w/2,y:y};if(h==='ne')return{x:x+w,y:y};if(h==='e')return{x:x+w,y:y+ht/2};if(h==='se')return{x:x+w,y:y+ht};if(h==='s')return{x:x+w/2,y:y+ht};if(h==='sw')return{x:x,y:y+ht};return{x:x,y:y+ht/2};}
     function hitHandle(pt,sel){if(!sel)return null;var hs=getHsiz()+2/state.zoom;for(var i=0;i<HNAMES.length;i++){var hp=handlePos(sel,HNAMES[i]);if(dist2(pt,hp)<=hs)return HNAMES[i];}return null;}
@@ -293,7 +293,7 @@
         var sel=state.element.layers.find(function(l){return l.id===state.selectedLayerId;});
         if(sel){
           var rx=topx(sel.x,CW),ry=topx(sel.y,CH),rw=topx(sel.width,CW),rh=topx(sel.height,CH);
-          var sw1=(1.5/state.zoom).toFixed(3);var dd=(5/state.zoom).toFixed(1)+' '+(3/state.zoom).toFixed(1);
+          var sw1=(0.75/state.zoom).toFixed(3);var dd=(5/state.zoom).toFixed(1)+' '+(3/state.zoom).toFixed(1);
           var box=svgNs('rect');box.setAttribute('x',rx);box.setAttribute('y',ry);box.setAttribute('width',rw);box.setAttribute('height',rh);
           box.setAttribute('fill','none');box.setAttribute('stroke','#0d6efd');box.setAttribute('stroke-width',sw1);box.setAttribute('stroke-dasharray',dd);box.setAttribute('pointer-events','none');
           svgEl.appendChild(box);
@@ -301,7 +301,7 @@
           HNAMES.forEach(function(h){
             var hp=handlePos(sel,h);
             var hc=svgNs('rect');hc.setAttribute('x',hp.x-hs/2);hc.setAttribute('y',hp.y-hs/2);hc.setAttribute('width',hs);hc.setAttribute('height',hs);
-            hc.setAttribute('class','resize-handle');hc.setAttribute('stroke-width',(1.5/state.zoom).toFixed(3));hc.setAttribute('rx',(1/state.zoom).toFixed(3));hc.setAttribute('data-handle',h);hc.style.cursor=HCUR[h];hc.setAttribute('pointer-events','none');
+            hc.setAttribute('class','resize-handle');hc.setAttribute('stroke-width',(1/state.zoom).toFixed(3));hc.setAttribute('rx',(1/state.zoom).toFixed(3));hc.setAttribute('data-handle',h);hc.style.cursor=HCUR[h];hc.setAttribute('pointer-events','none');
             svgEl.appendChild(hc);
           });
         }
@@ -361,7 +361,8 @@
       if(resizeSt){
         var idx=state.element.layers.findIndex(function(l){return l.id===resizeSt.layerId;});if(idx<0){resizeSt=null;return;}
         var ob=resizeSt.origBounds,h=resizeSt.handle;
-        var dpx=pt.x-resizeSt.startPt.x,dpy=pt.y-resizeSt.startPt.y;
+        var rpt=snapPt(pt,e.ctrlKey);
+        var dpx=rpt.x-resizeSt.startPt.x,dpy=rpt.y-resizeSt.startPt.y;
         var ddx=pct(dpx,CW),ddy=pct(dpy,CH);
         var nx=ob.x,ny=ob.y,nw=ob.w,nh=ob.h;
         if(h==='nw'||h==='sw'||h==='w'){nx=clamp(ob.x+ddx,0,ob.x+ob.w-0.1);nw=ob.w+ob.x-nx;}
