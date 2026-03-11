@@ -15,13 +15,10 @@ import { nanoid } from "nanoid"
  * Generate a new API key.
  * Returns the raw key (show once), its bcrypt hash (store), and a display prefix.
  */
-export function generateApiKey(): { raw: string; hash: string; prefix: string } {
+export async function generateApiKey(): Promise<{ raw: string; hash: string; prefix: string }> {
   const raw = `vlt_${nanoid(32)}`
-  return {
-    raw,
-    hash: bcrypt.hashSync(raw, 10),
-    prefix: raw.slice(0, 8),
-  }
+  const hash = await bcrypt.hash(raw, 10)
+  return { raw, hash, prefix: raw.slice(0, 8) }
 }
 
 /**
@@ -54,7 +51,7 @@ export async function getApiKeyUser(authHeader: string | null) {
   })
 
   for (const key of keys) {
-    if (bcrypt.compareSync(raw, key.keyHash)) {
+    if (await bcrypt.compare(raw, key.keyHash)) {
       await prisma.apiKey.update({
         where: { id: key.id },
         data: { lastUsedAt: new Date() },

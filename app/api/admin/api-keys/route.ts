@@ -51,14 +51,25 @@ export async function POST(request: NextRequest) {
     const user = requireRole(request, "EDITOR")
     if (user instanceof Response) return user
 
-    const body = await request.json()
-    const { label } = body
-
-    if (!label?.trim()) {
-      return errorResponse("VALIDATION_ERROR", "Label is required", 400, "label")
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return errorResponse("VALIDATION_ERROR", "Invalid JSON body", 400)
     }
 
-    const { raw, hash, prefix } = generateApiKey()
+    const { label } = body as Record<string, unknown>
+
+    if (!label || typeof label !== "string" || !label.trim() || label.trim().length > 100) {
+      return errorResponse("VALIDATION_ERROR", "Label must be 1-100 characters", 400)
+    }
+
+    const count = await prisma.apiKey.count({ where: { userId: user.userId } })
+    if (count >= 10) {
+      return errorResponse("LIMIT_EXCEEDED", "Maximum 10 API keys per user", 400)
+    }
+
+    const { raw, hash, prefix } = await generateApiKey()
 
     await prisma.apiKey.create({
       data: {
