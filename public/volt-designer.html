@@ -384,15 +384,15 @@
         var bbl=state.element.layers.find(function(l){return l.id===state.boolBaseId;});
         if(bbl){
           var bbx=topx(bbl.x,CW),bby=topx(bbl.y,CH),bbw=topx(bbl.width,CW),bbh=topx(bbl.height,CH);
-          var sw2=(2/state.zoom).toFixed(3);
+          var sw2=(2.5/state.zoom).toFixed(3);
           // Fill tint
-          var bbtint=svgNs('rect');bbtint.setAttribute('x',bbx);bbtint.setAttribute('y',bby);bbtint.setAttribute('width',bbw);bbtint.setAttribute('height',bbh);bbtint.setAttribute('fill','rgba(6,182,212,0.10)');bbtint.setAttribute('pointer-events','none');svgEl.appendChild(bbtint);
+          var bbtint=svgNs('rect');bbtint.setAttribute('x',String(bbx));bbtint.setAttribute('y',String(bby));bbtint.setAttribute('width',String(bbw));bbtint.setAttribute('height',String(bbh));bbtint.setAttribute('fill','rgba(6,182,212,0.15)');bbtint.setAttribute('pointer-events','none');svgEl.appendChild(bbtint);
           // Solid teal border
-          var bbo=svgNs('rect');bbo.setAttribute('x',bbx);bbo.setAttribute('y',bby);bbo.setAttribute('width',bbw);bbo.setAttribute('height',bbh);bbo.setAttribute('fill','none');bbo.setAttribute('stroke','#06b6d4');bbo.setAttribute('stroke-width',sw2);bbo.setAttribute('pointer-events','none');svgEl.appendChild(bbo);
-          // "BASE" pill label — top-left corner
-          var lblFs=Math.max(9,11/state.zoom);var lblPad=4/state.zoom;var lblW=34/state.zoom;var lblH=14/state.zoom;
-          var basePill=svgNs('rect');basePill.setAttribute('x',bbx);basePill.setAttribute('y',String(bby-lblH));basePill.setAttribute('width',String(lblW));basePill.setAttribute('height',String(lblH));basePill.setAttribute('fill','#06b6d4');basePill.setAttribute('rx',String(3/state.zoom));basePill.setAttribute('pointer-events','none');svgEl.appendChild(basePill);
-          var baseTxt=svgNs('text');baseTxt.setAttribute('x',String(bbx+lblPad));baseTxt.setAttribute('y',String(bby-lblH/2+lblFs*0.38));baseTxt.setAttribute('fill','#001a1a');baseTxt.setAttribute('font-size',String(lblFs));baseTxt.setAttribute('font-weight','700');baseTxt.setAttribute('font-family','system-ui,sans-serif');baseTxt.setAttribute('pointer-events','none');baseTxt.textContent='BASE';svgEl.appendChild(baseTxt);
+          var bbo=svgNs('rect');bbo.setAttribute('x',String(bbx));bbo.setAttribute('y',String(bby));bbo.setAttribute('width',String(bbw));bbo.setAttribute('height',String(bbh));bbo.setAttribute('fill','none');bbo.setAttribute('stroke','#06b6d4');bbo.setAttribute('stroke-width',sw2);bbo.setAttribute('pointer-events','none');svgEl.appendChild(bbo);
+          // "BASE" pill — drawn INSIDE the shape at top-left (never clips outside viewBox)
+          var bFs=Math.max(8,10/state.zoom);var bPad=3/state.zoom;var bW=30/state.zoom;var bH=13/state.zoom;var bOff=3/state.zoom;
+          var basePill=svgNs('rect');basePill.setAttribute('x',String(bbx+bOff));basePill.setAttribute('y',String(bby+bOff));basePill.setAttribute('width',String(bW));basePill.setAttribute('height',String(bH));basePill.setAttribute('fill','#06b6d4');basePill.setAttribute('rx',String(2/state.zoom));basePill.setAttribute('pointer-events','none');svgEl.appendChild(basePill);
+          var baseTxt=svgNs('text');baseTxt.setAttribute('x',String(bbx+bOff+bPad));baseTxt.setAttribute('y',String(bby+bOff+bH*0.73));baseTxt.setAttribute('fill','white');baseTxt.setAttribute('font-size',String(bFs));baseTxt.setAttribute('font-weight','800');baseTxt.setAttribute('font-family','system-ui,sans-serif');baseTxt.setAttribute('pointer-events','none');baseTxt.textContent='BASE';svgEl.appendChild(baseTxt);
         }
       }
       // Selection box + resize handles
@@ -403,19 +403,19 @@
           // When bool base is chosen, show cutter in orange; otherwise normal blue
           var isCutterMode=!!(state.boolBaseId&&state.boolBaseId!==state.selectedLayerId);
           var selColor=isCutterMode?'#f97316':'#0d6efd';
-          var sw1=((isCutterMode?2:0.75)/state.zoom).toFixed(3);var dd=(5/state.zoom).toFixed(1)+' '+(3/state.zoom).toFixed(1);
+          var sw1=((isCutterMode?2.5:0.75)/state.zoom).toFixed(3);var dd=(5/state.zoom).toFixed(1)+' '+(3/state.zoom).toFixed(1);
           if(isCutterMode){
             // Orange fill tint for cutter
-            var ctint=svgNs('rect');ctint.setAttribute('x',rx);ctint.setAttribute('y',ry);ctint.setAttribute('width',rw);ctint.setAttribute('height',rh);ctint.setAttribute('fill','rgba(249,115,22,0.10)');ctint.setAttribute('pointer-events','none');svgEl.appendChild(ctint);
+            var ctint=svgNs('rect');ctint.setAttribute('x',String(rx));ctint.setAttribute('y',String(ry));ctint.setAttribute('width',String(rw));ctint.setAttribute('height',String(rh));ctint.setAttribute('fill','rgba(249,115,22,0.15)');ctint.setAttribute('pointer-events','none');svgEl.appendChild(ctint);
           }
-          var box=svgNs('rect');box.setAttribute('x',rx);box.setAttribute('y',ry);box.setAttribute('width',rw);box.setAttribute('height',rh);
+          var box=svgNs('rect');box.setAttribute('x',String(rx));box.setAttribute('y',String(ry));box.setAttribute('width',String(rw));box.setAttribute('height',String(rh));
           box.setAttribute('fill','none');box.setAttribute('stroke',selColor);box.setAttribute('stroke-width',sw1);if(!isCutterMode)box.setAttribute('stroke-dasharray',dd);box.setAttribute('pointer-events','none');
           svgEl.appendChild(box);
           if(isCutterMode){
-            // "CUTTER ✂" pill label — top-left corner
-            var clblFs=Math.max(9,11/state.zoom);var clblPad=4/state.zoom;var clblW=52/state.zoom;var clblH=14/state.zoom;
-            var cutPill=svgNs('rect');cutPill.setAttribute('x',rx);cutPill.setAttribute('y',String(ry-clblH));cutPill.setAttribute('width',String(clblW));cutPill.setAttribute('height',String(clblH));cutPill.setAttribute('fill','#f97316');cutPill.setAttribute('rx',String(3/state.zoom));cutPill.setAttribute('pointer-events','none');svgEl.appendChild(cutPill);
-            var cutTxt=svgNs('text');cutTxt.setAttribute('x',String(rx+clblPad));cutTxt.setAttribute('y',String(ry-clblH/2+clblFs*0.38));cutTxt.setAttribute('fill','#fff');cutTxt.setAttribute('font-size',String(clblFs));cutTxt.setAttribute('font-weight','700');cutTxt.setAttribute('font-family','system-ui,sans-serif');cutTxt.setAttribute('pointer-events','none');cutTxt.textContent='CUTTER \u2702';svgEl.appendChild(cutTxt);
+            // "CUTTER ✂" pill — drawn INSIDE the shape at top-left (never clips outside viewBox)
+            var cFs=Math.max(8,10/state.zoom);var cPad=3/state.zoom;var cW=46/state.zoom;var cH=13/state.zoom;var cOff=3/state.zoom;
+            var cutPill=svgNs('rect');cutPill.setAttribute('x',String(rx+cOff));cutPill.setAttribute('y',String(ry+cOff));cutPill.setAttribute('width',String(cW));cutPill.setAttribute('height',String(cH));cutPill.setAttribute('fill','#f97316');cutPill.setAttribute('rx',String(2/state.zoom));cutPill.setAttribute('pointer-events','none');svgEl.appendChild(cutPill);
+            var cutTxt=svgNs('text');cutTxt.setAttribute('x',String(rx+cOff+cPad));cutTxt.setAttribute('y',String(ry+cOff+cH*0.73));cutTxt.setAttribute('fill','white');cutTxt.setAttribute('font-size',String(cFs));cutTxt.setAttribute('font-weight','800');cutTxt.setAttribute('font-family','system-ui,sans-serif');cutTxt.setAttribute('pointer-events','none');cutTxt.textContent='CUTTER \u2702';svgEl.appendChild(cutTxt);
           }
           var hs=getHsiz();
           HNAMES.forEach(function(h){
