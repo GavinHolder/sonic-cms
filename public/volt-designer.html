@@ -64,19 +64,20 @@
     .canvas-empty-hint i{font-size:32px;color:#93a8c4;}
     .canvas-empty-hint p{font-size:13px;color:#6b8cae;margin:0;font-weight:600;}
     .canvas-empty-hint small{font-size:10px;color:#93a8c4;letter-spacing:0.3px;}
-    .v3d-modal{position:fixed;inset:0;z-index:9000;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.82);}
+    .v3d-modal{position:fixed;inset:0;z-index:9000;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);}
     .v3d-modal.open{display:flex;}
-    .v3d-modal-inner{width:min(860px,98vw);max-height:92vh;background:#1a1a2e;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;}
-    .v3d-header{padding:14px 20px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #2d2d4e;}
-    .v3d-body{flex:1;display:flex;min-height:400px;}
-    .v3d-preview{flex:1;position:relative;}
+    .v3d-modal-inner{width:min(1280px,98vw);height:90vh;background:#fff;border-radius:10px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.18);}
+    .v3d-header{padding:12px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #dee2e6;background:#fff;}
+    .v3d-body{flex:1;display:flex;min-height:0;}
+    .v3d-preview{flex:1;position:relative;background:#f8f9fa;}
     .v3d-preview iframe{position:absolute;inset:0;width:100%;height:100%;border:none;}
-    .v3d-sidebar{width:220px;flex-shrink:0;border-left:1px solid #2d2d4e;padding:12px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;}
-    .v3d-asset-row{padding:6px 8px;border-radius:6px;cursor:pointer;border:1.5px solid #2d2d4e;color:#c7d2fe;transition:all 0.12s;}
-    .v3d-asset-row:hover,.v3d-asset-row.active{border-color:#6366f1;background:#312e81;}
-    .v3d-clip-row{padding:4px 8px;border-radius:4px;cursor:pointer;font-size:11px;color:#a5b4fc;border:1px solid transparent;}
-    .v3d-clip-row:hover{background:#2d2d4e;}
-    .v3d-clip-row.active{background:#312e81;border-color:#6366f1;color:white;}
+    .v3d-sidebar{width:240px;flex-shrink:0;border-left:1px solid #dee2e6;padding:12px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;background:#fff;}
+    .v3d-asset-row{padding:6px 8px;border-radius:6px;cursor:pointer;border:1.5px solid #dee2e6;color:#212529;font-size:12px;transition:all 0.12s;}
+    .v3d-asset-row:hover{border-color:#6366f1;background:#f0f0ff;}
+    .v3d-asset-row.active{border-color:#6366f1;background:#eef2ff;color:#4f46e5;font-weight:600;}
+    .v3d-clip-row{padding:4px 8px;border-radius:4px;cursor:pointer;font-size:11px;color:#495057;border:1px solid transparent;}
+    .v3d-clip-row:hover{background:#f0f0ff;}
+    .v3d-clip-row.active{background:#eef2ff;border-color:#6366f1;color:#4f46e5;font-weight:600;}
   </style>
 </head>
 <body>
@@ -238,13 +239,13 @@
   <div class="v3d-modal" id="v3d-modal">
     <div class="v3d-modal-inner">
       <div class="v3d-header">
-        <i class="bi bi-box" style="color:#818cf8;font-size:18px;"></i>
-        <span id="v3d-modal-title" style="font-size:14px;font-weight:700;color:white;">3D Objects</span>
+        <i class="bi bi-box" style="color:#6366f1;font-size:18px;"></i>
+        <span id="v3d-modal-title" style="font-size:14px;font-weight:700;color:#212529;">3D Objects</span>
         <div class="ms-auto d-flex gap-2">
           <button id="v3d-approve-btn" class="btn btn-sm btn-success" style="display:none;">
             <i class="bi bi-check-lg me-1"></i>Approve &amp; Place
           </button>
-          <button id="v3d-close-btn" class="btn btn-sm btn-outline-secondary" style="color:#a5b4fc;border-color:#4f46e5;">
+          <button id="v3d-close-btn" class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-x-lg"></i>
           </button>
         </div>
@@ -373,7 +374,7 @@
           lbl3d.setAttribute('x',String(rx+rw/2));
           lbl3d.setAttribute('y',String(ry+rh/2+10/state.zoom));
           lbl3d.setAttribute('text-anchor','middle');
-          lbl3d.setAttribute('fill','#a5b4fc');
+          lbl3d.setAttribute('fill','#4f46e5');
           lbl3d.setAttribute('font-size',String(10/state.zoom));
           lbl3d.textContent=layer.name||'3D Object';
           g3d.appendChild(lbl3d);
@@ -744,7 +745,7 @@
       var container = document.getElementById('v3d-section-assets');
       container.textContent = '';
       var loading = document.createElement('div');
-      loading.style.cssText = 'color:#a5b4fc;font-size:11px;padding:8px;';
+      loading.style.cssText = 'color:#6c757d;font-size:11px;padding:8px;';
       loading.textContent = 'Loading\u2026';
       container.appendChild(loading);
       fetch('/api/volt-3d')
@@ -793,13 +794,13 @@
         var row = document.createElement('div');
         row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:4px 0;';
         var label = document.createElement('span');
-        label.style.cssText = 'font-size:11px;color:#a5b4fc;flex:1;';
+        label.style.cssText = 'font-size:11px;color:#495057;flex:1;';
         label.textContent = 'v' + ver.versionNum + (ver.isConfirmed ? ' \u2713' : '');
         row.appendChild(label);
         if (!ver.isConfirmed) {
           var confirmBtn = document.createElement('button');
           confirmBtn.className = 'btn btn-xs';
-          confirmBtn.style.cssText = 'font-size:10px;padding:2px 6px;background:#1e40af;color:white;border:none;border-radius:3px;cursor:pointer;';
+          confirmBtn.style.cssText = 'font-size:10px;padding:2px 6px;background:#6366f1;color:white;border:none;border-radius:3px;cursor:pointer;';
           confirmBtn.textContent = 'Confirm';
           (function(a, v) {
             confirmBtn.addEventListener('click', function(e) {
@@ -949,7 +950,7 @@
       // Section 1: Asset info
       var assetDiv=document.createElement('div');assetDiv.className='prop-group';
       var assetLabel=document.createElement('div');assetLabel.className='prop-label';assetLabel.textContent='Asset';assetDiv.appendChild(assetLabel);
-      var assetName=document.createElement('div');assetName.style.cssText='font-size:11px;color:#a5b4fc;padding:3px 0;';assetName.textContent=d3.assetName||layer.name||'Unknown';assetDiv.appendChild(assetName);
+      var assetName=document.createElement('div');assetName.style.cssText='font-size:11px;color:#6c757d;padding:3px 0;';assetName.textContent=d3.assetName||layer.name||'Unknown';assetDiv.appendChild(assetName);
       var changeBtn=document.createElement('button');changeBtn.className='btn btn-xs btn-outline-primary w-100 mt-1';changeBtn.style.cssText='font-size:10px;padding:2px 6px;';changeBtn.textContent='Change / Preview';changeBtn.addEventListener('click',openV3DModal);assetDiv.appendChild(changeBtn);
       body.appendChild(assetDiv);
       // Section 2: Active clip select
