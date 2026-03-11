@@ -379,20 +379,44 @@
           svgEl.appendChild(g3d);
         }
       });
-      // Boolean base outline (teal, drawn first so cutter outline is on top)
+      // Boolean base outline (teal) — drawn first so cutter outline renders on top
       if(state.boolBaseId&&state.boolBaseId!==state.selectedLayerId){
         var bbl=state.element.layers.find(function(l){return l.id===state.boolBaseId;});
-        if(bbl){var bbx=topx(bbl.x,CW),bby=topx(bbl.y,CH),bbw=topx(bbl.width,CW),bbh=topx(bbl.height,CH);var bbo=svgNs('rect');bbo.setAttribute('x',bbx);bbo.setAttribute('y',bby);bbo.setAttribute('width',bbw);bbo.setAttribute('height',bbh);bbo.setAttribute('fill','rgba(6,182,212,0.06)');bbo.setAttribute('stroke','#06b6d4');bbo.setAttribute('stroke-width',(1.2/state.zoom).toFixed(3));bbo.setAttribute('stroke-dasharray',(4/state.zoom).toFixed(1)+' '+(3/state.zoom).toFixed(1));bbo.setAttribute('pointer-events','none');svgEl.appendChild(bbo);}
+        if(bbl){
+          var bbx=topx(bbl.x,CW),bby=topx(bbl.y,CH),bbw=topx(bbl.width,CW),bbh=topx(bbl.height,CH);
+          var sw2=(2/state.zoom).toFixed(3);
+          // Fill tint
+          var bbtint=svgNs('rect');bbtint.setAttribute('x',bbx);bbtint.setAttribute('y',bby);bbtint.setAttribute('width',bbw);bbtint.setAttribute('height',bbh);bbtint.setAttribute('fill','rgba(6,182,212,0.10)');bbtint.setAttribute('pointer-events','none');svgEl.appendChild(bbtint);
+          // Solid teal border
+          var bbo=svgNs('rect');bbo.setAttribute('x',bbx);bbo.setAttribute('y',bby);bbo.setAttribute('width',bbw);bbo.setAttribute('height',bbh);bbo.setAttribute('fill','none');bbo.setAttribute('stroke','#06b6d4');bbo.setAttribute('stroke-width',sw2);bbo.setAttribute('pointer-events','none');svgEl.appendChild(bbo);
+          // "BASE" pill label — top-left corner
+          var lblFs=Math.max(9,11/state.zoom);var lblPad=4/state.zoom;var lblW=34/state.zoom;var lblH=14/state.zoom;
+          var basePill=svgNs('rect');basePill.setAttribute('x',bbx);basePill.setAttribute('y',String(bby-lblH));basePill.setAttribute('width',String(lblW));basePill.setAttribute('height',String(lblH));basePill.setAttribute('fill','#06b6d4');basePill.setAttribute('rx',String(3/state.zoom));basePill.setAttribute('pointer-events','none');svgEl.appendChild(basePill);
+          var baseTxt=svgNs('text');baseTxt.setAttribute('x',String(bbx+lblPad));baseTxt.setAttribute('y',String(bby-lblH/2+lblFs*0.38));baseTxt.setAttribute('fill','#001a1a');baseTxt.setAttribute('font-size',String(lblFs));baseTxt.setAttribute('font-weight','700');baseTxt.setAttribute('font-family','system-ui,sans-serif');baseTxt.setAttribute('pointer-events','none');baseTxt.textContent='BASE';svgEl.appendChild(baseTxt);
+        }
       }
       // Selection box + resize handles
       if(state.selectedLayerId){
         var sel=state.element.layers.find(function(l){return l.id===state.selectedLayerId;});
         if(sel){
           var rx=topx(sel.x,CW),ry=topx(sel.y,CH),rw=topx(sel.width,CW),rh=topx(sel.height,CH);
-          var sw1=(0.75/state.zoom).toFixed(3);var dd=(5/state.zoom).toFixed(1)+' '+(3/state.zoom).toFixed(1);
+          // When bool base is chosen, show cutter in orange; otherwise normal blue
+          var isCutterMode=!!(state.boolBaseId&&state.boolBaseId!==state.selectedLayerId);
+          var selColor=isCutterMode?'#f97316':'#0d6efd';
+          var sw1=((isCutterMode?2:0.75)/state.zoom).toFixed(3);var dd=(5/state.zoom).toFixed(1)+' '+(3/state.zoom).toFixed(1);
+          if(isCutterMode){
+            // Orange fill tint for cutter
+            var ctint=svgNs('rect');ctint.setAttribute('x',rx);ctint.setAttribute('y',ry);ctint.setAttribute('width',rw);ctint.setAttribute('height',rh);ctint.setAttribute('fill','rgba(249,115,22,0.10)');ctint.setAttribute('pointer-events','none');svgEl.appendChild(ctint);
+          }
           var box=svgNs('rect');box.setAttribute('x',rx);box.setAttribute('y',ry);box.setAttribute('width',rw);box.setAttribute('height',rh);
-          box.setAttribute('fill','none');box.setAttribute('stroke','#0d6efd');box.setAttribute('stroke-width',sw1);box.setAttribute('stroke-dasharray',dd);box.setAttribute('pointer-events','none');
+          box.setAttribute('fill','none');box.setAttribute('stroke',selColor);box.setAttribute('stroke-width',sw1);if(!isCutterMode)box.setAttribute('stroke-dasharray',dd);box.setAttribute('pointer-events','none');
           svgEl.appendChild(box);
+          if(isCutterMode){
+            // "CUTTER ✂" pill label — top-left corner
+            var clblFs=Math.max(9,11/state.zoom);var clblPad=4/state.zoom;var clblW=52/state.zoom;var clblH=14/state.zoom;
+            var cutPill=svgNs('rect');cutPill.setAttribute('x',rx);cutPill.setAttribute('y',String(ry-clblH));cutPill.setAttribute('width',String(clblW));cutPill.setAttribute('height',String(clblH));cutPill.setAttribute('fill','#f97316');cutPill.setAttribute('rx',String(3/state.zoom));cutPill.setAttribute('pointer-events','none');svgEl.appendChild(cutPill);
+            var cutTxt=svgNs('text');cutTxt.setAttribute('x',String(rx+clblPad));cutTxt.setAttribute('y',String(ry-clblH/2+clblFs*0.38));cutTxt.setAttribute('fill','#fff');cutTxt.setAttribute('font-size',String(clblFs));cutTxt.setAttribute('font-weight','700');cutTxt.setAttribute('font-family','system-ui,sans-serif');cutTxt.setAttribute('pointer-events','none');cutTxt.textContent='CUTTER \u2702';svgEl.appendChild(cutTxt);
+          }
           var hs=getHsiz();
           HNAMES.forEach(function(h){
             var hp=handlePos(sel,h);
