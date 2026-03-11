@@ -217,7 +217,7 @@
     // ── State ─────────────────────────────────────────────────────────────────
     var state={
       element:{id:'',name:'New Design',mood:null,elementType:'custom',isPublic:false,authorId:'',layers:[],states:[],tags:[],canvasWidth:800,canvasHeight:500},
-      activeTool:'select',selectedLayerId:null,boolBaseId:null,isDirty:false,history:[],historyIndex:-1,zoom:1,gridSize:10
+      activeTool:'select',selectedLayerId:null,boolBaseId:null,vertexEditLayerId:null,isDirty:false,history:[],historyIndex:-1,zoom:1,gridSize:10
     };
     // ── Utilities ─────────────────────────────────────────────────────────────
     function nanoid(){return Math.random().toString(36).slice(2,11)+Math.random().toString(36).slice(2,11);}
@@ -319,6 +319,27 @@
           });
         }
       }
+      // Vertex edit mode — draw draggable vertex handles
+      if(state.vertexEditLayerId){
+        var vel=state.element.layers.find(function(l){return l.id===state.vertexEditLayerId;});
+        if(vel&&vel.vectorData){
+          var vpts=parsePts(vel.vectorData.pathData);var vr=VX_RAD/state.zoom;
+          // Dashed amber selection box to show vertex edit mode
+          var vbx=topx(vel.x,CW),vby=topx(vel.y,CH),vbw=topx(vel.width,CW),vbh=topx(vel.height,CH);
+          var vbox=svgNs('rect');vbox.setAttribute('x',vbx);vbox.setAttribute('y',vby);vbox.setAttribute('width',vbw);vbox.setAttribute('height',vbh);
+          vbox.setAttribute('fill','none');vbox.setAttribute('stroke','#f59e0b');vbox.setAttribute('stroke-width',(1/state.zoom).toFixed(3));
+          vbox.setAttribute('stroke-dasharray',(3/state.zoom).toFixed(1)+' '+(2/state.zoom).toFixed(1));vbox.setAttribute('pointer-events','none');svgEl.appendChild(vbox);
+          vpts.forEach(function(vp,vi){
+            var vc=svgNs('circle');vc.setAttribute('cx',topx(vp.x,CW));vc.setAttribute('cy',topx(vp.y,CH));vc.setAttribute('r',vr);
+            vc.setAttribute('fill','white');vc.setAttribute('stroke','#f59e0b');vc.setAttribute('stroke-width',(1.5/state.zoom).toFixed(3));
+            vc.setAttribute('pointer-events','none');vc.setAttribute('data-vi',vi);svgEl.appendChild(vc);
+          });
+          // Label
+          var vtxt=svgNs('text');vtxt.setAttribute('x',vbx+2/state.zoom);vtxt.setAttribute('y',vby-3/state.zoom);
+          vtxt.setAttribute('font-size',(9/state.zoom).toFixed(1));vtxt.setAttribute('fill','#f59e0b');vtxt.setAttribute('font-weight','700');vtxt.setAttribute('pointer-events','none');
+          vtxt.textContent='VERTEX EDIT \u2022 Esc to exit';svgEl.appendChild(vtxt);
+        }
+      }
       renderPolyGhost();
     }
     // ── Polygon drawing ───────────────────────────────────────────────────────
@@ -346,13 +367,25 @@
     var dragSt=null;    // {layerId,startPt,startX,startY,origPath,moved}
     var resizeSt=null;  // {layerId,handle,startPt,origBounds,origPath}
     var drawSt=null;    // {startX,startY,curX,curY,rawSX,rawSY,rawCX,rawCY}
+    var vxDragSt=null;  // {layerId,vertIdx,startPt,origPts}
     var ghostEl=null;
+    var VX_RAD=4;       // vertex handle radius (screen px, scaled by zoom)
     // ── SVG pointer events ────────────────────────────────────────────────────
     svgEl.addEventListener('pointerdown',function(e){
       var tool=state.activeTool,pt=getSvgPt(e);
       if(tool==='polygon'||tool==='hand')return;
       if(tool==='select'){
         svgEl.setPointerCapture(e.pointerId);
+        // Vertex edit mode — check vertex handle hit first
+        if(state.vertexEditLayerId){
+          var vel=state.element.layers.find(function(l){return l.id===state.vertexEditLayerId;});
+          if(vel&&vel.vectorData){
+            var vpts2=parsePts(vel.vectorData.pathData);var vhit=VX_RAD*2/state.zoom;var vCW=state.element.canvasWidth,vCH=state.element.canvasHeight;
+            for(var vi2=0;vi2<vpts2.length;vi2++){var vcx=topx(vpts2[vi2].x,vCW),vcy=topx(vpts2[vi2].y,vCH);if(dist2(pt,{x:vcx,y:vcy})<=vhit){vxDragSt={layerId:vel.id,vertIdx:vi2,startPt:pt,origPts:vpts2.slice()};return;}}
+          }
+          // Clicked outside vertex handles — exit vertex edit, fall through to normal select
+          state.vertexEditLayerId=null;
+        }
         var sel=state.selectedLayerId?state.element.layers.find(function(l){return l.id===state.selectedLayerId;}):null;
         // Check resize handles
         if(sel){var h=hitHandle(pt,sel);if(h){resizeSt={layerId:sel.id,handle:h,startPt:pt,origBounds:{x:sel.x,y:sel.y,w:sel.width,h:sel.height},origPath:sel.vectorData?sel.vectorData.pathData:null};return;}}
@@ -370,6 +403,22 @@
     });
     svgEl.addEventListener('pointermove',function(e){
       var pt=getSvgPt(e);var CW=state.element.canvasWidth,CH=state.element.canvasHeight;
+      // Vertex drag
+      if(vxDragSt){
+        var rpt=snapPt(pt,e.ctrlKey);
+        var vxi=state.element.layers.findIndex(function(l){return l.id===vxDragSt.layerId;});
+        if(vxi>=0){
+          var npts=vxDragSt.origPts.slice();npts[vxDragSt.vertIdx]={x:pct(rpt.x,CW),y:pct(rpt.y,CH)};
+          state.element.layers[vxi].vectorData.pathData=ptsToPath(npts);
+          var vxs=npts.map(function(v){return v.x;}),vys=npts.map(function(v){return v.y;});
+          var vbx2=Math.min.apply(null,vxs);state.element.layers[vxi].x=vbx2;
+          state.element.layers[vxi].y=Math.min.apply(null,vys);
+          state.element.layers[vxi].width=Math.max(0.1,Math.max.apply(null,vxs)-vbx2);
+          state.element.layers[vxi].height=Math.max(0.1,Math.max.apply(null,vys)-Math.min.apply(null,vys));
+          renderCanvas();
+        }
+        return;
+      }
       // Resize
       if(resizeSt){
         var idx=state.element.layers.findIndex(function(l){return l.id===resizeSt.layerId;});if(idx<0){resizeSt=null;return;}
@@ -438,6 +487,7 @@
     });
     svgEl.addEventListener('pointerup',function(e){
       var CW=state.element.canvasWidth,CH=state.element.canvasHeight;
+      if(vxDragSt){pushHistory();markDirty();renderAll();vxDragSt=null;return;}
       if(resizeSt){pushHistory();markDirty();renderAll();resizeSt=null;return;}
       if(dragSt){if(dragSt.moved){pushHistory();markDirty();renderLayers();renderCanvas();}else selectLayer(dragSt.layerId);dragSt=null;return;}
       if(!drawSt)return;
@@ -477,9 +527,15 @@
       }
       if(!dragSt&&e.target===svgEl){var chk=hitTest(getSvgPt(e));if(!chk){state.selectedLayerId=null;document.getElementById('btn-delete-layer').disabled=true;renderCanvas();renderProps();}}
     });
-    svgEl.addEventListener('dblclick',function(e){if(state.activeTool!=='polygon')return;e.preventDefault();if(polyState.verts.length>0)polyState.verts.pop();if(polyState.verts.length>=3)commitPolygon();else cancelPolygon();});
+    svgEl.addEventListener('dblclick',function(e){
+      if(state.activeTool==='polygon'){e.preventDefault();if(polyState.verts.length>0)polyState.verts.pop();if(polyState.verts.length>=3)commitPolygon();else cancelPolygon();return;}
+      if(state.activeTool==='select'){
+        var dpt=getSvgPt(e);var dhit=hitTest(dpt);
+        if(dhit&&dhit.type==='vector'&&!dhit.locked){state.vertexEditLayerId=dhit.id;state.selectedLayerId=dhit.id;document.getElementById('btn-delete-layer').disabled=false;renderCanvas();renderLayers();}
+      }
+    });
     // ── Select layer ──────────────────────────────────────────────────────────
-    function selectLayer(id){state.selectedLayerId=id;state.boolBaseId=null;document.getElementById('btn-delete-layer').disabled=!id;renderCanvas();renderLayers();renderProps();}
+    function selectLayer(id){if(id!==state.selectedLayerId)state.vertexEditLayerId=null;state.selectedLayerId=id;state.boolBaseId=null;document.getElementById('btn-delete-layer').disabled=!id;renderCanvas();renderLayers();renderProps();}
     // ── Layers panel ──────────────────────────────────────────────────────────
     function roleCls(r){if(r==='structure'||r==='background')return 'lb-str';if(r==='content')return 'lb-slt';return 'lb-acc';}
     function roleLbl(r){return {structure:'STR',background:'BG',content:'CNT',accent:'ACC',overlay:'OVR'}[r]||(r||'?').slice(0,3).toUpperCase();}
@@ -731,7 +787,7 @@
       var t={v:'select',r:'rectangle',e:'ellipse',l:'line',p:'polygon',s:'slot',h:'hand'};
       if(t[e.key.toLowerCase()]){e.preventDefault();document.querySelector('.tool-btn[data-tool="'+t[e.key.toLowerCase()]+'"]').click();return;}
       if(e.key==='Enter'&&state.activeTool==='polygon'){e.preventDefault();if(polyState.verts.length>=3)commitPolygon();return;}
-      if(e.key==='Escape'){e.preventDefault();if(state.activeTool==='polygon')cancelPolygon();return;}
+      if(e.key==='Escape'){e.preventDefault();if(state.vertexEditLayerId){state.vertexEditLayerId=null;renderCanvas();return;}if(state.activeTool==='polygon')cancelPolygon();return;}
       if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key==='z'){e.preventDefault();undo();return;}
       if((e.ctrlKey||e.metaKey)&&(e.key==='y'||(e.shiftKey&&e.key==='z'))){e.preventDefault();redo();return;}
       if((e.key==='Delete'||e.key==='Backspace')&&state.selectedLayerId)document.getElementById('btn-delete-layer').click();
