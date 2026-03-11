@@ -93,7 +93,20 @@ const menuItems: MenuItem[] = [
     id: "settings",
     label: "Settings",
     icon: "bi-gear",
-    href: "/admin/settings",
+    subItems: [
+      {
+        id: "settings-general",
+        label: "General",
+        icon: "bi-sliders",
+        href: "/admin/settings",
+      },
+      {
+        id: "api-keys",
+        label: "API Keys",
+        icon: "bi-key",
+        href: "/admin/settings/api-keys",
+      },
+    ],
   },
   {
     id: "documents",
