@@ -61,6 +61,13 @@
     .tools-sep{width:1px;height:20px;background:#dee2e6;margin:0 5px;flex-shrink:0;}
     /* Empty canvas invitation */
     .canvas-empty-hint{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;gap:6px;z-index:1;}
+    /* Contextual key legend */
+    #key-legend{position:absolute;bottom:10px;left:12px;z-index:20;pointer-events:none;display:flex;flex-direction:column;gap:4px;transition:opacity 0.25s;}
+    #key-legend .kl-ctx{font-size:9px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:#6b8cae;padding-left:2px;}
+    #key-legend .kl-row{display:flex;flex-wrap:wrap;gap:4px;}
+    #key-legend .kl-item{display:flex;align-items:center;gap:3px;font-size:10px;background:rgba(255,255,255,0.88);border:1px solid rgba(147,168,196,0.35);border-radius:4px;padding:2px 6px;backdrop-filter:blur(4px);}
+    #key-legend .kl-key{font-family:monospace;font-size:9px;font-weight:700;color:#344;background:rgba(0,0,0,0.06);border-radius:3px;padding:1px 4px;white-space:nowrap;}
+    #key-legend .kl-label{color:#4e6a8a;font-size:10px;white-space:nowrap;}
     .canvas-empty-hint i{font-size:32px;color:#93a8c4;}
     .canvas-empty-hint p{font-size:13px;color:#6b8cae;margin:0;font-weight:600;}
     .canvas-empty-hint small{font-size:10px;color:#4e6a8a;letter-spacing:0.5px;background:rgba(255,255,255,0.85);padding:4px 12px;border-radius:20px;border:1px solid rgba(147,168,196,0.4);font-weight:600;}
@@ -220,6 +227,7 @@
         </div>
       </div>
       <div class="canvas-wrap" id="canvas-wrap">
+        <div id="key-legend"></div>
         <div id="canvas-empty-hint" class="canvas-empty-hint">
           <i class="bi bi-vector-pen"></i>
           <p>Pick a tool and start drawing</p>
@@ -300,6 +308,43 @@
     function markDirty(){state.isDirty=true;document.getElementById('btn-save').disabled=false;document.getElementById('unsaved-indicator').style.display='inline-flex';if(window.parent===window){try{localStorage.setItem('volt_autosave',JSON.stringify(state.element));}catch(e){}}}
     function markClean(){state.isDirty=false;document.getElementById('btn-save').disabled=true;document.getElementById('unsaved-indicator').style.display='none';}
     function renderAll(){renderCanvas();renderLayers();renderProps();}
+    // ── Contextual key legend ──────────────────────────────────────────────────
+    var _KL={
+      idle:         {ctx:'Tools',         keys:[['V','Select'],['R','Rect'],['E','Ellipse'],['L','Line'],['P','Polygon'],['S','Slot'],['H','Hand']]},
+      selected:     {ctx:'Selection',     keys:[['Del','Delete'],['Alt+drag','Duplicate'],['dblclick','Vertex edit'],['Ctrl+Z','Undo']]},
+      drawing_rect: {ctx:'Drawing Rect',  keys:[['Drag','Draw'],['Shift','Square'],['Ctrl','Snap to grid'],['Esc','Cancel']]},
+      drawing_ellipse:{ctx:'Drawing Ellipse',keys:[['Drag','Draw'],['Shift','Circle'],['Ctrl','Snap to grid'],['Esc','Cancel']]},
+      drawing_line: {ctx:'Drawing Line',  keys:[['Drag','Draw'],['Ctrl','Snap to grid'],['Esc','Cancel']]},
+      drawing_slot: {ctx:'Drawing Slot',  keys:[['Drag','Draw'],['Shift','Square'],['Ctrl','Snap to grid'],['Esc','Cancel']]},
+      drawing_polygon:{ctx:'Polygon Tool',keys:[['Click','Add point'],['Ctrl','Snap'],['Enter','Close shape'],['dblclick','Close'],['Esc','Cancel']]},
+      vertex_edit:  {ctx:'Vertex Edit',   keys:[['Drag','Move point'],['Alt+click edge','Add point'],['Alt+dblclick','Delete point'],['Esc','Exit']]},
+      bool_edit:    {ctx:'Bool Edit',     keys:[['Drag','Move cutter'],['dblclick cutter','Edit vertices'],['Esc','Confirm']]},
+      hand:         {ctx:'Hand Tool',     keys:[['V','Back to select'],['Esc','Back to select']]},
+    };
+    function renderKeyLegend(){
+      var el=document.getElementById('key-legend');if(!el)return;
+      var ctx=null;
+      if(state.vertexEditLayerId){ctx=_KL.vertex_edit;}
+      else if(state.boolEditParentId){ctx=_KL.bool_edit;}
+      else{
+        var t=state.activeTool;
+        if(t==='rectangle'){ctx=_KL.drawing_rect;}
+        else if(t==='ellipse'){ctx=_KL.drawing_ellipse;}
+        else if(t==='line'){ctx=_KL.drawing_line;}
+        else if(t==='slot'){ctx=_KL.drawing_slot;}
+        else if(t==='polygon'){ctx=_KL.drawing_polygon;}
+        else if(t==='hand'){ctx=_KL.hand;}
+        else if(state.selectedLayerId){ctx=_KL.selected;}
+        else{ctx=_KL.idle;}
+      }
+      // Dim when idle tool shortcuts shown; brighter for active contexts
+      var isIdle=(ctx===_KL.idle);
+      el.style.opacity=isIdle?'0.5':'0.85';
+      var html='<div class="kl-ctx">'+ctx.ctx+'</div><div class="kl-row">';
+      ctx.keys.forEach(function(k){html+='<div class="kl-item"><span class="kl-key">'+k[0]+'</span><span class="kl-label">'+k[1]+'</span></div>';});
+      html+='</div>';
+      el.innerHTML=html;
+    }
     // ── Path helpers ──────────────────────────────────────────────────────────
     function rectPath(x,y,w,h){return 'M '+x+' '+y+' L '+(x+w)+' '+y+' L '+(x+w)+' '+(y+h)+' L '+x+' '+(y+h)+' Z';}
     function ellipsePath(x,y,w,h){var cx=x+w/2,cy=y+h/2,rx=w/2,ry=h/2;return 'M '+(cx-rx)+' '+cy+' A '+rx+' '+ry+' 0 1 0 '+(cx+rx)+' '+cy+' A '+rx+' '+ry+' 0 1 0 '+(cx-rx)+' '+cy+' Z';}
@@ -396,6 +441,7 @@
     function hitHandle(pt,sel){if(!sel)return null;var hs=getHsiz()+2/state.zoom;for(var i=0;i<HNAMES.length;i++){var hp=handlePos(sel,HNAMES[i]);if(dist2(pt,hp)<=hs)return HNAMES[i];}return null;}
     // ── Render canvas ─────────────────────────────────────────────────────────
     function renderCanvas(){
+      renderKeyLegend();
       var hint=document.getElementById('canvas-empty-hint');if(hint)hint.style.display=state.element.layers.length===0?'flex':'none';
       var beb=document.getElementById('bool-edit-badge');if(beb)beb.style.display=state.boolEditParentId?'inline-flex':'none';
       while(svgEl.firstChild)svgEl.removeChild(svgEl.firstChild);
@@ -678,7 +724,16 @@
       svgEl.setPointerCapture(e.pointerId);
       var spt0=snapPt(pt,e.ctrlKey);
       drawSt={startX:spt0.x,startY:spt0.y,curX:spt0.x,curY:spt0.y};
-      if(!ghostEl){ghostEl=svgNs('rect');ghostEl.setAttribute('fill',tool==='slot'?'rgba(34,197,94,0.1)':'rgba(99,102,241,0.2)');ghostEl.setAttribute('stroke',tool==='slot'?'#22c55e':'#6366f1');ghostEl.setAttribute('stroke-width',(1.5/state.zoom).toFixed(3));ghostEl.setAttribute('stroke-dasharray',(5/state.zoom).toFixed(2)+' '+(3/state.zoom).toFixed(2));ghostEl.setAttribute('pointer-events','none');svgEl.appendChild(ghostEl);}
+      if(!ghostEl){
+        var _gc=tool==='slot'?'#22c55e':'#6366f1',_gf=tool==='slot'?'rgba(34,197,94,0.1)':'rgba(99,102,241,0.18)';
+        var _gTag=tool==='ellipse'?'ellipse':tool==='line'?'line':'rect';
+        ghostEl=svgNs(_gTag);
+        if(tool==='line'){ghostEl.setAttribute('fill','none');ghostEl.setAttribute('stroke-linecap','round');}
+        else{ghostEl.setAttribute('fill',_gf);}
+        ghostEl.setAttribute('stroke',_gc);ghostEl.setAttribute('stroke-width',(1.5/state.zoom).toFixed(3));
+        ghostEl.setAttribute('stroke-dasharray',(5/state.zoom).toFixed(2)+' '+(3/state.zoom).toFixed(2));
+        ghostEl.setAttribute('pointer-events','none');svgEl.appendChild(ghostEl);
+      }
     });
     svgEl.addEventListener('pointermove',function(e){
       var pt=getSvgPt(e);var CW=state.element.canvasWidth,CH=state.element.canvasHeight;
@@ -790,7 +845,12 @@
       var gx=Math.min(drawSt.startX,drawSt.curX),gy=Math.min(drawSt.startY,drawSt.curY),gw=Math.abs(drawSt.curX-drawSt.startX),gh=Math.abs(drawSt.curY-drawSt.startY);
       // Shift = constrain to square (1:1 ratio), expand from origin corner
       if(e.shiftKey&&(state.activeTool==='rectangle'||state.activeTool==='ellipse'||state.activeTool==='slot')){var gs=Math.max(gw,gh);gw=gs;gh=gs;if(drawSt.curX<drawSt.startX)gx=drawSt.startX-gs;if(drawSt.curY<drawSt.startY)gy=drawSt.startY-gs;}
-      if(ghostEl){ghostEl.setAttribute('x',gx);ghostEl.setAttribute('y',gy);ghostEl.setAttribute('width',gw);ghostEl.setAttribute('height',gh);}
+      if(ghostEl){
+        var _gt=state.activeTool;
+        if(_gt==='ellipse'){ghostEl.setAttribute('cx',gx+gw/2);ghostEl.setAttribute('cy',gy+gh/2);ghostEl.setAttribute('rx',gw/2);ghostEl.setAttribute('ry',gh/2);}
+        else if(_gt==='line'){ghostEl.setAttribute('x1',drawSt.startX);ghostEl.setAttribute('y1',drawSt.startY);ghostEl.setAttribute('x2',spt2.x);ghostEl.setAttribute('y2',spt2.y);}
+        else{ghostEl.setAttribute('x',gx);ghostEl.setAttribute('y',gy);ghostEl.setAttribute('width',gw);ghostEl.setAttribute('height',gh);}
+      }
     });
     svgEl.addEventListener('pointerup',function(e){
       var CW=state.element.canvasWidth,CH=state.element.canvasHeight;
@@ -1482,7 +1542,7 @@
     // ── Collapsible panels ────────────────────────────────────────────────────
     document.querySelectorAll('.panel-header[data-panel]').forEach(function(hdr){hdr.addEventListener('click',function(){var id=hdr.dataset.panel;var body=document.getElementById('pb-'+id);if(!body)return;body.classList.toggle('hidden');hdr.classList.toggle('collapsed');});});
     // ── Tool buttons ──────────────────────────────────────────────────────────
-    document.querySelectorAll('.tool-btn-h').forEach(function(btn){btn.addEventListener('click',function(){if(state.activeTool==='polygon'&&btn.dataset.tool!=='polygon')cancelPolygon();state.activeTool=btn.dataset.tool;document.querySelectorAll('.tool-btn-h').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');var cur={select:'default',hand:'grab',rectangle:'crosshair',ellipse:'crosshair',line:'crosshair',slot:'crosshair',polygon:'crosshair'};svgEl.style.cursor=cur[state.activeTool]||'crosshair';});});
+    document.querySelectorAll('.tool-btn-h').forEach(function(btn){btn.addEventListener('click',function(){if(state.activeTool==='polygon'&&btn.dataset.tool!=='polygon')cancelPolygon();state.activeTool=btn.dataset.tool;document.querySelectorAll('.tool-btn-h').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');var cur={select:'default',hand:'grab',rectangle:'crosshair',ellipse:'crosshair',line:'crosshair',slot:'crosshair',polygon:'crosshair'};svgEl.style.cursor=cur[state.activeTool]||'crosshair';renderKeyLegend();});});
     // ── Element properties ────────────────────────────────────────────────────
     document.getElementById('el-name').addEventListener('input',function(e){state.element.name=e.target.value;document.getElementById('element-name-badge').textContent=e.target.value||'Untitled';markDirty();});
     document.getElementById('el-type').addEventListener('change',function(e){state.element.elementType=e.target.value;markDirty();});
