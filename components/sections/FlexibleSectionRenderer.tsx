@@ -333,7 +333,7 @@ function DesignerBlocksRenderer({ designerData, darkBg }: { designerData: string
       tabletPos?: PixelPos;
       mobilePos?: PixelPos;
       props?: Record<string, unknown>;
-      subElements?: Array<{ type: string; props?: Record<string, unknown>; x?: number; y?: number; w?: number | null }>;
+      subElements?: SubEl[];
     }> = data.blocks || [];
 
     // Nothing to render — return null to avoid empty DOM nodes
@@ -452,8 +452,30 @@ function DesignerBlocksRenderer({ designerData, darkBg }: { designerData: string
  * - Scroll-triggered entrance animation via IntersectionObserver
  * - Content delegation to renderInner() which switches on block.type
  */
+type SubEl = { type: string; props?: Record<string, unknown>; x?: number; y?: number; w?: number | null };
+
+/**
+ * Groups sub-elements into columns by clustering their x positions.
+ * Sub-elements within 80px of each other horizontally are considered the same column.
+ * Each column's elements are sorted by their y position (top to bottom).
+ * Returns a single-element array (one column) when layout is vertical-only.
+ */
+function groupSubsByColumn(subs: SubEl[]): SubEl[][] {
+  if (subs.length === 0) return [];
+  const BUCKET = 80;
+  const buckets = new Map<number, SubEl[]>();
+  for (const sub of subs) {
+    const key = Math.floor((sub.x ?? 0) / BUCKET) * BUCKET;
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key)!.push(sub);
+  }
+  return Array.from(buckets.keys())
+    .sort((a, b) => a - b)
+    .map(k => buckets.get(k)!.sort((a, b) => (a.y ?? 0) - (b.y ?? 0)));
+}
+
 function DesignerBlock({ block, darkBg }: {
-  block: { type: string; props?: Record<string, unknown>; subElements?: Array<{ type: string; props?: Record<string, unknown>; x?: number; y?: number; w?: number | null }> };
+  block: { type: string; props?: Record<string, unknown>; subElements?: SubEl[] };
   darkBg: boolean;
 }) {
   const blockRef = useRef<HTMLDivElement>(null);
@@ -585,13 +607,32 @@ function DesignerBlock({ block, darkBg }: {
           backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
           border: `1px solid ${tbGlass === "light" ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.1)"}`,
         } : {};
+        const outerStyle: React.CSSProperties = {
+          background: tbBg, color: (p.textColor as string) || tc,
+          textAlign: (p.textAlign as React.CSSProperties["textAlign"]) || undefined,
+          height: "100%", ...tbGlassStyle, ...blockPadding("20px", "0px"),
+        };
+        // Detect multi-column layouts (e.g. 2-col, 3-col presets) from sub-element x positions.
+        // On mobile (col-12) all columns stack vertically — true mobile-first behaviour.
+        const columns = groupSubsByColumn(subs);
+        if (columns.length > 1) {
+          const colClass = columns.length === 2 ? "col-12 col-md-6"
+                         : columns.length === 3 ? "col-12 col-md-4"
+                         : "col-12 col-md-3";
+          return (
+            <div style={outerStyle}>
+              <div className="row g-3">
+                {columns.map((col, ci) => (
+                  <div key={ci} className={colClass} style={{ display: "flex", flexDirection: "column", gap: blockGap }}>
+                    {col.map((sub, i) => <DesignerSubElement key={i} sub={sub} />)}
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        }
         return (
-          <div style={{
-            background: tbBg, color: (p.textColor as string) || tc,
-            textAlign: (p.textAlign as React.CSSProperties["textAlign"]) || undefined,
-            height: "100%", display: "flex", flexDirection: "column", gap: blockGap,
-            ...tbGlassStyle, ...blockPadding("20px", "0px"),
-          }}>
+          <div style={{ ...outerStyle, display: "flex", flexDirection: "column", gap: blockGap }}>
             {subs.map((sub, i) => <DesignerSubElement key={i} sub={sub} />)}
           </div>
         );
@@ -717,7 +758,7 @@ function DesignerBlock({ block, darkBg }: {
  * - Per-element entrance animations (countUp, zoomIn, pulse, fadeIn, slideUp,
  *   bounceIn, blurIn, typewriter) triggered on first viewport intersection
  */
-function DesignerSubElement({ sub }: { sub: { type: string; props?: Record<string, unknown>; x?: number; y?: number; w?: number | null } }) {
+function DesignerSubElement({ sub }: { sub: SubEl }) {
   const uid    = useId();
   // Sanitise the React useId string (contains colons) for use as a CSS class name
   const scopeClass = `dsub-${uid.replace(/:/g, "")}`;
