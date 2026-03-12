@@ -213,6 +213,7 @@
           <button class="tool-btn-h" data-tool="ellipse" title="Ellipse (E)"><i class="bi bi-circle"></i></button>
           <button class="tool-btn-h" data-tool="line" title="Line (L)"><i class="bi bi-slash-lg"></i></button>
           <button class="tool-btn-h" data-tool="polygon" title="Polygon (P)"><i class="bi bi-pentagon"></i></button>
+          <button class="tool-btn-h" data-tool="pen" title="Pen/Bezier (B)"><i class="bi bi-pen"></i></button>
           <button class="tool-btn-h" data-tool="slot" title="Slot (S)"><i class="bi bi-layout-text-window"></i></button>
           <div class="tools-sep"></div>
           <button class="tool-btn-h" data-tool="hand" title="Pan (H)"><i class="bi bi-hand-index"></i></button>
@@ -310,7 +311,8 @@
     function renderAll(){renderCanvas();renderLayers();renderProps();}
     // ── Contextual key legend ──────────────────────────────────────────────────
     var _KL={
-      idle:         {ctx:'Tools',         keys:[['V','Select'],['R','Rect'],['E','Ellipse'],['L','Line'],['P','Polygon'],['S','Slot'],['H','Hand']]},
+      idle:         {ctx:'Tools',         keys:[['V','Select'],['R','Rect'],['E','Ellipse'],['L','Line'],['B','Pen'],['P','Polygon'],['S','Slot'],['H','Hand']]},
+      drawing_pen:  {ctx:'Pen Tool',      keys:[['Click','Anchor (sharp)'],['Click+Drag','Anchor (curve)'],['Near start','Close path'],['Enter/dblclick','Commit open'],['Ctrl','Snap'],['Esc','Cancel']]},
       selected:     {ctx:'Selection',     keys:[['Del','Delete'],['Alt+drag','Duplicate'],['dblclick','Vertex edit'],['Ctrl+Z','Undo']]},
       drawing_rect: {ctx:'Drawing Rect',  keys:[['Drag','Draw'],['Shift','Square'],['Ctrl','Snap to grid'],['Esc','Cancel']]},
       drawing_ellipse:{ctx:'Drawing Ellipse',keys:[['Drag','Draw'],['Shift','Circle'],['Ctrl','Snap to grid'],['Esc','Cancel']]},
@@ -333,6 +335,7 @@
         else if(t==='line'){ctx=_KL.drawing_line;}
         else if(t==='slot'){ctx=_KL.drawing_slot;}
         else if(t==='polygon'){ctx=_KL.drawing_polygon;}
+        else if(t==='pen'){ctx=_KL.drawing_pen;}
         else if(t==='hand'){ctx=_KL.hand;}
         else if(state.selectedLayerId){ctx=_KL.selected;}
         else{ctx=_KL.idle;}
@@ -658,6 +661,80 @@
     }
     function commitPolygon(){if(polyState.verts.length<3){cancelPolygon();return;}pushHistory();var layer=mkPolygon(polyState.verts);var maxZ=state.element.layers.reduce(function(m,l){return Math.max(m,l.zIndex);},-1);layer.zIndex=maxZ+1;state.element.layers.push(layer);state.selectedLayerId=layer.id;polyState.verts=[];polyState.cursorPt=null;markDirty();renderAll();if(!_stickyTool)activateTool('select');}
     function cancelPolygon(){polyState.verts=[];polyState.cursorPt=null;renderPolyGhost();}
+    // ── Bezier Pen tool ───────────────────────────────────────────────────────
+    var penState={verts:[],cursorPt:null,dragging:false};
+    var _penDown=false,_penMoved=false;
+    function penToPath(verts,close){
+      if(!verts||verts.length<1)return '';
+      var CW=state.element.canvasWidth,CH=state.element.canvasHeight;
+      function sx(v){return topx(v.x,CW);}function sy(v){return topx(v.y,CH);}
+      var d='M '+sx(verts[0])+' '+sy(verts[0]);
+      for(var i=1;i<verts.length;i++){
+        var p0=verts[i-1],p1=verts[i];
+        var c1x=sx(p0)+p0.cpOut.dx,c1y=sy(p0)+p0.cpOut.dy,c2x=sx(p1)+p1.cpIn.dx,c2y=sy(p1)+p1.cpIn.dy;
+        if(p0.cpOut.dx===0&&p0.cpOut.dy===0&&p1.cpIn.dx===0&&p1.cpIn.dy===0){d+=' L '+sx(p1)+' '+sy(p1);}
+        else{d+=' C '+c1x+' '+c1y+' '+c2x+' '+c2y+' '+sx(p1)+' '+sy(p1);}
+      }
+      if(close&&verts.length>=2){
+        var pL=verts[verts.length-1],p0=verts[0];
+        var c1x=sx(pL)+pL.cpOut.dx,c1y=sy(pL)+pL.cpOut.dy,c2x=sx(p0)+p0.cpIn.dx,c2y=sy(p0)+p0.cpIn.dy;
+        if(pL.cpOut.dx===0&&pL.cpOut.dy===0&&p0.cpIn.dx===0&&p0.cpIn.dy===0){d+=' Z';}
+        else{d+=' C '+c1x+' '+c1y+' '+c2x+' '+c2y+' '+sx(p0)+' '+sy(p0)+' Z';}
+      }
+      return d;
+    }
+    function renderPenGhost(){
+      var old=svgEl.querySelector('#pen-ghost');if(old)old.remove();
+      if(state.activeTool!=='pen'||penState.verts.length===0)return;
+      var CW=state.element.canvasWidth,CH=state.element.canvasHeight;
+      var z=state.zoom,sw=+(1.5/z).toFixed(3),sw1=+(1/z).toFixed(3),r1=+(4/z).toFixed(3),r2=+(6/z).toFixed(3);
+      function sx(v){return topx(v.x,CW);}function sy(v){return topx(v.y,CH);}
+      var g=svgNs('g');g.setAttribute('id','pen-ghost');g.setAttribute('pointer-events','none');
+      var near12=12/z;
+      // Committed path so far
+      var pathStr=penToPath(penState.verts,false);
+      if(pathStr){var pe2=svgNs('path');pe2.setAttribute('d',pathStr);pe2.setAttribute('fill','none');pe2.setAttribute('stroke','#6366f1');pe2.setAttribute('stroke-width',sw);pe2.setAttribute('stroke-dasharray',(4/z).toFixed(2)+' '+(3/z).toFixed(2));g.appendChild(pe2);}
+      // Preview from last anchor to cursor
+      if(penState.cursorPt&&penState.verts.length>=1){
+        var lv=penState.verts[penState.verts.length-1],lx=sx(lv),ly=sy(lv),cx3=penState.cursorPt.x,cy3=penState.cursorPt.y;
+        var nearFirst=penState.verts.length>=2&&dist2(penState.cursorPt,{x:sx(penState.verts[0]),y:sy(penState.verts[0])})<near12;
+        var previewD=(lv.cpOut.dx===0&&lv.cpOut.dy===0)?('M '+lx+' '+ly+' L '+cx3+' '+cy3):('M '+lx+' '+ly+' C '+(lx+lv.cpOut.dx)+' '+(ly+lv.cpOut.dy)+' '+cx3+' '+cy3+' '+cx3+' '+cy3);
+        var pv=svgNs('path');pv.setAttribute('d',previewD);pv.setAttribute('fill','none');pv.setAttribute('stroke',nearFirst?'#22c55e':'#6366f166');pv.setAttribute('stroke-width',sw1);pv.setAttribute('stroke-dasharray',(3/z).toFixed(2)+' '+(3/z).toFixed(2));g.appendChild(pv);
+      }
+      // Handle arms on last vert while dragging
+      if(penState.dragging&&penState.verts.length>0){
+        var lv=penState.verts[penState.verts.length-1],lx=sx(lv),ly=sy(lv);
+        ['cpOut','cpIn'].forEach(function(k){
+          var h=lv[k];if(h.dx===0&&h.dy===0)return;
+          var hx=lx+h.dx,hy=ly+h.dy;
+          var arm=svgNs('line');arm.setAttribute('x1',lx);arm.setAttribute('y1',ly);arm.setAttribute('x2',hx);arm.setAttribute('y2',hy);arm.setAttribute('stroke','#94a3b8');arm.setAttribute('stroke-width',sw1);g.appendChild(arm);
+          var dot=svgNs('circle');dot.setAttribute('cx',hx);dot.setAttribute('cy',hy);dot.setAttribute('r',(r1*0.75).toFixed(2));dot.setAttribute('fill','#6366f1');dot.setAttribute('stroke','white');dot.setAttribute('stroke-width',sw1);g.appendChild(dot);
+        });
+      }
+      // Anchor dots
+      penState.verts.forEach(function(v,i){
+        var near=penState.cursorPt&&i===0&&penState.verts.length>=2&&dist2(penState.cursorPt,{x:sx(v),y:sy(v)})<near12;
+        var ac=svgNs('circle');ac.setAttribute('cx',sx(v));ac.setAttribute('cy',sy(v));ac.setAttribute('r',near?r2:r1);
+        ac.setAttribute('fill',near?'#22c55e':(i===0?'#0d6efd':'white'));ac.setAttribute('stroke',near?'#22c55e':'#6366f1');ac.setAttribute('stroke-width',sw);g.appendChild(ac);
+      });
+      svgEl.appendChild(g);
+    }
+    function commitPen(close){
+      var verts=penState.verts;if(verts.length<2){cancelPen();return;}
+      var CW=state.element.canvasWidth,CH=state.element.canvasHeight;
+      pushHistory();
+      var pathStr=penToPath(verts,close);
+      var xs=verts.map(function(v){return topx(v.x,CW);}),ys=verts.map(function(v){return topx(v.y,CH);});
+      var bx=Math.min.apply(null,xs),by=Math.min.apply(null,ys),bw=Math.max(0.1,Math.max.apply(null,xs)-bx),bh=Math.max(0.1,Math.max.apply(null,ys)-by);
+      var col=nextColor();
+      var layer=baseVec('Path','structure',pct(bx,CW),pct(by,CH),pct(bw,CW),pct(bh,CH),pathStr,col);
+      layer.vectorData.closed=close;
+      if(!close){layer.vectorData.fills=[];layer.vectorData.stroke={color:col,opacity:1,width:2,cap:'round',join:'round',dash:[]};}
+      var maxZ=state.element.layers.reduce(function(m,l){return Math.max(m,l.zIndex);},-1);
+      layer.zIndex=maxZ+1;state.element.layers.push(layer);state.selectedLayerId=layer.id;
+      cancelPen();markDirty();renderAll();if(!_stickyTool)activateTool('select');
+    }
+    function cancelPen(){penState.verts=[];penState.cursorPt=null;penState.dragging=false;_penDown=false;_penMoved=false;var old=svgEl.querySelector('#pen-ghost');if(old)old.remove();}
     function activateTool(name){var btn=document.querySelector('.tool-btn-h[data-tool="'+name+'"]');if(btn)btn.click();}
     function snapPt(pt,doSnap){if(!doSnap||!state.gridSize)return pt;var g=state.gridSize;return{x:Math.round(pt.x/g)*g,y:Math.round(pt.y/g)*g};}
     function updateDotGrid(){var cg=artboard.querySelector('.cdotgrid');if(cg)cg.style.backgroundSize=state.gridSize+'px '+state.gridSize+'px';}
@@ -675,6 +752,15 @@
     // ── SVG pointer events ────────────────────────────────────────────────────
     svgEl.addEventListener('pointerdown',function(e){
       var tool=state.activeTool,pt=getSvgPt(e);
+      if(tool==='pen'){
+        svgEl.setPointerCapture(e.pointerId);
+        var spt_pen=snapPt(pt,e.ctrlKey);var CW_pen=state.element.canvasWidth,CH_pen=state.element.canvasHeight;
+        // Click near first anchor (≥2 pts) = close and commit
+        if(penState.verts.length>=2){var fp_pen=penState.verts[0];if(dist2(spt_pen,{x:topx(fp_pen.x,CW_pen),y:topx(fp_pen.y,CH_pen)})<12/state.zoom){commitPen(true);return;}}
+        // Place new anchor
+        penState.verts.push({x:pct(spt_pen.x,CW_pen),y:pct(spt_pen.y,CH_pen),cpIn:{dx:0,dy:0},cpOut:{dx:0,dy:0}});
+        _penDown=true;_penMoved=false;penState.dragging=false;renderPenGhost();return;
+      }
       if(tool==='polygon'||tool==='hand')return;
       if(tool==='select'){
         svgEl.setPointerCapture(e.pointerId);
@@ -837,6 +923,17 @@
           renderCanvas();return;
         }
       }
+      // Pen ghost + handle drag
+      if(state.activeTool==='pen'){
+        penState.cursorPt=pt;
+        if(_penDown&&penState.verts.length>0){
+          var _plv=penState.verts[penState.verts.length-1];
+          var _plx=topx(_plv.x,CW),_ply=topx(_plv.y,CH);
+          var _pdx=pt.x-_plx,_pdy=pt.y-_ply;
+          if(Math.abs(_pdx)>3||Math.abs(_pdy)>3){_penMoved=true;penState.dragging=true;_plv.cpOut={dx:_pdx,dy:_pdy};_plv.cpIn={dx:-_pdx,dy:-_pdy};}
+        }
+        renderPenGhost();return;
+      }
       // Polygon ghost
       if(state.activeTool==='polygon'){polyState.cursorPt=snapPt(pt,e.ctrlKey);if(polyState.verts.length>=3){var fp={x:topx(polyState.verts[0].x,CW),y:topx(polyState.verts[0].y,CH)};svgEl.style.cursor=dist2(polyState.cursorPt,fp)<12?'cell':'crosshair';}renderPolyGhost();return;}
       // Draw ghost
@@ -854,6 +951,7 @@
     });
     svgEl.addEventListener('pointerup',function(e){
       var CW=state.element.canvasWidth,CH=state.element.canvasHeight;
+      if(state.activeTool==='pen'&&_penDown){_penDown=false;penState.dragging=false;renderPenGhost();return;}
       if(vxDragSt){pushHistory();markDirty();renderAll();vxDragSt=null;return;}
       if(resizeSt){pushHistory();markDirty();renderAll();resizeSt=null;return;}
       if(dragSt){
@@ -933,6 +1031,7 @@
     });
     // Click: polygon vertex or background deselect
     svgEl.addEventListener('click',function(e){
+      if(state.activeTool==='pen'){return;}
       if(state.activeTool==='polygon'){
         var pt=getSvgPt(e);var CW=state.element.canvasWidth,CH=state.element.canvasHeight;
         var spt=snapPt(pt,e.ctrlKey);
@@ -942,6 +1041,7 @@
       if(!dragSt&&e.target===svgEl){var chk=hitTest(getSvgPt(e));if(!chk){_cvsDblClick={id:null,time:0};state.selectedLayerId=null;document.getElementById('btn-delete-layer').disabled=true;renderCanvas();renderProps();}}
     });
     svgEl.addEventListener('dblclick',function(e){
+      if(state.activeTool==='pen'){e.preventDefault();if(penState.verts.length>0)penState.verts.pop();if(penState.verts.length>=2)commitPen(false);else cancelPen();return;}
       if(state.activeTool==='polygon'){e.preventDefault();if(polyState.verts.length>0)polyState.verts.pop();if(polyState.verts.length>=3)commitPolygon();else cancelPolygon();return;}
       if(state.activeTool==='select'){
         var dpt=getSvgPt(e);var dhit=hitTest(dpt);
@@ -1542,7 +1642,7 @@
     // ── Collapsible panels ────────────────────────────────────────────────────
     document.querySelectorAll('.panel-header[data-panel]').forEach(function(hdr){hdr.addEventListener('click',function(){var id=hdr.dataset.panel;var body=document.getElementById('pb-'+id);if(!body)return;body.classList.toggle('hidden');hdr.classList.toggle('collapsed');});});
     // ── Tool buttons ──────────────────────────────────────────────────────────
-    document.querySelectorAll('.tool-btn-h').forEach(function(btn){btn.addEventListener('click',function(){if(state.activeTool==='polygon'&&btn.dataset.tool!=='polygon')cancelPolygon();state.activeTool=btn.dataset.tool;document.querySelectorAll('.tool-btn-h').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');var cur={select:'default',hand:'grab',rectangle:'crosshair',ellipse:'crosshair',line:'crosshair',slot:'crosshair',polygon:'crosshair'};svgEl.style.cursor=cur[state.activeTool]||'crosshair';renderKeyLegend();});});
+    document.querySelectorAll('.tool-btn-h').forEach(function(btn){btn.addEventListener('click',function(){if(state.activeTool==='polygon'&&btn.dataset.tool!=='polygon')cancelPolygon();if(state.activeTool==='pen'&&btn.dataset.tool!=='pen')cancelPen();state.activeTool=btn.dataset.tool;document.querySelectorAll('.tool-btn-h').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');var cur={select:'default',hand:'grab',rectangle:'crosshair',ellipse:'crosshair',line:'crosshair',slot:'crosshair',polygon:'crosshair',pen:'crosshair'};svgEl.style.cursor=cur[state.activeTool]||'crosshair';renderKeyLegend();});});
     // ── Element properties ────────────────────────────────────────────────────
     document.getElementById('el-name').addEventListener('input',function(e){state.element.name=e.target.value;document.getElementById('element-name-badge').textContent=e.target.value||'Untitled';markDirty();});
     document.getElementById('el-type').addEventListener('change',function(e){state.element.elementType=e.target.value;markDirty();});
@@ -1560,10 +1660,11 @@
     // ── Keyboard ──────────────────────────────────────────────────────────────
     document.addEventListener('keydown',function(e){
       if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;
-      var t={v:'select',r:'rectangle',e:'ellipse',l:'line',p:'polygon',s:'slot',h:'hand'};
+      var t={v:'select',r:'rectangle',e:'ellipse',l:'line',b:'pen',p:'polygon',s:'slot',h:'hand'};
       if(t[e.key.toLowerCase()]){e.preventDefault();var tb=document.querySelector('.tool-btn-h[data-tool="'+t[e.key.toLowerCase()]+'"]');if(tb)tb.click();return;}
+      if(e.key==='Enter'&&state.activeTool==='pen'){e.preventDefault();if(penState.verts.length>=2)commitPen(false);return;}
       if(e.key==='Enter'&&state.activeTool==='polygon'){e.preventDefault();if(polyState.verts.length>=3)commitPolygon();return;}
-      if(e.key==='Escape'){e.preventDefault();if(state.boolEditParentId){var _bep=state.element.layers.find(function(l){return l.id===state.boolEditParentId;});if(_bep){recalcLayerBounds(_bep);markDirty();}state.boolEditParentId=null;state.selectedLayerId=_bep?_bep.id:null;renderCanvas();renderLayers();return;}if(state.vertexEditLayerId){state.vertexEditLayerId=null;renderCanvas();return;}if(marqueeSt){marqueeSt=null;renderCanvas();return;}if(state.activeTool==='polygon')cancelPolygon();return;}
+      if(e.key==='Escape'){e.preventDefault();if(state.activeTool==='pen'&&penState.verts.length>0){cancelPen();return;}if(state.boolEditParentId){var _bep=state.element.layers.find(function(l){return l.id===state.boolEditParentId;});if(_bep){recalcLayerBounds(_bep);markDirty();}state.boolEditParentId=null;state.selectedLayerId=_bep?_bep.id:null;renderCanvas();renderLayers();return;}if(state.vertexEditLayerId){state.vertexEditLayerId=null;renderCanvas();return;}if(marqueeSt){marqueeSt=null;renderCanvas();return;}if(state.activeTool==='polygon')cancelPolygon();return;}
       if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key==='z'){e.preventDefault();undo();return;}
       if((e.ctrlKey||e.metaKey)&&(e.key==='y'||(e.shiftKey&&e.key==='z'))){e.preventDefault();redo();return;}
       if((e.key==='Delete'||e.key==='Backspace')&&state.selectedLayerId)document.getElementById('btn-delete-layer').click();
