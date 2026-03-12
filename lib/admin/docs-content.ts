@@ -837,6 +837,86 @@ The **Live Preview Canvas** header contains two ruler/guide controls:
 The designer auto-saves to the parent modal every time you make a change. When you click **Save** in the section editor modal, it persists to the database.
 `;
 
+const SCROLL_STAGE_DOCS = `
+# Scroll Stage — Parallax Zones
+
+**Scroll Stage** turns a FLEXIBLE section into an immersive multi-panel experience. As the visitor scrolls, a sticky visual track (image, video, or 3D model) plays alongside zone-specific text content on the other side.
+
+---
+
+## How It Works
+
+- The section expands to **N × 100vh** (one screen per zone, up to 5)
+- The left or right column is **sticky** — it stays fixed in the viewport while the page scrolls through each zone
+- The visual track cross-fades between zone images/videos as the scroll position changes
+- The text column updates with a cross-fade when a new zone becomes active
+- **Mobile:** zones stack vertically — no sticky behaviour, all zones scroll naturally
+
+---
+
+## Enabling Scroll Stage
+
+1. Edit a **FLEXIBLE** section
+2. Set **Content Mode → Multi** and choose number of zones (1–5)
+3. Enable the **Scroll Stage** toggle
+4. Configure each zone in the **Scroll Stage** tab
+
+---
+
+## Zone Configuration
+
+| Field | Description |
+|-------|-------------|
+| **Visual Type** | \`image\` \| \`video\` \| \`3d\` — what appears in the sticky track |
+| **Image / Video URL** | Direct URL to the media asset |
+| **Object Fit** | \`cover\` (fill) or \`contain\` (letterbox) |
+| **Object Position** | \`center\`, \`top\`, \`bottom\`, \`left\`, \`right\` |
+| **Parallax Factor** | 0 = no parallax, 1 = normal, 1.4 = fast. Image shifts at this multiplier relative to scroll |
+| **Parallax Direction** | \`up\` or \`down\` |
+| **Transition Duration** | Cross-fade time in ms (e.g. 500, 800) |
+| **Side Override** | Force track to \`left\` or \`right\` for this zone only |
+
+---
+
+## Track Side
+
+Set globally under **Scroll Stage → Side**: \`left\` or \`right\`.
+Individual zones can override with **Side Override**.
+
+---
+
+## 3D Track (Three.js)
+
+When **Visual Type = 3d**, the track renders a Three.js scene:
+- Upload a GLB model via the media library
+- The model auto-rotates and responds to scroll position
+- Zone transitions animate the model rotation
+
+---
+
+## Content Per Zone
+
+Each zone shows its own blocks from the **Flexible Designer**. Blocks are assigned to zones via their **Section** position field (0 = zone 1, 1 = zone 2, etc.).
+
+- **Desktop:** only the active zone's blocks are shown (cross-fade on zone change)
+- **Mobile:** all zones' blocks are stacked vertically in one continuous scroll
+
+---
+
+## Scroll Snap
+
+Each zone boundary is a CSS scroll-snap point — scrolling snaps cleanly to each zone on supported browsers.
+
+---
+
+## Tips
+
+- Use **objectFit: contain** for artwork/logos, **cover** for photography
+- Parallax factor 1.2–1.5 gives the most dramatic depth without motion sickness
+- Keep text blocks concise — each zone is one viewport height
+- Set a dark section background so text remains readable across all zone images
+`;
+
 const FLEXIBLE_ELEMENTS = `
 # Flexible Sections — Element Types
 
@@ -2975,6 +3055,7 @@ export const DOC_TOPICS: DocTopic[] = [
       { id: "flex-elements", label: "Element Types", icon: "bi-collection", content: FLEXIBLE_ELEMENTS },
       { id: "flex-styling", label: "Element Styling", icon: "bi-palette", content: FLEXIBLE_STYLING },
       { id: "flex-animations", label: "Section Animations (AnimBg)", icon: "bi-layers", content: FLEXIBLE_ANIMATIONS },
+      { id: "flex-scroll-stage", label: "Scroll Stage (Parallax Zones)", icon: "bi-layers-half", content: SCROLL_STAGE_DOCS },
     ],
   },
   {
