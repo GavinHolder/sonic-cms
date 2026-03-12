@@ -362,11 +362,14 @@
     function lxi(p,q,a,b){var A1=q.y-p.y,B1=p.x-q.x,C1=A1*p.x+B1*p.y,A2=b.y-a.y,B2=a.x-b.x,C2=A2*a.x+B2*a.y,det=A1*B2-A2*B1;return Math.abs(det)<1e-10?p:{x:(C1*B2-C2*B1)/det,y:(A1*C2-A2*C1)/det};}
     function shClip(subj,clip){var out=subj.slice();for(var i=0;i<clip.length;i++){if(!out.length)return [];var inp=out.slice();out=[];var A=clip[(i+clip.length-1)%clip.length],B=clip[i];for(var j=0;j<inp.length;j++){var P=inp[(j+inp.length-1)%inp.length],Q=inp[j];if(ptIn(Q,A,B)){if(!ptIn(P,A,B))out.push(lxi(P,Q,A,B));out.push(Q);}else if(ptIn(P,A,B))out.push(lxi(P,Q,A,B));}}return out;}
     // ── Layer factories ───────────────────────────────────────────────────────
+    var _shapeColors=['#6366f1','#ec4899','#f59e0b','#10b981','#3b82f6','#8b5cf6','#ef4444','#06b6d4','#84cc16','#f97316'];
+    var _shapeColorIdx=0;
+    function nextColor(){var c=_shapeColors[_shapeColorIdx%_shapeColors.length];_shapeColorIdx++;return c;}
     function baseVec(name,role,x,y,w,h,pathData,color){return {id:nanoid(),name:name,type:'vector',role:role,x:x,y:y,width:w,height:h,rotation:0,zIndex:0,visible:true,locked:false,opacity:1,blendMode:'normal',vectorData:{pathData:pathData,fills:[{id:nanoid(),type:'solid',color:color,opacity:1,blendMode:'normal'}],stroke:null,fillRule:'nonzero',closed:true},animation:{delay:0,speed:40,style:60,character:50,animates:{fill:false,scale:false,opacity:true,position:false,rotation:false}}};}
-    function mkRect(x,y,w,h){return baseVec('Rectangle','structure',x,y,w,h,rectPath(x,y,w,h),'#6366f1');}
-    function mkEllipse(x,y,w,h){return baseVec('Ellipse','structure',x,y,w,h,ellipsePath(x,y,w,h),'#8b5cf6');}
+    function mkRect(x,y,w,h){return baseVec('Rectangle','structure',x,y,w,h,rectPath(x,y,w,h),nextColor());}
+    function mkEllipse(x,y,w,h){return baseVec('Ellipse','structure',x,y,w,h,ellipsePath(x,y,w,h),nextColor());}
     function mkLine(x1,y1,x2,y2){var mx=Math.min(x1,x2),my=Math.min(y1,y2),mw=Math.max(x1,x2)-mx||0.01,mh=Math.max(y1,y2)-my||0.01;var l=baseVec('Line','accent',mx,my,mw,mh,'M '+x1+' '+y1+' L '+x2+' '+y2,'#212529');l.vectorData.fills=[];l.vectorData.stroke={color:'#212529',opacity:1,width:2,cap:'round',join:'round',dash:[]};l.vectorData.closed=false;return l;}
-    function mkPolygon(verts){var xs=verts.map(function(v){return v.x;}),ys=verts.map(function(v){return v.y;});var bx=Math.min.apply(null,xs),by=Math.min.apply(null,ys);return baseVec('Polygon','structure',bx,by,Math.max.apply(null,xs)-bx||0.01,Math.max.apply(null,ys)-by||0.01,polyPath(verts),'#6366f1');}
+    function mkPolygon(verts){var xs=verts.map(function(v){return v.x;}),ys=verts.map(function(v){return v.y;});var bx=Math.min.apply(null,xs),by=Math.min.apply(null,ys);return baseVec('Polygon','structure',bx,by,Math.max.apply(null,xs)-bx||0.01,Math.max.apply(null,ys)-by||0.01,polyPath(verts),nextColor());}
     function mkSlot(x,y,w,h){return {id:nanoid(),name:'Slot',type:'slot',role:'content',x:x,y:y,width:w,height:h,rotation:0,zIndex:10,visible:true,locked:false,opacity:1,blendMode:'normal',slotData:{slotType:'title',slotLabel:'Title'},animation:{delay:0,speed:40,style:60,character:50,animates:{fill:false,scale:false,opacity:false,position:false,rotation:false}}};}
     // ── SVG / canvas ──────────────────────────────────────────────────────────
     var svgEl=document.getElementById('artboard-svg');
