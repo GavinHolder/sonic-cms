@@ -59,15 +59,23 @@
     .tool-btn-h:hover{border-color:#0d6efd;background:#f0f4ff;color:#0d6efd;}
     .tool-btn-h.active{border-color:#0d6efd;background:#0d6efd;color:white;}
     .tools-sep{width:1px;height:20px;background:#dee2e6;margin:0 5px;flex-shrink:0;}
+    /* Slot button group — group owns the border; children have none */
+    .slot-btn-grp{border:1.5px solid #dee2e6;border-radius:6px;background:white;transition:border-color 0.12s,background 0.12s;}
+    .slot-btn-grp:hover{border-color:#0d6efd;background:#f0f4ff;}
+    .slot-btn-grp:hover .tool-btn-h{border:none!important;background:transparent!important;color:#0d6efd!important;}
+    .slot-btn-grp:hover #btn-slot-type-caret{color:#0d6efd!important;}
+    .slot-btn-grp:has(.tool-btn-h.active){border-color:#0d6efd;background:#0d6efd;}
+    .slot-btn-grp:has(.tool-btn-h.active) .tool-btn-h.active{border:none!important;background:transparent!important;color:white!important;}
+    .slot-btn-grp:has(.tool-btn-h.active) #btn-slot-type-caret{color:white!important;}
     /* Empty canvas invitation */
     .canvas-empty-hint{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;gap:6px;z-index:1;}
-    /* Contextual key legend */
-    #key-legend{position:absolute;bottom:10px;left:12px;z-index:20;pointer-events:none;display:flex;flex-direction:column;gap:4px;transition:opacity 0.25s;}
-    #key-legend .kl-ctx{font-size:9px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:#6b8cae;padding-left:2px;}
-    #key-legend .kl-row{display:flex;flex-wrap:wrap;gap:4px;}
-    #key-legend .kl-item{display:flex;align-items:center;gap:3px;font-size:10px;background:rgba(255,255,255,0.88);border:1px solid rgba(147,168,196,0.35);border-radius:4px;padding:2px 6px;backdrop-filter:blur(4px);}
-    #key-legend .kl-key{font-family:monospace;font-size:9px;font-weight:700;color:#344;background:rgba(0,0,0,0.06);border-radius:3px;padding:1px 4px;white-space:nowrap;}
-    #key-legend .kl-label{color:#4e6a8a;font-size:10px;white-space:nowrap;}
+    /* Contextual key legend — status bar below canvas toolbar */
+    #key-legend{display:flex;align-items:center;gap:6px;padding:3px 12px;background:#f8f9fa;border-bottom:1px solid #e9ecef;flex-shrink:0;min-height:26px;overflow:hidden;transition:opacity 0.25s;}
+    #key-legend .kl-ctx{font-size:9px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:#6b8cae;white-space:nowrap;padding-right:4px;border-right:1px solid #dee2e6;margin-right:2px;}
+    #key-legend .kl-row{display:flex;flex-wrap:nowrap;gap:4px;overflow:hidden;}
+    #key-legend .kl-item{display:flex;align-items:center;gap:3px;font-size:10px;white-space:nowrap;flex-shrink:0;}
+    #key-legend .kl-key{font-family:monospace;font-size:9px;font-weight:700;color:#495057;background:#e9ecef;border:1px solid #ced4da;border-radius:3px;padding:0px 4px;white-space:nowrap;}
+    #key-legend .kl-label{color:#6c757d;font-size:10px;white-space:nowrap;}
     .canvas-empty-hint i{font-size:32px;color:#93a8c4;}
     .canvas-empty-hint p{font-size:13px;color:#6b8cae;margin:0;font-weight:600;}
     .canvas-empty-hint small{font-size:10px;color:#4e6a8a;letter-spacing:0.5px;background:rgba(255,255,255,0.85);padding:4px 12px;border-radius:20px;border:1px solid rgba(147,168,196,0.4);font-weight:600;}
@@ -218,8 +226,8 @@
           <button class="tool-btn-h" data-tool="polygon" title="Polygon (P)"><i class="bi bi-pentagon"></i></button>
           <button class="tool-btn-h" data-tool="pen" title="Pen/Bezier (B)"><i class="bi bi-pen"></i></button>
           <div class="slot-btn-grp" style="position:relative;display:inline-flex;align-items:stretch;z-index:1000;">
-            <button class="tool-btn-h" data-tool="slot" id="btn-tool-slot" title="Slot (S)" style="width:auto;padding:0 6px;border-radius:6px 0 0 6px;border-right:none;gap:3px;"><i class="bi bi-layout-text-window"></i><span id="slot-type-tag" style="font-size:8px;font-weight:800;letter-spacing:0.3px;color:#22c55e;">TIT</span></button>
-            <button id="btn-slot-type-caret" style="width:16px;padding:0 2px;border:1.5px solid #dee2e6;border-left:none;background:white;cursor:pointer;border-radius:0 6px 6px 0;font-size:9px;color:#6c757d;line-height:1;transition:background 0.12s;" title="Choose slot type">&#9660;</button>
+            <button class="tool-btn-h" data-tool="slot" id="btn-tool-slot" title="Slot (S)" style="width:auto;padding:0 6px;border:none;border-radius:5px 0 0 5px;gap:3px;background:transparent;"><i class="bi bi-layout-text-window"></i><span id="slot-type-tag" style="font-size:8px;font-weight:800;letter-spacing:0.3px;color:#22c55e;">TIT</span></button>
+            <button id="btn-slot-type-caret" style="width:18px;padding:0 3px;border:none;background:transparent;cursor:pointer;border-radius:0 5px 5px 0;font-size:9px;color:#6c757d;line-height:1;transition:color 0.12s;border-left:1px solid rgba(0,0,0,0.08);" title="Choose slot type">&#9660;</button>
             <div id="slot-type-menu" style="display:none;position:absolute;top:calc(100% + 4px);left:0;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:9999;min-width:200px;padding:4px 0;"></div>
           </div>
           <div class="tools-sep"></div>
@@ -234,8 +242,8 @@
           <button id="btn-zoom-fit" class="btn btn-sm btn-outline-secondary px-2" title="Fit"><i class="bi bi-fullscreen"></i></button>
         </div>
       </div>
+      <div id="key-legend"></div>
       <div class="canvas-wrap" id="canvas-wrap">
-        <div id="key-legend"></div>
         <div id="vx-round-bar" style="display:none;position:absolute;bottom:44px;left:50%;transform:translateX(-50%);z-index:25;background:rgba(255,255,255,0.96);border:1px solid #e2e8f0;border-radius:20px;padding:5px 14px;display:none;align-items:center;gap:8px;box-shadow:0 2px 8px rgba(0,0,0,0.12);pointer-events:auto;">
           <span style="font-size:10px;font-weight:700;color:#64748b;letter-spacing:0.5px;">ROUND</span>
           <input id="vx-round-range" type="range" min="0" max="45" value="0" step="1" style="width:90px;accent-color:#6366f1;">
@@ -333,16 +341,16 @@
     function renderAll(){renderCanvas();renderLayers();renderProps();}
     // ── Contextual key legend ──────────────────────────────────────────────────
     var _KL={
-      idle:         {ctx:'Tools',         keys:[['V','Select'],['R','Rect'],['E','Ellipse'],['L','Line'],['B','Pen'],['P','Polygon'],['S','Slot']]},
-      drawing_pen:  {ctx:'Pen Tool',      keys:[['Click','Anchor (sharp)'],['Click+Drag','Anchor (curve)'],['Near start','Close path'],['Enter/dblclick','Commit open'],['Ctrl','Snap'],['Esc','Cancel']]},
-      selected:     {ctx:'Selection',     keys:[['Del','Delete'],['Alt+drag','Duplicate'],['dblclick','Vertex edit'],['Ctrl+Z','Undo']]},
-      drawing_rect: {ctx:'Drawing Rect',  keys:[['Drag','Draw'],['Shift','Square'],['Ctrl','Snap to grid'],['Esc','Cancel']]},
-      drawing_ellipse:{ctx:'Drawing Ellipse',keys:[['Drag','Draw'],['Shift','Circle'],['Ctrl','Snap to grid'],['Esc','Cancel']]},
-      drawing_line: {ctx:'Drawing Line',  keys:[['Drag','Draw'],['Ctrl','Snap to grid'],['Esc','Cancel']]},
-      drawing_slot: {ctx:'Drawing Slot',  keys:[['Drag','Draw'],['Shift','Square'],['Ctrl','Snap to grid'],['Esc','Cancel']]},
-      drawing_polygon:{ctx:'Polygon Tool',keys:[['Click','Add point'],['Ctrl','Snap'],['Enter','Close shape'],['dblclick','Close'],['Esc','Cancel']]},
-      vertex_edit:  {ctx:'Vertex Edit',   keys:[['Drag vertex','Move point'],['Drag handle','Create curve'],['Shift+drag handle','Smooth curve'],['Alt+click edge','Add point'],['Alt+dblclick vertex','Delete point'],['Ctrl+drag','Snap to grid'],['Esc','Exit']]},
-      bool_edit:    {ctx:'Bool Edit',     keys:[['Drag','Move cutter'],['dblclick cutter','Edit vertices'],['Esc','Confirm']]},
+      idle:         {ctx:'Tools',            keys:[['V','Select'],['R','Rect'],['E','Ellipse'],['L','Line'],['B','Pen'],['P','Polygon'],['S','Slot'],['Ctrl+Z','Undo'],['Ctrl+Y','Redo']]},
+      drawing_pen:  {ctx:'Pen Tool',         keys:[['Click','Sharp anchor'],['Click+Drag','Curve anchor'],['Near start','Close path'],['Enter','Commit open path'],['dblclick','Commit + close'],['Ctrl (hold)','⊙ Snap to grid'],['Backspace','Remove last point'],['Esc','Cancel']]},
+      selected:     {ctx:'Selection',        keys:[['Ctrl (hold drag)','⊙ Snap to grid'],['Del / Backspace','Delete'],['Alt+drag','Duplicate'],['dblclick','Vertex edit'],['Shift+click','Set bool base'],['Ctrl+Z','Undo'],['Ctrl+Y','Redo']]},
+      drawing_rect: {ctx:'Drawing Rect',     keys:[['Drag','Draw rect'],['Shift (hold)','Lock to square'],['Ctrl (hold)','⊙ Snap to grid'],['Esc','Cancel']]},
+      drawing_ellipse:{ctx:'Drawing Ellipse',keys:[['Drag','Draw ellipse'],['Shift (hold)','Lock to circle'],['Ctrl (hold)','⊙ Snap to grid'],['Esc','Cancel']]},
+      drawing_line: {ctx:'Drawing Line',     keys:[['Drag','Draw line'],['Ctrl (hold)','⊙ Snap to grid'],['Esc','Cancel']]},
+      drawing_slot: {ctx:'Drawing Slot',     keys:[['Drag','Draw slot'],['Shift (hold)','Lock to square'],['Ctrl (hold)','⊙ Snap to grid'],['Esc','Cancel']]},
+      drawing_polygon:{ctx:'Polygon Tool',   keys:[['Click','Add point'],['Ctrl (hold)','⊙ Snap to grid'],['Enter','Close & commit'],['dblclick','Close & commit'],['Backspace','Remove last point'],['Esc','Cancel']]},
+      vertex_edit:  {ctx:'Vertex Edit',      keys:[['Ctrl (hold drag)','⊙ Snap to grid'],['Drag vertex','Move point'],['Drag handle','Curve handle'],['Shift+drag handle','Symmetric curve'],['Alt+click edge','Add point'],['Alt+dblclick vertex','Delete point'],['Esc','Exit']]},
+      bool_edit:    {ctx:'Bool Edit',        keys:[['Ctrl (hold drag)','⊙ Snap to grid'],['Drag','Move cutter'],['dblclick cutter','Edit cutter vertices'],['Esc','Confirm & exit']]},
     };
     function renderKeyLegend(){
       var el=document.getElementById('key-legend');if(!el)return;
@@ -594,12 +602,19 @@
             else if(_st==='badge'){div.innerHTML='<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;"><div style="background:#22c55e;color:#fff;font-size:10px;font-weight:700;padding:4px 12px;border-radius:20px;letter-spacing:0.5px;">Badge</div></div>';}
             else if(_st==='icon'){div.innerHTML='<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;"><i class="bi bi-star-fill" style="font-size:30px;color:#6366f1;"></i></div>';}
             else if(_st==='input'){
-              div.style.cssText='position:absolute;left:'+layer.x+'%;top:'+layer.y+'%;width:'+layer.width+'%;height:'+layer.height+'%;pointer-events:auto;box-sizing:border-box;z-index:2;'+_slotShadow;
-              var _sBg=_sd.bgColor||'#ffffff';var _sBor=_sd.borderColor||'#cbd5e1';var _sBorW=(_sd.borderWidth!=null?_sd.borderWidth:1.5);var _sBorR=(_sd.borderRadius!=null?_sd.borderRadius:8);var _sTc=_sd.textColor||'#1e293b';var _sFs=(_sd.fontSize||13);var _sPh=_sd.placeholder||'Enter text...';
+              var _skinMode=_sd.skinMode||'transparent';
+              var _sTc=_sd.textColor||'#1e293b';var _sFs=_sd.fontSize||13;var _sPh=_sd.placeholder||'Enter text...';
+              div.style.cssText='position:absolute;left:'+layer.x+'%;top:'+layer.y+'%;width:'+layer.width+'%;height:'+layer.height+'%;background:transparent;pointer-events:auto;box-sizing:border-box;z-index:2;';
               var _sinp=document.createElement('input');_sinp.type='text';_sinp.placeholder=_sPh;
-              _sinp.style.cssText='width:100%;height:100%;background:'+_sBg+';border:'+_sBorW+'px solid '+_sBor+';border-radius:'+_sBorR+'px;color:'+_sTc+';font-size:'+_sFs+'px;padding:0 10px;box-sizing:border-box;outline:none;font-family:inherit;box-shadow:inset 0 1px 3px rgba(0,0,0,0.06);transition:border-color 0.15s,box-shadow 0.15s;cursor:text;';
-              _sinp.addEventListener('focus',function(){_sinp.style.borderColor='#6366f1';_sinp.style.boxShadow='0 0 0 3px rgba(99,102,241,0.15),inset 0 1px 3px rgba(0,0,0,0.04)';});
-              _sinp.addEventListener('blur',function(){_sinp.style.borderColor=_sBor;_sinp.style.boxShadow='inset 0 1px 3px rgba(0,0,0,0.06)';});
+              if(_skinMode==='custom'){
+                var _sBg=_sd.bgColor||'#ffffff';var _sBor=_sd.borderColor||'#cbd5e1';var _sBorW=_sd.borderWidth!=null?_sd.borderWidth:1.5;var _sBorR=_sd.borderRadius!=null?_sd.borderRadius:8;
+                _sinp.style.cssText='width:100%;height:100%;background:'+_sBg+';border:'+_sBorW+'px solid '+_sBor+';border-radius:'+_sBorR+'px;color:'+_sTc+';font-size:'+_sFs+'px;padding:0 10px;box-sizing:border-box;outline:none;font-family:inherit;cursor:text;';
+                _sinp.addEventListener('focus',function(){_sinp.style.borderColor='#6366f1';_sinp.style.boxShadow='0 0 0 3px rgba(99,102,241,0.15)';});
+                _sinp.addEventListener('blur',function(){_sinp.style.borderColor=_sBor;_sinp.style.boxShadow='none';});
+              } else {
+                // Transparent mode: vector shapes below ARE the skin; input is pure functional overlay
+                _sinp.style.cssText='width:100%;height:100%;background:transparent;border:none;outline:none;color:'+_sTc+';font-size:'+_sFs+'px;padding:0 10px;box-sizing:border-box;cursor:text;caret-color:'+_sTc+';font-family:inherit;';
+              }
               _sinp.addEventListener('pointerdown',function(ev){ev.stopPropagation();});
               div.appendChild(_sinp);
             }
@@ -762,9 +777,7 @@
               if(_epBest.pt){var _epDot=svgNs('circle');_epDot.setAttribute('cx',topx(_epBest.pt.x,CW));_epDot.setAttribute('cy',topx(_epBest.pt.y,CH));_epDot.setAttribute('r',(vr*0.7).toFixed(2));_epDot.setAttribute('fill','#22c55e');_epDot.setAttribute('stroke','white');_epDot.setAttribute('stroke-width',(1/state.zoom).toFixed(3));_epDot.setAttribute('pointer-events','none');svgEl.appendChild(_epDot);}
             }
           }
-          var vtxt=svgNs('text');vtxt.setAttribute('x',vbx+2/state.zoom);vtxt.setAttribute('y',vby-3/state.zoom);
-          vtxt.setAttribute('font-size',(9/state.zoom).toFixed(1));vtxt.setAttribute('fill','#f59e0b');vtxt.setAttribute('font-weight','700');vtxt.setAttribute('pointer-events','none');
-          vtxt.textContent=_altHeld?'VERTEX EDIT \u2022 Alt+click edge=add \u2022 Alt+dblclick handle=delete':'VERTEX EDIT \u2022 Esc to exit \u2022 Drag handle=curve \u2022 Hold Alt to add/delete';svgEl.appendChild(vtxt);
+          // Vertex edit hint is shown in the key legend status bar — no canvas annotation needed
         }
       }
       // Marquee selection rect
@@ -1653,10 +1666,41 @@
       body.appendChild(sec);
     }
     function renderSlotSec(body,layer){
-      var sd=layer.slotData||{};
+      var sd=layer.slotData||{};var _st=sd.slotType||'title';
       var ts=mkSec();ts.appendChild(mkLbl('Slot Type'));var tsel=document.createElement('select');tsel.id='prop-slot-type';tsel.className='form-select form-select-sm';
       ['title','body','image','action','badge','icon','input','custom'].forEach(function(t){var o=document.createElement('option');o.value=t;o.textContent=t;if(sd.slotType===t)o.selected=true;tsel.appendChild(o);});ts.appendChild(tsel);body.appendChild(ts);
       var ls=mkSec();ls.appendChild(mkLbl('Slot Label'));var li=document.createElement('input');li.type='text';li.id='prop-slot-label';li.className='form-control form-control-sm';li.value=sd.slotLabel||'Slot';ls.appendChild(li);body.appendChild(ls);
+      // Input/action slot skin controls
+      if(_st==='input'||_st==='action'){
+        var ss=mkSec();ss.appendChild(mkLbl('Skin Mode'));
+        var smd=document.createElement('select');smd.id='prop-slot-skin-mode';smd.className='form-select form-select-sm';
+        [{v:'transparent',l:'Transparent (vector skin)'},{v:'custom',l:'Custom (own styling)'}].forEach(function(o){var op=document.createElement('option');op.value=o.v;op.textContent=o.l;if((sd.skinMode||'transparent')===o.v)op.selected=true;smd.appendChild(op);});
+        ss.appendChild(smd);body.appendChild(ss);
+        var hint=document.createElement('div');hint.style.cssText='font-size:9px;color:#94a3b8;margin:-4px 0 6px;';hint.textContent='Transparent: shapes below are the visual skin';body.appendChild(hint);
+        // Text color + font size
+        var tc=mkSec();tc.style.display='flex';tc.style.alignItems='center';tc.style.gap='6px';tc.appendChild(mkLbl('Text'));
+        var tcp=document.createElement('input');tcp.type='color';tcp.id='prop-slot-text-color';tcp.value=sd.textColor||'#1e293b';tcp.style.cssText='width:28px;height:22px;padding:1px;border:1px solid #334155;border-radius:4px;background:none;cursor:pointer;flex-shrink:0;';
+        var tct=document.createElement('input');tct.type='text';tct.id='prop-slot-text-color-hex';tct.value=sd.textColor||'#1e293b';tct.className='form-control form-control-sm';tct.style.cssText='flex:1;font-size:10px;font-family:monospace;';
+        var fsl=document.createElement('label');fsl.className='prop-label';fsl.style.marginLeft='6px';fsl.textContent='Size';
+        var fsi=document.createElement('input');fsi.type='number';fsi.id='prop-slot-font-size';fsi.className='form-control form-control-sm';fsi.value=sd.fontSize||13;fsi.min='6';fsi.max='72';fsi.style.cssText='width:52px;font-size:10px;';
+        tc.appendChild(tcp);tc.appendChild(tct);tc.appendChild(fsl);tc.appendChild(fsi);body.appendChild(tc);
+        // Placeholder (input only)
+        if(_st==='input'){
+          var ph=mkSec();ph.appendChild(mkLbl('Placeholder'));var phi=document.createElement('input');phi.type='text';phi.id='prop-slot-placeholder';phi.className='form-control form-control-sm';phi.value=sd.placeholder||'Enter text...';ph.appendChild(phi);body.appendChild(ph);
+        }
+        // Custom-mode fields (shown only when skinMode=custom)
+        var _cm=sd.skinMode==='custom';
+        var cmsec=mkSec();cmsec.id='prop-slot-custom-sec';cmsec.style.display=_cm?'':'none';
+        cmsec.appendChild(mkLbl('Background'));var bgi=document.createElement('input');bgi.type='color';bgi.id='prop-slot-bg-color';bgi.value=sd.bgColor||'#ffffff';bgi.style.cssText='width:28px;height:22px;padding:1px;border:1px solid #334155;border-radius:4px;background:none;cursor:pointer;';cmsec.appendChild(bgi);
+        var brRow=document.createElement('div');brRow.className='row g-1 mt-1';
+        [['Border Color','color','prop-slot-border-color',sd.borderColor||'#cbd5e1'],['Width','number','prop-slot-border-width',sd.borderWidth!=null?sd.borderWidth:1.5],['Radius','number','prop-slot-border-radius',sd.borderRadius!=null?sd.borderRadius:8]].forEach(function(f){
+          var col=document.createElement('div');col.className='col-4';
+          var lbl=document.createElement('label');lbl.className='prop-label';lbl.textContent=f[0];
+          var inp=document.createElement('input');inp.type=f[1];inp.id=f[2];inp.className='form-control form-control-sm';inp.value=f[3];inp.style.fontSize='10px';if(f[1]==='color'){inp.style.cssText='height:22px;padding:1px;border:1px solid #334155;border-radius:4px;background:none;cursor:pointer;width:100%;';}
+          col.appendChild(lbl);col.appendChild(inp);brRow.appendChild(col);
+        });
+        cmsec.appendChild(brRow);body.appendChild(cmsec);
+      }
     }
     function render3DPropsSec(body,layer){
       var d3=layer.object3DData||{};
@@ -1785,6 +1829,22 @@
       var sc=document.getElementById('prop-stroke-cap');if(sc)sc.addEventListener('change',function(e){var i=idx();if(i<0)return;pushHistory();state.element.layers[i].vectorData.stroke.cap=e.target.value;markDirty();renderCanvas();});
       var slt=document.getElementById('prop-slot-type');if(slt)slt.addEventListener('change',function(e){var i=idx();if(i<0)return;pushHistory();if(!state.element.layers[i].slotData)state.element.layers[i].slotData={};var nt=e.target.value;state.element.layers[i].slotData.slotType=nt;state.element.layers[i].slotData.slotLabel=nt.charAt(0).toUpperCase()+nt.slice(1);markDirty();renderCanvas();renderLayers();var sl2=document.getElementById('prop-slot-label');if(sl2)sl2.value=state.element.layers[i].slotData.slotLabel;});
       var sll=document.getElementById('prop-slot-label');if(sll){sll.addEventListener('input',function(e){var i=idx();if(i<0)return;if(!state.element.layers[i].slotData)state.element.layers[i].slotData={};state.element.layers[i].slotData.slotLabel=e.target.value;markDirty();renderCanvas();});sll.addEventListener('change',function(){pushHistory();});}
+      // Slot skin mode
+      var _smd=document.getElementById('prop-slot-skin-mode');
+      if(_smd)_smd.addEventListener('change',function(e){var i=idx();if(i<0)return;pushHistory();if(!state.element.layers[i].slotData)state.element.layers[i].slotData={};state.element.layers[i].slotData.skinMode=e.target.value;markDirty();renderCanvas();var cs=document.getElementById('prop-slot-custom-sec');if(cs)cs.style.display=e.target.value==='custom'?'':'none';});
+      // Slot text color
+      function _setSlotTC(v){var i=idx();if(i<0)return;if(!state.element.layers[i].slotData)state.element.layers[i].slotData={};state.element.layers[i].slotData.textColor=v;renderCanvas();}
+      var _stcp=document.getElementById('prop-slot-text-color');if(_stcp){_stcp.addEventListener('input',function(e){_setSlotTC(e.target.value);var th=document.getElementById('prop-slot-text-color-hex');if(th)th.value=e.target.value;});_stcp.addEventListener('change',function(){pushHistory();markDirty();});}
+      var _stch=document.getElementById('prop-slot-text-color-hex');if(_stch){_stch.addEventListener('input',function(e){if(/^#[0-9A-Fa-f]{6}$/.test(e.target.value)){_setSlotTC(e.target.value);var tp=document.getElementById('prop-slot-text-color');if(tp)tp.value=e.target.value;pushHistory();markDirty();}});}
+      // Slot font size
+      var _sfs=document.getElementById('prop-slot-font-size');if(_sfs){_sfs.addEventListener('input',function(e){var i=idx();if(i<0)return;if(!state.element.layers[i].slotData)state.element.layers[i].slotData={};state.element.layers[i].slotData.fontSize=parseFloat(e.target.value)||13;renderCanvas();});_sfs.addEventListener('change',function(){pushHistory();markDirty();});}
+      // Slot placeholder
+      var _sph=document.getElementById('prop-slot-placeholder');if(_sph){_sph.addEventListener('input',function(e){var i=idx();if(i<0)return;if(!state.element.layers[i].slotData)state.element.layers[i].slotData={};state.element.layers[i].slotData.placeholder=e.target.value;markDirty();renderCanvas();});_sph.addEventListener('change',function(){pushHistory();});}
+      // Slot custom-mode fields
+      var _sbg=document.getElementById('prop-slot-bg-color');if(_sbg){_sbg.addEventListener('input',function(e){var i=idx();if(i<0)return;if(!state.element.layers[i].slotData)state.element.layers[i].slotData={};state.element.layers[i].slotData.bgColor=e.target.value;renderCanvas();});_sbg.addEventListener('change',function(){pushHistory();markDirty();});}
+      var _sbc=document.getElementById('prop-slot-border-color');if(_sbc){_sbc.addEventListener('input',function(e){var i=idx();if(i<0)return;if(!state.element.layers[i].slotData)state.element.layers[i].slotData={};state.element.layers[i].slotData.borderColor=e.target.value;renderCanvas();});_sbc.addEventListener('change',function(){pushHistory();markDirty();});}
+      var _sbw=document.getElementById('prop-slot-border-width');if(_sbw){_sbw.addEventListener('input',function(e){var i=idx();if(i<0)return;if(!state.element.layers[i].slotData)state.element.layers[i].slotData={};state.element.layers[i].slotData.borderWidth=parseFloat(e.target.value)||0;renderCanvas();});_sbw.addEventListener('change',function(){pushHistory();markDirty();});}
+      var _sbr=document.getElementById('prop-slot-border-radius');if(_sbr){_sbr.addEventListener('input',function(e){var i=idx();if(i<0)return;if(!state.element.layers[i].slotData)state.element.layers[i].slotData={};state.element.layers[i].slotData.borderRadius=parseFloat(e.target.value)||0;renderCanvas();});_sbr.addEventListener('change',function(){pushHistory();markDirty();});}
       // Shadow bindings
       function _ensureShadow(i){if(!state.element.layers[i].shadow)state.element.layers[i].shadow={enabled:false,color:'#000000',opacity:0.5,x:5,y:5,blur:10};}
       var _shTog=document.getElementById('prop-shadow-toggle');
@@ -1855,27 +1915,7 @@
       var oldW=state.element.canvasWidth||800,oldH=state.element.canvasHeight||500;
       // When switching presets (fitOnChange=true): uniformly scale+center all layers to fit new canvas (preserves aspect ratios).
       // When manually applying a custom size: preserve absolute pixel positions (convert % via old/new ratio).
-      if(state.element.layers&&state.element.layers.length&&(w!==oldW||h!==oldH)){
-        if(fitOnChange){
-          pushHistory();
-          // Uniform fit: find bounding box in px, scale uniformly to fill new canvas with 5% padding
-          var minPx=Infinity,minPy=Infinity,maxPx=-Infinity,maxPy=-Infinity;
-          state.element.layers.forEach(function(l){var lxp=l.x*oldW/100,lyp=l.y*oldH/100,lwp=l.width*oldW/100,lhp=l.height*oldH/100;minPx=Math.min(minPx,lxp);minPy=Math.min(minPy,lyp);maxPx=Math.max(maxPx,lxp+lwp);maxPy=Math.max(maxPy,lyp+lhp);});
-          var bwPx=maxPx-minPx,bhPx=maxPy-minPy;
-          if(bwPx>0.1&&bhPx>0.1){
-            var padX=w*0.05,padY=h*0.05;
-            var _sx=(w-padX*2)/bwPx,_sy=(h-padY*2)/bhPx,_s=Math.min(_sx,_sy);
-            var scaledW=bwPx*_s,scaledH=bhPx*_s;
-            var oxPx=(w-scaledW)/2,oyPx=(h-scaledH)/2;
-            state.element.layers.forEach(function(l){
-              var lxp=l.x*oldW/100,lyp=l.y*oldH/100,lwp=l.width*oldW/100,lhp=l.height*oldH/100;
-              if(l.vectorData&&l.vectorData.pathData)l.vectorData.pathData=transformPathForCanvas(l.vectorData.pathData,oldW,oldH,w,h,minPx,minPy,_s,oxPx,oyPx);
-              l.x=((lxp-minPx)*_s+oxPx)*100/w;l.y=((lyp-minPy)*_s+oyPx)*100/h;l.width=lwp*_s*100/w;l.height=lhp*_s*100/h;
-            });
-          }
-        }
-        // Manual resize (fitOnChange=false): no coordinate transform — shapes stay at same % values, canvas frame changes around them.
-      }
+      // Shapes keep their % values; canvas frame changes around them. Use Fit Layers to refit manually.
       state.element.canvasWidth=w;state.element.canvasHeight=h;
       artboard.style.width=w+'px';artboard.style.height=h+'px';
       svgEl.setAttribute('viewBox','0 0 '+w+' '+h);svgEl.setAttribute('width',w);svgEl.setAttribute('height',h);
@@ -1887,7 +1927,6 @@
         sel.value=found;
       }
       markDirty();renderAll();updateDotGrid();
-      setTimeout(function(){document.getElementById('btn-zoom-fit').click();},50);
     }
     // Fit all layers into 0-100% range with uniform scale + centering
     function fitLayersToCanvas(){
@@ -1943,7 +1982,7 @@
       }
       return res.join(' ');
     }
-    document.getElementById('canvas-preset').addEventListener('change',function(e){if(!e.target.value)return;var p=e.target.value.split(',');applyCanvasSize(parseInt(p[0]),parseInt(p[1]),true,true);});
+    document.getElementById('canvas-preset').addEventListener('change',function(e){if(!e.target.value)return;var p=e.target.value.split(',');applyCanvasSize(parseInt(p[0]),parseInt(p[1]),true);});
     document.getElementById('btn-apply-size').addEventListener('click',function(){applyCanvasSize(parseInt(document.getElementById('canvas-w').value)||800,parseInt(document.getElementById('canvas-h').value)||500);});
     document.getElementById('btn-fit-layers').addEventListener('click',fitLayersToCanvas);
     // Grid size

@@ -2315,7 +2315,10 @@ The canvas is a fixed-size artboard (default **800×500 px**). All coordinates a
 
 1. Open **Element Properties → Canvas Size**
 2. Pick a **Preset** (Button, Card, Hero Banner, etc.) or enter custom Width/Height
-3. Click **Apply Size** — existing layers are **proportionally rescaled** to maintain their visual positions
+3. Click **Apply Size** — the canvas frame resizes; **existing layers keep their % positions unchanged**
+4. Use the **Fit Layers** button to refit all layers to the new canvas manually if needed
+
+> **Tip:** Switching presets never auto-scales or auto-zooms. Shapes stay exactly where they are — resize them yourself to suit the new canvas.
 
 ### Canvas Presets
 
@@ -2402,6 +2405,24 @@ The pen tool creates smooth curves and complex shapes.
 | **Esc** | Cancel |
 
 After committing, enter **Vertex Edit** (double-click) to adjust individual handles.
+
+---
+
+## Contextual Keyboard Shortcut Legend
+
+A **status bar** below the toolbar shows all available keyboard shortcuts for the current context — it updates automatically as you switch modes.
+
+| Context | Key shown |
+|---------|-----------|
+| **Idle / Select** | V, R, E, L, B, P, S, Ctrl+Z, Ctrl+Y |
+| **Selection active** | Ctrl+drag (snap), Del, Alt+drag (duplicate), dblclick (vertex), Shift+click (bool base) |
+| **Drawing Rect/Ellipse/Slot** | Shift (constrain), Ctrl (snap), Esc |
+| **Pen tool** | Click (sharp), Click+drag (curve), Enter (commit), Ctrl (snap), Esc |
+| **Polygon tool** | Click (point), Ctrl (snap), Enter/dblclick (commit), Esc |
+| **Vertex Edit** | Ctrl+drag (⊙ snap — shown first), Drag vertex/handle, Shift+drag (symmetric), Alt+click (add point), Alt+dblclick (delete point), Esc |
+| **Bool Edit** | Ctrl+drag (⊙ snap — shown first), Drag (move cutter), dblclick cutter (vertex edit), Esc (confirm) |
+
+> **Snap shortcut:** In both Vertex Edit and Bool Edit modes, **hold Ctrl while dragging** to snap to grid. It is always the first shortcut shown in those contexts.
 `;
 
 const VOLT_LAYERS = `
@@ -2587,9 +2608,37 @@ Select a slot layer to edit in **Layer Properties**:
 
 ## Input Slot (INP)
 
-Use the **Input** slot type to design custom text-input field skins. The slot defines the bounding region; in live use, a real \`<input>\` element is placed inside it.
+Use the **Input** slot type to design a custom text-input skin. The slot defines the bounding region; in live use, a real HTML \`<input>\` element is rendered inside it.
 
-Preview shows: white rounded rectangle with inner text placeholder bar and a small action button on the right.
+### Skin Mode
+
+| Mode | Appearance | Use when |
+|------|-----------|----------|
+| **Transparent** (default) | Input has no background, border, or outline — completely invisible | You draw vector shapes **below** the slot; those shapes become the visual skin |
+| **Custom** | Input renders with your chosen background, border, colour, and radius | You want a standalone styled input with no custom shapes |
+
+**Transparent mode (recommended):**
+1. Draw your shapes (rounded rect, gradient bar, etc.) as vector layers **below** the slot layer in the stack
+2. Set the slot's Skin Mode to **Transparent**
+3. The live input field sits invisibly on top — users type into it, and your shapes provide the visual appearance
+
+### Input Properties (all modes)
+
+| Property | Description |
+|----------|-------------|
+| **Skin Mode** | Transparent or Custom |
+| **Text Color** | Colour of the typed text + caret |
+| **Font Size** | Text size in px |
+| **Placeholder** | Hint text shown when the field is empty |
+
+### Custom Mode Only
+
+| Property | Description |
+|----------|-------------|
+| **Background Color** | Fill colour of the input box |
+| **Border Color** | Outline colour |
+| **Border Width** | Outline thickness in px |
+| **Border Radius** | Corner rounding in px |
 `;
 
 const VOLT_EFFECTS = `
@@ -2688,11 +2737,14 @@ Double-click the composite base shape to enter **Bool Edit Mode**:
 | Action | Result |
 |--------|--------|
 | **Drag cutter** | Move the cutter to a new position |
+| **Hold Ctrl + drag** | Move cutter snapping to grid |
 | **Double-click cutter** | Enter vertex edit on the cutter path |
-| **Esc** | Confirm and exit Bool Edit mode |
+| **Esc** | Confirm position and exit Bool Edit mode |
 
 The cutter is shown with an orange **CUTTER ✂** badge and dashed orange outline.
 The base is shown with a teal **BASE** badge.
+
+> **Cutter position is saved on mouse-up** — no extra Save needed. Esc confirms and returns to normal selection mode.
 
 ---
 
