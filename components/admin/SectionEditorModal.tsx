@@ -15,6 +15,7 @@ import type {
 } from "@/types/section";
 import FlexibleSectionEditor from "./FlexibleSectionEditor";
 import ImageFieldWithUpload from "./ImageFieldWithUpload";
+import { LinkPicker } from "@/components/admin/LinkPicker";
 
 interface SectionEditorModalProps {
   section: SectionConfig | null;
@@ -592,13 +593,11 @@ function HeroCarouselEditor({
                 </div>
                 <div className="col-md-4">
                   <label className="form-label">Button Link</label>
-                  <input
-                    type="text"
-                    className="form-control"
+                  <LinkPicker
                     value={item.overlay?.button?.href || ""}
-                    onChange={(e) =>
+                    onChange={(val) =>
                       updateOverlay(index, {
-                        button: { ...item.overlay?.button, href: e.target.value } as any,
+                        button: { ...item.overlay?.button, href: val } as any,
                       })
                     }
                   />
@@ -716,16 +715,13 @@ function TextImageEditor({
                   />
                 </div>
                 <div className="col-md-4">
-                  <input
-                    type="text"
-                    className="form-control"
+                  <LinkPicker
                     value={button.href}
-                    onChange={(e) => {
+                    onChange={(val) => {
                       const newButtons = [...(section.buttons || [])];
-                      newButtons[index] = { ...newButtons[index], href: e.target.value };
+                      newButtons[index] = { ...newButtons[index], href: val };
                       onChange({ ...section, buttons: newButtons });
                     }}
-                    placeholder="/link"
                   />
                 </div>
                 <div className="col-md-3">
@@ -1319,16 +1315,13 @@ function CTAFooterEditor({
                   />
                 </div>
                 <div className="col-md-4">
-                  <input
-                    type="text"
-                    className="form-control"
+                  <LinkPicker
                     value={button.href}
-                    onChange={(e) => {
+                    onChange={(val) => {
                       const newButtons = [...(section.buttons || [])];
-                      newButtons[index] = { ...newButtons[index], href: e.target.value };
+                      newButtons[index] = { ...newButtons[index], href: val };
                       onChange({ ...section, buttons: newButtons });
                     }}
-                    placeholder="/link"
                   />
                 </div>
                 <div className="col-md-3">

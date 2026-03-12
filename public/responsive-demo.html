@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Responsive Approach Demo</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f13; color: white; padding: 32px; }
+h1 { font-size: 22px; font-weight: 800; margin-bottom: 6px; }
+.subtitle { font-size: 13px; color: #888; margin-bottom: 40px; }
+.row { display: flex; gap: 24px; margin-bottom: 48px; align-items: flex-start; }
+.approach { flex: 1; }
+.approach-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+.approach-label.bad { color: #ef4444; }
+.approach-label.ok  { color: #f59e0b; }
+.approach-label.good{ color: #22c55e; }
+.approach-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+.approach-desc { font-size: 12px; color: #aaa; line-height: 1.5; margin-bottom: 14px; }
+
+.devices { display: flex; gap: 12px; align-items: flex-end; }
+.device { border-radius: 8px; overflow: hidden; border: 2px solid #333; flex-shrink: 0; }
+.device-label { font-size: 9px; color: #666; text-align: center; margin-top: 4px; letter-spacing: 0.5px; text-transform: uppercase; }
+.desktop { width: 260px; height: 140px; }
+.tablet  { width: 120px; height: 140px; }
+.mobile  { width: 72px;  height: 140px; }
+
+/* Fixed pixels approach */
+.fixed-canvas { width: 100%; height: 100%; background: #1a1a2e; position: relative; overflow: hidden; }
+.fixed-hero { position: absolute; left: 20px; top: 15px; width: 140px; height: 40px; background: #6366f1; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; }
+.fixed-img  { position: absolute; left: 170px; top: 15px; width: 70px; height: 70px; background: #312e81; border-radius: 4px; }
+.fixed-text1{ position: absolute; left: 20px; top: 62px; width: 130px; height: 8px; background: #4f46e5; border-radius: 2px; }
+.fixed-text2{ position: absolute; left: 20px; top: 76px; width: 100px; height: 8px; background: #3730a3; border-radius: 2px; }
+.fixed-btn  { position: absolute; left: 20px; top: 94px; width: 70px; height: 22px; background: #22c55e; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; }
+.fixed-tablet .fixed-hero { width: 80px; font-size: 7px; }
+.fixed-tablet .fixed-img  { left: 100px; width: 70px; }
+.fixed-tablet .fixed-text1{ width: 80px; }
+.fixed-mobile .fixed-hero { width: 45px; font-size: 6px; }
+.fixed-mobile .fixed-img  { left: 55px; width: 50px; }
+.overflow-bar { position: absolute; right: 0; top: 0; bottom: 0; width: 12px; background: repeating-linear-gradient(45deg, #ef444433, #ef444433 4px, transparent 4px, transparent 8px); }
+
+/* Multi-artboard */
+.ab-canvas { width: 100%; height: 100%; background: #1a1a2e; position: relative; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.ab-label { font-size: 7px; color: #6366f1; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; text-align: center; }
+.ab-hero { background: #6366f1; border-radius: 3px; padding: 6px; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; }
+.ab-grid { display: flex; gap: 4px; flex: 1; }
+.ab-col { flex: 1; background: #312e81; border-radius: 3px; }
+.ab-grid.two .ab-col3 { display: none; }
+.ab-grid.one .ab-col2, .ab-grid.one .ab-col3 { display: none; }
+
+/* Constraint-based */
+.gc-canvas { width: 100%; height: 100%; background: #1a1a2e; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.gc-hero { background: #6366f1; border-radius: 3px; padding: 6px; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; }
+.gc-grid { display: grid; gap: 5px; flex: 1; }
+.gc-col  { background: #312e81; border-radius: 3px; }
+.desktop .gc-grid { grid-template-columns: 1fr 1fr 1fr; }
+.tablet  .gc-grid { grid-template-columns: 1fr 1fr; }
+.mobile  .gc-grid { grid-template-columns: 1fr; }
+
+.pain { margin-top: 10px; padding: 10px; background: rgba(255,255,255,0.04); border-radius: 6px; border-left: 3px solid; }
+.pain.bad  { border-color: #ef4444; }
+.pain.ok   { border-color: #f59e0b; }
+.pain.good { border-color: #22c55e; }
+.pain ul { padding-left: 14px; }
+.pain li { font-size: 11px; color: #ccc; line-height: 1.8; }
+
+.rec { background: linear-gradient(135deg, #1e1b4b, #312e81); border: 1px solid #4f46e5; border-radius: 12px; padding: 24px; }
+.rec h2 { font-size: 18px; font-weight: 800; margin-bottom: 8px; color: #a5b4fc; }
+.rec p { font-size: 13px; line-height: 1.7; color: #c7d2fe; margin-bottom: 12px; }
+.flow { display: flex; gap: 0; align-items: center; flex-wrap: wrap; margin: 16px 0; }
+.flow-step { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 10px 14px; font-size: 12px; font-weight: 600; color: #e0e7ff; }
+.flow-step small { display: block; font-weight: 400; color: #a5b4fc; }
+.flow-arrow { color: #4f46e5; font-size: 18px; margin: 0 8px; }
+.cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
+.col2 h4 { font-size: 12px; font-weight: 700; color: #a5b4fc; margin-bottom: 6px; }
+.col2 p { font-size: 12px; color: #c7d2fe; line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<h1>Responsive Design — 3 Approaches Visualised</h1>
+<p class="subtitle">Why "looks good in designer" breaks on real devices — and the right way to fix it</p>
+
+<div class="row">
+
+  <div class="approach">
+    <div class="approach-label bad">Approach A — DO NOT USE</div>
+    <div class="approach-title">Fixed Pixel Positions</div>
+    <div class="approach-desc">Everything placed at exact px. The current state. Fast to design, breaks everywhere else.</div>
+    <div class="devices">
+      <div>
+        <div class="device desktop">
+          <div class="fixed-canvas">
+            <div class="fixed-hero">HERO HEADING</div>
+            <div class="fixed-img"></div>
+            <div class="fixed-text1"></div>
+            <div class="fixed-text2"></div>
+            <div class="fixed-btn">CTA</div>
+          </div>
+        </div>
+        <div class="device-label">Desktop OK</div>
+      </div>
+      <div>
+        <div class="device tablet">
+          <div class="fixed-canvas fixed-tablet">
+            <div class="fixed-hero">HERO</div>
+            <div class="fixed-img"></div>
+            <div class="fixed-text1"></div>
+            <div class="fixed-text2"></div>
+            <div class="fixed-btn">CTA</div>
+            <div class="overflow-bar"></div>
+          </div>
+        </div>
+        <div class="device-label">Tablet broken</div>
+      </div>
+      <div>
+        <div class="device mobile">
+          <div class="fixed-canvas fixed-mobile">
+            <div class="fixed-hero">H</div>
+            <div class="fixed-img"></div>
+            <div class="fixed-text1"></div>
+            <div class="overflow-bar"></div>
+          </div>
+        </div>
+        <div class="device-label">Mobile disaster</div>
+      </div>
+    </div>
+    <div class="pain bad">
+      <ul>
+        <li>Elements overflow, go off screen on mobile</li>
+        <li>Overlapping content, unreadable text</li>
+        <li>Manual CSS fixes needed per breakpoint</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="approach">
+    <div class="approach-label ok">Approach B — More work, full control</div>
+    <div class="approach-title">Design Per Breakpoint</div>
+    <div class="approach-desc">Design 3 separate artboards: desktop, tablet, mobile. Full creative control at each size. Figma's approach.</div>
+    <div class="devices">
+      <div>
+        <div class="device desktop">
+          <div class="ab-canvas">
+            <div class="ab-label">DESKTOP</div>
+            <div class="ab-hero">HERO HEADING</div>
+            <div class="ab-grid">
+              <div class="ab-col"></div>
+              <div class="ab-col"></div>
+              <div class="ab-col ab-col3"></div>
+            </div>
+          </div>
+        </div>
+        <div class="device-label">Desktop — 3col</div>
+      </div>
+      <div>
+        <div class="device tablet">
+          <div class="ab-canvas">
+            <div class="ab-label">TABLET</div>
+            <div class="ab-hero">HERO</div>
+            <div class="ab-grid two">
+              <div class="ab-col"></div>
+              <div class="ab-col"></div>
+              <div class="ab-col ab-col3"></div>
+            </div>
+          </div>
+        </div>
+        <div class="device-label">Tablet — 2col</div>
+      </div>
+      <div>
+        <div class="device mobile">
+          <div class="ab-canvas">
+            <div class="ab-label">MOBILE</div>
+            <div class="ab-hero" style="font-size:6px;">HERO</div>
+            <div class="ab-grid one">
+              <div class="ab-col"></div>
+              <div class="ab-col ab-col2"></div>
+              <div class="ab-col ab-col3"></div>
+            </div>
+          </div>
+        </div>
+        <div class="device-label">Mobile — 1col</div>
+      </div>
+    </div>
+    <div class="pain ok">
+      <ul>
+        <li>Full creative control per device size</li>
+        <li>But 3x the design work</li>
+        <li>Content changes need updating 3 places</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="approach">
+    <div class="approach-label good">Approach C — Recommended</div>
+    <div class="approach-title">Constraint-Based (Design Once)</div>
+    <div class="approach-desc">Elements have layout rules: "stack on mobile", "stretch to fill", "maintain ratio". CSS Grid/Flex auto-adapts. Override only the exceptions per breakpoint.</div>
+    <div class="devices">
+      <div>
+        <div class="device desktop">
+          <div class="gc-canvas">
+            <div class="gc-hero">HERO HEADING</div>
+            <div class="gc-grid">
+              <div class="gc-col"></div>
+              <div class="gc-col"></div>
+              <div class="gc-col"></div>
+            </div>
+          </div>
+        </div>
+        <div class="device-label">Desktop — auto</div>
+      </div>
+      <div>
+        <div class="device tablet">
+          <div class="gc-canvas">
+            <div class="gc-hero">HERO</div>
+            <div class="gc-grid">
+              <div class="gc-col"></div>
+              <div class="gc-col"></div>
+            </div>
+          </div>
+        </div>
+        <div class="device-label">Tablet — auto</div>
+      </div>
+      <div>
+        <div class="device mobile">
+          <div class="gc-canvas">
+            <div class="gc-hero" style="font-size:6px;">HERO</div>
+            <div class="gc-grid">
+              <div class="gc-col"></div>
+              <div class="gc-col"></div>
+              <div class="gc-col"></div>
+            </div>
+          </div>
+        </div>
+        <div class="device-label">Mobile — auto</div>
+      </div>
+    </div>
+    <div class="pain good">
+      <ul>
+        <li>Design once, works everywhere</li>
+        <li>Real CSS Grid/Flex output</li>
+        <li>Override only what needs changing per device</li>
+        <li>Volt elements scale as SVG — always crisp</li>
+      </ul>
+    </div>
+  </div>
+
+</div>
+
+<div class="rec">
+  <h2>Recommendation: Hybrid B + C</h2>
+  <p>Design primarily on desktop using Approach C (constraint-based layout rules). The canvas generates clean CSS Grid/Flex. Switch to Tablet/Mobile preview to see auto-adapted output. Override specific elements per breakpoint only where needed — not rebuilding the whole layout.</p>
+  <div class="flow">
+    <div class="flow-step">Design on desktop<small>Elements have layout rules not just pixels</small></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">Switch to mobile preview<small>Auto-adapts via constraints</small></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">Override exceptions only<small>Font size, stack order, hide/show</small></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">Publish<small>Clean responsive HTML/CSS output</small></div>
+  </div>
+  <div class="cols2">
+    <div class="col2">
+      <h4>For the designer</h4>
+      <p>When placing elements you set layout behavior — "stretch full width", "stack on mobile", "maintain aspect ratio" — not just X/Y coordinates. One extra property per element, saves hours of CSS debugging.</p>
+    </div>
+    <div class="col2">
+      <h4>For the output</h4>
+      <p>The system generates real CSS Grid + Flexbox with proper breakpoints. Volt elements are SVG so they scale perfectly. The designer canvas IS the source of truth — no gap between designer and browser.</p>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

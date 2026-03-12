@@ -65,16 +65,51 @@ const menuItems: MenuItem[] = [
     href: "/admin/media",
   },
   {
+    id: "volt",
+    label: "Volt Studio",
+    icon: "bi-lightning-charge-fill",
+    subItems: [
+      { id: "volt-vector", label: "Vector Designs", icon: "bi-vector-pen", href: "/admin/volt" },
+      { id: "volt-3d", label: "3D Assets", icon: "bi-box", href: "/admin/volt-3d" },
+    ],
+  },
+  {
     id: "users",
     label: "Users",
     icon: "bi-people",
     href: "/admin/users",
   },
   {
+    id: "features",
+    label: "Features",
+    icon: "bi-toggles",
+    subItems: [
+      {
+        id: "concrete-settings",
+        label: "Concrete Calculator",
+        icon: "bi-calculator",
+        href: "/admin/features/concrete-settings",
+      },
+    ],
+  },
+  {
     id: "settings",
     label: "Settings",
     icon: "bi-gear",
-    href: "/admin/settings",
+    subItems: [
+      {
+        id: "settings-general",
+        label: "General",
+        icon: "bi-sliders",
+        href: "/admin/settings",
+      },
+      {
+        id: "api-keys",
+        label: "API Keys",
+        icon: "bi-key",
+        href: "/admin/settings/api-keys",
+      },
+    ],
   },
   {
     id: "documents",
@@ -125,7 +160,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           top: 0;
           left: 0;
           overflow-y: auto;
-          z-index: 1100;
+          z-index: 1045;
           transition: transform 0.25s ease;
         }
         @media (max-width: 767px) {

@@ -2,12 +2,15 @@
 
 import { useState, useEffect } from "react";
 import { useAutoSave } from "@/lib/hooks/useAutoSave";
-import type { CTASection, ButtonConfig, GradientOverlay } from "@/types/section";
+import type { CTASection, ButtonConfig, GradientOverlay, LowerThirdConfig } from "@/types/section";
 import type { FormField } from "@/types/page";
+import { DEFAULT_LOWER_THIRD } from "@/lib/lower-third-presets";
+import LowerThirdTab from "./LowerThirdTab";
 import SpacingControls from "@/components/admin/SpacingControls";
 import SectionIntoShapePicker from "@/components/admin/SectionIntoShapePicker";
 import ImageFieldWithUpload from "@/components/admin/ImageFieldWithUpload";
 import GoogleFontPicker from "@/components/admin/GoogleFontPicker";
+import { LinkPicker } from "@/components/admin/LinkPicker";
 
 interface CTASectionEditorProps {
   section: CTASection;
@@ -103,7 +106,10 @@ export default function CTASectionEditor({
   const [bgImageOpacity, setBgImageOpacity] = useState(section.bgImageOpacity || 100);
   const [bgParallax, setBgParallax] = useState(section.bgParallax || false);
 
-  const [activeTab, setActiveTab] = useState<"content" | "background" | "spacing" | "triangle">("content");
+  const [activeTab, setActiveTab] = useState<"content" | "background" | "spacing" | "triangle" | "lower-third">("content");
+  const [lowerThird, setLowerThird] = useState<LowerThirdConfig>(
+    (section as any).lowerThird ?? DEFAULT_LOWER_THIRD
+  );
 
   // Contact form mode state
   const [formFields, setFormFields] = useState<FormField[]>(
@@ -244,6 +250,7 @@ export default function CTASectionEditor({
       bgImageRepeat,
       bgImageOpacity,
       bgParallax,
+      lowerThird,
       content: {
         heading,
         subheading: subheading || undefined,
@@ -325,6 +332,15 @@ export default function CTASectionEditor({
                 >
                   <i className="bi bi-triangle me-2"></i>
                   Section Into
+                </button>
+              </li>
+              <li className="nav-item">
+                <button
+                  className={`nav-link ${activeTab === "lower-third" ? "active" : ""}`}
+                  onClick={() => setActiveTab("lower-third")}
+                >
+                  <i className="bi bi-layout-bottom me-1" />
+                  Lower Third
                 </button>
               </li>
               <li className="nav-item">
@@ -617,12 +633,13 @@ export default function CTASectionEditor({
 
                         <div className="mb-3">
                           <label className="form-label">Link URL</label>
-                          <input
-                            type="text"
-                            className="form-control"
+                          <LinkPicker
                             value={button.href}
-                            onChange={(e) => handleButtonChange(index, "href", e.target.value)}
-                            placeholder="e.g., /services or #contact"
+                            onChange={(val) => handleButtonChange(index, "href", val)}
+                            sectionOptions={allSections.map((s) => ({
+                              value: `#${s.id}`,
+                              label: `Section: ${s.displayName || s.type}`,
+                            }))}
                           />
                         </div>
 
@@ -1561,6 +1578,11 @@ export default function CTASectionEditor({
                   onPaddingBottomChange={setPaddingBottom}
                 />
               </div>
+            )}
+
+            {/* Lower Third Tab */}
+            {activeTab === "lower-third" && (
+              <LowerThirdTab config={lowerThird} onChange={setLowerThird} />
             )}
           </div>
 

@@ -215,9 +215,6 @@ export function sectionToHtml(section: SectionConfig): string {
       return bannerToHtml(section as any);
     case "table":
       return tableToHtml(section as any);
-    case "freeform":
-      // Freeform sections already have HTML
-      return (section as any).grapesjs?.html || "<div>Empty freeform section</div>";
     default:
       return "<div>Unknown section type</div>";
   }

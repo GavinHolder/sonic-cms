@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
+
+// Safely convert a JSON body value to a Prisma-safe Json value.
+// null → Prisma.DbNull (SQL NULL); anything else passes through.
+function toJsonField(v: unknown): Prisma.InputJsonValue | typeof Prisma.DbNull {
+  return v === null ? Prisma.DbNull : (v as Prisma.InputJsonValue);
+}
 
 /**
  * GET /api/sections/[id]
@@ -115,6 +122,10 @@ export async function PUT(
         ...(body.bgImageRepeat !== undefined && { bgImageRepeat: body.bgImageRepeat }),
         ...(body.bgImageOpacity !== undefined && { bgImageOpacity: body.bgImageOpacity }),
         ...(body.bgParallax !== undefined && { bgParallax: body.bgParallax }),
+        // Lower third and motion elements — use toJsonField() so empty arrays
+        // and explicit nulls are stored correctly (raw JS null breaks Prisma Json?)
+        ...(body.lowerThird !== undefined && { lowerThird: toJsonField(body.lowerThird) }),
+        ...(body.motionElements !== undefined && { motionElements: toJsonField(body.motionElements) }),
       },
     });
 

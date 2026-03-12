@@ -46,6 +46,7 @@ export default function PageEditor({ params }: { params: Promise<{ slug: string 
   const [selectedType, setSelectedType] = useState<SectionType>("NORMAL");
   const [editingSection, setEditingSection] = useState<SectionConfig | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterCategory>("all");
 
   // Confirm dialog state
@@ -93,6 +94,13 @@ export default function PageEditor({ params }: { params: Promise<{ slug: string 
       return () => clearTimeout(timer);
     }
   }, [successMessage]);
+
+  useEffect(() => {
+    if (errorMessage) {
+      const timer = setTimeout(() => setErrorMessage(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [errorMessage]);
 
   const filteredSections = sections.filter((section) => {
     if (activeFilter === "all") return true;
@@ -229,11 +237,16 @@ export default function PageEditor({ params }: { params: Promise<{ slug: string 
         <div className="alert alert-success alert-dismissible fade show mb-4">
           <i className="bi bi-check-circle me-2"></i>
           {successMessage}
-          <button
-            type="button"
-            className="btn-close"
-            onClick={() => setSuccessMessage(null)}
-          ></button>
+          <button type="button" className="btn-close" onClick={() => setSuccessMessage(null)}></button>
+        </div>
+      )}
+
+      {/* Error Message */}
+      {errorMessage && (
+        <div className="alert alert-danger alert-dismissible fade show mb-4">
+          <i className="bi bi-exclamation-triangle me-2"></i>
+          {errorMessage}
+          <button type="button" className="btn-close" onClick={() => setErrorMessage(null)}></button>
         </div>
       )}
 
@@ -411,7 +424,8 @@ export default function PageEditor({ params }: { params: Promise<{ slug: string 
         <HeroCarouselEditor
           section={editingSection as HeroSection}
           onSave={async (updates) => {
-            await updateSection(editingSection.id, updates);
+            const ok = await updateSection(editingSection.id, updates);
+            if (!ok) { setErrorMessage("Failed to save section — changes were not stored."); return; }
             await reloadSections();
             setSuccessMessage("Hero section updated!");
           }}
@@ -423,7 +437,8 @@ export default function PageEditor({ params }: { params: Promise<{ slug: string 
         <FooterSectionEditor
           section={editingSection as FooterSection}
           onSave={async (updates, shouldClose = true) => {
-            await updateSection(editingSection.id, updates);
+            const ok = await updateSection(editingSection.id, updates);
+            if (!ok) { setErrorMessage("Failed to save section — changes were not stored."); return; }
             await reloadSections();
             if (shouldClose) {
               setEditingSection(null);
@@ -445,7 +460,8 @@ export default function PageEditor({ params }: { params: Promise<{ slug: string 
         <CTASectionEditor
           section={editingSection as CTASection}
           onSave={async (updates, shouldClose = true) => {
-            await updateSection(editingSection.id, updates);
+            const ok = await updateSection(editingSection.id, updates);
+            if (!ok) { setErrorMessage("Failed to save section — changes were not stored."); return; }
             await reloadSections();
             if (shouldClose) {
               setEditingSection(null);
@@ -461,7 +477,8 @@ export default function PageEditor({ params }: { params: Promise<{ slug: string 
         <NormalSectionEditor
           section={editingSection as NormalSection}
           onSave={async (updates, shouldClose = true) => {
-            await updateSection(editingSection.id, updates);
+            const ok = await updateSection(editingSection.id, updates);
+            if (!ok) { setErrorMessage("Failed to save section — changes were not stored."); return; }
             await reloadSections();
             if (shouldClose) {
               setEditingSection(null);

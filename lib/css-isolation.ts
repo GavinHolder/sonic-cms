@@ -3,7 +3,7 @@
  * Provides scoped CSS and Shadow DOM support for sections
  */
 
-import type { CSSIsolationMode } from "@/types/section";
+type CSSIsolationMode = "global" | "scoped" | "shadow";
 
 /**
  * Scope CSS rules to a specific section ID

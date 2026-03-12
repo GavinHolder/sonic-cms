@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { DOC_TOPICS, DocTopic } from "@/lib/admin/docs-content";
 import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
 
 const Markdown = dynamic(() => import("react-markdown"), { ssr: false });
 
@@ -840,7 +841,7 @@ export default function DocumentsPage() {
                   </div>
                 )}
                 {/* Markdown content */}
-                <Markdown remarkPlugins={[remarkGfm]}>{selectedTopic.content}</Markdown>
+                <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{selectedTopic.content}</Markdown>
               </article>
             ) : (
               <div className="d-flex flex-column align-items-center justify-content-center text-center" style={{ paddingTop:"4rem",color:"#adb5bd" }}>

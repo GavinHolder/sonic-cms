@@ -156,17 +156,18 @@
     }
     .lib-tab {
       flex: 1;
-      padding: 7px;
+      padding: 6px 4px;
       text-align: center;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.4px;
+      letter-spacing: 0.2px;
       cursor: pointer;
       color: #6c757d;
       border-bottom: 2px solid transparent;
       margin-bottom: -2px;
       transition: all 0.15s;
+      white-space: nowrap;
     }
     .lib-tab.active { color: #0d6efd; border-bottom-color: #0d6efd; }
     .lib-tab:hover:not(.active) { color: #495057; }
@@ -403,6 +404,8 @@
       z-index: 10;
       overflow: hidden;
       transition: border-color 0.15s, box-shadow 0.15s;
+      display: flex;
+      flex-direction: column;
     }
     .container-block:hover {
       box-shadow: 0 4px 16px rgba(13,110,253,0.2);
@@ -419,12 +422,11 @@
     }
 
     .cb-header {
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      z-index: 5;
+      flex-shrink: 0;
+      width: 100%;
       background: rgba(13,110,253,0.92);
       color: white;
-      padding: 3px 8px;
+      padding: 0 8px;
       font-size: 10px;
       font-weight: 700;
       text-transform: uppercase;
@@ -433,14 +435,17 @@
       align-items: center;
       gap: 6px;
       cursor: move;
+      max-height: 0;
+      overflow: hidden;
       opacity: 0;
-      transition: opacity 0.12s;
+      transition: max-height 0.12s ease, padding 0.12s ease, opacity 0.12s;
       pointer-events: none;
       border-radius: 4px 4px 0 0;
+      box-sizing: border-box;
     }
     .container-block:hover .cb-header,
     .container-block.selected .cb-header,
-    .container-block.editing  .cb-header { opacity: 1; pointer-events: auto; }
+    .container-block.editing  .cb-header { max-height: 26px; overflow: visible; padding: 3px 8px; opacity: 1; pointer-events: auto; }
     .container-block.selected .cb-header { background: rgba(32,201,151,0.92); color: #fff; }
     .container-block.editing  .cb-header { background: rgba(255,193,7,0.92); color: #212529; }
     /* Text-block: invisible frame — text IS the design, no blue outline */
@@ -474,7 +479,8 @@
 
     .cb-content {
       padding: 8px;
-      height: 100%;
+      flex: 1;
+      min-height: 0;
       position: relative;
       overflow: hidden;
       border-radius: 0 0 4px 4px;
@@ -609,6 +615,14 @@
       transition: all 0.1s; width: 100%; text-align: left;
     }
     .se-add-menu-item:hover { background: #f0f4ff; border-color: #0d6efd; color: #0d6efd; }
+    /* Quick preset chips inside the sub-element add menu */
+    .se-preset-section { margin-bottom: 4px; }
+    .se-preset-label { font-size: 9px; font-weight: 700; color: #0d6efd; text-transform: uppercase; letter-spacing: 0.5px; padding: 0 2px; margin-bottom: 4px; }
+    .se-preset-chips { display: flex; flex-direction: column; gap: 3px; }
+    .se-preset-chip { display: flex; align-items: center; gap: 7px; padding: 6px 10px; border-radius: 7px; border: 1.5px solid #c7d7ff; background: #f0f4ff; cursor: pointer; font-size: 11px; font-weight: 600; color: #1e40af; transition: all 0.1s; }
+    .se-preset-chip:hover { border-color: #0d6efd; background: #dbe8ff; }
+    .se-preset-chip i { font-size: 12px; color: #0d6efd; flex-shrink: 0; }
+    .se-menu-sep { height: 1px; background: #e9ecef; margin: 4px 0; }
 
     /* Media upload picker */
     .media-picker { display:flex; flex-direction:column; gap:6px; }
@@ -903,6 +917,7 @@
       inset: 0;
       pointer-events: none;
       z-index: 9990;
+      overflow: hidden;
     }
     .guide-line {
       position: absolute;
@@ -996,6 +1011,58 @@
     .xyslider-row input[type=range] { flex:1; accent-color:#0d6efd; }
     .xyslider-row input[type=number] { width:58px; font-size:12px; font-weight:700; color:#0d6efd; border:1px solid #dee2e6; border-radius:4px; padding:2px 5px; text-align:right; -moz-appearance:textfield; }
     .xyslider-row input[type=number]::-webkit-outer-spin-button, .xyslider-row input[type=number]::-webkit-inner-spin-button { -webkit-appearance:none; }
+
+    /* ── SECTION CONFIG COLLAPSE ───────────── */
+    #section-config-header { cursor:pointer; user-select:none; }
+    #section-config-header .sc-chevron { transition:transform 0.2s; font-size:10px; color:#adb5bd; }
+    #section-config-header.sc-collapsed .sc-chevron { transform:rotate(-90deg); }
+    #section-config-body.sc-hidden { display:none; }
+
+    /* ── CANVAS EMPTY HINT ─────────────────── */
+    #canvas-empty-hint { position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;gap:8px;z-index:0; }
+    #canvas-empty-hint .ceh-icon { font-size:40px;color:#e0e5eb; }
+    #canvas-empty-hint p { font-size:13px;color:#c8cdd4;margin:0;font-weight:600; }
+    #canvas-empty-hint small { font-size:11px;color:#dee2e6; }
+
+    /* ── BLOCK MINI-TOOLBAR ─────────────────── */
+    #block-mini-toolbar { position:absolute;z-index:500;background:white;border:1px solid #dee2e6;border-radius:8px;box-shadow:0 3px 14px rgba(0,0,0,0.13);padding:3px;gap:1px;display:none;flex-direction:column;align-items:center; }
+    #block-mini-toolbar.mtt-visible { display:flex; }
+    .mtt-btn { display:flex;align-items:center;justify-content:center;width:26px;height:26px;border:none;border-radius:5px;background:white;cursor:pointer;font-size:13px;color:#495057;transition:all 0.1s; }
+    .mtt-btn:hover { background:#f0f4ff;color:#0d6efd; }
+    .mtt-btn.mtt-add { color:#198754;font-size:15px; }
+    .mtt-btn.mtt-snap-active { background:#e8f4fd;color:#0d6efd; }
+    .mtt-btn.mtt-snap-active:hover { background:#cfe2ff;color:#0a58ca; }
+    .mtt-btn.mtt-add:hover { background:#d1e7dd;color:#0a3622; }
+    .mtt-btn.mtt-danger:hover { background:#fff0f0;color:#dc3545; }
+    .mtt-sep { height:1px;width:16px;background:#e9ecef;margin:1px 0;flex-shrink:0; }
+    /* ── Volt Studio Modal ─────────────────────────────────────────── */
+    #volt-modal { position:fixed;inset:0;z-index:9999;display:none;flex-direction:column; }
+    #volt-modal.vm-open { display:flex; }
+    #volt-modal-overlay { position:absolute;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(3px); }
+    #volt-modal-frame { position:relative;z-index:1;display:flex;flex-direction:column;width:100%;height:100%; }
+    #volt-modal-header { background:#0d0d1a;color:white;padding:10px 16px;display:flex;align-items:center;gap:12px;flex-shrink:0;border-bottom:1px solid #2a2a3e; }
+    #volt-modal-title { font-weight:700;font-size:14px;flex:1;color:#a5b4fc; }
+    #volt-modal-close { border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.08);color:white;padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;transition:background 0.15s; }
+    #volt-modal-close:hover { background:rgba(255,255,255,0.18); }
+    #volt-modal-iframe { flex:1;border:none;width:100%; }
+    .volt-create-btn { width:100%;margin-top:8px;padding:7px 10px;background:#1e1b4b;color:#a5b4fc;border:1px dashed #4f46e5;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.15s;text-align:center; }
+    .volt-create-btn:hover { background:#312e81;color:#c7d2fe; }
+    /* ── Responsive Behavior (Phase 4) ────────────────────────────── */
+    .resp-behavior-strip { display:flex;gap:4px;margin-top:6px; }
+    .resp-behavior-btn { flex:1;padding:6px 4px;border-radius:6px;border:1.5px solid #dee2e6;background:white;font-size:11px;font-weight:600;cursor:pointer;text-align:center;transition:all 0.12s;color:#495057; }
+    .resp-behavior-btn:hover { border-color:#0d6efd;color:#0d6efd;background:#f0f4ff; }
+    .resp-behavior-btn.rb-active-auto { border-color:#0d6efd;background:#cfe2ff;color:#084298; }
+    .resp-behavior-btn.rb-active-stretch { border-color:#198754;background:#d1e7dd;color:#0a3622; }
+    .resp-behavior-btn.rb-active-hide { border-color:#dc3545;background:#f8d7da;color:#58151c; }
+    /* Block badge showing non-auto behavior */
+    .cb-behavior-badge { font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;letter-spacing:0.5px;margin-left:auto;flex-shrink:0; }
+    .cb-behavior-badge.stretch { background:#d1e7dd;color:#0a3622; }
+    .cb-behavior-badge.hide    { background:#f8d7da;color:#58151c; }
+    /* Hidden block in preview — ghosted + dashed border */
+    .container-block.preview-hidden { opacity:0.3;border:2px dashed #dc3545 !important;pointer-events:auto; }
+    .container-block.preview-hidden .cb-header { background:rgba(220,53,69,0.15);color:#dc3545; }
+    /* Stretched block indicator */
+    .container-block.preview-stretch .cb-header::after { content:'← STRETCH →';font-size:9px;font-weight:700;color:#198754;margin-left:auto;padding-right:4px;opacity:0.7; }
   </style>
 </head>
 <body>
@@ -1014,6 +1081,8 @@
     <span class="pos-mode-badge free" id="pos-mode-badge" onclick="togglePositionMode()" title="Toggle: Free Positioning / Grid Snap">⟜ FREE</span>
     <!-- Guides toggle (icon-only) -->
     <button class="btn btn-sm btn-outline-primary" id="guides-btn" onclick="toggleGuides()" title="Show / Hide grid guides"><i class="bi bi-grid"></i></button>
+    <!-- Pixel-grid snap toggle (free mode) -->
+    <button class="btn btn-sm btn-outline-secondary" id="snap-btn" onclick="toggleSnapGrid()" title="Grid snap OFF — press S to toggle" style="font-size:10px;padding:2px 7px;font-weight:600;letter-spacing:0.3px;">SNAP</button>
     <!-- Utilities (icon-only) -->
     <button class="btn btn-sm btn-outline-primary" onclick="toggleJson()" title="JSON Output"><i class="bi bi-code-slash"></i></button>
     <button class="btn btn-sm btn-outline-danger" onclick="clearAll()" title="Clear entire canvas"><i class="bi bi-trash"></i></button>
@@ -1033,8 +1102,8 @@
 
         <!-- Section Mode -->
         <div class="panel">
-          <div class="panel-header"><i class="bi bi-layout-text-window-reverse"></i> Section Configuration</div>
-          <div class="panel-body">
+          <div class="panel-header" id="section-config-header" onclick="toggleSectionConfig()"><i class="bi bi-layout-text-window-reverse"></i> Section Configuration <i class="bi bi-chevron-down sc-chevron ms-auto"></i></div>
+          <div class="panel-body" id="section-config-body">
             <div class="config-box">
               <div class="config-box-label">Content Mode</div>
               <select class="form-select form-select-sm mb-2" id="contentMode" onchange="onModeChange()">
@@ -1110,8 +1179,9 @@
           </div>
           <div class="panel-body" style="padding-top:8px;">
             <div class="lib-tabs">
-              <div class="lib-tab active" id="tab-containers" onclick="switchLibTab('containers')">Containers</div>
-              <div class="lib-tab" id="tab-sub" onclick="switchLibTab('sub')">Sub-Elements</div>
+              <div class="lib-tab active" id="tab-containers" onclick="switchLibTab('containers')">Blocks</div>
+              <div class="lib-tab" id="tab-sub" onclick="switchLibTab('sub')">Sub-Els</div>
+              <div class="lib-tab" id="tab-volt" onclick="switchLibTab('volt')">⚡ Volt</div>
             </div>
 
             <!-- Container blocks -->
@@ -1202,6 +1272,22 @@
                 </div>
               </div>
             </div>
+
+            <!-- Volt Designs -->
+            <div id="lib-volt" style="display:none;">
+              <div id="volt-lib-loading" class="sub-lock-notice">
+                <i class="bi bi-hourglass-split"></i>
+                Loading Volt designs…
+              </div>
+              <div id="volt-lib-empty" class="sub-lock-notice" style="display:none;">
+                <i class="bi bi-lightning-charge"></i>
+                No Volt designs yet.
+              </div>
+              <button class="volt-create-btn" onclick="createNewVoltFromCanvas()">
+                <i class="bi bi-plus-lg me-1"></i>Create New Volt
+              </button>
+              <div id="volt-lib-items"></div>
+            </div>
           </div>
         </div>
 
@@ -1241,6 +1327,13 @@
         <!-- Divider before preview to prevent accidental clicks -->
         <div style="width:1px;height:20px;background:rgba(255,255,255,0.15);margin:0 4px;flex-shrink:0;"></div>
         <!-- Preview -->
+        <!-- Zoom controls -->
+        <div class="d-flex gap-1 align-items-center" style="border-left:1px solid #dee2e6;padding-left:8px;">
+          <button class="btn btn-sm btn-outline-secondary" onclick="adjustUserZoom(-0.1)" title="Zoom out (Ctrl+-)"><i class="bi bi-dash-lg"></i></button>
+          <span id="zoom-label" style="font-size:11px;font-weight:700;min-width:36px;text-align:center;color:#495057;">100%</span>
+          <button class="btn btn-sm btn-outline-secondary" onclick="adjustUserZoom(0.1)" title="Zoom in (Ctrl+=)"><i class="bi bi-plus-lg"></i></button>
+          <button class="btn btn-sm btn-outline-secondary" onclick="resetUserZoom()" title="Reset zoom (Ctrl+0)" style="font-size:10px;padding:2px 5px;">1:1</button>
+        </div>
         <button class="btn btn-sm btn-outline-secondary" onclick="previewSection()" title="Preview section in tab"><i class="bi bi-eye"></i></button>
       </div>
     </div>
@@ -1256,6 +1349,20 @@
         <div id="grid-overlay"></div>
         <div id="guide-overlay"></div>
         <div id="dim-display">—</div>
+        <div id="canvas-empty-hint">
+          <i class="bi bi-layout-text-window ceh-icon"></i>
+          <p>Drag a block to start designing</p>
+          <small>Use the Block Library on the left &nbsp;&middot;&nbsp; Drag blocks onto the canvas</small>
+        </div>
+        <div id="block-mini-toolbar">
+          <button class="mtt-btn mtt-add" id="mtt-add-btn" title="Add Sub-Element" onclick="mttAdd()" style="display:none"><i class="bi bi-plus-lg"></i></button>
+          <div class="mtt-sep mtt-add-sep" id="mtt-add-sep" style="display:none"></div>
+          <button class="mtt-btn" title="Edit Content" onclick="mttEdit()"><i class="bi bi-pencil"></i></button>
+          <button class="mtt-btn" title="Duplicate Block" onclick="mttDuplicate()"><i class="bi bi-copy"></i></button>
+          <button class="mtt-btn" id="mtt-snap-btn" title="Snap sub-elements to 8px grid" onclick="mttToggleSubSnap()" style="display:none"><i class="bi bi-magnet"></i></button>
+          <div class="mtt-sep"></div>
+          <button class="mtt-btn mtt-danger" title="Delete Block" onclick="mttDelete()"><i class="bi bi-trash3"></i></button>
+        </div>
       </div>
     </div>
   </div><!-- end canvas-area -->
@@ -1341,12 +1448,16 @@ const state = {
   positionMode: 'free',   // 'free' | 'grid'  — default: free-form absolute positioning
   devicePreview: 'desktop', // 'mobile'|'tablet'|'desktop'
   _desktopCanvasW: null,    // cached desktop canvas width for responsive scaling
+  userZoom: 1,              // manual zoom multiplier (0.25–2.0), applied on top of auto-fit scale
   blocks: [],
   selectedBlockId: null,
   selectedSubId: null,
   editingBlockId: null,
   dragSource: null,
   showGuides: true,
+  snapGrid: false,      // pixel-grid snap in free mode (S key or toolbar button)
+  snapSize: 10,         // snap increment in px
+  subElementSnap: false, // snap sub-elements to 8px grid when dragging inside parent
   isResizing: false,
   nextId: 1,
   navOptions: [],
@@ -1358,7 +1469,9 @@ const state = {
 let _saveTimer = null;
 
 const BLOCK_DEFAULTS = {
-  hero:        { label:'Hero',    bgColor:'#1e3a5f', textColor:'#ffffff',
+  hero:        { label:'Hero',    bgType:'color', bgColor:'#1e3a5f', bgImage:'', bgVideo:'',
+                 bgGradFrom:'#1e3a5f', bgGradTo:'#312e81', bgGradAngle:135,
+                 textColor:'#ffffff',
                  heading:'Hero Heading', subtext:'Subheading text',
                  headingX:50, headingY:38, subX:50, subY:52, btnX:50, btnY:67,
                  overlayBgColor:'#000000', overlayBgOpacity:30,
@@ -1372,6 +1485,7 @@ const BLOCK_DEFAULTS = {
   video:       { label:'Video',   src:'', poster:'', autoplay:false, loop:false, customCss:'' },
   html:        { label:'HTML',    html:'<p>Custom HTML</p>', customCss:'' },
   divider:     { label:'Divider', thickness:2, dividerColor:'#dee2e6', customCss:'' },
+  volt:        { label:'Volt', bgColor:'transparent', voltId:'', voltName:'', voltThumbnail:null, customCss:'' },
 };
 
 const SUB_DEFAULTS = {
@@ -1539,11 +1653,28 @@ function loadAutoSave() {
 }
 
 // Keyboard shortcut: Ctrl+Z / Cmd+Z
+// Ctrl+scroll to zoom canvas
+document.addEventListener('wheel', e => {
+  if (e.ctrlKey || e.metaKey) {
+    e.preventDefault();
+    adjustUserZoom(e.deltaY < 0 ? 0.1 : -0.1);
+  }
+}, { passive: false });
+
 document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
     e.preventDefault();
     undo();
     return;
+  }
+  // Ctrl+= zoom in, Ctrl+- zoom out, Ctrl+0 reset
+  if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+')) { e.preventDefault(); adjustUserZoom(0.1); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key === '-') { e.preventDefault(); adjustUserZoom(-0.1); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key === '0') { e.preventDefault(); resetUserZoom(); return; }
+  // S — toggle grid snap (skip when typing in inputs)
+  if (e.key === 's' && !e.ctrlKey && !e.metaKey &&
+      !e.target.closest('input, textarea, [contenteditable="true"], select')) {
+    e.preventDefault(); toggleSnapGrid(); return;
   }
   // Delete / Backspace — delete selected element (skip when typing in inputs)
   if ((e.key === 'Delete' || e.key === 'Backspace') &&
@@ -1706,9 +1837,11 @@ function renderCanvas() {
       b.gridCol  = Math.max(1, Math.min(b.gridCol  || 1, state.gridCols));
       b.colSpan  = Math.max(1, Math.min(b.colSpan  || 1, state.gridCols - b.gridCol + 1));
       b.rowSpan  = Math.max(1, Math.min(b.rowSpan  || 1, state.gridRows - b.gridRow + 1));
-      // Recalculate pixel position from the clamped grid coordinates
+      // Recalculate pixel position from the clamped grid coordinates.
+      // Preserve w/h if the user manually resized the block via drag handles.
       const { cx, cy, cw, ch } = getCellRect(b.gridRow, b.gridCol, b.colSpan, b.rowSpan, b.section);
-      b.x = cx; b.y = cy; b.w = cw; b.h = ch;
+      b.x = cx; b.y = cy;
+      if (!b.manualSize) { b.w = cw; b.h = ch; }
     });
   }
 
@@ -1793,6 +1926,11 @@ function renderBlocks() {
   state.blocks.forEach(block => {
     document.getElementById('canvas').appendChild(createBlockElement(block));
   });
+  // Show empty hint when canvas has no blocks
+  const hint = document.getElementById('canvas-empty-hint');
+  if (hint) hint.style.display = state.blocks.length === 0 ? 'flex' : 'none';
+  // Reposition mini-toolbar for selected block
+  updateMiniToolbar();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1830,6 +1968,13 @@ function createBlockElement(block) {
   if (block.id === state.selectedBlockId) el.classList.add('selected');
   if (block.id === state.editingBlockId)  { el.classList.add('editing','selected'); }
   if (block.subElements?.length > 0)     el.classList.add('has-sub');
+  // Responsive behavior visual states
+  const _device = state.devicePreview;
+  const _behavior = _device === 'mobile' ? (block.mobileBehavior||'auto') : _device === 'tablet' ? (block.tabletBehavior||'auto') : 'auto';
+  if (_device !== 'desktop') {
+    if (_dp.hidden)             el.classList.add('preview-hidden');
+    if (_behavior === 'stretch') el.classList.add('preview-stretch');
+  }
 
   // Header (built with DOM API — no innerHTML)
   const hdr = document.createElement('div');
@@ -1838,16 +1983,14 @@ function createBlockElement(block) {
   hdrIc.className = 'bi ' + getBlockIcon(block.type);
   hdr.appendChild(hdrIc);
   hdr.appendChild(document.createTextNode(' ' + (block.props.label || block.type)));
-  // "+" add sub-element button — for blocks that support sub-elements
-  if (['card','text-block','banner','stats'].includes(block.type)) {
-    const addSubBtn = document.createElement('button');
-    addSubBtn.className = 'cb-add-sub';
-    addSubBtn.textContent = '+ add';
-    addSubBtn.title = 'Add sub-element';
-    addSubBtn.addEventListener('click', e => { e.stopPropagation(); showSubAddMenu(block.id, addSubBtn); });
-    addSubBtn.addEventListener('mousedown', e => e.stopPropagation());
-    hdr.appendChild(addSubBtn);
+  // Responsive behavior badge (non-desktop only, non-auto only)
+  if (_device !== 'desktop' && _behavior !== 'auto') {
+    const badge = document.createElement('span');
+    badge.className = 'cb-behavior-badge ' + _behavior;
+    badge.textContent = _behavior === 'hide' ? 'HIDDEN' : '↔ STRETCH';
+    hdr.appendChild(badge);
   }
+  // "+" add button moved to side mini-toolbar
   const rmBtn = document.createElement('button');
   rmBtn.className = 'cb-remove';
   rmBtn.textContent = '✕';
@@ -1865,6 +2008,14 @@ function createBlockElement(block) {
   // Content
   const content = document.createElement('div');
   content.className = 'cb-content';
+  // Apply text-block padding props to the content area
+  if (block.type === 'text-block') {
+    const p = block.props;
+    content.style.paddingTop    = (p.paddingTop    ?? 16) + 'px';
+    content.style.paddingBottom = (p.paddingBottom ?? 16) + 'px';
+    content.style.paddingLeft   = (p.paddingX ?? 20) + 'px';
+    content.style.paddingRight  = (p.paddingX ?? 20) + 'px';
+  }
 
   const dropZone = document.createElement('div');
   dropZone.className = 'cb-drop-zone';
@@ -1898,6 +2049,9 @@ function createBlockElement(block) {
   });
 
   el.addEventListener('click', e => { e.stopPropagation(); selectBlock(block.id); });
+  if (block.type === 'volt') {
+    el.addEventListener('dblclick', e => { e.stopPropagation(); openVoltModal(block.id); });
+  }
   return el;
 }
 
@@ -1921,7 +2075,16 @@ function createBlockPreview(block) {
       const overlayAlpha = Math.max(0,Math.min(100,p.overlayBgOpacity||0))/100;
       const hexToRgb = hh => { const r=parseInt(hh.slice(1,3),16),g=parseInt(hh.slice(3,5),16),b=parseInt(hh.slice(5,7),16); return `${r},${g},${b}`; };
       const overlayBgCss = overlayAlpha>0 ? `rgba(${hexToRgb(overlayRgb)},${overlayAlpha})` : 'transparent';
-      const bgStyle = p.bgImage ? `background:url(${p.bgImage}) center/cover no-repeat` : `background:${p.bgColor||'#1e3a5f'}`;
+      // Resolve background style based on bgType
+      const _bgType = p.bgType || (p.bgImage ? 'image' : 'color');
+      let bgStyle = '';
+      if (_bgType === 'image' && p.bgImage) {
+        bgStyle = `background:url(${p.bgImage}) center/cover no-repeat`;
+      } else if (_bgType === 'gradient') {
+        bgStyle = `background:linear-gradient(${p.bgGradAngle??135}deg,${p.bgGradFrom||'#1e3a5f'},${p.bgGradTo||'#312e81'})`;
+      } else {
+        bgStyle = `background:${p.bgColor||'#1e3a5f'}`;
+      }
       let btnHtml = '';
       if (p.showBtn!==false) {
         if (p.btnImage) {
@@ -1933,17 +2096,46 @@ function createBlockPreview(block) {
           btnHtml = `<div style="position:absolute;left:${bx}%;top:${by}%;transform:translate(-50%,-50%);z-index:1;pointer-events:none;"><div style="background:${btnBg};color:${btnTc};padding:3px 10px;border-radius:4px;font-size:10px;font-weight:700;border:${btnBorder};display:inline-block;white-space:nowrap;">${p.btnText||'Learn More'}</div></div>`;
         }
       }
-      wrap.style.cssText = 'height:100%;width:100%;';
-      wrap.innerHTML = `<div style="${bgStyle};position:relative;overflow:hidden;width:100%;height:100%;border-radius:4px;">
-        <div style="position:absolute;inset:0;background:${overlayBgCss};pointer-events:none;"></div>
-        <div style="position:absolute;left:${hx}%;top:${hy}%;transform:translate(-50%,-50%);z-index:1;text-align:center;max-width:90%;pointer-events:none;">
-          <div style="font-size:14px;font-weight:800;color:${p.textColor||'#fff'};text-shadow:0 1px 4px rgba(0,0,0,0.5);white-space:nowrap;">${p.heading||'Hero Heading'}</div>
-        </div>
-        <div style="position:absolute;left:${sx}%;top:${sy}%;transform:translate(-50%,-50%);z-index:1;text-align:center;max-width:90%;pointer-events:none;">
-          <div style="font-size:10px;color:${p.textColor||'#fff'};opacity:0.85;">${p.subtext||''}</div>
-        </div>
-        ${btnHtml}
-      </div>`;
+      wrap.style.cssText = 'height:100%;width:100%;position:relative;';
+      // Video background — use a <video> element under the overlay
+      if (_bgType === 'video' && p.bgVideo) {
+        wrap.style.cssText += 'overflow:hidden;border-radius:4px;';
+        const vid = document.createElement('video');
+        vid.src = p.bgVideo;
+        vid.setAttribute('autoplay', '');
+        vid.setAttribute('muted', '');
+        vid.setAttribute('loop', '');
+        vid.setAttribute('playsinline', '');
+        vid.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none;';
+        wrap.appendChild(vid);
+        // overlay + text on top of video
+        const over = document.createElement('div');
+        over.style.cssText = `position:absolute;inset:0;background:${overlayBgCss};pointer-events:none;`;
+        wrap.appendChild(over);
+        wrap.innerHTML += `
+          <div style="position:absolute;left:${hx}%;top:${hy}%;transform:translate(-50%,-50%);z-index:1;text-align:center;max-width:90%;pointer-events:none;">
+            <div style="font-size:14px;font-weight:800;color:${p.textColor||'#fff'};text-shadow:0 1px 4px rgba(0,0,0,0.5);white-space:nowrap;">${p.heading||'Hero Heading'}</div>
+          </div>
+          <div style="position:absolute;left:${sx}%;top:${sy}%;transform:translate(-50%,-50%);z-index:1;text-align:center;max-width:90%;pointer-events:none;">
+            <div style="font-size:10px;color:${p.textColor||'#fff'};opacity:0.85;">${p.subtext||''}</div>
+          </div>
+          ${btnHtml}`;
+      } else if (_bgType === 'video' && !p.bgVideo) {
+        // No video uploaded yet — show placeholder
+        wrap.innerHTML = `<div style="background:#111;position:relative;overflow:hidden;width:100%;height:100%;border-radius:4px;display:flex;align-items:center;justify-content:center;">
+          <div style="text-align:center;color:#666;"><i class="bi bi-camera-video" style="font-size:28px;display:block;margin-bottom:6px;"></i><div style="font-size:11px;">Upload a video in properties</div></div></div>`;
+      } else {
+        wrap.innerHTML = `<div style="${bgStyle};position:relative;overflow:hidden;width:100%;height:100%;border-radius:4px;">
+          <div style="position:absolute;inset:0;background:${overlayBgCss};pointer-events:none;"></div>
+          <div style="position:absolute;left:${hx}%;top:${hy}%;transform:translate(-50%,-50%);z-index:1;text-align:center;max-width:90%;pointer-events:none;">
+            <div style="font-size:14px;font-weight:800;color:${p.textColor||'#fff'};text-shadow:0 1px 4px rgba(0,0,0,0.5);white-space:nowrap;">${p.heading||'Hero Heading'}</div>
+          </div>
+          <div style="position:absolute;left:${sx}%;top:${sy}%;transform:translate(-50%,-50%);z-index:1;text-align:center;max-width:90%;pointer-events:none;">
+            <div style="font-size:10px;color:${p.textColor||'#fff'};opacity:0.85;">${p.subtext||''}</div>
+          </div>
+          ${btnHtml}
+        </div>`;
+      }
       break;
     }
     case 'card':
@@ -1957,9 +2149,9 @@ function createBlockPreview(block) {
       </div>`;
       break;
     case 'text-block':
-      wrap.innerHTML = `<div style="padding:6px;">
-        <div style="font-size:14px;font-weight:700;margin-bottom:4px;">Text Block</div>
-        <div style="font-size:11px;color:#6c757d;line-height:1.5;">Add headings, paragraphs and buttons inside.</div>
+      wrap.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px 8px;text-align:center;min-height:60px;">
+        <div style="font-size:22px;line-height:1;color:#adb5bd;">T</div>
+        <div style="font-size:11px;font-weight:700;color:#495057;">Click <kbd style="background:#e9ecef;border:1px solid #ced4da;border-radius:3px;padding:1px 5px;font-size:10px;font-weight:700;">+ add</kbd> in the header to insert headings, paragraphs &amp; buttons.</div>
       </div>`;
       break;
     case 'banner':
@@ -1987,6 +2179,29 @@ function createBlockPreview(block) {
     case 'divider':
       wrap.innerHTML = `<div style="padding:10px 0;"><hr style="border-top:${p.thickness}px solid ${p.dividerColor};margin:0;"></div>`;
       break;
+    case 'volt': {
+      const vContainer = document.createElement('div');
+      vContainer.style.cssText = 'width:100%;height:100%;display:flex;align-items:center;justify-content:center;padding:4px;box-sizing:border-box;';
+      if (p.voltThumbnail) {
+        const vImg = document.createElement('img');
+        vImg.src = p.voltThumbnail;
+        vImg.alt = p.voltName || 'Volt';
+        vImg.style.cssText = 'max-width:100%;max-height:100%;object-fit:contain;';
+        vContainer.appendChild(vImg);
+      } else {
+        const vIcon = document.createElement('i');
+        vIcon.className = 'bi bi-lightning-charge';
+        vIcon.style.cssText = 'font-size:24px;opacity:0.3;';
+        const vLabel = document.createElement('span');
+        vLabel.textContent = p.voltName || 'Volt Design';
+        vLabel.style.cssText = 'font-size:11px;color:#6c757d;margin-top:4px;';
+        vContainer.style.flexDirection = 'column';
+        vContainer.appendChild(vIcon);
+        vContainer.appendChild(vLabel);
+      }
+      wrap.appendChild(vContainer);
+      break;
+    }
     default:
       wrap.innerHTML = `<div style="padding:12px;text-align:center;color:#adb5bd;font-size:12px;">${block.type}</div>`;
   }
@@ -2177,8 +2392,10 @@ function estimateSubElementHeight(type) {
  * @param {Object} block - The parent block whose subElements to initialise.
  */
 function ensureSubElementPositions(block) {
-  // Auto-stack sub-elements that have no y position yet
-  let nextY = 8;
+  // Auto-stack sub-elements that have no y position yet.
+  // For text-blocks respect paddingTop so elements visually start inside the padding area.
+  const startY = block.type === 'text-block' ? (block.props?.paddingTop ?? 16) : 8;
+  let nextY = startY;
   block.subElements.forEach(se => {
     if (se.y === undefined || se.y === null) {
       se.x = 0;
@@ -2228,8 +2445,15 @@ function startSubElementMove(e, blockId, seId) {
     }
     moved = true;
     // Clamp to non-negative coordinates so elements cannot be dragged above/left of the block
-    se.x = Math.round(Math.max(0, origX + dx));
-    se.y = Math.round(Math.max(0, origY + dy));
+    let newX = Math.round(Math.max(0, origX + dx));
+    let newY = Math.round(Math.max(0, origY + dy));
+    if (state.subElementSnap) {
+      const sg = 8;
+      newX = Math.round(newX / sg) * sg;
+      newY = Math.round(newY / sg) * sg;
+    }
+    se.x = newX;
+    se.y = newY;
     seEl.style.left = se.x + 'px';
     seEl.style.top  = se.y + 'px';
     // Live-resize parent block (grows AND shrinks) in all directions while dragging
@@ -2271,7 +2495,8 @@ function startSubElementWidthResize(e, blockId, seId) {
 
   const onMove = ev => {
     // Minimum width of 60px prevents the element from becoming unclickable
-    const newW = Math.max(60, Math.round(origW + (ev.clientX - startMX) / getCanvasScale()));
+    let newW = Math.max(60, Math.round(origW + (ev.clientX - startMX) / getCanvasScale()));
+    if (state.subElementSnap) { const sg = 8; newW = Math.round(newW / sg) * sg; if (newW < 60) newW = 64; }
     se.w = newW;
     seEl.style.width = newW + 'px';
     fitBlockToSubElementsDOM(blockId);
@@ -2380,7 +2605,10 @@ function fitBlockToSubElements(blockId) {
   // Resize block to always contain all sub-elements (grows AND shrinks, both axes)
   const block = state.blocks.find(b => b.id === blockId);
   if (!block || !block.subElements?.length) return;
-  let maxBottom = 24;
+  // Reserve space for the flex header (visible on hover/select) so sub-elements
+  // at the bottom of cb-content are never clipped behind it.
+  const HEADER_H = 26;
+  let maxBottom = 0;
   let maxRight = 0;
   block.subElements.forEach(se => {
     // Prefer cached measured height from previous DOM pass; fall back to type estimate
@@ -2394,9 +2622,18 @@ function fitBlockToSubElements(blockId) {
       if (right > maxRight) maxRight = right;
     }
   });
-  // Enforce minimum block dimensions so the block header remains usable
-  block.h = Math.max(56, maxBottom + 20);
-  if (maxRight > 0) block.w = Math.max(200, maxRight + 20);
+  // bottom padding (16) + header reserve so nothing is clipped
+  const bottomPad = block.type === 'text-block' ? (block.props?.paddingBottom ?? 16) : 16;
+  const contentH = Math.max(56, maxBottom + bottomPad + HEADER_H);
+  const contentW = maxRight > 0 ? Math.max(200, maxRight + 20) : 0;
+  // If manually resized, only grow (never shrink below user-set size)
+  if (block.manualSize) {
+    block.h = Math.max(block.h, contentH);
+    if (contentW > 0) block.w = Math.max(block.w, contentW);
+  } else {
+    block.h = contentH;
+    if (contentW > 0) block.w = contentW;
+  }
 }
 
 /**
@@ -2411,7 +2648,10 @@ function fitBlockToSubElementsDOM(blockId) {
   // DOM-aware: reads actual rendered sizes; always grows AND shrinks, both axes
   const block = state.blocks.find(b => b.id === blockId);
   if (!block || !block.subElements?.length) return;
-  let maxBottom = 24;
+  // Reserve space for the flex header (visible on hover/select) so sub-elements
+  // at the bottom of cb-content are never clipped behind it.
+  const HEADER_H = 26;
+  let maxBottom = 0;
   let maxRight = 0;
   block.subElements.forEach(se => {
     // Use actual rendered height when available — more accurate than the estimate
@@ -2425,13 +2665,22 @@ function fitBlockToSubElementsDOM(blockId) {
       if (right > maxRight) maxRight = right;
     }
   });
-  block.h = Math.max(56, maxBottom + 20);
-  if (maxRight > 0) block.w = Math.max(200, maxRight + 20);
+  const bottomPad = block.type === 'text-block' ? (block.props?.paddingBottom ?? 16) : 16;
+  const contentH = Math.max(56, maxBottom + bottomPad + HEADER_H);
+  const contentW = maxRight > 0 ? Math.max(200, maxRight + 20) : 0;
+  // If manually resized, only grow (never shrink below user-set size)
+  if (block.manualSize) {
+    block.h = Math.max(block.h, contentH);
+    if (contentW > 0) block.w = Math.max(block.w, contentW);
+  } else {
+    block.h = contentH;
+    if (contentW > 0) block.w = contentW;
+  }
   // Update DOM immediately to avoid a full re-render on every drag tick
   const blockEl = document.querySelector(`.container-block[data-block-id="${blockId}"]`);
   if (blockEl) {
     blockEl.style.height = block.h + 'px';
-    if (maxRight > 0) blockEl.style.width = block.w + 'px';
+    if (maxRight > 0 || block.manualSize) blockEl.style.width = block.w + 'px';
   }
 }
 
@@ -2460,14 +2709,139 @@ function showSubAddMenu(blockId, anchorEl) {
   menu.className = 'se-add-menu';
   menu.dataset.blockId = blockId;
 
-  const title = document.createElement('div');
-  title.className = 'se-add-menu-title';
-  title.textContent = 'Add element';
-  menu.appendChild(title);
-
   const block = state.blocks.find(b => b.id === blockId);
   const isTextBlock = block && block.type === 'text-block';
-  const items = isTextBlock ? [
+
+  // Quick preset layouts — shown at top of text-block menu when block is empty
+  if (isTextBlock && block && (!block.subElements || block.subElements.length === 0)) {
+    const TEXT_PRESETS = [
+      // ── Single-column layouts ───────────────────────────────────────────────
+      { label:'Heading + Body',            icon:'bi-layout-text-window', section:'Single Column',
+        items:[{type:'heading',extra:{level:'h2',fontSize:28,text:'Your Heading'}},{type:'paragraph',extra:{fontSize:15,text:'Your body text goes here.'}}] },
+      { label:'Heading + Body + Button',   icon:'bi-card-text', section:'Single Column',
+        items:[{type:'heading',extra:{level:'h2',fontSize:28,text:'Your Heading'}},{type:'paragraph',extra:{fontSize:15,text:'Your body text goes here.'}},{type:'button',extra:{text:'Get Started'}}] },
+      { label:'Title + Subhead',           icon:'bi-type-h1', section:'Single Column',
+        items:[{type:'heading',extra:{level:'h1',fontSize:36,text:'Big Title'}},{type:'heading',extra:{level:'h4',fontSize:16,text:'Supporting subtitle text'}}] },
+      { label:'Badge + Heading + Body',    icon:'bi-award', section:'Single Column',
+        items:[{type:'badge',extra:{text:'NEW',bgColor:'#0d6efd'}},{type:'heading',extra:{level:'h2',fontSize:28,text:'Featured Item'}},{type:'paragraph',extra:{fontSize:15,text:'Description text here.'}}] },
+      { label:'Heading + Body + Image',    icon:'bi-image', section:'Single Column',
+        items:[{type:'heading',extra:{level:'h2',fontSize:28,text:'Your Heading'}},{type:'paragraph',extra:{fontSize:15,text:'Your body text goes here.'}},{type:'image',extra:{}}] },
+      // ── Two-column layouts (x/w set explicitly for side-by-side) ────────────
+      // Column A at x=0, w=140  |  Column B at x=152, w=140  (total ~300px)
+      { label:'2-Col: Title | Body',       icon:'bi-layout-split', section:'Two Column',
+        items:[{type:'heading',extra:{level:'h2',fontSize:22,text:'Title'},   col:{x:0,  w:140}},
+               {type:'paragraph',extra:{fontSize:14,text:'Your text here.'}, col:{x:152,w:140}}] },
+      { label:'2-Col: Heading + Body each',icon:'bi-columns', section:'Two Column',
+        items:[{type:'heading',  extra:{level:'h3',fontSize:18,text:'Left Head'},  col:{x:0,  w:140}},
+               {type:'paragraph',extra:{fontSize:13,text:'Left copy.'},           col:{x:0,  w:140,dy:42}},
+               {type:'heading',  extra:{level:'h3',fontSize:18,text:'Right Head'}, col:{x:152,w:140}},
+               {type:'paragraph',extra:{fontSize:13,text:'Right copy.'},           col:{x:152,w:140,dy:42}}] },
+      { label:'2-Col: Text | Image',       icon:'bi-layout-text-sidebar', section:'Two Column',
+        items:[{type:'heading',  extra:{level:'h2',fontSize:22,text:'Your Heading'}, col:{x:0,  w:140}},
+               {type:'paragraph',extra:{fontSize:14,text:'Your description.'},      col:{x:0,  w:140,dy:50}},
+               {type:'button',   extra:{text:'Learn More'},                          col:{x:0,  w:140,dy:118}},
+               {type:'image',    extra:{},                                           col:{x:152,w:140}}] },
+      // ── Three-column layouts ─────────────────────────────────────────────────
+      // Column A x=0,w=88  |  Column B x=96,w=88  |  Column C x=192,w=88  (total ~288px)
+      { label:'3-Col: Heading + Body each',icon:'bi-layout-three-columns', section:'Three Column',
+        items:[{type:'heading',  extra:{level:'h4',fontSize:15,text:'Col 1'},  col:{x:0,  w:88}},
+               {type:'paragraph',extra:{fontSize:12,text:'Text 1.'},           col:{x:0,  w:88,dy:36}},
+               {type:'heading',  extra:{level:'h4',fontSize:15,text:'Col 2'},  col:{x:96, w:88}},
+               {type:'paragraph',extra:{fontSize:12,text:'Text 2.'},           col:{x:96, w:88,dy:36}},
+               {type:'heading',  extra:{level:'h4',fontSize:15,text:'Col 3'},  col:{x:192,w:88}},
+               {type:'paragraph',extra:{fontSize:12,text:'Text 3.'},           col:{x:192,w:88,dy:36}}] },
+      { label:'3-Col: Icon + Heading + Body',icon:'bi-grid-3x2', section:'Three Column',
+        items:[{type:'icon',    extra:{},                                     col:{x:0,  w:88}},
+               {type:'heading',extra:{level:'h5',fontSize:14,text:'Feature 1'}, col:{x:0,  w:88,dy:40}},
+               {type:'paragraph',extra:{fontSize:12,text:'Description 1.'},   col:{x:0,  w:88,dy:72}},
+               {type:'icon',   extra:{},                                      col:{x:96, w:88}},
+               {type:'heading',extra:{level:'h5',fontSize:14,text:'Feature 2'}, col:{x:96, w:88,dy:40}},
+               {type:'paragraph',extra:{fontSize:12,text:'Description 2.'},   col:{x:96, w:88,dy:72}},
+               {type:'icon',   extra:{},                                      col:{x:192,w:88}},
+               {type:'heading',extra:{level:'h5',fontSize:14,text:'Feature 3'}, col:{x:192,w:88,dy:40}},
+               {type:'paragraph',extra:{fontSize:12,text:'Description 3.'},   col:{x:192,w:88,dy:72}}] },
+    ];
+    const psec = document.createElement('div');
+    psec.className = 'se-preset-section';
+    const plbl = document.createElement('div');
+    plbl.className = 'se-preset-label';
+    plbl.textContent = '⚡ Quick Presets';
+    psec.appendChild(plbl);
+    const pchips = document.createElement('div');
+    pchips.className = 'se-preset-chips';
+    let _lastSection = null;
+    TEXT_PRESETS.forEach(function(preset) {
+      if (preset.section !== _lastSection) {
+        _lastSection = preset.section;
+        const slbl = document.createElement('div');
+        slbl.style.cssText = 'font-size:9px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;padding:4px 2px 2px;';
+        slbl.textContent = preset.section;
+        pchips.appendChild(slbl);
+      }
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'se-preset-chip';
+      const ic = document.createElement('i');
+      ic.className = 'bi ' + preset.icon;
+      chip.appendChild(ic);
+      chip.appendChild(document.createTextNode(' ' + preset.label));
+      chip.addEventListener('click', function(e) {
+        e.stopPropagation();
+        pushHistory();
+        // Track per-column Y offsets for multi-column layouts
+        const colY = {};
+        preset.items.forEach(function(item) {
+          const existingBlock = state.blocks.find(b => b.id === blockId);
+          if (!existingBlock) return;
+          const col = item.col; // optional {x, w, dy}
+          let x = 0, w = null;
+          let y = 0;
+          if (col) {
+            // Column layout: use explicit x/w, track y per column
+            x = col.x;
+            w = col.w;
+            const colKey = col.x;
+            if (colY[colKey] === undefined) colY[colKey] = 0;
+            y = colY[colKey] + (col.dy || 0);
+            // Estimate height for next item in same column
+            if (col.dy === undefined || col.dy === 0) {
+              colY[colKey] += estimateSubElementHeight(item.type) + 8;
+            }
+          } else {
+            // Single-column: stack from bottom of last sub-element
+            if (existingBlock.subElements && existingBlock.subElements.length > 0) {
+              y = Math.max.apply(null, existingBlock.subElements.map(s => (s.y || 0) + estimateSubElementHeight(s.type))) + 8;
+            }
+          }
+          const se = { id:`se-${state.nextId++}`, type:item.type, props:Object.assign({}, SUB_DEFAULTS[item.type], item.extra||{}), x:x, y:y, w:w };
+          existingBlock.subElements.push(se);
+        });
+        fitBlockToSubElements(blockId);
+        renderCanvas();
+        autoSave();
+        menu.remove();
+      });
+      pchips.appendChild(chip);
+    });
+    psec.appendChild(pchips);
+    menu.appendChild(psec);
+    const sep = document.createElement('div');
+    sep.className = 'se-menu-sep';
+    menu.appendChild(sep);
+    // Update height estimate to include presets
+    const title2 = document.createElement('div');
+    title2.className = 'se-add-menu-title';
+    title2.textContent = 'Or add individually';
+    menu.appendChild(title2);
+  } else {
+    const titleEl = document.createElement('div');
+    titleEl.className = 'se-add-menu-title';
+    titleEl.textContent = 'Add element';
+    menu.appendChild(titleEl);
+  }
+
+  const isTextBlock2 = isTextBlock; // alias for items list below
+  const items = isTextBlock2 ? [
     { type:'heading',   icon:'bi-type-h1',   label:'H1 — Largest title',  extra:{level:'h1', fontSize:36} },
     { type:'heading',   icon:'bi-type-h2',   label:'H2 — Section title',  extra:{level:'h2', fontSize:28} },
     { type:'heading',   icon:'bi-type-h3',   label:'H3 — Sub-title',      extra:{level:'h3', fontSize:22} },
@@ -2503,14 +2877,33 @@ function showSubAddMenu(blockId, anchorEl) {
 
   document.body.appendChild(menu);
 
-  // Position near anchor
+  // Position to the side of the mini-toolbar (never overlapping it).
+  // The toolbar sits LEFT of the block when the block is in the right half of
+  // the canvas, and RIGHT when the block is in the left half.  The menu opens
+  // in the same direction the toolbar faces away from the block.
   const rect = anchorEl.getBoundingClientRect();
   const mw = 230;
-  let left = rect.left;
-  let top = rect.bottom + 4;
-  if (left + mw > window.innerWidth - 8) left = window.innerWidth - mw - 8;
   const _menuEstH = items.length * 38 + 44;
-  if (top + _menuEstH > window.innerHeight) top = Math.max(8, rect.top - _menuEstH - 4);
+
+  let openRight = true;
+  const _mb = state.blocks.find(b => b.id === blockId);
+  if (_mb) {
+    const _canvas = document.getElementById('canvas');
+    const _canvasW = _canvas ? _canvas.offsetWidth : 1440;
+    const _dp = getDisplayPos(_mb);
+    openRight = (_dp.x + _dp.w / 2) <= _canvasW / 2; // toolbar is RIGHT → menu opens RIGHT
+  }
+
+  let left, top;
+  if (openRight) {
+    left = rect.right + 4;
+    if (left + mw > window.innerWidth - 8) left = window.innerWidth - mw - 8;
+  } else {
+    left = rect.left - mw - 4;
+    if (left < 8) left = 8;
+  }
+  top = rect.top;
+  if (top + _menuEstH > window.innerHeight) top = Math.max(8, window.innerHeight - _menuEstH - 8);
   menu.style.left = left + 'px';
   menu.style.top  = top  + 'px';
 
@@ -2620,6 +3013,34 @@ function onCanvasDrop(e) {
   canvas.classList.remove('drag-over');
   clearCellHighlights();
   if (!state.dragSource) return;
+
+  if (state.dragSource.kind === 'lib-volt') {
+    const rect = canvas.getBoundingClientRect();
+    const _drop_scale = getCanvasScale();
+    const x = (e.clientX - rect.left) / _drop_scale;
+    const y = (e.clientY - rect.top)  / _drop_scale;
+    const blockW = 300, blockH = 200;
+    const blockX = Math.max(0, Math.min(canvas.offsetWidth  - blockW, x - blockW/2));
+    const blockY = Math.max(0, Math.min(canvas.offsetHeight - blockH, y - blockH/2));
+    const src = state.dragSource;
+    pushHistory();
+    const block = {
+      id: `block-${state.nextId++}`,
+      type: 'volt',
+      section: 0, gridRow: 1, gridCol: 1, colSpan: 1, rowSpan: 1,
+      x: blockX, y: blockY, w: blockW, h: blockH,
+      zIndex: 1,
+      props: { ...BLOCK_DEFAULTS['volt'], voltId: src.voltId, voltName: src.voltName, voltThumbnail: src.voltThumbnail },
+      subElements: []
+    };
+    state.blocks.push(block);
+    selectBlock(block.id);
+    renderCanvas();
+    updateBlockCount();
+    autoSave();
+    state.dragSource = null;
+    return;
+  }
 
   if (state.dragSource.kind === 'lib-block') {
     const canvasArea = canvas.closest('.canvas-area');
@@ -2894,9 +3315,9 @@ function startBlockMove(e, blockId) {
     const el = document.querySelector(`[data-block-id="${blockId}"]`);
 
     if (state.positionMode === 'free') {
-      // Free mode: raw pixel positioning clamped to canvas bounds
-      const _nx = Math.max(0, Math.min(canvasW - dragDispW, nx));
-      const _ny = Math.max(0, Math.min(canvasH - dragDispH, ny));
+      // Free mode: pixel positioning (optionally grid-snapped) clamped to canvas bounds
+      const _nx = Math.max(0, Math.min(canvasW - dragDispW, snapToGrid(nx)));
+      const _ny = Math.max(0, Math.min(canvasH - dragDispH, snapToGrid(ny)));
       setDisplayPos(block, _nx, _ny, dragDispW, dragDispH);
       if (el) { el.style.left=`${_nx}px`; el.style.top=`${_ny}px`; }
       // Update props panel X/Y live
@@ -2970,76 +3391,45 @@ function startResize(e, blockId, dir) {
   const canvasArea = canvas.closest('.canvas-area');
   const rect = canvas.getBoundingClientRect();
 
-  if (state.positionMode === 'free') {
-    // Free mode: pixel-delta resize from mousedown origin
-    const startX = e.clientX, startY = e.clientY;
-    const _resDP = getDisplayPos(block);
-    const origX = _resDP.x, origY = _resDP.y, origW = _resDP.w, origH = _resDP.h;
-    const MIN_W = 60, MIN_H = 40;
-    const ghost = document.createElement('div');
-    ghost.className = 'span-ghost';
-    canvas.appendChild(ghost);
+  // Always use free pixel resize regardless of mode.
+  // In grid mode, block.manualSize = true tells renderCanvas to preserve these pixel dims.
+  const startX = e.clientX, startY = e.clientY;
+  const _resDP = getDisplayPos(block);
+  const origX = _resDP.x, origY = _resDP.y, origW = _resDP.w, origH = _resDP.h;
+  const MIN_W = 60, MIN_H = 40;
+  const ghost = document.createElement('div');
+  ghost.className = 'span-ghost';
+  canvas.appendChild(ghost);
 
-    function onMove(e) {
-      const _res_scale = getCanvasScale();
-      const dx = (e.clientX - startX) / _res_scale;
-      const dy = (e.clientY - startY) / _res_scale;
-      let nx=origX, ny=origY, nw=origW, nh=origH;
-      if (dir==='right' ||dir==='tr'||dir==='br') nw = Math.max(MIN_W, origW + dx);
-      if (dir==='bottom'||dir==='bl'||dir==='br') nh = Math.max(MIN_H, origH + dy);
-      if (dir==='left'  ||dir==='tl'||dir==='bl') { nx = Math.max(0, origX + dx); nw = Math.max(MIN_W, origW - (nx - origX)); }
-      if (dir==='top'   ||dir==='tl'||dir==='tr') { ny = Math.max(0, origY + dy); nh = Math.max(MIN_H, origH - (ny - origY)); }
-      // Clamp to canvas bounds
-      nw = Math.min(nw, canvas.offsetWidth  - nx);
-      nh = Math.min(nh, canvas.offsetHeight - ny);
-      setDisplayPos(block, nx, ny, nw, nh);
-      ghost.style.cssText=`left:${nx}px;top:${ny}px;width:${nw}px;height:${nh}px;`;
-      // Live update DOM element
-      const el = document.querySelector(`[data-block-id="${blockId}"]`);
-      if (el) { el.style.left=`${nx}px`; el.style.top=`${ny}px`; el.style.width=`${nw}px`; el.style.height=`${nh}px`; }
-    }
-    function onUp() {
-      state.isResizing=false; ghost.remove();
-      document.removeEventListener('mousemove',onMove);
-      document.removeEventListener('mouseup',onUp);
-      renderCanvas(); renderPropsPanel();
-      autoSave();
-    }
-    document.addEventListener('mousemove',onMove);
-    document.addEventListener('mouseup',onUp);
-
-  } else {
-    // Grid mode: resize by cell span
-    const origCol=block.gridCol, origRow=block.gridRow;
-    const origCS=block.colSpan||1, origRS=block.rowSpan||1;
-    const origSection = block.section || 0;
-    const ghost = document.createElement('div');
-    ghost.className = 'span-ghost';
-    canvas.appendChild(ghost);
-    function onMove(e) {
-      const cell = findCell(e.clientX-rect.left, e.clientY-rect.top);
-      let nCol=origCol, nRow=origRow, nCS=origCS, nRS=origRS;
-      const rE=origCol+origCS-1, bE=origRow+origRS-1;
-      if (dir==='right'||dir==='tr'||dir==='br') nCS=Math.max(1,Math.min(state.gridCols-origCol+1,cell.col-origCol+1));
-      if (dir==='left' ||dir==='tl'||dir==='bl') { nCol=Math.max(1,Math.min(rE,cell.col)); nCS=rE-nCol+1; }
-      if (dir==='bottom'||dir==='bl'||dir==='br') nRS=Math.max(1,Math.min(state.gridRows-origRow+1,cell.row-origRow+1));
-      if (dir==='top'  ||dir==='tl'||dir==='tr') { nRow=Math.max(1,Math.min(bE,cell.row)); nRS=bE-nRow+1; }
-      block.gridCol=nCol; block.gridRow=nRow; block.colSpan=nCS; block.rowSpan=nRS;
-      const {cx,cy,cw,ch}=getCellRect(nRow,nCol,nCS,nRS,origSection);
-      block.x=cx;block.y=cy;block.w=cw;block.h=ch;
-      ghost.style.cssText=`left:${cx}px;top:${cy}px;width:${cw}px;height:${ch}px;`;
-    }
-    function onUp() {
-      state.isResizing=false; ghost.remove();
-      document.removeEventListener('mousemove',onMove);
-      document.removeEventListener('mouseup',onUp);
-      absorbOverlappingBlocks(blockId);
-      renderCanvas(); renderPropsPanel();
-      autoSave();
-    }
-    document.addEventListener('mousemove',onMove);
-    document.addEventListener('mouseup',onUp);
+  function onMove(e) {
+    const _res_scale = getCanvasScale();
+    const dx = (e.clientX - startX) / _res_scale;
+    const dy = (e.clientY - startY) / _res_scale;
+    let nx=origX, ny=origY, nw=origW, nh=origH;
+    if (dir==='right' ||dir==='tr'||dir==='br') nw = Math.max(MIN_W, snapToGrid(origW + dx));
+    if (dir==='bottom'||dir==='bl'||dir==='br') nh = Math.max(MIN_H, snapToGrid(origH + dy));
+    if (dir==='left'  ||dir==='tl'||dir==='bl') { nx = Math.max(0, snapToGrid(origX + dx)); nw = Math.max(MIN_W, origW - (nx - origX)); }
+    if (dir==='top'   ||dir==='tl'||dir==='tr') { ny = Math.max(0, snapToGrid(origY + dy)); nh = Math.max(MIN_H, origH - (ny - origY)); }
+    // Clamp to canvas bounds
+    nw = Math.min(nw, canvas.offsetWidth  - nx);
+    nh = Math.min(nh, canvas.offsetHeight - ny);
+    setDisplayPos(block, nx, ny, nw, nh);
+    ghost.style.cssText=`left:${nx}px;top:${ny}px;width:${nw}px;height:${nh}px;`;
+    // Live update DOM element
+    const el = document.querySelector(`[data-block-id="${blockId}"]`);
+    if (el) { el.style.left=`${nx}px`; el.style.top=`${ny}px`; el.style.width=`${nw}px`; el.style.height=`${nh}px`; }
   }
+  function onUp() {
+    state.isResizing=false; ghost.remove();
+    document.removeEventListener('mousemove',onMove);
+    document.removeEventListener('mouseup',onUp);
+    // In grid mode mark this block as manually sized so renderCanvas won't reset dimensions
+    if (state.positionMode !== 'free') block.manualSize = true;
+    renderCanvas(); renderPropsPanel();
+    autoSave();
+  }
+  document.addEventListener('mousemove',onMove);
+  document.addEventListener('mouseup',onUp);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -3050,7 +3440,7 @@ function startResize(e, blockId, dir) {
  * the canvas and properties panel to reflect the new selection state.
  * @param {string} id - ID of the block to select.
  */
-function selectBlock(id) { state.selectedBlockId=id; state.selectedSubId=null; renderCanvas(); renderPropsPanel(); }
+function selectBlock(id) { state.selectedBlockId=id; state.selectedSubId=null; renderCanvas(); renderPropsPanel(); updateMiniToolbar(); }
 
 /**
  * Selects a sub-element within a block using fast DOM class toggling to
@@ -3196,6 +3586,23 @@ function renderBlockProps(block) {
   const isEdit=state.editingBlockId===block.id;
   let h='';
 
+  // ── Responsive Behavior (tablet/mobile preview only) ──────────────────────
+  if (state.devicePreview !== 'desktop') {
+    const dev = state.devicePreview;
+    const behavior = dev === 'mobile' ? (block.mobileBehavior||'auto') : (block.tabletBehavior||'auto');
+    const devLabel = dev === 'mobile' ? '📱 Mobile' : '💻 Tablet';
+    const devIcon  = dev === 'mobile' ? 'bi-phone' : 'bi-tablet';
+    h+=`<div class="props-section" style="background:#fff9e6;border-color:#ffc107;">
+      <div class="props-label" style="color:#856404;"><i class="bi ${devIcon}"></i> ${devLabel} Responsive Behavior</div>
+      <div style="font-size:11px;color:#856404;margin-bottom:6px;">How should this block behave at ${dev} size?</div>
+      <div class="resp-behavior-strip">
+        <button class="resp-behavior-btn${behavior==='auto'?' rb-active-auto':''}" onclick="setBlockBehavior('${block.id}','auto')" title="Auto-scale from desktop (default)">Auto</button>
+        <button class="resp-behavior-btn${behavior==='stretch'?' rb-active-stretch':''}" onclick="setBlockBehavior('${block.id}','stretch')" title="Stretch to full canvas width">↔ Stretch</button>
+        <button class="resp-behavior-btn${behavior==='hide'?' rb-active-hide':''}" onclick="setBlockBehavior('${block.id}','hide')" title="Hide this block at this size">✕ Hide</button>
+      </div>
+    </div>`;
+  }
+
   // Pixel dimensions for designers
   const dimW = Math.round(block.w);
   const dimH = Math.round(block.h);
@@ -3312,13 +3719,15 @@ function renderBlockProps(block) {
   if (block.type==='banner') h+=renderNavSection(block.id,block.props.navTarget,'block','');
   if (block.type==='hero' && block.props.showBtn!==false) h+=renderNavSection(block.id,block.props.btnNavTarget,'block','');
 
-  h+=`<div class="props-section">
-    <div class="props-label"><i class="bi bi-layers"></i> Content (${block.subElements.length} sub-elements)</div>
-    ${isEdit
-      ? `<button class="action-btn exit-edit" onclick="exitEditMode()">✕ Exit Edit Mode</button>`
-      : `<button class="action-btn edit-mode" onclick="enterEditMode('${block.id}')"><i class="bi bi-pencil"></i> Edit Content — Add Sub-Elements</button>`
-    }
-  </div>`;
+  if (block.type !== 'volt') {
+    h+=`<div class="props-section">
+      <div class="props-label"><i class="bi bi-layers"></i> Content (${block.subElements.length} sub-elements)</div>
+      ${isEdit
+        ? `<button class="action-btn exit-edit" onclick="exitEditMode()">✕ Exit Edit Mode</button>`
+        : `<button class="action-btn edit-mode" onclick="enterEditMode('${block.id}')"><i class="bi bi-pencil"></i> Edit Content — Add Sub-Elements</button>`
+      }
+    </div>`;
+  }
 
   h+=`<div class="props-section">
     <div class="props-label"><i class="bi bi-code"></i> Custom CSS Override</div>
@@ -3344,9 +3753,20 @@ function renderTypeProps(block) {
   const p=block.props; let h='';
   switch(block.type) {
     case 'hero': {
-      // Background
-      h+=colorRow('Background',p.bgColor||'#1e3a5f',`updateBlockProp('${block.id}','bgColor',this.value);renderCanvas()`);
-      h+=mediaPickerRow('BG Image',p.bgImage||'',block.id,'bgImage','image/*',true);
+      // Background type
+      const bgType = p.bgType || 'color';
+      h+=selectRow('BG Type',bgType,[['color','Solid Color'],['gradient','Gradient'],['image','Image'],['video','Video']],`updateBlockProp('${block.id}','bgType',this.value);renderCanvas();renderPropsPanel()`);
+      if (bgType === 'color') {
+        h+=colorRow('Background',p.bgColor||'#1e3a5f',`updateBlockProp('${block.id}','bgColor',this.value);renderCanvas()`);
+      } else if (bgType === 'gradient') {
+        h+=colorRow('Gradient From',p.bgGradFrom||'#1e3a5f',`updateBlockProp('${block.id}','bgGradFrom',this.value);renderCanvas()`);
+        h+=colorRow('Gradient To',p.bgGradTo||'#312e81',`updateBlockProp('${block.id}','bgGradTo',this.value);renderCanvas()`);
+        h+=`<div class="props-row"><label>Angle</label><input class="props-input" type="range" min="0" max="360" value="${p.bgGradAngle??135}" oninput="updateBlockProp('${block.id}','bgGradAngle',parseInt(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'°'"><span class="val">${p.bgGradAngle??135}°</span></div>`;
+      } else if (bgType === 'image') {
+        h+=mediaPickerRow('BG Image',p.bgImage||'',block.id,'bgImage','image/*',true);
+      } else if (bgType === 'video') {
+        h+=mediaPickerRow('BG Video',p.bgVideo||'',block.id,'bgVideo','video/*',true);
+      }
       h+=`<div class="props-row"><label>Overlay Opacity</label><input class="props-input" type="range" min="0" max="80" value="${p.overlayBgOpacity||0}" oninput="updateBlockProp('${block.id}','overlayBgOpacity',parseInt(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'%'"><span class="val">${p.overlayBgOpacity||0}%</span></div>`;
       h+=colorRow('Overlay Color',p.overlayBgColor||'#000000',`updateBlockProp('${block.id}','overlayBgColor',this.value);renderCanvas()`);
       // Text overlay
@@ -3417,7 +3837,21 @@ function renderTypeProps(block) {
       h+=`<div class="props-row"><label>Thickness</label><input class="props-input" type="range" min="1" max="10" value="${p.thickness||2}" oninput="updateBlockProp('${block.id}','thickness',parseInt(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.thickness||2}px</span></div>`;
       h+=colorRow('Color',p.dividerColor||'#dee2e6',`updateBlockProp('${block.id}','dividerColor',this.value);renderCanvas()`);
       break;
+    case 'volt': {
+      const vThumb = p.voltThumbnail;
+      const vName = p.voltName || 'Unnamed Volt';
+      h+=`<div style="text-align:center;padding:4px 0 8px;">`;
+      if (vThumb) {
+        h+=`<img src="${vThumb}" alt="${vName}" style="max-width:100%;max-height:80px;object-fit:contain;border-radius:4px;margin-bottom:8px;display:block;margin-left:auto;margin-right:auto;">`;
+      } else {
+        h+=`<i class="bi bi-lightning-charge" style="font-size:32px;opacity:0.2;display:block;margin-bottom:8px;"></i>`;
+      }
+      h+=`<div style="font-size:12px;font-weight:600;margin-bottom:2px;">${vName}</div>`;
+      if (p.voltId) h+=`<div style="font-size:10px;color:#adb5bd;margin-bottom:10px;">ID: ${p.voltId.substring(0,8)}&hellip;</div>`;
+      h+=`<button class="action-btn" style="width:100%;background:#1e1b4b;color:#a5b4fc;border-color:#4f46e5;" onclick="openVoltModal('${block.id}')"><i class="bi bi-lightning-charge me-1"></i>Edit in Volt Studio</button>`;
+      h+=`</div>`;
       break;
+    }
   }
   return h;
 }
@@ -3873,6 +4307,8 @@ function snapBlock(bId) {
   b.gridCol=Math.max(1,Math.min(b.gridCol,state.gridCols));
   b.colSpan=Math.max(1,Math.min(b.colSpan||1,state.gridCols-b.gridCol+1));
   b.rowSpan=Math.max(1,Math.min(b.rowSpan||1,state.gridRows-b.gridRow+1));
+  // User explicitly set a span — clear manual size so cell dims are restored
+  b.manualSize = false;
   // Recalculate pixel position from the clamped grid coordinates
   const {cx,cy,cw,ch}=getCellRect(b.gridRow,b.gridCol,b.colSpan,b.rowSpan,b.section||0);
   b.x=cx;b.y=cy;b.w=cw;b.h=ch;
@@ -4254,7 +4690,7 @@ function installDesignerFont(bId, sId, safeId) {
  * @returns {string} Bootstrap icon class (e.g. 'bi-layout-text-window').
  */
 function getBlockIcon(type) {
-  return {hero:'bi-layout-text-window',card:'bi-card-text','text-block':'bi-text-paragraph',banner:'bi-megaphone',stats:'bi-graph-up',image:'bi-image',video:'bi-play-circle',html:'bi-code-slash',divider:'bi-dash-lg'}[type]||'bi-square';
+  return {hero:'bi-layout-text-window',card:'bi-card-text','text-block':'bi-text-paragraph',banner:'bi-megaphone',stats:'bi-graph-up',image:'bi-image',video:'bi-play-circle',html:'bi-code-slash',divider:'bi-dash-lg',volt:'bi-lightning-charge'}[type]||'bi-square';
 }
 /**
  * Converts a hex colour and an integer opacity value (0–100) to a CSS rgba()
@@ -4399,13 +4835,20 @@ function getDisplayPos(block) {
   const srcW = state._desktopCanvasW || (() => {
     const c = document.getElementById('canvas'); return c ? c.offsetWidth : 1200;
   })();
+  const canvas = document.getElementById('canvas');
   if (device === 'mobile') {
-    if (block.mobilePos) return { ...block.mobilePos };
-    return autoScalePos({ x: block.x, y: block.y, w: block.w, h: block.h }, 375, srcW);
+    const behavior = block.mobileBehavior || 'auto';
+    const basePos = block.mobilePos || autoScalePos({ x: block.x, y: block.y, w: block.w, h: block.h }, 375, srcW);
+    if (behavior === 'stretch') { const cw = canvas ? canvas.offsetWidth : 375; return { x:0, y:basePos.y, w:cw, h:basePos.h, hidden:false }; }
+    if (behavior === 'hide')    return { ...basePos, hidden:true };
+    return { ...basePos, hidden:false };
   }
   if (device === 'tablet') {
-    if (block.tabletPos) return { ...block.tabletPos };
-    return autoScalePos({ x: block.x, y: block.y, w: block.w, h: block.h }, 768, srcW);
+    const behavior = block.tabletBehavior || 'auto';
+    const basePos = block.tabletPos || autoScalePos({ x: block.x, y: block.y, w: block.w, h: block.h }, 768, srcW);
+    if (behavior === 'stretch') { const cw = canvas ? canvas.offsetWidth : 768; return { x:0, y:basePos.y, w:cw, h:basePos.h, hidden:false }; }
+    if (behavior === 'hide')    return { ...basePos, hidden:true };
+    return { ...basePos, hidden:false };
   }
   return { x: block.x, y: block.y, w: block.w, h: block.h };
 }
@@ -4522,37 +4965,41 @@ function renderRulers() {
   const rulerH = document.getElementById('ruler-h');
   const rulerV = document.getElementById('ruler-v');
   if (!rulerH || !rulerV || !canvas) return;
-  const cw = canvas.offsetWidth;
-  const ch = canvas.offsetHeight;
+  // Use actual design dimensions, scale ticks to visual positions
+  const scale = getCanvasScale();
+  const cw = canvas.offsetWidth;   // layout width (design px)
+  const ch = canvas.offsetHeight;  // layout height (design px)
 
   while (rulerH.firstChild) rulerH.removeChild(rulerH.firstChild);
   while (rulerV.firstChild) rulerV.removeChild(rulerV.firstChild);
 
   const STEP = 10, LABEL_STEP = 50;
-  // Horizontal ruler
+  // Horizontal ruler — positions are in design-px, visually scaled
   for (let x = 0; x <= cw; x += STEP) {
+    const vx = Math.round(x * scale); // visual pixel position
     const tick = document.createElement('div');
     tick.className = 'rtick-h ' + (x % LABEL_STEP === 0 ? 'major' : 'minor');
-    tick.style.left = x + 'px';
+    tick.style.left = vx + 'px';
     rulerH.appendChild(tick);
     if (x > 0 && x % LABEL_STEP === 0) {
       const lbl = document.createElement('div');
       lbl.className = 'rlabel rlabel-h';
-      lbl.style.left = (x + 2) + 'px';
+      lbl.style.left = (vx + 2) + 'px';
       lbl.textContent = x;
       rulerH.appendChild(lbl);
     }
   }
   // Vertical ruler
   for (let y = 0; y <= ch; y += STEP) {
+    const vy = Math.round(y * scale);
     const tick = document.createElement('div');
     tick.className = 'rtick-v ' + (y % LABEL_STEP === 0 ? 'major' : 'minor');
-    tick.style.top = y + 'px';
+    tick.style.top = vy + 'px';
     rulerV.appendChild(tick);
     if (y > 0 && y % LABEL_STEP === 0) {
       const lbl = document.createElement('div');
       lbl.className = 'rlabel rlabel-v';
-      lbl.style.top = (y + 2) + 'px';
+      lbl.style.top = (vy + 2) + 'px';
       lbl.textContent = y;
       rulerV.appendChild(lbl);
     }
@@ -4718,8 +5165,80 @@ function deleteGuide(guideId) {
 function switchLibTab(tab) {
   document.getElementById('lib-containers').style.display = tab==='containers'?'block':'none';
   document.getElementById('lib-sub').style.display        = tab==='sub'?'block':'none';
+  document.getElementById('lib-volt').style.display       = tab==='volt'?'block':'none';
   document.getElementById('tab-containers').className = 'lib-tab'+(tab==='containers'?' active':'');
   document.getElementById('tab-sub').className        = 'lib-tab'+(tab==='sub'?' active':'');
+  document.getElementById('tab-volt').className       = 'lib-tab'+(tab==='volt'?' active':'');
+  if (tab === 'volt') loadVoltLibIfNeeded();
+}
+
+// ─── Volt Library ────────────────────────────────────────────────────────────
+const _voltLib = { loaded: false, loading: false };
+
+function loadVoltLibIfNeeded() {
+  if (_voltLib.loaded || _voltLib.loading) return;
+  _voltLib.loading = true;
+  fetch('/api/volt')
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(json => {
+      _voltLib.loaded = true;
+      _voltLib.loading = false;
+      renderVoltLib(json.data?.volts || []);
+    })
+    .catch(() => {
+      _voltLib.loading = false;
+      const el = document.getElementById('volt-lib-loading');
+      if (el) { el.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Failed to load Volt designs.'; }
+    });
+}
+
+function renderVoltLib(volts) {
+  const loading = document.getElementById('volt-lib-loading');
+  const empty   = document.getElementById('volt-lib-empty');
+  const items   = document.getElementById('volt-lib-items');
+  if (!items) return;
+  if (loading) loading.style.display = 'none';
+  items.innerHTML = '';
+  if (!volts.length) { if (empty) empty.style.display = ''; return; }
+  volts.forEach(v => {
+    const card = document.createElement('div');
+    card.className = 'element-card';
+    card.draggable = true;
+    card.addEventListener('dragstart', e => onVoltDragStart(e, v));
+
+    const preview = document.createElement('div');
+    preview.style.cssText = 'width:32px;height:32px;flex-shrink:0;border-radius:4px;overflow:hidden;border:1px solid #dee2e6;display:flex;align-items:center;justify-content:center;background:#f8f9fa;';
+    if (v.thumbnail) {
+      const img = document.createElement('img');
+      img.src = v.thumbnail;
+      img.style.cssText = 'width:100%;height:100%;object-fit:contain;';
+      preview.appendChild(img);
+    } else {
+      const ic = document.createElement('i');
+      ic.className = 'bi bi-lightning-charge';
+      ic.style.cssText = 'font-size:14px;color:#6c757d;opacity:0.5;';
+      preview.appendChild(ic);
+    }
+
+    const name = document.createElement('div');
+    name.className = 'ec-name';
+    name.textContent = v.name;
+
+    const badge = document.createElement('span');
+    badge.className = 'ec-badge';
+    badge.style.cssText = 'background:#fff3cd;color:#856404;';
+    badge.textContent = 'Volt';
+
+    card.appendChild(preview);
+    card.appendChild(name);
+    card.appendChild(badge);
+    items.appendChild(card);
+  });
+}
+
+function onVoltDragStart(e, volt) {
+  state.dragSource = { kind: 'lib-volt', voltId: volt.id, voltName: volt.name, voltThumbnail: volt.thumbnail || null };
+  e.dataTransfer.effectAllowed = 'copy';
 }
 // Preset definitions: grid config + zone blocks to auto-place
 const PRESET_DEFS = {
@@ -4834,29 +5353,53 @@ function updateDimensions() {
  * @returns {number} Scale ratio in the range (0, 1].
  */
 function getCanvasScale() {
-  if (state.devicePreview !== 'desktop') return 1;
+  if (state.devicePreview !== 'desktop') return state.userZoom || 1;
   const cwrap = document.querySelector('.canvas-with-rulers');
-  if (!cwrap) return 1;
+  if (!cwrap) return state.userZoom || 1;
   const rulerW = cwrap.classList.contains('rulers-hidden') ? 0 : 20;
   const availW = cwrap.clientWidth - rulerW - 2;
-  return Math.min(1, availW / DESKTOP_CANVAS_W);
+  const fitScale = Math.min(1, availW / DESKTOP_CANVAS_W);
+  return fitScale * (state.userZoom || 1);
 }
 /**
- * Applies a CSS scale transform to the canvas element when the design width
- * (DESKTOP_CANVAS_W) is wider than the available wrapper. Clears the transform
- * when the scale equals 1 (canvas fits without shrinking).
+ * Applies a CSS scale transform to the canvas element. Accounts for both
+ * the auto-fit scale and the user's manual zoom level.
  */
 function applyCanvasScale() {
   const canvas = document.getElementById('canvas');
   if (!canvas) return;
   const scale = getCanvasScale();
-  if (scale < 1) {
+  if (scale !== 1) {
     canvas.style.transformOrigin = 'top left';
     canvas.style.transform = 'scale(' + scale + ')';
   } else {
     canvas.style.transform = '';
     canvas.style.transformOrigin = '';
   }
+  // Update zoom label
+  const lbl = document.getElementById('zoom-label');
+  if (lbl) lbl.textContent = Math.round(scale * 100) + '%';
+  setTimeout(renderRulers, 0);
+}
+/** Adjust user zoom by delta, clamp 0.25–3.0, reapply scale */
+function adjustUserZoom(delta) {
+  state.userZoom = Math.max(0.25, Math.min(3.0, (state.userZoom || 1) + delta));
+  applyCanvasScale();
+}
+/** Reset user zoom to true 1:1 (combined scale = 100%) */
+function resetUserZoom() {
+  // Calculate the auto-fit scale so we can set userZoom to counteract it
+  const cwrap = document.querySelector('.canvas-with-rulers');
+  if (state.devicePreview === 'desktop' && cwrap) {
+    const rulerW = cwrap.classList.contains('rulers-hidden') ? 0 : 20;
+    const availW = cwrap.clientWidth - rulerW - 2;
+    const fitScale = Math.min(1, availW / DESKTOP_CANVAS_W);
+    // userZoom = 1/fitScale makes getCanvasScale() return exactly 1.0 (100%)
+    state.userZoom = fitScale > 0 ? 1 / fitScale : 1;
+  } else {
+    state.userZoom = 1;
+  }
+  applyCanvasScale();
 }
 /**
  * Toggles the visibility of the grid-line guide overlay on the canvas.
@@ -4869,6 +5412,21 @@ function toggleGuides() {
   if (btn) btn.classList.toggle('btn-secondary', state.showGuides);
   if (btn) btn.classList.toggle('btn-outline-secondary', !state.showGuides);
   renderCanvas();
+}
+/** Toggle pixel-grid snap in free mode. Updates toolbar button state. */
+function toggleSnapGrid() {
+  state.snapGrid = !state.snapGrid;
+  const btn = document.getElementById('snap-btn');
+  if (btn) {
+    btn.classList.toggle('btn-primary', state.snapGrid);
+    btn.classList.toggle('btn-outline-secondary', !state.snapGrid);
+    btn.title = state.snapGrid ? `Grid snap ON (${state.snapSize}px) — press S to toggle` : 'Grid snap OFF — press S to toggle';
+  }
+}
+/** Snap a value to the nearest snapSize grid increment (free-mode only). */
+function snapToGrid(v) {
+  if (!state.snapGrid || state.positionMode !== 'free') return v;
+  return Math.round(v / state.snapSize) * state.snapSize;
 }
 /**
  * Toggles the pixel rulers along the canvas edges by toggling the
@@ -4942,10 +5500,13 @@ function buildJson() {
       // Pixel position (used for absolute renderer in free mode)
       pixelPos:    { x:Math.round(b.x||0), y:Math.round(b.y||0), w:Math.round(b.w||300), h:Math.round(b.h||180) },
       // Responsive positions for tablet/mobile breakpoints
-      tabletPos:   b.tabletPos || undefined,
-      mobilePos:   b.mobilePos || undefined,
-      props:       b.props,
-      subElements: b.subElements
+      tabletPos:      b.tabletPos || undefined,
+      mobilePos:      b.mobilePos || undefined,
+      // Responsive constraint behaviors (Hybrid B+C)
+      tabletBehavior: b.tabletBehavior || undefined,
+      mobileBehavior: b.mobileBehavior || undefined,
+      props:          b.props,
+      subElements:    b.subElements
     }))
   },null,2);
 }
@@ -5084,6 +5645,190 @@ window.addEventListener('message', function(e) {
 if (window.parent && window.parent !== window) {
   window.parent.postMessage({ type: 'FLEXIBLE_DESIGNER_READY' }, '*');
 }
+
+// ═══════════════════════════════════════════════════════════
+//  SECTION CONFIG COLLAPSE
+// ═══════════════════════════════════════════════════════════
+function toggleSectionConfig() {
+  const hdr = document.getElementById('section-config-header');
+  const body = document.getElementById('section-config-body');
+  if (!hdr || !body) return;
+  hdr.classList.toggle('sc-collapsed');
+  body.classList.toggle('sc-hidden');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  BLOCK MINI-TOOLBAR
+// ═══════════════════════════════════════════════════════════
+function updateMiniToolbar() {
+  const tb = document.getElementById('block-mini-toolbar');
+  if (!tb) return;
+  const b = state.blocks.find(b => b.id === state.selectedBlockId);
+  if (!b) { tb.classList.remove('mtt-visible'); return; }
+  const dp = getDisplayPos(b);
+  const canvas = document.getElementById('canvas');
+  const canvasW = canvas ? canvas.offsetWidth : 1440;
+  const MARGIN = 6;
+  const tbH = 92; // approx: 3×26px buttons + 1px sep + padding
+  const tbW = 32;
+  // Place on RIGHT if block is in left half, LEFT if block is in right half
+  const blockCenterX = dp.x + dp.w / 2;
+  let leftX, topY;
+  if (blockCenterX > canvasW / 2) {
+    // Block is in right half → toolbar on the LEFT of block
+    leftX = dp.x - tbW - MARGIN;
+  } else {
+    // Block is in left half → toolbar on the RIGHT of block
+    leftX = dp.x + dp.w + MARGIN;
+  }
+  // Vertically centre on block, clamped to canvas bounds
+  topY = Math.max(4, dp.y + dp.h / 2 - tbH / 2);
+  tb.style.left = leftX + 'px';
+  tb.style.top = topY + 'px';
+  tb.classList.add('mtt-visible');
+  // Show + add button only for blocks that support sub-elements
+  const supportsAdd = ['card','text-block','banner','stats'].includes(b.type);
+  const addBtn = document.getElementById('mtt-add-btn');
+  const addSep = document.getElementById('mtt-add-sep');
+  if (addBtn) addBtn.style.display = supportsAdd ? '' : 'none';
+  if (addSep) addSep.style.display = supportsAdd ? '' : 'none';
+  const snapBtn = document.getElementById('mtt-snap-btn');
+  if (snapBtn) {
+    snapBtn.style.display = supportsAdd ? '' : 'none';
+    snapBtn.classList.toggle('mtt-snap-active', !!state.subElementSnap);
+    snapBtn.title = state.subElementSnap ? 'Sub-element snap ON (8px grid) — click to disable' : 'Snap sub-elements to 8px grid';
+  }
+}
+
+function mttAdd() {
+  if (!state.selectedBlockId) return;
+  const btn = document.getElementById('mtt-add-btn');
+  if (btn) showSubAddMenu(state.selectedBlockId, btn);
+}
+
+function mttToggleSubSnap() {
+  state.subElementSnap = !state.subElementSnap;
+  updateMiniToolbar();
+}
+
+function mttEdit() {
+  if (!state.selectedBlockId) return;
+  const b = state.blocks.find(b => b.id === state.selectedBlockId);
+  if (b && b.type === 'volt') { openVoltModal(state.selectedBlockId); return; }
+  enterEditMode(state.selectedBlockId);
+}
+
+function mttDuplicate() {
+  const b = state.blocks.find(b => b.id === state.selectedBlockId);
+  if (!b) return;
+  pushHistory();
+  const copy = JSON.parse(JSON.stringify(b));
+  copy.id = 'b' + (++state.nextId);
+  // Offset copy slightly so it's visible
+  copy.x = (copy.x || 0) + 20;
+  copy.y = (copy.y || 0) + 20;
+  copy.zIndex = (copy.zIndex || 1) + 1;
+  state.blocks.push(copy);
+  state.selectedBlockId = copy.id;
+  renderCanvas(); renderPropsPanel(); autoSave();
+}
+
+function mttDelete() {
+  if (state.selectedBlockId) removeBlock(state.selectedBlockId);
+}
+
+// ─── Responsive Behavior ─────────────────────────────────────────────────────
+function setBlockBehavior(blockId, behavior) {
+  const block = state.blocks.find(b => b.id === blockId);
+  if (!block) return;
+  pushHistory();
+  if (state.devicePreview === 'mobile')       block.mobileBehavior  = behavior === 'auto' ? undefined : behavior;
+  else if (state.devicePreview === 'tablet')  block.tabletBehavior  = behavior === 'auto' ? undefined : behavior;
+  renderCanvas(); renderPropsPanel(); autoSave();
+}
+
+// ─── Volt Studio Modal ────────────────────────────────────────────────────────
+let _voltModalBlockId = null;
+let _voltModalPendingLoad = null;
+
+function openVoltModal(blockId) {
+  const block = state.blocks.find(b => b.id === blockId);
+  if (!block) return;
+  _voltModalBlockId = blockId;
+  _voltModalPendingLoad = null;
+  const modal = document.getElementById('volt-modal');
+  const iframe = document.getElementById('volt-modal-iframe');
+  const title = document.getElementById('volt-modal-title');
+  title.textContent = block.props.voltName ? '\u26A1 Volt Studio \u2014 ' + block.props.voltName : '\u26A1 Volt Studio';
+  modal.classList.add('vm-open');
+  if (block.props.voltId) {
+    fetch('/api/volt/' + block.props.voltId)
+      .then(r => r.json())
+      .then(json => { _voltModalPendingLoad = json.data && json.data.volt ? json.data.volt : null; iframe.src = '/volt-designer.html'; })
+      .catch(() => { iframe.src = '/volt-designer.html'; });
+  } else {
+    iframe.src = '/volt-designer.html';
+  }
+}
+
+function closeVoltModal() {
+  const modal = document.getElementById('volt-modal');
+  const iframe = document.getElementById('volt-modal-iframe');
+  modal.classList.remove('vm-open');
+  _voltModalBlockId = null;
+  _voltModalPendingLoad = null;
+  iframe.src = '';
+}
+
+function createNewVoltFromCanvas() {
+  const block = { id: null, props: { voltId: null, voltName: 'New Volt', voltThumbnail: null } };
+  _voltModalBlockId = '__new__';
+  _voltModalPendingLoad = null;
+  const modal = document.getElementById('volt-modal');
+  const title = document.getElementById('volt-modal-title');
+  title.textContent = '\u26A1 Volt Studio \u2014 New Design';
+  modal.classList.add('vm-open');
+  document.getElementById('volt-modal-iframe').src = '/volt-designer.html';
+}
+
+window.addEventListener('message', function(e) {
+  const iframe = document.getElementById('volt-modal-iframe');
+  if (!iframe || !e.data || !e.data.type) return;
+  try { if (e.source !== iframe.contentWindow) return; } catch(_) { return; }
+  switch (e.data.type) {
+    case 'VOLT_DESIGNER_READY':
+      if (_voltModalPendingLoad) {
+        iframe.contentWindow.postMessage({ type: 'VOLT_DESIGNER_LOAD', payload: _voltModalPendingLoad }, '*');
+        _voltModalPendingLoad = null;
+      }
+      break;
+    case 'VOLT_DESIGNER_SAVE':
+    case 'VOLT_DESIGNER_DONE': {
+      const payload = e.data.payload;
+      if (!payload) { if (e.data.type === 'VOLT_DESIGNER_DONE') closeVoltModal(); break; }
+      const isNew = _voltModalBlockId === '__new__';
+      const block = isNew ? null : state.blocks.find(b => b.id === _voltModalBlockId);
+      const voltId = block ? block.props.voltId : null;
+      const apiUrl = voltId ? '/api/volt/' + voltId : '/api/volt';
+      const method = voltId ? 'PUT' : 'POST';
+      fetch(apiUrl, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: payload.name, layers: payload.layers, states: payload.states, isPublic: payload.isPublic, mood: payload.mood, elementType: payload.elementType, thumbnail: payload.thumbnail })
+      }).then(function(r) { return r.json(); }).then(function(json) {
+        const saved = json.data && json.data.volt ? json.data.volt : null;
+        if (saved && block) {
+          block.props = Object.assign({}, block.props, { voltId: saved.id, voltName: saved.name, voltThumbnail: saved.thumbnail || payload.thumbnail || null });
+          renderCanvas(); renderPropsPanel(); autoSave();
+        }
+        _voltLib.loaded = false;
+        if (document.getElementById('lib-volt') && document.getElementById('lib-volt').style.display !== 'none') loadVoltLibIfNeeded();
+      }).catch(function(err) { console.error('Volt save error:', err); });
+      if (e.data.type === 'VOLT_DESIGNER_DONE') closeVoltModal();
+      break;
+    }
+  }
+});
 </script>
 <div id="drop-conflict-popup">
   <div class="dcp-title">⚠️ Cell is occupied</div>
@@ -5112,5 +5857,18 @@ if (window.parent && window.parent !== window) {
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- Volt Studio Modal Overlay -->
+<div id="volt-modal">
+  <div id="volt-modal-overlay" onclick="closeVoltModal()"></div>
+  <div id="volt-modal-frame">
+    <div id="volt-modal-header">
+      <i class="bi bi-lightning-charge" style="color:#818cf8;font-size:15px;"></i>
+      <span id="volt-modal-title">Volt Studio</span>
+      <button id="volt-modal-close" onclick="closeVoltModal()">✕ Close</button>
+    </div>
+    <iframe id="volt-modal-iframe" src="" frameborder="0" allow="*"></iframe>
+  </div>
+</div>
 </body>
 </html>

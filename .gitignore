@@ -66,6 +66,9 @@ deploy/traefik/.env
 deploy/traefik/acme/acme.json
 deploy/portainer/.env
 
+# uploads (user-generated content, not tracked)
+/public/uploads/
+
 # vercel
 .vercel
 

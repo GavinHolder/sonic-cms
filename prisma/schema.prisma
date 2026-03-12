@@ -1,4 +1,4 @@
-// Prisma Schema for Sonic Website Visual Page Builder CMS
+// Prisma Schema for White Label CMS
 // PostgreSQL database with flexible JSONB storage
 
 generator client {
@@ -29,6 +29,9 @@ model User {
   pages        Page[]
   sections     Section[]
   mediaAssets  MediaAsset[]
+  voltElements VoltElement[]
+  apiKeys      ApiKey[]
+  volt3DAssets Volt3DAsset[]
 
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -169,6 +172,16 @@ model Section {
   bgImageOpacity       Int?      @default(100)
   bgParallax           Boolean   @default(false)
 
+  // Lower third decorative graphic (z-index 10, SVG preset or image)
+  lowerThird    Json?
+  // Motion/parallax overlay elements (z-index 20, anime.js animated images)
+  motionElements Json?
+
+  // Volt Studio element link
+  voltElementId  String?
+  voltElement    VoltElement? @relation("SectionVolt", fields: [voltElementId], references: [id], onDelete: SetNull)
+  voltSlotMap    Json?
+
   // Custom elements (for freeform sections only)
   elements      CustomElement[]
 
@@ -190,6 +203,7 @@ enum SectionType {
   NORMAL
   CTA
   FOOTER
+  FLEXIBLE
 }
 
 // ============================================
@@ -343,4 +357,125 @@ model OtpToken {
 
   @@index([email, purpose])
   @@map("otp_tokens")
+}
+
+// ============================================
+// CLIENT FEATURES (feature flag system)
+// ============================================
+
+model ClientFeature {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  enabled   Boolean  @default(false)
+  config    Json     @default("{}")
+  updatedAt DateTime @updatedAt
+
+  @@map("client_features")
+}
+
+// ============================================
+// VOLT STUDIO
+// ============================================
+
+model VoltElement {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  mood        String?
+  elementType String   @default("custom")
+  isPublic    Boolean  @default(false)
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id])
+
+  layers      Json     @default("[]")
+  slots       Json     @default("[]")
+  states      Json     @default("[]")
+  canvasWidth  Int     @default(800)
+  canvasHeight Int     @default(500)
+  has3D       Boolean  @default(false)
+
+  thumbnail   String?
+
+  tags        String[]
+  isPaid      Boolean  @default(false)
+  price       Float?
+  downloads   Int      @default(0)
+
+  assets      VoltAsset[]
+  sections    Section[]   @relation("SectionVolt")
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([authorId])
+  @@index([isPublic])
+  @@map("volt_elements")
+}
+
+model VoltAsset {
+  id         String      @id @default(cuid())
+  voltId     String
+  volt       VoltElement @relation(fields: [voltId], references: [id], onDelete: Cascade)
+  type       String
+  filename   String
+  url        String
+  fileSize   Int
+  metadata   Json?
+
+  createdAt  DateTime    @default(now())
+
+  @@index([voltId])
+  @@map("volt_assets")
+}
+
+// ============================================
+// API KEYS
+// ============================================
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  keyHash    String    @unique
+  keyPrefix  String
+  label      String
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  @@index([userId])
+  @@map("api_keys")
+}
+
+// ============================================
+// VOLT 3D PIPELINE
+// ============================================
+
+model Volt3DAsset {
+  id              String          @id @default(cuid())
+  name            String
+  authorId        String
+  author          User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  versions        Volt3DVersion[]
+  activeVersionId String?
+  triggerConfig   Json?
+  thumbnail       String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  @@index([authorId])
+  @@map("volt_3d_assets")
+}
+
+model Volt3DVersion {
+  id          String      @id @default(cuid())
+  assetId     String
+  asset       Volt3DAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  versionNum  Int
+  glbPath     String
+  blendPath   String?
+  animClips   Json
+  isConfirmed Boolean     @default(false)
+  syncedAt    DateTime    @default(now())
+  @@unique([assetId, versionNum])
+  @@index([assetId])
+  @@map("volt_3d_versions")
 }

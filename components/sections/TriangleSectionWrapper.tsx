@@ -28,13 +28,14 @@ export default function TriangleSectionWrapper({
 
   // Find the actual section element and configure for triangle visibility:
   // - overflow: visible so the triangle isn't clipped by its own section
-  // - z-index: 2 so the triangle (extending upward via negative top) renders
-  //   ABOVE the previous section's stacking context (z-index: 1)
+  // - z-index: 50 so the triangle (extending upward into the previous section)
+  //   renders ABOVE the previous section's LowerThirdRenderer (z-index: 10)
+  //   and MotionElementRenderer (z-index: 5/15/25). Always on top — no exception.
   useEffect(() => {
     const el = document.getElementById(section.id);
     if (el) {
       el.style.overflow = "visible";
-      el.style.zIndex = "2";
+      el.style.zIndex = "50";
       setSectionEl(el);
     }
     return () => {

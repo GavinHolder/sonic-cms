@@ -279,6 +279,52 @@ export default function Footer({
           </div>
         )}
 
+        {/* Partners / Suppliers Logo Strip */}
+        <div className="border-top border-secondary pt-5 mt-5">
+          <p className="text-center text-muted small text-uppercase fw-semibold mb-4" style={{ letterSpacing: "0.12em", fontSize: "0.7rem" }}>
+            Our Partners &amp; Suppliers
+          </p>
+          <div className="d-flex flex-wrap align-items-center justify-content-center gap-4 gap-md-5 pb-2">
+            {[
+              { name: "Partner 1" },
+              { name: "Partner 2" },
+              { name: "Partner 3" },
+              { name: "Partner 4" },
+              { name: "Partner 5" },
+              { name: "Partner 6" },
+            ].map((partner) => (
+              <div
+                key={partner.name}
+                className="d-flex align-items-center justify-content-center"
+                style={{
+                  width: "120px",
+                  height: "48px",
+                  borderRadius: "6px",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "rgba(255,255,255,0.05)",
+                  color: "rgba(255,255,255,0.35)",
+                  fontSize: "0.72rem",
+                  fontWeight: 600,
+                  letterSpacing: "0.04em",
+                  transition: "all 0.2s",
+                  cursor: "default",
+                  userSelect: "none",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,0.1)";
+                  (e.currentTarget as HTMLDivElement).style.color = "rgba(255,255,255,0.7)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,0.05)";
+                  (e.currentTarget as HTMLDivElement).style.color = "rgba(255,255,255,0.35)";
+                }}
+              >
+                {partner.name}
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Bottom Bar */}
         <div className="border-top border-secondary pt-4 mt-5 text-center small text-muted">
           © {new Date().getFullYear()} Your Company. All rights reserved.

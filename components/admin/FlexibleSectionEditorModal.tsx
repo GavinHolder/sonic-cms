@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import type { FlexibleSection, FlexibleElement, AnimationType } from "@/types/section";
+import type { FlexibleSection, FlexibleElement, AnimationType, MotionElement, LowerThirdConfig } from "@/types/section";
 import SpacingControls from "@/components/admin/SpacingControls";
 import SectionIntoShapePicker from "@/components/admin/SectionIntoShapePicker";
 import GoogleFontPicker from "@/components/admin/GoogleFontPicker";
@@ -12,6 +12,9 @@ import AnimBgEditor from "@/components/admin/AnimBgEditor";
 import ImageFieldWithUpload from "@/components/admin/ImageFieldWithUpload";
 import type { AnimBgConfig } from "@/lib/anim-bg/types";
 import { DEFAULT_ANIM_BG_CONFIG } from "@/lib/anim-bg/defaults";
+import LowerThirdTab from "@/components/admin/LowerThirdTab";
+import MotionElementEditor, { createDefaultMotionElement } from "@/components/admin/MotionElementEditor";
+import { DEFAULT_LOWER_THIRD } from "@/lib/lower-third-presets";
 import {
   PRESET_COLORS,
   generatePalette,
@@ -36,7 +39,7 @@ interface FlexibleSectionEditorModalProps {
   allSections?: Array<{ id: string; type: string; title?: string; displayName?: string; order: number }>;
 }
 
-type ActiveTab = "content" | "background" | "animation" | "overlay" | "triangle" | "spacing" | "preview";
+type ActiveTab = "content" | "background" | "animation" | "overlay" | "triangle" | "lower-third" | "motion" | "spacing" | "preview";
 
 export default function FlexibleSectionEditorModal({
   section,
@@ -156,6 +159,14 @@ export default function FlexibleSectionEditorModal({
   const [bgImageOpacity, setBgImageOpacity] = useState(section.bgImageOpacity ?? 100);
   const [bgParallax, setBgParallax] = useState(section.bgParallax || false);
 
+  // ── Motion Elements + Lower Third ────────────────────────────
+  const [motionElements, setMotionElements] = useState<MotionElement[]>(
+    (section as any).motionElements ?? []
+  );
+  const [lowerThird, setLowerThird] = useState<LowerThirdConfig>(
+    (section as any).lowerThird ?? DEFAULT_LOWER_THIRD
+  );
+
   // ── Save ──────────────────────────────────────────────────────
   const handleCancel = () => {
     try { localStorage.removeItem(draftKey); } catch {}
@@ -212,6 +223,8 @@ export default function FlexibleSectionEditorModal({
       bgImageRepeat,
       bgImageOpacity,
       bgParallax,
+      motionElements: motionElements,
+      lowerThird,
       content: {
         ...section.content,
         contentMode,
@@ -408,13 +421,15 @@ export default function FlexibleSectionEditorModal({
 
               {/* Tabs */}
               <ul className="nav nav-tabs mb-4">
-                {(["content", "background", "animation", "overlay", "triangle", "spacing"] as ActiveTab[]).map((tab) => {
+                {(["content", "background", "animation", "overlay", "triangle", "lower-third", "motion", "spacing"] as ActiveTab[]).map((tab) => {
                   const icons: Record<string, string> = {
                     content: "bi-grid-1x2",
                     background: "bi-image",
                     animation: "bi-stars",
                     overlay: "bi-layers",
                     triangle: "bi-triangle",
+                    "lower-third": "bi-layout-bottom",
+                    motion: "bi-film",
                     spacing: "bi-arrows-expand-vertical",
                   };
                   const labels: Record<string, string> = {
@@ -423,6 +438,8 @@ export default function FlexibleSectionEditorModal({
                     animation: "Animation",
                     overlay: "Text Overlay",
                     triangle: "Section Into",
+                    "lower-third": "Lower Third",
+                    motion: "Motion",
                     spacing: "Spacing",
                   };
                   return (
@@ -1151,6 +1168,38 @@ export default function FlexibleSectionEditorModal({
                     onPaddingTopChange={setPaddingTop}
                     onPaddingBottomChange={setPaddingBottom}
                   />
+                </div>
+              )}
+
+              {/* ══ LOWER THIRD TAB ═══════════════════════════════════════ */}
+              {activeTab === "lower-third" && (
+                <LowerThirdTab config={lowerThird} onChange={setLowerThird} />
+              )}
+
+              {/* ══ MOTION ELEMENTS TAB ══════════════════════════════════ */}
+              {activeTab === "motion" && (
+                <div className="p-3">
+                  <p className="text-muted small mb-3">
+                    Add parallax images that float, animate in, and loop while visible.
+                  </p>
+                  {motionElements.map((el, i) => (
+                    <MotionElementEditor
+                      key={el.id}
+                      element={el}
+                      onChange={(updated) =>
+                        setMotionElements((prev) => prev.map((e) => (e.id === el.id ? updated : e)))
+                      }
+                      onDelete={() => setMotionElements((prev) => prev.filter((_, idx) => idx !== i))}
+                    />
+                  ))}
+                  <button
+                    type="button"
+                    className="btn btn-outline-primary btn-sm w-100"
+                    onClick={() => setMotionElements((prev) => [...prev, createDefaultMotionElement()])}
+                  >
+                    <i className="bi bi-plus-circle me-1" />
+                    Add Motion Element
+                  </button>
                 </div>
               )}
 

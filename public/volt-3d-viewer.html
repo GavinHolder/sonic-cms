@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0f0f1a; overflow: hidden; }
+    canvas { display: block; width: 100vw; height: 100vh; }
+    #controls { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; }
+    .ctrl-btn { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+    .ctrl-btn:hover { background: rgba(255,255,255,0.2); }
+    #clip-label { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.6); font-size: 11px; font-family: monospace; }
+    #status { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); color: rgba(255,255,255,0.4); font-size: 13px; font-family: system-ui; }
+    #format-badge {
+      position: fixed; top: 12px; right: 12px;
+      background: rgba(99,102,241,0.25); border: 1px solid rgba(99,102,241,0.5);
+      color: rgba(255,255,255,0.8); font-size: 10px; font-family: monospace;
+      padding: 2px 7px; border-radius: 4px; text-transform: uppercase; letter-spacing: 1px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="status">Waiting for 3D object…</div>
+  <div id="clip-label" style="display:none"></div>
+  <div id="format-badge"></div>
+  <div id="controls" style="display:none">
+    <button class="ctrl-btn" id="btn-play">▶ Play</button>
+    <button class="ctrl-btn" id="btn-pause">⏸ Pause</button>
+    <button class="ctrl-btn" id="btn-stop">⏹ Stop</button>
+  </div>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.163.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three'
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+    import { FBXLoader }  from 'three/addons/loaders/FBXLoader.js'
+    import { OBJLoader }  from 'three/addons/loaders/OBJLoader.js'
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+
+    let renderer, scene, camera, controls, mixer, clock, animAction
+    let clips = [], isLowRes = false
+
+    // ── Format detection ─────────────────────────────────────────────────────
+    // Returns one of: 'glb' | 'gltf' | 'fbx' | 'obj'
+    // override (string) takes precedence when provided and not 'auto'.
+    function detectFormat(url, override) {
+      if (override && override !== 'auto') return override.toLowerCase()
+      const ext = (url || '').split('?')[0].split('.').pop().toLowerCase()
+      if (ext === 'glb')  return 'glb'
+      if (ext === 'gltf') return 'gltf'
+      if (ext === 'fbx')  return 'fbx'
+      if (ext === 'obj')  return 'obj'
+      return 'glb' // default fallback
+    }
+
+    function init(lowRes) {
+      isLowRes = lowRes
+      scene = new THREE.Scene()
+      camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 1000)
+      camera.position.set(0, 1, 4)
+
+      renderer = new THREE.WebGLRenderer({ antialias: !lowRes, alpha: true })
+      renderer.setPixelRatio(lowRes ? 1 : Math.min(window.devicePixelRatio, 2))
+      renderer.shadowMap.enabled = !lowRes
+      renderer.outputColorSpace = THREE.SRGBColorSpace
+      renderer.setSize(window.innerWidth, window.innerHeight)
+      document.body.appendChild(renderer.domElement)
+
+      // Lighting
+      scene.add(new THREE.AmbientLight(0xffffff, 0.8))
+      const key = new THREE.DirectionalLight(0xffffff, 1.5)
+      key.position.set(3, 5, 3)
+      scene.add(key)
+      const fill = new THREE.DirectionalLight(0xffffff, 0.3)
+      fill.position.set(-3, 2, -3)
+      scene.add(fill)
+
+      // OrbitControls
+      controls = new OrbitControls(camera, renderer.domElement)
+      controls.enableDamping = true
+      controls.dampingFactor = 0.05
+
+      window.addEventListener('resize', onResize)
+      animate()
+    }
+
+    function onResize() {
+      camera.aspect = window.innerWidth / window.innerHeight
+      camera.updateProjectionMatrix()
+      renderer.setSize(window.innerWidth, window.innerHeight)
+    }
+
+    function animate() {
+      requestAnimationFrame(animate)
+      const delta = clock ? clock.getDelta() : 0
+      mixer?.update(delta)
+      controls?.update()
+      renderer?.render(scene, camera)
+    }
+
+    // ── Post-load: fit, center, animate ──────────────────────────────────────
+    function onModelLoaded(model, modelClips, activeClip) {
+      model.userData.isModel = true
+
+      // Auto-fit to 2-unit bounding box
+      const box = new THREE.Box3().setFromObject(model)
+      const size = box.getSize(new THREE.Vector3())
+      const maxDim = Math.max(size.x, size.y, size.z)
+      if (maxDim > 0) model.scale.setScalar(2 / maxDim)
+
+      // Center at origin
+      box.setFromObject(model)
+      const center = box.getCenter(new THREE.Vector3())
+      model.position.sub(center)
+
+      scene.add(model)
+
+      // Animation
+      clips = modelClips || []
+      if (clips.length > 0) {
+        mixer = new THREE.AnimationMixer(model)
+        const targetClip = clips.find(c => c.name === activeClip) || clips[0]
+        animAction = mixer.clipAction(targetClip)
+        animAction.play()
+
+        document.getElementById('controls').style.display = 'flex'
+        const clipLabel = document.getElementById('clip-label')
+        clipLabel.textContent = targetClip.name
+        clipLabel.style.display = 'block'
+      }
+
+      document.getElementById('status').style.display = 'none'
+
+      // Notify parent
+      const clipData = clips.map((c, i) => ({
+        name: c.name,
+        duration: Math.round(c.duration * 1000) / 1000,
+        isDefault: i === 0
+      }))
+      window.parent.postMessage({ type: 'VOLT3D_READY', clips: clipData }, '*')
+
+      // Capture thumbnail after a short settle (let first frame render)
+      setTimeout(() => {
+        try {
+          renderer.render(scene, camera)
+          const thumb = renderer.domElement.toDataURL('image/jpeg', 0.6)
+          window.parent.postMessage({ type: 'VOLT3D_THUMB', thumb }, '*')
+        } catch (_) { /* cross-origin or WebGL issue — silently skip */ }
+      }, 150)
+    }
+
+    // ── Main loader — auto-detects format ─────────────────────────────────────
+    function load3D(assetUrl, activeClip, formatOverride) {
+      // Remove previous model
+      scene.children.filter(c => c.userData.isModel).forEach(c => scene.remove(c))
+
+      // Reset animation state
+      if (mixer) { mixer.stopAllAction(); mixer = null }
+      animAction = null; clips = []
+      document.getElementById('controls').style.display = 'none'
+      document.getElementById('clip-label').style.display = 'none'
+
+      document.getElementById('status').textContent = 'Loading…'
+      document.getElementById('status').style.display = 'block'
+      clock = new THREE.Clock()
+
+      const fmt = detectFormat(assetUrl, formatOverride)
+
+      // Show format badge
+      const badge = document.getElementById('format-badge')
+      badge.textContent = fmt
+      badge.style.display = 'block'
+
+      const onError = (err) => {
+        document.getElementById('status').textContent = `Failed to load ${fmt.toUpperCase()} model`
+        document.getElementById('status').style.display = 'block'
+        console.error(`${fmt} load error:`, err)
+      }
+
+      if (fmt === 'fbx') {
+        const loader = new FBXLoader()
+        loader.load(assetUrl, (fbx) => {
+          onModelLoaded(fbx, fbx.animations || [], activeClip)
+        }, undefined, onError)
+
+      } else if (fmt === 'obj') {
+        const loader = new OBJLoader()
+        loader.load(assetUrl, (obj) => {
+          onModelLoaded(obj, [], null)
+        }, undefined, onError)
+
+      } else {
+        // Default: GLB / GLTF — use GLTFLoader
+        const loader = new GLTFLoader()
+        loader.load(assetUrl, (gltf) => {
+          onModelLoaded(gltf.scene, gltf.animations || [], activeClip)
+        }, undefined, onError)
+      }
+    }
+
+    function playClip(clipName) {
+      if (!mixer || clips.length === 0) return
+      const target = clipName ? clips.find(c => c.name === clipName) : null
+      if (target && animAction?.getClip().name !== target.name) {
+        animAction?.stop()
+        animAction = mixer.clipAction(target)
+        const clipLabel = document.getElementById('clip-label')
+        clipLabel.textContent = target.name
+      }
+      if (animAction?.paused) {
+        animAction.paused = false
+      } else {
+        animAction?.play()
+      }
+    }
+
+    // Message listener
+    window.addEventListener('message', (e) => {
+      const d = e.data
+      if (!d?.type) return
+      if (d.type === 'VOLT3D_LOAD') {
+        if (!renderer) init(d.lowRes || false)
+        // Accept both legacy glbUrl and new assetUrl; support optional format override
+        load3D(d.assetUrl || d.glbUrl, d.activeClip, d.format || 'auto')
+      } else if (d.type === 'VOLT3D_PLAY') {
+        playClip(d.clip)
+      } else if (d.type === 'VOLT3D_PAUSE') {
+        if (animAction) animAction.paused = true
+      } else if (d.type === 'VOLT3D_STOP') {
+        if (animAction) {
+          animAction.stop()
+          animAction.play()
+          animAction.paused = true
+          animAction.time = 0
+        }
+        if (mixer) mixer.update(0)
+      }
+    })
+
+    // Button controls
+    document.getElementById('btn-play').addEventListener('click', () => playClip())
+    document.getElementById('btn-pause').addEventListener('click', () => {
+      if (animAction) animAction.paused = true
+    })
+    document.getElementById('btn-stop').addEventListener('click', () => {
+      if (animAction) {
+        animAction.stop()
+        animAction.play()
+        animAction.paused = true
+        animAction.time = 0
+      }
+    })
+
+    // Ready signal
+    window.parent.postMessage({ type: 'VOLT3D_VIEWER_READY' }, '*')
+  </script>
+</body>
+</html>

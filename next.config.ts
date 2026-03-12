@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   devIndicators: false,
   reactStrictMode: true,
+  transpilePackages: ["three"],
   // Required for Docker production builds (creates .next/standalone/)
   output: "standalone",
   // Allow deployment despite pre-existing TS errors — fix incrementally

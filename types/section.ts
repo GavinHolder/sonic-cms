@@ -25,9 +25,6 @@ export type BannerSection = NormalSection;
 export type TableSection = NormalSection;
 export type CTAFooterSection = CTASection;
 
-/** CSS isolation mode for freeform sections */
-export type CSSIsolationMode = "global" | "scoped" | "shadow";
-
 /** Page config type (used in section-data.ts localStorage layer) */
 export interface PageConfig {
   id: string;
@@ -92,6 +89,83 @@ export interface ButtonConfig {
   text: string;
   href: string;
   variant?: "primary" | "secondary" | "outline";
+}
+
+// ─── Lower Third Graphic ─────────────────────────────────────────────────────
+
+export type LowerThirdPreset =
+  | "wave"
+  | "diagonal"
+  | "arch"
+  | "stepped"
+  | "mountain"
+  | "blob"
+  | "chevron"
+  | "ripple";
+
+export interface LowerThirdConfig {
+  enabled: boolean;
+  mode: "preset" | "image";
+  preset: LowerThirdPreset;
+  presetColor: string;        // hex e.g. "#ffffff"
+  presetOpacity: number;      // 0–1
+  imageSrc: string;           // URL for image mode
+  height: number;             // px, 40–400
+  flipHorizontal: boolean;
+  flipVertical: boolean;
+}
+
+// ─── Motion / Parallax Elements ──────────────────────────────────────────────
+
+export type MotionEntranceDirection = "top" | "bottom" | "left" | "right";
+export type MotionIdleType = "float" | "bob" | "rotate" | "pulse" | "sway";
+
+export interface MotionElementParallax {
+  enabled: boolean;
+  /** -1 to 1. Positive = moves in scroll direction (slower). Negative = counter-scroll. */
+  speed: number;
+}
+
+export interface MotionElementEntrance {
+  enabled: boolean;
+  direction: MotionEntranceDirection;
+  distance: number;   // px to travel
+  duration: number;   // ms
+  delay: number;      // ms
+  easing: string;     // anime.js easing string
+}
+
+export interface MotionElementExit {
+  enabled: boolean;
+  direction: MotionEntranceDirection;
+  distance: number;
+  duration: number;
+}
+
+export interface MotionElementIdle {
+  enabled: boolean;
+  type: MotionIdleType;
+  speed: number;       // 0.5–3 multiplier
+  amplitude: number;   // px or deg
+}
+
+export interface MotionElement {
+  id: string;
+  src: string;
+  alt: string;
+  // Position (CSS values, absolute within section)
+  top?: string;
+  left?: string;
+  right?: string;
+  bottom?: string;
+  width: string;        // e.g. "300px" or "25%"
+  opacity?: number;     // 0–100, default 100
+  zIndex: number;       // legacy — kept for backward compat; use layer when set
+  layer?: "behind" | "above-lower-third" | "above-content"; // NEW
+  parallax: MotionElementParallax;
+  entrance: MotionElementEntrance;
+  exit: MotionElementExit;
+  idle: MotionElementIdle;
 }
 
 /**
@@ -161,6 +235,11 @@ export interface BaseSectionConfig {
 
   // Content height mode
   contentMode?: "single" | "multi"; // "single" = 100vh locked, "multi" = >100vh allowed
+
+  // Motion/parallax overlay elements (z-index 20, above content and lower-third)
+  motionElements?: MotionElement[];
+  // Lower third decorative graphic (z-index 10, below motion elements)
+  lowerThird?: LowerThirdConfig;
 
   // Content (flexible JSON structure for each section type)
   content: Record<string, any>;
@@ -403,8 +482,7 @@ export interface NormalSection extends BaseSectionConfig {
       | "text-image"
       | "image-text"
       | "grid"
-      | "columns"
-      | "freeform";
+      | "columns";
     layoutPreset?: LayoutPreset; // Layout-specific positioning preset
     // Flexible content for different layouts
     items?: Array<Record<string, any>>;

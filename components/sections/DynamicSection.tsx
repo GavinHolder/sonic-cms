@@ -1,15 +1,21 @@
-import React from "react";
+'use client'
+
+import React, { useRef } from "react";
 import dynamic from "next/dynamic";
 import DOMPurify from "isomorphic-dompurify";
 import HeroCarousel from "./HeroCarousel";
 
 const AnimBgRenderer = dynamic(() => import("./AnimBgRenderer"), { ssr: false });
+const MotionElementRenderer = dynamic(() => import("./MotionElementRenderer"), { ssr: false });
+const VoltRenderer = dynamic(() => import('@/components/volt/VoltRenderer'), { ssr: false });
+const Volt3DRenderer = dynamic(() => import('./Volt3DRenderer'), { ssr: false })
 import TextImageSection from "./TextImageSection";
 import StatsGrid from "./StatsGrid";
 import CardGrid from "./CardGrid";
 import CTAFooter from "./CTAFooter";
 import FlexibleSectionRenderer from "./FlexibleSectionRenderer";
 import TriangleSectionWrapper from "./TriangleSectionWrapper";
+import LowerThirdRenderer from "./LowerThirdRenderer";
 import SectionTextOverlay from "./SectionTextOverlay";
 import Section from "@/components/layout/Section";
 import {
@@ -25,6 +31,7 @@ import type {
   NormalSection,
   FlexibleSection,
 } from "@/types/section";
+import type { VoltElementData } from '@/types/volt'
 
 /**
  * DynamicSection Component
@@ -33,7 +40,7 @@ import type {
  * This is the bridge between backend data and React components.
  *
  * Supports visual override mode: when a section has visualOverride.enabled = true,
- * it renders the GrapesJS-generated HTML instead of the structured component.
+ * it renders custom HTML instead of the structured component.
  *
  * Usage:
  * ```tsx
@@ -61,10 +68,80 @@ function shouldShowTriangle(section: SectionConfig, isFirstAfterHero: boolean): 
   return true;
 }
 
+/** Wraps any section JSX with LowerThirdRenderer and/or MotionElementRenderer if configured */
+function wrapSection(section: SectionConfig, el: React.ReactElement): React.ReactElement {
+  const hasLt = section.lowerThird?.enabled;
+  const hasMotion = section.motionElements && section.motionElements.length > 0;
+  if (!hasLt && !hasMotion) return el;
+
+  return (
+    <div style={{ position: "relative" }}>
+      {/* z-index 10: section content sits above "behind" motion layer (z:5) but below
+          "above-lower-third" (z:15) and "above-content" (z:25) motion layers */}
+      <div style={{ position: "relative", zIndex: 10 }}>{el}</div>
+      {hasLt && <LowerThirdRenderer config={section.lowerThird!} />}
+      {hasMotion && (
+        <MotionElementRenderer elements={section.motionElements!} sectionId={section.id} />
+      )}
+    </div>
+  );
+}
+
 export default function DynamicSection({ section, isFirstAfterHero = false }: DynamicSectionProps) {
+  const sectionRef = useRef<HTMLElement | null>(null)
+
   // Don't render disabled sections
   if (!section.enabled) {
     return null;
+  }
+
+  // ⚡ Volt Studio — renders volt design when applied to this section
+  if ((section as any).voltElementId && (section as any).voltElement) {
+    const voltEl = (section as any).voltElement as VoltElementData
+    const slotMap = (section as any).voltSlotMap ?? {}
+    const sectionContent = (section as any).content ?? {}
+
+    const slots: Record<string, string> = {}
+    for (const [slotId, fieldName] of Object.entries(slotMap)) {
+      const val = sectionContent[fieldName as string]
+      if (typeof val === 'string') slots[slotId] = val
+    }
+
+    const wrapped = wrapSection(section, (
+      <section
+        ref={sectionRef}
+        id={section.id}
+        data-section-id={section.id}
+        className="cms-section"
+        style={{
+          '--section-bg': 'transparent',
+          '--section-pt': `${section.paddingTop ?? 80}px`,
+          '--section-pb': `${section.paddingBottom ?? 80}px`,
+        } as React.CSSProperties}
+      >
+        <div className="section-content-wrapper">
+          <VoltRenderer voltElement={voltEl} slots={slots} style={{ width: '100%', height: '100%' }} />
+        </div>
+        {voltEl.layers
+          .filter(l => l.type === '3d-object' && l.visible !== false && l.object3DData?.assetUrl)
+          .map(l => (
+            <Volt3DRenderer
+              key={l.id}
+              data={l.object3DData!}
+              x={l.x}
+              y={l.y}
+              width={l.width}
+              height={l.height}
+              sectionRef={sectionRef}
+            />
+          ))}
+      </section>
+    ))
+
+    if (shouldShowTriangle(section, isFirstAfterHero)) {
+      return <TriangleSectionWrapper section={section}>{wrapped}</TriangleSectionWrapper>
+    }
+    return wrapped
   }
 
   // Cast to any for legacy kebab-case branches that access non-typed properties
@@ -94,10 +171,11 @@ export default function DynamicSection({ section, isFirstAfterHero = false }: Dy
           snapThreshold={s.snapThreshold}
         />
       );
+      const wrapped = wrapSection(section, el);
       if (shouldShowTriangle(section, isFirstAfterHero)) {
-        return <TriangleSectionWrapper section={section}>{el}</TriangleSectionWrapper>;
+        return <TriangleSectionWrapper section={section}>{wrapped}</TriangleSectionWrapper>;
       }
-      return el;
+      return wrapped;
     }
 
     case "stats-grid": {
@@ -116,10 +194,11 @@ export default function DynamicSection({ section, isFirstAfterHero = false }: Dy
           snapThreshold={s.snapThreshold}
         />
       );
+      const wrapped = wrapSection(section, el);
       if (shouldShowTriangle(section, isFirstAfterHero)) {
-        return <TriangleSectionWrapper section={section}>{el}</TriangleSectionWrapper>;
+        return <TriangleSectionWrapper section={section}>{wrapped}</TriangleSectionWrapper>;
       }
-      return el;
+      return wrapped;
     }
 
     case "card-grid": {
@@ -138,10 +217,11 @@ export default function DynamicSection({ section, isFirstAfterHero = false }: Dy
           snapThreshold={s.snapThreshold}
         />
       );
+      const wrapped = wrapSection(section, el);
       if (shouldShowTriangle(section, isFirstAfterHero)) {
-        return <TriangleSectionWrapper section={section}>{el}</TriangleSectionWrapper>;
+        return <TriangleSectionWrapper section={section}>{wrapped}</TriangleSectionWrapper>;
       }
-      return el;
+      return wrapped;
     }
 
     case "banner": {
@@ -168,10 +248,11 @@ export default function DynamicSection({ section, isFirstAfterHero = false }: Dy
           </Banner>
         </div>
       );
+      const wrapped = wrapSection(section, el);
       if (shouldShowTriangle(section, isFirstAfterHero)) {
-        return <TriangleSectionWrapper section={section}>{el}</TriangleSectionWrapper>;
+        return <TriangleSectionWrapper section={section}>{wrapped}</TriangleSectionWrapper>;
       }
-      return el;
+      return wrapped;
     }
 
     case "table":
@@ -239,19 +320,21 @@ export default function DynamicSection({ section, isFirstAfterHero = false }: Dy
           snapThreshold={s.snapThreshold}
         />
       );
+      const wrapped = wrapSection(section, el);
       if (shouldShowTriangle(section, isFirstAfterHero)) {
-        return <TriangleSectionWrapper section={section}>{el}</TriangleSectionWrapper>;
+        return <TriangleSectionWrapper section={section}>{wrapped}</TriangleSectionWrapper>;
       }
-      return el;
+      return wrapped;
     }
 
     case "flexible":
     case "FLEXIBLE": {
       const el = <FlexibleSectionRenderer section={section as FlexibleSection} />;
+      const wrapped = wrapSection(section, el);
       if (shouldShowTriangle(section, isFirstAfterHero)) {
-        return <TriangleSectionWrapper section={section}>{el}</TriangleSectionWrapper>;
+        return <TriangleSectionWrapper section={section}>{wrapped}</TriangleSectionWrapper>;
       }
-      return el;
+      return wrapped;
     }
 
     case "footer":
@@ -263,19 +346,21 @@ export default function DynamicSection({ section, isFirstAfterHero = false }: Dy
     case "cta":
     case "CTA": {
       const el = <CTARenderer section={section as CTASection} />;
+      const wrapped = wrapSection(section, el);
       if (shouldShowTriangle(section, isFirstAfterHero)) {
-        return <TriangleSectionWrapper section={section}>{el}</TriangleSectionWrapper>;
+        return <TriangleSectionWrapper section={section}>{wrapped}</TriangleSectionWrapper>;
       }
-      return el;
+      return wrapped;
     }
 
     case "normal":
     case "NORMAL": {
       const el = <NormalRenderer section={section as NormalSection} />;
+      const wrapped = wrapSection(section, el);
       if (shouldShowTriangle(section, isFirstAfterHero)) {
-        return <TriangleSectionWrapper section={section}>{el}</TriangleSectionWrapper>;
+        return <TriangleSectionWrapper section={section}>{wrapped}</TriangleSectionWrapper>;
       }
-      return el;
+      return wrapped;
     }
 
     default:
@@ -872,7 +957,7 @@ function NormalRenderer({ section }: { section: NormalSection }) {
         />
       )}
 
-      <div className="section-content-wrapper" style={{ position: "relative", zIndex: 11 }}>
+      <div className="section-content-wrapper" style={{ position: "relative", zIndex: 20 }}>
         <div className="container">
           {content.heading && (
             <h2 className={`fw-bold mb-2 ${textClass}`}>{content.heading}</h2>

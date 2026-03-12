@@ -737,6 +737,21 @@ The designer opens as a **full-screen iframe** with a block panel on the left an
 
 Set via: Section editor → Content tab → **Content Mode** dropdown.
 
+> **Landing page badge:** Section cards in the admin show a **single-block** or **multi-block** badge (info colour) for Flexible sections so you can identify content mode at a glance without opening the editor.
+
+---
+
+## Motion Elements &amp; Lower Third (Flexible Sections)
+
+Flexible sections now support the same **Motion Elements** and **Lower Third** tabs as Normal and CTA sections:
+
+| Tab | What it does |
+|-----|-------------|
+| **Motion** | Add floating/parallax image overlays with 3-tier depth control (Behind / Above Shape / Above Content) |
+| **Lower Third** | Add a decorative SVG shape or image to the bottom of the section |
+
+See **Animations &amp; Motion → Motion &amp; Parallax Elements** and **Animations &amp; Motion → Lower Third Graphic** for full documentation on these features.
+
 ---
 
 ## Positioning Mode
@@ -833,11 +848,41 @@ The block panel on the left contains 10 element types. **Card, Banner, and Stats
 
 A free-form text container. Unlike other blocks, the **Text Block has no visible border** — sub-elements are fully transparent so the canvas preview looks exactly like the live page. A subtle outline appears only on hover or selection to show element boundaries.
 
+### Quick Presets
+
+When a Text Block is **empty**, clicking **\`+ add\`** shows a **⚡ Quick Presets** section at the top of the picker with ready-made layouts:
+
+**Single Column**
+| Preset | Elements |
+|--------|----------|
+| Heading + Body | H2 + Paragraph |
+| Heading + Body + Button | H2 + Paragraph + Button |
+| Title + Subhead | H1 + H4 |
+| Badge + Heading + Body | Badge + H2 + Paragraph |
+| Heading + Body + Image | H2 + Paragraph + Image |
+
+**Two Column** (side-by-side sub-elements)
+| Preset | Elements |
+|--------|----------|
+| 2-Col: Title \| Body | H2 left + Paragraph right |
+| 2-Col: Heading + Body each | H2+Para left + H2+Para right |
+| 2-Col: Text \| Image | H2+Para left + Image right |
+
+**Three Column**
+| Preset | Elements |
+|--------|----------|
+| 3-Col: Heading + Body each | H3+Para in each of 3 columns |
+| 3-Col: Icon + Heading + Body | Icon+H4+Para in each column |
+
+Column presets use pixel \`x\`/\`w\` positioning on sub-elements — drag the edge handle to resize each column.
+
+---
+
 ### How to use
 
 1. **Drag "Text"** from the block panel onto the canvas — it drops as an empty 600×80 frame
 2. Click the **\`+ add\`** button (top-right of the block header) to open the element picker
-3. Choose a sub-element type:
+3. Choose a preset (for empty blocks) or add individually:
 
 | Element | Level | Default Size |
 |---------|-------|-------------|
@@ -1875,6 +1920,975 @@ The audit checks:
 `;
 
 // ─────────────────────────────────────────────
+// ANIMATIONS & MOTION CONTENT
+// ─────────────────────────────────────────────
+
+export const LOWER_THIRD_DOCS = `
+<h4>Lower Third Graphic</h4>
+<p class="lead">Add a decorative SVG shape or custom image to the <strong>bottom of any section</strong> — perfect for creating smooth transitions between sections or adding visual flair.</p>
+
+<h5 class="mt-4">Z-Index Layer Order</h5>
+<div class="alert alert-info">
+  <table class="table table-sm table-borderless mb-0">
+    <tbody>
+      <tr><td><code>z-index 2</code></td><td>Animated background (AnimBg)</td></tr>
+      <tr><td><code>z-index 5</code></td><td>Motion elements — <strong>Behind</strong> layer</td></tr>
+      <tr><td><code>z-index 10</code></td><td class="fw-bold text-primary">↑ Lower Third Graphic ← HERE</td></tr>
+      <tr><td><code>z-index 15</code></td><td>Motion elements — <strong>Above Shape</strong> layer</td></tr>
+      <tr><td><code>z-index 20</code></td><td>Section content (text, cards, blocks)</td></tr>
+      <tr><td><code>z-index 25</code></td><td>Motion elements — <strong>Above Content</strong> layer</td></tr>
+      <tr><td><code>z-index 50</code></td><td>Triangle / Section Intro shape (always on top)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h5 class="mt-4">8 Preset Shapes</h5>
+<p>Click any preset in the <strong>Lower Third</strong> tab of the Normal or CTA section editor to apply it.</p>
+
+<div class="row g-3 mb-4">
+  <div class="col-6">
+    <div class="border rounded p-2">
+      <div class="fw-semibold small mb-2">Wave</div>
+      <svg viewBox="0 0 240 60" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:60px;display:block;">
+        <rect width="240" height="60" fill="#e2e8f0"/>
+        <path d="M0,60 C60,0 180,60 240,0 L240,60 Z" fill="#6366f1" opacity="0.85"/>
+      </svg>
+      <p class="text-muted small mt-1 mb-0">Smooth sine curve — most popular for section transitions</p>
+    </div>
+  </div>
+  <div class="col-6">
+    <div class="border rounded p-2">
+      <div class="fw-semibold small mb-2">Diagonal</div>
+      <svg viewBox="0 0 240 60" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:60px;display:block;">
+        <rect width="240" height="60" fill="#e2e8f0"/>
+        <path d="M0,60 L240,0 L240,60 Z" fill="#6366f1" opacity="0.85"/>
+      </svg>
+      <p class="text-muted small mt-1 mb-0">Clean angled cut — modern, minimal look</p>
+    </div>
+  </div>
+  <div class="col-6">
+    <div class="border rounded p-2">
+      <div class="fw-semibold small mb-2">Arch</div>
+      <svg viewBox="0 0 240 60" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:60px;display:block;">
+        <rect width="240" height="60" fill="#e2e8f0"/>
+        <path d="M0,60 Q120,0 240,60 Z" fill="#6366f1" opacity="0.85"/>
+      </svg>
+      <p class="text-muted small mt-1 mb-0">Single arch — great for hero sections</p>
+    </div>
+  </div>
+  <div class="col-6">
+    <div class="border rounded p-2">
+      <div class="fw-semibold small mb-2">Stepped</div>
+      <svg viewBox="0 0 240 60" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:60px;display:block;">
+        <rect width="240" height="60" fill="#e2e8f0"/>
+        <path d="M0,60 L0,30 L120,30 L120,0 L240,0 L240,60 Z" fill="#6366f1" opacity="0.85"/>
+      </svg>
+      <p class="text-muted small mt-1 mb-0">Two-step staircase — bold geometric statement</p>
+    </div>
+  </div>
+  <div class="col-6">
+    <div class="border rounded p-2">
+      <div class="fw-semibold small mb-2">Mountain</div>
+      <svg viewBox="0 0 240 60" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:60px;display:block;">
+        <rect width="240" height="60" fill="#e2e8f0"/>
+        <path d="M0,60 L72,12 L120,36 L168,6 L240,60 Z" fill="#6366f1" opacity="0.85"/>
+      </svg>
+      <p class="text-muted small mt-1 mb-0">Double peak — dramatic, ideal for outdoor/nature brands</p>
+    </div>
+  </div>
+  <div class="col-6">
+    <div class="border rounded p-2">
+      <div class="fw-semibold small mb-2">Blob</div>
+      <svg viewBox="0 0 240 60" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:60px;display:block;">
+        <rect width="240" height="60" fill="#e2e8f0"/>
+        <path d="M0,60 C24,24 72,6 120,18 C168,30 216,0 240,12 L240,60 Z" fill="#6366f1" opacity="0.85"/>
+      </svg>
+      <p class="text-muted small mt-1 mb-0">Organic asymmetric — playful, creative brands</p>
+    </div>
+  </div>
+  <div class="col-6">
+    <div class="border rounded p-2">
+      <div class="fw-semibold small mb-2">Chevron</div>
+      <svg viewBox="0 0 240 60" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:60px;display:block;">
+        <rect width="240" height="60" fill="#e2e8f0"/>
+        <path d="M0,60 L120,0 L240,60 Z" fill="#6366f1" opacity="0.85"/>
+      </svg>
+      <p class="text-muted small mt-1 mb-0">V-shape — sharp, energetic, arrow-like</p>
+    </div>
+  </div>
+  <div class="col-6">
+    <div class="border rounded p-2">
+      <div class="fw-semibold small mb-2">Ripple</div>
+      <svg viewBox="0 0 240 60" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:60px;display:block;">
+        <rect width="240" height="60" fill="#e2e8f0"/>
+        <path d="M0,60 C60,30 60,0 120,12 C180,24 180,0 240,6 L240,60 Z" fill="#6366f1" opacity="0.85"/>
+      </svg>
+      <p class="text-muted small mt-1 mb-0">Double wave — water/fluid theme, layered depth</p>
+    </div>
+  </div>
+</div>
+
+<h5 class="mt-4">Settings Reference</h5>
+<table class="table table-sm">
+  <thead class="table-light"><tr><th>Setting</th><th>Options</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>Enable</td><td>Toggle</td><td>On/Off without losing settings</td></tr>
+    <tr><td>Mode</td><td>Preset Shape / Upload Image</td><td>Upload transparent PNG or SVG for custom shapes</td></tr>
+    <tr><td>Preset</td><td>8 shapes (see above)</td><td>Click tile to select</td></tr>
+    <tr><td>Fill Color</td><td>Color picker</td><td>Usually match the next section's background color</td></tr>
+    <tr><td>Opacity</td><td>0–100%</td><td>Lower opacity = see-through layered effect</td></tr>
+    <tr><td>Height</td><td>40–400px</td><td>Taller = more dramatic transition</td></tr>
+    <tr><td>Flip Horizontal</td><td>Toggle</td><td>Mirrors the shape left–right</td></tr>
+    <tr><td>Flip Vertical</td><td>Toggle</td><td>Mirrors the shape top–bottom (cuts from section top instead)</td></tr>
+  </tbody>
+</table>
+
+<div class="alert alert-success mt-3">
+  <strong>Pro Tip:</strong> Set the lower third color to match the <em>next</em> section's background. A blue section with a white wave lower third leading into a white section creates a seamless flow.
+</div>
+`;
+
+export const MOTION_ELEMENTS_DOCS = `
+<style>
+@keyframes cms-float {
+  0%,100% { transform: translateY(-13px); }
+  50%     { transform: translateY(13px); }
+}
+@keyframes cms-bob {
+  0%,100% { transform: translateY(0px); }
+  50%     { transform: translateY(-20px); }
+}
+@keyframes cms-rotate {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+@keyframes cms-pulse {
+  0%,100% { transform: scale(1); }
+  50%     { transform: scale(1.35); }
+}
+@keyframes cms-sway {
+  0%,100% { transform: rotateZ(-16deg); }
+  50%     { transform: rotateZ(16deg); }
+}
+@keyframes cms-slide-in-right {
+  0%   { transform: translateX(120px); opacity: 0; }
+  100% { transform: translateX(0px);  opacity: 1; }
+}
+@keyframes cms-parallax-slow {
+  0%   { transform: translateY(0px); }
+  50%  { transform: translateY(-20px); }
+  100% { transform: translateY(0px); }
+}
+@keyframes cms-parallax-fast {
+  0%   { transform: translateY(0px); }
+  50%  { transform: translateY(-50px); }
+  100% { transform: translateY(0px); }
+}
+@keyframes cms-parallax-counter {
+  0%   { transform: translateY(0px); }
+  50%  { transform: translateY(30px); }
+  100% { transform: translateY(0px); }
+}
+@keyframes cms-scroll-bg {
+  0%   { background-position: 0 0; }
+  100% { background-position: 0 100%; }
+}
+.cms-idle-icon { display:inline-block; width:44px; height:44px; border-radius:8px; }
+</style>
+
+<h4>Motion &amp; Parallax Elements</h4>
+<p class="lead">Layer animated images over any section — transparent PNGs, SVGs, or decorative graphics that <strong>float, slide, rotate, and parallax-scroll</strong> independently of the page content.</p>
+
+<div class="alert alert-info mb-4">
+  <strong>3-Tier Depth System</strong> — Each motion element has a <strong>Layer</strong> setting that controls where it sits in the z-stack:
+  <table class="table table-sm table-borderless mb-0 mt-2">
+    <thead><tr><th>Layer</th><th>Z-Index</th><th>Sits between</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Behind All</strong> (default)</td><td><code>5</code></td><td>AnimBg ↔ Lower Third — behind everything</td></tr>
+      <tr><td><strong>Above Shape</strong></td><td><code>15</code></td><td>Lower Third ↔ Section Content — above the shape, below text/cards</td></tr>
+      <tr><td><strong>Above Content</strong></td><td><code>25</code></td><td>Above text and cards — use for foreground decorations</td></tr>
+    </tbody>
+  </table>
+  Triangle shapes always render at <code>z-50</code> regardless of motion element layer.
+</div>
+
+<h5 class="mt-2 mb-3">The 4 Animation Modes</h5>
+<p class="text-muted small">Each motion element can combine any or all of these independently:</p>
+
+<div class="row g-3 mb-4">
+
+  <div class="col-12">
+    <div class="border rounded p-3">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <span class="badge bg-primary">Mode 1</span>
+        <strong>Scroll Parallax</strong>
+      </div>
+      <p class="small mb-3">The element moves at a different speed than the page scroll — creating a 3D depth illusion. Speed is a multiplier from <code>-1.0</code> to <code>+1.0</code>.</p>
+      <div class="d-flex gap-4 align-items-end flex-wrap" style="overflow:hidden;border:1px solid #dee2e6;border-radius:6px;background:#f8f9fa;padding:16px 12px;min-height:110px;position:relative;">
+        <div class="text-center" style="position:relative;">
+          <div style="width:40px;height:40px;background:#6c757d;border-radius:6px;margin:0 auto 4px;animation:cms-parallax-slow 3s ease-in-out infinite;"></div>
+          <code style="font-size:0.7rem">speed 0.3</code>
+          <div class="text-muted" style="font-size:0.65rem">moves slower</div>
+        </div>
+        <div class="text-center">
+          <div style="width:40px;height:40px;background:#3b82f6;border-radius:6px;margin:0 auto 4px;animation:cms-parallax-slow 1.5s ease-in-out infinite;"></div>
+          <code style="font-size:0.7rem">speed 0.7</code>
+          <div class="text-muted" style="font-size:0.65rem">moves much slower</div>
+        </div>
+        <div class="text-center">
+          <div style="width:40px;height:40px;background:#10b981;border-radius:6px;margin:0 auto 4px;"></div>
+          <code style="font-size:0.7rem">speed 0</code>
+          <div class="text-muted" style="font-size:0.65rem">no parallax</div>
+        </div>
+        <div class="text-center">
+          <div style="width:40px;height:40px;background:#ec4899;border-radius:6px;margin:0 auto 4px;animation:cms-parallax-counter 3s ease-in-out infinite;"></div>
+          <code style="font-size:0.7rem">speed -0.3</code>
+          <div class="text-muted" style="font-size:0.65rem">counter-scrolls</div>
+        </div>
+        <div class="text-center">
+          <div style="width:40px;height:40px;background:#f59e0b;border-radius:6px;margin:0 auto 4px;animation:cms-parallax-fast 2s ease-in-out infinite;"></div>
+          <code style="font-size:0.7rem">speed 1.0</code>
+          <div class="text-muted" style="font-size:0.65rem">max depth effect</div>
+        </div>
+        <div class="text-muted" style="position:absolute;bottom:6px;right:10px;font-size:0.65rem;">↕ simulating scroll</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="border rounded p-3">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <span class="badge bg-success">Mode 2</span>
+        <strong>Scroll Entrance</strong>
+      </div>
+      <p class="small mb-3">When the section scrolls into view, the element animates in from a chosen direction. The box below shows a <strong>right → center</strong> entrance repeating:</p>
+      <div style="height:64px;overflow:hidden;border:1px solid #dee2e6;border-radius:6px;background:#f8f9fa;position:relative;display:flex;align-items:center;padding:0 12px;">
+        <div style="width:50px;height:36px;background:#3b82f6;border-radius:6px;animation:cms-slide-in-right 1.8s ease-out infinite;display:flex;align-items:center;justify-content:center;">
+          <span style="color:#fff;font-size:0.65rem;font-weight:600;">↠ in</span>
+        </div>
+        <div class="ms-3 text-muted small">direction: <strong>right</strong> | distance: <strong>120px</strong> | duration: <strong>800ms</strong> | easing: <strong>easeOutCubic</strong></div>
+      </div>
+      <div class="row g-2 mt-2">
+        <div class="col-6"><small><strong>Direction:</strong> top / bottom / left / right</small></div>
+        <div class="col-6"><small><strong>Distance:</strong> px to travel</small></div>
+        <div class="col-6"><small><strong>Duration:</strong> ms (e.g. 800ms)</small></div>
+        <div class="col-6"><small><strong>Delay:</strong> ms before start (stagger multiple elements)</small></div>
+        <div class="col-12"><small><strong>Easing:</strong> easeOutCubic / easeOutBack / easeInOutSine / linear</small></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="border rounded p-3">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <span class="badge bg-warning text-dark">Mode 3</span>
+        <strong>Scroll Exit</strong>
+      </div>
+      <p class="small mb-0">When the section scrolls out of view, the element animates away. Combine with entrance for a full enter/leave lifecycle.</p>
+      <div class="row g-2 mt-2">
+        <div class="col-6"><small><strong>Direction:</strong> which way it leaves</small></div>
+        <div class="col-6"><small><strong>Distance:</strong> how far it travels before disappearing</small></div>
+        <div class="col-12"><small><strong>Duration:</strong> exit speed in ms</small></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="border rounded p-3">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <span class="badge bg-danger">Mode 4</span>
+        <strong>Idle Loop</strong>
+      </div>
+      <p class="small mb-3">While the section is visible, the element loops a continuous animation. Stops automatically when section leaves viewport.</p>
+      <div class="row g-3 text-center">
+        <div class="col-4 col-md-2">
+          <div style="height:64px;display:flex;align-items:center;justify-content:center;">
+            <div class="cms-idle-icon" style="background:#6366f1;animation:cms-float 2s ease-in-out infinite;"></div>
+          </div>
+          <div class="small fw-semibold mt-1">Float</div>
+          <div class="text-muted" style="font-size:0.7rem">up-down oscillation</div>
+        </div>
+        <div class="col-4 col-md-2">
+          <div style="height:64px;display:flex;align-items:center;justify-content:center;">
+            <div class="cms-idle-icon" style="background:#10b981;animation:cms-bob 1.6s ease-in-out infinite;"></div>
+          </div>
+          <div class="small fw-semibold mt-1">Bob</div>
+          <div class="text-muted" style="font-size:0.7rem">gentle lift &amp; return</div>
+        </div>
+        <div class="col-4 col-md-2">
+          <div style="height:64px;display:flex;align-items:center;justify-content:center;">
+            <div class="cms-idle-icon" style="background:#f59e0b;animation:cms-rotate 2.5s linear infinite;"></div>
+          </div>
+          <div class="small fw-semibold mt-1">Rotate</div>
+          <div class="text-muted" style="font-size:0.7rem">continuous spin</div>
+        </div>
+        <div class="col-4 col-md-2">
+          <div style="height:64px;display:flex;align-items:center;justify-content:center;">
+            <div class="cms-idle-icon" style="background:#ef4444;border-radius:50%;animation:cms-pulse 1.4s ease-in-out infinite;"></div>
+          </div>
+          <div class="small fw-semibold mt-1">Pulse</div>
+          <div class="text-muted" style="font-size:0.7rem">scale in and out</div>
+        </div>
+        <div class="col-4 col-md-2">
+          <div style="height:64px;display:flex;align-items:center;justify-content:center;">
+            <div class="cms-idle-icon" style="background:#8b5cf6;border-radius:4px;animation:cms-sway 2s ease-in-out infinite;transform-origin:center bottom;"></div>
+          </div>
+          <div class="small fw-semibold mt-1">Sway</div>
+          <div class="text-muted" style="font-size:0.7rem">left-right tilt</div>
+        </div>
+      </div>
+      <table class="table table-sm mt-3 mb-0">
+        <thead class="table-light"><tr><th>Setting</th><th>Range</th><th>Effect</th></tr></thead>
+        <tbody>
+          <tr><td>Speed</td><td>0.5×–3×</td><td>Multiplier — higher = faster loop</td></tr>
+          <tr><td>Amplitude</td><td>px or deg</td><td>Float/bob: px travel | Rotate/sway: degrees | Pulse: % scale change</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<h5 class="mt-4">Position Settings</h5>
+<table class="table table-sm">
+  <thead class="table-light"><tr><th>Field</th><th>Example</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>Top</td><td><code>20%</code></td><td>Distance from section top edge</td></tr>
+    <tr><td>Right</td><td><code>5%</code></td><td>Distance from section right edge</td></tr>
+    <tr><td>Bottom</td><td><code>80px</code></td><td>Distance from section bottom edge</td></tr>
+    <tr><td>Left</td><td><code>3%</code></td><td>Distance from section left edge</td></tr>
+    <tr><td>Width</td><td><code>200px</code> or <code>25%</code></td><td>Element width (height is auto)</td></tr>
+  </tbody>
+</table>
+
+<h5 class="mt-4">Depth &amp; Opacity</h5>
+<table class="table table-sm">
+  <thead class="table-light"><tr><th>Setting</th><th>Options</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Layer</strong></td><td>Behind All / Above Shape / Above Content</td><td>Controls the element's z-depth. Default: <strong>Behind All</strong>. See layer chart above.</td></tr>
+    <tr><td><strong>Opacity</strong></td><td>0–100%</td><td>Slider control. 100 = fully opaque, 0 = invisible. Entrance animation respects this target opacity.</td></tr>
+  </tbody>
+</table>
+
+<div class="alert alert-success">
+  <strong>Best Results:</strong> Use transparent PNGs or SVGs. Use <code>%</code>-based positioning to stay responsive. Combine <strong>entrance + idle</strong> for the richest effect — element slides in then continuously floats.
+</div>
+
+<div class="alert alert-warning">
+  <strong>Performance Tip:</strong> Keep files under 200KB each. Max 3–4 per section. All animations pause automatically when the section is off-screen.
+</div>
+
+<h5 class="mt-4">Live Demo</h5>
+<p>10 demo sections are seeded on the landing page showcasing every combination. View at <a href="/" target="_blank">the homepage</a> — scroll past the main sections to see the DEMO sections.</p>
+`;
+
+export const FEATURE_FLAGS_DOCS = `
+<h4>Client Feature Flags</h4>
+<p class="lead">Toggle client-specific features on or off without code changes. Only <strong>SUPER_ADMIN</strong> users can access this panel.</p>
+
+<div class="alert alert-warning">
+  <i class="bi bi-shield-lock me-1"></i>
+  <strong>SUPER_ADMIN only.</strong> This tab is hidden from Publisher and Editor roles.
+</div>
+
+<h5 class="mt-4">How to Access</h5>
+<ol>
+  <li>Log in as SUPER_ADMIN</li>
+  <li>Go to <strong>Settings</strong> (top navigation)</li>
+  <li>Click the <strong>Features</strong> tab (only visible to SUPER_ADMIN)</li>
+</ol>
+
+<h5 class="mt-4">Current Features</h5>
+<table class="table table-sm">
+  <thead class="table-light"><tr><th>Slug</th><th>Name</th><th>Default</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>concrete-calculator</code></td>
+      <td>Concrete Calculator</td>
+      <td><span class="badge bg-secondary">OFF</span></td>
+      <td>
+        Public <code>/calculator</code> page — supports Slab, Column, Footing, Beam &amp; Staircase. Includes:
+        <ul class="mb-0 mt-1">
+          <li>3D Three.js interactive preview — drag to rotate, scroll to zoom, ⇧+drag to pan</li>
+          <li>Camera position is preserved when adjusting dimension sliders — no snap-out</li>
+          <li><strong>Dims</strong> button — toggleable blue dimension lines with arrowheads per shape</li>
+          <li><strong>Spin</strong> / <strong>Stop</strong> button — auto-rotate toggle</li>
+          <li><strong>Center</strong> button — reset camera to default framing for current shape</li>
+          <li>Dimension inputs have sliders + scrubber inputs for precise adjustment</li>
+          <li>Professional estimate report with reference number</li>
+          <li><strong>Request Formal Quote</strong> button — sends a formatted email to the admin address configured in Settings → Email</li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+<p>New features are added here as they are developed. Toggle <strong>Enabled</strong> to activate for the client's deployment.</p>
+`;
+
+// ─────────────────────────────────────────────
+// VOLT DESIGNER
+// ─────────────────────────────────────────────
+
+const VOLT_OVERVIEW = `
+# Volt Designer — Overview
+
+Volt Designer is the visual vector-canvas editor for creating **reusable UI elements** (buttons, cards, banners, input skins, widgets) that can be embedded in any CMS section.
+
+Elements are stored as JSON and rendered natively in the browser — no raster images, infinite resolution.
+
+---
+
+## Canvas
+
+The canvas is a fixed-size artboard (default **800×500 px**). All coordinates are stored in **percentage space** (0–100) relative to canvas width/height, making elements resolution-independent.
+
+### Changing Canvas Size
+
+1. Open **Element Properties → Canvas Size**
+2. Pick a **Preset** (Button, Card, Hero Banner, etc.) or enter custom Width/Height
+3. Click **Apply Size** — the canvas frame resizes; **existing layers keep their % positions unchanged**
+4. Use the **Fit Layers** button to refit all layers to the new canvas manually if needed
+
+> **Tip:** Switching presets never auto-scales or auto-zooms. Shapes stay exactly where they are — resize them yourself to suit the new canvas.
+
+### Canvas Presets
+
+| Preset | Size | Typical use |
+|--------|------|-------------|
+| Input Field | 300×44 | Custom text-input skin |
+| Button | 280×44 | CTA button element |
+| Badge | 120×32 | Tag / label |
+| Icon | 64×64 | Icon container |
+| Card | 320×200 | Content card |
+| Widget | 400×300 | Feature widget |
+| Hero Banner | 1200×600 | Full-width banner |
+
+### Zoom Controls
+
+| Action | Result |
+|--------|--------|
+| **+** / **−** buttons | Zoom in / out |
+| **Fit** button (⊡) | Fit canvas to viewport |
+| Mouse wheel | Zoom on canvas |
+
+### Grid Snap
+
+- Grid size is set in the **Grid Size** field (default 10 px)
+- Hold **Ctrl** while drawing or dragging to snap to grid
+
+---
+
+## Saving & Library
+
+- Changes are **auto-tracked** — the toolbar shows **● unsaved** when there are unsaved changes
+- Click **Save** to persist the element
+- Click **← Library** to return to the element library picker
+`;
+
+const VOLT_TOOLS = `
+# Volt Designer — Drawing Tools
+
+## Toolbar
+
+| Key | Tool | Description |
+|-----|------|-------------|
+| **V** | Select | Move, resize, or enter vertex edit |
+| **R** | Rectangle | Draw rectangles |
+| **E** | Ellipse | Draw ellipses / circles |
+| **L** | Line | Draw straight lines |
+| **B** | Pen | Bezier pen tool — place anchor points |
+| **P** | Polygon | Click to place vertices, Enter/dblclick to close |
+| **S** | Slot | Define content slot regions |
+| **SHP** | Shape Presets | Drop a pre-built vector shape onto the canvas |
+
+### SHP — Shape Presets
+
+Click the **⭐ SHP** button in the toolbar to open a grid of 16 pre-built vector shapes. Clicking any shape drops it centred on the canvas at 40% of canvas size. All shapes are fully editable vector layers.
+
+| Shape | Shape | Shape | Shape |
+|-------|-------|-------|-------|
+| Arrow Right | Arrow Left | Arrow ↔ | 5-Point Star |
+| Heart | Diamond | Triangle Up | Triangle Down |
+| Chevron | Plus | Hexagon | Octagon |
+| Pentagon | Shield | Speech Bubble | Tag |
+
+---
+
+## Drawing Shapes
+
+**Rectangle / Ellipse / Slot**
+- Click and drag to draw
+- Hold **Shift** to constrain to square / circle
+- Hold **Ctrl** to snap to grid
+- Press **Esc** to cancel
+
+**Line**
+- Click and drag from start to end
+- Hold **Ctrl** to snap to 45° angles / grid
+
+**Polygon**
+- Click to place each vertex
+- Hold **Ctrl** to snap
+- Press **Enter** or **double-click** to close and commit
+- Press **Esc** to cancel
+
+---
+
+## Pen Tool (Bezier)
+
+The pen tool creates smooth curves and complex shapes.
+
+| Action | Result |
+|--------|--------|
+| **Click** | Place a sharp anchor point |
+| **Click + drag** | Place a curved anchor point (drag to pull handles) |
+| **Hover near first point** | Snaps to close the path |
+| **Enter** or **double-click** | Commit as open path |
+| **Ctrl** | Snap while placing |
+| **Esc** | Cancel |
+
+After committing, enter **Vertex Edit** (double-click) to adjust individual handles.
+
+---
+
+## Contextual Keyboard Shortcut Legend
+
+A **status bar** below the toolbar shows all available keyboard shortcuts for the current context — it updates automatically as you switch modes.
+
+| Context | Key shown |
+|---------|-----------|
+| **Idle / Select** | V, R, E, L, B, P, S, Ctrl+Z, Ctrl+Y |
+| **Selection active** | Ctrl+drag (snap), Del, Alt+drag (duplicate), dblclick (vertex), Shift+click (bool base) |
+| **Drawing Rect/Ellipse/Slot** | Shift (constrain), Ctrl (snap), Esc |
+| **Pen tool** | Click (sharp), Click+drag (curve), Enter (commit), Ctrl (snap), Esc |
+| **Polygon tool** | Click (point), Ctrl (snap), Enter/dblclick (commit), Esc |
+| **Vertex Edit** | Ctrl+drag (⊙ snap — shown first), Drag vertex/handle, Shift+drag (symmetric), Alt+click (add point), Alt+dblclick (delete point), Esc |
+| **Bool Edit** | Ctrl+drag (⊙ snap — shown first), Drag (move cutter), dblclick cutter (vertex edit), Esc (confirm) |
+
+> **Snap shortcut:** In both Vertex Edit and Bool Edit modes, **hold Ctrl while dragging** to snap to grid. It is always the first shortcut shown in those contexts.
+`;
+
+const VOLT_LAYERS = `
+# Volt Designer — Layers & Selection
+
+## Layer Panel
+
+Every shape, slot, or 3D object is a **layer**. Layers are listed in the **Layers** panel (left sidebar).
+
+- **Drag** to reorder (higher in list = higher z-index)
+- Click a layer row to select it
+- **Double-click** the layer name to rename it
+- Click the **eye icon** to toggle visibility
+- Click the **lock icon** to lock (prevents selection/editing)
+- Click **🗑** to delete
+
+---
+
+## Selecting Layers
+
+| Action | Result |
+|--------|--------|
+| Click shape on canvas | Select that layer |
+| Click layer row | Select that layer |
+| **Del** | Delete selected layer |
+| **Alt + drag** | Duplicate and drag |
+| **Ctrl+Z** | Undo |
+| **Ctrl+Y** | Redo |
+
+### Marquee Select
+
+- Click and drag on **empty canvas** area to draw a marquee rectangle
+- All layers whose bounding boxes overlap the marquee are selected as a multi-selection
+
+---
+
+## Layer Types
+
+| Type | Icon | Description |
+|------|------|-------------|
+| **vector** | STR/ACC/BG | SVG path layer (rect, ellipse, polygon, pen path) |
+| **slot** | SLT | Content slot placeholder |
+| **3d-object** | 3D | Three.js 3D asset |
+
+### Roles
+
+Each layer has a **role** that indicates its semantic purpose:
+
+| Role | Meaning |
+|------|---------|
+| background | Background fill / texture |
+| structure | Main shape / structural element |
+| accent | Decorative / highlight shape |
+| content | Text content area |
+| overlay | Overlaid on top of other content |
+
+---
+
+## Resize Handles
+
+When a layer is selected, 8 white square resize handles appear at the corners and edges.
+Drag any handle to resize. The layer's path data is updated in real-time.
+`;
+
+const VOLT_VERTEX = `
+# Volt Designer — Vertex & Bezier Editing
+
+## Entering Vertex Edit Mode
+
+**Double-click** any vector shape (on canvas or layer panel) to enter **Vertex Edit** mode.
+
+The canvas shows:
+- **Orange circles** at each vertex (anchor point)
+- **Dashed indigo dots** — Bezier handle stubs (one per vertex side, pointing toward adjacent vertex)
+- A **dashed amber bounding box** around the shape
+- A **ROUND slider** at the bottom toolbar
+
+---
+
+## Keyboard & Mouse Reference
+
+| Action | Result |
+|--------|--------|
+| **Drag orange vertex** | Move that anchor point |
+| **Drag dashed indigo dot** | Pull out a Bezier curve handle — creates a smooth curve on that edge |
+| **Shift + drag handle** | Symmetric smooth node — opposite handle mirrors automatically |
+| **Alt + click edge** | Insert a new vertex at that point on the edge |
+| **Alt + double-click vertex** | Delete that vertex (minimum 3 retained) |
+| **Ctrl + drag** | Snap to grid while moving |
+| **Esc** | Exit vertex edit mode |
+
+---
+
+## Bezier Handle Stubs
+
+Every straight-line vertex has **stub handles** — small dashed indigo circles rendered 12 px toward each adjacent vertex.
+
+- When a vertex has no curve yet (zero-distance handles), the stubs show pointing outward
+- **Drag a stub** to pull out a Bezier handle and curve that edge
+- Once a handle has distance, it renders as a solid indigo dot with an arm line
+- **Shift-drag** a handle to keep both sides symmetric (smooth interpolation)
+
+---
+
+## Corner Rounding (ROUND Slider)
+
+The **ROUND** slider (bottom toolbar, only visible in vertex edit mode) rounds all sharp corners simultaneously.
+
+- Slide right to increase rounding (0–100%)
+- Rounding is **non-destructive** — the original path is stored on first slider use
+- Moving the slider back to 0% restores the original sharp path
+- Rounding is **scale-aware**: radius = \`t × min(edge_length) × 0.5\`, so small shapes round proportionally
+- Rounding is skipped for vertices that already have Bezier handles
+- Click **↺** (reset) button to snap back to 0%
+
+> **Note:** Corner rounding uses the cubic Bezier arc approximation (k = 0.5523), producing smooth, circular-looking corners without SVG \`rx\`/\`ry\` attributes.
+
+---
+
+## Exiting Vertex Edit
+
+- Press **Esc** or click outside the shape
+- If editing a **cutter** in Boolean mode, Esc returns to Bool Edit mode
+`;
+
+const VOLT_SLOTS = `
+# Volt Designer — Slot System
+
+Slots define **content regions** within a Volt element. When the Volt is used on a live page, slots are filled with real content (title, image, body text, etc.) without touching the design.
+
+---
+
+## Drawing a Slot
+
+1. Click the **Slot tool** (**S** key) in the toolbar — or click the \`TIT ▼\` split button
+2. Optionally click **▼** to pick the slot **type** first (see below)
+3. Drag on canvas to draw the slot region
+4. The slot appears as a **dashed green outline** in design mode
+
+---
+
+## Slot Types
+
+| Type | Tag | Icon | Use For |
+|------|-----|------|---------|
+| **Title** | TIT | H1 | Heading / title text |
+| **Body** | BOD | ¶ | Paragraph / body copy |
+| **Image** | IMG | 🖼 | Photo or illustration |
+| **Action** | ACT | Cursor | CTA button |
+| **Badge** | BDG | Award | Tag / pill label |
+| **Icon** | ICN | Star | Icon image |
+| **Input** | INP | Input cursor | Text input field skin |
+| **Custom** | CUS | Puzzle | Any other content |
+
+---
+
+## Preview Mode
+
+Click the **Preview** toggle button (top bar, only visible when slots exist) to switch between:
+
+- **Design mode** — dashed green outlines with type labels
+- **Preview mode** — realistic placeholder content per slot type
+
+Preview mode shows:
+- **Title** — heading bar + subtitle bar
+- **Body** — 4–5 lines of placeholder text bars
+- **Image** — grey frame with image icon
+- **Action** — styled button placeholder
+- **Badge** — rounded pill in green
+- **Icon** — large star icon
+- **Input** — styled input field with border and inner text placeholder
+- **Custom** — dashed outline with "CUSTOM" label
+
+---
+
+## Slot Properties
+
+Select a slot layer to edit in **Layer Properties**:
+- **Slot Type** — change the type (updates label automatically)
+- **Slot Label** — custom label shown in design mode
+
+---
+
+## Input Slot (INP)
+
+Use the **Input** slot type to design a custom text-input skin. The slot defines the bounding region; in live use, a real HTML \`<input>\` element is rendered inside it.
+
+### Skin Mode
+
+| Mode | Appearance | Use when |
+|------|-----------|----------|
+| **Transparent** (default) | Input has no background, border, or outline — completely invisible | You draw vector shapes **below** the slot; those shapes become the visual skin |
+| **Custom** | Input renders with your chosen background, border, colour, and radius | You want a standalone styled input with no custom shapes |
+
+**Transparent mode (recommended):**
+1. Draw your shapes (rounded rect, gradient bar, etc.) as vector layers **below** the slot layer in the stack
+2. Set the slot's Skin Mode to **Transparent**
+3. The live input field sits invisibly on top — users type into it, and your shapes provide the visual appearance
+
+### Input Properties (all modes)
+
+| Property | Description |
+|----------|-------------|
+| **Skin Mode** | Transparent or Custom |
+| **Text Color** | Colour of the typed text + caret |
+| **Font Size** | Text size in px |
+| **Placeholder** | Hint text shown when the field is empty |
+
+### Custom Mode Only
+
+| Property | Description |
+|----------|-------------|
+| **Background Color** | Fill colour of the input box |
+| **Border Color** | Outline colour |
+| **Border Width** | Outline thickness in px |
+| **Border Radius** | Corner rounding in px |
+`;
+
+const VOLT_EFFECTS = `
+# Volt Designer — Fill, Stroke & Shadow
+
+All effects are controlled in the **Layer Properties** panel (right sidebar) when a vector or slot layer is selected.
+
+---
+
+## Fill
+
+| Control | Description |
+|---------|-------------|
+| **+ Add** | Add a solid fill to the layer |
+| **Color picker** | Click the swatch to open the native colour picker |
+| **Hex field** | Type a 6-digit hex code (e.g. \`#6366f1\`) |
+| **Opacity slider** | 0 = fully transparent, 1 = fully opaque |
+| **Remove** | Remove the fill (shape becomes transparent) |
+
+---
+
+## Stroke
+
+| Control | Description |
+|---------|-------------|
+| **+ Add** | Add a stroke outline |
+| **Color picker / Hex** | Stroke colour |
+| **Width** | Stroke width in canvas pixels |
+| **Cap** | Line cap: \`butt\`, \`round\`, or \`square\` |
+| **Remove** | Remove the stroke |
+
+> **Boolean shapes:** Stroke width is automatically doubled with \`paint-order: stroke fill\` so only the outer boundary is visible (inner intersection lines are covered by fill).
+
+---
+
+## Drop Shadow
+
+Every vector shape and slot can have a **drop shadow**.
+
+| Control | Description |
+|---------|-------------|
+| **Toggle checkbox** | Enable / disable shadow |
+| **Color picker / Hex** | Shadow colour (default black \`#000000\`) |
+| **α (opacity slider)** | Shadow transparency — 0 = invisible, 1 = fully opaque |
+| **X Offset** | Horizontal shadow offset in canvas pixels (positive = right) |
+| **Y Offset** | Vertical shadow offset in canvas pixels (positive = down) |
+| **Blur** | Blur radius — 0 = hard edge, higher = softer/more spread |
+
+### Direction Handle (☀ on canvas)
+
+When shadow is enabled, a **sun icon ☀** appears on the canvas at the layer centre offset by the current X/Y values.
+
+- **Drag the ☀ handle** to reposition the shadow direction and distance in real-time
+- The X Offset / Y Offset fields in the panel update as you drag
+- Works for both vector shapes and slot elements
+
+### Implementation Detail
+
+- **Vector shapes:** SVG \`<filter><feDropShadow>\` applied to the shape group
+- **Slot overlays:** CSS \`box-shadow\` applied to the slot div
+`;
+
+const VOLT_BOOLEAN = `
+# Volt Designer — Boolean Operations
+
+Boolean ops combine two vector shapes non-destructively into a composite shape.
+
+---
+
+## Workflow
+
+1. **Select the CUTTER shape** (the shape doing the cutting) — it appears in the ① CUTTER field
+2. **Shift-click a BASE shape** on canvas — or pick from the ② BASE dropdown
+3. Click one of the three operation buttons:
+
+| Button | Operation | Result |
+|--------|-----------|--------|
+| **Union** | Merge | Both shapes combined into one outline |
+| **Sub** | Subtract | BASE minus CUTTER — punches a hole |
+| **Isect** | Intersect | Only the overlapping region remains |
+
+---
+
+## Non-Destructive
+
+- The cutter shape is **hidden** (not deleted) — you can edit it later
+- The base shape stores the boolean relationship in \`boolChildren\`
+- The SVG display path is recomputed every render
+
+---
+
+## Bool Edit Mode
+
+Double-click the composite base shape to enter **Bool Edit Mode**:
+
+| Action | Result |
+|--------|--------|
+| **Drag cutter** | Move the cutter to a new position |
+| **Hold Ctrl + drag** | Move cutter snapping to grid |
+| **Double-click cutter** | Enter vertex edit on the cutter path |
+| **Esc** | Confirm position and exit Bool Edit mode |
+
+The cutter is shown with an orange **CUTTER ✂** badge and dashed orange outline.
+The base is shown with a teal **BASE** badge.
+
+> **Cutter position is saved on mouse-up** — no extra Save needed. Esc confirms and returns to normal selection mode.
+
+---
+
+## Stroke on Boolean Shapes
+
+When a stroke is applied to a boolean shape, the width is **doubled** internally with \`paint-order: stroke fill\`. This ensures only the outer boundary outline is visible — inner intersection lines between the combined paths are painted over by the fill.
+`;
+
+const VOLT_3D = `
+# Volt Designer — 3D Objects
+
+3D objects are Three.js-rendered assets that can be placed as layers in the Volt canvas.
+
+---
+
+## Adding a 3D Object
+
+1. Click **3D Objects** in the left sidebar
+2. Browse or upload a 3D asset (GLB/GLTF supported)
+3. Click an asset to insert it as a layer at the default position
+
+---
+
+## 3D Layer Properties
+
+Select a 3D object layer to access:
+
+| Property | Description |
+|----------|-------------|
+| **Asset** | Name of the linked 3D asset |
+| **Change / Preview** | Opens the 3D asset browser |
+| **Active Clip** | Select which animation clip plays |
+| **Trigger Events** | Fire system events when the animation ends |
+
+---
+
+## Animation Triggers
+
+After a 3D animation completes, you can fire configurable events:
+
+| Event Type | Effect |
+|------------|--------|
+| scroll | Scroll the page to a target section |
+| modal | Open a modal |
+| sound | Play a sound |
+| custom | Custom JavaScript event |
+
+---
+
+## Blender Pipeline (volt-sync.py)
+
+The **volt-sync.py** Blender addon syncs assets directly from Blender to the CMS:
+
+1. Install the addon in Blender (Preferences → Add-ons → Install)
+2. Enter your **API key** (Settings → API Keys in admin)
+3. In Blender, select objects and click **Sync to Volt**
+4. The asset appears in the 3D Objects library automatically
+
+See **Admin → API Keys** for key management.
+`;
+
+const VOLT_ANIMATION = `
+# Volt Designer — Animation
+
+Each layer has an **Animation** configuration that controls how it enters the viewport when the Volt element is revealed.
+
+---
+
+## Animation Properties
+
+| Property | Range | Description |
+|----------|-------|-------------|
+| **Delay** | 0–100 | Stagger delay before this layer starts animating |
+| **Speed** | 0–100 | How fast the animation plays |
+| **Style** | 0–100 | Animation curve / easing style |
+| **Character** | 0–100 | Amount of "personality" in the motion |
+
+---
+
+## Animates Flags
+
+Toggle which CSS/SVG properties are animated on entrance:
+
+| Flag | Property |
+|------|----------|
+| Fill | Colour / fill |
+| Scale | Size scale |
+| Opacity | Fade in |
+| Position | Translate in |
+| Rotation | Spin in |
+
+---
+
+## Notes
+
+- Animation is powered by **Anime.js 4.x** using the named \`animate\` export
+- Animations are triggered when the element scrolls into view
+- Each layer animates independently — use **Delay** to stagger a sequence
+- Use **Speed** = 0 for instant reveal, 100 for very slow
+`;
+
+// ─────────────────────────────────────────────
 // TOPIC TREE
 // ─────────────────────────────────────────────
 
@@ -1925,6 +2939,31 @@ export const DOC_TOPICS: DocTopic[] = [
       { id: "anim-parallax", label: "Parallax Drift", icon: "bi-layers", content: ANIM_PARALLAX },
       { id: "anim-tilt", label: "3D Tilt", icon: "bi-box", content: ANIM_TILT },
       { id: "anim-custom", label: "Custom Code", icon: "bi-code-slash", content: ANIM_CUSTOM },
+    ],
+  },
+  {
+    id: "animations",
+    label: "Animations & Motion",
+    icon: "bi-stars",
+    children: [
+      {
+        id: "lower-third",
+        label: "Lower Third Graphic",
+        icon: "bi-layout-bottom",
+        content: LOWER_THIRD_DOCS,
+      },
+      {
+        id: "motion-elements",
+        label: "Motion & Parallax Elements",
+        icon: "bi-wind",
+        content: MOTION_ELEMENTS_DOCS,
+      },
+      {
+        id: "feature-flags",
+        label: "Feature Flags",
+        icon: "bi-toggles",
+        content: FEATURE_FLAGS_DOCS,
+      },
     ],
   },
   {
@@ -1986,6 +3025,22 @@ export const DOC_TOPICS: DocTopic[] = [
       { id: "settings", label: "Settings", icon: "bi-gear", content: SETTINGS_PAGE },
       { id: "media", label: "Media Library", icon: "bi-image", content: MEDIA_LIBRARY },
       { id: "users", label: "Users & Roles", icon: "bi-people", content: USERS },
+    ],
+  },
+  {
+    id: "volt-designer",
+    label: "Volt Designer",
+    icon: "bi-vector-pen",
+    children: [
+      { id: "volt-overview", label: "Overview & Canvas", icon: "bi-info-circle", content: VOLT_OVERVIEW },
+      { id: "volt-tools", label: "Drawing Tools", icon: "bi-pencil", content: VOLT_TOOLS },
+      { id: "volt-layers", label: "Layers & Selection", icon: "bi-stack", content: VOLT_LAYERS },
+      { id: "volt-vertex", label: "Vertex & Bezier Editing", icon: "bi-bezier2", content: VOLT_VERTEX },
+      { id: "volt-slots", label: "Slot System", icon: "bi-layout-text-window", content: VOLT_SLOTS },
+      { id: "volt-effects", label: "Fill, Stroke & Shadow", icon: "bi-palette", content: VOLT_EFFECTS },
+      { id: "volt-boolean", label: "Boolean Operations", icon: "bi-intersect", content: VOLT_BOOLEAN },
+      { id: "volt-3d", label: "3D Objects", icon: "bi-box", content: VOLT_3D },
+      { id: "volt-animation", label: "Animation", icon: "bi-play-circle", content: VOLT_ANIMATION },
     ],
   },
 ];

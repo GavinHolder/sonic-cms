@@ -57,7 +57,6 @@ function mapV1Background(bg?: string): SectionBackground {
  * - table         → V2 section with a table content block
  * - cta-footer    → V2 section with a text-image content block (CTA content as HTML)
  * - banner        → V2 section with a banner content block
- * - freeform      → Skipped (not supported in V2)
  *
  * ASSUMPTIONS:
  * 1. V1 data is a valid array of V1 SectionConfig objects
@@ -247,8 +246,6 @@ function migrateV1ToV2(v1Sections: any[]): SectionConfig[] {
         break;
       }
 
-      // Skip freeform — not supported in V2
-      case "freeform":
       default:
         break;
     }

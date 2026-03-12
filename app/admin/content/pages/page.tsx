@@ -19,7 +19,26 @@ import {
 import type { PageConfig, PageType, PDFPageConfig, FormPageConfig, DesignerPageConfig } from "@/types/page";
 import Link from "next/link";
 
-type FilterType = "all" | "pdf" | "form" | "designer";
+type FilterType = "all" | "pdf" | "form" | "designer" | "feature";
+
+interface FeatureRecord {
+  id: string;
+  slug: string;
+  name: string;
+  enabled: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  config: any;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Map feature slug → public route + admin settings path
+const FEATURE_META: Record<string, { route: string; settingsPath: string }> = {
+  "concrete-calculator": {
+    route: "/calculator",
+    settingsPath: "/admin/features/concrete-settings",
+  },
+};
 
 const PAGE_TYPE_LABELS: Record<PageType, string> = {
   full: "Full Page",
@@ -46,6 +65,7 @@ export default function PagesManager() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [pages, setPages] = useState<PageConfig[]>([]);
+  const [features, setFeatures] = useState<FeatureRecord[]>([]);
   const [filter, setFilter] = useState<FilterType>("all");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -89,6 +109,26 @@ export default function PagesManager() {
     reloadPages();
   }, []);
 
+  // Load feature pages from API
+  useEffect(() => {
+    fetch("/api/features")
+      .then((r) => r.json())
+      .then((d) => { if (d.success) setFeatures(d.data); })
+      .catch(() => {});
+  }, []);
+
+  const handleToggleFeature = async (feature: FeatureRecord) => {
+    const res = await fetch("/api/features", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slug: feature.slug, name: feature.name, enabled: !feature.enabled, config: feature.config }),
+    });
+    if (res.ok) {
+      setFeatures((prev) => prev.map((f) => f.slug === feature.slug ? { ...f, enabled: !f.enabled } : f));
+      setSuccessMessage(`${feature.name} ${!feature.enabled ? "enabled" : "disabled"}`);
+    }
+  };
+
   useEffect(() => {
     if (successMessage) {
       const timer = setTimeout(() => setSuccessMessage(null), 3000);
@@ -98,8 +138,10 @@ export default function PagesManager() {
 
   const filteredPages = pages.filter((page) => {
     if (filter === "all") return true;
+    if (filter === "feature") return false;
     return page.type === filter;
   });
+  const showFeatures = filter === "all" || filter === "feature";
 
   const handleToggleEnabled = (slug: string) => {
     try {
@@ -209,13 +251,11 @@ export default function PagesManager() {
 
   const getPageStats = () => {
     return {
-      total: pages.length,
-      full: pages.filter((p) => p.type === "full").length,
+      total: pages.length + features.length,
       pdf: pages.filter((p) => p.type === "pdf").length,
       form: pages.filter((p) => p.type === "form").length,
       designer: pages.filter((p) => p.type === "designer").length,
-      enabled: pages.filter((p) => p.enabled).length,
-      disabled: pages.filter((p) => !p.enabled).length,
+      features: features.length,
     };
   };
 
@@ -283,18 +323,10 @@ export default function PagesManager() {
           </div>
         </div>
         <div className="col-12 col-sm-6 col-lg-2">
-          <div className="card border-0 shadow-sm">
+          <div className="card border-0 shadow-sm" style={{ borderLeft: "3px solid #7c3aed" }}>
             <div className="card-body p-3">
-              <div className="text-body-secondary small mb-1">Enabled</div>
-              <div className="h4 mb-0 fw-semibold text-success">{stats.enabled}</div>
-            </div>
-          </div>
-        </div>
-        <div className="col-12 col-sm-6 col-lg-2">
-          <div className="card border-0 shadow-sm">
-            <div className="card-body p-3">
-              <div className="text-body-secondary small mb-1">Disabled</div>
-              <div className="h4 mb-0 fw-semibold text-warning">{stats.disabled}</div>
+              <div className="text-body-secondary small mb-1">Feature Pages</div>
+              <div className="h4 mb-0 fw-semibold" style={{ color: "#7c3aed" }}>{stats.features}</div>
             </div>
           </div>
         </div>
@@ -337,10 +369,20 @@ export default function PagesManager() {
             Designer ({stats.designer})
           </button>
         </li>
+        <li className="nav-item">
+          <button
+            className={`nav-link ${filter === "feature" ? "active" : ""}`}
+            onClick={() => setFilter("feature")}
+            style={filter === "feature" ? {} : { color: "#7c3aed" }}
+          >
+            <i className="bi bi-cpu me-1"></i>
+            Features ({stats.features})
+          </button>
+        </li>
       </ul>
 
       {/* Pages Table */}
-      {filteredPages.length === 0 ? (
+      {filteredPages.length === 0 && !(showFeatures && features.length > 0) ? (
         <div className="card border-0 shadow-sm">
           <div className="card-body text-center py-5">
             <i className="bi bi-files text-body-tertiary" style={{ fontSize: "4rem" }}></i>
@@ -376,6 +418,72 @@ export default function PagesManager() {
                 </tr>
               </thead>
               <tbody>
+                {/* Feature pages */}
+                {showFeatures && features.map((feature) => {
+                  const meta = FEATURE_META[feature.slug];
+                  return (
+                    <tr key={`feature-${feature.slug}`} className={!feature.enabled ? "opacity-50" : ""}>
+                      <td>
+                        <div>
+                          <div className="d-flex align-items-center gap-2 mb-1">
+                            <span className="fw-semibold">{feature.name}</span>
+                            <span className="badge" style={{ background: "#7c3aed", fontSize: "0.65rem" }}>
+                              <i className="bi bi-cpu me-1" />Feature
+                            </span>
+                          </div>
+                          <div className="d-flex align-items-center gap-2">
+                            <code className="text-primary small">{meta?.route ?? `/${feature.slug}`}</code>
+                            {meta?.route && (
+                              <a href={meta.route} target="_blank" rel="noopener noreferrer" className="btn btn-link btn-sm p-0" title="View page">
+                                <i className="bi bi-box-arrow-up-right" />
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <span className="badge" style={{ background: "#7c3aed" }}>
+                          <i className="bi bi-cpu me-1" />Feature Page
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`badge ${feature.enabled ? "bg-success" : "bg-secondary"}`}>
+                          {feature.enabled ? "Enabled" : "Disabled"}
+                        </span>
+                      </td>
+                      <td>
+                        <small className="text-body-secondary">
+                          {new Date(feature.createdAt).toLocaleDateString()}
+                        </small>
+                      </td>
+                      <td>
+                        <small className="text-body-secondary">
+                          {new Date(feature.updatedAt).toLocaleDateString()}
+                        </small>
+                      </td>
+                      <td>
+                        <div className="d-flex gap-1 justify-content-end">
+                          {meta?.settingsPath && (
+                            <Link
+                              href={meta.settingsPath}
+                              className="btn btn-sm btn-primary"
+                              title="Edit feature settings"
+                            >
+                              <i className="bi bi-gear" />
+                            </Link>
+                          )}
+                          <button
+                            onClick={() => handleToggleFeature(feature)}
+                            className={`btn btn-sm ${feature.enabled ? "btn-outline-warning" : "btn-outline-success"}`}
+                            title={feature.enabled ? "Disable feature" : "Enable feature"}
+                          >
+                            <i className={`bi ${feature.enabled ? "bi-eye-slash" : "bi-eye"}`} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {filteredPages.map((page) => (
                   <tr key={page.id} className={!page.enabled ? "opacity-50" : ""}>
                     {/* Page Title & Slug */}

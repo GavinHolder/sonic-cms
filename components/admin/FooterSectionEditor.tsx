@@ -30,20 +30,34 @@ export default function FooterSectionEditor({
   availableSections = [],
 }: FooterSectionEditorProps) {
   const [dynamicPages, setDynamicPages] = useState<Array<{ value: string; label: string }>>([]);
+  const [featurePages, setFeaturePages] = useState<Array<{ value: string; label: string }>>([]);
 
-  // Load dynamic pages
+  // Load dynamic pages and enabled feature pages
   useEffect(() => {
     const pages = getPages();
-    const enabledPages = pages
-      .filter((p) => p.enabled)
-      .map((p) => ({
-        value: `/${p.slug}`,
-        label: `Page: ${p.title}`,
-      }));
-    setDynamicPages(enabledPages);
+    setDynamicPages(
+      pages
+        .filter((p) => p.enabled)
+        .map((p) => ({ value: `/${p.slug}`, label: `Page: ${p.title}` }))
+    );
+
+    fetch("/api/features")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.success && Array.isArray(data.data)) {
+          setFeaturePages(
+            data.data
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              .filter((f: any) => f.enabled && f.slug)
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              .map((f: any) => ({ value: `/${f.slug}`, label: `Feature: ${f.name}` }))
+          );
+        }
+      })
+      .catch(() => {});
   }, []);
 
-  // Build dropdown options dynamically from available sections + dynamic pages
+  // Build dropdown options dynamically from available sections + dynamic pages + feature pages
   const AVAILABLE_PAGES = [
     { value: "/", label: "Home" },
     ...availableSections.map((sec) => ({
@@ -51,6 +65,7 @@ export default function FooterSectionEditor({
       label: `Home: ${sec.navLabel || sec.displayName}`,
     })),
     ...dynamicPages,
+    ...featurePages,
     { value: "custom", label: "Custom URL (External)" },
   ];
   const [formData, setFormData] = useState({

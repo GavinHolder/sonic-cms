@@ -5,6 +5,11 @@ import { useAutoSave } from "@/lib/hooks/useAutoSave";
 import type { NormalSection, GradientOverlay, AnimationType, LayoutPreset } from "@/types/section";
 import type { AnimBgConfig } from "@/lib/anim-bg/types";
 import { DEFAULT_ANIM_BG_CONFIG } from "@/lib/anim-bg/defaults";
+import { DEFAULT_LOWER_THIRD } from "@/lib/lower-third-presets";
+import type { LowerThirdConfig } from "@/types/section";
+import LowerThirdTab from "./LowerThirdTab";
+import MotionElementEditor, { createDefaultMotionElement } from "./MotionElementEditor";
+import type { MotionElement } from "@/types/section";
 import SpacingControls from "@/components/admin/SpacingControls";
 import SectionIntoShapePicker from "@/components/admin/SectionIntoShapePicker";
 import ImageFieldWithUpload from "@/components/admin/ImageFieldWithUpload";
@@ -910,7 +915,7 @@ export default function NormalSectionEditor({
   const [subheading, setSubheading] = useState(section.content.subheading || "");
   const [body, setBody] = useState(section.content.body || "");
   const [layout, setLayout] = useState<
-    "text-only" | "text-image" | "image-text" | "grid" | "columns" | "freeform"
+    "text-only" | "text-image" | "image-text" | "grid" | "columns"
   >(section.content.layout || "text-only");
   const [layoutPreset, setLayoutPreset] = useState<LayoutPreset>(
     section.content.layoutPreset || getDefaultPreset(section.content.layout || "text-only")
@@ -921,10 +926,8 @@ export default function NormalSectionEditor({
 
   // Auto-update preset when layout changes
   useEffect(() => {
-    if (layout !== "freeform") {
-      const defaultPreset = getDefaultPreset(layout);
-      setLayoutPreset(defaultPreset);
-    }
+    const defaultPreset = getDefaultPreset(layout);
+    setLayoutPreset(defaultPreset);
   }, [layout]);
 
   // Auto-suggest overlay position when preset changes
@@ -1037,9 +1040,15 @@ export default function NormalSectionEditor({
   const [bgImageOpacity, setBgImageOpacity] = useState(section.bgImageOpacity || 100);
   const [bgParallax, setBgParallax] = useState(section.bgParallax || false);
 
-  const [activeTab, setActiveTab] = useState<"content" | "background" | "animation" | "overlay" | "spacing" | "triangle" | "preview">("content");
+  const [activeTab, setActiveTab] = useState<"content" | "background" | "animation" | "overlay" | "spacing" | "triangle" | "lower-third" | "motion" | "preview">("content");
   const [animBg, setAnimBg] = useState<AnimBgConfig>(
     (section as any).content?.animBg || DEFAULT_ANIM_BG_CONFIG
+  );
+  const [lowerThird, setLowerThird] = useState<LowerThirdConfig>(
+    (section as any).lowerThird ?? DEFAULT_LOWER_THIRD
+  );
+  const [motionElements, setMotionElements] = useState<MotionElement[]>(
+    (section as any).motionElements ?? []
   );
 
   const showImageFields = layout === "text-image" || layout === "image-text";
@@ -1121,12 +1130,14 @@ export default function NormalSectionEditor({
       bgImageRepeat,
       bgImageOpacity,
       bgParallax,
+      lowerThird,
+      motionElements,
       content: {
         heading: heading || undefined,
         subheading: subheading || undefined,
         body: body || undefined,
         layout,
-        layoutPreset: layout !== "freeform" ? layoutPreset : undefined,
+        layoutPreset: layoutPreset,
         imageSrc: showImageFields ? imageSrc : undefined,
         imageAlt: showImageFields ? imageAlt : undefined,
         columns: showColumnsField ? columns : undefined,
@@ -1229,6 +1240,24 @@ export default function NormalSectionEditor({
               </li>
               <li className="nav-item">
                 <button
+                  className={`nav-link ${activeTab === "lower-third" ? "active" : ""}`}
+                  onClick={() => setActiveTab("lower-third")}
+                >
+                  <i className="bi bi-layout-bottom me-1" />
+                  Lower Third
+                </button>
+              </li>
+              <li className="nav-item">
+                <button
+                  className={`nav-link ${activeTab === "motion" ? "active" : ""}`}
+                  onClick={() => setActiveTab("motion")}
+                >
+                  <i className="bi bi-stars me-1" />
+                  Motion
+                </button>
+              </li>
+              <li className="nav-item">
+                <button
                   className={`nav-link ${activeTab === "spacing" ? "active" : ""}`}
                   onClick={() => setActiveTab("spacing")}
                 >
@@ -1298,7 +1327,6 @@ export default function NormalSectionEditor({
                           | "image-text"
                           | "grid"
                           | "columns"
-                          | "freeform"
                       )
                     }
                   >
@@ -1307,12 +1335,11 @@ export default function NormalSectionEditor({
                     <option value="image-text">Image + Text (Left)</option>
                     <option value="grid">Grid Layout</option>
                     <option value="columns">Multiple Columns</option>
-                    <option value="freeform">Freeform (Advanced)</option>
                   </select>
                 </div>
 
                 {/* Layout Preset */}
-                {layout !== "freeform" && LAYOUT_PRESETS[layout as keyof typeof LAYOUT_PRESETS] && (
+                {LAYOUT_PRESETS[layout as keyof typeof LAYOUT_PRESETS] && (
                   <div className="mb-4">
                     <label className="form-label fw-semibold">
                       <i className="bi bi-grid-1x2 me-2"></i>
@@ -1481,15 +1508,6 @@ export default function NormalSectionEditor({
                         <i className="bi bi-sliders me-1"></i>
                         Number of columns: {columns}
                       </div>
-                    </div>
-                  )}
-
-                  {/* Freeform Layout */}
-                  {layout === "freeform" && (
-                    <div className="border rounded p-5 bg-secondary bg-opacity-10 text-center">
-                      <i className="bi bi-palette fs-3 text-secondary"></i>
-                      <div className="fw-semibold text-secondary mt-2">Advanced Canvas</div>
-                      <div className="small text-muted mt-1">Full control with visual editor</div>
                     </div>
                   )}
 
@@ -1671,13 +1689,6 @@ export default function NormalSectionEditor({
                   </div>
                 )}
 
-                {/* Freeform Notice */}
-                {layout === "freeform" && (
-                  <div className="alert alert-info" role="alert">
-                    <i className="bi bi-info-circle me-2"></i>
-                    <strong>Freeform Layout:</strong> Advanced layout with full control.
-                  </div>
-                )}
               </>
             )}
 
@@ -2978,6 +2989,38 @@ export default function NormalSectionEditor({
                   onPaddingTopChange={setPaddingTop}
                   onPaddingBottomChange={setPaddingBottom}
                 />
+              </div>
+            )}
+
+            {/* Lower Third Tab */}
+            {activeTab === "lower-third" && (
+              <LowerThirdTab config={lowerThird} onChange={setLowerThird} />
+            )}
+
+            {/* Motion Elements Tab */}
+            {activeTab === "motion" && (
+              <div className="p-3">
+                <p className="text-muted small mb-3">
+                  Add parallax images that float, animate in, and loop while visible.
+                </p>
+                {motionElements.map((el, i) => (
+                  <MotionElementEditor
+                    key={el.id}
+                    element={el}
+                    onChange={(updated) =>
+                      setMotionElements((prev) => prev.map((e) => (e.id === el.id ? updated : e)))
+                    }
+                    onDelete={() => setMotionElements((prev) => prev.filter((_, idx) => idx !== i))}
+                  />
+                ))}
+                <button
+                  type="button"
+                  className="btn btn-outline-primary btn-sm w-100"
+                  onClick={() => setMotionElements((prev) => [...prev, createDefaultMotionElement()])}
+                >
+                  <i className="bi bi-plus-circle me-1" />
+                  Add Motion Element
+                </button>
               </div>
             )}
 

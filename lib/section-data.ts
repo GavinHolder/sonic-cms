@@ -1201,13 +1201,7 @@ export const sectionTypeInfo: Record<string, { name: string; description: string
     icon: "bi-table",
     itemLabel: "rows",
   },
-  freeform: {
-    name: "Freeform Canvas",
-    description: "Visual drag-and-drop editor for custom layouts",
-    icon: "bi-brush",
-    itemLabel: "chars",
-  },
-  "cta-footer": {
+"cta-footer": {
     name: "CTA Footer",
     description: "Call-to-action footer section (always last)",
     icon: "bi-layout-text-window",
@@ -1298,10 +1292,6 @@ export function getSectionItemCount(section: any): number | null {
       return section.cards?.length || 0;
     case "table":
       return section.rows?.length || 0;
-    case "freeform":
-      // Return character count of HTML content, or null if empty
-      const htmlLength = section.grapesjs?.html?.length || 0;
-      return htmlLength > 0 ? htmlLength : null;
     default:
       return null;
   }

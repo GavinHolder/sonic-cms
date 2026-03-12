@@ -28,20 +28,9 @@ export default function SectionNavButtons() {
     const updateCurrentSection = () => {
       const sections = getSectionElements();
       setTotalSections(sections.length);
-
-      const scrollTop = container.scrollTop;
-      const viewportHeight = container.clientHeight;
-      const midPoint = scrollTop + viewportHeight / 2;
-
-      // Find which section the midpoint of the viewport is in
-      let index = 0;
-      for (let i = 0; i < sections.length; i++) {
-        const el = sections[i] as HTMLElement;
-        if (el.offsetTop <= midPoint) {
-          index = i;
-        }
-      }
-      setCurrentIndex(index);
+      // Each section is 100vh in the snap system — floor division is exact
+      const index = Math.floor(container.scrollTop / container.clientHeight);
+      setCurrentIndex(Math.min(index, sections.length - 1));
     };
 
     updateCurrentSection();
