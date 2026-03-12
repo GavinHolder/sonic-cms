@@ -479,3 +479,35 @@ model Volt3DVersion {
   @@index([assetId])
   @@map("volt_3d_versions")
 }
+
+// ============================================
+// SITE CONFIGURATION (singleton)
+// ============================================
+
+model SiteConfig {
+  id            String   @id @default("singleton")
+  // Company
+  companyName   String   @default("Your Company")
+  tagline       String   @default("")
+  logoUrl       String   @default("")
+  faviconUrl    String   @default("")
+  // Contact
+  phone         String   @default("")
+  email         String   @default("")
+  address       String   @default("")
+  city          String   @default("")
+  postalCode    String   @default("")
+  country       String   @default("")
+  // Socials
+  facebook      String   @default("")
+  instagram     String   @default("")
+  twitter       String   @default("")
+  linkedin      String   @default("")
+  youtube       String   @default("")
+  // Footer
+  copyrightText String   @default("")
+  showRegulatory Boolean @default(false)
+  updatedAt     DateTime @updatedAt
+
+  @@map("site_config")
+}

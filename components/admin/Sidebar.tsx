@@ -104,6 +104,12 @@ const menuItems: MenuItem[] = [
         href: "/admin/settings",
       },
       {
+        id: "site-config",
+        label: "Site Config",
+        icon: "bi-building",
+        href: "/admin/settings/site-config",
+      },
+      {
         id: "api-keys",
         label: "API Keys",
         icon: "bi-key",

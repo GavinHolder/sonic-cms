@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 
 interface Branch {
@@ -34,26 +34,44 @@ interface FooterProps {
 // Expected response format: Array<SocialLink>
 
 export default function Footer({
-  branches = [
-    {
-      id: "1",
-      name: "Main Office",
-      phone: "+27 00 000 0000",
-      email: "info@yourcompany.co.za",
-      address: {
-        street: "123 Main Road",
-        city: "City",
-        postalCode: "0000",
-      },
-    },
-  ],
-  socialLinks = [
-    { platform: "facebook", url: "#", label: "Facebook" },
-    { platform: "instagram", url: "#", label: "Instagram" },
-    { platform: "twitter", url: "#", label: "Twitter/X" },
-  ],
-  showRegulatory = true,
+  branches: branchesProp,
+  socialLinks: socialLinksProp,
+  showRegulatory: showRegulatoryProp,
 }: FooterProps) {
+  const [siteConfig, setSiteConfig] = useState<{
+    companyName?: string; tagline?: string; logoUrl?: string;
+    phone?: string; email?: string; address?: string; city?: string; postalCode?: string;
+    facebook?: string; instagram?: string; twitter?: string; linkedin?: string; youtube?: string;
+    copyrightText?: string; showRegulatory?: boolean;
+  }>({});
+
+  useEffect(() => {
+    fetch("/api/site-config")
+      .then((r) => r.json())
+      .then((d) => { if (d.data) setSiteConfig(d.data); })
+      .catch(() => {});
+  }, []);
+
+  const companyName = siteConfig.companyName || "Your Company";
+  const tagline = siteConfig.tagline || "Replace this with your company tagline or a short description.";
+  const phone = siteConfig.phone || "+27 00 000 0000";
+  const email = siteConfig.email || "info@yourcompany.co.za";
+  const address = siteConfig.address || "123 Main Road";
+  const city = siteConfig.city || "City";
+  const postalCode = siteConfig.postalCode || "0000";
+  const showRegulatory = siteConfig.showRegulatory ?? showRegulatoryProp ?? false;
+  const copyright = siteConfig.copyrightText || `© ${new Date().getFullYear()} ${companyName}. All rights reserved.`;
+
+  const socials: { platform: "facebook" | "instagram" | "twitter"; url: string; label: string }[] = [
+    ...(siteConfig.facebook ? [{ platform: "facebook" as const, url: siteConfig.facebook, label: "Facebook" }] : (socialLinksProp?.filter(s => s.platform === "facebook") ?? [{ platform: "facebook" as const, url: "#", label: "Facebook" }])),
+    ...(siteConfig.instagram ? [{ platform: "instagram" as const, url: siteConfig.instagram, label: "Instagram" }] : (socialLinksProp?.filter(s => s.platform === "instagram") ?? [{ platform: "instagram" as const, url: "#", label: "Instagram" }])),
+    ...(siteConfig.twitter ? [{ platform: "twitter" as const, url: siteConfig.twitter, label: "Twitter/X" }] : (socialLinksProp?.filter(s => s.platform === "twitter") ?? [{ platform: "twitter" as const, url: "#", label: "Twitter/X" }])),
+  ].filter(s => s.url && s.url !== "#");
+
+  const branches = branchesProp ?? [{
+    id: "1", name: "Main Office", phone, email,
+    address: { street: address, city, postalCode },
+  }];
   const socialIcons = {
     facebook: (
       <svg style={{ width: "24px", height: "24px" }} fill="currentColor" viewBox="0 0 24 24">
@@ -78,14 +96,17 @@ export default function Footer({
         <div className="row g-5">
           {/* Logo + About */}
           <div className="col-12 col-md-6 col-lg-3">
-            <p className="fw-bold text-white fs-5 mb-0">Your Company</p>
-            <p className="mt-2 small text-muted">
-              Replace this with your company tagline or a short description.
-            </p>
+            {siteConfig.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={siteConfig.logoUrl} alt={companyName} style={{ height: 40, maxWidth: 160, objectFit: "contain", marginBottom: 8, filter: "brightness(0) invert(1)" }} />
+            ) : (
+              <p className="fw-bold text-white fs-5 mb-0">{companyName}</p>
+            )}
+            <p className="mt-2 small text-muted">{tagline}</p>
 
             {/* Social Links */}
             <div className="mt-4 d-flex gap-3">
-              {socialLinks.map((social) => (
+              {socials.map((social) => (
                 <a
                   key={social.platform}
                   href={social.url}
@@ -102,7 +123,7 @@ export default function Footer({
               ))}
             </div>
 
-            {/* Regulatory / Compliance badge — configure as needed */}
+            {/* Regulatory / Compliance badge */}
             {showRegulatory && (
               <div className="mt-4">
                 <p className="small text-muted mb-0">
@@ -327,7 +348,7 @@ export default function Footer({
 
         {/* Bottom Bar */}
         <div className="border-top border-secondary pt-4 mt-5 text-center small text-muted">
-          © {new Date().getFullYear()} Your Company. All rights reserved.
+          {copyright}
         </div>
       </div>
     </footer>

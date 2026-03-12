@@ -31,6 +31,8 @@ export default function Navbar() {
   const [ctaConfig, setCtaConfig] = useState<NavbarCtaButton>(defaultNavbarConfig.cta);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [enabledFeatures, setEnabledFeatures] = useState<string[]>([]);
+  const [companyName, setCompanyName] = useState("Your Company");
+  const [logoUrl, setLogoUrl] = useState("");
   const toolsRef = useRef<HTMLDivElement>(null);
 
   // Load dynamic nav links from sections
@@ -88,6 +90,14 @@ export default function Navbar() {
         // Keep default on error
       }
     };
+
+    fetch("/api/site-config")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.data?.companyName) setCompanyName(d.data.companyName);
+        if (d.data?.logoUrl) setLogoUrl(d.data.logoUrl);
+      })
+      .catch(() => {});
 
     loadNavLinks();
     loadCtaConfig();
@@ -308,9 +318,24 @@ export default function Navbar() {
             }}
           >
             <Link href="/" className="d-flex align-items-center gap-2 text-decoration-none">
-              <span style={{ height: "44px", display: "flex", alignItems: "center", fontWeight: 700, fontSize: "1.2rem", color: effectiveScrolled ? "#111827" : "#fff" }}>
-                Your Company
-              </span>
+              {logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={logoUrl}
+                  alt={companyName}
+                  style={{
+                    height: "36px",
+                    maxWidth: "160px",
+                    objectFit: "contain",
+                    filter: effectiveScrolled ? "none" : "brightness(0) invert(1)",
+                    transition: `filter 600ms cubic-bezier(0.4,0,0.2,1)`,
+                  }}
+                />
+              ) : (
+                <span style={{ height: "44px", display: "flex", alignItems: "center", fontWeight: 700, fontSize: "1.2rem", color: effectiveScrolled ? "#111827" : "#fff" }}>
+                  {companyName}
+                </span>
+              )}
             </Link>
           </div>
 
