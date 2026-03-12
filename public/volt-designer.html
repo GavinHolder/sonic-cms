@@ -76,9 +76,16 @@
     #key-legend .kl-item{display:flex;align-items:center;gap:3px;font-size:10px;white-space:nowrap;flex-shrink:0;}
     #key-legend .kl-key{font-family:monospace;font-size:9px;font-weight:700;color:#495057;background:#e9ecef;border:1px solid #ced4da;border-radius:3px;padding:0px 4px;white-space:nowrap;}
     #key-legend .kl-label{color:#6c757d;font-size:10px;white-space:nowrap;}
-    .canvas-empty-hint i{font-size:32px;color:#93a8c4;}
-    .canvas-empty-hint p{font-size:13px;color:#6b8cae;margin:0;font-weight:600;}
-    .canvas-empty-hint small{font-size:10px;color:#4e6a8a;letter-spacing:0.5px;background:rgba(255,255,255,0.85);padding:4px 12px;border-radius:20px;border:1px solid rgba(147,168,196,0.4);font-weight:600;}
+    .canvas-empty-hint-card{background:rgba(255,255,255,0.82);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(100,116,139,0.22);border-radius:16px;padding:28px 36px;display:flex;flex-direction:column;align-items:center;gap:10px;box-shadow:0 2px 16px rgba(0,0,0,0.08);}
+    /* Shape presets popup */
+    .shapes-preset-panel{position:absolute;top:calc(100% + 4px);left:0;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,0.14);z-index:9999;padding:10px;width:248px;}
+    .shapes-preset-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+    .shape-preset-item{display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 4px;border:1.5px solid #e2e8f0;border-radius:7px;cursor:pointer;background:#fafafa;transition:all 0.12s;}
+    .shape-preset-item:hover{border-color:#6366f1;background:#f0f0ff;}
+    .shape-preset-item span{font-size:9px;color:#64748b;text-align:center;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:52px;}
+    .canvas-empty-hint i{font-size:38px;color:#475569;}
+    .canvas-empty-hint p{font-size:14px;color:#1e293b;margin:0;font-weight:700;letter-spacing:0.1px;}
+    .canvas-empty-hint small{font-size:11px;color:#475569;letter-spacing:0.5px;background:rgba(241,245,249,0.95);padding:5px 14px;border-radius:20px;border:1px solid rgba(100,116,139,0.25);font-weight:600;}
     .v3d-modal{position:fixed;inset:0;z-index:9000;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);}
     .v3d-modal.open{display:flex;}
     .v3d-modal-inner{width:min(1280px,98vw);height:90vh;background:#fff;border-radius:10px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.18);}
@@ -231,6 +238,13 @@
             <div id="slot-type-menu" style="display:none;position:absolute;top:calc(100% + 4px);left:0;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:9999;min-width:200px;padding:4px 0;"></div>
           </div>
           <div class="tools-sep"></div>
+          <div style="position:relative;display:inline-flex;align-items:stretch;">
+            <button id="btn-shapes-preset" class="tool-btn-h" title="Shape Presets — insert ready-made shapes" style="width:auto;padding:0 7px;gap:3px;"><i class="bi bi-stars"></i><span style="font-size:8px;font-weight:800;letter-spacing:0.3px;color:#6366f1;">SHP</span></button>
+            <div id="shapes-preset-panel" class="shapes-preset-panel" style="display:none;">
+              <div style="font-size:10px;font-weight:700;color:#374151;margin-bottom:8px;letter-spacing:0.5px;text-transform:uppercase;">Shape Presets</div>
+              <div class="shapes-preset-grid" id="shapes-preset-grid"></div>
+            </div>
+          </div>
         </div>
         <span id="canvas-size-label" class="text-muted ms-3" style="font-size:11px;">800&#215;500px</span>
         <span id="bool-edit-badge" style="display:none;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;background:#fff3cd;color:#664d03;border:1px solid #ffc107;margin-left:8px;">&#9986; Bool Edit Mode — move cutter &nbsp;<kbd>Esc</kbd> to exit</span>
@@ -251,9 +265,11 @@
           <button id="vx-round-reset" style="font-size:10px;padding:1px 7px;border-radius:10px;border:1px solid #6366f1;color:#6366f1;background:transparent;cursor:pointer;font-weight:700;">↺</button>
         </div>
         <div id="canvas-empty-hint" class="canvas-empty-hint">
-          <i class="bi bi-vector-pen"></i>
-          <p>Pick a tool and start drawing</p>
-          <small>R Rect &nbsp;&middot;&nbsp; E Ellipse &nbsp;&middot;&nbsp; L Line &nbsp;&middot;&nbsp; P Polygon &nbsp;&middot;&nbsp; S Slot</small>
+          <div class="canvas-empty-hint-card">
+            <i class="bi bi-vector-pen"></i>
+            <p>Pick a tool and start drawing</p>
+            <small>R Rect &nbsp;&middot;&nbsp; E Ellipse &nbsp;&middot;&nbsp; L Line &nbsp;&middot;&nbsp; P Polygon &nbsp;&middot;&nbsp; S Slot</small>
+          </div>
         </div>
         <div id="artboard" style="width:800px;height:500px;">
           <div class="cdotgrid"></div>
@@ -2045,7 +2061,7 @@
       opt.addEventListener('mouseleave',function(){opt.style.background='';});
       opt.addEventListener('click',function(e){e.stopPropagation();_toolMenuOpen=false;applyToolMode(opt.dataset.mode);});
     });
-    document.addEventListener('click',function(){if(_toolMenuOpen){_toolMenuOpen=false;var menu=document.getElementById('select-mode-menu');if(menu)menu.style.display='none';}if(_slotMenuOpen){_slotMenuOpen=false;var sm=document.getElementById('slot-type-menu');if(sm)sm.style.display='none';}});
+    document.addEventListener('click',function(){if(_toolMenuOpen){_toolMenuOpen=false;var menu=document.getElementById('select-mode-menu');if(menu)menu.style.display='none';}if(_slotMenuOpen){_slotMenuOpen=false;var sm=document.getElementById('slot-type-menu');if(sm)sm.style.display='none';}if(typeof _shapesMenuOpen!=='undefined'&&_shapesMenuOpen){_shapesMenuOpen=false;var sp=document.getElementById('shapes-preset-panel');if(sp)sp.style.display='none';}});
     applyToolMode('auto'); // default on init
     // ── Slot type dropdown ────────────────────────────────────────────────────
     var _slotMenuOpen=false;
@@ -2095,6 +2111,75 @@
     document.getElementById('btn-slot-preview').addEventListener('click',function(){
       _slotPreviewMode=!_slotPreviewMode;updateSlotPreviewBtn();renderCanvas();
     });
+    // ── Shape Presets ─────────────────────────────────────────────────────────
+    var _shapesMenuOpen=false;
+    var SHAPE_PRESETS=[
+      {id:'arrow-r',   name:'Arrow Right',  path:'M 0 30 L 60 30 L 60 0 L 100 50 L 60 100 L 60 70 L 0 70 Z'},
+      {id:'arrow-l',   name:'Arrow Left',   path:'M 100 30 L 40 30 L 40 0 L 0 50 L 40 100 L 40 70 L 100 70 Z'},
+      {id:'arrow-lr',  name:'Dbl Arrow',    path:'M 0 50 L 25 0 L 25 30 L 75 30 L 75 0 L 100 50 L 75 100 L 75 70 L 25 70 L 25 100 Z'},
+      {id:'star5',     name:'Star',         path:'M 50 0 L 61 35 L 100 35 L 69 57 L 79 91 L 50 70 L 21 91 L 31 57 L 0 35 L 39 35 Z'},
+      {id:'heart',     name:'Heart',        path:'M 50 80 C 15 60 0 45 0 30 C 0 10 20 0 35 10 C 42 14 47 22 50 28 C 53 22 58 14 65 10 C 80 0 100 10 100 30 C 100 45 85 60 50 80 Z'},
+      {id:'diamond',   name:'Diamond',      path:'M 50 0 L 100 50 L 50 100 L 0 50 Z'},
+      {id:'tri-up',    name:'Triangle',     path:'M 50 0 L 100 100 L 0 100 Z'},
+      {id:'tri-dn',    name:'Tri Down',     path:'M 0 0 L 100 0 L 50 100 Z'},
+      {id:'chevron',   name:'Chevron',      path:'M 10 0 L 100 50 L 10 100 L 0 85 L 75 50 L 0 15 Z'},
+      {id:'plus',      name:'Plus',         path:'M 35 0 L 65 0 L 65 35 L 100 35 L 100 65 L 65 65 L 65 100 L 35 100 L 35 65 L 0 65 L 0 35 L 35 35 Z'},
+      {id:'hexagon',   name:'Hexagon',      path:'M 50 0 L 100 25 L 100 75 L 50 100 L 0 75 L 0 25 Z'},
+      {id:'octagon',   name:'Octagon',      path:'M 30 0 L 70 0 L 100 30 L 100 70 L 70 100 L 30 100 L 0 70 L 0 30 Z'},
+      {id:'pentagon',  name:'Pentagon',     path:'M 50 0 L 100 38 L 81 100 L 19 100 L 0 38 Z'},
+      {id:'shield',    name:'Shield',       path:'M 50 0 L 100 20 L 100 55 L 50 100 L 0 55 L 0 20 Z'},
+      {id:'speech',    name:'Callout',      path:'M 10 0 L 90 0 L 100 10 L 100 70 L 58 70 L 50 90 L 42 70 L 0 70 L 0 10 Z'},
+      {id:'tag',       name:'Tag',          path:'M 0 0 L 75 0 L 100 50 L 75 100 L 0 100 Z'}
+    ];
+    // Scale a normalized 0-100 path to actual canvas coordinates
+    function scalePresetPath(np,x,y,w,h){
+      var toks=np.trim().split(/\s+/),out=[],i=0;
+      while(i<toks.length){
+        var t=toks[i];
+        if(t==='M'||t==='L'){out.push(t);out.push((x+parseFloat(toks[i+1])*w/100).toFixed(2));out.push((y+parseFloat(toks[i+2])*h/100).toFixed(2));i+=3;}
+        else if(t==='C'){out.push('C');for(var j=0;j<6;j+=2){out.push((x+parseFloat(toks[i+1+j])*w/100).toFixed(2));out.push((y+parseFloat(toks[i+2+j])*h/100).toFixed(2));}i+=7;}
+        else if(t==='Z'){out.push('Z');i++;}
+        else{out.push(t);i++;}
+      }
+      return out.join(' ');
+    }
+    function insertShapePreset(preset){
+      // Layer coords are in percentage space (0-100); SVG applies scale(CW/100,CH/100) at render time
+      var cw=state.element.canvasWidth,ch=state.element.canvasHeight;
+      var sizePx=Math.min(cw,ch)*0.4; // target square size in pixels (40% of shorter dim)
+      var swPct=sizePx/cw*100, shPct=sizePx/ch*100;
+      var sxPct=(100-swPct)/2,  syPct=(100-shPct)/2; // center on canvas
+      var pd=scalePresetPath(preset.path,sxPct,syPct,swPct,shPct);
+      var layer=baseVec(preset.name,'structure',sxPct,syPct,swPct,shPct,pd,nextColor());
+      var maxZ=state.element.layers.reduce(function(m,l){return Math.max(m,l.zIndex||0);},0);
+      layer.zIndex=maxZ+10;
+      pushHistory();
+      state.element.layers.push(layer);
+      state.selectedLayerId=layer.id;
+      markDirty();
+      renderAll();
+    }
+    // Build the shape preset grid (thumbnails are inline SVG)
+    (function(){
+      var grid=document.getElementById('shapes-preset-grid');if(!grid)return;
+      SHAPE_PRESETS.forEach(function(preset){
+        var item=document.createElement('div');item.className='shape-preset-item';item.title=preset.name;
+        // SVG thumbnail
+        var svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+        svg.setAttribute('viewBox','-5 -5 110 110');svg.setAttribute('width','40');svg.setAttribute('height','40');
+        var path=document.createElementNS('http://www.w3.org/2000/svg','path');
+        path.setAttribute('d',preset.path);path.setAttribute('fill','#6366f1');path.setAttribute('fill-opacity','0.85');
+        svg.appendChild(path);
+        var lbl=document.createElement('span');lbl.textContent=preset.name;
+        item.appendChild(svg);item.appendChild(lbl);
+        item.addEventListener('click',function(e){e.stopPropagation();insertShapePreset(preset);_shapesMenuOpen=false;document.getElementById('shapes-preset-panel').style.display='none';});
+        grid.appendChild(item);
+      });
+    })();
+    var _btnShapes=document.getElementById('btn-shapes-preset');
+    var _shapePanel=document.getElementById('shapes-preset-panel');
+    _btnShapes.addEventListener('click',function(e){e.stopPropagation();_shapesMenuOpen=!_shapesMenuOpen;_shapePanel.style.display=_shapesMenuOpen?'block':'none';});
+    // close on outside click (handled in existing global click listener — extend it)
     // ── Corner rounding bar ───────────────────────────────────────────────────
     var _origRoundPath=null; // original path before rounding — set fresh on vertex edit entry
     function resetRoundBar(){var r=document.getElementById('vx-round-range');if(r)r.value=0;var v=document.getElementById('vx-round-val');if(v)v.textContent='0%';_origRoundPath=null;}
