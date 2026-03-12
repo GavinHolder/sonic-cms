@@ -366,6 +366,7 @@
     var _v3dCurrentAsset = null, _v3dCurrentVersion = null;
     var _v3dClips = [], _v3dActiveClip = null;
     var _v3dFormatOverride = 'auto'; // 'auto' | 'glb' | 'gltf' | 'fbx' | 'obj'
+    var _v3dThumbLayerId = null; // layer.id that is currently previewed in the modal
     // ── Utilities ─────────────────────────────────────────────────────────────
     function nanoid(){return Math.random().toString(36).slice(2,11)+Math.random().toString(36).slice(2,11);}
     function dist2(a,b){return Math.sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y));}
@@ -679,31 +680,48 @@
         if(layer.type==='3d-object'){
           var rx=topx(layer.x,CW),ry=topx(layer.y,CH),rw=topx(layer.width,CW),rh=topx(layer.height,CH);
           var g3d=svgNs('g');
-          var r3d=svgNs('rect');
-          r3d.setAttribute('x',rx);r3d.setAttribute('y',ry);
-          r3d.setAttribute('width',rw);r3d.setAttribute('height',rh);
-          r3d.setAttribute('fill','rgba(99,102,241,0.12)');
-          r3d.setAttribute('stroke','#6366f1');
-          r3d.setAttribute('stroke-width',String(1/state.zoom));
-          r3d.setAttribute('stroke-dasharray',String(4/state.zoom));
-          r3d.setAttribute('rx','4');
-          g3d.appendChild(r3d);
-          var icon3d=svgNs('text');
-          icon3d.setAttribute('x',String(rx+rw/2));
-          icon3d.setAttribute('y',String(ry+rh/2-8/state.zoom));
-          icon3d.setAttribute('text-anchor','middle');
-          icon3d.setAttribute('fill','#6366f1');
-          icon3d.setAttribute('font-size',String(14/state.zoom));
-          icon3d.textContent='\u2B21';
-          g3d.appendChild(icon3d);
-          var lbl3d=svgNs('text');
-          lbl3d.setAttribute('x',String(rx+rw/2));
-          lbl3d.setAttribute('y',String(ry+rh/2+10/state.zoom));
-          lbl3d.setAttribute('text-anchor','middle');
-          lbl3d.setAttribute('fill','#4f46e5');
-          lbl3d.setAttribute('font-size',String(10/state.zoom));
-          lbl3d.textContent=layer.name||'3D Object';
-          g3d.appendChild(lbl3d);
+          var thumb3d=(layer.object3DData&&layer.object3DData.thumb)||null;
+          if(thumb3d){
+            // Show captured thumbnail as image fill
+            var clipId='c3d'+layer.id;
+            var clipEl=svgNs('clipPath');clipEl.setAttribute('id',clipId);
+            var clipR=svgNs('rect');clipR.setAttribute('x',rx);clipR.setAttribute('y',ry);clipR.setAttribute('width',rw);clipR.setAttribute('height',rh);clipR.setAttribute('rx','4');
+            clipEl.appendChild(clipR);svgEl.appendChild(clipEl);
+            var img3d=svgNs('image');img3d.setAttribute('x',rx);img3d.setAttribute('y',ry);img3d.setAttribute('width',rw);img3d.setAttribute('height',rh);
+            img3d.setAttribute('href',thumb3d);img3d.setAttribute('preserveAspectRatio','xMidYMid slice');
+            img3d.setAttribute('clip-path','url(#'+clipId+')');
+            g3d.appendChild(img3d);
+            // Thin border
+            var brd3d=svgNs('rect');brd3d.setAttribute('x',rx);brd3d.setAttribute('y',ry);brd3d.setAttribute('width',rw);brd3d.setAttribute('height',rh);brd3d.setAttribute('fill','none');brd3d.setAttribute('stroke','#6366f1');brd3d.setAttribute('stroke-width',String(1/state.zoom));brd3d.setAttribute('rx','4');
+            g3d.appendChild(brd3d);
+          } else {
+            // Placeholder — no thumbnail yet
+            var r3d=svgNs('rect');
+            r3d.setAttribute('x',rx);r3d.setAttribute('y',ry);
+            r3d.setAttribute('width',rw);r3d.setAttribute('height',rh);
+            r3d.setAttribute('fill','rgba(99,102,241,0.12)');
+            r3d.setAttribute('stroke','#6366f1');
+            r3d.setAttribute('stroke-width',String(1/state.zoom));
+            r3d.setAttribute('stroke-dasharray',String(4/state.zoom));
+            r3d.setAttribute('rx','4');
+            g3d.appendChild(r3d);
+            var icon3d=svgNs('text');
+            icon3d.setAttribute('x',String(rx+rw/2));
+            icon3d.setAttribute('y',String(ry+rh/2-8/state.zoom));
+            icon3d.setAttribute('text-anchor','middle');
+            icon3d.setAttribute('fill','#6366f1');
+            icon3d.setAttribute('font-size',String(14/state.zoom));
+            icon3d.textContent='\u2B21';
+            g3d.appendChild(icon3d);
+            var lbl3d=svgNs('text');
+            lbl3d.setAttribute('x',String(rx+rw/2));
+            lbl3d.setAttribute('y',String(ry+rh/2+10/state.zoom));
+            lbl3d.setAttribute('text-anchor','middle');
+            lbl3d.setAttribute('fill','#4f46e5');
+            lbl3d.setAttribute('font-size',String(10/state.zoom));
+            lbl3d.textContent=layer.name||'3D Object';
+            g3d.appendChild(lbl3d);
+          }
           svgEl.appendChild(g3d);
         }
       });
@@ -1595,6 +1613,8 @@
     // ── 3D Object modal ───────────────────────────────────────────────────────
     function openV3DModal() {
       document.getElementById('v3d-modal').classList.add('open');
+      // Track which layer is being edited (null = inserting new)
+      _v3dThumbLayerId = state.selectedLayerId || null;
       // Reset format override on each open
       _v3dFormatOverride = 'auto';
       var fmtSel = document.getElementById('v3d-format-select');
@@ -1903,73 +1923,6 @@
           if(i<0)return;state.element.layers[i].object3DData.activeClip=clipSel.value;markDirty();
         });
       }
-      // Section 3: Trigger Events
-      var trigDiv=document.createElement('div');trigDiv.className='prop-group';
-      var trigHeader=document.createElement('div');trigHeader.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;';
-      var trigLabel=document.createElement('span');trigLabel.className='prop-label';trigLabel.textContent='Trigger Events';trigHeader.appendChild(trigLabel);
-      var addTrigBtn=document.createElement('button');addTrigBtn.className='btn btn-xs btn-outline-success';addTrigBtn.style.cssText='font-size:9px;padding:1px 6px;';addTrigBtn.textContent='+ Add';trigHeader.appendChild(addTrigBtn);
-      trigDiv.appendChild(trigHeader);
-      var trigList=document.createElement('div');trigList.id='trig-list';trigDiv.appendChild(trigList);
-      body.appendChild(trigDiv);
-      renderTriggerList(layer,trigList);
-      addTrigBtn.addEventListener('click',function(){
-        var i=state.element.layers.findIndex(function(l){return l.id===layer.id;});
-        if(i<0)return;
-        if(!state.element.layers[i].object3DData.triggerEvents)state.element.layers[i].object3DData.triggerEvents=[];
-        pushHistory();
-        state.element.layers[i].object3DData.triggerEvents.push({on:'animEnd',action:'scrollToSection',targetId:''});
-        markDirty();renderProps();
-      });
-    }
-    function renderTriggerList(layer,container){
-      container.textContent='';
-      var events=(layer.object3DData&&layer.object3DData.triggerEvents)?layer.object3DData.triggerEvents:[];
-      events.forEach(function(ev,idx){
-        var row=document.createElement('div');row.style.cssText='background:#1e1b4b;border-radius:6px;padding:8px;margin-bottom:6px;';
-        // Row 1: "On" select
-        var onRow=document.createElement('div');onRow.style.cssText='display:flex;align-items:center;gap:4px;margin-bottom:4px;';
-        var onLabel=document.createElement('span');onLabel.style.cssText='font-size:10px;color:#64748b;width:28px;flex-shrink:0;';onLabel.textContent='On:';onRow.appendChild(onLabel);
-        var onSel=document.createElement('select');onSel.className='form-select form-select-sm flex-fill';onSel.style.cssText='font-size:10px;padding:1px 4px;height:22px;';
-        [['animStart','Animation Start'],['animEnd','Animation End'],['animLoop','Animation Loop']].forEach(function(pair){
-          var opt=document.createElement('option');opt.value=pair[0];opt.textContent=pair[1];if(pair[0]===ev.on)opt.selected=true;onSel.appendChild(opt);
-        });
-        onRow.appendChild(onSel);
-        var loopInput=document.createElement('input');loopInput.type='number';loopInput.min='1';loopInput.style.cssText='width:44px;font-size:10px;padding:1px 4px;height:22px;background:#0f0f1a;color:white;border:1px solid #334155;border-radius:4px;';
-        loopInput.value=String(ev.loopCount||1);loopInput.style.display=ev.on==='animLoop'?'block':'none';onRow.appendChild(loopInput);
-        row.appendChild(onRow);
-        // Row 2: Action select
-        var actRow=document.createElement('div');actRow.style.cssText='display:flex;align-items:center;gap:4px;margin-bottom:4px;';
-        var actLabel=document.createElement('span');actLabel.style.cssText='font-size:10px;color:#64748b;width:28px;flex-shrink:0;';actLabel.textContent='Do:';actRow.appendChild(actLabel);
-        var actSel=document.createElement('select');actSel.className='form-select form-select-sm flex-fill';actSel.style.cssText='font-size:10px;padding:1px 4px;height:22px;';
-        [['scrollToSection','Scroll to Section'],['snapToSection','Snap to Section'],['scrollToElement','Scroll to Element'],['highlightElement','Highlight Element']].forEach(function(pair){
-          var opt=document.createElement('option');opt.value=pair[0];opt.textContent=pair[1];if(pair[0]===ev.action)opt.selected=true;actSel.appendChild(opt);
-        });
-        actRow.appendChild(actSel);row.appendChild(actRow);
-        // Row 3: Target input
-        var tgtRow=document.createElement('div');tgtRow.style.cssText='display:flex;align-items:center;gap:4px;margin-bottom:4px;';
-        var tgtLabel=document.createElement('span');tgtLabel.style.cssText='font-size:10px;color:#64748b;width:28px;flex-shrink:0;';tgtLabel.textContent='ID:';tgtRow.appendChild(tgtLabel);
-        var tgtInput=document.createElement('input');tgtInput.type='text';tgtInput.className='form-control form-control-sm';tgtInput.style.cssText='font-size:10px;padding:1px 6px;height:22px;';tgtInput.placeholder='Section ID or CSS selector';tgtInput.value=ev.targetId||'';tgtRow.appendChild(tgtInput);row.appendChild(tgtRow);
-        // Remove button row
-        var rmRow=document.createElement('div');rmRow.style.cssText='display:flex;justify-content:flex-end;';
-        var rmBtn=document.createElement('button');rmBtn.className='btn btn-xs btn-outline-danger';rmBtn.style.cssText='font-size:9px;padding:1px 6px;';rmBtn.textContent='Remove';rmRow.appendChild(rmBtn);row.appendChild(rmRow);
-        container.appendChild(row);
-        // Bind events (capture idx in closure)
-        (function(evIdx){
-          onSel.addEventListener('change',function(){updateTriggerField(layer,evIdx,'on',onSel.value);loopInput.style.display=onSel.value==='animLoop'?'block':'none';});
-          loopInput.addEventListener('input',function(){updateTriggerField(layer,evIdx,'loopCount',parseInt(loopInput.value)||1);});
-          actSel.addEventListener('change',function(){updateTriggerField(layer,evIdx,'action',actSel.value);});
-          tgtInput.addEventListener('input',function(){updateTriggerField(layer,evIdx,'targetId',tgtInput.value);});
-          rmBtn.addEventListener('click',function(){
-            var i=state.element.layers.findIndex(function(l){return l.id===layer.id;});
-            if(i<0)return;pushHistory();state.element.layers[i].object3DData.triggerEvents.splice(evIdx,1);markDirty();renderProps();
-          });
-        })(idx);
-      });
-    }
-    function updateTriggerField(layer,idx,field,value){
-      var i=state.element.layers.findIndex(function(l){return l.id===layer.id;});
-      if(i<0)return;if(!state.element.layers[i].object3DData.triggerEvents)return;
-      state.element.layers[i].object3DData.triggerEvents[idx][field]=value;markDirty();
     }
     function bindProps(layer){
       function idx(){return state.element.layers.findIndex(function(l){return l.id===layer.id;});}
@@ -2426,7 +2379,7 @@
           activeClip: _v3dActiveClip || null,
           fileFormat: _v3dFormatOverride !== 'auto' ? _v3dFormatOverride : null,
           availableTracks: _v3dClips,
-          triggerEvents: [],
+
           cameraAzimuth: 45,
           cameraElevation: 20,
           cameraDistance: 4,
@@ -2436,6 +2389,7 @@
       };
       state.element.layers.push(layer);
       state.element.has3D = true;
+      _v3dThumbLayerId = layer.id; // so VOLT3D_THUMB stores on this new layer
       selectLayer(layer.id);
       markDirty();
       renderAll();
@@ -2471,6 +2425,18 @@
       }
       if(e.data && e.data.type === 'VOLT3D_READY') {
         _v3dClips = e.data.clips || [];
+      }
+      if(e.data && e.data.type === 'VOLT3D_THUMB' && e.data.thumb) {
+        // Store thumbnail on the layer that was being previewed/edited
+        var thumbTargetId = _v3dThumbLayerId;
+        if(thumbTargetId) {
+          var ti = state.element.layers.findIndex(function(l){ return l.id === thumbTargetId; });
+          if(ti >= 0 && state.element.layers[ti].type === '3d-object') {
+            if(!state.element.layers[ti].object3DData) state.element.layers[ti].object3DData = {};
+            state.element.layers[ti].object3DData.thumb = e.data.thumb;
+            markDirty(); renderCanvas();
+          }
+        }
       }
       if(!e.data||e.data.type!=='VOLT_DESIGNER_LOAD')return;
       var el=e.data.payload;state.element=Object.assign({},state.element,el);pushHistory();if(el.toolMode)applyToolMode(el.toolMode);

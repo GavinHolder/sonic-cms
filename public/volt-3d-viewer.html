@@ -145,6 +145,15 @@
         isDefault: i === 0
       }))
       window.parent.postMessage({ type: 'VOLT3D_READY', clips: clipData }, '*')
+
+      // Capture thumbnail after a short settle (let first frame render)
+      setTimeout(() => {
+        try {
+          renderer.render(scene, camera)
+          const thumb = renderer.domElement.toDataURL('image/jpeg', 0.6)
+          window.parent.postMessage({ type: 'VOLT3D_THUMB', thumb }, '*')
+        } catch (_) { /* cross-origin or WebGL issue — silently skip */ }
+      }, 150)
     }
 
     // ── Main loader — auto-detects format ─────────────────────────────────────
