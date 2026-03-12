@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useToast } from "@/components/admin/ToastProvider";
@@ -35,7 +35,7 @@ export default function VoltAdminPage() {
       title="Volt Studio"
       subtitle="Design vector elements for your website"
     >
-      <VoltLibrary />
+      <Suspense><VoltLibrary /></Suspense>
     </AdminLayout>
   );
 }
@@ -43,6 +43,8 @@ export default function VoltAdminPage() {
 // Inner: renders inside ToastProvider context
 function VoltLibrary() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const editId = searchParams.get("edit");
   const toast = useToast();
   const [volts, setVolts] = useState<VoltListItem[]>([]);
   const [userId, setUserId] = useState("");
@@ -62,12 +64,20 @@ function VoltLibrary() {
           const { data } = await voltsRes.json();
           setVolts(data?.volts ?? []);
         }
+        // Restore editing state from URL on refresh
+        if (editId) {
+          const res = await fetch(`/api/volt/${editId}`);
+          if (res.ok) {
+            const { data } = await res.json();
+            setEditingElement(data.volt as VoltElementData);
+          }
+        }
       } finally {
         setLoading(false);
       }
     }
     load();
-  }, [router]);
+  }, [router, editId]);
 
   async function handleNew() {
     const el = createNewVoltElement(userId, "New Design");
@@ -79,6 +89,7 @@ function VoltLibrary() {
       });
       if (!res.ok) { toast.error("Failed to create Volt"); return; }
       const { data } = await res.json();
+      router.replace(`/admin/volt?edit=${data.volt.id}`, { scroll: false });
       setEditingElement({ ...el, id: data.volt.id });
     } catch { toast.error("Failed to create Volt"); }
   }
@@ -88,8 +99,14 @@ function VoltLibrary() {
       const res = await fetch(`/api/volt/${id}`);
       if (!res.ok) { toast.error("Failed to load Volt"); return; }
       const { data } = await res.json();
+      router.replace(`/admin/volt?edit=${id}`, { scroll: false });
       setEditingElement(data.volt as VoltElementData);
     } catch { toast.error("Failed to load Volt"); }
+  }
+
+  function handleDone() {
+    router.replace("/admin/volt", { scroll: false });
+    setEditingElement(null);
   }
 
   async function handleSave(element: VoltElementData) {
@@ -122,7 +139,7 @@ function VoltLibrary() {
         initialElement={editingElement}
         authorId={userId}
         onSave={handleSave}
-        onDone={() => setEditingElement(null)}
+        onDone={handleDone}
       />
     );
   }
