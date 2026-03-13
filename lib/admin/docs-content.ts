@@ -128,7 +128,7 @@ A structured layout section. Supports a variety of preset layouts combining text
 
 The bottom section of the page. Contains contact info, navigation columns, social links, and branding.
 
-> **Contact Form Style:** The CTA Footer supports a **Contact Form** mode in addition to its standard button layouts. When selected, the footer renders a custom contact form with OTP email verification. See **Email & OTP** docs for details.
+> **Contact Form Style:** The CTA Footer supports a **Contact Form** mode in addition to its standard button layouts. When selected, the footer renders a custom contact form with **human verification via a shuffled keypad**. See **Human Verification** docs for details.
 
 ---
 
@@ -1482,18 +1482,19 @@ Dedicated contact or inquiry form pages — visitors fill in fields and submit t
 
 ---
 
-#### OTP Email Verification Flow
+#### Human Verification — Shuffled Keypad
 
-When the submit action is **Email**, submissions go through a verification step:
+When the visitor clicks **Submit**, a compact **human check modal** appears before the form is sent:
 
 1. Visitor fills in the form and clicks **Submit**
 2. Required fields are validated — any errors shown inline
-3. A **6-digit OTP code** is sent to the visitor's email address
-4. A modal dialog appears: visitor enters the code
-5. Code is valid for **10 minutes**; visitor can request a resend after 30 seconds
-6. On successful verification, the form data is forwarded to the Admin Notification Email with a reply-to set to the visitor's address
+3. A **shuffled numeric keypad** modal appears, showing a randomly generated 6-digit code
+4. The visitor must enter that code using the **10-key pad** — digits are displayed in a random order
+5. A **countdown timer** (15 seconds) reshuffles the key positions when it expires
+6. Correct entry → form is submitted immediately; wrong entry → cleared and reshuffled
+7. On successful verification, the form data is forwarded to the Admin Notification Email
 
-> ⚙️ Requires SMTP configured in **Admin → Settings → Email & SMTP**.
+> No email or server-side OTP required — verification is fully client-side. ⚙️ Requires SMTP configured in **Admin → Settings → Email & SMTP** for form delivery.
 
 ---
 

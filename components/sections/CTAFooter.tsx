@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import type { CTASection, BackgroundColor, ButtonConfig } from "@/types/section";
 import type { FormField } from "@/types/page";
-import OtpVerificationModal from "@/components/ui/OtpVerificationModal";
+import ShuffledKeypadModal from "@/components/ui/ShuffledKeypadModal";
 
 /**
  * CTAFooter Props
@@ -84,7 +84,7 @@ export default function CTAFooter({
   const [formValues, setFormValues] = useState<Record<string, string>>({});
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
-  const [otpEmail, setOtpEmail] = useState<string | null>(null);
+  const [showKeypad, setShowKeypad] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
   /** Update a single form field value */
@@ -113,17 +113,7 @@ export default function CTAFooter({
       return;
     }
 
-    // Find email field to send OTP to
-    const emailField = formFields.find((f) => f.type === "email");
-    if (!emailField || !formValues[emailField.name]?.trim()) {
-      setFormErrors((prev) => ({
-        ...prev,
-        [emailField?.name || "_"]: "A valid email address is required for verification",
-      }));
-      return;
-    }
-
-    setOtpEmail(formValues[emailField.name].trim());
+    setShowKeypad(true);
   };
 
   /**
@@ -131,7 +121,7 @@ export default function CTAFooter({
    * Shows the success state regardless of API response to avoid confusing the user.
    */
   const handleOtpVerified = async () => {
-    setOtpEmail(null);
+    setShowKeypad(false);
     setSubmitting(true);
     try {
       const fields = (formFields || []).map((f) => ({
@@ -416,13 +406,11 @@ export default function CTAFooter({
         </div>
       </div>
 
-      {/* OTP verification modal — shown when user submits the contact form */}
-      {otpEmail && (
-        <OtpVerificationModal
-          email={otpEmail}
-          purpose="cta-form"
+      {/* Shuffled keypad verification — shown when user submits the contact form */}
+      {showKeypad && (
+        <ShuffledKeypadModal
           onVerified={handleOtpVerified}
-          onCancel={() => setOtpEmail(null)}
+          onCancel={() => setShowKeypad(false)}
         />
       )}
     </section>
