@@ -143,7 +143,7 @@ let styleInjected = false;
  *   or to GridLayout / AbsoluteLayout / PresetLayout (classic FlexibleElement format)
  */
 export default function FlexibleSectionRenderer({ section }: FlexibleSectionRendererProps) {
-  const { content, background, paddingTop, paddingBottom } = section;
+  const { content, background, paddingTop, paddingBottom, paddingTopMobile, paddingBottomMobile } = section;
   // contentMode: "single" = 100vh snap section; "multi" = free-growing height
   const contentMode = section.contentMode || (content as any).contentMode || "single";
   const {
@@ -199,6 +199,8 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
         "--section-bg":  isBgGrad ? "#0f0c29" : bgColor,
         "--section-pt":  `${paddingTop  ?? 80}px`,
         "--section-pb":  `${paddingBottom ?? 80}px`,
+        ...(paddingTopMobile != null && { "--section-pt-mobile": `${paddingTopMobile}px` }),
+        ...(paddingBottomMobile != null && { "--section-pb-mobile": `${paddingBottomMobile}px` }),
         position: "relative",
         ...(isBgGrad ? { background: bgColor } : {}),
       } as React.CSSProperties}

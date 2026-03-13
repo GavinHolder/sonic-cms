@@ -351,9 +351,19 @@ main {
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
-  /* Gavin branch: CMS-controlled padding */
+  /* CMS-controlled padding — desktop values */
   padding-top: var(--section-pt, 100px);
   padding-bottom: var(--section-pb, 80px);
+}
+
+/* Mobile padding overrides — defaults to 100px top / 80px bottom.
+   100px top always clears the 76px fixed navbar + 24px breathing room.
+   Set --section-pt-mobile / --section-pb-mobile inline to override per section. */
+@media (max-width: 767px) {
+  .section-content-wrapper {
+    padding-top: var(--section-pt-mobile, 100px);
+    padding-bottom: var(--section-pb-mobile, 80px);
+  }
 }
 
 /* Ensure sections don't overlap (scoped to snap container) */

@@ -117,6 +117,8 @@ export default function DynamicSection({ section, isFirstAfterHero = false }: Dy
           '--section-bg': 'transparent',
           '--section-pt': `${section.paddingTop ?? 80}px`,
           '--section-pb': `${section.paddingBottom ?? 80}px`,
+          ...(section.paddingTopMobile != null && { '--section-pt-mobile': `${section.paddingTopMobile}px` }),
+          ...(section.paddingBottomMobile != null && { '--section-pb-mobile': `${section.paddingBottomMobile}px` }),
         } as React.CSSProperties}
       >
         <div className="section-content-wrapper">
@@ -374,7 +376,7 @@ export default function DynamicSection({ section, isFirstAfterHero = false }: Dy
  * Columns and certification logos adjust based on main logo position
  */
 function FooterRenderer({ section }: { section: FooterSection }) {
-  const { content, background, paddingTop, paddingBottom } = section;
+  const { content, background, paddingTop, paddingBottom, paddingTopMobile, paddingBottomMobile } = section;
 
   // Map preset background colors to hex values
   const bgColor =
@@ -580,6 +582,8 @@ function FooterRenderer({ section }: { section: FooterSection }) {
         "--section-bg": bgColor,
         "--section-pt": `${paddingTop ?? 100}px`,
         "--section-pb": `${paddingBottom ?? 40}px`,
+        ...(paddingTopMobile != null && { "--section-pt-mobile": `${paddingTopMobile}px` }),
+        ...(paddingBottomMobile != null && { "--section-pb-mobile": `${paddingBottomMobile}px` }),
       } as React.CSSProperties}
     >
       {/* Gradient overlay (if enabled) */}
@@ -731,7 +735,7 @@ function FooterRenderer({ section }: { section: FooterSection }) {
  * All other styles use the inline banner/card/fullwidth layout below.
  */
 function CTARenderer({ section }: { section: CTASection }) {
-  const { content, background, paddingTop, paddingBottom } = section;
+  const { content, background, paddingTop, paddingBottom, paddingTopMobile, paddingBottomMobile } = section;
 
   // Contact-form mode: delegate to CTAFooter with all form-related props
   if (content.style === "contact-form") {
@@ -775,6 +779,8 @@ function CTARenderer({ section }: { section: CTASection }) {
         "--section-bg": bgColor,
         "--section-pt": `${paddingTop ?? 80}px`,
         "--section-pb": `${paddingBottom ?? 80}px`,
+        ...(paddingTopMobile != null && { "--section-pt-mobile": `${paddingTopMobile}px` }),
+        ...(paddingBottomMobile != null && { "--section-pb-mobile": `${paddingBottomMobile}px` }),
       } as React.CSSProperties}
     >
       <div className="section-content-wrapper" style={{ justifyContent: "center" }}>
@@ -857,7 +863,7 @@ function isDarkBackground(background?: string): boolean {
  * Supports text overlay, gradient overlay, background images, and custom hex backgrounds.
  */
 function NormalRenderer({ section }: { section: NormalSection }) {
-  const { content, background, paddingTop, paddingBottom } = section;
+  const { content, background, paddingTop, paddingBottom, paddingTopMobile, paddingBottomMobile } = section;
   const bgColor = resolveBgColor(background);
   const darkBg = isDarkBackground(background);
   const textClass = darkBg ? "text-white" : "";
@@ -924,6 +930,8 @@ function NormalRenderer({ section }: { section: NormalSection }) {
         "--section-bg": bgColor,
         "--section-pt": `${paddingTop ?? 80}px`,
         "--section-pb": `${paddingBottom ?? 80}px`,
+        ...(paddingTopMobile != null && { "--section-pt-mobile": `${paddingTopMobile}px` }),
+        ...(paddingBottomMobile != null && { "--section-pb-mobile": `${paddingBottomMobile}px` }),
       } as React.CSSProperties}
     >
       {/* Animated background (if enabled) — stored in content.animBg */}

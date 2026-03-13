@@ -103,11 +103,14 @@ export default function ScrollStageWrapper({
   // column then scroll normally against #snap-container.
   const zoneH = `${multiLimit * 100}vh`;
 
-  // Navbar height — sticky content starts below it so text never enters the nav area
+  // Navbar height — sticky content must start below it
   const NAV_H = 76;
+  // On mobile use the section's configured top padding (min NAV_H) so content
+  // always clears the fixed navbar with proper breathing room
+  const mobilePaddingTop = Math.max(NAV_H, contentPaddingTop);
 
   if (isMobile) {
-    return <div style={{ paddingTop: NAV_H }}>{children}</div>;
+    return <div style={{ paddingTop: mobilePaddingTop }}>{children}</div>;
   }
 
   const contentCol = (

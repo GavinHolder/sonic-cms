@@ -83,6 +83,9 @@ export async function PUT(
         ...(body.navLabel !== undefined && { navLabel: body.navLabel }),
         ...(body.paddingTop !== undefined && { paddingTop: body.paddingTop }),
         ...(body.paddingBottom !== undefined && { paddingBottom: body.paddingBottom }),
+        // Mobile overrides — explicit null clears the override (reverts to auto/smart default)
+        ...('paddingTopMobile' in body && { paddingTopMobile: body.paddingTopMobile ?? null }),
+        ...('paddingBottomMobile' in body && { paddingBottomMobile: body.paddingBottomMobile ?? null }),
         ...(body.background !== undefined && { background: body.background }),
         ...(body.banner !== undefined && { banner: body.banner }),
         ...(body.content !== undefined && { content: body.content }),

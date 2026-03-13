@@ -182,6 +182,8 @@ export interface BaseSectionConfig {
   displayName?: string; // Human-readable name for admin panel
   paddingTop?: number; // Top padding in pixels
   paddingBottom?: number; // Bottom padding in pixels
+  paddingTopMobile?: number | null; // Mobile override — null = smart default (100px)
+  paddingBottomMobile?: number | null; // Mobile override — null = smart default (80px)
   autoTextColor?: boolean; // Auto-detect text color based on background (default: true)
   imageBrightness?: "auto" | "dark" | "light"; // Manual override for background image brightness
 

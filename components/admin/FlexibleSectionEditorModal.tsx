@@ -77,6 +77,8 @@ export default function FlexibleSectionEditorModal({
   // ── Spacing ───────────────────────────────────────────────────
   const [paddingTop, setPaddingTop] = useState(section.paddingTop ?? 100);
   const [paddingBottom, setPaddingBottom] = useState(section.paddingBottom ?? 80);
+  const [paddingTopMobile, setPaddingTopMobile] = useState<number | null>(section.paddingTopMobile ?? null);
+  const [paddingBottomMobile, setPaddingBottomMobile] = useState<number | null>(section.paddingBottomMobile ?? null);
 
   // ── Background ────────────────────────────────────────────────
   const rawBg = section.background || "white";
@@ -193,6 +195,8 @@ export default function FlexibleSectionEditorModal({
       background: backgroundType === "solid" ? (background as any) : "transparent",
       paddingTop,
       paddingBottom,
+      paddingTopMobile,
+      paddingBottomMobile,
       contentMode,
       colorPalette: colorPalette.length > 0 ? colorPalette : undefined,
       colorPaletteHarmony: colorPalette.length > 0 ? paletteHarmony : undefined,
@@ -1179,6 +1183,10 @@ export default function FlexibleSectionEditorModal({
                     paddingBottom={paddingBottom}
                     onPaddingTopChange={setPaddingTop}
                     onPaddingBottomChange={setPaddingBottom}
+                    paddingTopMobile={paddingTopMobile}
+                    paddingBottomMobile={paddingBottomMobile}
+                    onPaddingTopMobileChange={setPaddingTopMobile}
+                    onPaddingBottomMobileChange={setPaddingBottomMobile}
                   />
                 </div>
               )}

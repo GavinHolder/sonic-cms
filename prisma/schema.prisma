@@ -113,8 +113,11 @@ model Section {
   navLabel      String?
 
   // Spacing (direct pixel values)
-  paddingTop    Int             @default(80)
-  paddingBottom Int             @default(80)
+  paddingTop          Int             @default(80)
+  paddingBottom       Int             @default(80)
+  // Mobile overrides — null means "use smart default (100px top, 80px bottom)"
+  paddingTopMobile    Int?
+  paddingBottomMobile Int?
 
   // Background color (white, gray, blue, lightblue, transparent)
   background    String          @default("white")
