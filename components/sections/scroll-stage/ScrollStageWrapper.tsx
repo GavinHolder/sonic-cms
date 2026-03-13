@@ -98,10 +98,6 @@ export default function ScrollStageWrapper({
   // Only use sideOverride that doesn't flip mid-section — use active zone's override
   const side = zones[activeZone]?.sideOverride || globalSide;
 
-  if (isMobile) {
-    return <>{children}</>;
-  }
-
   // The outer wrapper is exactly multiLimit * 100vh tall — this is the scroll spacer.
   // Both columns stretch to fill it via alignItems: stretch. Sticky children inside each
   // column then scroll normally against #snap-container.
@@ -109,6 +105,10 @@ export default function ScrollStageWrapper({
 
   // Navbar height — sticky content starts below it so text never enters the nav area
   const NAV_H = 76;
+
+  if (isMobile) {
+    return <div style={{ paddingTop: NAV_H }}>{children}</div>;
+  }
 
   const contentCol = (
     <div style={{ flex: '0 0 60%', minWidth: 0, position: 'relative' }}>

@@ -1192,89 +1192,54 @@ export default function NormalSectionEditor({
             </div>
 
             {/* Tabs */}
-            <ul className="nav nav-tabs mb-4">
-              <li className="nav-item">
-                <button
-                  className={`nav-link ${activeTab === "content" ? "active" : ""}`}
-                  onClick={() => setActiveTab("content")}
-                >
-                  <i className="bi bi-type me-2"></i>
-                  Content
-                </button>
-              </li>
-              <li className="nav-item">
-                <button
-                  className={`nav-link ${activeTab === "background" ? "active" : ""}`}
-                  onClick={() => setActiveTab("background")}
-                >
-                  <i className="bi bi-image me-2"></i>
-                  Background
-                </button>
-              </li>
-              <li className="nav-item">
-                <button
-                  className={`nav-link ${activeTab === "animation" ? "active" : ""}`}
-                  onClick={() => setActiveTab("animation")}
-                >
-                  <i className="bi bi-stars me-2"></i>
-                  Animation
-                </button>
-              </li>
-              <li className="nav-item">
-                <button
-                  className={`nav-link ${activeTab === "overlay" ? "active" : ""}`}
-                  onClick={() => setActiveTab("overlay")}
-                >
-                  <i className="bi bi-layers me-2"></i>
-                  Text Overlay
-                </button>
-              </li>
-              <li className="nav-item">
-                <button
-                  className={`nav-link ${activeTab === "triangle" ? "active" : ""}`}
-                  onClick={() => setActiveTab("triangle")}
-                >
-                  <i className="bi bi-triangle me-2"></i>
-                  Section Into
-                </button>
-              </li>
-              <li className="nav-item">
-                <button
-                  className={`nav-link ${activeTab === "lower-third" ? "active" : ""}`}
-                  onClick={() => setActiveTab("lower-third")}
-                >
-                  <i className="bi bi-layout-bottom me-1" />
-                  Lower Third
-                </button>
-              </li>
-              <li className="nav-item">
-                <button
-                  className={`nav-link ${activeTab === "motion" ? "active" : ""}`}
-                  onClick={() => setActiveTab("motion")}
-                >
-                  <i className="bi bi-stars me-1" />
-                  Motion
-                </button>
-              </li>
-              <li className="nav-item">
-                <button
-                  className={`nav-link ${activeTab === "spacing" ? "active" : ""}`}
-                  onClick={() => setActiveTab("spacing")}
-                >
-                  <i className="bi bi-arrows-expand-vertical me-2"></i>
-                  Spacing
-                </button>
-              </li>
-              <li className="nav-item ms-auto">
-                <button
-                  className={`nav-link ${activeTab === "preview" ? "active" : ""} ${activeTab === "preview" ? "text-success" : "text-primary"}`}
-                  onClick={() => setActiveTab("preview")}
-                >
-                  <i className="bi bi-eye me-2"></i>
-                  Live Preview
-                </button>
-              </li>
-            </ul>
+            <div className="d-flex align-items-center border-bottom mb-4" style={{ gap: 0 }}>
+              <div className="d-flex flex-nowrap overflow-auto" style={{ flex: 1, scrollbarWidth: "none" }}>
+                {([
+                  { id: "content",     icon: "bi-type",                   label: "Content"      },
+                  { id: "background",  icon: "bi-image",                  label: "Background"   },
+                  { id: "animation",   icon: "bi-stars",                  label: "Animation"    },
+                  { id: "overlay",     icon: "bi-layers",                 label: "Text Overlay" },
+                  { id: "triangle",    icon: "bi-triangle",               label: "Section Intro"},
+                  { id: "lower-third", icon: "bi-layout-bottom",          label: "Lower Third"  },
+                  { id: "motion",      icon: "bi-film",                   label: "Motion"       },
+                  { id: "spacing",     icon: "bi-arrows-expand-vertical", label: "Spacing"      },
+                ] as { id: string; icon: string; label: string }[]).map(({ id, icon, label }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className="btn btn-link text-decoration-none px-3 py-2 border-0 rounded-0 text-nowrap"
+                    style={{
+                      fontSize: "0.82rem",
+                      color: activeTab === id ? "#0d6efd" : "#6c757d",
+                      borderBottom: activeTab === id ? "2px solid #0d6efd" : "2px solid transparent",
+                      fontWeight: activeTab === id ? 600 : 400,
+                      marginBottom: "-1px",
+                    }}
+                    onClick={() => setActiveTab(id as any)}
+                  >
+                    <i className={`bi ${icon} me-1`} />
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {/* Live Preview — pinned right */}
+              <button
+                type="button"
+                className="btn btn-link text-decoration-none px-3 py-2 border-0 rounded-0 text-nowrap ms-auto"
+                style={{
+                  fontSize: "0.82rem",
+                  color: activeTab === "preview" ? "#198754" : "#0d6efd",
+                  borderBottom: activeTab === "preview" ? "2px solid #198754" : "2px solid transparent",
+                  fontWeight: activeTab === "preview" ? 600 : 400,
+                  marginBottom: "-1px",
+                  flexShrink: 0,
+                }}
+                onClick={() => setActiveTab("preview")}
+              >
+                <i className="bi bi-eye me-1" />
+                Preview
+              </button>
+            </div>
 
             {/* Content Tab */}
             {activeTab === "content" && (

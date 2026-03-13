@@ -508,7 +508,7 @@ export default function Navbar() {
                 {/* Tools section in mobile menu */}
                 {enabledFeatures.filter((s) => FEATURE_ROUTES[s]).length > 0 && (
                   <>
-                    <div className="px-4 pt-2 pb-1" style={{ fontSize: "0.7rem", letterSpacing: "0.1em", color: "#9ca3af", textTransform: "uppercase" }}>
+                    <div className="px-4 pt-2 pb-1 text-center" style={{ fontSize: "0.7rem", letterSpacing: "0.1em", color: "#9ca3af", textTransform: "uppercase" }}>
                       Tools
                     </div>
                     {enabledFeatures
