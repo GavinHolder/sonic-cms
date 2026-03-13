@@ -163,6 +163,9 @@ export default function ScrollStageWrapper({
             width: '100%',
             height: 1,
             scrollSnapAlign: 'start',
+            // 'always' prevents the zone from being skipped at any scroll velocity —
+            // users must visit every zone in sequence before leaving the section.
+            scrollSnapStop: 'always',
             pointerEvents: 'none',
           }}
         />
