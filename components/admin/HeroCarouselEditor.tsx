@@ -443,7 +443,7 @@ export default function HeroCarouselEditor({
               type="button"
               className="btn btn-success"
               onClick={() => handleSave(false)}
-              disabled={slides.length === 0 || slides.some((s) => !s.src)}
+              disabled={slides.length === 0}
             >
               <i className="bi bi-floppy me-1"></i>
               Save
@@ -452,7 +452,7 @@ export default function HeroCarouselEditor({
               type="button"
               className="btn btn-primary"
               onClick={() => handleSave(true)}
-              disabled={slides.length === 0 || slides.some((s) => !s.src)}
+              disabled={slides.length === 0}
             >
               <i className="bi bi-check-lg me-1"></i>
               Save & Close

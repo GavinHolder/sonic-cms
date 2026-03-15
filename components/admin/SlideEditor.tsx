@@ -1537,20 +1537,22 @@ export default function SlideEditor({
                     </div>
 
                     {/* Buttons Preview */}
-                    <div style={{ display: "flex", gap: `${slide.overlay.spacing.betweenButtons}px`, alignItems: "center" }}>
-                      {slide.overlay.buttons.map((_, index) => (
-                        <div
-                          key={index}
-                          className="badge rounded-pill text-success border border-success-subtle"
-                          style={{
-                            fontSize: "11px",
-                            padding: "6px 12px",
-                            fontWeight: "500",
-                          }}
-                        >
-                          Button {index + 1}
-                        </div>
-                      ))}
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
+                      <div style={{ display: "flex", gap: `${slide.overlay.spacing.betweenButtons}px`, alignItems: "center", justifyContent: "center" }}>
+                        {slide.overlay.buttons.map((_, index) => (
+                          <div
+                            key={index}
+                            className="badge rounded-pill text-success border border-success-subtle"
+                            style={{
+                              fontSize: "11px",
+                              padding: "6px 12px",
+                              fontWeight: "500",
+                            }}
+                          >
+                            Button {index + 1}
+                          </div>
+                        ))}
+                      </div>
                       {slide.overlay.buttons.length > 1 && (
                         <span
                           style={{

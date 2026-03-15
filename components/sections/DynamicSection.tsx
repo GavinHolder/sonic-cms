@@ -115,7 +115,7 @@ export default function DynamicSection({ section, isFirstAfterHero = false }: Dy
         className="cms-section"
         style={{
           '--section-bg': 'transparent',
-          '--section-pt': `${section.paddingTop ?? 80}px`,
+          '--section-pt': `${Math.max(section.paddingTop ?? 100, 100)}px`,
           '--section-pb': `${section.paddingBottom ?? 80}px`,
           ...(section.paddingTopMobile != null && { '--section-pt-mobile': `${section.paddingTopMobile}px` }),
           ...(section.paddingBottomMobile != null && { '--section-pb-mobile': `${section.paddingBottomMobile}px` }),
@@ -580,7 +580,7 @@ function FooterRenderer({ section }: { section: FooterSection }) {
       style={{
         ...backgroundStyles,
         "--section-bg": bgColor,
-        "--section-pt": `${paddingTop ?? 100}px`,
+        "--section-pt": `${Math.max(paddingTop ?? 100, 100)}px`,
         "--section-pb": `${paddingBottom ?? 40}px`,
         ...(paddingTopMobile != null && { "--section-pt-mobile": `${paddingTopMobile}px` }),
         ...(paddingBottomMobile != null && { "--section-pb-mobile": `${paddingBottomMobile}px` }),
@@ -777,7 +777,7 @@ function CTARenderer({ section }: { section: CTASection }) {
       className="cms-section"
       style={{
         "--section-bg": bgColor,
-        "--section-pt": `${paddingTop ?? 80}px`,
+        "--section-pt": `${Math.max(paddingTop ?? 100, 100)}px`,
         "--section-pb": `${paddingBottom ?? 80}px`,
         ...(paddingTopMobile != null && { "--section-pt-mobile": `${paddingTopMobile}px` }),
         ...(paddingBottomMobile != null && { "--section-pb-mobile": `${paddingBottomMobile}px` }),
@@ -928,7 +928,7 @@ function NormalRenderer({ section }: { section: NormalSection }) {
       style={{
         ...backgroundStyles,
         "--section-bg": bgColor,
-        "--section-pt": `${paddingTop ?? 80}px`,
+        "--section-pt": `${Math.max(paddingTop ?? 100, 100)}px`,
         "--section-pb": `${paddingBottom ?? 80}px`,
         ...(paddingTopMobile != null && { "--section-pt-mobile": `${paddingTopMobile}px` }),
         ...(paddingBottomMobile != null && { "--section-pb-mobile": `${paddingBottomMobile}px` }),

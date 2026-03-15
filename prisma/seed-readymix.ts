@@ -1,29 +1,29 @@
 // @ts-nocheck
 /**
- * OVERBERG READYMIX SEED
+ * OVERBERG READYMIX SEED — v3 (client-ready)
  *
- * Seeds a complete ready-mix concrete company landing page:
- *  ✓ ClientFeature: coverage-map (DISABLED by default)
- *  ✓ ClientFeature: concrete-calculator (ENABLED)
- *  ✓ Demo CoverageMap: Overberg region with 4 delivery zones
- *  ✓ 4 demo projects with images
- *  ✓ Full landing page: Hero, About (scroll-stage), Services (scroll-stage),
- *    Projects gallery, Team, Coverage Map embed, CTA, Footer
+ * Professional landing page for SA ready-mix concrete company.
+ * Sections:
+ *   1. HERO          — 3 slides with real construction photography
+ *   2. ABOUT US      — Clean stats layout, NO scroll-stage
+ *   3. SERVICES      — Dark card grid, 6 service types
+ *   4. PROJECTS      — Projects gallery
+ *   5. COVERAGE MAP  — Delivery area embed
+ *   6. CTA           — Quote request form
+ *   7. FOOTER
  *
- * Run: npx ts-node --skip-project prisma/seed-readymix.ts
- * Or:  npm run db:seed-readymix
+ * Run: npx tsx prisma/seed-readymix.ts
  */
 
 import { PrismaClient, Prisma } from '@prisma/client';
 import { hashPassword } from '../lib/auth';
 
-// Helper to cast complex content objects to Prisma JSON type
 function j(obj: object): Prisma.InputJsonValue { return obj as Prisma.InputJsonValue; }
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Starting Overberg ReadyMix seed...');
+  console.log('🌱 Starting Overberg ReadyMix seed v3...');
 
   // ── Full wipe ──────────────────────────────────────────────────────────────
   console.log('🗑  Wiping existing data...');
@@ -87,7 +87,7 @@ async function main() {
       {
         slug: 'coverage-map',
         name: 'Coverage Map',
-        enabled: false,  // DISABLED by default — enable in admin Settings → Features
+        enabled: false,
         config: {},
       },
     ],
@@ -107,7 +107,6 @@ async function main() {
     },
   });
 
-  // Approximate Overberg delivery zones
   await prisma.coverageRegion.createMany({
     data: [
       {
@@ -183,10 +182,10 @@ async function main() {
 
   await prisma.coverageLabel.createMany({
     data: [
-      { mapId: overbergMap.id, text: 'Hermanus', lat: -34.42, lng: 19.24, fontSize: 14, fontFamily: 'Arial', color: '#ffffff', bgColor: null, bold: true },
-      { mapId: overbergMap.id, text: 'Stanford', lat: -34.46, lng: 19.51, fontSize: 13, fontFamily: 'Arial', color: '#ffffff', bgColor: null, bold: false },
-      { mapId: overbergMap.id, text: 'Caledon', lat: -34.26, lng: 19.47, fontSize: 13, fontFamily: 'Arial', color: '#ffffff', bgColor: null, bold: false },
-      { mapId: overbergMap.id, text: 'Gansbaai', lat: -34.61, lng: 19.38, fontSize: 13, fontFamily: 'Arial', color: '#fff', bgColor: null, bold: false },
+      { mapId: overbergMap.id, text: 'Hermanus',  lat: -34.42, lng: 19.24, fontSize: 14, fontFamily: 'Arial', color: '#ffffff', bgColor: null, bold: true  },
+      { mapId: overbergMap.id, text: 'Stanford',  lat: -34.46, lng: 19.51, fontSize: 13, fontFamily: 'Arial', color: '#ffffff', bgColor: null, bold: false },
+      { mapId: overbergMap.id, text: 'Caledon',   lat: -34.26, lng: 19.47, fontSize: 13, fontFamily: 'Arial', color: '#ffffff', bgColor: null, bold: false },
+      { mapId: overbergMap.id, text: 'Gansbaai',  lat: -34.61, lng: 19.38, fontSize: 13, fontFamily: 'Arial', color: '#ffffff', bgColor: null, bold: false },
     ],
   });
   console.log('✅ Coverage Map: Overberg (4 regions, 4 labels)');
@@ -212,7 +211,9 @@ async function main() {
         location: 'Stanford, Western Cape',
         description: 'Strip and pad footings for new 12-classroom block. 30MPa mix, engineered design. 140 m³ total volume.',
         coverImageUrl: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&q=80',
-        images: [],
+        images: [
+          'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&q=80',
+        ],
         completedDate: 'August 2024',
         isActive: true,
         order: 1,
@@ -235,7 +236,9 @@ async function main() {
         location: 'Gansbaai, Western Cape',
         description: 'Marine-grade 35MPa concrete retaining wall, 65 linear metres. Sulphate-resistant additives. Sea-spray environment.',
         coverImageUrl: 'https://images.unsplash.com/photo-1510146758428-e5e4b17b8b6a?w=800&q=80',
-        images: [],
+        images: [
+          'https://images.unsplash.com/photo-1510146758428-e5e4b17b8b6a?w=800&q=80',
+        ],
         completedDate: 'January 2025',
         isActive: true,
         order: 3,
@@ -247,13 +250,13 @@ async function main() {
   // ── Site settings ──────────────────────────────────────────────────────────
   await prisma.systemSettings.createMany({
     data: [
-      { key: 'companyName', value: 'Overberg ReadyMix' },
-      { key: 'tagline', value: 'Quality concrete delivered to your site' },
-      { key: 'email', value: 'info@overbergreadymix.co.za' },
-      { key: 'phone', value: '+27 28 312 0000' },
-      { key: 'address', value: '14 Industrial Road, Hermanus, 7200' },
-      { key: 'facebook', value: 'https://facebook.com/overbergreadymix' },
-      { key: 'instagram', value: 'https://instagram.com/overbergreadymix' },
+      { key: 'companyName',  value: 'Overberg ReadyMix' },
+      { key: 'tagline',      value: 'Quality concrete delivered to your site' },
+      { key: 'email',        value: 'info@overbergreadymix.co.za' },
+      { key: 'phone',        value: '+27 28 312 0000' },
+      { key: 'address',      value: '14 Industrial Road, Hermanus, 7200' },
+      { key: 'facebook',     value: 'https://facebook.com/overbergreadymix' },
+      { key: 'instagram',    value: 'https://instagram.com/overbergreadymix' },
     ],
   });
   console.log('✅ System settings: Overberg ReadyMix');
@@ -273,7 +276,7 @@ async function main() {
   let order = 0;
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 1. HERO — concrete imagery, green accent
+  // 1. HERO — 3 slides with real construction photography
   // ══════════════════════════════════════════════════════════════════════════
   await prisma.section.create({
     data: {
@@ -286,61 +289,89 @@ async function main() {
       paddingTop: 0,
       paddingBottom: 0,
       background: 'transparent',
-      content: {
+      content: j({
         slides: [
           {
             id: 'slide-1',
-            type: 'color',
-            src: '',
+            type: 'image',
+            src: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=1920&q=80',
             gradient: {
               enabled: true,
               type: 'preset',
-              preset: { direction: 'bottomRight', startOpacity: 95, endOpacity: 70, color: '#111827' },
+              preset: { direction: 'bottomRight', startOpacity: 65, endOpacity: 40, color: '#000000' },
             },
             overlay: {
               heading: {
-                text: 'Ready-Mix Concrete. Delivered.',
+                text: 'Ready-Mix Concrete.\nDelivered.',
                 fontSize: 68, fontWeight: 800, color: '#ffffff',
                 animation: 'slideUp', animationDuration: 900, animationDelay: 100,
               },
               subheading: {
-                text: 'Serving the Overberg region — Hermanus, Stanford, Caledon and beyond. Consistent quality, on-time delivery, expert mix design.',
-                fontSize: 20, fontWeight: 400, color: 'rgba(255,255,255,0.82)',
+                text: 'Serving the Overberg — Hermanus, Stanford, Caledon and beyond. Consistent quality, on-time delivery, expert mix design.',
+                fontSize: 20, fontWeight: 400, color: 'rgba(255,255,255,0.88)',
                 animation: 'slideUp', animationDuration: 900, animationDelay: 300,
               },
               buttons: [
                 { text: 'Get a Quote', href: '#contact', backgroundColor: '#4a7c59', textColor: '#ffffff', variant: 'filled', animation: 'slideUp', animationDelay: 500 },
-                { text: 'Check Coverage', href: '#coverage', backgroundColor: 'transparent', textColor: '#ffffff', variant: 'outline', animation: 'slideUp', animationDelay: 620 },
+                { text: 'Our Services', href: '#services', backgroundColor: 'transparent', textColor: '#ffffff', variant: 'outline', animation: 'slideUp', animationDelay: 620 },
               ],
               position: 'center',
-              spacing: { betweenHeadingSubheading: 20, betweenSubheadingButtons: 44, betweenButtons: 14 },
+              spacing: { betweenHeadingSubheading: 24, betweenSubheadingButtons: 48, betweenButtons: 16 },
             },
           },
           {
             id: 'slide-2',
-            type: 'color',
-            src: '',
+            type: 'image',
+            src: 'https://images.unsplash.com/photo-1590846406792-0adc7f938f1d?w=1920&q=80',
             gradient: {
               enabled: true,
               type: 'preset',
-              preset: { direction: 'topLeft', startOpacity: 95, endOpacity: 75, color: '#1f2937' },
+              preset: { direction: 'bottomRight', startOpacity: 70, endOpacity: 45, color: '#0f1f10' },
             },
             overlay: {
               heading: {
-                text: 'Built on Quality. Trusted by Builders.',
+                text: 'Built on Quality.\nTrusted by Builders.',
                 fontSize: 64, fontWeight: 800, color: '#ffffff',
                 animation: 'fade', animationDuration: 1000, animationDelay: 0,
               },
               subheading: {
-                text: 'From footings to floor slabs — our mix designs are engineered for your application, not just from a bag.',
-                fontSize: 20, fontWeight: 400, color: 'rgba(255,255,255,0.82)',
+                text: 'From strip footings to 4 500 m² industrial slabs — our mix designs are engineered for your application, certified to SANS 878.',
+                fontSize: 20, fontWeight: 400, color: 'rgba(255,255,255,0.88)',
                 animation: 'fade', animationDuration: 1000, animationDelay: 200,
               },
               buttons: [
-                { text: 'Our Projects', href: '#projects', backgroundColor: '#4a7c59', textColor: '#ffffff', variant: 'filled', animation: 'fade', animationDelay: 400 },
+                { text: 'View Projects', href: '#projects', backgroundColor: '#4a7c59', textColor: '#ffffff', variant: 'filled', animation: 'fade', animationDelay: 400 },
+                { text: 'Check Coverage', href: '#coverage', backgroundColor: 'transparent', textColor: '#ffffff', variant: 'outline', animation: 'fade', animationDelay: 520 },
               ],
               position: 'center',
-              spacing: { betweenHeadingSubheading: 20, betweenSubheadingButtons: 44, betweenButtons: 14 },
+              spacing: { betweenHeadingSubheading: 24, betweenSubheadingButtons: 48, betweenButtons: 16 },
+            },
+          },
+          {
+            id: 'slide-3',
+            type: 'image',
+            src: 'https://images.unsplash.com/photo-1486325212027-8081e485255e?w=1920&q=80',
+            gradient: {
+              enabled: true,
+              type: 'preset',
+              preset: { direction: 'bottomRight', startOpacity: 65, endOpacity: 35, color: '#111827' },
+            },
+            overlay: {
+              heading: {
+                text: '20 Years.\n8 Trucks.\n1 Standard.',
+                fontSize: 62, fontWeight: 800, color: '#ffffff',
+                animation: 'slideUp', animationDuration: 900, animationDelay: 100,
+              },
+              subheading: {
+                text: 'Family-owned and Overberg-rooted since 2005. Every batch from our automated plant meets the same tight specification.',
+                fontSize: 20, fontWeight: 400, color: 'rgba(255,255,255,0.88)',
+                animation: 'slideUp', animationDuration: 900, animationDelay: 300,
+              },
+              buttons: [
+                { text: 'About Us', href: '#about', backgroundColor: '#4a7c59', textColor: '#ffffff', variant: 'filled', animation: 'slideUp', animationDelay: 500 },
+              ],
+              position: 'center',
+              spacing: { betweenHeadingSubheading: 24, betweenSubheadingButtons: 48, betweenButtons: 16 },
             },
           },
         ],
@@ -348,13 +379,14 @@ async function main() {
         autoPlayInterval: 6000,
         transitionDuration: 800,
         showDots: true,
-        showArrows: false,
-      },
+        showArrows: true,
+      }),
     },
   });
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 2. ABOUT US — FLEXIBLE scroll-stage (3 zones)
+  // 2. ABOUT US — Clean FLEXIBLE layout, no scroll-stage
+  //    Left col: company story | Right col: 4 key stats
   // ══════════════════════════════════════════════════════════════════════════
   await prisma.section.create({
     data: {
@@ -364,152 +396,81 @@ async function main() {
       enabled: true,
       order: order++,
       displayName: 'About Us',
-      paddingTop: 80,
-      paddingBottom: 80,
-      background: '#f9fafb',
-      content: {
-        contentMode: 'multi',
-        multiLimit: 3,
-        scrollStage: {
-          enabled: true,
-          side: 'right',
-          scrollMode: 'snap',
-          zones: [
-            {
-              visualType: 'threejs',
-              shape: 'sphere',
-              color: '#4a7c59',
-              emissive: '#1f2937',
-              wireframe: false,
-              rotationSpeed: 0.6,
-              scrollSpin: 1.5,
-              bgColor: '#1f2937',
-              ambientIntensity: 0.5,
-              pointIntensity: 2.0,
-              transitionDuration: 500,
-            },
-            {
-              visualType: 'threejs',
-              shape: 'box',
-              color: '#374151',
-              emissive: '#111827',
-              wireframe: true,
-              rotationSpeed: 0.4,
-              scrollSpin: 2,
-              bgColor: '#111827',
-              ambientIntensity: 0.4,
-              pointIntensity: 1.8,
-              transitionDuration: 500,
-            },
-            {
-              visualType: 'threejs',
-              shape: 'torus',
-              color: '#22c55e',
-              emissive: '#14532d',
-              wireframe: false,
-              rotationSpeed: 0.8,
-              scrollSpin: 1.8,
-              bgColor: '#0f2d1a',
-              ambientIntensity: 0.6,
-              pointIntensity: 2.5,
-              transitionDuration: 500,
-            },
-          ],
-        },
+      background: '#ffffff',
+      content: j({
+        contentMode: 'single',
         designerData: {
           positionMode: 'grid',
-          contentMode: 'multi',
-          multiLimit: 3,
+          contentMode: 'single',
           blocks: [
-            // Zone 0 — Who we are
+            // ── LEFT COLUMN: company story ──────────────────────────────────
             {
               id: 1, type: 'text',
-              position: { row: 0, col: 0, colSpan: 12, section: 0 },
+              position: { row: 0, col: 0, colSpan: 6 },
               props: {
-                text: 'Who We Are',
-                fontSize: 13, fontWeight: 700, color: '#4a7c59',
-                letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12,
+                text: 'About Overberg ReadyMix',
+                fontSize: 12, fontWeight: 700, color: '#4a7c59',
+                letterSpacing: '0.12em', textTransform: 'uppercase',
+                textAlign: 'left', marginBottom: 16,
               },
             },
             {
               id: 2, type: 'text',
-              position: { row: 1, col: 0, colSpan: 12, section: 0 },
+              position: { row: 1, col: 0, colSpan: 6 },
               props: {
-                text: 'Family-owned. Overberg-rooted.',
-                fontSize: 36, fontWeight: 800, color: '#1f2937',
-                lineHeight: 1.15, marginBottom: 20,
+                text: 'Family-owned.\nQuality-driven.\nOverberg-rooted.',
+                fontSize: 38, fontWeight: 800, color: '#1f2937',
+                lineHeight: 1.15, textAlign: 'left', marginBottom: 24,
               },
             },
             {
               id: 3, type: 'text',
-              position: { row: 2, col: 0, colSpan: 12, section: 0 },
+              position: { row: 2, col: 0, colSpan: 6 },
               props: {
-                text: 'Overberg ReadyMix has been supplying ready-mix concrete to the Overberg region since 2005. What started as a single transit mixer now operates a modern fleet of 8 trucks, a fully automated batching plant, and a team of 24 professionals dedicated to quality concrete, on time.',
-                fontSize: 17, fontWeight: 400, color: '#4b5563', lineHeight: 1.7,
+                text: 'Since 2005, Overberg ReadyMix has supplied ready-mix concrete to builders, developers, and contractors across the Overberg. What started as a single transit mixer has grown into a modern operation — 8 GPS-tracked trucks, a fully automated batching plant, and a team of 24 dedicated to delivering concrete that\'s consistent, on-spec, and on time.\n\nEvery batch begins with SANS-certified raw materials and a mix design matched to your project requirements. Our automated plant controls water-cement ratios to ±2%. You receive exactly what was batched — every time.',
+                fontSize: 17, fontWeight: 400, color: '#4b5563',
+                lineHeight: 1.8, textAlign: 'left',
               },
             },
-            // Zone 1 — Our process
+            // ── RIGHT COLUMN: 4 stat cards ──────────────────────────────────
             {
-              id: 4, type: 'text',
-              position: { row: 0, col: 0, colSpan: 12, section: 1 },
+              id: 4, type: 'card',
+              position: { row: 0, col: 7, colSpan: 5 },
               props: {
-                text: 'Our Process',
-                fontSize: 13, fontWeight: 700, color: '#4a7c59',
-                letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12,
-              },
-            },
-            {
-              id: 5, type: 'text',
-              position: { row: 1, col: 0, colSpan: 12, section: 1 },
-              props: {
-                text: 'Precision from plant to pour.',
-                fontSize: 36, fontWeight: 800, color: '#1f2937',
-                lineHeight: 1.15, marginBottom: 20,
+                bgColor: '#f0fdf4', borderRadius: 12, padding: 28,
+                textAlign: 'center',
+                heading: '20+', headingColor: '#4a7c59',
+                subheading: 'Years in the Overberg', subheadingColor: '#374151',
               },
             },
             {
-              id: 6, type: 'text',
-              position: { row: 2, col: 0, colSpan: 12, section: 1 },
+              id: 5, type: 'card',
+              position: { row: 1, col: 7, colSpan: 5 },
               props: {
-                text: 'Every batch begins with SANS-certified raw materials and a mix design matched to your project requirements. Our automated batching plant controls water-cement ratios to ±2%. Each truck is fitted with GPS and drum-speed monitoring to guarantee you receive exactly what was batched.',
-                fontSize: 17, fontWeight: 400, color: '#4b5563', lineHeight: 1.7,
-              },
-            },
-            // Zone 2 — Why us
-            {
-              id: 7, type: 'text',
-              position: { row: 0, col: 0, colSpan: 12, section: 2 },
-              props: {
-                text: 'Why ReadyMix',
-                fontSize: 13, fontWeight: 700, color: '#4a7c59',
-                letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12,
+                bgColor: '#f8fafc', borderRadius: 12, padding: 28,
+                textAlign: 'center',
+                heading: '8 Trucks', headingColor: '#1f2937',
+                subheading: 'GPS-tracked fleet', subheadingColor: '#374151',
               },
             },
             {
-              id: 8, type: 'text',
-              position: { row: 1, col: 0, colSpan: 12, section: 2 },
+              id: 6, type: 'card',
+              position: { row: 2, col: 7, colSpan: 5 },
               props: {
-                text: 'Consistent strength. Every pour.',
-                fontSize: 36, fontWeight: 800, color: '#1f2937',
-                lineHeight: 1.15, marginBottom: 20,
-              },
-            },
-            {
-              id: 9, type: 'text',
-              position: { row: 2, col: 0, colSpan: 12, section: 2 },
-              props: {
-                text: 'Site-mixed concrete varies. Our plant-mixed product delivers the same water-cement ratio on pour 1 and pour 100. That consistency means fewer failed test cubes, faster construction, and a structure that meets your engineer\'s spec.',
-                fontSize: 17, fontWeight: 400, color: '#4b5563', lineHeight: 1.7,
+                bgColor: '#f0fdf4', borderRadius: 12, padding: 28,
+                textAlign: 'center',
+                heading: '15–40MPa', headingColor: '#4a7c59',
+                subheading: 'Full mix range', subheadingColor: '#374151',
               },
             },
           ],
         },
-      },
+      }),
     },
   });
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 3. SERVICES — FLEXIBLE scroll-stage (5 zones)
+  // 3. SERVICES — Dark card grid, 6 service types, no scroll-stage
   // ══════════════════════════════════════════════════════════════════════════
   await prisma.section.create({
     data: {
@@ -519,57 +480,109 @@ async function main() {
       enabled: true,
       order: order++,
       displayName: 'Services',
-      paddingTop: 80,
-      paddingBottom: 80,
       background: '#1f2937',
-      content: {
-        contentMode: 'multi',
-        multiLimit: 5,
-        scrollStage: {
-          enabled: true,
-          side: 'left',
-          scrollMode: 'snap',
-          zones: [
-            { visualType: 'threejs', shape: 'icosahedron', color: '#4a7c59', emissive: '#1a3d2b', wireframe: false, rotationSpeed: 0.5, scrollSpin: 2, bgColor: '#1f2937', ambientIntensity: 0.5, pointIntensity: 2.2, transitionDuration: 450 },
-            { visualType: 'threejs', shape: 'torusKnot', color: '#6b7280', emissive: '#1f2937', wireframe: false, rotationSpeed: 0.7, scrollSpin: 1.5, bgColor: '#111827', ambientIntensity: 0.4, pointIntensity: 2.0, transitionDuration: 450 },
-            { visualType: 'threejs', shape: 'box', color: '#374151', emissive: '#0f172a', wireframe: true, rotationSpeed: 0.3, scrollSpin: 3, bgColor: '#0f172a', ambientIntensity: 0.3, pointIntensity: 1.5, transitionDuration: 450 },
-            { visualType: 'threejs', shape: 'sphere', color: '#22c55e', emissive: '#14532d', wireframe: false, rotationSpeed: 0.6, scrollSpin: 1.8, bgColor: '#052e16', ambientIntensity: 0.6, pointIntensity: 2.8, transitionDuration: 450 },
-            { visualType: 'threejs', shape: 'torus', color: '#9ca3af', emissive: '#374151', wireframe: true, rotationSpeed: 0.4, scrollSpin: 2.2, bgColor: '#1f2937', ambientIntensity: 0.4, pointIntensity: 1.8, transitionDuration: 450 },
-          ],
-        },
+      content: j({
+        contentMode: 'single',
         designerData: {
           positionMode: 'grid',
-          contentMode: 'multi',
-          multiLimit: 5,
+          contentMode: 'single',
           blocks: [
-            // Zone 0 — Standard mixes
-            { id: 10, type: 'text', position: { row: 0, col: 0, colSpan: 12, section: 0 }, props: { text: '01 — Standard Mixes', fontSize: 12, fontWeight: 700, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 } },
-            { id: 11, type: 'text', position: { row: 1, col: 0, colSpan: 12, section: 0 }, props: { text: '15MPa to 40MPa', fontSize: 40, fontWeight: 800, color: '#ffffff', lineHeight: 1.1, marginBottom: 20 } },
-            { id: 12, type: 'text', position: { row: 2, col: 0, colSpan: 12, section: 0 }, props: { text: 'From light domestic work (15MPa) to heavy industrial floors (40MPa). All mixes are SANS 878-compliant with certified cube-test results available on request.', fontSize: 17, fontWeight: 400, color: '#d1d5db', lineHeight: 1.7 } },
-            // Zone 1 — Pumpable
-            { id: 13, type: 'text', position: { row: 0, col: 0, colSpan: 12, section: 1 }, props: { text: '02 — Pumpable Mixes', fontSize: 12, fontWeight: 700, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 } },
-            { id: 14, type: 'text', position: { row: 1, col: 0, colSpan: 12, section: 1 }, props: { text: 'High-slump concrete for pump application', fontSize: 36, fontWeight: 800, color: '#ffffff', lineHeight: 1.15, marginBottom: 20 } },
-            { id: 15, type: 'text', position: { row: 2, col: 0, colSpan: 12, section: 1 }, props: { text: 'Formulated for 100–180mm slump. Retarder and plasticiser packages available. Ideal for elevated slabs, vertical structures and restricted-access sites.', fontSize: 17, fontWeight: 400, color: '#d1d5db', lineHeight: 1.7 } },
-            // Zone 2 — Fibre-reinforced
-            { id: 16, type: 'text', position: { row: 0, col: 0, colSpan: 12, section: 2 }, props: { text: '03 — Fibre Reinforced', fontSize: 12, fontWeight: 700, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 } },
-            { id: 17, type: 'text', position: { row: 1, col: 0, colSpan: 12, section: 2 }, props: { text: 'Steel or polypropylene fibre blends', fontSize: 36, fontWeight: 800, color: '#ffffff', lineHeight: 1.15, marginBottom: 20 } },
-            { id: 18, type: 'text', position: { row: 2, col: 0, colSpan: 12, section: 2 }, props: { text: 'Added directly to the drum. No on-site dosing errors. Polypropylene fibres reduce plastic shrinkage cracking. Steel fibres provide post-crack load capacity for industrial floors.', fontSize: 17, fontWeight: 400, color: '#d1d5db', lineHeight: 1.7 } },
-            // Zone 3 — Marine grade
-            { id: 19, type: 'text', position: { row: 0, col: 0, colSpan: 12, section: 3 }, props: { text: '04 — Marine Grade', fontSize: 12, fontWeight: 700, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 } },
-            { id: 20, type: 'text', position: { row: 1, col: 0, colSpan: 12, section: 3 }, props: { text: 'Sulphate-resistant. Sea-spray rated.', fontSize: 36, fontWeight: 800, color: '#ffffff', lineHeight: 1.15, marginBottom: 20 } },
-            { id: 21, type: 'text', position: { row: 2, col: 0, colSpan: 12, section: 3 }, props: { text: 'Purpose-designed for coastal environments. Low water-to-cement ratio, blast-furnace slag additions, and penetration-resistant formulation. Extensively used at Gansbaai harbour and coastal residential projects.', fontSize: 17, fontWeight: 400, color: '#d1d5db', lineHeight: 1.7 } },
-            // Zone 4 — Delivery
-            { id: 22, type: 'text', position: { row: 0, col: 0, colSpan: 12, section: 4 }, props: { text: '05 — Delivery Service', fontSize: 12, fontWeight: 700, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 } },
-            { id: 23, type: 'text', position: { row: 1, col: 0, colSpan: 12, section: 4 }, props: { text: '6 m³ or 8 m³ per load', fontSize: 40, fontWeight: 800, color: '#ffffff', lineHeight: 1.1, marginBottom: 20 } },
-            { id: 24, type: 'text', position: { row: 2, col: 0, colSpan: 12, section: 4 }, props: { text: 'GPS-tracked transit mixers. Delivery within 1 hour of pour — guaranteed. Short-load charges apply for orders under 3 m³. Same-day orders accepted before 10:00 AM.', fontSize: 17, fontWeight: 400, color: '#d1d5db', lineHeight: 1.7 } },
+            // Section header
+            {
+              id: 10, type: 'text',
+              position: { row: 0, col: 2, colSpan: 8 },
+              props: {
+                text: 'What We Supply',
+                fontSize: 12, fontWeight: 700, color: '#4a7c59',
+                letterSpacing: '0.12em', textTransform: 'uppercase',
+                textAlign: 'center', marginBottom: 12,
+              },
+            },
+            {
+              id: 11, type: 'text',
+              position: { row: 1, col: 1, colSpan: 10 },
+              props: {
+                text: 'Six concrete solutions. One reliable supplier.',
+                fontSize: 36, fontWeight: 800, color: '#ffffff',
+                textAlign: 'center', marginBottom: 48,
+              },
+            },
+            // Row 1 of service cards
+            {
+              id: 12, type: 'card',
+              position: { row: 2, col: 0, colSpan: 4 },
+              props: {
+                bgColor: '#374151', borderRadius: 10, padding: 28, textAlign: 'left',
+                heading: 'Standard Mixes', headingColor: '#ffffff',
+                subheading: '15MPa – 40MPa', subheadingColor: '#4a7c59',
+                body: 'SANS 878-compliant mixes for domestic to heavy industrial. Cube-test certificates available on request.',
+                bodyColor: '#9ca3af',
+              },
+            },
+            {
+              id: 13, type: 'card',
+              position: { row: 2, col: 4, colSpan: 4 },
+              props: {
+                bgColor: '#374151', borderRadius: 10, padding: 28, textAlign: 'left',
+                heading: 'Pumpable Concrete', headingColor: '#ffffff',
+                subheading: '100–180mm slump', subheadingColor: '#4a7c59',
+                body: 'High-workability mix for pump application. Ideal for elevated slabs, columns and restricted-access sites.',
+                bodyColor: '#9ca3af',
+              },
+            },
+            {
+              id: 14, type: 'card',
+              position: { row: 2, col: 8, colSpan: 4 },
+              props: {
+                bgColor: '#374151', borderRadius: 10, padding: 28, textAlign: 'left',
+                heading: 'Fibre Reinforced', headingColor: '#ffffff',
+                subheading: 'Steel or polypropylene', subheadingColor: '#4a7c59',
+                body: 'Dosed at the plant — no on-site mixing errors. Polypropylene reduces plastic cracking; steel adds post-crack load capacity.',
+                bodyColor: '#9ca3af',
+              },
+            },
+            // Row 2 of service cards
+            {
+              id: 15, type: 'card',
+              position: { row: 3, col: 0, colSpan: 4 },
+              props: {
+                bgColor: '#374151', borderRadius: 10, padding: 28, textAlign: 'left',
+                heading: 'Marine Grade', headingColor: '#ffffff',
+                subheading: 'Sulphate-resistant', subheadingColor: '#4a7c59',
+                body: 'Low w/c ratio, blast-furnace slag additions. Purpose-built for coastal environments and sea-spray exposure.',
+                bodyColor: '#9ca3af',
+              },
+            },
+            {
+              id: 16, type: 'card',
+              position: { row: 3, col: 4, colSpan: 4 },
+              props: {
+                bgColor: '#374151', borderRadius: 10, padding: 28, textAlign: 'left',
+                heading: 'Mass-Pour Mixes', headingColor: '#ffffff',
+                subheading: 'Retaining walls & footings', subheadingColor: '#4a7c59',
+                body: 'Optimised workability window for large-volume pours. Retarder packages available for hot-weather pouring.',
+                bodyColor: '#9ca3af',
+              },
+            },
+            {
+              id: 17, type: 'card',
+              position: { row: 3, col: 8, colSpan: 4 },
+              props: {
+                bgColor: '#374151', borderRadius: 10, padding: 28, textAlign: 'left',
+                heading: 'Delivery Service', headingColor: '#ffffff',
+                subheading: '6 m³ and 8 m³ loads', subheadingColor: '#4a7c59',
+                body: 'GPS-tracked transit mixers. On-site within 1 hour of pour. Same-day orders accepted before 10:00 AM.',
+                bodyColor: '#9ca3af',
+              },
+            },
           ],
         },
-      },
+      }),
     },
   });
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 4. PROJECTS GALLERY — FLEXIBLE single-zone
+  // 4. PROJECTS GALLERY
   // ══════════════════════════════════════════════════════════════════════════
   await prisma.section.create({
     data: {
@@ -579,10 +592,8 @@ async function main() {
       enabled: true,
       order: order++,
       displayName: 'Projects',
-      paddingTop: 80,
-      paddingBottom: 80,
       background: '#111827',
-      content: {
+      content: j({
         contentMode: 'single',
         designerData: {
           positionMode: 'grid',
@@ -590,20 +601,20 @@ async function main() {
           blocks: [
             {
               id: 30, type: 'text',
-              position: { row: 0, col: 0, colSpan: 12 },
+              position: { row: 0, col: 2, colSpan: 8 },
               props: {
                 text: 'Our Work',
                 fontSize: 12, fontWeight: 700, color: '#4a7c59',
                 letterSpacing: '0.12em', textTransform: 'uppercase',
-                textAlign: 'center', marginBottom: 8,
+                textAlign: 'center', marginBottom: 12,
               },
             },
             {
               id: 31, type: 'text',
-              position: { row: 1, col: 0, colSpan: 12 },
+              position: { row: 1, col: 1, colSpan: 10 },
               props: {
                 text: 'Completed Projects',
-                fontSize: 38, fontWeight: 800, color: '#ffffff',
+                fontSize: 36, fontWeight: 800, color: '#ffffff',
                 textAlign: 'center', marginBottom: 40,
               },
             },
@@ -619,105 +630,12 @@ async function main() {
             },
           ],
         },
-      },
+      }),
     },
   });
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 5. TEAM — FLEXIBLE grid
-  // ══════════════════════════════════════════════════════════════════════════
-  await prisma.section.create({
-    data: {
-      pageId: landingPage.id,
-      createdBy: admin.id,
-      type: 'FLEXIBLE',
-      enabled: true,
-      order: order++,
-      displayName: 'Team',
-      paddingTop: 80,
-      paddingBottom: 80,
-      background: '#f9fafb',
-      content: {
-        contentMode: 'single',
-        designerData: {
-          positionMode: 'grid',
-          contentMode: 'single',
-          blocks: [
-            {
-              id: 40, type: 'text',
-              position: { row: 0, col: 0, colSpan: 12 },
-              props: { text: 'Meet the Team', fontSize: 13, fontWeight: 700, color: '#4a7c59', letterSpacing: '0.12em', textTransform: 'uppercase', textAlign: 'center', marginBottom: 8 },
-            },
-            {
-              id: 41, type: 'text',
-              position: { row: 1, col: 0, colSpan: 12 },
-              props: { text: 'The People Behind Your Pour', fontSize: 36, fontWeight: 800, color: '#1f2937', textAlign: 'center', marginBottom: 48 },
-            },
-            // Team card 1
-            {
-              id: 42, type: 'card',
-              position: { row: 2, col: 0, colSpan: 4 },
-              props: {
-                bgColor: '#ffffff',
-                borderRadius: 12,
-                padding: 28,
-                textAlign: 'center',
-                imageUrl: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=400&q=80',
-                imageStyle: 'circle',
-                heading: 'Johan van der Berg',
-                headingColor: '#1f2937',
-                subheading: 'Managing Director',
-                subheadingColor: '#4a7c59',
-                body: '20 years in the ready-mix industry. Johan oversees plant operations and key project partnerships.',
-                bodyColor: '#6b7280',
-              },
-            },
-            // Team card 2
-            {
-              id: 43, type: 'card',
-              position: { row: 2, col: 4, colSpan: 4 },
-              props: {
-                bgColor: '#ffffff',
-                borderRadius: 12,
-                padding: 28,
-                textAlign: 'center',
-                imageUrl: 'https://images.unsplash.com/photo-1494790108755-2616b612b3a0?w=400&q=80',
-                imageStyle: 'circle',
-                heading: 'Anita Jansen',
-                headingColor: '#1f2937',
-                subheading: 'Technical Manager',
-                subheadingColor: '#4a7c59',
-                body: 'Pr.Eng., MSAICE. Anita designs all custom mix specifications and manages cube-test programmes.',
-                bodyColor: '#6b7280',
-              },
-            },
-            // Team card 3
-            {
-              id: 44, type: 'card',
-              position: { row: 2, col: 8, colSpan: 4 },
-              props: {
-                bgColor: '#ffffff',
-                borderRadius: 12,
-                padding: 28,
-                textAlign: 'center',
-                imageUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&q=80',
-                imageStyle: 'circle',
-                heading: 'Thabo Dlamini',
-                headingColor: '#1f2937',
-                subheading: 'Fleet & Logistics',
-                subheadingColor: '#4a7c59',
-                body: 'Coordinates 8 transit mixers across the Overberg. 15 years of concrete logistics experience.',
-                bodyColor: '#6b7280',
-              },
-            },
-          ],
-        },
-      },
-    },
-  });
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // 6. COVERAGE MAP — FLEXIBLE embed (visible only when feature enabled)
+  // 5. COVERAGE MAP
   // ══════════════════════════════════════════════════════════════════════════
   await prisma.section.create({
     data: {
@@ -727,10 +645,8 @@ async function main() {
       enabled: true,
       order: order++,
       displayName: 'Coverage Map',
-      paddingTop: 80,
-      paddingBottom: 80,
       background: '#f3f4f6',
-      content: {
+      content: j({
         contentMode: 'single',
         designerData: {
           positionMode: 'grid',
@@ -738,18 +654,31 @@ async function main() {
           blocks: [
             {
               id: 50, type: 'text',
-              position: { row: 0, col: 0, colSpan: 12 },
-              props: { text: 'Delivery Coverage', fontSize: 13, fontWeight: 700, color: '#4a7c59', letterSpacing: '0.12em', textTransform: 'uppercase', textAlign: 'center', marginBottom: 8 },
+              position: { row: 0, col: 2, colSpan: 8 },
+              props: {
+                text: 'Delivery Coverage',
+                fontSize: 12, fontWeight: 700, color: '#4a7c59',
+                letterSpacing: '0.12em', textTransform: 'uppercase',
+                textAlign: 'center', marginBottom: 12,
+              },
             },
             {
               id: 51, type: 'text',
-              position: { row: 1, col: 0, colSpan: 12 },
-              props: { text: 'Do We Deliver to You?', fontSize: 36, fontWeight: 800, color: '#1f2937', textAlign: 'center', marginBottom: 16 },
+              position: { row: 1, col: 1, colSpan: 10 },
+              props: {
+                text: 'Do We Deliver to You?',
+                fontSize: 36, fontWeight: 800, color: '#1f2937',
+                textAlign: 'center', marginBottom: 12,
+              },
             },
             {
               id: 52, type: 'text',
-              position: { row: 2, col: 0, colSpan: 12 },
-              props: { text: 'Search your town or suburb below, or browse the map to check your delivery zone.', fontSize: 16, fontWeight: 400, color: '#6b7280', textAlign: 'center', marginBottom: 32 },
+              position: { row: 2, col: 2, colSpan: 8 },
+              props: {
+                text: 'Search your town or suburb to check your delivery zone, or browse the map below.',
+                fontSize: 17, fontWeight: 400, color: '#6b7280',
+                textAlign: 'center', marginBottom: 32,
+              },
             },
             {
               id: 53, type: 'coverage-map',
@@ -758,12 +687,12 @@ async function main() {
             },
           ],
         },
-      },
+      }),
     },
   });
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 7. CTA — with contact form
+  // 6. CTA — quote request form
   // ══════════════════════════════════════════════════════════════════════════
   await prisma.section.create({
     data: {
@@ -773,22 +702,20 @@ async function main() {
       enabled: true,
       order: order++,
       displayName: 'Contact',
-      paddingTop: 80,
-      paddingBottom: 80,
       background: '#1f2937',
-      content: {
+      content: j({
         heading: 'Get a Quote Today',
         subtext: 'Tell us about your project and we\'ll be in touch within 2 hours.',
         headingColor: '#ffffff',
         subtextColor: '#9ca3af',
         showForm: true,
         formFields: [
-          { id: 'name', label: 'Full Name', type: 'text', required: true, placeholder: 'e.g. John Smith' },
-          { id: 'email', label: 'Email Address', type: 'email', required: true, placeholder: 'you@example.com' },
-          { id: 'phone', label: 'Phone Number', type: 'tel', required: false, placeholder: '+27 82 000 0000' },
-          { id: 'concrete_type', label: 'Concrete Type', type: 'select', required: false, placeholder: '', options: ['15MPa', '20MPa', '25MPa', '30MPa', '35MPa', 'Fibre reinforced', 'Other / Not sure'] },
-          { id: 'volume', label: 'Estimated Volume (m³)', type: 'text', required: false, placeholder: 'e.g. 12 m³' },
-          { id: 'message', label: 'Project Details', type: 'textarea', required: true, placeholder: 'Site address, pour date, access notes...' },
+          { id: 'name',          label: 'Full Name',              type: 'text',     required: true,  placeholder: 'e.g. John Smith' },
+          { id: 'email',         label: 'Email Address',          type: 'email',    required: true,  placeholder: 'you@example.com' },
+          { id: 'phone',         label: 'Phone Number',           type: 'tel',      required: false, placeholder: '+27 82 000 0000' },
+          { id: 'concrete_type', label: 'Concrete Type',          type: 'select',   required: false, placeholder: '', options: ['15MPa', '20MPa', '25MPa', '30MPa', '35MPa', '40MPa', 'Fibre reinforced', 'Marine grade', 'Other / Not sure'] },
+          { id: 'volume',        label: 'Estimated Volume (m³)',  type: 'text',     required: false, placeholder: 'e.g. 12 m³' },
+          { id: 'message',       label: 'Project Details',        type: 'textarea', required: true,  placeholder: 'Site address, pour date, access notes...' },
         ],
         submitLabel: 'Request Quote',
         submitColor: '#4a7c59',
@@ -797,12 +724,12 @@ async function main() {
         emailTo: 'info@overbergreadymix.co.za',
         emailSubject: 'Quote Request — Overberg ReadyMix',
         successMessage: 'Thank you! We\'ll be in touch within 2 hours.',
-      },
+      }),
     },
   });
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 8. FOOTER
+  // 7. FOOTER
   // ══════════════════════════════════════════════════════════════════════════
   await prisma.section.create({
     data: {
@@ -812,10 +739,8 @@ async function main() {
       enabled: true,
       order: order++,
       displayName: 'Footer',
-      paddingTop: 0,
-      paddingBottom: 0,
       background: '#111827',
-      content: {
+      content: j({
         companyName: 'Overberg ReadyMix',
         tagline: 'Quality concrete. On time. Every time.',
         copyright: `© ${new Date().getFullYear()} Overberg ReadyMix (Pty) Ltd. All rights reserved.`,
@@ -826,52 +751,51 @@ async function main() {
           {
             heading: 'Services',
             links: [
-              { text: 'Standard Mixes', href: '#services' },
-              { text: 'Pumpable Concrete', href: '#services' },
-              { text: 'Fibre Reinforced', href: '#services' },
-              { text: 'Marine Grade', href: '#services' },
-              { text: 'Concrete Calculator', href: '/calculator' },
+              { text: 'Standard Mixes',       href: '#services' },
+              { text: 'Pumpable Concrete',     href: '#services' },
+              { text: 'Fibre Reinforced',      href: '#services' },
+              { text: 'Marine Grade',          href: '#services' },
+              { text: 'Concrete Calculator',   href: '/calculator' },
             ],
           },
           {
             heading: 'Contact',
             links: [
-              { text: '+27 28 312 0000', href: 'tel:+27283120000' },
-              { text: 'info@overbergreadymix.co.za', href: 'mailto:info@overbergreadymix.co.za' },
-              { text: '14 Industrial Rd, Hermanus', href: '#' },
-              { text: 'Mon–Fri 06:00–16:00', href: '#' },
-              { text: 'Sat 07:00–12:00', href: '#' },
+              { text: '+27 28 312 0000',                    href: 'tel:+27283120000' },
+              { text: 'info@overbergreadymix.co.za',        href: 'mailto:info@overbergreadymix.co.za' },
+              { text: '14 Industrial Rd, Hermanus, 7200',   href: '#' },
+              { text: 'Mon–Fri  06:00–16:00',               href: '#' },
+              { text: 'Saturday 07:00–12:00',               href: '#' },
             ],
           },
           {
             heading: 'Coverage',
             links: [
-              { text: 'Hermanus', href: '#coverage' },
-              { text: 'Stanford', href: '#coverage' },
-              { text: 'Caledon', href: '#coverage' },
-              { text: 'Gansbaai', href: '#coverage' },
+              { text: 'Hermanus',       href: '#coverage' },
+              { text: 'Stanford',       href: '#coverage' },
+              { text: 'Caledon',        href: '#coverage' },
+              { text: 'Gansbaai',       href: '#coverage' },
               { text: 'Check Your Area', href: '/coverage' },
             ],
           },
         ],
         socials: [
-          { platform: 'facebook', href: 'https://facebook.com/overbergreadymix', icon: 'bi-facebook' },
+          { platform: 'facebook',  href: 'https://facebook.com/overbergreadymix',  icon: 'bi-facebook'  },
           { platform: 'instagram', href: 'https://instagram.com/overbergreadymix', icon: 'bi-instagram' },
         ],
-      },
+      }),
     },
   });
 
-  console.log(`✅ Landing page: 8 sections created`);
+  console.log(`✅ Landing page: 7 sections created`);
   console.log('');
-  console.log('🎉 Overberg ReadyMix seed complete!');
+  console.log('🎉 Overberg ReadyMix seed v3 complete!');
   console.log('');
-  console.log('  Admin login: http://localhost:3000/admin/login');
-  console.log('  Username: admin / Password: admin2026');
+  console.log('  Admin: http://localhost:3000/admin/login  (admin / admin2026)');
+  console.log('  Home:  http://localhost:3000/');
   console.log('');
-  console.log('  ⚠️  Coverage Map feature is DISABLED by default.');
-  console.log('     To enable: Admin → Settings → Client Features → Coverage Map → toggle ON');
-  console.log('     Then push schema: npx prisma db push');
+  console.log('  Sections: Hero (3 image slides) → About Us → Services → Projects → Coverage → CTA → Footer');
+  console.log('  ⚠️  Coverage Map feature is DISABLED — enable in Admin → Settings → Client Features');
 }
 
 main()
