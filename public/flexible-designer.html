@@ -3712,7 +3712,7 @@ function renderBlockProps(block) {
   }
 
   h+=`<div class="props-section">
-    <div class="props-label"><i class="bi ${getBlockIcon(block.type)}"></i> ${block.props.label} Settings</div>
+    <div class="props-label"><i class="bi ${getBlockIcon(block.type)}"></i> ${block.props.label || (block.type.charAt(0).toUpperCase()+block.type.slice(1))} Settings</div>
     ${renderTypeProps(block)}
   </div>`;
 

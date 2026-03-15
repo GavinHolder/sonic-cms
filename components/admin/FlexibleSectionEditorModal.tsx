@@ -1232,45 +1232,11 @@ export default function FlexibleSectionEditorModal({
 
               {/* ══ PREVIEW TAB ══════════════════════════════════════════ */}
               {activeTab === "preview" && (
-                <div>
-                  {/* Viewport toggle */}
-                  <div className="d-flex align-items-center gap-2 mb-3">
-                    <span className="text-muted small me-1">Preview as:</span>
-                    {(["desktop", "tablet", "mobile"] as const).map((vp) => (
-                      <button
-                        key={vp}
-                        type="button"
-                        className={`btn btn-sm ${previewViewport === vp ? "btn-primary" : "btn-outline-secondary"}`}
-                        onClick={() => setPreviewViewport(vp)}
-                      >
-                        <i className={`bi me-1 ${vp === "desktop" ? "bi-laptop" : vp === "tablet" ? "bi-tablet" : "bi-phone"}`} />
-                        {vp.charAt(0).toUpperCase() + vp.slice(1)}
-                        <span className="ms-1 text-opacity-75" style={{ fontSize: 11 }}>
-                          {vp === "desktop" ? "1440px" : vp === "tablet" ? "768px" : "375px"}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                  {/* Scaled preview container */}
-                  {(() => {
-                    const vw = previewViewport === "desktop" ? 1440 : previewViewport === "tablet" ? 768 : 375;
-                    // The preview panel is roughly 600px wide — scale the simulated viewport to fit
-                    const panelW = 600;
-                    const scale = Math.min(1, panelW / vw);
-                    return (
-                      <div className="border rounded" style={{ overflow: "hidden", height: `calc(${scale} * 500px)`, position: "relative" }}>
-                        <div style={{
-                          width: vw,
-                          transformOrigin: "top left",
-                          transform: `scale(${scale})`,
-                          pointerEvents: "none",
-                        }}>
-                          <FlexibleSectionRenderer section={designerSection} />
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
+                <PreviewTabPane
+                  section={designerSection}
+                  viewport={previewViewport}
+                  onViewportChange={setPreviewViewport}
+                />
               )}
             </div>
 
@@ -2594,6 +2560,113 @@ function ModalScrollStageTab({
           ))}
         </>
       )}
+    </div>
+  );
+}
+
+// ─── Preview Tab: iframe-based viewport simulation ────────────────────────────
+// Uses a sandboxed iframe at /admin/section-preview so that CSS @media queries
+// fire at the correct simulated viewport width (375/768/1440px), rather than
+// at the browser's real viewport width which would make mobile/tablet CSS
+// rules never trigger inside a scaled <div>.
+
+const PREVIEW_VIEWPORTS = {
+  desktop: 1440,
+  tablet:  768,
+  mobile:  375,
+} as const;
+
+function PreviewTabPane({
+  section,
+  viewport,
+  onViewportChange,
+}: {
+  section: any;
+  viewport: "desktop" | "tablet" | "mobile";
+  onViewportChange: (v: "desktop" | "tablet" | "mobile") => void;
+}) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const iframeReady = useRef(false);
+
+  // Send section data to the iframe whenever section or iframe readiness changes
+  const sendSection = () => {
+    iframeRef.current?.contentWindow?.postMessage(
+      { type: "PREVIEW_SECTION", section },
+      "*"
+    );
+  };
+
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === "PREVIEW_READY") {
+        iframeReady.current = true;
+        sendSection();
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section]);
+
+  // Re-send when section changes and iframe is already ready
+  useEffect(() => {
+    if (iframeReady.current) sendSection();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section]);
+
+  const vw = PREVIEW_VIEWPORTS[viewport];
+  const panelW = 640;
+  const scale = Math.min(1, panelW / vw);
+  const scaledH = Math.round(scale * 500);
+
+  return (
+    <div>
+      {/* Viewport toggle */}
+      <div className="d-flex align-items-center gap-2 mb-3">
+        <span className="text-muted small me-1">Preview as:</span>
+        {(Object.keys(PREVIEW_VIEWPORTS) as Array<keyof typeof PREVIEW_VIEWPORTS>).map((vp) => (
+          <button
+            key={vp}
+            type="button"
+            className={`btn btn-sm ${viewport === vp ? "btn-primary" : "btn-outline-secondary"}`}
+            onClick={() => onViewportChange(vp)}
+          >
+            <i className={`bi me-1 ${vp === "desktop" ? "bi-laptop" : vp === "tablet" ? "bi-tablet" : "bi-phone"}`} />
+            {vp.charAt(0).toUpperCase() + vp.slice(1)}
+            <span className="ms-1" style={{ fontSize: 11, opacity: 0.7 }}>
+              {PREVIEW_VIEWPORTS[vp]}px
+            </span>
+          </button>
+        ))}
+        <span className="ms-auto text-muted small">
+          CSS @media queries are accurate — this is a true {vw}px viewport
+        </span>
+      </div>
+
+      {/* Iframe container — outer clips the scaled iframe to the panel */}
+      <div
+        className="border rounded"
+        style={{ overflow: "hidden", height: scaledH, position: "relative", background: "#f8f9fa" }}
+      >
+        <div style={{
+          width: vw,
+          height: Math.round(500 / scale),
+          transformOrigin: "top left",
+          transform: `scale(${scale})`,
+        }}>
+          <iframe
+            key={viewport}              /* remount on viewport change so media queries re-evaluate */
+            ref={iframeRef}
+            src="/admin/section-preview"
+            style={{ width: vw, height: Math.round(500 / scale), border: "none", display: "block" }}
+            title={`Section preview at ${vw}px`}
+            onLoad={() => {
+              // iframe loaded — if PREVIEW_READY already came, send now
+              if (iframeReady.current) sendSection();
+            }}
+          />
+        </div>
+      </div>
     </div>
   );
 }
