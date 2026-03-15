@@ -1480,7 +1480,7 @@ const BLOCK_DEFAULTS = {
   card:        { label:'Card',    bgColor:'transparent', textColor:'#212529', cardStyle:'shadow', glassEffect:'none', customCss:'' },
   'text-block':{ label:'Text',    bgColor:'transparent', textColor:'#212529', glassEffect:'none', customCss:'' },
   banner:      { label:'Banner',  bgColor:'#1e3a5f', textColor:'#ffffff', heading:'Banner Text', navTarget:'', customCss:'' },
-  stats:       { label:'Stats',   bgColor:'transparent', textColor:'#212529', icon:'bi-lightning-charge', number:'99%', statLabel:'Uptime', customCss:'' },
+  stats:       { label:'Stats',   bgColor:'transparent', textColor:'#212529', icon:'bi-lightning-charge', number:'99%', statLabel:'Uptime', customCss:'', animateCount:true, animationDuration:1600 },
   image:       { label:'Image',   src:'', alt:'', imageMode:'fill', customCss:'' },
   video:       { label:'Video',   src:'', poster:'', autoplay:false, loop:false, customCss:'' },
   html:        { label:'HTML',    html:'<p>Custom HTML</p>', customCss:'' },
@@ -3815,9 +3815,14 @@ function renderTypeProps(block) {
       h+=colorRow('Text',p.textColor||'#ffffff',`updateBlockProp('${block.id}','textColor',this.value);renderCanvas()`);
       break;
     case 'stats':
+      h+=inputRow('Value',p.number||'',`updateBlockProp('${block.id}','number',this.value);renderCanvas()`,'e.g. 99% or SANS 878');
+      h+=inputRow('Label',p.statLabel||'',`updateBlockProp('${block.id}','statLabel',this.value);renderCanvas()`,'e.g. Uptime');
+      h+=inputRow('Icon',p.icon||'',`updateBlockProp('${block.id}','icon',this.value);renderCanvas()`,'e.g. bi-people');
       h+=colorRow('Background',p.bgColor||'transparent',`updateBlockProp('${block.id}','bgColor',this.value);renderCanvas()`);
       h+=`<div class="props-row"><label>BG Opacity</label><input class="props-input" type="range" min="0" max="100" value="${p.bgOpacity??100}" oninput="updateBlockProp('${block.id}','bgOpacity',parseInt(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'%'"><span class="val">${p.bgOpacity??100}%</span></div>`;
       h+=colorRow('Text Color',p.textColor||'inherit',`updateBlockProp('${block.id}','textColor',this.value);renderCanvas()`);
+      h+=selectRow('Animate Number',String(p.animateCount!==false),[['true','Yes — count up on scroll'],['false','No — show as-is']],`updateBlockProp('${block.id}','animateCount',this.value==='true');renderCanvas()`);
+      h+=`<div class="props-row"><label>Anim Speed</label><input class="props-input" type="range" min="300" max="4000" step="100" value="${p.animationDuration??1600}" oninput="updateBlockProp('${block.id}','animationDuration',parseInt(this.value));this.nextElementSibling.textContent=this.value+'ms'"><span class="val">${p.animationDuration??1600}ms</span></div>`;
       break;
     case 'image':
       h+=selectRow('Image Mode',p.imageMode||'fill',[['fill','Fill (cover)'],['natural','Natural (center)'],['float-left','Float Left'],['float-right','Float Right']],`updateBlockProp('${block.id}','imageMode',this.value);renderCanvas()`);
