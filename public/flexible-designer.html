@@ -267,15 +267,25 @@
       flex: none; /* don't shrink to fit; let canvas-area scroll */
     }
     .canvas-area.multi-scroll,
-    .canvas-area.single-scroll {
+    .canvas-area.single-scroll,
+    .canvas-area.mobile-scroll {
       overflow-y: auto;
     }
     .canvas-area.multi-scroll::-webkit-scrollbar,
-    .canvas-area.single-scroll::-webkit-scrollbar { width: 6px; }
+    .canvas-area.single-scroll::-webkit-scrollbar,
+    .canvas-area.mobile-scroll::-webkit-scrollbar { width: 6px; }
     .canvas-area.multi-scroll::-webkit-scrollbar-thumb,
-    .canvas-area.single-scroll::-webkit-scrollbar-thumb { background: #c0c4cc; border-radius: 3px; }
+    .canvas-area.single-scroll::-webkit-scrollbar-thumb,
+    .canvas-area.mobile-scroll::-webkit-scrollbar-thumb { background: #c0c4cc; border-radius: 3px; }
     /* Multi mode: canvas-with-rulers must grow to fit full canvas height */
     .canvas-with-rulers.multi-mode {
+      flex: none;
+      height: auto;
+      overflow: visible;
+      grid-template-rows: 20px auto;
+    }
+    /* Mobile stacking mode: canvas-with-rulers grows to fit all stacked blocks */
+    .canvas-with-rulers.mobile-mode {
       flex: none;
       height: auto;
       overflow: visible;
@@ -1845,11 +1855,16 @@ function renderCanvas() {
         if (!b.manualSize) { b.w = cw; b.h = ch; }
       }
     });
-    // Restore natural canvas height when not in mobile stacking mode
+    // Restore natural canvas height + remove mobile-scroll when not in mobile stacking mode
     // (only for single-section; multi-section height was already set above)
     if (state.devicePreview !== 'mobile' && state.contentMode !== 'multi') {
       canvas.style.height    = '';
       canvas.style.minHeight = '';
+    }
+    if (state.devicePreview !== 'mobile') {
+      if (canvasArea) canvasArea.classList.remove('mobile-scroll');
+      const cwRulers = canvasArea ? canvasArea.querySelector('.canvas-with-rulers') : null;
+      if (cwRulers) cwRulers.classList.remove('mobile-mode');
     }
     // Mobile: simulate CSS media-query single-column stacking.
     // Sort blocks by section → row → col and stack them full-width vertically,
@@ -1872,6 +1887,10 @@ function renderCanvas() {
         canvas.style.height    = `${totalH}px`;
         canvas.style.minHeight = `${totalH}px`;
       }
+      // Enable scrolling so user can scroll down to reach all stacked blocks
+      if (canvasArea) canvasArea.classList.add('mobile-scroll');
+      const cwRulers = canvasArea ? canvasArea.querySelector('.canvas-with-rulers') : null;
+      if (cwRulers) cwRulers.classList.add('mobile-mode');
     }
   }
 
