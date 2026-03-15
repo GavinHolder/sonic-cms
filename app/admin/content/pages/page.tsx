@@ -38,6 +38,10 @@ const FEATURE_META: Record<string, { route: string; settingsPath: string }> = {
     route: "/calculator",
     settingsPath: "/admin/features/concrete-settings",
   },
+  "coverage-maps": {
+    route: "/coverage",
+    settingsPath: "/admin/features/coverage-maps",
+  },
 };
 
 const PAGE_TYPE_LABELS: Record<PageType, string> = {
@@ -453,12 +457,12 @@ export default function PagesManager() {
                       </td>
                       <td>
                         <small className="text-body-secondary">
-                          {new Date(feature.createdAt).toLocaleDateString()}
+                          {feature.createdAt ? new Date(feature.createdAt).toLocaleDateString() : "—"}
                         </small>
                       </td>
                       <td>
                         <small className="text-body-secondary">
-                          {new Date(feature.updatedAt).toLocaleDateString()}
+                          {feature.updatedAt ? new Date(feature.updatedAt).toLocaleDateString() : "—"}
                         </small>
                       </td>
                       <td>
@@ -523,14 +527,14 @@ export default function PagesManager() {
                     {/* Created */}
                     <td>
                       <small className="text-body-secondary">
-                        {new Date(page.createdAt).toLocaleDateString()}
+                        {page.createdAt ? new Date(page.createdAt).toLocaleDateString() : "—"}
                       </small>
                     </td>
 
                     {/* Updated */}
                     <td>
                       <small className="text-body-secondary">
-                        {new Date(page.updatedAt).toLocaleDateString()}
+                        {page.updatedAt ? new Date(page.updatedAt).toLocaleDateString() : "—"}
                       </small>
                     </td>
 

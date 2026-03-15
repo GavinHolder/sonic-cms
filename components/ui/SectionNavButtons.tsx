@@ -50,9 +50,8 @@ export default function SectionNavButtons() {
 
     const sections = getSectionElements();
     const targetIndex = Math.max(0, currentIndex - 1);
-    const target = sections[targetIndex] as HTMLElement | undefined;
-    if (target) {
-      container.scrollTo({ top: target.offsetTop, behavior: "smooth" });
+    if (sections[targetIndex]) {
+      container.scrollTo({ top: targetIndex * container.clientHeight, behavior: "smooth" });
     }
   };
 

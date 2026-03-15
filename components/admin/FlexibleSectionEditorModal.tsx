@@ -57,9 +57,12 @@ export default function FlexibleSectionEditorModal({
   // Preview viewport toggle: "desktop" | "tablet" | "mobile"
   const [previewViewport, setPreviewViewport] = useState<"desktop" | "tablet" | "mobile">("desktop");
   // Store raw designer JSON (mockup format) — sent to iframe on open, received on save
-  const [designerData, setDesignerData] = useState<string | null>(
-    (section.content as any)?.designerData || null
-  );
+  // Prisma returns JSON columns as objects, not strings — normalise to string here
+  const [designerData, setDesignerData] = useState<string | null>(() => {
+    const raw = (section.content as any)?.designerData;
+    if (!raw) return null;
+    return typeof raw === "string" ? raw : JSON.stringify(raw);
+  });
   // Draft key — persists unsaved designer work to localStorage so it survives unexpected closes
   const draftKey = `cms_flexible_draft_${section.id}`;
   // Track which designer blocks are expanded in the accordion
@@ -369,7 +372,8 @@ export default function FlexibleSectionEditorModal({
   // Parse designer data once for rendering
   const parsedDesigner = (() => {
     if (!designerData) return null;
-    try { return JSON.parse(designerData); } catch { return null; }
+    if (typeof designerData === "object") return designerData;
+    try { return JSON.parse(designerData as string); } catch { return null; }
   })();
 
   // ── Section being edited in designer ─────────────────────────
