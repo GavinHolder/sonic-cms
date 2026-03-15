@@ -408,7 +408,7 @@ async function main() {
       enabled: true,
       order: order++,
       displayName: 'About Us',
-      background: '#ffffff',
+      background: '#f0fdf4',
       content: j({
         designerData: {
           layoutType: 'grid',
@@ -796,7 +796,187 @@ async function main() {
   });
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 4. PROJECTS GALLERY
+  // 4. WHY CHOOSE US — parallax-style multi-scroll section (3 × 100vh zones)
+  //
+  //  contentMode: 'multi', multiLimit: 3
+  //  background: 'midnight' — built-in gradient (demonstrates gradient color scheme)
+  //
+  //  Grid: 3 cols × 1 row per zone → 3 snap zones
+  //  Zone 0 (section:0): Centered heading + tagline spanning 3 cols
+  //  Zone 1 (section:1): 3-col reason cards (Quality, Reliability, Local Knowledge)
+  //  Zone 2 (section:2): 3-col stats (years, volume, clients) + CTA
+  // ══════════════════════════════════════════════════════════════════════════
+  await prisma.section.create({
+    data: {
+      pageId: landingPage.id,
+      createdBy: admin.id,
+      type: 'FLEXIBLE',
+      enabled: true,
+      order: order++,
+      displayName: 'Why Choose Us',
+      background: 'midnight',
+      content: j({
+        contentMode: 'multi',
+        designerData: {
+          contentMode: 'multi',
+          multiLimit: 3,
+          layoutType: 'grid',
+          grid: { cols: 3, rows: 1, gap: 24 },
+          blocks: [
+            // ── Zone 0: Full-width heading ────────────────────────────────
+            {
+              id: 40,
+              type: 'text',
+              position: { row: 1, col: 1, colSpan: 3, section: 0 },
+              props: { textAlign: 'center', paddingTop: 60, paddingX: 80 },
+              subElements: [
+                {
+                  type: 'heading',
+                  props: {
+                    text: 'WHY BUILDERS CHOOSE US',
+                    fontSize: 11, fontWeight: '700', color: '#4a7c59',
+                    letterSpacing: 3, textTransform: 'uppercase',
+                    textAlign: 'center', marginBottom: 20,
+                  },
+                },
+                {
+                  type: 'heading',
+                  props: {
+                    text: 'Concrete you can count on.\nEvery pour. Every time.',
+                    fontSize: 48, fontWeight: '800', color: '#ffffff',
+                    lineHeight: 1.15, textAlign: 'center', marginBottom: 28,
+                  },
+                },
+                {
+                  type: 'paragraph',
+                  props: {
+                    text: 'Twenty years of delivering to the Overberg has taught us one thing: builders don\'t forgive bad concrete. That\'s why every batch we produce is plant-controlled, SANS-certified, and delivered on time.',
+                    fontSize: 18, color: 'rgba(255,255,255,0.72)', lineHeight: 1.75,
+                    textAlign: 'center', marginBottom: 48,
+                  },
+                },
+                {
+                  type: 'button',
+                  props: {
+                    text: 'Scroll to see why →',
+                    bgColor: 'transparent', textColor: 'rgba(255,255,255,0.5)',
+                    paddingX: 0, paddingY: 0, borderRadius: 0, marginTop: 0,
+                  },
+                },
+              ],
+            },
+            // ── Zone 1: 3-col reason cards ───────────────────────────────
+            {
+              id: 41,
+              type: 'card',
+              position: { row: 1, col: 1, section: 1 },
+              props: { bgColor: 'rgba(255,255,255,0.07)', borderRadius: 12 },
+              subElements: [
+                {
+                  type: 'heading',
+                  props: { text: '⚗️', fontSize: 36, textAlign: 'center', marginBottom: 16 },
+                },
+                {
+                  type: 'heading',
+                  props: { text: 'Consistent Quality', fontSize: 20, fontWeight: '700', color: '#ffffff', textAlign: 'center', marginBottom: 12 },
+                },
+                {
+                  type: 'paragraph',
+                  props: {
+                    text: 'Automated batching plant controls water-cement ratios to ±2%. Every batch is cube-tested. Cube certificates available on request.',
+                    fontSize: 15, color: 'rgba(255,255,255,0.65)', lineHeight: 1.7, textAlign: 'center',
+                  },
+                },
+              ],
+            },
+            {
+              id: 42,
+              type: 'card',
+              position: { row: 1, col: 2, section: 1 },
+              props: { bgColor: 'rgba(74,124,89,0.25)', borderRadius: 12 },
+              subElements: [
+                {
+                  type: 'heading',
+                  props: { text: '🚛', fontSize: 36, textAlign: 'center', marginBottom: 16 },
+                },
+                {
+                  type: 'heading',
+                  props: { text: 'On-Time Delivery', fontSize: 20, fontWeight: '700', color: '#ffffff', textAlign: 'center', marginBottom: 12 },
+                },
+                {
+                  type: 'paragraph',
+                  props: {
+                    text: 'GPS-tracked fleet of 8 transit mixers. Real-time ETA via WhatsApp. Concrete arrives on schedule so your crew stays productive.',
+                    fontSize: 15, color: 'rgba(255,255,255,0.65)', lineHeight: 1.7, textAlign: 'center',
+                  },
+                },
+              ],
+            },
+            {
+              id: 43,
+              type: 'card',
+              position: { row: 1, col: 3, section: 1 },
+              props: { bgColor: 'rgba(255,255,255,0.07)', borderRadius: 12 },
+              subElements: [
+                {
+                  type: 'heading',
+                  props: { text: '🏡', fontSize: 36, textAlign: 'center', marginBottom: 16 },
+                },
+                {
+                  type: 'heading',
+                  props: { text: 'Locally Rooted', fontSize: 20, fontWeight: '700', color: '#ffffff', textAlign: 'center', marginBottom: 12 },
+                },
+                {
+                  type: 'paragraph',
+                  props: {
+                    text: 'Family-owned and based in Hermanus. We know the Overberg road conditions, the tides, and the contractors. When you call, you speak to the owner.',
+                    fontSize: 15, color: 'rgba(255,255,255,0.65)', lineHeight: 1.7, textAlign: 'center',
+                  },
+                },
+              ],
+            },
+            // ── Zone 2: Stats + CTA ──────────────────────────────────────
+            {
+              id: 44,
+              type: 'stats',
+              position: { row: 1, col: 1, section: 2 },
+              props: {
+                icon: 'bi-calendar2-heart',
+                number: '20+',
+                statLabel: 'Years serving the Overberg',
+                bgColor: 'rgba(255,255,255,0.08)', textColor: '#ffffff', bgOpacity: 100,
+              },
+            },
+            {
+              id: 45,
+              type: 'stats',
+              position: { row: 1, col: 2, section: 2 },
+              props: {
+                icon: 'bi-boxes',
+                number: '50 000+',
+                statLabel: 'Cubic metres poured',
+                bgColor: 'rgba(74,124,89,0.3)', textColor: '#ffffff', bgOpacity: 100,
+              },
+            },
+            {
+              id: 46,
+              type: 'stats',
+              position: { row: 1, col: 3, section: 2 },
+              props: {
+                icon: 'bi-people',
+                number: '400+',
+                statLabel: 'Satisfied contractors',
+                bgColor: 'rgba(255,255,255,0.08)', textColor: '#ffffff', bgOpacity: 100,
+              },
+            },
+          ],
+        },
+      }),
+    },
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 5. PROJECTS GALLERY
   //
   //  Grid: 1 col × 1 row — gallery fills the full 100vh.
   //  Heading and subtext are passed via projects-gallery props so there is
@@ -810,7 +990,7 @@ async function main() {
       enabled: true,
       order: order++,
       displayName: 'Projects',
-      background: '#111827',
+      background: 'linear-gradient(135deg, #0a1628, #1a3a6b, #0d2044)',
       content: j({
         designerData: {
           layoutType: 'grid',
@@ -1012,15 +1192,23 @@ async function main() {
     },
   });
 
-  console.log('✅ Landing page: 7 sections created');
+  console.log('✅ Landing page: 8 sections created');
   console.log('');
-  console.log('🎉 Overberg ReadyMix seed v4 complete!');
+  console.log('🎉 Overberg ReadyMix seed v5 complete!');
   console.log('');
   console.log('  Admin: http://localhost:3000/admin/login  (admin / admin2026)');
   console.log('  Home:  http://localhost:3000/');
   console.log('');
-  console.log('  Sections: Hero (3 slides) → About Us → Services → Projects → Coverage Map → CTA form → Footer');
-  console.log('  ⚠️  Coverage Map feature is DISABLED — enable in Admin → Settings → Client Features');
+  console.log('  Sections:');
+  console.log('    1. Hero (3 slides)');
+  console.log('    2. About Us (solid #f0fdf4 bg)');
+  console.log('    3. Services (dark solid, multi 2-zone)');
+  console.log('    4. Why Choose Us (midnight gradient bg, multi 3-zone parallax)');
+  console.log('    5. Projects (deep blue gradient bg)');
+  console.log('    6. Coverage Map (light gray, multi 2-zone)');
+  console.log('    7. CTA form');
+  console.log('    8. Footer');
+  console.log('  ⚠️  Coverage Map feature is DISABLED — enable in Admin → Pages → Features');
 }
 
 main()
