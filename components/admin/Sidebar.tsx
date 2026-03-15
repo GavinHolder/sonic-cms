@@ -90,6 +90,18 @@ const menuItems: MenuItem[] = [
         icon: "bi-calculator",
         href: "/admin/features/concrete-settings",
       },
+      {
+        id: "coverage-maps",
+        label: "Coverage Maps",
+        icon: "bi-map",
+        href: "/admin/features/coverage-maps",
+      },
+      {
+        id: "projects",
+        label: "Projects",
+        icon: "bi-building",
+        href: "/admin/features/projects",
+      },
     ],
   },
   {

@@ -9,6 +9,8 @@ import { animate } from "animejs";
 
 const AnimBgRenderer    = dynamic(() => import("./AnimBgRenderer"), { ssr: false });
 const ScrollStageWrapper = dynamic(() => import("./scroll-stage/ScrollStageWrapper"), { ssr: false });
+const CoverageMapEmbed   = dynamic(() => import("@/components/coverage/CoverageMapEmbed"), { ssr: false });
+const ProjectsGallery    = dynamic(() => import("@/components/sections/ProjectsGallery"), { ssr: false });
 
 interface FlexibleSectionRendererProps {
   section: FlexibleSection;
@@ -754,6 +756,32 @@ function DesignerBlock({ block, darkBg }: {
         return (
           <div style={{ height: "100%", color: tc, padding: "8px", display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.5, fontSize: "0.8rem" }}>
             HTML block — visible on live page
+          </div>
+        );
+
+      // ── coverage-map: embedded Leaflet coverage map ───────────────────────
+      case "coverage-map":
+        return (
+          <div style={{ padding: "20px 0", height: "100%" }}>
+            <CoverageMapEmbed
+              slug={(p.mapSlug as string) || ""}
+              height={(p.mapHeight as number) || 480}
+              showSearch={(p.showSearch as boolean) !== false}
+              showGeolocation={(p.showGeolocation as boolean) !== false}
+            />
+          </div>
+        );
+
+      // ── projects-gallery: photo gallery of completed projects ─────────────
+      case "projects-gallery":
+        return (
+          <div style={{ padding: "20px 0", height: "100%" }}>
+            <ProjectsGallery
+              heading={(p.heading as string) || "Our Projects"}
+              subtext={(p.subtext as string) || ""}
+              textColor={(p.textColor as string) || "#1f2937"}
+              columns={(p.columns as number) || 3}
+            />
           </div>
         );
 

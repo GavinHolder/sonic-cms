@@ -9,7 +9,8 @@
     "lint": "eslint",
     "db:seed": "npx tsx prisma/seed.ts",
     "db:seed-seo": "npx tsx scripts/seed-seo.ts",
-    "db:seed-motion-demo": "npx tsx scripts/seed-motion-demo.ts"
+    "db:seed-motion-demo": "npx tsx scripts/seed-motion-demo.ts",
+    "db:seed-readymix": "npx tsx prisma/seed-readymix.ts"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"
@@ -24,6 +25,8 @@
     "@types/animejs": "^3.1.13",
     "@types/dompurify": "^3.0.5",
     "@types/jsonwebtoken": "^9.0.10",
+    "@types/leaflet": "^1.9.21",
+    "@types/leaflet-draw": "^1.0.13",
     "@types/multer": "^2.0.0",
     "@types/three": "^0.183.0",
     "animejs": "^4.2.2",
@@ -34,6 +37,8 @@
     "framer-motion": "^12.33.0",
     "isomorphic-dompurify": "^2.35.0",
     "jsonwebtoken": "^9.0.3",
+    "leaflet": "^1.9.4",
+    "leaflet-draw": "^1.0.4",
     "multer": "^2.0.2",
     "nanoid": "^5.1.6",
     "next": "16.1.1",

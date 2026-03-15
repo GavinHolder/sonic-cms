@@ -124,6 +124,10 @@ async function main() {
   await prisma.otpToken.deleteMany();
   await prisma.systemSettings.deleteMany();
   await prisma.clientFeature.deleteMany();
+  await prisma.coverageRegion.deleteMany();
+  await prisma.coverageLabel.deleteMany();
+  await prisma.coverageMap.deleteMany();
+  await prisma.project.deleteMany();
   await prisma.user.deleteMany();
   console.log('✅ Wipe complete');
 
@@ -163,7 +167,10 @@ async function main() {
       },
     },
   });
-  console.log('✅ Feature: Concrete Calculator (enabled)');
+  await prisma.clientFeature.create({
+    data: { slug: 'coverage-map', name: 'Coverage Map', enabled: false, config: {} },
+  });
+  console.log('✅ Feature: Concrete Calculator (enabled), Coverage Map (disabled)');
 
   // ── Landing page ───────────────────────────────────────────────────────────
   const landingPage = await prisma.page.create({

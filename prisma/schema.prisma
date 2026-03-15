@@ -484,6 +484,89 @@ model Volt3DVersion {
 }
 
 // ============================================
+// COVERAGE MAPS
+// ============================================
+
+model CoverageMap {
+  id          String           @id @default(cuid())
+  name        String
+  slug        String           @unique
+  description String?
+  centerLat   Float            @default(-34.4187)   // Hermanus default
+  centerLng   Float            @default(19.2345)
+  defaultZoom Int              @default(10)
+  isActive    Boolean          @default(true)
+  regions     CoverageRegion[]
+  labels      CoverageLabel[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@map("coverage_maps")
+}
+
+model CoverageRegion {
+  id          String      @id @default(cuid())
+  mapId       String
+  map         CoverageMap @relation(fields: [mapId], references: [id], onDelete: Cascade)
+  name        String
+  // Array of {lat, lng} coordinate pairs forming the polygon
+  polygon     Json        @default("[]")
+  color       String      @default("#22c55e")
+  opacity     Float       @default(0.4)
+  strokeColor String      @default("#16a34a")
+  strokeWidth Int         @default(2)
+  description String?
+  isActive    Boolean     @default(true)
+  order       Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([mapId])
+  @@map("coverage_regions")
+}
+
+model CoverageLabel {
+  id         String      @id @default(cuid())
+  mapId      String
+  map        CoverageMap @relation(fields: [mapId], references: [id], onDelete: Cascade)
+  text       String
+  lat        Float
+  lng        Float
+  fontSize   Int         @default(14)
+  fontFamily String      @default("Arial")
+  color      String      @default("#ffffff")
+  bgColor    String?
+  bold       Boolean     @default(false)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@index([mapId])
+  @@map("coverage_labels")
+}
+
+// ============================================
+// PROJECTS & GALLERY
+// ============================================
+
+model Project {
+  id           String   @id @default(cuid())
+  title        String
+  location     String?
+  description  String?
+  coverImageUrl String?
+  // Array of image URLs for the project gallery
+  images       Json     @default("[]")
+  completedDate String?
+  isActive     Boolean  @default(true)
+  order        Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([isActive])
+  @@map("projects")
+}
+
+// ============================================
 // SITE CONFIGURATION (singleton)
 // ============================================
 
