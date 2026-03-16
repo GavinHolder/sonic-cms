@@ -103,7 +103,8 @@ export default function Volt3DRenderer({ data, x, y, width, height, sectionRef }
       controls.enableZoom = false
       controls.enablePan = false
       controls.enableRotate = false
-      controls.autoRotate = false
+      controls.autoRotate = (data.autoRotateSpeed ?? 0) > 0
+      controls.autoRotateSpeed = data.autoRotateSpeed ?? 0
 
       // Clock for animation mixer
       const clock = new THREE.Clock()
@@ -167,9 +168,27 @@ export default function Volt3DRenderer({ data, x, y, width, height, sectionRef }
         const maxDim = Math.max(size.x, size.y, size.z)
         if (maxDim > 0) model.scale.setScalar(2 / maxDim)
 
+        // Apply per-axis custom scale after normalization (e.g. make a cube slab-like)
+        if (data.customScale) {
+          model.scale.x *= data.customScale.x
+          model.scale.y *= data.customScale.y
+          model.scale.z *= data.customScale.z
+        }
+
+        // Re-center after scale
         box.setFromObject(model)
         const center = box.getCenter(new THREE.Vector3())
         model.position.sub(center)
+
+        // Wireframe override — replace all mesh materials
+        if (data.wireframe) {
+          const wireColor = new THREE.Color(data.wireframeColor ?? '#43a047')
+          model.traverse((child: any) => {
+            if (child.isMesh) {
+              child.material = new THREE.MeshBasicMaterial({ wireframe: true, color: wireColor })
+            }
+          })
+        }
 
         scene.add(model)
 

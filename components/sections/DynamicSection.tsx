@@ -378,9 +378,11 @@ export default function DynamicSection({ section, isFirstAfterHero = false }: Dy
 function FooterRenderer({ section }: { section: FooterSection }) {
   const { content, background, paddingTop, paddingBottom, paddingTopMobile, paddingBottomMobile } = section;
 
-  // Map preset background colors to hex values
+  // Map preset background colors to hex values; pass through raw hex values
   const bgColor =
-    background === "gray"
+    background?.startsWith("#") || background?.startsWith("rgb")
+      ? background
+      : background === "gray"
       ? "#f8f9fa"
       : background === "blue"
       ? "#1e3a5f"
@@ -579,6 +581,7 @@ function FooterRenderer({ section }: { section: FooterSection }) {
       className={cursorClass}
       style={{
         ...backgroundStyles,
+        backgroundColor: bgColor,
         "--section-bg": bgColor,
         "--section-pt": `${Math.max(paddingTop ?? 100, 100)}px`,
         "--section-pb": `${paddingBottom ?? 40}px`,
@@ -758,7 +761,9 @@ function CTARenderer({ section }: { section: CTASection }) {
   }
 
   const bgColor =
-    background === "blue"
+    background?.startsWith("#") || background?.startsWith("rgb")
+      ? background
+      : background === "blue"
       ? "#1e3a5f"
       : background === "lightblue"
       ? "#e8f4fd"

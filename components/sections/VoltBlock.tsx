@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type { VoltElementData, VoltSlots } from "@/types/volt";
 
 const VoltRenderer = dynamic(() => import("@/components/volt/VoltRenderer"), { ssr: false });
+const Volt3DRenderer = dynamic(() => import("./Volt3DRenderer"), { ssr: false });
 
 interface VoltBlockProps {
   voltId: string;
@@ -16,6 +17,7 @@ interface VoltBlockProps {
 export default function VoltBlock({ voltId, slots = {}, fitMode = "contain" }: VoltBlockProps) {
   const [volt, setVolt] = useState<VoltElementData | null>(null);
   const [error, setError] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!voltId) return;
@@ -43,12 +45,27 @@ export default function VoltBlock({ voltId, slots = {}, fitMode = "contain" }: V
 
   const containerStyle: React.CSSProperties =
     fitMode === "fill"
-      ? { width: "100%", height: "100%" }
-      : { width: "100%", maxWidth: "100%" };
+      ? { width: "100%", height: "100%", position: "relative" }
+      : { width: "100%", maxWidth: "100%", position: "relative" };
+
+  const layers3D = volt.layers.filter(
+    l => l.type === "3d-object" && l.visible !== false && l.object3DData?.assetUrl
+  );
 
   return (
-    <div style={containerStyle}>
+    <div ref={containerRef} style={containerStyle}>
       <VoltRenderer voltElement={volt} slots={slots} style={{ borderRadius: "inherit" }} />
+      {layers3D.map(l => (
+        <Volt3DRenderer
+          key={l.id}
+          data={l.object3DData!}
+          x={l.x}
+          y={l.y}
+          width={l.width}
+          height={l.height}
+          sectionRef={containerRef}
+        />
+      ))}
     </div>
   );
 }

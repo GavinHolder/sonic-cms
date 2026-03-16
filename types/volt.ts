@@ -129,6 +129,14 @@ export interface VoltObject3DData {
   keyLightAngle: number
   transparent: boolean
   backgroundColor?: string
+  /** Override all mesh materials with wireframe */
+  wireframe?: boolean
+  /** Wireframe line color (default: #43a047) */
+  wireframeColor?: string
+  /** OrbitControls autoRotateSpeed (0 = off, positive = clockwise) */
+  autoRotateSpeed?: number
+  /** Per-axis scale multiplier applied after GLB normalization */
+  customScale?: { x: number; y: number; z: number }
   animationMap: Record<string, { trackName: string; loop: boolean } | undefined>
   availableTracks: Array<{ name: string; duration: number }>
   activeClip?: string
