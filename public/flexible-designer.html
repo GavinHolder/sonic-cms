@@ -1625,7 +1625,11 @@ function undo() {
  */
 function applySnapshot(snap, addToHistory) {
   const s = JSON.parse(snap);
-  state.blocks        = s.blocks;
+  // Normalize all block IDs to strings.
+  // Legacy saves may use numeric IDs (e.g. 10) but inline HTML oninput handlers
+  // always pass IDs as strings from template-literal interpolation, causing
+  // find(b => b.id === blockId) to miss with strict equality.
+  state.blocks = (s.blocks || []).map(b => ({ ...b, id: String(b.id) }));
   state.nextId        = s.nextId;
   state.preset        = s.preset || 'full-width';
   state.positionMode  = s.positionMode || 'free';
@@ -3460,8 +3464,17 @@ function startBlockMove(e, blockId) {
 
     if (state.positionMode === 'free') {
       // Free mode: pixel positioning (optionally grid-snapped) clamped to canvas bounds
-      const _nx = Math.max(0, Math.min(canvasW - dragDispW, snapToGrid(nx)));
-      const _ny = Math.max(0, Math.min(canvasH - dragDispH, snapToGrid(ny)));
+      // Ctrl held = axis-lock: compare total displacement from drag origin,
+      // lock movement to the dominant axis (horizontal OR vertical).
+      let axNx = nx, axNy = ny;
+      if (e.ctrlKey) {
+        const dx = nx - _moveDP.x;
+        const dy = ny - _moveDP.y;
+        if (Math.abs(dx) >= Math.abs(dy)) axNy = _moveDP.y; // lock to horizontal
+        else axNx = _moveDP.x;                               // lock to vertical
+      }
+      const _nx = Math.max(0, Math.min(canvasW - dragDispW, snapToGrid(axNx)));
+      const _ny = Math.max(0, Math.min(canvasH - dragDispH, snapToGrid(axNy)));
       setDisplayPos(block, _nx, _ny, dragDispW, dragDispH);
       if (el) { el.style.left=`${_nx}px`; el.style.top=`${_ny}px`; }
       // Update props panel X/Y live
@@ -4226,7 +4239,7 @@ function showCustomNav(el, id) {
  * @param {string} k - Property key within block.props.
  * @param {*} v - New value to assign.
  */
-function updateBlockProp(bId,k,v) { const b=state.blocks.find(b=>b.id===bId); if(b) { b.props[k]=v; autoSave(); } }
+function updateBlockProp(bId,k,v) { const b=state.blocks.find(b=>b.id==bId); if(b) { b.props[k]=v; autoSave(); } } // eslint-disable-line eqeqeq
 
 /**
  * Updates a single property on a sub-element's props object and triggers autoSave.
@@ -4245,7 +4258,7 @@ function updateSubProp(bId,sId,k,v) { const b=state.blocks.find(b=>b.id===bId); 
  * @param {string} k - Top-level block property key.
  * @param {*} v - New value to assign.
  */
-function setBlockGrid(bId,k,v) { const b=state.blocks.find(b=>b.id===bId); if(b) { b[k]=v; autoSave(); } }
+function setBlockGrid(bId,k,v) { const b=state.blocks.find(b=>b.id==bId); if(b) { b[k]=v; autoSave(); } } // eslint-disable-line eqeqeq
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  CELL OCCUPANCY & OVERLAP DETECTION
@@ -4481,7 +4494,7 @@ function snapBlock(bId) {
  * @param {'fullWidth'|'fullHeight'|'reset'} mode - Which preset to apply.
  */
 function setSpan(bId, mode) {
-  const b=state.blocks.find(b=>b.id===bId); if(!b) return;
+  const b=state.blocks.find(b=>b.id==bId); if(!b) return; // eslint-disable-line eqeqeq
   pushHistory();
   if(mode==='fullWidth')  { b.gridCol=1; b.colSpan=state.gridCols; }
   if(mode==='fullHeight') { b.gridRow=1; b.rowSpan=state.gridRows; }
@@ -4895,7 +4908,9 @@ function onLayoutChange() { renderCanvas(); autoSave(); }
  * @param {number} val - New pixel value for the axis.
  */
 function setBlockPos(blockId, axis, val) {
-  const block = state.blocks.find(b => b.id === blockId);
+  // Use loose equality — block IDs may be numbers in legacy saved data
+  // but the oninput template always passes them as strings.
+  const block = state.blocks.find(b => b.id == blockId); // eslint-disable-line eqeqeq
   if (!block) return;
   const canvas = document.getElementById('canvas');
   const cw = canvas ? canvas.offsetWidth  : 1200;
@@ -4926,7 +4941,7 @@ function setBlockPos(blockId, axis, val) {
  * @param {'fullWidth'|'fullHeight'|'center'} action - Layout shortcut to apply.
  */
 function setBlockPosFull(blockId, action) {
-  const block = state.blocks.find(b => b.id === blockId);
+  const block = state.blocks.find(b => b.id == blockId); // eslint-disable-line eqeqeq
   if (!block) return;
   const canvas = document.getElementById('canvas');
   const cw = canvas ? canvas.offsetWidth  : 1200;
