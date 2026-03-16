@@ -167,146 +167,156 @@ export default function CTAFooter({
             margin: "0 auto",
           }}
         >
-        {/* Main CTA Content */}
-        <div className="text-center mb-4">
-          <h2
-            className={`display-5 fw-bold mb-3 ${
-              isBlueBackground ? "text-white" : "text-dark"
-            }`}
-          >
-            {heading}
-          </h2>
-          {subheading && (
-            <p
-              className={`lead mb-4 ${
-                isBlueBackground ? "text-white opacity-75" : "text-muted"
-              }`}
-            >
-              {subheading}
-            </p>
-          )}
-
-          {/* Contact Form Mode or CTA Buttons */}
-          {style === "contact-form" && formFields && formFields.length > 0 ? (
-            <div style={{ maxWidth: 520, margin: "0 auto" }}>
-              {submitted ? (
-                <div className={`alert ${isBlueBackground ? "alert-light" : "alert-success"} text-center`}>
-                  <i className="bi bi-check-circle-fill me-2"></i>
-                  {formSuccessMessage || "Thank you! We'll be in touch shortly."}
-                </div>
-              ) : (
-                <form onSubmit={handleFormSubmit} noValidate>
-                  {formTitle && (
-                    <h5 className={`fw-semibold mb-3 ${isBlueBackground ? "text-white" : "text-dark"}`}>
-                      {formTitle}
-                    </h5>
-                  )}
-                  {formFields.map((field) => (
-                    <div className="mb-3 text-start" key={field.id}>
-                      <label
-                        className={`form-label ${isBlueBackground ? "text-white" : ""}`}
-                        style={{ fontSize: 14 }}
-                      >
-                        {field.label}
-                        {field.required && <span className="text-danger ms-1">*</span>}
-                      </label>
-
-                      {field.type === "textarea" ? (
-                        <textarea
-                          className={`form-control ${formErrors[field.name] ? "is-invalid" : ""}`}
-                          rows={3}
-                          placeholder={field.placeholder}
-                          value={formValues[field.name] || ""}
-                          onChange={(e) => handleFieldChange(field.name, e.target.value)}
-                        />
-                      ) : field.type === "select" ? (
-                        <select
-                          className={`form-select ${formErrors[field.name] ? "is-invalid" : ""}`}
-                          value={formValues[field.name] || ""}
-                          onChange={(e) => handleFieldChange(field.name, e.target.value)}
-                        >
-                          <option value="">Select…</option>
-                          {field.options?.map((opt) => (
-                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                          ))}
-                        </select>
-                      ) : field.type === "checkbox" ? (
-                        <div className="form-check">
-                          <input
-                            type="checkbox"
-                            className={`form-check-input ${formErrors[field.name] ? "is-invalid" : ""}`}
-                            id={`cta-field-${field.id}`}
-                            checked={formValues[field.name] === "true"}
-                            onChange={(e) => handleFieldChange(field.name, e.target.checked ? "true" : "")}
-                          />
-                          <label
-                            className={`form-check-label ${isBlueBackground ? "text-white" : ""}`}
-                            htmlFor={`cta-field-${field.id}`}
-                          >
-                            {field.placeholder || field.label}
-                          </label>
-                        </div>
-                      ) : (
-                        <input
-                          type={field.type === "email" ? "email" : field.type === "phone" ? "tel" : "text"}
-                          className={`form-control ${formErrors[field.name] ? "is-invalid" : ""}`}
-                          placeholder={field.placeholder}
-                          value={formValues[field.name] || ""}
-                          onChange={(e) => handleFieldChange(field.name, e.target.value)}
-                        />
-                      )}
-
-                      {formErrors[field.name] && (
-                        <div className="invalid-feedback d-block" style={{ fontSize: 12 }}>
-                          {formErrors[field.name]}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-
-                  <button
-                    type="submit"
-                    className={`btn w-100 ${isBlueBackground ? "btn-light text-primary" : "btn-primary"}`}
-                    disabled={submitting}
-                  >
-                    {submitting ? (
-                      <><span className="spinner-border spinner-border-sm me-2" />Submitting…</>
-                    ) : (
-                      <><i className="bi bi-send me-2" />Submit</>
-                    )}
-                  </button>
-                </form>
+        {/* Contact Form: 2-column layout (text left, form right) */}
+        {style === "contact-form" && formFields && formFields.length > 0 ? (
+          <div className="row align-items-center gy-5">
+            {/* Left: heading + subheading */}
+            <div className="col-lg-5">
+              <h2 className={`display-5 fw-bold mb-3 ${isBlueBackground ? "text-white" : "text-dark"}`}>
+                {heading}
+              </h2>
+              {subheading && (
+                <p className={`lead mb-0 ${isBlueBackground ? "text-white opacity-75" : "text-muted"}`}>
+                  {subheading}
+                </p>
               )}
             </div>
-          ) : (
-            /* CTA Buttons (original behaviour when not in contact-form mode) */
-            <>
-              {buttons && buttons.length > 0 && (
-                <div className="d-flex flex-wrap justify-content-center gap-3 mb-5">
-                  {buttons.map((button, index) => (
-                    <Link
-                      key={index}
-                      href={button.href}
-                      className={`btn btn-lg ${
-                        button.variant === "primary"
-                          ? isBlueBackground
-                            ? "btn-light text-primary"
-                            : "btn-primary"
-                          : button.variant === "secondary"
-                          ? "btn-secondary"
-                          : isBlueBackground
-                          ? "btn-outline-light"
-                          : "btn-outline-primary"
-                      }`}
+
+            {/* Right: form card */}
+            <div className="col-lg-6 ms-lg-auto">
+              <div
+                className="p-4 rounded-3"
+                style={{
+                  background: isBlueBackground ? "rgba(255,255,255,0.1)" : "#ffffff",
+                  backdropFilter: isBlueBackground ? "blur(10px)" : undefined,
+                  border: isBlueBackground ? "1px solid rgba(255,255,255,0.2)" : "1px solid #dee2e6",
+                  maxHeight: "calc(100vh - 200px)",
+                  overflowY: "auto",
+                }}
+              >
+                {submitted ? (
+                  <div className={`alert ${isBlueBackground ? "alert-light" : "alert-success"} text-center mb-0`}>
+                    <i className="bi bi-check-circle-fill me-2"></i>
+                    {formSuccessMessage || "Thank you! We'll be in touch shortly."}
+                  </div>
+                ) : (
+                  <form onSubmit={handleFormSubmit} noValidate>
+                    {formTitle && (
+                      <h5 className={`fw-semibold mb-3 ${isBlueBackground ? "text-white" : "text-dark"}`}>
+                        {formTitle}
+                      </h5>
+                    )}
+                    {formFields.map((field) => (
+                      <div className="mb-3" key={field.id}>
+                        <label
+                          className={`form-label ${isBlueBackground ? "text-white" : ""}`}
+                          style={{ fontSize: 14 }}
+                        >
+                          {field.label}
+                          {field.required && <span className="text-danger ms-1">*</span>}
+                        </label>
+
+                        {field.type === "textarea" ? (
+                          <textarea
+                            className={`form-control ${formErrors[field.name] ? "is-invalid" : ""}`}
+                            rows={3}
+                            placeholder={field.placeholder}
+                            value={formValues[field.name] || ""}
+                            onChange={(e) => handleFieldChange(field.name, e.target.value)}
+                          />
+                        ) : field.type === "select" ? (
+                          <select
+                            className={`form-select ${formErrors[field.name] ? "is-invalid" : ""}`}
+                            value={formValues[field.name] || ""}
+                            onChange={(e) => handleFieldChange(field.name, e.target.value)}
+                          >
+                            <option value="">Select…</option>
+                            {field.options?.map((opt) => (
+                              <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </select>
+                        ) : field.type === "checkbox" ? (
+                          <div className="form-check">
+                            <input
+                              type="checkbox"
+                              className={`form-check-input ${formErrors[field.name] ? "is-invalid" : ""}`}
+                              id={`cta-field-${field.id}`}
+                              checked={formValues[field.name] === "true"}
+                              onChange={(e) => handleFieldChange(field.name, e.target.checked ? "true" : "")}
+                            />
+                            <label
+                              className={`form-check-label ${isBlueBackground ? "text-white" : ""}`}
+                              htmlFor={`cta-field-${field.id}`}
+                            >
+                              {field.placeholder || field.label}
+                            </label>
+                          </div>
+                        ) : (
+                          <input
+                            type={field.type === "email" ? "email" : field.type === "phone" ? "tel" : "text"}
+                            className={`form-control ${formErrors[field.name] ? "is-invalid" : ""}`}
+                            placeholder={field.placeholder}
+                            value={formValues[field.name] || ""}
+                            onChange={(e) => handleFieldChange(field.name, e.target.value)}
+                          />
+                        )}
+
+                        {formErrors[field.name] && (
+                          <div className="invalid-feedback d-block" style={{ fontSize: 12 }}>
+                            {formErrors[field.name]}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    <button
+                      type="submit"
+                      className={`btn w-100 ${isBlueBackground ? "btn-light text-primary" : "btn-primary"}`}
+                      disabled={submitting}
                     >
-                      {button.text}
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-        </div>
+                      {submitting ? (
+                        <><span className="spinner-border spinner-border-sm me-2" />Submitting…</>
+                      ) : (
+                        <><i className="bi bi-send me-2" />Submit Request</>
+                      )}
+                    </button>
+                  </form>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Standard CTA: centered heading + optional buttons */
+          <div className="text-center mb-4">
+            <h2 className={`display-5 fw-bold mb-3 ${isBlueBackground ? "text-white" : "text-dark"}`}>
+              {heading}
+            </h2>
+            {subheading && (
+              <p className={`lead mb-4 ${isBlueBackground ? "text-white opacity-75" : "text-muted"}`}>
+                {subheading}
+              </p>
+            )}
+            {buttons && buttons.length > 0 && (
+              <div className="d-flex flex-wrap justify-content-center gap-3 mb-5">
+                {buttons.map((button, index) => (
+                  <Link
+                    key={index}
+                    href={button.href}
+                    className={`btn btn-lg ${
+                      button.variant === "primary"
+                        ? isBlueBackground ? "btn-light text-primary" : "btn-primary"
+                        : button.variant === "secondary"
+                        ? "btn-secondary"
+                        : isBlueBackground ? "btn-outline-light" : "btn-outline-primary"
+                    }`}
+                  >
+                    {button.text}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Contact Info & Social Links */}
         {(contactInfo || socialLinks) && (

@@ -3847,6 +3847,12 @@ function renderBlockProps(block) {
           oninput="setBlockGrid('${block.id}','rowSpan',parseInt(this.value));snapBlock('${block.id}');this.nextElementSibling.textContent=this.value"
           onchange="absorbOverlappingBlocks('${block.id}');renderCanvas();renderPropsPanel();updateBlockCount();autoSave()">
         <span class="val">${block.rowSpan||1}</span></div>
+      <div class="props-row"><label>V-Align</label>
+        <div style="display:flex;gap:3px;flex:1;">
+          ${['top','center','bottom'].map(v=>`<button onclick="setBlockGrid('${block.id}','verticalAlign','${v}');renderPropsPanel()"
+            style="flex:1;padding:3px 0;font-size:11px;border:1px solid ${(block.verticalAlign||'top')===v?'#0d6efd':'#dee2e6'};background:${(block.verticalAlign||'top')===v?'#0d6efd':'#fff'};color:${(block.verticalAlign||'top')===v?'#fff':'#495057'};border-radius:4px;cursor:pointer;">${v==='top'?'⬆ Top':v==='center'?'⬛ Mid':'⬇ Bot'}</button>`).join('')}
+        </div>
+      </div>
       <div class="d-flex gap-2 mt-2">
         <button class="action-btn full-w mb-0" style="flex:1;" onclick="setSpan('${block.id}','fullWidth')">⟷ Full Width</button>
         <button class="action-btn full-h mb-0" style="flex:1;" onclick="setSpan('${block.id}','fullHeight')">↕ Full Height</button>
@@ -3939,6 +3945,7 @@ function renderTypeProps(block) {
     }
     case 'card':
       h+=selectRow('Card Style',p.cardStyle||'shadow',[['shadow','Shadow'],['bordered','Bordered'],['flat','Flat'],['elevated','Elevated']],`updateBlockProp('${block.id}','cardStyle',this.value)`);
+      h+=selectRow('Height Mode',p.heightMode||'fill',[['fill','Fill — stretch to row height'],['auto','Auto — wrap content only']],`updateBlockProp('${block.id}','heightMode',this.value)`);
       h+=colorRow('Background',p.bgColor||'transparent',`updateBlockProp('${block.id}','bgColor',this.value);renderCanvas()`);
       h+=selectRow('Glass Effect',p.glassEffect||'none',[['none','None — transparent'],['light','Light Glass (for dark sections)'],['dark','Dark Glass (for light sections)']],`updateBlockProp('${block.id}','glassEffect',this.value);renderCanvas()`);
       h+=`<div class="props-label" style="margin-top:8px;"><i class="bi bi-border-inner"></i> Inner Padding</div>`;
@@ -5665,6 +5672,8 @@ function buildJson() {
       type:        b.type,
       // Grid position (used for CSS Grid renderer in grid mode)
       position:    { row:b.gridRow, col:b.gridCol, colSpan:b.colSpan||1, rowSpan:b.rowSpan||1, section:b.section||0 },
+      // Vertical alignment within the grid cell: "top" | "center" | "bottom"
+      verticalAlign: b.verticalAlign || undefined,
       // Pixel position (used for absolute renderer in free mode)
       pixelPos:    { x:Math.round(b.x||0), y:Math.round(b.y||0), w:Math.round(b.w||300), h:Math.round(b.h||180) },
       // Responsive positions for tablet/mobile breakpoints

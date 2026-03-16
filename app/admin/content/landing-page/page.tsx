@@ -452,10 +452,16 @@ export default function LandingPageManager() {
                       <div style={{ width: "20px" }}></div>
                     )}
 
-                    {/* Section Info */}
-                    <div className="flex-grow-1">
-                      <div className="d-flex align-items-center gap-2">
-                        <strong>{section.displayName || section.type}</strong>
+                    {/* Section Info — fixed columns: name | badges | order */}
+                    <div className="flex-grow-1 d-flex align-items-center gap-3" style={{ minWidth: 0 }}>
+                      <strong
+                        className="text-truncate"
+                        style={{ minWidth: "120px", maxWidth: "160px", flexShrink: 0 }}
+                        title={section.displayName || section.type}
+                      >
+                        {section.displayName || section.type}
+                      </strong>
+                      <div className="d-flex align-items-center gap-1 flex-shrink-0">
                         <span className="badge rounded-pill text-secondary border border-secondary-subtle">
                           {section.type}
                         </span>
@@ -475,7 +481,9 @@ export default function LandingPageManager() {
                           </span>
                         )}
                       </div>
-                      <small className="text-muted">Order: {section.order}</small>
+                      <small className="text-muted flex-shrink-0" style={{ minWidth: "60px" }}>
+                        Order: {section.order}
+                      </small>
                     </div>
 
                     {/* Actions */}

@@ -369,6 +369,7 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
     const blocks: Array<{
       id: number; type: string;
       position?: { row: number; col: number; colSpan?: number; rowSpan?: number; section?: number };
+      verticalAlign?: "top" | "center" | "bottom";
       pixelPos?: PixelPos;
       tabletPos?: PixelPos;
       mobilePos?: PixelPos;
@@ -462,10 +463,13 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
             // In scroll stage mode blocks are already filtered to active zone — no section offset needed
             const sectionOffset = isScrollStage ? 0 : (pos.section || 0) * rows;
             const absoluteRow   = sectionOffset + pos.row;
+            const alignSelfMap = { top: "start", center: "center", bottom: "end" } as const;
+            const blockHeightAuto = (block.props as Record<string, unknown>)?.heightMode === "auto";
             return (
               <div key={block.id} style={{
                 gridColumn: `${pos.col} / span ${pos.colSpan || 1}`,
                 gridRow:    `${absoluteRow} / span ${pos.rowSpan || 1}`,
+                alignSelf: blockHeightAuto ? "start" : (block.verticalAlign ? alignSelfMap[block.verticalAlign] : "stretch"),
               }}>
                 <DesignerBlock block={block} darkBg={darkBg} />
               </div>
@@ -638,8 +642,9 @@ function DesignerBlock({ block, darkBg }: {
   else if (cardEffect !== "none") shellClasses.push(`db-effect-${cardEffect}`);
   if (boxShadowPre !== "none") shellClasses.push(`db-shadow-${boxShadowPre}`);
 
+  const heightAuto = (p?.heightMode as string) === "auto";
   const shellStyle: React.CSSProperties = {
-    position: "relative", height: "100%", overflow: "hidden", borderRadius,
+    position: "relative", height: heightAuto ? "auto" : "100%", overflow: heightAuto ? "visible" : "hidden", borderRadius,
     ...(bgImageSafe ? { background: `url("${bgImageSafe}") center/cover no-repeat` } : {}),
     ...(!bgImageSafe && bgGradient ? { background: bgGradient } : {}),
     ...(borderWidthV > 0 && borderColorV ? { border: `${borderWidthV}px solid ${borderColorV}` } : {}),
@@ -684,7 +689,7 @@ function DesignerBlock({ block, darkBg }: {
         return (
           <div style={{
             background: cardBg, color: (p.textColor as string) || tc,
-            height: "100%", ...cardGlassStyle,
+            height: heightAuto ? "auto" : "100%", ...cardGlassStyle,
             display: "flex", flexDirection: "column", gap: blockGap,
             ...blockPadding("24px", "24px"),
           }}>
