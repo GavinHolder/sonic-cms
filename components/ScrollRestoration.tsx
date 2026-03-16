@@ -30,8 +30,13 @@ export default function ScrollRestoration() {
     const getActiveMultiSection = (scrollTop: number): { top: number; bottom: number } | null => {
       const vph = container.clientHeight;
       const sections = container.querySelectorAll<HTMLElement>('section[data-content-mode="multi"]');
+      const containerRect = container.getBoundingClientRect();
       for (const sec of sections) {
-        const top = sec.offsetTop;
+        // Use getBoundingClientRect relative to the snap container to handle
+        // sections inside positioned wrappers (e.g. ScrollStageWrapper) where
+        // offsetTop would be relative to the wrapper, not the scroll container.
+        const secRect = sec.getBoundingClientRect();
+        const top = secRect.top - containerRect.top + scrollTop;
         const bottom = top + sec.offsetHeight;
         // Viewport fully inside the multi-section: start visible AND end not yet visible
         if (scrollTop >= top && scrollTop + vph <= bottom) {
