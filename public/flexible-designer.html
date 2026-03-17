@@ -6092,6 +6092,11 @@ window.addEventListener('message', function(e) {
       }), false);
       // Cache desktop canvas width for responsive auto-scaling
       state._desktopCanvasW = layout.designerCanvasW || null;
+      // Re-render after a paint frame so canvas has settled dimensions.
+      // Without this, getCellRect reads offsetHeight=0 on the first render
+      // (message fires before the browser paints the iframe layout), causing
+      // all grid blocks to stack at y=0 instead of their correct row positions.
+      requestAnimationFrame(() => { renderCanvas(); renderRulers(); });
     }
   } catch(err) {
     console.warn('[FlexibleDesigner] Could not apply init data:', err);
