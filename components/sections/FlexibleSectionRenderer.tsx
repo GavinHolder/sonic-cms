@@ -803,8 +803,20 @@ function DesignerBlock({ block, darkBg }: {
         );
       }
 
-      // ── image: cover-fit image with placeholder icon when no src is set ──
-      case "image":
+      // ── image: single image or multi-image carousel ───────────────────────
+      case "image": {
+        const carouselImages = p.images as Array<{ url: string; alt?: string }> | undefined;
+        if (carouselImages && carouselImages.length > 0) {
+          return (
+            <ImageCarousel
+              images={carouselImages}
+              columns={Number(p.columns) || 1}
+              displayMode={(p.displayMode as string) || "static"}
+              transition={(p.transition as string) || "slide"}
+              interval={Number(p.interval) || 4}
+            />
+          );
+        }
         return (
           <div style={{ height: "100%", overflow: "hidden", minHeight: "200px" }}>
             {p.src
@@ -813,6 +825,7 @@ function DesignerBlock({ block, darkBg }: {
             }
           </div>
         );
+      }
 
       // ── video: autoplay/loop cover video with poster and empty-state icon ─
       case "video":
@@ -1916,4 +1929,103 @@ function animateElement(element: HTMLElement, animation: FlexibleElement["animat
       ease: type === "bounceIn" ? "spring(1, 80, 10, 0)" : "cubicBezier(0.4, 0, 0.2, 1)",
     });
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ImageCarousel — multi-image carousel for the "image" block type
+// ─────────────────────────────────────────────────────────────────────────────
+function ImageCarousel({
+  images, columns, displayMode, transition, interval,
+}: {
+  images: Array<{ url: string; alt?: string }>;
+  columns: number;
+  displayMode: string;
+  transition: string;
+  interval: number;
+}) {
+  const cols = Math.max(1, Math.min(3, columns));
+  const maxIndex = Math.max(0, images.length - cols);
+  const [index, setIndex] = useState(() =>
+    displayMode === "random" ? Math.floor(Math.random() * Math.max(1, images.length)) : 0
+  );
+  const isFade = transition === "fade";
+
+  // Auto-rotate
+  useEffect(() => {
+    if (displayMode !== "auto-rotate" || images.length <= cols) return;
+    const t = setInterval(() => setIndex((i) => i >= maxIndex ? 0 : i + 1), interval * 1000);
+    return () => clearInterval(t);
+  }, [displayMode, interval, images.length, cols, maxIndex]);
+
+  const transitionCss = (() => {
+    if (isFade)              return undefined;
+    if (transition === "snap") return "transform 0ms";
+    if (transition === "ease") return "transform 600ms ease-in-out";
+    return "transform 400ms ease"; // slide default
+  })();
+
+  const slideWidthPct = 100 / cols;
+
+  const btnStyle: React.CSSProperties = {
+    position: "absolute", top: "50%", transform: "translateY(-50%)",
+    width: 36, height: 36, borderRadius: "50%", border: "none",
+    background: "rgba(0,0,0,0.45)", color: "#fff", fontSize: 20,
+    cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+    zIndex: 5, lineHeight: 1,
+  };
+
+  const showNav = images.length > cols;
+
+  return (
+    <div style={{ height: "100%", minHeight: 200, position: "relative", overflow: "hidden" }}>
+      {isFade ? (
+        // Fade mode: stack all images, animate opacity
+        images.map((img, i) => (
+          <div key={i} style={{
+            position: "absolute", inset: 0,
+            opacity: i === index ? 1 : 0,
+            transition: "opacity 500ms ease",
+            pointerEvents: i === index ? "auto" : "none",
+          }}>
+            <img src={img.url} alt={img.alt || ""} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+          </div>
+        ))
+      ) : (
+        // Slide/ease/snap mode: translate strip
+        <div style={{
+          display: "flex", height: "100%", width: "100%",
+          transform: `translateX(-${index * slideWidthPct}%)`,
+          transition: transitionCss,
+        }}>
+          {images.map((img, i) => (
+            <div key={i} style={{ flexShrink: 0, width: `${slideWidthPct}%`, height: "100%" }}>
+              <img src={img.url} alt={img.alt || ""} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showNav && (
+        <>
+          <button style={{ ...btnStyle, left: 8 }} disabled={index === 0}
+            onClick={() => setIndex((i) => Math.max(0, i - 1))}>‹</button>
+          <button style={{ ...btnStyle, right: 8 }} disabled={index >= maxIndex}
+            onClick={() => setIndex((i) => Math.min(maxIndex, i + 1))}>›</button>
+        </>
+      )}
+
+      {/* Dot indicators */}
+      {images.length > 1 && (
+        <div style={{ position: "absolute", bottom: 8, left: 0, right: 0, display: "flex", justifyContent: "center", gap: 5, zIndex: 5 }}>
+          {Array.from({ length: maxIndex + 1 }).map((_, i) => (
+            <button key={i} onClick={() => setIndex(i)} style={{
+              width: i === index ? 16 : 8, height: 8, borderRadius: 4, border: "none", padding: 0,
+              background: i === index ? "#fff" : "rgba(255,255,255,0.5)",
+              cursor: "pointer", transition: "all 200ms",
+            }} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
