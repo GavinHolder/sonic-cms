@@ -2943,15 +2943,19 @@ Every shape, slot, or 3D object is a **layer**. Layers are listed in the **Layer
 
 ### Roles
 
-Each layer has a **role** that indicates its semantic purpose:
+Each layer has a **role** that indicates its semantic purpose. Role does **not** affect rendering order (that's controlled by zIndex) — it controls the **animation stagger order** when multiple layers animate together on hover/focus/active states.
 
-| Role | Meaning |
-|------|---------|
-| background | Background fill / texture |
-| structure | Main shape / structural element |
-| accent | Decorative / highlight shape |
-| content | Text content area |
-| overlay | Overlaid on top of other content |
+| Role | Meaning | Stagger order |
+|------|---------|---------------|
+| **accent** | Decorative / highlight shape | 1st — fires first |
+| **structure** | Main shape / structural element | 2nd |
+| **overlay** | Overlaid on top of other content | 3rd |
+| **background** | Background fill / texture | 4th |
+| **content** | Text content area / slot | 5th — fires last |
+
+**Example:** On hover, accent shapes pop in first, then the structural shape expands, then the content fades in — creating a layered entrance effect.
+
+> **Rule of thumb:** Use **accent** for decorative details you want to react first, **background** for the base fill, **content** for anything that holds readable text or slot data.
 
 ---
 
