@@ -55,6 +55,7 @@ model Page {
   slug            String      @unique
   title           String
   type            PageType    @default(LANDING)
+  enabled         Boolean     @default(true)
   metaDescription String?
   metaTitle       String?
   metaKeywords    String?
@@ -68,8 +69,12 @@ model Page {
   publishedAt     DateTime?
   publishedBy     String?
 
+  // Form-specific config (fields, submitAction, submitConfig)
+  formConfig      Json?
+
   // Relations
   sections        Section[]
+  submissions     FormSubmission[]
 
   createdBy       String
   createdByUser   User        @relation(fields: [createdBy], references: [id])
@@ -78,6 +83,7 @@ model Page {
 
   @@index([slug])
   @@index([status])
+  @@index([type])
   @@map("pages")
 }
 
@@ -85,6 +91,28 @@ enum PageType {
   LANDING
   TAB_PAGE
   FULL_PAGE
+  FORM
+  PDF
+  DESIGNER
+}
+
+// ============================================
+// FORM SUBMISSIONS
+// ============================================
+
+model FormSubmission {
+  id        String   @id @default(uuid())
+  pageId    String
+  page      Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  pageSlug  String
+  data      Json     // { fieldName: value, ... }
+  userEmail String   @default("")
+  status    String   @default("received") // received | sent | failed
+  createdAt DateTime @default(now())
+
+  @@index([pageId])
+  @@index([createdAt])
+  @@map("form_submissions")
 }
 
 enum PageStatus {

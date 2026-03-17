@@ -113,18 +113,18 @@ function buildServiceCard() {
 
   return {
     layers: [
-      vectorLayer({ id: bg, name: 'Background', role: 'structure', x: 0, y: 0, w: 100, h: 100, zIndex: 0, pathData: roundRectPath(0, 0, 100, 100, 4), color: '#1a1a1a' }),
+      vectorLayer({ id: bg, name: 'Background', role: 'structure', x: 0, y: 0, w: 100, h: 100, zIndex: 0, pathData: roundRectPath(0, 0, 100, 100, 4), color: '#ffffff' }),
       vectorLayer({ id: topBar, name: 'Accent Bar', role: 'accent', x: 0, y: 0, w: 100, h: 3.5, zIndex: 1, pathData: 'M0,0 H100 V3.5 H0 Z', color: '#2e7d32' }),
-      vectorLayer({ id: circle, name: 'Corner Circle', role: 'accent', x: 68, y: -12, w: 46, h: 42, zIndex: 1, pathData: circlePath(88, 8, 22), color: '#1b5e20', opacity: 0.45 }),
-      vectorLayer({ id: dot, name: 'Bottom Dot', role: 'accent', x: -2, y: 84, w: 15, h: 15, zIndex: 1, pathData: circlePath(3, 92, 7), color: '#43a047', opacity: 0.3 }),
-      slotLayer({ id: iconS, name: 'Icon', slotType: 'icon', x: 35, y: 10, w: 30, h: 16, zIndex: 10, fontSize: '2rem', color: '#4caf50', textAlign: 'center' }),
-      slotLayer({ id: titleS, name: 'Title', slotType: 'title', x: 8, y: 30, w: 84, h: 14, zIndex: 10, fontSize: '1.05rem', fontWeight: '700', color: '#ffffff', textAlign: 'center' }),
-      slotLayer({ id: bodyS, name: 'Body', slotType: 'body', x: 8, y: 47, w: 84, h: 30, zIndex: 10, fontSize: '0.82rem', color: 'rgba(255,255,255,0.65)', textAlign: 'center' }),
-      slotLayer({ id: actionS, name: 'Action', slotType: 'action', x: 20, y: 82, w: 60, h: 12, zIndex: 10, buttonVariant: 'outline' }),
+      vectorLayer({ id: circle, name: 'Corner Circle', role: 'accent', x: 68, y: -12, w: 46, h: 42, zIndex: 1, pathData: circlePath(88, 8, 22), color: '#c8e6c9', opacity: 0.6 }),
+      vectorLayer({ id: dot, name: 'Bottom Dot', role: 'accent', x: -2, y: 84, w: 15, h: 15, zIndex: 1, pathData: circlePath(3, 92, 7), color: '#a5d6a7', opacity: 0.5 }),
+      slotLayer({ id: iconS, name: 'Icon', slotType: 'icon', x: 5, y: 12, w: 18, h: 30, zIndex: 10, fontSize: '2rem', color: '#2e7d32', textAlign: 'center' }),
+      slotLayer({ id: titleS, name: 'Title', slotType: 'title', x: 28, y: 12, w: 66, h: 18, zIndex: 10, fontSize: '1.05rem', fontWeight: '700', color: '#1a2e1a', textAlign: 'left' }),
+      slotLayer({ id: bodyS, name: 'Body', slotType: 'body', x: 28, y: 35, w: 66, h: 38, zIndex: 10, fontSize: '0.82rem', color: '#5a6b5a', textAlign: 'left' }),
+      slotLayer({ id: actionS, name: 'Action', slotType: 'action', x: 28, y: 78, w: 44, h: 16, zIndex: 10, buttonVariant: 'outline' }),
     ],
     states: [],
-    canvasWidth: 300,
-    canvasHeight: 380,
+    canvasWidth: 400,
+    canvasHeight: 300,
   };
 }
 
@@ -140,17 +140,17 @@ function buildProjectCard() {
 
   return {
     layers: [
-      vectorLayer({ id: bg, name: 'Background', role: 'structure', x: 0, y: 0, w: 100, h: 100, zIndex: 0, pathData: roundRectPath(0, 0, 100, 100, 4), color: '#212121' }),
-      vectorLayer({ id: imgZone, name: 'Image Zone', role: 'structure', x: 0, y: 0, w: 100, h: 42, zIndex: 1, pathData: 'M0,0 H100 V42 H0 Z', color: '#2d2d2d' }),
-      slotLayer({ id: imgS, name: 'Image', slotType: 'image', x: 0, y: 0, w: 100, h: 42, zIndex: 5, textAlign: 'center' }),
-      vectorLayer({ id: bottomB, name: 'Bottom Bar', role: 'accent', x: 0, y: 97.5, w: 100, h: 2.5, zIndex: 1, pathData: 'M0,97.5 H100 V100 H0 Z', color: '#2e7d32' }),
-      slotLayer({ id: badgeS, name: 'Badge', slotType: 'badge', x: 5, y: 44, w: 55, h: 7, zIndex: 10, fontSize: '0.7rem', color: '#43a047' }),
-      slotLayer({ id: titleS, name: 'Title', slotType: 'title', x: 5, y: 53, w: 90, h: 13, zIndex: 10, fontSize: '1rem', fontWeight: '700', color: '#ffffff' }),
-      slotLayer({ id: bodyS, name: 'Body', slotType: 'body', x: 5, y: 68, w: 90, h: 24, zIndex: 10, fontSize: '0.82rem', color: 'rgba(255,255,255,0.70)' }),
+      vectorLayer({ id: bg, name: 'Background', role: 'structure', x: 0, y: 0, w: 100, h: 100, zIndex: 0, pathData: roundRectPath(0, 0, 100, 100, 4), color: '#f9fafb' }),
+      vectorLayer({ id: imgZone, name: 'Image Zone', role: 'structure', x: 0, y: 0, w: 45, h: 100, zIndex: 1, pathData: 'M0,0 H45 V100 H0 Z', color: '#e5e7eb' }),
+      slotLayer({ id: imgS, name: 'Image', slotType: 'image', x: 0, y: 0, w: 45, h: 100, zIndex: 5, textAlign: 'center' }),
+      vectorLayer({ id: bottomB, name: 'Right Bar', role: 'accent', x: 97.5, y: 0, w: 2.5, h: 100, zIndex: 1, pathData: 'M97.5,0 H100 V100 H97.5 Z', color: '#2e7d32' }),
+      slotLayer({ id: badgeS, name: 'Badge', slotType: 'badge', x: 48, y: 8, w: 48, h: 10, zIndex: 10, fontSize: '0.7rem', color: '#2e7d32' }),
+      slotLayer({ id: titleS, name: 'Title', slotType: 'title', x: 48, y: 22, w: 48, h: 20, zIndex: 10, fontSize: '1rem', fontWeight: '700', color: '#111827' }),
+      slotLayer({ id: bodyS, name: 'Body', slotType: 'body', x: 48, y: 46, w: 48, h: 42, zIndex: 10, fontSize: '0.82rem', color: '#6b7280' }),
     ],
     states: [],
-    canvasWidth: 360,
-    canvasHeight: 420,
+    canvasWidth: 440,
+    canvasHeight: 300,
   };
 }
 
@@ -421,7 +421,7 @@ async function main() {
   await prisma.section.create({
     data: {
       pageId: lp.id, createdBy: admin.id, type: 'FLEXIBLE', enabled: true, order: order++,
-      displayName: 'About', background: '#1a1a1a',
+      displayName: 'About', background: '#f5f5f5',
       content: j({
         designerData: {
           layoutType: 'grid',
@@ -430,21 +430,21 @@ async function main() {
             {
               id: 1, type: 'text',
               position: { row: 1, col: 1, colSpan: 1, rowSpan: 5 },
-              props: { paddingTop: 48, paddingBottom: 48, paddingX: 48 },
+              props: { paddingTop: 32, paddingBottom: 32, paddingX: 40 },
               subElements: [
-                { type: 'heading', props: { text: 'ABOUT BUILDPRO', fontSize: 11, fontWeight: '700', color: '#4caf50', letterSpacing: 2, textTransform: 'uppercase', textAlign: 'left', marginBottom: 16 } },
-                { type: 'heading', props: { text: 'Two decades of delivering concrete that performs.', fontSize: 34, fontWeight: '800', color: '#ffffff', lineHeight: 1.2, textAlign: 'left', marginBottom: 24 } },
-                { type: 'paragraph', props: { text: 'Since 2004, BuildPro Concrete has supplied ready-mix concrete to builders, developers, and contractors across the Western Cape. What started as a single transit mixer has grown into a modern operation — GPS-tracked fleet, a fully automated batching plant, and a team of 26 dedicated to delivering concrete that is consistent, on-spec, and on time.', fontSize: 16, color: '#9ca3af', lineHeight: 1.75, marginBottom: 20 } },
-                { type: 'paragraph', props: { text: 'Every batch begins with SANS-certified raw materials and a mix design matched to your project requirements. Our automated plant controls water-cement ratios to ±2%. You receive exactly what was batched — every time.', fontSize: 16, color: '#9ca3af', lineHeight: 1.75, marginBottom: 36 } },
-                { type: 'button', props: { text: 'Get a Quote', navTarget: '#contact', bgColor: '#2e7d32', textColor: '#ffffff', paddingX: 28, paddingY: 12, borderRadius: 6 } },
-                { type: 'button', props: { text: 'Concrete Calculator', navTarget: '/calculator', bgColor: 'transparent', textColor: '#4caf50', paddingX: 28, paddingY: 12, borderRadius: 6, marginTop: 10 } },
+                { type: 'heading', props: { text: 'ABOUT BUILDPRO', fontSize: 11, fontWeight: '700', color: '#2e7d32', letterSpacing: 2, textTransform: 'uppercase', textAlign: 'left', marginBottom: 12 } },
+                { type: 'heading', props: { text: 'Two decades of concrete that performs.', fontSize: 28, fontWeight: '800', color: '#111827', lineHeight: 1.2, textAlign: 'left', marginBottom: 18 } },
+                { type: 'paragraph', props: { text: 'Since 2004, BuildPro Concrete has supplied ready-mix to builders, developers, and contractors across the Western Cape. GPS-tracked fleet, fully automated batching plant, team of 26 — consistent, on-spec, on time.', fontSize: 15, color: '#4b5563', lineHeight: 1.7, marginBottom: 16 } },
+                { type: 'paragraph', props: { text: 'SANS-certified raw materials, automated water-cement ratio control to ±2%. You receive exactly what was batched — every time.', fontSize: 15, color: '#4b5563', lineHeight: 1.7, marginBottom: 28 } },
+                { type: 'button', props: { text: 'Get a Quote', navTarget: '#contact', bgColor: '#2e7d32', textColor: '#ffffff', paddingX: 24, paddingY: 10, borderRadius: 6 } },
+                { type: 'button', props: { text: 'Concrete Calculator', navTarget: '/calculator', bgColor: 'transparent', textColor: '#2e7d32', paddingX: 24, paddingY: 10, borderRadius: 6, marginTop: 8 } },
               ],
             },
-            { id: 2, type: 'stats', position: { row: 1, col: 2 }, props: { icon: 'bi-calendar2-heart', number: '20+', statLabel: 'Years in business', bgColor: '#1f2937', textColor: '#4caf50', bgOpacity: 100 } },
-            { id: 3, type: 'stats', position: { row: 2, col: 2 }, props: { icon: 'bi-truck', number: '10', statLabel: 'GPS-tracked trucks', bgColor: '#212121', textColor: '#ffffff', bgOpacity: 100 } },
-            { id: 4, type: 'stats', position: { row: 3, col: 2 }, props: { icon: 'bi-speedometer2', number: '15–40MPa', statLabel: 'Full mix range', bgColor: '#1f2937', textColor: '#4caf50', bgOpacity: 100, animateCount: false } },
-            { id: 5, type: 'stats', position: { row: 4, col: 2 }, props: { icon: 'bi-people', number: '26', statLabel: 'Team members', bgColor: '#212121', textColor: '#ffffff', bgOpacity: 100 } },
-            { id: 6, type: 'stats', position: { row: 5, col: 2 }, props: { icon: 'bi-patch-check', number: 'SANS 878', statLabel: 'Certified mix designs', bgColor: '#1f2937', textColor: '#4caf50', bgOpacity: 100, animateCount: false } },
+            { id: 2, type: 'stats', position: { row: 1, col: 2 }, props: { icon: 'bi-calendar2-heart', number: '20+', statLabel: 'Years in business', bgColor: '#e8f5e9', textColor: '#2e7d32', bgOpacity: 100 } },
+            { id: 3, type: 'stats', position: { row: 2, col: 2 }, props: { icon: 'bi-truck', number: '10', statLabel: 'GPS-tracked trucks', bgColor: '#ffffff', textColor: '#111827', bgOpacity: 100 } },
+            { id: 4, type: 'stats', position: { row: 3, col: 2 }, props: { icon: 'bi-speedometer2', number: '15–40MPa', statLabel: 'Full mix range', bgColor: '#e8f5e9', textColor: '#2e7d32', bgOpacity: 100, animateCount: false } },
+            { id: 5, type: 'stats', position: { row: 4, col: 2 }, props: { icon: 'bi-people', number: '26', statLabel: 'Team members', bgColor: '#ffffff', textColor: '#111827', bgOpacity: 100 } },
+            { id: 6, type: 'stats', position: { row: 5, col: 2 }, props: { icon: 'bi-patch-check', number: 'SANS 878', statLabel: 'Certified mix designs', bgColor: '#e8f5e9', textColor: '#2e7d32', bgOpacity: 100, animateCount: false } },
           ],
         },
       }),
@@ -452,45 +452,43 @@ async function main() {
   });
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 3. SERVICES — multi 2-zone: heading (zone 0) + 3 Volt service cards (zone 1)
+  // 3. SERVICES — single screen: heading row + 3 Volt service cards row
   //    bg: solid #1b5e20 (deep green)
   // ══════════════════════════════════════════════════════════════════════════
   await prisma.section.create({
     data: {
       pageId: lp.id, createdBy: admin.id, type: 'FLEXIBLE', enabled: true, order: order++,
-      displayName: 'Services', background: '#1b5e20',
+      displayName: 'Services', background: '#ffffff',
       content: j({
-        contentMode: 'multi',
         designerData: {
-          contentMode: 'multi', multiLimit: 2,
           layoutType: 'grid',
-          grid: { cols: 3, rows: 1, gap: 24 },
+          grid: { cols: 3, rows: 2, gap: 24 },
           blocks: [
-            // Zone 0: full-width heading
+            // Row 1: full-width heading
             {
               id: 10, type: 'text',
-              position: { row: 1, col: 1, colSpan: 3, section: 0 },
-              props: { textAlign: 'center', paddingTop: 40 },
+              position: { row: 1, col: 1, colSpan: 3 },
+              props: { textAlign: 'center', paddingTop: 20, paddingBottom: 8 },
               subElements: [
-                { type: 'heading', props: { text: 'WHAT WE SUPPLY', fontSize: 11, fontWeight: '700', color: '#a5d6a7', letterSpacing: 2, textTransform: 'uppercase', textAlign: 'center', marginBottom: 16 } },
-                { type: 'heading', props: { text: 'Six concrete solutions.\nOne reliable supplier.', fontSize: 44, fontWeight: '800', color: '#ffffff', lineHeight: 1.15, textAlign: 'center', marginBottom: 20 } },
-                { type: 'paragraph', props: { text: 'Every mix is plant-batched to SANS 878 and delivered to your site by our GPS-tracked fleet. Same-day orders accepted before 10:00 AM.', fontSize: 17, color: 'rgba(255,255,255,0.78)', textAlign: 'center', lineHeight: 1.65, marginBottom: 0 } },
+                { type: 'heading', props: { text: 'WHAT WE SUPPLY', fontSize: 11, fontWeight: '700', color: '#2e7d32', letterSpacing: 2, textTransform: 'uppercase', textAlign: 'center', marginBottom: 12 } },
+                { type: 'heading', props: { text: 'Six concrete solutions. One reliable supplier.', fontSize: 36, fontWeight: '800', color: '#111827', lineHeight: 1.15, textAlign: 'center', marginBottom: 12 } },
+                { type: 'paragraph', props: { text: 'Every mix is plant-batched to SANS 878 and delivered by our GPS-tracked fleet. Same-day orders accepted before 10:00 AM.', fontSize: 16, color: '#6b7280', textAlign: 'center', lineHeight: 1.6, marginBottom: 0 } },
               ],
             },
-            // Zone 1: 3 Volt service cards
+            // Row 2: 3 Volt service cards
             {
               id: 11, type: 'volt',
-              position: { row: 1, col: 1, section: 1 },
+              position: { row: 2, col: 1 },
               props: { voltId: serviceCard.id, slotIcon: 'bi-layers', slotTitle: 'Standard Mixes', slotBody: 'SANS 878-compliant mixes from 15MPa to 40MPa. Cube-test certificates available for every batch.', slotActionLabel: 'Get a Quote', slotActionHref: '#contact' },
             },
             {
               id: 12, type: 'volt',
-              position: { row: 1, col: 2, section: 1 },
+              position: { row: 2, col: 2 },
               props: { voltId: serviceCard.id, slotIcon: 'bi-droplet', slotTitle: 'Pumpable Concrete', slotBody: '100–180mm slump for pump application. Ideal for elevated slabs, columns, and restricted-access sites.', slotActionLabel: 'Get a Quote', slotActionHref: '#contact' },
             },
             {
               id: 13, type: 'volt',
-              position: { row: 1, col: 3, section: 1 },
+              position: { row: 2, col: 3 },
               props: { voltId: serviceCard.id, slotIcon: 'bi-gear', slotTitle: 'Fibre Reinforced', slotBody: 'Steel or polypropylene dosed at the plant. Eliminates on-site mixing errors and reduces plastic cracking.', slotActionLabel: 'Get a Quote', slotActionHref: '#contact' },
             },
           ],
@@ -507,7 +505,7 @@ async function main() {
     data: {
       pageId: lp.id, createdBy: admin.id, type: 'FLEXIBLE', enabled: true, order: order++,
       displayName: 'Why Choose Us',
-      background: 'linear-gradient(135deg, #1a1a1a 0%, #1b5e20 100%)',
+      background: '#f0f7f0',
       motionElements: j([
         {
           id: 'me-why-img-1',
@@ -523,43 +521,37 @@ async function main() {
         },
       ]),
       content: j({
-        contentMode: 'multi',
         designerData: {
-          contentMode: 'multi', multiLimit: 3,
           layoutType: 'grid',
-          grid: { cols: 3, rows: 1, gap: 24 },
+          grid: { cols: 3, rows: 2, gap: 24 },
           blocks: [
-            // Zone 0: heading
+            // Row 1: heading
             {
               id: 20, type: 'text',
-              position: { row: 1, col: 1, colSpan: 3, section: 0 },
-              props: { textAlign: 'center', paddingTop: 60, paddingX: 80 },
+              position: { row: 1, col: 1, colSpan: 3 },
+              props: { textAlign: 'center', paddingTop: 20, paddingBottom: 8, paddingX: 40 },
               subElements: [
-                { type: 'heading', props: { text: 'WHY BUILDERS CHOOSE US', fontSize: 11, fontWeight: '700', color: '#a5d6a7', letterSpacing: 3, textTransform: 'uppercase', textAlign: 'center', marginBottom: 20 } },
-                { type: 'heading', props: { text: 'Concrete you can count on.\nEvery pour. Every time.', fontSize: 48, fontWeight: '800', color: '#ffffff', lineHeight: 1.15, textAlign: 'center', marginBottom: 28 } },
-                { type: 'paragraph', props: { text: 'Twenty years of delivering to contractors across the Western Cape has taught us one thing: builders don\'t forgive bad concrete. That\'s why every batch is plant-controlled, SANS-certified, and on time.', fontSize: 18, color: 'rgba(255,255,255,0.72)', lineHeight: 1.75, textAlign: 'center', marginBottom: 0 } },
+                { type: 'heading', props: { text: 'WHY BUILDERS CHOOSE US', fontSize: 11, fontWeight: '700', color: '#2e7d32', letterSpacing: 3, textTransform: 'uppercase', textAlign: 'center', marginBottom: 14 } },
+                { type: 'heading', props: { text: 'Concrete you can count on. Every pour.', fontSize: 38, fontWeight: '800', color: '#111827', lineHeight: 1.15, textAlign: 'center', marginBottom: 14 } },
+                { type: 'paragraph', props: { text: 'Twenty years delivering to contractors across the Western Cape. Every batch plant-controlled, SANS-certified, and on time.', fontSize: 16, color: '#6b7280', lineHeight: 1.65, textAlign: 'center', marginBottom: 0 } },
               ],
             },
-            // Zone 1: 3 reason cards
-            { id: 21, type: 'card', position: { row: 1, col: 1, section: 1 }, props: { bgColor: 'rgba(0,0,0,0.35)', borderRadius: 12 }, subElements: [
-                { type: 'heading', props: { text: '⚗️', fontSize: 40, textAlign: 'center', marginBottom: 16 } },
-                { type: 'heading', props: { text: 'Consistent Quality', fontSize: 20, fontWeight: '700', color: '#ffffff', textAlign: 'center', marginBottom: 12 } },
-                { type: 'paragraph', props: { text: 'Automated batching controls water-cement ratio to ±2%. Every batch is cube-tested. Certificates on request.', fontSize: 15, color: 'rgba(255,255,255,0.68)', lineHeight: 1.7, textAlign: 'center' } },
+            // Row 2: 3 reason cards
+            { id: 21, type: 'card', position: { row: 2, col: 1 }, props: { bgColor: '#ffffff', borderRadius: 12 }, subElements: [
+                { type: 'heading', props: { text: '⚗️', fontSize: 36, textAlign: 'center', marginBottom: 12 } },
+                { type: 'heading', props: { text: 'Consistent Quality', fontSize: 18, fontWeight: '700', color: '#111827', textAlign: 'center', marginBottom: 10 } },
+                { type: 'paragraph', props: { text: 'Automated batching controls water-cement ratio to ±2%. Every batch cube-tested. Certificates on request.', fontSize: 14, color: '#6b7280', lineHeight: 1.65, textAlign: 'center' } },
             ] },
-            { id: 22, type: 'card', position: { row: 1, col: 2, section: 1 }, props: { bgColor: 'rgba(46,125,50,0.35)', borderRadius: 12 }, subElements: [
-                { type: 'heading', props: { text: '🚛', fontSize: 40, textAlign: 'center', marginBottom: 16 } },
-                { type: 'heading', props: { text: 'On-Time Delivery', fontSize: 20, fontWeight: '700', color: '#ffffff', textAlign: 'center', marginBottom: 12 } },
-                { type: 'paragraph', props: { text: 'GPS-tracked fleet of 10 transit mixers. Real-time ETA via WhatsApp. Concrete arrives on schedule so your crew stays productive.', fontSize: 15, color: 'rgba(255,255,255,0.68)', lineHeight: 1.7, textAlign: 'center' } },
+            { id: 22, type: 'card', position: { row: 2, col: 2 }, props: { bgColor: '#e8f5e9', borderRadius: 12 }, subElements: [
+                { type: 'heading', props: { text: '🚛', fontSize: 36, textAlign: 'center', marginBottom: 12 } },
+                { type: 'heading', props: { text: 'On-Time Delivery', fontSize: 18, fontWeight: '700', color: '#111827', textAlign: 'center', marginBottom: 10 } },
+                { type: 'paragraph', props: { text: 'GPS-tracked fleet of 10 transit mixers. Real-time ETA via WhatsApp. Crew stays productive, every pour.', fontSize: 14, color: '#4b5563', lineHeight: 1.65, textAlign: 'center' } },
             ] },
-            { id: 23, type: 'card', position: { row: 1, col: 3, section: 1 }, props: { bgColor: 'rgba(0,0,0,0.35)', borderRadius: 12 }, subElements: [
-                { type: 'heading', props: { text: '🏗️', fontSize: 40, textAlign: 'center', marginBottom: 16 } },
-                { type: 'heading', props: { text: 'Expert Mix Design', fontSize: 20, fontWeight: '700', color: '#ffffff', textAlign: 'center', marginBottom: 12 } },
-                { type: 'paragraph', props: { text: 'Our in-house mix engineer designs for your application. Marine grade, pumpable, fibre-reinforced, mass-pour — we have it all.', fontSize: 15, color: 'rgba(255,255,255,0.68)', lineHeight: 1.7, textAlign: 'center' } },
+            { id: 23, type: 'card', position: { row: 2, col: 3 }, props: { bgColor: '#ffffff', borderRadius: 12 }, subElements: [
+                { type: 'heading', props: { text: '🏗️', fontSize: 36, textAlign: 'center', marginBottom: 12 } },
+                { type: 'heading', props: { text: 'Expert Mix Design', fontSize: 18, fontWeight: '700', color: '#111827', textAlign: 'center', marginBottom: 10 } },
+                { type: 'paragraph', props: { text: 'In-house mix engineer for your application. Marine grade, pumpable, fibre-reinforced, mass-pour — all covered.', fontSize: 14, color: '#6b7280', lineHeight: 1.65, textAlign: 'center' } },
             ] },
-            // Zone 2: stats
-            { id: 24, type: 'stats', position: { row: 1, col: 1, section: 2 }, props: { icon: 'bi-calendar2-heart', number: '20+', statLabel: 'Years in business', bgColor: 'rgba(0,0,0,0.3)', textColor: '#ffffff', bgOpacity: 100 } },
-            { id: 25, type: 'stats', position: { row: 1, col: 2, section: 2 }, props: { icon: 'bi-boxes', number: '60 000+', statLabel: 'Cubic metres poured', bgColor: 'rgba(46,125,50,0.35)', textColor: '#ffffff', bgOpacity: 100 } },
-            { id: 26, type: 'stats', position: { row: 1, col: 3, section: 2 }, props: { icon: 'bi-people', number: '500+', statLabel: 'Satisfied contractors', bgColor: 'rgba(0,0,0,0.3)', textColor: '#ffffff', bgOpacity: 100 } },
           ],
         },
       }),
@@ -573,7 +565,7 @@ async function main() {
   await prisma.section.create({
     data: {
       pageId: lp.id, createdBy: admin.id, type: 'FLEXIBLE', enabled: true, order: order++,
-      displayName: 'Projects', background: '#2d2d2d',
+      displayName: 'Projects', background: '#f5f5f5',
       motionElements: j([
         {
           id: 'me-projects-vid-1',
@@ -599,9 +591,9 @@ async function main() {
               position: { row: 1, col: 1, colSpan: 3 },
               props: { textAlign: 'center', paddingTop: 40, paddingBottom: 8 },
               subElements: [
-                { type: 'heading', props: { text: 'COMPLETED PROJECTS', fontSize: 11, fontWeight: '700', color: '#4caf50', letterSpacing: 2, textTransform: 'uppercase', textAlign: 'center', marginBottom: 14 } },
-                { type: 'heading', props: { text: 'Concrete that performs — project after project.', fontSize: 36, fontWeight: '800', color: '#ffffff', textAlign: 'center', lineHeight: 1.2, marginBottom: 10 } },
-                { type: 'paragraph', props: { text: 'From residential foundations to 4 500 m² industrial slabs — every project delivered on spec.', fontSize: 15, color: '#9ca3af', textAlign: 'center', lineHeight: 1.6 } },
+                { type: 'heading', props: { text: 'COMPLETED PROJECTS', fontSize: 11, fontWeight: '700', color: '#2e7d32', letterSpacing: 2, textTransform: 'uppercase', textAlign: 'center', marginBottom: 14 } },
+                { type: 'heading', props: { text: 'Concrete that performs — project after project.', fontSize: 36, fontWeight: '800', color: '#111827', textAlign: 'center', lineHeight: 1.2, marginBottom: 10 } },
+                { type: 'paragraph', props: { text: 'From residential foundations to 4 500 m² industrial slabs — every project delivered on spec.', fontSize: 15, color: '#6b7280', textAlign: 'center', lineHeight: 1.6 } },
               ],
             },
             // 3 Volt project cards
@@ -655,7 +647,7 @@ async function main() {
     data: {
       pageId: lp.id, createdBy: admin.id, type: 'FLEXIBLE', enabled: true, order: order++,
       displayName: 'How It Works',
-      background: 'linear-gradient(180deg, #1a1a1a 0%, #2e7d32 100%)',
+      background: '#ffffff',
       content: j({
         designerData: {
           layoutType: 'grid',
@@ -667,14 +659,14 @@ async function main() {
               position: { row: 1, col: 1 },
               props: { paddingTop: 80, paddingBottom: 80, paddingX: 60 },
               subElements: [
-                { type: 'heading', props: { text: 'HOW IT WORKS', fontSize: 11, fontWeight: '700', color: '#a5d6a7', letterSpacing: 2, textTransform: 'uppercase', textAlign: 'left', marginBottom: 20 } },
-                { type: 'heading', props: { text: 'Three steps from order to pour.', fontSize: 36, fontWeight: '800', color: '#ffffff', lineHeight: 1.2, textAlign: 'left', marginBottom: 36 } },
-                { type: 'heading', props: { text: '01 — Place Your Order', fontSize: 16, fontWeight: '700', color: '#4caf50', textAlign: 'left', marginBottom: 8 } },
-                { type: 'paragraph', props: { text: 'Call or submit your quote online. Specify your mix, volume, and pour date. Same-day orders accepted before 10:00 AM.', fontSize: 15, color: 'rgba(255,255,255,0.72)', lineHeight: 1.7, textAlign: 'left', marginBottom: 28 } },
-                { type: 'heading', props: { text: '02 — We Batch Your Mix', fontSize: 16, fontWeight: '700', color: '#4caf50', textAlign: 'left', marginBottom: 8 } },
-                { type: 'paragraph', props: { text: 'Your mix design is loaded into our automated batching plant. Water-cement ratio controlled to ±2%. A delivery docket is generated.', fontSize: 15, color: 'rgba(255,255,255,0.72)', lineHeight: 1.7, textAlign: 'left', marginBottom: 28 } },
-                { type: 'heading', props: { text: '03 — On-Site Delivery', fontSize: 16, fontWeight: '700', color: '#4caf50', textAlign: 'left', marginBottom: 8 } },
-                { type: 'paragraph', props: { text: 'Our GPS-tracked truck arrives at your site within the agreed window. You receive your delivery docket and are ready to pour.', fontSize: 15, color: 'rgba(255,255,255,0.72)', lineHeight: 1.7, textAlign: 'left', marginBottom: 36 } },
+                { type: 'heading', props: { text: 'HOW IT WORKS', fontSize: 11, fontWeight: '700', color: '#2e7d32', letterSpacing: 2, textTransform: 'uppercase', textAlign: 'left', marginBottom: 20 } },
+                { type: 'heading', props: { text: 'Three steps from order to pour.', fontSize: 36, fontWeight: '800', color: '#111827', lineHeight: 1.2, textAlign: 'left', marginBottom: 36 } },
+                { type: 'heading', props: { text: '01 — Place Your Order', fontSize: 16, fontWeight: '700', color: '#2e7d32', textAlign: 'left', marginBottom: 8 } },
+                { type: 'paragraph', props: { text: 'Call or submit your quote online. Specify your mix, volume, and pour date. Same-day orders accepted before 10:00 AM.', fontSize: 15, color: '#4b5563', lineHeight: 1.7, textAlign: 'left', marginBottom: 28 } },
+                { type: 'heading', props: { text: '02 — We Batch Your Mix', fontSize: 16, fontWeight: '700', color: '#2e7d32', textAlign: 'left', marginBottom: 8 } },
+                { type: 'paragraph', props: { text: 'Your mix design is loaded into our automated batching plant. Water-cement ratio controlled to ±2%. A delivery docket is generated.', fontSize: 15, color: '#4b5563', lineHeight: 1.7, textAlign: 'left', marginBottom: 28 } },
+                { type: 'heading', props: { text: '03 — On-Site Delivery', fontSize: 16, fontWeight: '700', color: '#2e7d32', textAlign: 'left', marginBottom: 8 } },
+                { type: 'paragraph', props: { text: 'Our GPS-tracked truck arrives at your site within the agreed window. You receive your delivery docket and are ready to pour.', fontSize: 15, color: '#4b5563', lineHeight: 1.7, textAlign: 'left', marginBottom: 36 } },
                 { type: 'button', props: { text: 'Request a Quote', navTarget: '#contact', bgColor: '#2e7d32', textColor: '#ffffff', paddingX: 28, paddingY: 12, borderRadius: 6 } },
               ],
             },
@@ -697,19 +689,17 @@ async function main() {
   await prisma.section.create({
     data: {
       pageId: lp.id, createdBy: admin.id, type: 'CTA', enabled: true, order: order++,
-      displayName: 'Contact', background: '#0f1a0f',
+      displayName: 'Contact', background: '#e8f5e9',
       content: j({
         style: 'contact-form',
         heading: 'Get a Quote Today',
         subheading: 'Tell us about your project and we\'ll be in touch within 2 hours.',
         formTitle: 'Request a Quote',
         formFields: [
-          { id: 'name',          label: 'Full Name',             type: 'text',     required: true,  placeholder: 'e.g. John Smith' },
-          { id: 'email',         label: 'Email Address',         type: 'email',    required: true,  placeholder: 'you@example.com' },
-          { id: 'phone',         label: 'Phone Number',          type: 'tel',      required: false, placeholder: '+27 82 000 0000' },
-          { id: 'concrete_type', label: 'Concrete Type',         type: 'select',   required: false, placeholder: 'Select type...', options: ['15MPa', '20MPa', '25MPa', '30MPa', '35MPa', '40MPa', 'Fibre Reinforced', 'Pumpable', 'Marine Grade', 'Other'] },
-          { id: 'volume',        label: 'Estimated Volume (m³)', type: 'text',     required: false, placeholder: 'e.g. 12 m³' },
-          { id: 'message',       label: 'Project Details',       type: 'textarea', required: true,  placeholder: 'Site address, pour date, access notes...' },
+          { id: 'name',          label: 'Full Name',    type: 'text',     required: true,  placeholder: 'e.g. John Smith' },
+          { id: 'email',         label: 'Email',        type: 'email',    required: true,  placeholder: 'you@example.com' },
+          { id: 'concrete_type', label: 'Concrete Type', type: 'select',  required: false, placeholder: 'Select type...', options: ['15MPa', '20MPa', '25MPa', '30MPa', '35MPa', '40MPa', 'Fibre Reinforced', 'Pumpable', 'Marine Grade', 'Other'] },
+          { id: 'message',       label: 'Project Details', type: 'textarea', required: true, placeholder: 'Site address, pour date, volume, access notes...' },
         ],
         formSuccessMessage: 'Thank you! We\'ll be in touch within 2 hours.',
         requireEmail: true,
@@ -726,14 +716,14 @@ async function main() {
   await prisma.section.create({
     data: {
       pageId: lp.id, createdBy: admin.id, type: 'FOOTER', enabled: true, order: order++,
-      displayName: 'Footer', background: '#0d1117',
+      displayName: 'Footer', background: '#ffffff',
       content: j({
         companyName: 'BuildPro Concrete',
         tagline: 'Quality concrete. On time. Every time.',
         copyright: `© ${new Date().getFullYear()} BuildPro Concrete (Pty) Ltd. All rights reserved.`,
         logoUrl: '',
-        textColor: '#9ca3af',
-        accentColor: '#4caf50',
+        textColor: '#6b7280',
+        accentColor: '#2e7d32',
         columns: [
           {
             heading: 'Services',

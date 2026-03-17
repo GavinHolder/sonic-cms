@@ -9,6 +9,7 @@ import CTASectionEditor from "@/components/admin/CTASectionEditor";
 import NormalSectionEditor from "@/components/admin/NormalSectionEditor";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import { getPage } from "@/lib/page-manager";
+import type { PageConfig } from "@/types/page";
 import type { SectionConfig, SectionType, HeroSection, FooterSection, CTASection, NormalSection } from "@/types/section";
 import {
   getSections,
@@ -40,7 +41,7 @@ const filterCategories: Array<{
 export default function PageEditor({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
   const router = useRouter();
-  const [page, setPage] = useState<ReturnType<typeof getPage>>(null);
+  const [page, setPage] = useState<PageConfig | null>(null);
   const [sections, setSections] = useState<SectionConfig[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedType, setSelectedType] = useState<SectionType>("NORMAL");
@@ -72,20 +73,23 @@ export default function PageEditor({ params }: { params: Promise<{ slug: string 
   };
 
   useEffect(() => {
-    const loadedPage = getPage(slug);
-    if (!loadedPage) {
-      router.push("/admin/content/pages");
-      return;
-    }
+    getPage(slug).then((loadedPage) => {
+      if (!loadedPage) {
+        router.push("/admin/content/pages");
+        return;
+      }
 
-    if (loadedPage.type !== "full") {
-      // Only full pages can use section editor
-      router.push("/admin/content/pages");
-      return;
-    }
+      if (loadedPage.type !== "full") {
+        // Only full pages can use section editor
+        router.push("/admin/content/pages");
+        return;
+      }
 
-    setPage(loadedPage);
-    reloadSections();
+      setPage(loadedPage);
+      reloadSections();
+    }).catch(() => {
+      router.push("/admin/content/pages");
+    });
   }, [slug]);
 
   useEffect(() => {

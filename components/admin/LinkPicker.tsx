@@ -34,13 +34,14 @@ export function LinkPicker({
   const [featurePages, setFeaturePages] = useState<LinkOption[]>([]);
 
   useEffect(() => {
-    // CMS pages from localStorage
-    const pages = getPages();
-    setDynamicPages(
-      pages
-        .filter((p) => p.enabled)
-        .map((p) => ({ value: `/${p.slug}`, label: `Page: ${p.title}` }))
-    );
+    // CMS pages from DB
+    getPages().then((pages) => {
+      setDynamicPages(
+        pages
+          .filter((p) => p.enabled)
+          .map((p) => ({ value: `/${p.slug}`, label: `Page: ${p.title}` }))
+      );
+    }).catch(() => {});
 
     // Enabled feature pages from API (requires SUPER_ADMIN session cookie)
     fetch("/api/features")

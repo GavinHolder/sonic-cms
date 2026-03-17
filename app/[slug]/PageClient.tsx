@@ -43,28 +43,8 @@ export default function PageClient({ params }: { params: Promise<{ slug: string 
   useEffect(() => {
     async function loadPage() {
       try {
-        // Try localStorage first, then fall back to DB API
-        let loadedPage: PageConfig | null = getPage(slug);
-
-        if (!loadedPage) {
-          // Page not in localStorage → check the database
-          const r = await fetch(`/api/pages/${encodeURIComponent(slug)}`);
-          if (r.ok) {
-            const j = await r.json();
-            if (j.success && j.data) {
-              // Map DB page → PageConfig (treat as "full" section-based page)
-              loadedPage = {
-                id: j.data.id,
-                title: j.data.title,
-                slug: j.data.slug,
-                type: "full",
-                enabled: j.data.status === "PUBLISHED" || j.data.status === "DRAFT",
-                createdAt: j.data.createdAt,
-                updatedAt: j.data.updatedAt,
-              } as PageConfig;
-            }
-          }
-        }
+        // Fetch page from DB API
+        const loadedPage: PageConfig | null = await getPage(slug);
 
         // Page not found or disabled → 404
         if (!loadedPage || !loadedPage.enabled) {

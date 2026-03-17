@@ -1,18 +1,14 @@
 /**
  * Page Manager - CRUD operations for page metadata
  *
- * Mirrors section-manager.ts pattern for consistency.
- * Pages use the same section system - this only manages metadata.
- * Sections stored separately in cms_sections_{pageSlug}
+ * Uses the /api/pages database API for persistence.
+ * Designer page content still stored in localStorage (canvas data).
  */
 
 import type { PageConfig, PageType, FullPageConfig, PDFPageConfig, FormPageConfig, DesignerPageConfig } from "@/types/page";
 
-const PAGES_KEY = "cms_pages";
-
 /**
  * Reserved slugs that cannot be used for pages
- * (existing static routes and system paths)
  */
 export const RESERVED_SLUGS = [
   'admin', 'api', '_next', 'images', 'uploads',
@@ -22,16 +18,99 @@ export const RESERVED_SLUGS = [
 ];
 
 /**
- * Get all pages from localStorage
+ * Generate URL-safe slug from title
  */
-export function getPages(): PageConfig[] {
-  if (typeof window === 'undefined') return [];
+export function generateSlug(title: string): string {
+  return title
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
 
+/**
+ * Validate slug format (client-side only — uniqueness is checked server-side)
+ */
+export function validateSlugFormat(slug: string): { valid: boolean; error?: string } {
+  if (!/^[a-z0-9-]+$/.test(slug)) {
+    return { valid: false, error: "Slug must contain only lowercase letters, numbers, and hyphens" };
+  }
+  if (RESERVED_SLUGS.includes(slug)) {
+    return { valid: false, error: `"${slug}" is a reserved slug and cannot be used` };
+  }
+  return { valid: true };
+}
+
+/** @deprecated Use validateSlugFormat instead */
+export function validateSlug(slug: string, _excludeId?: string): { valid: boolean; error?: string } {
+  return validateSlugFormat(slug);
+}
+
+// ──────────────────────────────────────────────
+// API helpers
+// ──────────────────────────────────────────────
+
+function mapApiPage(p: any): PageConfig {
+  return {
+    id: p.id,
+    slug: p.slug,
+    title: p.title,
+    type: p.type as PageType,
+    enabled: p.enabled ?? true,
+    createdAt: p.createdAt,
+    updatedAt: p.updatedAt,
+    // Form-specific
+    ...(p.type === "form" && p.formConfig ? {
+      fields: (p.formConfig as any).fields ?? [],
+      submitAction: (p.formConfig as any).submitAction ?? "email",
+      submitConfig: (p.formConfig as any).submitConfig ?? {},
+    } : {}),
+    // PDF-specific
+    ...(p.type === "pdf" && p.formConfig ? {
+      pdfUrl: (p.formConfig as any).pdfUrl ?? "",
+      displayMode: (p.formConfig as any).displayMode ?? "embed",
+    } : {}),
+  } as PageConfig;
+}
+
+function buildFormConfig(type: PageType, data: Partial<PageConfig>): object | undefined {
+  if (type === "form") {
+    const d = data as Partial<FormPageConfig>;
+    return {
+      fields: d.fields ?? [],
+      submitAction: d.submitAction ?? "email",
+      submitConfig: d.submitConfig ?? {},
+    };
+  }
+  if (type === "pdf") {
+    const d = data as Partial<PDFPageConfig>;
+    return {
+      pdfUrl: d.pdfUrl ?? "",
+      displayMode: d.displayMode ?? "embed",
+    };
+  }
+  return undefined;
+}
+
+// ──────────────────────────────────────────────
+// Public API
+// ──────────────────────────────────────────────
+
+/**
+ * Get all pages from database
+ */
+export async function getPages(): Promise<PageConfig[]> {
   try {
-    const data = localStorage.getItem(PAGES_KEY);
-    return data ? JSON.parse(data) : [];
-  } catch (error) {
-    console.error("Failed to load pages:", error);
+    const res = await fetch("/api/pages");
+    if (!res.ok) return [];
+    const json = await res.json();
+    const pages: any[] = json?.data?.pages ?? [];
+    return pages
+      .filter(p => ["form", "pdf", "designer", "full"].includes(p.type))
+      .map(mapApiPage);
+  } catch {
     return [];
   }
 }
@@ -39,288 +118,113 @@ export function getPages(): PageConfig[] {
 /**
  * Get single page by slug
  */
-export function getPage(slug: string): PageConfig | null {
-  const pages = getPages();
-  return pages.find(p => p.slug === slug) || null;
-}
-
-/**
- * Generate URL-safe slug from title
- */
-export function generateSlug(title: string): string {
-  return title
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, '') // Remove special chars
-    .replace(/\s+/g, '-') // Spaces to hyphens
-    .replace(/-+/g, '-') // Collapse multiple hyphens
-    .replace(/^-|-$/g, ''); // Trim hyphens from ends
-}
-
-/**
- * Validate slug for uniqueness and format
- *
- * ASSUMPTIONS:
- * 1. Slug is lowercase alphanumeric with hyphens only
- * 2. Reserved slugs list is comprehensive
- * 3. Slug uniqueness check is case-insensitive
- *
- * FAILURE MODES:
- * - Reserved slug used → Reject with clear error
- * - Duplicate slug → Reject with suggestion to use different title
- * - Invalid characters → Sanitized by generateSlug()
- */
-export function validateSlug(slug: string, excludeId?: string): { valid: boolean; error?: string } {
-  // Check format
-  if (!/^[a-z0-9-]+$/.test(slug)) {
-    return { valid: false, error: "Slug must contain only lowercase letters, numbers, and hyphens" };
+export async function getPage(slug: string): Promise<PageConfig | null> {
+  try {
+    const res = await fetch(`/api/pages/${encodeURIComponent(slug)}`);
+    if (!res.ok) return null;
+    const json = await res.json();
+    const p = json?.data?.page;
+    return p ? mapApiPage(p) : null;
+  } catch {
+    return null;
   }
-
-  // Check reserved
-  if (RESERVED_SLUGS.includes(slug)) {
-    return { valid: false, error: `"${slug}" is a reserved slug and cannot be used` };
-  }
-
-  // Check uniqueness
-  const pages = getPages();
-  const duplicate = pages.find(p => p.slug === slug && p.id !== excludeId);
-  if (duplicate) {
-    return { valid: false, error: `A page with slug "${slug}" already exists` };
-  }
-
-  return { valid: true };
 }
 
 /**
  * Create new page with auto-generated slug
- *
- * ASSUMPTIONS:
- * 1. Title is non-empty string
- * 2. localStorage is available
- * 3. Generated slug is unique after validation
- *
- * FAILURE MODES:
- * - Reserved slug → Throw error with clear message
- * - Duplicate slug → Throw error with suggestion
- * - localStorage full → Throw error (caught by caller)
  */
-export function createPage(
+export async function createPage(
   title: string,
   type: PageType,
   additionalConfig?: Partial<PageConfig>
-): PageConfig {
-  const pages = getPages();
-  const slug = generateSlug(title);
+): Promise<PageConfig> {
+  const slug = additionalConfig?.slug ?? generateSlug(title);
 
-  // Validate slug
-  const validation = validateSlug(slug);
-  if (!validation.valid) {
-    throw new Error(validation.error);
-  }
+  const formatCheck = validateSlugFormat(slug);
+  if (!formatCheck.valid) throw new Error(formatCheck.error);
 
-  const now = new Date().toISOString();
+  const formConfig = buildFormConfig(type, { ...additionalConfig } as Partial<PageConfig>);
 
-  // Base page config
-  const baseConfig: PageConfig = {
-    id: `page-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-    slug,
-    type,
-    title,
-    enabled: true,
-    createdAt: now,
-    updatedAt: now,
-    ...additionalConfig,
-  };
+  const res = await fetch("/api/pages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      slug,
+      title,
+      type,
+      enabled: additionalConfig?.enabled ?? true,
+      formConfig,
+    }),
+  });
 
-  let newPage: PageConfig;
+  const json = await res.json();
+  if (!res.ok) throw new Error(json?.error?.message ?? "Failed to create page");
 
-  // Type-specific initialization
-  switch (type) {
-    case 'full':
-      newPage = baseConfig as FullPageConfig;
-      // Sections will be empty by default in database
-      break;
-
-    case 'pdf':
-      newPage = {
-        ...baseConfig,
-        pdfUrl: '',
-        displayMode: 'embed',
-      } as PDFPageConfig;
-      break;
-
-    case 'form':
-      newPage = {
-        ...baseConfig,
-        fields: [],
-        submitAction: 'email',
-        submitConfig: {
-          successMessage: 'Thank you! Your submission has been received.',
-        },
-      } as FormPageConfig;
-      break;
-
-    case 'designer':
-      newPage = baseConfig as DesignerPageConfig;
-      // Designer content stored in cms_designer_{slug} — starts empty
-      break;
-
-    default:
-      throw new Error(`Unknown page type: ${type}`);
-  }
-
-  pages.push(newPage);
-  localStorage.setItem(PAGES_KEY, JSON.stringify(pages));
-
-  return newPage;
+  return mapApiPage(json.data.page);
 }
 
 /**
  * Update page metadata
  */
-export function updatePage(slug: string, updates: Partial<PageConfig>): PageConfig {
-  const pages = getPages();
-  const index = pages.findIndex(p => p.slug === slug);
+export async function updatePage(slug: string, updates: Partial<PageConfig>): Promise<PageConfig> {
+  const page = await getPage(slug);
+  if (!page) throw new Error(`Page "${slug}" not found`);
 
-  if (index === -1) {
-    throw new Error(`Page with slug "${slug}" not found`);
-  }
+  const merged: Partial<PageConfig> = { ...page, ...updates };
+  const formConfig = buildFormConfig(page.type, merged);
 
-  // If slug is being changed, validate new slug
-  if (updates.slug && updates.slug !== slug) {
-    const validation = validateSlug(updates.slug, pages[index].id);
-    if (!validation.valid) {
-      throw new Error(validation.error);
-    }
+  const body: any = {};
+  if (updates.title !== undefined) body.title = updates.title;
+  if (updates.slug !== undefined) body.slug = updates.slug;
+  if (updates.enabled !== undefined) body.enabled = updates.enabled;
+  if (formConfig !== undefined) body.formConfig = formConfig;
 
-    // Move sections / designer data to new slug
-    if (pages[index].type === 'full') {
-      const oldKey = `cms_sections_${slug}`;
-      const newKey = `cms_sections_${updates.slug}`;
-      const sections = localStorage.getItem(oldKey);
-      if (sections) {
-        localStorage.setItem(newKey, sections);
-        localStorage.removeItem(oldKey);
-      }
-    } else if (pages[index].type === 'designer') {
-      const oldKey = `cms_designer_${slug}`;
-      const newKey = `cms_designer_${updates.slug}`;
-      const data = localStorage.getItem(oldKey);
-      if (data) {
-        localStorage.setItem(newKey, data);
-        localStorage.removeItem(oldKey);
-      }
-    }
-  }
+  const res = await fetch(`/api/pages/${encodeURIComponent(slug)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
 
-  const updatedPage: PageConfig = {
-    ...pages[index],
-    ...updates,
-    updatedAt: new Date().toISOString(),
-  };
+  const json = await res.json();
+  if (!res.ok) throw new Error(json?.error?.message ?? "Failed to update page");
 
-  pages[index] = updatedPage;
-  localStorage.setItem(PAGES_KEY, JSON.stringify(pages));
-
-  return updatedPage;
+  return mapApiPage(json.data.page);
 }
 
 /**
- * Delete page and its sections
- *
- * ASSUMPTIONS:
- * 1. User has confirmed deletion (caller handles confirmation)
- * 2. Page slug exists
- *
- * FAILURE MODES:
- * - Page not found → Throw error
- * - Sections not fully deleted → Log warning (non-critical)
+ * Delete page
  */
-export function deletePage(slug: string): void {
-  const pages = getPages();
-  const page = pages.find(p => p.slug === slug);
-
-  if (!page) {
-    throw new Error(`Page with slug "${slug}" not found`);
-  }
-
-  // Remove from pages list
-  const updated = pages.filter(p => p.slug !== slug);
-  localStorage.setItem(PAGES_KEY, JSON.stringify(updated));
-
-  // Remove type-specific data
-  if (page.type === 'full') {
-    try {
-      localStorage.removeItem(`cms_sections_${slug}`);
-    } catch (error) {
-      console.warn(`Failed to delete sections for page "${slug}":`, error);
-    }
-  } else if (page.type === 'designer') {
-    try {
-      localStorage.removeItem(`cms_designer_${slug}`);
-    } catch (error) {
-      console.warn(`Failed to delete designer data for page "${slug}":`, error);
-    }
+export async function deletePage(slug: string): Promise<void> {
+  const res = await fetch(`/api/pages/${encodeURIComponent(slug)}`, { method: "DELETE" });
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}));
+    throw new Error(json?.error?.message ?? "Failed to delete page");
   }
 }
 
 /**
  * Toggle page enabled state
  */
-export function togglePageEnabled(slug: string): PageConfig {
-  const page = getPage(slug);
-  if (!page) {
-    throw new Error(`Page with slug "${slug}" not found`);
-  }
-
+export async function togglePageEnabled(slug: string): Promise<PageConfig> {
+  const page = await getPage(slug);
+  if (!page) throw new Error(`Page "${slug}" not found`);
   return updatePage(slug, { enabled: !page.enabled });
 }
 
 /**
- * Duplicate page (create copy with new slug)
+ * Duplicate page
  */
-export function duplicatePage(slug: string): PageConfig {
-  const page = getPage(slug);
-  if (!page) {
-    throw new Error(`Page with slug "${slug}" not found`);
-  }
-
-  // Generate new title and slug
-  const newTitle = `${page.title} (Copy)`;
-  let newSlug = generateSlug(newTitle);
-
-  // Ensure unique slug
-  let counter = 1;
-  while (getPage(newSlug)) {
-    newSlug = generateSlug(`${newTitle} ${counter}`);
-    counter++;
-  }
-
-  // Create new page
-  const { id, slug: _, createdAt, updatedAt, ...pageData } = page;
-  const newPage = createPage(newTitle, page.type, {
-    ...pageData,
-    slug: newSlug,
-  });
-
-  // Copy type-specific data
-  if (page.type === 'full') {
-    const sourceSections = localStorage.getItem(`cms_sections_${slug}`);
-    if (sourceSections) {
-      localStorage.setItem(`cms_sections_${newSlug}`, sourceSections);
-    }
-  } else if (page.type === 'designer') {
-    const sourceData = localStorage.getItem(`cms_designer_${slug}`);
-    if (sourceData) {
-      localStorage.setItem(`cms_designer_${newSlug}`, sourceData);
-    }
-  }
-
-  return newPage;
+export async function duplicatePage(slug: string): Promise<PageConfig> {
+  const res = await fetch(`/api/pages/${encodeURIComponent(slug)}/duplicate`, { method: "POST" });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json?.error?.message ?? "Failed to duplicate page");
+  // Fetch the full new page
+  const newPage = await getPage(json.data.page.slug);
+  return newPage!;
 }
 
 /**
- * Get designer page data (JSON string from flexible-designer)
+ * Get designer page data (JSON string) — still stored in localStorage
  */
 export function getDesignerData(slug: string): string | null {
   if (typeof window === 'undefined') return null;
@@ -328,8 +232,10 @@ export function getDesignerData(slug: string): string | null {
 }
 
 /**
- * Save designer page data
+ * Save designer page data — still stored in localStorage
  */
 export function saveDesignerData(slug: string, data: string): void {
-  localStorage.setItem(`cms_designer_${slug}`, data);
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(`cms_designer_${slug}`, data);
+  }
 }

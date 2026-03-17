@@ -34,12 +34,13 @@ export default function FooterSectionEditor({
 
   // Load dynamic pages and enabled feature pages
   useEffect(() => {
-    const pages = getPages();
-    setDynamicPages(
-      pages
-        .filter((p) => p.enabled)
-        .map((p) => ({ value: `/${p.slug}`, label: `Page: ${p.title}` }))
-    );
+    getPages().then((pages) => {
+      setDynamicPages(
+        pages
+          .filter((p) => p.enabled)
+          .map((p) => ({ value: `/${p.slug}`, label: `Page: ${p.title}` }))
+      );
+    }).catch(() => {});
 
     fetch("/api/features")
       .then((r) => (r.ok ? r.json() : null))

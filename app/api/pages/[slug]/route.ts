@@ -15,6 +15,24 @@ import {
 } from "@/lib/api-middleware";
 import { PageType, PageStatus } from "@prisma/client";
 
+const CLIENT_TO_PRISMA: Record<string, PageType> = {
+  form: PageType.FORM,
+  pdf: PageType.PDF,
+  designer: PageType.DESIGNER,
+  full: PageType.FULL_PAGE,
+  landing: PageType.LANDING,
+  tab: PageType.TAB_PAGE,
+};
+
+const PRISMA_TO_CLIENT: Partial<Record<PageType, string>> = {
+  [PageType.FORM]: "form",
+  [PageType.PDF]: "pdf",
+  [PageType.DESIGNER]: "designer",
+  [PageType.FULL_PAGE]: "full",
+  [PageType.LANDING]: "landing",
+  [PageType.TAB_PAGE]: "tab",
+};
+
 // ============================================
 // GET /api/pages/[slug] - Get page with sections
 // ============================================
@@ -25,41 +43,18 @@ export async function GET(
 ) {
   try {
     const { slug: rawSlug } = await params;
-    // Decode slug (handle URL encoding)
     const slug = decodeURIComponent(rawSlug);
 
-    // Debug logging
-    console.log('[API] GET /api/pages/[slug]');
-    console.log('[API] rawSlug:', rawSlug);
-    console.log('[API] decoded slug:', slug);
-
-    // Fetch page with sections
     const page = await prisma.page.findUnique({
       where: { slug },
       include: {
-        createdByUser: {
-          select: {
-            username: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
+        createdByUser: { select: { username: true, firstName: true, lastName: true } },
         sections: {
           include: {
-            createdByUser: {
-              select: {
-                username: true,
-              },
-            },
-            elements: {
-              orderBy: {
-                order: "asc",
-              },
-            },
+            createdByUser: { select: { username: true } },
+            elements: { orderBy: { order: "asc" } },
           },
-          orderBy: {
-            order: "asc",
-          },
+          orderBy: { order: "asc" },
         },
       },
     });
@@ -73,8 +68,10 @@ export async function GET(
         id: page.id,
         slug: page.slug,
         title: page.title,
-        type: page.type,
+        type: PRISMA_TO_CLIENT[page.type as PageType] ?? page.type.toLowerCase(),
+        enabled: page.enabled,
         status: page.status,
+        formConfig: page.formConfig ?? null,
         metaDescription: page.metaDescription,
         metaTitle: page.metaTitle,
         metaKeywords: page.metaKeywords,
@@ -115,9 +112,11 @@ export async function GET(
 // ============================================
 
 const updatePageSchema = z.object({
-  title: z.string().min(1, "Title is required").optional(),
-  slug: z.string().min(1, "Slug is required").regex(/^[a-z0-9-\/]+$/, "Slug must contain only lowercase letters, numbers, hyphens, and slashes").optional(),
-  type: z.nativeEnum(PageType).optional(),
+  title: z.string().min(1).optional(),
+  slug: z.string().min(1).regex(/^[a-z0-9-\/]+$/).optional(),
+  type: z.string().optional(),
+  enabled: z.boolean().optional(),
+  formConfig: z.any().optional(),
   metaDescription: z.string().nullable().optional(),
   metaTitle: z.string().nullable().optional(),
   metaKeywords: z.string().nullable().optional(),
@@ -136,74 +135,54 @@ export async function PUT(
 ) {
   try {
     const { slug: rawSlug } = await params;
-    // Require EDITOR role
     const user = requireRole(request, "EDITOR");
     if (user instanceof Response) return user;
 
     const slug = decodeURIComponent(rawSlug);
 
-    // Check if page exists
-    const existingPage = await prisma.page.findUnique({
-      where: { slug },
-    });
-
+    const existingPage = await prisma.page.findUnique({ where: { slug } });
     if (!existingPage) {
       return errorResponse("PAGE_NOT_FOUND", "Page not found", 404);
     }
 
-    // Parse and validate request body
     const body = await request.json();
     const validation = updatePageSchema.safeParse(body);
-
     if (!validation.success) {
-      return errorResponse(
-        "VALIDATION_ERROR",
-        validation.error.issues[0].message,
-        400,
-        validation.error.issues[0].path[0] as string
-      );
+      return errorResponse("VALIDATION_ERROR", validation.error.issues[0].message, 400);
     }
 
     const data = validation.data;
 
-    // If slug is being changed, check for duplicates
     if (data.slug && data.slug !== slug) {
-      const duplicatePage = await prisma.page.findUnique({
-        where: { slug: data.slug },
-      });
-
-      if (duplicatePage) {
-        return errorResponse(
-          "DUPLICATE_SLUG",
-          "A page with this slug already exists",
-          409,
-          "slug"
-        );
+      const dup = await prisma.page.findUnique({ where: { slug: data.slug } });
+      if (dup) {
+        return errorResponse("DUPLICATE_SLUG", "A page with this slug already exists", 409, "slug");
       }
     }
 
-    // Update page
     const updatedPage = await prisma.page.update({
       where: { slug },
       data: {
-        ...data,
-        // If status is being changed to PUBLISHED, set publishedAt
+        ...(data.title !== undefined && { title: data.title }),
+        ...(data.slug !== undefined && { slug: data.slug }),
+        ...(data.type !== undefined && { type: CLIENT_TO_PRISMA[data.type] ?? existingPage.type }),
+        ...(data.enabled !== undefined && { enabled: data.enabled }),
+        ...(data.formConfig !== undefined && { formConfig: data.formConfig }),
+        ...(data.metaDescription !== undefined && { metaDescription: data.metaDescription }),
+        ...(data.metaTitle !== undefined && { metaTitle: data.metaTitle }),
+        ...(data.metaKeywords !== undefined && { metaKeywords: data.metaKeywords }),
+        ...(data.ogImage !== undefined && { ogImage: data.ogImage }),
+        ...(data.ogTitle !== undefined && { ogTitle: data.ogTitle }),
+        ...(data.ogDescription !== undefined && { ogDescription: data.ogDescription }),
+        ...(data.canonicalUrl !== undefined && { canonicalUrl: data.canonicalUrl }),
+        ...(data.noindex !== undefined && { noindex: data.noindex }),
+        ...(data.nofollow !== undefined && { nofollow: data.nofollow }),
+        ...(data.status !== undefined && { status: data.status }),
         ...(data.status === PageStatus.PUBLISHED && !existingPage.publishedAt
-          ? {
-              publishedAt: new Date(),
-              publishedBy: user.userId,
-            }
+          ? { publishedAt: new Date(), publishedBy: user.userId }
           : {}),
       },
-      include: {
-        createdByUser: {
-          select: {
-            username: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
-      },
+      include: { createdByUser: { select: { username: true } } },
     });
 
     return successResponse({
@@ -211,8 +190,10 @@ export async function PUT(
         id: updatedPage.id,
         slug: updatedPage.slug,
         title: updatedPage.title,
-        type: updatedPage.type,
+        type: PRISMA_TO_CLIENT[updatedPage.type as PageType] ?? updatedPage.type.toLowerCase(),
+        enabled: updatedPage.enabled,
         status: updatedPage.status,
+        formConfig: updatedPage.formConfig ?? null,
         metaDescription: updatedPage.metaDescription,
         metaTitle: updatedPage.metaTitle,
         metaKeywords: updatedPage.metaKeywords,
@@ -243,36 +224,21 @@ export async function DELETE(
 ) {
   try {
     const { slug: rawSlug } = await params;
-    // Require PUBLISHER role to delete pages
     const user = requireRole(request, "PUBLISHER");
     if (user instanceof Response) return user;
 
     const slug = decodeURIComponent(rawSlug);
 
-    // Check if page exists
-    const page = await prisma.page.findUnique({
-      where: { slug },
-      include: {
-        sections: true,
-      },
-    });
-
+    const page = await prisma.page.findUnique({ where: { slug }, include: { sections: true } });
     if (!page) {
       return errorResponse("PAGE_NOT_FOUND", "Page not found", 404);
     }
 
-    // Delete page (sections will cascade delete)
-    await prisma.page.delete({
-      where: { slug },
-    });
+    await prisma.page.delete({ where: { slug } });
 
     return successResponse({
       message: "Page deleted successfully",
-      deletedPage: {
-        id: page.id,
-        slug: page.slug,
-        title: page.title,
-      },
+      deletedPage: { id: page.id, slug: page.slug, title: page.title },
     });
   } catch (error) {
     return handleApiError(error);

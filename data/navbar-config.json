@@ -4,15 +4,15 @@
   "logoHeight": 44,
   "logoWidth": 0,
   "cta": {
-    "show": false,
-    "text": "Client Login",
+    "show": true,
+    "text": "Contact us",
     "style": "solid",
-    "href": "/client-login",
-    "linkMode": "external"
+    "href": "#11002b15-3f14-4a0a-8e26-15748228e0e2",
+    "linkMode": "anchor"
   },
   "scrolledBackground": {
     "color": "#ffffff",
     "opacity": 100
   },
-  "updatedAt": "2026-03-12T19:16:55.117Z"
+  "updatedAt": "2026-03-16T15:35:20.153Z"
 }

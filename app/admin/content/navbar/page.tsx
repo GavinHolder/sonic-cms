@@ -124,9 +124,11 @@ export default function NavbarEditorPage() {
       })
       .catch(() => {});
 
-    // Load localStorage-based dynamic pages (all types: full, pdf, form)
-    const pages = getPages().filter((p) => p.enabled);
-    setDynamicPages(pages.map((p) => ({ slug: p.slug, title: p.title, type: p.type })));
+    // Load dynamic pages from DB (all types: full, pdf, form, designer)
+    getPages().then((pages) => {
+      const enabled = pages.filter((p) => p.enabled);
+      setDynamicPages(enabled.map((p) => ({ slug: p.slug, title: p.title, type: p.type })));
+    }).catch(() => {});
   }, []);
 
   // ── Field setters ─────────────────────────────────────────────────────────

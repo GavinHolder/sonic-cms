@@ -19,7 +19,17 @@ import {
 import type { PageConfig, PageType, PDFPageConfig, FormPageConfig, DesignerPageConfig } from "@/types/page";
 import Link from "next/link";
 
-type FilterType = "all" | "pdf" | "form" | "designer" | "feature";
+type FilterType = "all" | "pdf" | "form" | "designer" | "feature" | "submissions";
+
+interface FormSubmission {
+  id: string;
+  pageSlug: string;
+  pageTitle: string;
+  data: Record<string, string>;
+  userEmail: string;
+  status: string;
+  createdAt: string;
+}
 
 interface FeatureRecord {
   id: string;
@@ -79,6 +89,9 @@ export default function PagesManager() {
   const [editingDesignerPage, setEditingDesignerPage] = useState<DesignerPageConfig | null>(null);
   const [designerPageData, setDesignerPageData] = useState<string | null>(null);
   const [seoEditingPage, setSeoEditingPage] = useState<PageConfig | null>(null);
+  const [submissions, setSubmissions] = useState<FormSubmission[]>([]);
+  const [submissionsTotal, setSubmissionsTotal] = useState(0);
+  const [submissionsLoading, setSubmissionsLoading] = useState(false);
 
   const setEditParam = useCallback((slug: string | null) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -91,8 +104,8 @@ export default function PagesManager() {
     router.replace(qs ? `?${qs}` : window.location.pathname, { scroll: false });
   }, [router, searchParams]);
 
-  const reloadPages = useCallback(() => {
-    const loaded = getPages();
+  const reloadPages = useCallback(async () => {
+    const loaded = await getPages();
     setPages(loaded);
     // Re-open editor if URL has ?edit=<slug> (e.g. after page refresh)
     const editSlug = searchParams.get("edit");
@@ -110,7 +123,7 @@ export default function PagesManager() {
   }, [searchParams]);
 
   useEffect(() => {
-    reloadPages();
+    reloadPages().catch(console.error);
   }, []);
 
   // Load feature pages from API
@@ -120,6 +133,28 @@ export default function PagesManager() {
       .then((d) => { if (d.success) setFeatures(d.data); })
       .catch(() => {});
   }, []);
+
+  // Load form submissions when on that tab
+  useEffect(() => {
+    if (filter !== "submissions") return;
+    setSubmissionsLoading(true);
+    fetch("/api/admin/form-submissions?limit=100")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success) {
+          setSubmissions(d.data.submissions ?? []);
+          setSubmissionsTotal(d.meta?.total ?? 0);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setSubmissionsLoading(false));
+  }, [filter]);
+
+  const handleDeleteSubmission = async (id: string) => {
+    await fetch(`/api/admin/form-submissions?id=${id}`, { method: "DELETE" });
+    setSubmissions((prev) => prev.filter((s) => s.id !== id));
+    setSubmissionsTotal((t) => t - 1);
+  };
 
   const handleToggleFeature = async (feature: FeatureRecord) => {
     const res = await fetch("/api/features", {
@@ -147,10 +182,10 @@ export default function PagesManager() {
   });
   const showFeatures = filter === "all" || filter === "feature";
 
-  const handleToggleEnabled = (slug: string) => {
+  const handleToggleEnabled = async (slug: string) => {
     try {
-      const page = togglePageEnabled(slug);
-      reloadPages();
+      const page = await togglePageEnabled(slug);
+      await reloadPages();
       setSuccessMessage(page.enabled ? "Page enabled" : "Page disabled");
     } catch (error) {
       console.error("Toggle failed:", error);
@@ -158,10 +193,10 @@ export default function PagesManager() {
     }
   };
 
-  const handleDelete = (slug: string) => {
+  const handleDelete = async (slug: string) => {
     try {
-      deletePage(slug);
-      reloadPages();
+      await deletePage(slug);
+      await reloadPages();
       setConfirmDelete(null);
       setSuccessMessage("Page deleted successfully");
     } catch (error) {
@@ -170,10 +205,10 @@ export default function PagesManager() {
     }
   };
 
-  const handleDuplicate = (slug: string) => {
+  const handleDuplicate = async (slug: string) => {
     try {
-      duplicatePage(slug);
-      reloadPages();
+      await duplicatePage(slug);
+      await reloadPages();
       setSuccessMessage("Page duplicated successfully");
     } catch (error) {
       console.error("Duplicate failed:", error);
@@ -188,12 +223,12 @@ export default function PagesManager() {
     }
   };
 
-  const handleSavePDF = (updates: Partial<PDFPageConfig>) => {
+  const handleSavePDF = async (updates: Partial<PDFPageConfig>) => {
     if (!editingPDFPage) return;
 
     try {
-      updatePage(editingPDFPage.slug, updates);
-      reloadPages();
+      await updatePage(editingPDFPage.slug, updates);
+      await reloadPages();
       setEditingPDFPage(null);
       setEditParam(null);
       setSuccessMessage("PDF page updated successfully");
@@ -210,12 +245,12 @@ export default function PagesManager() {
     }
   };
 
-  const handleSaveForm = (updates: Partial<FormPageConfig>) => {
+  const handleSaveForm = async (updates: Partial<FormPageConfig>) => {
     if (!editingFormPage) return;
 
     try {
-      updatePage(editingFormPage.slug, updates);
-      reloadPages();
+      await updatePage(editingFormPage.slug, updates);
+      await reloadPages();
       setEditingFormPage(null);
       setEditParam(null);
       setSuccessMessage("Form page updated successfully");
@@ -234,13 +269,12 @@ export default function PagesManager() {
     }
   };
 
-  const handleSaveDesigner = (data: string) => {
+  const handleSaveDesigner = async (data: string) => {
     setDesignerPageData(data);
-    // Update the page's updatedAt timestamp
     if (editingDesignerPage) {
       try {
-        updatePage(editingDesignerPage.slug, {});
-        reloadPages();
+        await updatePage(editingDesignerPage.slug, {});
+        await reloadPages();
       } catch { /* ignore */ }
     }
   };
@@ -383,10 +417,100 @@ export default function PagesManager() {
             Features ({stats.features})
           </button>
         </li>
+        <li className="nav-item ms-auto">
+          <button
+            className={`nav-link ${filter === "submissions" ? "active" : ""}`}
+            onClick={() => setFilter("submissions")}
+            style={filter === "submissions" ? {} : { color: "#0d6efd" }}
+          >
+            <i className="bi bi-inbox me-1"></i>
+            Submissions {submissionsTotal > 0 && <span className="badge bg-primary ms-1">{submissionsTotal}</span>}
+          </button>
+        </li>
       </ul>
 
+      {/* Submissions Inbox */}
+      {filter === "submissions" && (
+        <div className="card border-0 shadow-sm">
+          <div className="card-header d-flex align-items-center justify-content-between py-3">
+            <span className="fw-semibold">
+              <i className="bi bi-inbox me-2 text-primary"></i>
+              Form Submissions
+              {submissionsTotal > 0 && <span className="badge bg-primary ms-2">{submissionsTotal}</span>}
+            </span>
+          </div>
+          {submissionsLoading ? (
+            <div className="card-body text-center py-5">
+              <div className="spinner-border text-primary" role="status" />
+            </div>
+          ) : submissions.length === 0 ? (
+            <div className="card-body text-center py-5">
+              <i className="bi bi-inbox display-4 text-muted" style={{ opacity: 0.3 }}></i>
+              <p className="text-muted mt-3">No submissions yet</p>
+            </div>
+          ) : (
+            <div className="table-responsive">
+              <table className="table table-hover align-middle mb-0">
+                <thead className="table-light">
+                  <tr>
+                    <th>Form</th>
+                    <th>Email</th>
+                    <th>Data</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                    <th style={{ width: "60px" }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {submissions.map((sub) => (
+                    <tr key={sub.id}>
+                      <td>
+                        <span className="fw-medium">{sub.pageTitle}</span>
+                        <div className="small text-muted">/{sub.pageSlug}</div>
+                      </td>
+                      <td><span className="small">{sub.userEmail || "—"}</span></td>
+                      <td>
+                        <div style={{ maxWidth: "300px" }}>
+                          {Object.entries(sub.data || {}).slice(0, 3).map(([k, v]) => (
+                            <div key={k} className="small text-truncate">
+                              <span className="text-muted">{k}:</span> {String(v)}
+                            </div>
+                          ))}
+                          {Object.keys(sub.data || {}).length > 3 && (
+                            <div className="small text-muted">+{Object.keys(sub.data).length - 3} more</div>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <span className={`badge rounded-pill ${sub.status === "sent" ? "bg-success" : sub.status === "failed" ? "bg-danger" : "bg-secondary"}`}>
+                          {sub.status}
+                        </span>
+                      </td>
+                      <td className="small text-muted">
+                        {new Date(sub.createdAt).toLocaleDateString()}<br />
+                        <span className="text-muted">{new Date(sub.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                      </td>
+                      <td>
+                        <button
+                          className="btn btn-sm btn-outline-danger"
+                          title="Delete submission"
+                          onClick={() => handleDeleteSubmission(sub.id)}
+                        >
+                          <i className="bi bi-trash"></i>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Pages Table */}
-      {filteredPages.length === 0 && !(showFeatures && features.length > 0) ? (
+      {filter !== "submissions" && (filteredPages.length === 0 && !(showFeatures && features.length > 0) ? (
+
         <div className="card border-0 shadow-sm">
           <div className="card-body text-center py-5">
             <i className="bi bi-files text-body-tertiary" style={{ fontSize: "4rem" }}></i>
@@ -622,14 +746,14 @@ export default function PagesManager() {
             </table>
           </div>
         </div>
-      )}
+      ))}
 
       {/* Create Modal */}
       {showCreateModal && (
         <CreatePageModal
           onClose={() => setShowCreateModal(false)}
-          onSuccess={() => {
-            reloadPages();
+          onSuccess={async () => {
+            await reloadPages();
             setShowCreateModal(false);
           }}
           onMessage={setSuccessMessage}
@@ -696,7 +820,7 @@ function CreatePageModal({
   onMessage,
 }: {
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: () => Promise<void>;
   onMessage: (message: string) => void;
 }) {
   const [title, setTitle] = useState("");
@@ -715,10 +839,10 @@ function CreatePageModal({
 
     try {
       const { createPage } = await import("@/lib/page-manager");
-      const newPage = createPage(title, type);
+      const newPage = await createPage(title, type);
 
       onMessage(`Page "${newPage.title}" created successfully`);
-      onSuccess();
+      await onSuccess();
 
       // Designer pages open the editor via modal — no redirect needed
     } catch (error) {

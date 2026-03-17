@@ -456,24 +456,15 @@ export default function LandingPageManager() {
                       <div style={{ width: "20px", flexShrink: 0 }}></div>
                     )}
 
-                    {/* Section Info — stacks on mobile, single row on md+ */}
-                    <div className="flex-grow-1 d-flex flex-column flex-md-row align-items-start align-items-md-center gap-1 gap-md-3" style={{ minWidth: 0 }}>
-                      {/* Name + order (mobile: same line, order right-aligned) */}
-                      <div className="d-flex align-items-center gap-2 w-100 w-md-auto">
-                        <strong
-                          className="text-truncate"
-                          style={{ minWidth: "100px", maxWidth: "200px", flexShrink: 0 }}
-                          title={section.displayName || section.type}
-                        >
-                          {section.displayName || section.type}
-                        </strong>
-                        <small className="text-muted ms-auto d-md-none" style={{ flexShrink: 0 }}>
-                          Order: {section.order}
-                        </small>
-                      </div>
-
-                      {/* Badges */}
-                      <div className="d-flex align-items-center gap-1 flex-wrap flex-shrink-0">
+                    {/* Section Info — always stacked: name on top, badges+order below */}
+                    <div className="flex-grow-1 d-flex flex-column gap-1" style={{ minWidth: 0 }}>
+                      <strong
+                        className="text-truncate"
+                        title={section.displayName || section.type}
+                      >
+                        {section.displayName || section.type}
+                      </strong>
+                      <div className="d-flex align-items-center gap-1 flex-wrap">
                         <span className="badge rounded-pill text-secondary border border-secondary-subtle">
                           {section.type}
                         </span>
@@ -492,12 +483,8 @@ export default function LandingPageManager() {
                             {((section as any).contentMode || (section as any).content?.contentMode || "single") === "multi" ? "multi-block" : "single-block"}
                           </span>
                         )}
+                        <small className="text-muted ms-1">Order: {section.order}</small>
                       </div>
-
-                      {/* Order — desktop only (shown inline on mobile above) */}
-                      <small className="text-muted flex-shrink-0 d-none d-md-block" style={{ minWidth: "60px" }}>
-                        Order: {section.order}
-                      </small>
                     </div>
 
                     {/* Actions */}

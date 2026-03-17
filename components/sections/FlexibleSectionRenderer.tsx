@@ -395,7 +395,10 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
     // doesn't overflow .section-content-wrapper and get clipped by overflow:hidden.
     // The CSS vars --section-pt / --section-pb are set as inline styles on the <section> element
     // and cascade down here, so they resolve correctly at every viewport.
-    const containerH = isScrollStage ? "100%" : (isMulti ? `${multiLimit * 100}vh` : "calc(100vh - var(--section-pt, 80px) - var(--section-pb, 80px))");
+    // Use max() to match the actual padding-top applied by .section-content-wrapper
+    // (which enforces min 100px navbar clearance via max(--section-pt, --navbar-height)).
+    // Without this, the grid is taller than available space and content spills out.
+    const containerH = isScrollStage ? "100%" : (isMulti ? `${multiLimit * 100}vh` : "calc(100vh - max(var(--section-pt, 100px), var(--navbar-height, 100px)) - var(--section-pb, 80px))");
     // Filter blocks to active zone when in scroll stage desktop mode
     const filteredBlocks = isScrollStage
       ? blocks.filter(b => (b.position?.section ?? 0) === scrollStageZone)
@@ -471,6 +474,8 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
                 gridColumn: `${pos.col} / span ${pos.colSpan || 1}`,
                 gridRow:    `${absoluteRow} / span ${pos.rowSpan || 1}`,
                 alignSelf: blockHeightAuto ? "start" : (block.verticalAlign ? alignSelfMap[block.verticalAlign] : "stretch"),
+                overflow: "hidden",
+                minHeight: 0,
               }}>
                 <DesignerBlock block={block} darkBg={darkBg} />
               </div>
