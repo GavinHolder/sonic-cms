@@ -606,9 +606,9 @@
       artboard.querySelectorAll('.slot-overlay').forEach(function(e){e.remove();});
       var CW=state.element.canvasWidth,CH=state.element.canvasHeight;
       var sorted=state.element.layers.slice().sort(function(a,b){return a.zIndex-b.zIndex;});
-      // Compute max z-index for slots and for vectors/3D — used below to set CSS stacking order
+      // Compute max z-index for slots and non-slots (for DOM stacking order fix below)
       var _maxSlotZ=-Infinity,_maxVecZ=-Infinity;
-      state.element.layers.forEach(function(l){if(!l.visible&&l.boolRole!=='cutter')return;var z=l.zIndex||0;if(l.type==='slot')_maxSlotZ=Math.max(_maxSlotZ,z);else if(l.type==='vector'||l.type==='3d-object')_maxVecZ=Math.max(_maxVecZ,z);});
+      state.element.layers.forEach(function(l){if(l.visible===false)return;var z=l.zIndex||0;if(l.type==='slot')_maxSlotZ=Math.max(_maxSlotZ,z);else if(l.type==='vector'||l.type==='3d-object')_maxVecZ=Math.max(_maxVecZ,z);});
       sorted.forEach(function(layer){
         // Cutter layers: visible:false normally, but show in bool-edit mode OR when showCutter=true
         var _isCutterEdit=layer.boolRole==='cutter'&&state.boolEditParentId===layer.boolParentId;
@@ -706,7 +706,6 @@
             var lbl=document.createElement('span');lbl.style.cssText='background:#22c55e;color:white;font-size:9px;font-weight:700;padding:2px 5px;border-radius:3px;text-transform:uppercase;';
             lbl.textContent=(_sd.slotLabel||'Slot')+' ('+_st+')';div.appendChild(lbl);
           }
-          div.style.zIndex=layer.zIndex||0;
           artboard.appendChild(div);
         }
         if(layer.type==='3d-object'){
@@ -757,8 +756,10 @@
           svgEl.appendChild(g3d);
         }
       });
-      // CSS z-ordering: SVG appears above slot divs when any vector has higher zIndex than all slots
-      svgEl.style.zIndex=(_maxVecZ>_maxSlotZ&&isFinite(_maxSlotZ))?String(_maxSlotZ+1):'';
+      // DOM stacking: if any vector has higher zIndex than all slots, move SVG after slot divs
+      // so shapes visually appear on top. Otherwise keep SVG before slots (default DOM order).
+      if(_maxVecZ>_maxSlotZ&&isFinite(_maxSlotZ)){artboard.appendChild(svgEl);}
+      else if(artboard.firstChild!==svgEl){artboard.insertBefore(svgEl,artboard.firstChild);}
       // Boolean base outline (teal) — drawn first so cutter outline renders on top
       if(state.boolBaseId&&state.boolBaseId!==state.selectedLayerId&&!hasSlotInMultiSel()){
         var bbl=state.element.layers.find(function(l){return l.id===state.boolBaseId;});

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useToast } from "@/components/admin/ToastProvider";
+import MediaPickerModal from "@/components/admin/MediaPickerModal";
 
 interface SiteConfig {
   companyName: string;
@@ -51,6 +52,7 @@ function SiteConfigForm() {
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
+  const [mediaPicker, setMediaPicker] = useState<"logoUrl" | "faviconUrl" | null>(null);
   const logoRef = useRef<HTMLInputElement>(null);
   const faviconRef = useRef<HTMLInputElement>(null);
 
@@ -165,6 +167,10 @@ function SiteConfigForm() {
                     onClick={() => logoRef.current?.click()} disabled={uploadingLogo}>
                     {uploadingLogo ? <span className="spinner-border spinner-border-sm" /> : <><i className="bi bi-upload me-1" />Upload</>}
                   </button>
+                  <button className="btn btn-sm btn-outline-secondary" style={{ fontSize: "0.75rem" }}
+                    onClick={() => setMediaPicker("logoUrl")}>
+                    <i className="bi bi-images me-1" />Browse
+                  </button>
                   {config.logoUrl && (
                     <button className="btn btn-sm btn-outline-danger" style={{ fontSize: "0.75rem" }} onClick={() => set("logoUrl", "")}>
                       Remove
@@ -195,6 +201,10 @@ function SiteConfigForm() {
                   <button className="btn btn-sm btn-outline-primary" style={{ fontSize: "0.75rem" }}
                     onClick={() => faviconRef.current?.click()} disabled={uploadingFavicon}>
                     {uploadingFavicon ? <span className="spinner-border spinner-border-sm" /> : <><i className="bi bi-upload me-1" />Upload</>}
+                  </button>
+                  <button className="btn btn-sm btn-outline-secondary" style={{ fontSize: "0.75rem" }}
+                    onClick={() => setMediaPicker("faviconUrl")}>
+                    <i className="bi bi-images me-1" />Browse
                   </button>
                   {config.faviconUrl && (
                     <button className="btn btn-sm btn-outline-danger" style={{ fontSize: "0.75rem" }} onClick={() => set("faviconUrl", "")}>
@@ -359,6 +369,13 @@ function SiteConfigForm() {
           {saving ? <><span className="spinner-border spinner-border-sm me-2" />Saving…</> : <><i className="bi bi-check2 me-2" />Save Configuration</>}
         </button>
       </div>
+
+      <MediaPickerModal
+        isOpen={mediaPicker !== null}
+        onClose={() => setMediaPicker(null)}
+        onSelect={(url) => { if (mediaPicker) set(mediaPicker, url); }}
+        filterType="image"
+      />
 
     </div>
   );
