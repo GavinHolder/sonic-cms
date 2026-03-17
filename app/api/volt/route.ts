@@ -74,6 +74,7 @@ export async function POST(request: NextRequest) {
       layers,
       slots,
       states,
+      flipCard,
       canvasWidth,
       canvasHeight,
     } = body
@@ -93,6 +94,7 @@ export async function POST(request: NextRequest) {
         layers: layers ?? [],
         slots: slots ?? [],
         states: states ?? [],
+        flipCard: flipCard ?? null,
         canvasWidth: canvasWidth ?? 800,
         canvasHeight: canvasHeight ?? 500,
       },

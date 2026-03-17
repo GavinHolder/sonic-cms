@@ -20,6 +20,7 @@ export async function GET(
       name: true,
       layers: true,
       states: true,
+      flipCard: true,
       canvasWidth: true,
       canvasHeight: true,
       elementType: true,

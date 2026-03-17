@@ -33,7 +33,7 @@ export interface GradientStop {
 
 export interface VoltFill {
   id: string
-  type: 'solid' | 'linear-gradient' | 'radial-gradient' | 'angular-gradient' | 'image'
+  type: 'solid' | 'linear-gradient' | 'radial-gradient' | 'angular-gradient' | 'image' | 'glass'
   color?: string
   opacity: number
   blendMode: BlendMode
@@ -44,6 +44,13 @@ export interface VoltFill {
   }
   imageUrl?: string
   imageMode?: 'fill' | 'fit' | 'crop' | 'tile'
+  // ── Glass fill properties (type === 'glass') ───────────────────────────────
+  /** backdrop-filter blur amount in px (default: 12) */
+  blur?: number
+  /** Glass border highlight opacity 0-1 (default: 0.3) */
+  borderOpacity?: number
+  /** Corner radius in px for the glass overlay (default: 12) */
+  glassBorderRadius?: number
 }
 
 export interface VoltStroke {
@@ -182,6 +189,8 @@ export interface VoltLayer {
   name: string
   type: LayerType
   role: LayerRole
+  /** Flip card face assignment — which side of the card this layer belongs to (default: front) */
+  face?: 'front' | 'back'
   x: number
   y: number
   width: number
@@ -223,6 +232,16 @@ export interface VoltState {
   layerOverrides: Record<string, VoltLayerStateOverride>
 }
 
+export interface VoltFlipCard {
+  enabled: boolean
+  /** Flip axis: 'y' = horizontal flip (left↔right), 'x' = vertical flip (top↔bottom) */
+  axis: 'x' | 'y'
+  /** Flip transition duration in milliseconds (default: 600) */
+  duration: number
+  /** Anime.js ease string (default: 'easeInOut') */
+  ease: string
+}
+
 export interface VoltElementData {
   id: string
   name: string
@@ -243,6 +262,8 @@ export interface VoltElementData {
   downloads: number
   createdAt: string
   updatedAt: string
+  /** Hover flip card config — when enabled, the Volt card flips on hover to reveal a back face */
+  flipCard?: VoltFlipCard
 }
 
 /**

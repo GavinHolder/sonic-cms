@@ -22,10 +22,20 @@ interface Props {
 
 export default function VoltRenderer({ voltElement, slots = {}, instanceOverrides, className, style, onHoverChange }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const flipInnerRef = useRef<HTMLDivElement>(null)
   // Track in-flight animations so cleanup can cancel them (anime v4 pattern).
   const activeAnimationsRef = useRef<AnimeAnimation[]>([])
-  const { layers, states, canvasWidth, canvasHeight } = voltElement
+  const { layers, states, canvasWidth, canvasHeight, flipCard } = voltElement
   const sortedLayers = sortLayersByZ(layers)
+
+  const isFlip = !!(flipCard?.enabled)
+  const flipAxis = flipCard?.axis === 'x' ? 'rotateX' : 'rotateY'
+  const flipDuration = flipCard?.duration ?? 600
+  const flipEase = flipCard?.ease ?? 'easeInOut'
+
+  // Layers split by face for flip card mode.
+  const frontLayers = isFlip ? sortedLayers.filter(l => l.face !== 'back') : sortedLayers
+  const backLayers  = isFlip ? sortedLayers.filter(l => l.face === 'back')  : []
 
   useEffect(() => {
     const el = containerRef.current
@@ -71,14 +81,10 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
           targets.scale = isRest ? (override?.scale ?? 1) : (override?.scale ?? 1)
         }
         if (animates.position) {
-          // translateX/Y are CSS-space pixel offsets applied to the outer <g> wrapper.
-          // Returning to rest always snaps back to 0 unless the rest state says otherwise.
           targets.translateX = isRest ? (override?.translateX ?? 0) : (override?.translateX ?? 0)
           targets.translateY = isRest ? (override?.translateY ?? 0) : (override?.translateY ?? 0)
         }
         if (animates.rotation) {
-          // 'rotate' animates the CSS rotate property on the outer <g>.
-          // Base layer.rotation is already baked into the inner SVG transform — this is a delta.
           targets.rotate = isRest
             ? `${override?.rotation ?? 0}deg`
             : `${override?.rotation ?? 0}deg`
@@ -97,8 +103,27 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
       }
     }
 
-    const onEnter = () => { transitionToState('hover'); onHoverChange?.(true) }
-    const onLeave = () => { transitionToState('rest');  onHoverChange?.(false) }
+    async function animateFlip(toHover: boolean) {
+      if (!flipInnerRef.current) return
+      const { animate } = await import('animejs')
+      const anim = animate(flipInnerRef.current, {
+        [flipAxis]: toHover ? '180deg' : '0deg',
+        duration: flipDuration,
+        ease: flipEase,
+      }) as AnimeAnimation
+      activeAnimationsRef.current.push(anim)
+    }
+
+    const onEnter = () => {
+      if (isFlip) animateFlip(true)
+      transitionToState('hover')
+      onHoverChange?.(true)
+    }
+    const onLeave = () => {
+      if (isFlip) animateFlip(false)
+      transitionToState('rest')
+      onHoverChange?.(false)
+    }
     const onFocus  = () => { transitionToState('focus'); onHoverChange?.(true) }
     const onBlur   = () => { transitionToState('rest');  onHoverChange?.(false) }
 
@@ -112,20 +137,156 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
       el.removeEventListener('mouseleave', onLeave)
       el.removeEventListener('focusin',    onFocus)
       el.removeEventListener('focusout',   onBlur)
-      // Cancel any in-flight animations (anime v4: Animation.cancel()).
       activeAnimationsRef.current.forEach(anim => anim.cancel())
       activeAnimationsRef.current = []
     }
-  }, [voltElement])
+  }, [voltElement, isFlip, flipAxis, flipDuration, flipEase])
 
   const aspectRatio = `${canvasWidth} / ${canvasHeight}`
 
+  /** Glass overlay divs for vector layers whose primary fill is type 'glass'. */
+  function renderGlassOverlays(layerList: typeof sortedLayers) {
+    return layerList
+      .filter(l => l.type === 'vector' && l.visible !== false && l.vectorData?.fills?.[0]?.type === 'glass')
+      .map(layer => {
+        const fill = layer.vectorData!.fills[0]
+        const blur = fill.blur ?? 12
+        const bgOpacity = fill.opacity ?? 0.15
+        const borderOpacity = fill.borderOpacity ?? 0.3
+        const radius = fill.glassBorderRadius ?? 12
+        const bgColor = fill.color ?? '#ffffff'
+        // Convert hex to rgba for semi-transparent bg
+        const r = parseInt(bgColor.slice(1, 3), 16) || 255
+        const g = parseInt(bgColor.slice(3, 5), 16) || 255
+        const b = parseInt(bgColor.slice(5, 7), 16) || 255
+        return (
+          <div
+            key={`glass-${layer.id}`}
+            style={{
+              position: 'absolute',
+              left: `${layer.x}%`,
+              top: `${layer.y}%`,
+              width: `${layer.width}%`,
+              height: `${layer.height}%`,
+              backdropFilter: `blur(${blur}px)`,
+              WebkitBackdropFilter: `blur(${blur}px)`,
+              backgroundColor: `rgba(${r},${g},${b},${bgOpacity})`,
+              border: `1px solid rgba(255,255,255,${borderOpacity})`,
+              borderRadius: `${radius}px`,
+              opacity: layer.opacity ?? 1,
+              pointerEvents: 'none',
+            }}
+          />
+        )
+      })
+  }
+
+  // ── Flip card mode ────────────────────────────────────────────────────────────
+  if (isFlip) {
+    const backTransform = flipCard?.axis === 'x' ? 'rotateX(180deg)' : 'rotateY(180deg)'
+
+    function renderFace(faceLayers: typeof sortedLayers) {
+      return (
+        <>
+          {renderGlassOverlays(faceLayers)}
+          <svg
+            viewBox={`0 0 ${canvasWidth} ${canvasHeight}`}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+            aria-hidden="true"
+          >
+            {faceLayers
+              .filter(l => l.type === 'vector')
+              .map(layer => (
+                <VoltSvgLayer
+                  key={layer.id}
+                  layer={layer}
+                  canvasWidth={canvasWidth}
+                  canvasHeight={canvasHeight}
+                  instanceOverride={instanceOverrides?.[layer.id]}
+                />
+              ))}
+          </svg>
+
+          {faceLayers
+            .filter(l => l.type === 'slot')
+            .map(layer => (
+              <VoltSlotRenderer
+                key={layer.id}
+                layer={layer}
+                canvasWidth={canvasWidth}
+                canvasHeight={canvasHeight}
+                slots={slots}
+              />
+            ))}
+
+          {faceLayers
+            .filter(l => l.type === 'image' && l.visible !== false && l.imageData?.url)
+            .map(layer => (
+              <div
+                key={layer.id}
+                id={`volt-layer-${layer.id}`}
+                style={{
+                  position: 'absolute',
+                  left: `${layer.x}%`,
+                  top: `${layer.y}%`,
+                  width: `${layer.width}%`,
+                  height: `${layer.height}%`,
+                  opacity: layer.opacity ?? 1,
+                  transform: layer.rotation ? `rotate(${layer.rotation}deg)` : undefined,
+                  overflow: 'hidden',
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={layer.imageData!.url}
+                  alt={layer.imageData!.alt ?? ''}
+                  style={{
+                    width: '100%', height: '100%',
+                    objectFit: layer.imageData!.mode === 'fit' ? 'contain' : 'cover',
+                    display: 'block',
+                  }}
+                />
+              </div>
+            ))}
+        </>
+      )
+    }
+
+    return (
+      <div
+        ref={containerRef}
+        className={className}
+        style={{ position: 'relative', width: '100%', aspectRatio, perspective: '1200px', ...style }}
+      >
+        <div
+          ref={flipInnerRef}
+          style={{ position: 'absolute', inset: 0, transformStyle: 'preserve-3d' }}
+        >
+          {/* Front face */}
+          <div style={{ position: 'absolute', inset: 0, backfaceVisibility: 'hidden', overflow: 'hidden' }}>
+            {renderFace(frontLayers)}
+          </div>
+          {/* Back face — pre-rotated 180deg so it shows when card flips */}
+          <div style={{
+            position: 'absolute', inset: 0,
+            backfaceVisibility: 'hidden', overflow: 'hidden',
+            transform: backTransform,
+          }}>
+            {renderFace(backLayers)}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Standard (non-flip) mode ──────────────────────────────────────────────────
   return (
     <div
       ref={containerRef}
       className={className}
       style={{ position: 'relative', width: '100%', aspectRatio, overflow: 'hidden', ...style }}
     >
+      {renderGlassOverlays(sortedLayers)}
       <svg
         viewBox={`0 0 ${canvasWidth} ${canvasHeight}`}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}

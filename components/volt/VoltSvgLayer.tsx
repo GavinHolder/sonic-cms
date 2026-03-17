@@ -1,11 +1,83 @@
 'use client'
-import type { VoltLayer, VoltLayerInstanceOverride } from '@/types/volt'
+import type { VoltLayer, VoltLayerInstanceOverride, VoltFill } from '@/types/volt'
 
 interface Props {
   layer: VoltLayer
   canvasWidth: number
   canvasHeight: number
   instanceOverride?: VoltLayerInstanceOverride
+}
+
+/**
+ * Convert a CSS-convention gradient angle (degrees) to SVG objectBoundingBox x1/y1/x2/y2.
+ * CSS angle 0° = bottom→top, 90° = left→right, 180° = top→bottom.
+ */
+function angleToSvgPoints(angleDeg: number) {
+  const rad = (angleDeg * Math.PI) / 180
+  const sin = Math.sin(rad)
+  const cos = Math.cos(rad)
+  return {
+    x1: (0.5 - 0.5 * sin).toFixed(4),
+    y1: (0.5 + 0.5 * cos).toFixed(4),
+    x2: (0.5 + 0.5 * sin).toFixed(4),
+    y2: (0.5 - 0.5 * cos).toFixed(4),
+  }
+}
+
+/** Render a <linearGradient> or <radialGradient> defs element and return its id + the fill attr. */
+function GradientDef({ fill, layerId }: { fill: VoltFill; layerId: string }) {
+  const gradId = `volt-grad-${layerId}`
+  const stops = fill.gradient?.stops ?? []
+
+  if (fill.type === 'linear-gradient') {
+    const angle = fill.gradient?.angle ?? 180
+    const pts = angleToSvgPoints(angle)
+    return (
+      <defs>
+        <linearGradient
+          id={gradId}
+          gradientUnits="objectBoundingBox"
+          x1={pts.x1} y1={pts.y1}
+          x2={pts.x2} y2={pts.y2}
+        >
+          {stops.map((s, i) => (
+            <stop
+              key={i}
+              offset={`${s.position}%`}
+              stopColor={s.color}
+              stopOpacity={s.opacity}
+            />
+          ))}
+        </linearGradient>
+      </defs>
+    )
+  }
+
+  if (fill.type === 'radial-gradient') {
+    const ox = fill.gradient?.origin?.x ?? 50
+    const oy = fill.gradient?.origin?.y ?? 50
+    return (
+      <defs>
+        <radialGradient
+          id={gradId}
+          gradientUnits="objectBoundingBox"
+          cx={`${ox}%`} cy={`${oy}%`}
+          r="50%"
+        >
+          {stops.map((s, i) => (
+            <stop
+              key={i}
+              offset={`${s.position}%`}
+              stopColor={s.color}
+              stopOpacity={s.opacity}
+            />
+          ))}
+        </radialGradient>
+      </defs>
+    )
+  }
+
+  return null
 }
 
 export default function VoltSvgLayer({ layer, canvasWidth, canvasHeight, instanceOverride }: Props) {
@@ -23,11 +95,21 @@ export default function VoltSvgLayer({ layer, canvasWidth, canvasHeight, instanc
   const fills = vectorData.fills ?? []
   const stroke = vectorData.stroke
   const primaryFill = fills[0]
+  // Glass fills are rendered as HTML overlays in VoltRenderer — skip in SVG
+  const isGlass = primaryFill?.type === 'glass'
+
+  const isLinearGrad = !isGlass && primaryFill?.type === 'linear-gradient'
+  const isRadialGrad = !isGlass && primaryFill?.type === 'radial-gradient'
+  const hasGradient = isLinearGrad || isRadialGrad
+  const gradId = `volt-grad-${layer.id}`
+
   let fillAttr = 'none'
   if (instanceOverride?.fill) {
     fillAttr = instanceOverride.fill
-  } else if (primaryFill?.type === 'solid' && primaryFill.color) {
+  } else if (!isGlass && primaryFill?.type === 'solid' && primaryFill.color) {
     fillAttr = primaryFill.color
+  } else if (hasGradient) {
+    fillAttr = `url(#${gradId})`
   }
 
   const strokeAttr = stroke ? {
@@ -53,6 +135,7 @@ export default function VoltSvgLayer({ layer, canvasWidth, canvasHeight, instanc
       opacity={opacity}
       style={{ mixBlendMode: blendMode as React.CSSProperties['mixBlendMode'] }}
     >
+      {hasGradient && primaryFill && <GradientDef fill={primaryFill} layerId={layer.id} />}
       <g transform={transform || undefined}>
         <path
           d={vectorData.pathData}

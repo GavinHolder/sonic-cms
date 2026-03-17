@@ -431,6 +431,7 @@ model VoltElement {
   layers      Json     @default("[]")
   slots       Json     @default("[]")
   states      Json     @default("[]")
+  flipCard    Json?
   canvasWidth  Int     @default(800)
   canvasHeight Int     @default(500)
   has3D       Boolean  @default(false)
