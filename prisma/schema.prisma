@@ -72,6 +72,11 @@ model Page {
   // Form-specific config (fields, submitAction, submitConfig)
   formConfig      Json?
 
+  // Navbar link management
+  navLabel        String?
+  showOnNavbar    Boolean     @default(false)
+  navOrder        Int?
+
   // Relations
   sections        Section[]
   submissions     FormSubmission[]
@@ -139,6 +144,10 @@ model Section {
 
   // Short label for navbar (single word, e.g., "About", "Plans", "Coverage")
   navLabel      String?
+
+  // Navbar link management
+  showOnNavbar  Boolean         @default(false)
+  navOrder      Int?
 
   // Spacing (direct pixel values)
   paddingTop          Int             @default(80)

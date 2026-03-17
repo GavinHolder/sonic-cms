@@ -122,6 +122,12 @@ const menuItems: MenuItem[] = [
         href: "/admin/settings/site-config",
       },
       {
+        id: "navbar-links",
+        label: "Navbar Links",
+        icon: "bi-layout-navbar",
+        href: "/admin/settings/navbar-links",
+      },
+      {
         id: "api-keys",
         label: "API Keys",
         icon: "bi-key",

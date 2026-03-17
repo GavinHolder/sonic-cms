@@ -39,7 +39,7 @@ export default function Navbar() {
 
   const [mobileOpen, setMobileOpen]       = useState(false);
   const [scrolled, setScrolled]           = useState(!isLandingPage);
-  const [navLinks, setNavLinks]           = useState<Array<{ id: string; label: string }>>([]);
+  const [navLinks, setNavLinks]           = useState<Array<{ id: string; label: string; href?: string }>>([]);
   const [isDarkBackground, setIsDarkBg]   = useState(isLandingPage);
   const [ctaConfig, setCtaConfig]         = useState<NavbarCtaButton>(defaultNavbarConfig.cta);
   const [toolsOpen, setToolsOpen]         = useState(false);
@@ -63,6 +63,18 @@ export default function Navbar() {
   useEffect(() => {
     const loadNavLinks = async () => {
       try {
+        // Try managed navbar links first
+        const linksRes = await fetch("/api/navbar-links");
+        if (linksRes.ok) {
+          const { data } = await linksRes.json();
+          if (Array.isArray(data) && data.length > 0) {
+            setNavLinks(data.slice(0, 5).map((l: any) => ({
+              id: l.id, label: l.label, href: l.href,
+            })));
+            return;
+          }
+        }
+        // Fallback: first 5 landing-page sections by order
         const sections = await getSections("/");
         const firstWord = (str: string) => str.trim().split(/\s+/)[0] || "";
         const filtered = sections
@@ -268,17 +280,25 @@ export default function Navbar() {
 
             {/* Center: nav links (always visible in tall variant — it's always "scrolled" behaviour) */}
             <div className="d-none d-md-flex align-items-center gap-4" style={{ position: "absolute", left: "50%", transform: "translateX(-50%)" }}>
-              {navLinks.map((link) => (
-                <button key={link.id}
-                  onClick={() => scrollToSection(link.id)}
-                  className="border-0 bg-transparent p-0 fw-medium"
-                  style={{ cursor: "pointer", color: effectiveScrolled ? "#111827" : "#fff", fontSize: "0.95rem", whiteSpace: "nowrap" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.7")}
-                  onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
-                >
-                  {link.label}
-                </button>
-              ))}
+              {navLinks.map((link) =>
+                link.href ? (
+                  <Link key={link.id} href={link.href} className="text-decoration-none fw-medium"
+                    style={{ cursor: "pointer", color: effectiveScrolled ? "#111827" : "#fff", fontSize: "0.95rem", whiteSpace: "nowrap" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.7")}
+                    onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}>
+                    {link.label}
+                  </Link>
+                ) : (
+                  <button key={link.id}
+                    onClick={() => scrollToSection(link.id)}
+                    className="border-0 bg-transparent p-0 fw-medium"
+                    style={{ cursor: "pointer", color: effectiveScrolled ? "#111827" : "#fff", fontSize: "0.95rem", whiteSpace: "nowrap" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.7")}
+                    onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}>
+                    {link.label}
+                  </button>
+                )
+              )}
             </div>
 
             {/* Right: phone + socials column */}
@@ -334,16 +354,27 @@ export default function Navbar() {
               transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
             >
               <div className="d-flex flex-column py-2">
-                {navLinks.map((link, i) => (
-                  <motion.button key={link.id} onClick={() => scrollToSection(link.id)}
-                    className="text-decoration-none fw-medium px-4 py-2 dropdown-link d-block border-0 bg-transparent text-center w-100"
-                    style={{ color: "#111827", whiteSpace: "nowrap", cursor: "pointer" }}
-                    whileHover={{ backgroundColor: "#f3f4f6" }}
-                    initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.2, delay: i * 0.05 }}>
-                    {link.label}
-                  </motion.button>
-                ))}
+                {navLinks.map((link, i) =>
+                  link.href ? (
+                    <motion.div key={link.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.2, delay: i * 0.05 }}>
+                      <Link href={link.href} onClick={() => setMobileOpen(false)}
+                        className="text-decoration-none fw-medium px-4 py-2 dropdown-link d-block text-center w-100"
+                        style={{ color: "#111827", whiteSpace: "nowrap" }}>
+                        {link.label}
+                      </Link>
+                    </motion.div>
+                  ) : (
+                    <motion.button key={link.id} onClick={() => { scrollToSection(link.id); setMobileOpen(false); }}
+                      className="text-decoration-none fw-medium px-4 py-2 dropdown-link d-block border-0 bg-transparent text-center w-100"
+                      style={{ color: "#111827", whiteSpace: "nowrap", cursor: "pointer" }}
+                      whileHover={{ backgroundColor: "#f3f4f6" }}
+                      initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.2, delay: i * 0.05 }}>
+                      {link.label}
+                    </motion.button>
+                  )
+                )}
 
                 {/* Tall navbar: show phone + socials in mobile menu */}
                 {isTall && (phone || activeSocials.length > 0) && (
@@ -441,26 +472,40 @@ function LogoBlock({ logoUrl, companyName, effectiveScrolled, mobileOpen, isDark
 }
 
 function NavLinks({ navLinks, effectiveScrolled, mobileOpen, navTransition, scrollToSection, setMobileOpen }: {
-  navLinks: Array<{ id: string; label: string }>; effectiveScrolled: boolean; mobileOpen: boolean;
+  navLinks: Array<{ id: string; label: string; href?: string }>; effectiveScrolled: boolean; mobileOpen: boolean;
   navTransition: string; scrollToSection: (id: string) => void; setMobileOpen: (v: boolean) => void;
 }) {
   if (!navLinks.length) return null;
+  const linkStyle: React.CSSProperties = {
+    whiteSpace: "nowrap", cursor: "pointer", color: effectiveScrolled ? "#111827" : "#fff",
+    fontSize: "0.95rem", letterSpacing: "0.01em", transition: `opacity 200ms ease, color ${navTransition}`,
+  };
   return (
     <div className="d-none d-md-flex align-items-center gap-4"
       style={{ opacity: effectiveScrolled || mobileOpen ? 1 : 0,
         visibility: effectiveScrolled || mobileOpen ? "visible" : "hidden",
         transition: `opacity ${navTransition}, visibility ${navTransition}` }}>
-      {navLinks.map((link) => (
-        <button key={link.id}
-          onClick={() => { scrollToSection(link.id); setMobileOpen(false); }}
-          className="text-decoration-none fw-medium border-0 bg-transparent p-0 position-relative"
-          style={{ whiteSpace: "nowrap", cursor: "pointer", color: effectiveScrolled ? "#111827" : "#fff",
-            fontSize: "0.95rem", letterSpacing: "0.01em", transition: `opacity 200ms ease, color ${navTransition}` }}
-          onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.7")}
-          onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}>
-          {link.label}
-        </button>
-      ))}
+      {navLinks.map((link) =>
+        link.href ? (
+          <Link key={link.id} href={link.href}
+            className="text-decoration-none fw-medium position-relative"
+            style={linkStyle}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.7")}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+            onClick={() => setMobileOpen(false)}>
+            {link.label}
+          </Link>
+        ) : (
+          <button key={link.id}
+            onClick={() => { scrollToSection(link.id); setMobileOpen(false); }}
+            className="text-decoration-none fw-medium border-0 bg-transparent p-0 position-relative"
+            style={linkStyle}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.7")}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}>
+            {link.label}
+          </button>
+        )
+      )}
     </div>
   );
 }
