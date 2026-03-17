@@ -451,16 +451,54 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
     const gridH  = containerH;
 
     if (isGrid) {
+      // ── Smart row sizing ────────────────────────────────────────────────
+      // If grid.rowHeights is provided (e.g. ['auto','1fr']), use it directly.
+      // Otherwise auto-detect: text-only rows → 'auto' (shrink to content);
+      // rows with volt/card/image/other content → '1fr' (fill remaining space).
+      // This prevents the classic "heading takes 50% of section height" gap.
+      const gridTemplateRows = (() => {
+        const explicit = (data.grid as Record<string, unknown> | undefined)?.rowHeights as string[] | undefined;
+        if (explicit && explicit.length > 0) {
+          return Array.from({ length: totalRows }, (_, i) => explicit[i % explicit.length]).join(" ");
+        }
+        // Build a type-set per absolute row number
+        const rowTypes: Record<number, Set<string>> = {};
+        for (let r = 1; r <= totalRows; r++) rowTypes[r] = new Set();
+        filteredBlocks.forEach(block => {
+          const pos = block.position || {};
+          const row = (pos as Record<string, number>).row ?? 1;
+          const span = (pos as Record<string, number>).rowSpan ?? 1;
+          const section = (pos as Record<string, number>).section ?? 0;
+          const absStart = isScrollStage ? row : section * rows + row;
+          for (let r = absStart; r < absStart + span; r++) {
+            if (rowTypes[r]) rowTypes[r].add(block.type);
+          }
+        });
+        // Visual block types that benefit from filling available space (have aspect ratios
+        // or are designed to scale). All other types (text, card, button, etc.) are
+        // content-driven and should collapse to their natural height.
+        const FILL_TYPES = new Set(["volt", "image", "3d-object", "video", "canvas"]);
+        return Array.from({ length: totalRows }, (_, i) => {
+          const types = rowTypes[i + 1];
+          // A row gets '1fr' only if it contains a visual/fill block type.
+          // Text, card, stat, and empty rows collapse to content height ('auto').
+          const hasFillBlock = [...types].some(t => FILL_TYPES.has(t));
+          return hasFillBlock ? "1fr" : "auto";
+        }).join(" ");
+      })();
+
       return (
         <div
           className="flexible-grid"
           style={{
             display: "grid",
             gridTemplateColumns: `repeat(${cols}, 1fr)`,
-            gridTemplateRows: `repeat(${totalRows}, 1fr)`,
+            gridTemplateRows,
             gap: `${gap}px`,
             height: gridH,
             minHeight: gridH,
+            // Center content rows vertically when auto rows don't consume full height
+            alignContent: "center",
           }}
         >
           {filteredBlocks.map((block) => {
@@ -475,8 +513,9 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
                 gridColumn: `${pos.col} / span ${pos.colSpan || 1}`,
                 gridRow:    `${absoluteRow} / span ${pos.rowSpan || 1}`,
                 alignSelf: blockHeightAuto ? "start" : (block.verticalAlign ? alignSelfMap[block.verticalAlign] : "stretch"),
-                overflow: "hidden",
                 minHeight: 0,
+                // Allow slight overflow for decorative elements that extend beyond their bounds
+                overflow: "visible",
               }}>
                 <DesignerBlock block={block} darkBg={darkBg} />
               </div>
