@@ -194,15 +194,32 @@ export default function VoltSvgLayer({ layer, canvasWidth, canvasHeight, instanc
   ))
   const filterId = hasFx ? `fx-${layer.id}` : undefined
 
+  // Corner radius — clip the layer group to a rounded rect in % space
+  const crRaw = vectorData.cornerRadius
+  const crVal = Array.isArray(crRaw) ? crRaw[0] : (crRaw ?? 0)
+  const hasCornerRadius = crVal > 0
+  const crClipId = hasCornerRadius ? `cr-${layer.id}` : undefined
+  // rx/ry in % coords (the path data lives in 0-100 space)
+  const crRx = crVal / canvasWidth * 100
+  const crRy = crVal / canvasHeight * 100
+
   return (
     <g
       id={`volt-layer-${layer.id}`}
       opacity={opacity}
       style={{ mixBlendMode: blendMode as React.CSSProperties['mixBlendMode'] }}
       filter={filterId ? `url(#${filterId})` : undefined}
+      clipPath={crClipId ? `url(#${crClipId})` : undefined}
     >
       {hasFx && layer.effects && <SvgFilterDef layerId={layer.id} effects={layer.effects} />}
       {hasGradient && primaryFill && <GradientDef fill={primaryFill} layerId={layer.id} />}
+      {hasCornerRadius && (
+        <defs>
+          <clipPath id={crClipId!}>
+            <rect x={x} y={y} width={width} height={height} rx={crRx} ry={crRy} />
+          </clipPath>
+        </defs>
+      )}
       <g transform={transform || undefined}>
         <path
           d={vectorData.pathData}
