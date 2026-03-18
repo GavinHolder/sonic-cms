@@ -809,10 +809,9 @@
           }
         }
       });
-      // DOM stacking: if any vector has higher zIndex than all slots, move SVG after slot divs
-      // so shapes visually appear on top. Otherwise keep SVG before slots (default DOM order).
-      if(_maxVecZ>_maxSlotZ&&isFinite(_maxSlotZ)){artboard.appendChild(svgEl);}
-      else if(artboard.firstChild!==svgEl){artboard.insertBefore(svgEl,artboard.firstChild);}
+      // CSS z-index stacking: if any vector has higher zIndex than all slots, raise SVG above slot divs.
+      // Use z-index instead of DOM reordering — moving svgEl in the DOM releases pointer capture mid-drag.
+      svgEl.style.zIndex=(_maxVecZ>_maxSlotZ&&isFinite(_maxSlotZ))?'2':'';
       // Boolean base outline (teal) — drawn first so cutter outline renders on top
       if(state.boolBaseId&&state.boolBaseId!==state.selectedLayerId&&!hasSlotInMultiSel()){
         var bbl=state.element.layers.find(function(l){return l.id===state.boolBaseId;});
