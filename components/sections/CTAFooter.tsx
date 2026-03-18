@@ -181,15 +181,49 @@ export default function CTAFooter({
         {/* Contact Form: 2-column layout (text left, form right) */}
         {style === "contact-form" && formFields && formFields.length > 0 ? (
           <div className="row align-items-center gy-5">
-            {/* Left: heading + subheading */}
+            {/* Left: heading + subheading + contact info */}
             <div className="col-lg-5">
               <h2 className={`display-5 fw-bold mb-3 ${isBlueBackground ? "text-white" : "text-dark"}`}>
                 {heading}
               </h2>
               {subheading && (
-                <p className={`lead mb-0 ${isBlueBackground ? "text-white opacity-75" : "text-muted"}`}>
+                <p className={`lead mb-4 ${isBlueBackground ? "text-white opacity-75" : "text-muted"}`}>
                   {subheading}
                 </p>
+              )}
+              {contactInfo && (
+                <ul className="list-unstyled mb-0" style={{ marginTop: 8 }}>
+                  {contactInfo.phone && (
+                    <li className="mb-3 d-flex align-items-center gap-2">
+                      <i className={`bi bi-telephone-fill fs-5 ${isBlueBackground ? "text-white opacity-75" : "text-muted"}`} />
+                      <a
+                        href={`tel:${contactInfo.phone.replace(/\s/g, "")}`}
+                        className={`${isBlueBackground ? "text-white text-decoration-none" : "text-dark text-decoration-none"} fw-semibold`}
+                      >
+                        {contactInfo.phone}
+                      </a>
+                    </li>
+                  )}
+                  {contactInfo.email && (
+                    <li className="mb-3 d-flex align-items-center gap-2">
+                      <i className={`bi bi-envelope-fill fs-5 ${isBlueBackground ? "text-white opacity-75" : "text-muted"}`} />
+                      <a
+                        href={`mailto:${contactInfo.email}`}
+                        className={`${isBlueBackground ? "text-white text-decoration-none" : "text-dark text-decoration-none"}`}
+                      >
+                        {contactInfo.email}
+                      </a>
+                    </li>
+                  )}
+                  {contactInfo.address && (
+                    <li className="d-flex align-items-center gap-2">
+                      <i className={`bi bi-geo-alt-fill fs-5 ${isBlueBackground ? "text-white opacity-75" : "text-muted"}`} />
+                      <span className={`${isBlueBackground ? "text-white opacity-75" : "text-muted"}`}>
+                        {contactInfo.address}
+                      </span>
+                    </li>
+                  )}
+                </ul>
               )}
             </div>
 
@@ -339,11 +373,11 @@ export default function CTAFooter({
           </div>
         )}
 
-        {/* Contact Info & Social Links */}
-        {(contactInfo || socialLinks) && (
+        {/* Contact Info & Social Links — contactInfo is shown in left panel for contact-form style */}
+        {((contactInfo && style !== 'contact-form') || socialLinks) && (
           <div className="row justify-content-center">
-            {/* Contact Information */}
-            {contactInfo && (
+            {/* Contact Information (non contact-form styles only) */}
+            {contactInfo && style !== 'contact-form' && (
               <div className="col-md-6 col-lg-4 text-center mb-4 mb-md-0">
                 <h5
                   className={`fw-semibold mb-3 ${

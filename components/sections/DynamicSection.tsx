@@ -485,9 +485,9 @@ function FooterRenderer({ section }: { section: FooterSection }) {
   // Build columns element with even distribution using flexbox
   const columnsElement = content.columns && content.columns.length > 0 && (
     <div className="d-flex gap-4 justify-content-between">
-      {content.columns.map((col) => (
-        <div key={col.id} style={{ flex: '1 1 0', minWidth: 0 }}>
-          <h6 className={`fw-bold mb-3 ${textClass}`}>{col.title}</h6>
+      {content.columns.map((col, ci) => (
+        <div key={col.id || (col as any).heading || ci} style={{ flex: '1 1 0', minWidth: 0 }}>
+          <h6 className={`fw-bold mb-3 ${textClass}`}>{(col as any).heading || col.title}</h6>
           <ul className="list-unstyled">
             {col.links.map((link, i) => (
               <li key={i} className="mb-2">

@@ -162,6 +162,11 @@ export function getEffectiveBackgroundColor(
   }
 
   // Priority 3: Solid background color
+  // Pass through hex/rgb colors directly
+  if (solidColor && (solidColor.startsWith('#') || solidColor.startsWith('rgb'))) {
+    return solidColor;
+  }
+
   const colorMap: Record<string, string> = {
     white: '#FFFFFF',
     gray: '#F8F9FA',

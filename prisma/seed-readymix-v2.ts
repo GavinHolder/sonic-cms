@@ -360,9 +360,10 @@ async function main() {
 
   // ══════════════════════════════════════════════════════════════════════════
   // SECTION 2 — WHY CHOOSE US
-  // Grid: 3 cols × 2 rows, gap 28
+  // Grid: 3 cols × 3 rows, gap 28
   //   Row 1: heading block (colSpan 3, auto height)
-  //   Row 2: 3 cards with green top border (1fr — fills remaining space)
+  //   Row 2: 3 cards with green top border
+  //   Row 3: 3 stat blocks filling bottom space
   // ══════════════════════════════════════════════════════════════════════════
   await prisma.section.create({
     data: {
@@ -374,12 +375,12 @@ async function main() {
       displayName: 'Why Choose Us',
       navLabel: 'Benefits',
       background: '#f9fafb',
-      paddingTop: 60,
-      paddingBottom: 60,
+      paddingTop: 50,
+      paddingBottom: 50,
       content: j({
         designerData: {
           layoutType: 'grid',
-          grid: { cols: 3, rows: 2, gap: 28 },
+          grid: { cols: 3, rows: 3, gap: 24 },
           blocks: [
             {
               id: 1, type: 'text',
@@ -388,11 +389,10 @@ async function main() {
               subElements: [
                 { type: 'heading', props: { text: 'WHY OVERBERG READY MIX', fontSize: 11, fontWeight: '700', color: '#4a7c59', letterSpacing: 2, textTransform: 'uppercase', textAlign: 'left', marginBottom: 14 } },
                 { type: 'heading', props: { text: 'Built on Reliability. Backed by Local Experience.', fontSize: 44, fontWeight: '900', color: '#1f2937', lineHeight: 1.05, textAlign: 'left', marginBottom: 14 } },
-                { type: 'paragraph', props: { text: 'Three reasons contractors across the Overberg choose us for every project — from garden walls to industrial slabs.', fontSize: 17, color: '#6b7280', lineHeight: 1.65, marginBottom: 20 } },
-                { type: 'button', props: { text: 'Learn More About Us →', navTarget: '/about', bgColor: 'transparent', textColor: '#4a7c59', paddingX: 0, paddingY: 0, borderRadius: 0, borderWidth: 0 } },
+                { type: 'paragraph', props: { text: 'Three reasons contractors across the Overberg choose us for every project — from garden walls to industrial slabs.', fontSize: 17, color: '#6b7280', lineHeight: 1.65 } },
               ],
             },
-            // Row 2: 3 cards — card type is in FILL_TYPES so row 2 gets 1fr
+            // Row 2: 3 trust-pillar cards
             {
               id: 2, type: 'card',
               position: { row: 2, col: 1 },
@@ -423,12 +423,40 @@ async function main() {
                 { type: 'paragraph', props: { text: 'SABS-compliant mixes batched to specification on every order. Consistent strength and workability, every pour.', fontSize: 15, color: '#6b7280', lineHeight: 1.7 } },
               ],
             },
+            // Row 3: stats strip — fills the bottom space
+            {
+              id: 5, type: 'card',
+              position: { row: 3, col: 1 },
+              props: { bgColor: '#f0fdf4', borderRadius: 10, paddingTop: 24, paddingBottom: 24, paddingX: 24 },
+              subElements: [
+                { type: 'heading', props: { text: '15+', fontSize: 40, fontWeight: '900', color: '#4a7c59', textAlign: 'center', marginBottom: 4 } },
+                { type: 'paragraph', props: { text: 'Years serving the Overberg', fontSize: 14, color: '#6b7280', textAlign: 'center', lineHeight: 1.4 } },
+              ],
+            },
+            {
+              id: 6, type: 'card',
+              position: { row: 3, col: 2 },
+              props: { bgColor: '#f0fdf4', borderRadius: 10, paddingTop: 24, paddingBottom: 24, paddingX: 24 },
+              subElements: [
+                { type: 'heading', props: { text: '500+', fontSize: 40, fontWeight: '900', color: '#4a7c59', textAlign: 'center', marginBottom: 4 } },
+                { type: 'paragraph', props: { text: 'm³ delivered annually', fontSize: 14, color: '#6b7280', textAlign: 'center', lineHeight: 1.4 } },
+              ],
+            },
+            {
+              id: 7, type: 'card',
+              position: { row: 3, col: 3 },
+              props: { bgColor: '#f0fdf4', borderRadius: 10, paddingTop: 24, paddingBottom: 24, paddingX: 24 },
+              subElements: [
+                { type: 'heading', props: { text: '100%', fontSize: 40, fontWeight: '900', color: '#4a7c59', textAlign: 'center', marginBottom: 4 } },
+                { type: 'paragraph', props: { text: 'SABS-compliant batches', fontSize: 14, color: '#6b7280', textAlign: 'center', lineHeight: 1.4 } },
+              ],
+            },
           ],
         },
       }),
     },
   });
-  console.log('✅ Section 2: Why Choose Us (FLEXIBLE, 3 trust pillars)');
+  console.log('✅ Section 2: Why Choose Us (FLEXIBLE, 3 trust pillars + stats row)');
 
   // ══════════════════════════════════════════════════════════════════════════
   // SECTION 3 — CONCRETE MIXES (FLEXIBLE, dark bg, particle-field animation)
@@ -788,15 +816,18 @@ async function main() {
       displayName: 'Footer',
       background: '#111827',
       content: j({
-        companyName: 'Overberg Ready Mix',
         tagline: 'Quality Concrete. Delivered on Time.',
         copyright: `© ${new Date().getFullYear()} Overberg Ready Mix (Pty) Ltd. All rights reserved.`,
-        logoUrl: '',
-        textColor: '#d1d5db',
-        accentColor: '#4a7c59',
+        companyInfo: {
+          name: 'Overberg Ready Mix',
+          phone: '+27 (0)28 123 4567',
+          email: 'info@overbergreadymix.co.za',
+          address: 'Overberg Region, Western Cape',
+        },
         columns: [
           {
-            heading: 'Quick Links',
+            id: 'col-1',
+            title: 'Quick Links',
             links: [
               { text: 'Home',                href: '/' },
               { text: 'Concrete Mixes',      href: '/mixes' },
@@ -808,16 +839,16 @@ async function main() {
             ],
           },
           {
-            heading: 'Contact',
+            id: 'col-2',
+            title: 'Business Hours',
             links: [
-              { text: '+27 (0)28 123 4567',              href: 'tel:+27281234567' },
-              { text: 'info@overbergreadymix.co.za',     href: 'mailto:info@overbergreadymix.co.za' },
-              { text: 'Overberg Region, Western Cape',   href: '#' },
-              { text: 'Mon–Fri 06:00–16:00',            href: '#' },
+              { text: 'Mon–Fri: 06:00–16:00', href: '#' },
+              { text: 'Saturday: 07:00–13:00', href: '#' },
+              { text: 'Sunday: Closed',        href: '#' },
             ],
           },
         ],
-        socials: [
+        socialLinks: [
           { platform: 'facebook',  href: 'https://facebook.com/overbergreadymix',          icon: 'bi-facebook'  },
           { platform: 'instagram', href: 'https://instagram.com/overbergreadymix',         icon: 'bi-instagram' },
           { platform: 'linkedin',  href: 'https://linkedin.com/company/overbergreadymix', icon: 'bi-linkedin'  },
