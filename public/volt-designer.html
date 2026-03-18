@@ -283,6 +283,21 @@
               <div class="shapes-preset-grid" id="shapes-preset-grid"></div>
             </div>
           </div>
+          <div style="position:relative;display:inline-flex;align-items:stretch;">
+            <button id="btn-grad-presets" class="tool-btn-h" title="Gradient Presets — quick-apply to selected fill" style="width:auto;padding:0 7px;gap:3px;"><i class="bi bi-palette2"></i><span style="font-size:8px;font-weight:800;letter-spacing:0.3px;color:#f59e0b;">GRD</span></button>
+            <div id="grad-presets-panel" class="shapes-preset-panel" style="display:none;width:280px;">
+              <div style="font-size:10px;font-weight:700;color:#374151;margin-bottom:8px;letter-spacing:0.5px;text-transform:uppercase;">Gradient Presets</div>
+              <div id="grad-presets-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;"></div>
+            </div>
+          </div>
+          <div style="position:relative;display:inline-flex;align-items:stretch;">
+            <button id="btn-icon-picker" class="tool-btn-h" title="Icon Library — insert Lucide icon as vector layer" style="width:auto;padding:0 7px;gap:3px;"><i class="bi bi-grid-3x3"></i><span style="font-size:8px;font-weight:800;letter-spacing:0.3px;color:#10b981;">ICN</span></button>
+            <div id="icon-picker-panel" class="shapes-preset-panel" style="display:none;width:320px;">
+              <div style="font-size:10px;font-weight:700;color:#374151;margin-bottom:8px;letter-spacing:0.5px;text-transform:uppercase;">Icon Library</div>
+              <input id="icon-search" type="text" placeholder="Search icons..." style="width:100%;font-size:11px;padding:4px 8px;border:1px solid #dee2e6;border-radius:5px;margin-bottom:8px;outline:none;" />
+              <div id="icon-picker-grid" style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px;max-height:220px;overflow-y:auto;"></div>
+            </div>
+          </div>
         </div>
         <span id="canvas-size-label" class="text-muted ms-3" style="font-size:11px;">800&#215;500px</span>
         <span id="bool-edit-badge" style="display:none;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;background:#fff3cd;color:#664d03;border:1px solid #ffc107;margin-left:8px;">&#9986; Bool Edit Mode — move cutter &nbsp;<kbd>Esc</kbd> to exit</span>
@@ -3126,7 +3141,7 @@
       opt.addEventListener('mouseleave',function(){opt.style.background='';});
       opt.addEventListener('click',function(e){e.stopPropagation();_toolMenuOpen=false;applyToolMode(opt.dataset.mode);});
     });
-    document.addEventListener('click',function(){if(_toolMenuOpen){_toolMenuOpen=false;var menu=document.getElementById('select-mode-menu');if(menu)menu.style.display='none';}if(_slotMenuOpen){_slotMenuOpen=false;var sm=document.getElementById('slot-type-menu');if(sm)sm.style.display='none';}if(typeof _shapesMenuOpen!=='undefined'&&_shapesMenuOpen){_shapesMenuOpen=false;var sp=document.getElementById('shapes-preset-panel');if(sp)sp.style.display='none';}closeCtxMenu();});
+    document.addEventListener('click',function(){if(_toolMenuOpen){_toolMenuOpen=false;var menu=document.getElementById('select-mode-menu');if(menu)menu.style.display='none';}if(_slotMenuOpen){_slotMenuOpen=false;var sm=document.getElementById('slot-type-menu');if(sm)sm.style.display='none';}if(typeof _shapesMenuOpen!=='undefined'&&_shapesMenuOpen){_shapesMenuOpen=false;var sp=document.getElementById('shapes-preset-panel');if(sp)sp.style.display='none';}if(typeof _gradMenuOpen!=='undefined'&&_gradMenuOpen){_gradMenuOpen=false;var gp=document.getElementById('grad-presets-panel');if(gp)gp.style.display='none';}if(typeof _iconMenuOpen!=='undefined'&&_iconMenuOpen){_iconMenuOpen=false;var ip=document.getElementById('icon-picker-panel');if(ip)ip.style.display='none';}closeCtxMenu();});
 
     // ── Canvas right-click context menu ──────────────────────────────────────
     var _ctxMenu=document.getElementById('canvas-ctx-menu');
@@ -3359,6 +3374,159 @@
     var _btnShapes=document.getElementById('btn-shapes-preset');
     var _shapePanel=document.getElementById('shapes-preset-panel');
     _btnShapes.addEventListener('click',function(e){e.stopPropagation();_shapesMenuOpen=!_shapesMenuOpen;_shapePanel.style.display=_shapesMenuOpen?'block':'none';});
+    // ── Gradient Presets ─────────────────────────────────────────────────────
+    var GRAD_PRESETS=[
+      {name:'Indigo Violet',stops:[{color:'#6366f1',opacity:1,position:0},{color:'#8b5cf6',opacity:1,position:100}],angle:135},
+      {name:'Aurora',stops:[{color:'#06b6d4',opacity:1,position:0},{color:'#8b5cf6',opacity:1,position:100}],angle:135},
+      {name:'Sunset',stops:[{color:'#f97316',opacity:1,position:0},{color:'#ec4899',opacity:1,position:100}],angle:135},
+      {name:'Ocean',stops:[{color:'#0ea5e9',opacity:1,position:0},{color:'#0891b2',opacity:1,position:100}],angle:180},
+      {name:'Emerald',stops:[{color:'#10b981',opacity:1,position:0},{color:'#059669',opacity:1,position:100}],angle:135},
+      {name:'Rose Gold',stops:[{color:'#f43f5e',opacity:1,position:0},{color:'#fb923c',opacity:1,position:100}],angle:45},
+      {name:'Midnight',stops:[{color:'#1e1b4b',opacity:1,position:0},{color:'#312e81',opacity:1,position:100}],angle:180},
+      {name:'Solar',stops:[{color:'#fbbf24',opacity:1,position:0},{color:'#f97316',opacity:1,position:100}],angle:90},
+      {name:'Candy',stops:[{color:'#f472b6',opacity:1,position:0},{color:'#818cf8',opacity:1,position:100}],angle:135},
+      {name:'Forest',stops:[{color:'#22c55e',opacity:1,position:0},{color:'#14b8a6',opacity:1,position:100}],angle:135},
+      {name:'Flame',stops:[{color:'#ef4444',opacity:1,position:0},{color:'#f97316',opacity:1,position:50},{color:'#fbbf24',opacity:1,position:100}],angle:90},
+      {name:'Arctic',stops:[{color:'#e0f2fe',opacity:1,position:0},{color:'#38bdf8',opacity:1,position:100}],angle:180},
+    ];
+    (function(){
+      var grid=document.getElementById('grad-presets-grid');if(!grid)return;
+      GRAD_PRESETS.forEach(function(preset){
+        var item=document.createElement('div');item.title=preset.name;
+        item.style.cssText='border-radius:6px;height:40px;cursor:pointer;border:2px solid transparent;transition:border-color 0.12s;';
+        var stopStr=preset.stops.map(function(s){return s.color+' '+s.position+'%';}).join(', ');
+        item.style.background='linear-gradient('+preset.angle+'deg, '+stopStr+')';
+        item.addEventListener('mouseenter',function(){item.style.borderColor='#6366f1';});
+        item.addEventListener('mouseleave',function(){item.style.borderColor='transparent';});
+        item.addEventListener('click',function(e){
+          e.stopPropagation();
+          if(!state.selectedLayerId)return;
+          var li=state.element.layers.findIndex(function(l){return l.id===state.selectedLayerId;});
+          if(li<0||!state.element.layers[li].vectorData)return;
+          pushHistory();
+          var f=state.element.layers[li].vectorData.fills[0];
+          if(!f){state.element.layers[li].vectorData.fills=[{id:nanoid(),type:'linear-gradient',color:'#6366f1',opacity:1,blendMode:'normal',gradient:{stops:preset.stops.map(function(s){return Object.assign({},s);})}}];f=state.element.layers[li].vectorData.fills[0];}
+          else{f.type='linear-gradient';f.gradient={stops:preset.stops.map(function(s){return Object.assign({},s);});}};
+          f.gradient.angle=preset.angle;
+          markDirty();renderCanvas();renderProps();
+          _gradMenuOpen=false;document.getElementById('grad-presets-panel').style.display='none';
+        });
+        grid.appendChild(item);
+      });
+    })();
+    var _gradMenuOpen=false;
+    var _btnGrad=document.getElementById('btn-grad-presets');var _gradPanel=document.getElementById('grad-presets-panel');
+    _btnGrad.addEventListener('click',function(e){e.stopPropagation();_gradMenuOpen=!_gradMenuOpen;_gradPanel.style.display=_gradMenuOpen?'block':'none';});
+    // ── Icon Picker ───────────────────────────────────────────────────────────
+    var LUCIDE_ICONS=[
+      {name:'star',d:'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z'},
+      {name:'heart',d:'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z'},
+      {name:'check',d:'M20 6L9 17l-5-5'},
+      {name:'x',d:'M18 6L6 18M6 6l12 12'},
+      {name:'arrow-right',d:'M5 12h14M12 5l7 7-7 7'},
+      {name:'arrow-left',d:'M19 12H5m7 7-7-7 7-7'},
+      {name:'arrow-up',d:'M12 19V5m-7 7 7-7 7 7'},
+      {name:'arrow-down',d:'M12 5v14m7-7-7 7-7-7'},
+      {name:'plus',d:'M12 5v14M5 12h14'},
+      {name:'minus',d:'M5 12h14'},
+      {name:'search',d:'M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z'},
+      {name:'mail',d:'M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2zm18 2l-10 7L2 6'},
+      {name:'phone',d:'M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z'},
+      {name:'map-pin',d:'M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z M12 10a2 2 0 1 1-4 0 2 2 0 0 1 4 0'},
+      {name:'calendar',d:'M3 4h18v18H3V4zm5-2v4m8-4v4M3 10h18'},
+      {name:'clock',d:'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 5v5l4 2'},
+      {name:'user',d:'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8z'},
+      {name:'users',d:'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M23 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75'},
+      {name:'settings',d:'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z'},
+      {name:'home',d:'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 22V12h6v10'},
+      {name:'share',d:'M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8 M16 6l-4-4-4 4 M12 2v13'},
+      {name:'download',d:'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3'},
+      {name:'upload',d:'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M17 8l-5-5-5 5 M12 3v12'},
+      {name:'trash',d:'M3 6h18 M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m5 0V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2'},
+      {name:'edit',d:'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7 M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z'},
+      {name:'eye',d:'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6z'},
+      {name:'lock',d:'M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2z M7 11V7a5 5 0 0 1 10 0v4'},
+      {name:'bell',d:'M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0'},
+      {name:'zap',d:'M13 2L3 14h9l-1 8 10-12h-9l1-8z'},
+      {name:'shield',d:'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'},
+      {name:'award',d:'M12 15a6 6 0 1 0 0-12 6 6 0 0 0 0 12z M8.21 13.89L7 23l5-3 5 3-1.21-9.12'},
+      {name:'trending-up',d:'M23 6l-9.5 9.5-5-5L1 18 M17 6h6v6'},
+      {name:'bar-chart',d:'M18 20V10 M12 20V4 M6 20v-6'},
+      {name:'pie-chart',d:'M21.21 15.89A10 10 0 1 1 8 2.83 M22 12A10 10 0 0 0 12 2v10z'},
+      {name:'wifi',d:'M5 12.55a11 11 0 0 1 14.08 0 M1.42 9a16 16 0 0 1 21.16 0 M8.53 16.11a6 6 0 0 1 6.95 0 M12 20h.01'},
+      {name:'battery',d:'M23 7v10h-1V7h1zm-3-2H2a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z'},
+      {name:'smile',d:'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M8 14s1.5 2 4 2 4-2 4-2 M9 9h.01 M15 9h.01'},
+      {name:'coffee',d:'M18 8h1a4 4 0 0 1 0 8h-1 M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z m4-7v3 m4-3v3 m4-3v3'},
+      {name:'music',d:'M9 18V5l12-2v13 M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M18 19a3 3 0 1 0 0-6 3 3 0 0 0 0 6z'},
+      {name:'camera',d:'M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z M12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z'},
+      {name:'globe',d:'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z M2 12h20 M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z'},
+      {name:'link',d:'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71 M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'},
+      {name:'layers',d:'M12 2L2 7l10 5 10-5-10-5z M2 17l10 5 10-5 M2 12l10 5 10-5'},
+    ];
+    var _allIcons=LUCIDE_ICONS.slice();
+    function _renderIconGrid(filter){
+      var grid=document.getElementById('icon-picker-grid');if(!grid)return;
+      grid.innerHTML='';
+      var filtered=filter?_allIcons.filter(function(ic){return ic.name.indexOf(filter.toLowerCase())>=0;}):_allIcons;
+      filtered.forEach(function(icon){
+        var item=document.createElement('div');item.title=icon.name;
+        item.style.cssText='display:flex;flex-direction:column;align-items:center;gap:2px;padding:5px 2px;border:1.5px solid #e2e8f0;border-radius:6px;cursor:pointer;background:#fafafa;transition:all 0.12s;';
+        var svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+        svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('width','22');svg.setAttribute('height','22');
+        svg.setAttribute('fill','none');svg.setAttribute('stroke','#374151');svg.setAttribute('stroke-width','1.5');svg.setAttribute('stroke-linecap','round');svg.setAttribute('stroke-linejoin','round');
+        var pathEl=document.createElementNS('http://www.w3.org/2000/svg','path');pathEl.setAttribute('d',icon.d);svg.appendChild(pathEl);
+        var lbl=document.createElement('span');lbl.style.cssText='font-size:7px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;text-align:center;';lbl.textContent=icon.name;
+        item.appendChild(svg);item.appendChild(lbl);
+        item.addEventListener('mouseenter',function(){item.style.background='#f0f4ff';item.style.borderColor='#6366f1';});
+        item.addEventListener('mouseleave',function(){item.style.background='#fafafa';item.style.borderColor='#e2e8f0';});
+        item.addEventListener('click',function(e){
+          e.stopPropagation();
+          _insertIconLayer(icon);
+          _iconMenuOpen=false;document.getElementById('icon-picker-panel').style.display='none';
+        });
+        grid.appendChild(item);
+      });
+    }
+    // Transform SVG path from 24x24 Lucide space to % coord space (0-100)
+    // Target: position (tx,ty) with size (sw,sh) in % space from 24x24 source
+    function _transformIconPath(d,tx,ty,sw,sh){
+      var sx=sw/24,sy=sh/24;
+      function sc(x,isY){return ((parseFloat(x)*(isY?sy:sx))+(isY?ty:tx)).toFixed(3);}
+      function sr(r,isY){return (parseFloat(r)*(isY?sy:sx)).toFixed(3);}
+      var cmds=d.match(/[A-Za-z][^A-Za-z]*/g)||[];
+      return cmds.map(function(cmd){
+        var t=cmd[0],isRel=/[a-z]/.test(t),args=cmd.slice(1).trim().split(/[\s,]+/).map(function(s){return parseFloat(s);}).filter(function(v){return !isNaN(v);});
+        var r=t;
+        var T=t.toUpperCase();
+        if(T==='M'||T==='L'||T==='T'){for(var i=0;i<args.length;i+=2){r+=' '+(isRel?args[i].toFixed(3):sc(args[i],false))+' '+(isRel?args[i+1].toFixed(3):sc(args[i+1],true));}}
+        else if(T==='H'){for(var i=0;i<args.length;i++){r+=' '+(isRel?args[i].toFixed(3):sc(args[i],false));}}
+        else if(T==='V'){for(var i=0;i<args.length;i++){r+=' '+(isRel?args[i].toFixed(3):sc(args[i],true));}}
+        else if(T==='C'){for(var i=0;i<args.length;i+=6){r+=' '+(isRel?args[i].toFixed(3):sc(args[i],false))+' '+(isRel?args[i+1].toFixed(3):sc(args[i+1],true))+' '+(isRel?args[i+2].toFixed(3):sc(args[i+2],false))+' '+(isRel?args[i+3].toFixed(3):sc(args[i+3],true))+' '+(isRel?args[i+4].toFixed(3):sc(args[i+4],false))+' '+(isRel?args[i+5].toFixed(3):sc(args[i+5],true));}}
+        else if(T==='S'||T==='Q'){for(var i=0;i<args.length;i+=4){r+=' '+(isRel?args[i].toFixed(3):sc(args[i],false))+' '+(isRel?args[i+1].toFixed(3):sc(args[i+1],true))+' '+(isRel?args[i+2].toFixed(3):sc(args[i+2],false))+' '+(isRel?args[i+3].toFixed(3):sc(args[i+3],true));}}
+        else if(T==='A'){for(var i=0;i<args.length;i+=7){r+=' '+sr(args[i],false)+' '+sr(args[i+1],true)+' '+args[i+2].toFixed(3)+' '+Math.round(args[i+3])+' '+Math.round(args[i+4])+' '+(isRel?args[i+5].toFixed(3):sc(args[i+5],false))+' '+(isRel?args[i+6].toFixed(3):sc(args[i+6],true));}}
+        else if(T==='Z'){}
+        return r;
+      }).join(' ');
+    }
+    function _insertIconLayer(icon){
+      // Place icon at 25%,25% with 50%x50% size in the % coord space
+      var scaledD=_transformIconPath(icon.d,25,25,50,50);
+      var layer={
+        id:nanoid(),name:icon.name,type:'vector',role:'content',
+        x:25,y:25,width:50,height:50,rotation:0,
+        zIndex:(state.element.layers.length?Math.max.apply(null,state.element.layers.map(function(l){return l.zIndex||0;}))+1:0),
+        visible:true,locked:false,opacity:1,blendMode:'normal',
+        vectorData:{pathData:scaledD,fills:[{id:nanoid(),type:'solid',color:'#6366f1',opacity:1,blendMode:'normal'}],stroke:{color:'#6366f1',opacity:1,width:1.5,cap:'round',join:'round'},closed:false},
+        animation:{character:50,speed:40,style:60,delay:0,animates:{opacity:true,scale:false,position:false,rotation:false,fill:false}}
+      };
+      pushHistory();state.element.layers.push(layer);state.selectedLayerId=layer.id;markDirty();renderAll();
+    }
+    _renderIconGrid('');
+    var _iconMenuOpen=false;
+    var _btnIcon=document.getElementById('btn-icon-picker');var _iconPanel=document.getElementById('icon-picker-panel');
+    _btnIcon.addEventListener('click',function(e){e.stopPropagation();_iconMenuOpen=!_iconMenuOpen;_iconPanel.style.display=_iconMenuOpen?'block':'none';});
+    var _iconSearchEl=document.getElementById('icon-search');
+    if(_iconSearchEl)_iconSearchEl.addEventListener('input',function(e){_renderIconGrid(e.target.value);});
     // close on outside click (handled in existing global click listener — extend it)
     // ── Corner rounding bar ───────────────────────────────────────────────────
     var _origRoundPath=null; // original path before rounding — set fresh on vertex edit entry
