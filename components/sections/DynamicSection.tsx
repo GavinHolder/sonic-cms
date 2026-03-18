@@ -754,6 +754,8 @@ function CTARenderer({ section }: { section: CTASection }) {
         style="contact-form"
         formFields={content.formFields}
         formTitle={content.formTitle}
+        submitText={(content as any).submitText}
+        contactInfo={(content as any).contactInfo}
         formSuccessMessage={content.formSuccessMessage}
         sectionName={section.displayName}
       />

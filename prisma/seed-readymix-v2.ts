@@ -8,7 +8,7 @@
  *   3. CONCRETE MIXES  — FLEXIBLE 3+2 product cards, particle-field bg
  *   4. PARALLAX        — FLEXIBLE parallax bg + stats + motion element
  *   5. DELIVERY AREA   — FLEXIBLE coverage-map block
- *   6. OUR PROJECTS    — FLEXIBLE 2-col project gallery
+ *   6. OUR PROJECTS    — FLEXIBLE 2×2 photo-card gallery
  *   7. GET A QUOTE     — CTA contact form, ripple lower-third
  *   8. FOOTER          — 3-col links
  *
@@ -251,7 +251,7 @@ async function main() {
       createdBy: admin.id,
       type: 'HERO',
       enabled: true,
-      order: order++,        // 0
+      order: order++,
       displayName: 'Hero',
       paddingTop: 0,
       paddingBottom: 0,
@@ -359,10 +359,10 @@ async function main() {
   console.log('✅ Section 1: HERO (3 slides)');
 
   // ══════════════════════════════════════════════════════════════════════════
-  // SECTION 2 — WHY CHOOSE US (FLEXIBLE, white bg, 3-col trust pillars)
-  // Grid: 3 cols × 4 rows, gap 24
-  //   Row 1: left-aligned heading + body + CTA button (colSpan 3)
-  //   Rows 2–4: 3 cards with green top border accent
+  // SECTION 2 — WHY CHOOSE US
+  // Grid: 3 cols × 2 rows, gap 28
+  //   Row 1: heading block (colSpan 3, auto height)
+  //   Row 2: 3 cards with green top border (1fr — fills remaining space)
   // ══════════════════════════════════════════════════════════════════════════
   await prisma.section.create({
     data: {
@@ -370,52 +370,56 @@ async function main() {
       createdBy: admin.id,
       type: 'FLEXIBLE',
       enabled: true,
-      order: order++,        // 1
+      order: order++,
       displayName: 'Why Choose Us',
-      background: '#ffffff',
+      navLabel: 'Benefits',
+      background: '#f9fafb',
+      paddingTop: 60,
+      paddingBottom: 60,
       content: j({
         designerData: {
           layoutType: 'grid',
-          grid: { cols: 3, rows: 4, gap: 24 },
+          grid: { cols: 3, rows: 2, gap: 28 },
           blocks: [
             {
               id: 1, type: 'text',
               position: { row: 1, col: 1, colSpan: 3 },
-              props: { textAlign: 'left', paddingTop: 24, paddingBottom: 16 },
+              props: { textAlign: 'left', paddingTop: 0, paddingBottom: 0 },
               subElements: [
-                { type: 'heading', props: { text: 'WHY OVERBERG READY MIX', fontSize: 11, fontWeight: '700', color: '#4a7c59', letterSpacing: 2, textTransform: 'uppercase', textAlign: 'left', marginBottom: 16 } },
-                { type: 'heading', props: { text: 'Built on Reliability. Backed by Local Experience.', fontSize: 44, fontWeight: '900', color: '#1f2937', lineHeight: 1.05, textAlign: 'left', marginBottom: 16 } },
-                { type: 'paragraph', props: { text: 'Three reasons contractors across the Overberg choose us for every project — from garden walls to industrial slabs.', fontSize: 17, color: '#6b7280', lineHeight: 1.65, marginBottom: 24 } },
-                { type: 'button', props: { text: 'Learn More About Us →', navTarget: '/about', bgColor: 'transparent', textColor: '#4a7c59', paddingX: 24, paddingY: 11, borderRadius: 8 } },
+                { type: 'heading', props: { text: 'WHY OVERBERG READY MIX', fontSize: 11, fontWeight: '700', color: '#4a7c59', letterSpacing: 2, textTransform: 'uppercase', textAlign: 'left', marginBottom: 14 } },
+                { type: 'heading', props: { text: 'Built on Reliability. Backed by Local Experience.', fontSize: 44, fontWeight: '900', color: '#1f2937', lineHeight: 1.05, textAlign: 'left', marginBottom: 14 } },
+                { type: 'paragraph', props: { text: 'Three reasons contractors across the Overberg choose us for every project — from garden walls to industrial slabs.', fontSize: 17, color: '#6b7280', lineHeight: 1.65, marginBottom: 20 } },
+                { type: 'button', props: { text: 'Learn More About Us →', navTarget: '/about', bgColor: 'transparent', textColor: '#4a7c59', paddingX: 0, paddingY: 0, borderRadius: 0, borderWidth: 0 } },
               ],
             },
+            // Row 2: 3 cards — card type is in FILL_TYPES so row 2 gets 1fr
             {
               id: 2, type: 'card',
-              position: { row: 2, col: 1, rowSpan: 3 },
-              props: { bgColor: '#ffffff', borderRadius: 12, borderTopColor: '#4a7c59', borderTopWidth: 4, paddingTop: 28, paddingBottom: 28, paddingX: 24 },
+              position: { row: 2, col: 1 },
+              props: { bgColor: '#ffffff', borderRadius: 12, borderTopColor: '#4a7c59', borderTopWidth: 4, paddingTop: 32, paddingBottom: 32, paddingX: 28, boxShadow: '0 2px 16px rgba(0,0,0,0.06)' },
               subElements: [
-                { type: 'heading', props: { text: '🏗', fontSize: 32, textAlign: 'left', marginBottom: 14 } },
-                { type: 'heading', props: { text: 'Local Knowledge', fontSize: 19, fontWeight: '700', color: '#1f2937', marginBottom: 10 } },
+                { type: 'heading', props: { text: '🏗', fontSize: 36, textAlign: 'left', marginBottom: 16 } },
+                { type: 'heading', props: { text: 'Local Knowledge', fontSize: 20, fontWeight: '700', color: '#1f2937', marginBottom: 10 } },
                 { type: 'paragraph', props: { text: 'Family-owned and based in the Overberg. We know the region\'s roads, weather patterns, and site demands inside out.', fontSize: 15, color: '#6b7280', lineHeight: 1.7 } },
               ],
             },
             {
               id: 3, type: 'card',
-              position: { row: 2, col: 2, rowSpan: 3 },
-              props: { bgColor: '#ffffff', borderRadius: 12, borderTopColor: '#4a7c59', borderTopWidth: 4, paddingTop: 28, paddingBottom: 28, paddingX: 24 },
+              position: { row: 2, col: 2 },
+              props: { bgColor: '#ffffff', borderRadius: 12, borderTopColor: '#4a7c59', borderTopWidth: 4, paddingTop: 32, paddingBottom: 32, paddingX: 28, boxShadow: '0 2px 16px rgba(0,0,0,0.06)' },
               subElements: [
-                { type: 'heading', props: { text: '🚛', fontSize: 32, textAlign: 'left', marginBottom: 14 } },
-                { type: 'heading', props: { text: 'Reliable Delivery', fontSize: 19, fontWeight: '700', color: '#1f2937', marginBottom: 10 } },
+                { type: 'heading', props: { text: '🚛', fontSize: 36, textAlign: 'left', marginBottom: 16 } },
+                { type: 'heading', props: { text: 'Reliable Delivery', fontSize: 20, fontWeight: '700', color: '#1f2937', marginBottom: 10 } },
                 { type: 'paragraph', props: { text: 'Punctual delivery to your site every time. We coordinate with your schedule so your crew never stands around waiting.', fontSize: 15, color: '#6b7280', lineHeight: 1.7 } },
               ],
             },
             {
               id: 4, type: 'card',
-              position: { row: 2, col: 3, rowSpan: 3 },
-              props: { bgColor: '#ffffff', borderRadius: 12, borderTopColor: '#4a7c59', borderTopWidth: 4, paddingTop: 28, paddingBottom: 28, paddingX: 24 },
+              position: { row: 2, col: 3 },
+              props: { bgColor: '#ffffff', borderRadius: 12, borderTopColor: '#4a7c59', borderTopWidth: 4, paddingTop: 32, paddingBottom: 32, paddingX: 28, boxShadow: '0 2px 16px rgba(0,0,0,0.06)' },
               subElements: [
-                { type: 'heading', props: { text: '✅', fontSize: 32, textAlign: 'left', marginBottom: 14 } },
-                { type: 'heading', props: { text: 'Quality Assured', fontSize: 19, fontWeight: '700', color: '#1f2937', marginBottom: 10 } },
+                { type: 'heading', props: { text: '✅', fontSize: 36, textAlign: 'left', marginBottom: 16 } },
+                { type: 'heading', props: { text: 'Quality Assured', fontSize: 20, fontWeight: '700', color: '#1f2937', marginBottom: 10 } },
                 { type: 'paragraph', props: { text: 'SABS-compliant mixes batched to specification on every order. Consistent strength and workability, every pour.', fontSize: 15, color: '#6b7280', lineHeight: 1.7 } },
               ],
             },
@@ -428,20 +432,39 @@ async function main() {
 
   // ══════════════════════════════════════════════════════════════════════════
   // SECTION 3 — CONCRETE MIXES (FLEXIBLE, dark bg, particle-field animation)
-  // Grid: 3 cols × 5 rows
-  //   Row 1: full-width heading (colSpan 3)
-  //   Rows 2–3: 3 product cards (15, 20, 25 MPa)
-  //   Rows 4–5: 2 more cards (30, 40 MPa) — col 3 intentionally empty
+  // Grid: 3 cols × 3 rows
+  //   Row 1: full-width heading (colSpan 3, auto)
+  //   Row 2: 15, 20, 25 MPa cards (1fr — card is now fill type)
+  //   Row 3: 30, 40 MPa cards in col 1+2 (1fr); col 3 empty
+  // MPa number and unit are on separate lines — number very large, unit small
   // ══════════════════════════════════════════════════════════════════════════
+  const mixCard = (id: number, col: number, grade: string, label: string, usecase: string, desc: string) => ({
+    id,
+    type: 'card',
+    position: { row: col <= 3 ? 2 : 3, col: col <= 3 ? col : col - 3 },
+    props: { bgColor: '#374151', borderRadius: 12, paddingTop: 28, paddingBottom: 28, paddingX: 28 },
+    subElements: [
+      { type: 'heading', props: { text: label.toUpperCase(), fontSize: 10, fontWeight: '700', color: '#4a7c59', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 } },
+      { type: 'heading', props: { text: grade, fontSize: 64, fontWeight: '900', color: '#ffffff', lineHeight: 0.9, marginBottom: 4 } },
+      { type: 'heading', props: { text: 'MPa', fontSize: 18, fontWeight: '600', color: '#86efac', marginBottom: 14 } },
+      { type: 'divider', props: { dividerColor: '#4a7c59', thickness: 2, marginBottom: 14 } },
+      { type: 'heading', props: { text: usecase, fontSize: 15, fontWeight: '600', color: '#e5e7eb', marginBottom: 8 } },
+      { type: 'paragraph', props: { text: desc, fontSize: 13, color: '#9ca3af', lineHeight: 1.6 } },
+    ],
+  });
+
   await prisma.section.create({
     data: {
       pageId: page.id,
       createdBy: admin.id,
       type: 'FLEXIBLE',
       enabled: true,
-      order: order++,        // 2
+      order: order++,
       displayName: 'Concrete Mixes',
+      navLabel: 'Mixes',
       background: '#1f2937',
+      paddingTop: 60,
+      paddingBottom: 60,
       content: j({
         animBg: {
           enabled: true,
@@ -451,85 +474,25 @@ async function main() {
         },
         designerData: {
           layoutType: 'grid',
-          grid: { cols: 3, rows: 5, gap: 20 },
+          grid: { cols: 3, rows: 3, gap: 20 },
           blocks: [
             {
               id: 10, type: 'text',
               position: { row: 1, col: 1, colSpan: 3 },
-              props: { textAlign: 'center', paddingTop: 24, paddingBottom: 8 },
+              props: { textAlign: 'center', paddingTop: 0, paddingBottom: 4 },
               subElements: [
-                { type: 'heading', props: { text: 'OUR PRODUCTS', fontSize: 11, fontWeight: '700', color: '#4a7c59', letterSpacing: 2, textTransform: 'uppercase', textAlign: 'center', marginBottom: 14 } },
-                { type: 'heading', props: { text: 'The Right Mix for Every Job', fontSize: 40, fontWeight: '900', color: '#ffffff', textAlign: 'center', lineHeight: 1.1, marginBottom: 10 } },
+                { type: 'heading', props: { text: 'OUR PRODUCTS', fontSize: 11, fontWeight: '700', color: '#4a7c59', letterSpacing: 2, textTransform: 'uppercase', textAlign: 'center', marginBottom: 12 } },
+                { type: 'heading', props: { text: 'The Right Mix for Every Job.', fontSize: 40, fontWeight: '900', color: '#ffffff', textAlign: 'center', lineHeight: 1.1, marginBottom: 8 } },
                 { type: 'paragraph', props: { text: 'All mixes are batched to SABS standards and delivered by our own fleet.', fontSize: 16, color: '#9ca3af', textAlign: 'center', lineHeight: 1.6 } },
               ],
             },
-            // Row 2 — 15 MPa, 20 MPa, 25 MPa
-            {
-              id: 11, type: 'card',
-              position: { row: 2, col: 1, rowSpan: 2 },
-              props: { bgColor: '#374151', borderRadius: 12, paddingTop: 24, paddingBottom: 24, paddingX: 24 },
-              subElements: [
-                { type: 'heading', props: { text: 'LIGHT DUTY', fontSize: 10, fontWeight: '700', color: '#4a7c59', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 } },
-                { type: 'heading', props: { text: '15 MPa', fontSize: 56, fontWeight: '900', color: '#ffffff', lineHeight: 1, marginBottom: 10 } },
-                { type: 'divider', props: { dividerColor: '#4a7c59', thickness: 2 } },
-                { type: 'heading', props: { text: 'Residential', fontSize: 15, fontWeight: '600', color: '#e5e7eb', marginBottom: 8 } },
-                { type: 'paragraph', props: { text: 'Foundations, kerbing, walkways and garden walls. Ideal for light-duty residential applications.', fontSize: 13, color: '#9ca3af', lineHeight: 1.6, marginBottom: 20 } },
-                { type: 'button', props: { text: 'Enquire →', navTarget: '#contact', bgColor: 'transparent', textColor: '#4a7c59', paddingX: 0, paddingY: 4, borderRadius: 0 } },
-              ],
-            },
-            {
-              id: 12, type: 'card',
-              position: { row: 2, col: 2, rowSpan: 2 },
-              props: { bgColor: '#374151', borderRadius: 12, paddingTop: 24, paddingBottom: 24, paddingX: 24 },
-              subElements: [
-                { type: 'heading', props: { text: 'STANDARD', fontSize: 10, fontWeight: '700', color: '#4a7c59', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 } },
-                { type: 'heading', props: { text: '20 MPa', fontSize: 56, fontWeight: '900', color: '#ffffff', lineHeight: 1, marginBottom: 10 } },
-                { type: 'divider', props: { dividerColor: '#4a7c59', thickness: 2 } },
-                { type: 'heading', props: { text: 'Floor Slabs', fontSize: 15, fontWeight: '600', color: '#e5e7eb', marginBottom: 8 } },
-                { type: 'paragraph', props: { text: 'Floor slabs, driveways and residential walls. The go-to mix for most domestic construction.', fontSize: 13, color: '#9ca3af', lineHeight: 1.6, marginBottom: 20 } },
-                { type: 'button', props: { text: 'Enquire →', navTarget: '#contact', bgColor: 'transparent', textColor: '#4a7c59', paddingX: 0, paddingY: 4, borderRadius: 0 } },
-              ],
-            },
-            {
-              id: 13, type: 'card',
-              position: { row: 2, col: 3, rowSpan: 2 },
-              props: { bgColor: '#374151', borderRadius: 12, paddingTop: 24, paddingBottom: 24, paddingX: 24 },
-              subElements: [
-                { type: 'heading', props: { text: 'STRUCTURAL', fontSize: 10, fontWeight: '700', color: '#4a7c59', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 } },
-                { type: 'heading', props: { text: '25 MPa', fontSize: 56, fontWeight: '900', color: '#ffffff', lineHeight: 1, marginBottom: 10 } },
-                { type: 'divider', props: { dividerColor: '#4a7c59', thickness: 2 } },
-                { type: 'heading', props: { text: 'Commercial', fontSize: 15, fontWeight: '600', color: '#e5e7eb', marginBottom: 8 } },
-                { type: 'paragraph', props: { text: 'Structural beams, columns and commercial slabs. Meets standard structural requirements.', fontSize: 13, color: '#9ca3af', lineHeight: 1.6, marginBottom: 20 } },
-                { type: 'button', props: { text: 'Enquire →', navTarget: '#contact', bgColor: 'transparent', textColor: '#4a7c59', paddingX: 0, paddingY: 4, borderRadius: 0 } },
-              ],
-            },
-            // Row 4 — 30 MPa, 40 MPa (in cols 1 and 2; col 3 empty)
-            {
-              id: 14, type: 'card',
-              position: { row: 4, col: 1, rowSpan: 2 },
-              props: { bgColor: '#374151', borderRadius: 12, paddingTop: 24, paddingBottom: 24, paddingX: 24 },
-              subElements: [
-                { type: 'heading', props: { text: 'HEAVY LOAD', fontSize: 10, fontWeight: '700', color: '#4a7c59', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 } },
-                { type: 'heading', props: { text: '30 MPa', fontSize: 56, fontWeight: '900', color: '#ffffff', lineHeight: 1, marginBottom: 10 } },
-                { type: 'divider', props: { dividerColor: '#4a7c59', thickness: 2 } },
-                { type: 'heading', props: { text: 'Industrial Slabs', fontSize: 15, fontWeight: '600', color: '#e5e7eb', marginBottom: 8 } },
-                { type: 'paragraph', props: { text: 'Warehouse floors and high-traffic areas requiring superior load-bearing capacity.', fontSize: 13, color: '#9ca3af', lineHeight: 1.6, marginBottom: 20 } },
-                { type: 'button', props: { text: 'Enquire →', navTarget: '#contact', bgColor: 'transparent', textColor: '#4a7c59', paddingX: 0, paddingY: 4, borderRadius: 0 } },
-              ],
-            },
-            {
-              id: 15, type: 'card',
-              position: { row: 4, col: 2, rowSpan: 2 },
-              props: { bgColor: '#374151', borderRadius: 12, paddingTop: 24, paddingBottom: 24, paddingX: 24 },
-              subElements: [
-                { type: 'heading', props: { text: 'INDUSTRIAL', fontSize: 10, fontWeight: '700', color: '#4a7c59', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 } },
-                { type: 'heading', props: { text: '40 MPa', fontSize: 56, fontWeight: '900', color: '#ffffff', lineHeight: 1, marginBottom: 10 } },
-                { type: 'divider', props: { dividerColor: '#4a7c59', thickness: 2 } },
-                { type: 'heading', props: { text: 'High Strength', fontSize: 15, fontWeight: '600', color: '#e5e7eb', marginBottom: 8 } },
-                { type: 'paragraph', props: { text: 'Precast elements, industrial floors and high-stress applications at maximum strength.', fontSize: 13, color: '#9ca3af', lineHeight: 1.6, marginBottom: 20 } },
-                { type: 'button', props: { text: 'Enquire →', navTarget: '#contact', bgColor: 'transparent', textColor: '#4a7c59', paddingX: 0, paddingY: 4, borderRadius: 0 } },
-              ],
-            },
+            // Row 2: top 3 grade cards
+            mixCard(11, 1, '15', 'Light Duty',  'Residential',    'Foundations, kerbing, walkways and garden walls. Ideal for light-duty residential applications.'),
+            mixCard(12, 2, '20', 'Standard',    'Floor Slabs',    'Floor slabs, driveways and residential walls. The go-to mix for most domestic construction.'),
+            mixCard(13, 3, '25', 'Structural',  'Commercial',     'Structural beams, columns and commercial slabs. Meets standard structural requirements.'),
+            // Row 3: bottom 2 grade cards (col 3 intentionally empty)
+            mixCard(14, 4, '30', 'Heavy Load',  'Industrial Slabs','Warehouse floors and high-traffic areas requiring superior load-bearing capacity.'),
+            mixCard(15, 5, '40', 'Industrial',  'High Strength',  'Precast elements, industrial floors and high-stress applications at maximum strength.'),
           ],
         },
       }),
@@ -548,10 +511,7 @@ async function main() {
   console.log('✅ Section 3: Concrete Mixes (FLEXIBLE, particle-field, 5 grade cards)');
 
   // ══════════════════════════════════════════════════════════════════════════
-  // SECTION 4 — PARALLAX SHOWCASE (FLEXIBLE, fixed-bg parallax, stats)
-  // bg image = fixed attachment concrete truck photo
-  // Col 1: label + heading + body + stats + calculator button
-  // Col 2: empty (motion element floating image card overlays this area)
+  // SECTION 4 — PARALLAX SHOWCASE
   // ══════════════════════════════════════════════════════════════════════════
   await prisma.section.create({
     data: {
@@ -559,8 +519,9 @@ async function main() {
       createdBy: admin.id,
       type: 'FLEXIBLE',
       enabled: true,
-      order: order++,        // 3
+      order: order++,
       displayName: 'By the Numbers',
+      navLabel: 'Numbers',
       background: '#111827',
       bgImageUrl: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=1600&q=80',
       bgImageSize: 'cover',
@@ -610,8 +571,7 @@ async function main() {
   console.log('✅ Section 4: Parallax Showcase (FLEXIBLE, motion element, stats)');
 
   // ══════════════════════════════════════════════════════════════════════════
-  // SECTION 5 — DELIVERY AREA (FLEXIBLE, 2-col: text left + coverage map right)
-  // Uses 'coverage-map' block type — renders Leaflet map with overberg regions
+  // SECTION 5 — DELIVERY AREA
   // ══════════════════════════════════════════════════════════════════════════
   await prisma.section.create({
     data: {
@@ -619,8 +579,9 @@ async function main() {
       createdBy: admin.id,
       type: 'FLEXIBLE',
       enabled: true,
-      order: order++,        // 4
+      order: order++,
       displayName: 'Delivery Area',
+      navLabel: 'Delivery',
       background: '#f8fafc',
       content: j({
         designerData: {
@@ -652,8 +613,9 @@ async function main() {
   console.log('✅ Section 5: Delivery Area (FLEXIBLE, coverage-map block)');
 
   // ══════════════════════════════════════════════════════════════════════════
-  // SECTION 6 — OUR PROJECTS (FLEXIBLE, dark bg, projects-gallery block)
-  // moving-gradient animated bg, wave lower-third
+  // SECTION 6 — OUR PROJECTS (FLEXIBLE, dark bg, 2×2 photo-card grid)
+  // Row 1: heading col 1 + "View All Projects →" button col 2 (right-aligned)
+  // Rows 2–3: 4 photo-card blocks in a 2×2 grid
   // ══════════════════════════════════════════════════════════════════════════
   await prisma.section.create({
     data: {
@@ -661,8 +623,9 @@ async function main() {
       createdBy: admin.id,
       type: 'FLEXIBLE',
       enabled: true,
-      order: order++,        // 5
+      order: order++,
       displayName: 'Our Projects',
+      navLabel: 'Projects',
       background: '#111827',
       content: j({
         animBg: {
@@ -675,15 +638,26 @@ async function main() {
           layoutType: 'grid',
           grid: { cols: 2, rows: 3, gap: 20 },
           blocks: [
+            // Row 1 col 1: heading
             {
               id: 40, type: 'text',
-              position: { row: 1, col: 1, colSpan: 2 },
+              position: { row: 1, col: 1 },
               props: { textAlign: 'left', paddingTop: 16, paddingBottom: 8 },
               subElements: [
                 { type: 'heading', props: { text: 'REFERENCE PROJECTS', fontSize: 11, fontWeight: '700', color: '#4a7c59', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12 } },
                 { type: 'heading', props: { text: 'Poured Into the Overberg.', fontSize: 44, fontWeight: '900', color: '#ffffff', lineHeight: 1.05, marginBottom: 0 } },
               ],
             },
+            // Row 1 col 2: "View All Projects →" button, right-aligned
+            {
+              id: 45, type: 'text',
+              position: { row: 1, col: 2 },
+              props: { textAlign: 'right', paddingTop: 16, paddingBottom: 8, paddingX: 0, verticalAlign: 'bottom' },
+              subElements: [
+                { type: 'button', props: { text: 'View All Projects →', navTarget: '/projects', bgColor: 'transparent', textColor: '#4a7c59', paddingX: 24, paddingY: 12, borderRadius: 8, borderWidth: 1, borderColor: '#4a7c59' } },
+              ],
+            },
+            // Rows 2–3: 4 photo-card blocks
             {
               id: 41, type: 'photo-card',
               position: { row: 2, col: 1 },
@@ -743,10 +717,13 @@ async function main() {
       }),
     },
   });
-  console.log('✅ Section 6: Our Projects (FLEXIBLE, projects-gallery, moving-gradient)');
+  console.log('✅ Section 6: Our Projects (FLEXIBLE, 4 photo-cards 2×2)');
 
   // ══════════════════════════════════════════════════════════════════════════
-  // SECTION 7 — GET A QUOTE (CTA, contact form, floating-shapes, ripple LT)
+  // SECTION 7 — GET A QUOTE (CTA, contact form)
+  // Name + Phone are fieldWidth: 'half' for side-by-side layout
+  // contactInfo shows phone/email/address on the left panel
+  // submitText: 'Send Enquiry →'
   // ══════════════════════════════════════════════════════════════════════════
   await prisma.section.create({
     data: {
@@ -754,7 +731,7 @@ async function main() {
       createdBy: admin.id,
       type: 'CTA',
       enabled: true,
-      order: order++,        // 6
+      order: order++,
       displayName: 'Get a Quote',
       background: '#2d5a3d',
       content: j({
@@ -766,11 +743,17 @@ async function main() {
         },
         style: 'contact-form',
         heading: 'Ready to Order?',
-        subheading: 'Call us or fill in the form and we\'ll get back to you within 2 hours.',
+        subheading: 'Call us or fill in the form and we\'ll get back to you within 2 hours during business hours.',
         formTitle: 'Get a Quote',
+        submitText: 'Send Enquiry →',
+        contactInfo: {
+          phone: '+27 (0)28 123 4567',
+          email: 'info@overbergreadymix.co.za',
+          address: 'Overberg Region, Western Cape',
+        },
         formFields: [
-          { id: 'name',    label: 'Name',                   type: 'text',     required: true,  placeholder: 'Your name' },
-          { id: 'phone',   label: 'Phone',                  type: 'tel',      required: true,  placeholder: '+27 ...' },
+          { id: 'name',    label: 'Name',                   type: 'text',     required: true,  placeholder: 'Your name',                      fieldWidth: 'half' },
+          { id: 'phone',   label: 'Phone',                  type: 'tel',      required: true,  placeholder: '+27 ...',                        fieldWidth: 'half' },
           { id: 'project', label: 'Project Description',    type: 'textarea', required: false, placeholder: 'Brief description of your project...' },
           { id: 'volume',  label: 'Volume Estimate (m³)',   type: 'text',     required: false, placeholder: 'e.g. 6' },
         ],
@@ -790,7 +773,7 @@ async function main() {
       }),
     },
   });
-  console.log('✅ Section 7: Get a Quote (CTA, contact form, ripple lower-third)');
+  console.log('✅ Section 7: Get a Quote (CTA, contact form, Send Enquiry)');
 
   // ══════════════════════════════════════════════════════════════════════════
   // SECTION 8 — FOOTER
@@ -801,7 +784,7 @@ async function main() {
       createdBy: admin.id,
       type: 'FOOTER',
       enabled: true,
-      order: order++,        // 7
+      order: order++,
       displayName: 'Footer',
       background: '#111827',
       content: j({
@@ -816,11 +799,11 @@ async function main() {
             heading: 'Quick Links',
             links: [
               { text: 'Home',                href: '/' },
-              { text: 'Concrete Mixes',      href: '#mixes' },
+              { text: 'Concrete Mixes',      href: '/mixes' },
               { text: 'Concrete Calculator', href: '/calculator' },
-              { text: 'Delivery Area',       href: '#delivery' },
-              { text: 'Projects',            href: '#projects' },
-              { text: 'About Us',            href: '#about' },
+              { text: 'Delivery Area',       href: '/coverage' },
+              { text: 'Projects',            href: '/projects' },
+              { text: 'About Us',            href: '/about' },
               { text: 'Get a Quote',         href: '#contact' },
             ],
           },
@@ -850,7 +833,6 @@ async function main() {
   console.log('');
   console.log('   Admin:     http://localhost:3000/admin/login  (admin / admin2026)');
   console.log('   Site:      http://localhost:3000');
-  console.log('   Features:  Admin → Settings → Client Features');
   console.log('');
 }
 

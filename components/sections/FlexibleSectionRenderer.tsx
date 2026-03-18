@@ -1327,7 +1327,7 @@ function DesignerSubElement({ sub }: { sub: SubEl }) {
       }
       // ── divider: simple horizontal rule with configurable colour ─────────
       case "divider":
-        return <hr style={{ borderColor: (p.dividerColor as string) || "#dee2e6", margin: "8px 0" }} />;
+        return <hr style={{ borderColor: (p.dividerColor as string) || "#dee2e6", borderTopWidth: `${Number(p.thickness ?? 2)}px`, borderStyle: "solid", borderLeft: "none", borderRight: "none", borderBottom: "none", margin: "8px 0" }} />;
       // ── icon: Bootstrap Icon with configurable size and colour ────────────
       case "icon":
         return (

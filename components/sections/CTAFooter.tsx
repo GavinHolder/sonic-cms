@@ -26,6 +26,7 @@ interface CTAFooterProps {
   style?: "banner" | "card" | "fullwidth" | "contact-form";
   formFields?: FormField[];
   formTitle?: string;
+  submitText?: string;
   formSuccessMessage?: string;
   sectionName?: string;
 }
@@ -60,6 +61,7 @@ export default function CTAFooter({
   style,
   formFields,
   formTitle,
+  submitText,
   formSuccessMessage,
   sectionName,
 }: CTAFooterProps) {
@@ -215,8 +217,15 @@ export default function CTAFooter({
                         {formTitle}
                       </h5>
                     )}
-                    {formFields.map((field) => (
-                      <div className="mb-3" key={field.id}>
+                    {formFields.map((field, fi) => {
+                      const isHalf = (field as any).fieldWidth === 'half';
+                      const prevHalf = fi > 0 && (formFields[fi - 1] as any).fieldWidth === 'half';
+                      const nextHalf = fi < formFields.length - 1 && (formFields[fi + 1] as any).fieldWidth === 'half';
+                      const wrapperStyle: React.CSSProperties = isHalf
+                        ? { display: 'inline-block', width: '50%', verticalAlign: 'top', paddingRight: nextHalf && !prevHalf ? '8px' : '0', paddingLeft: prevHalf ? '8px' : '0' }
+                        : { display: 'block' };
+                      return (
+                      <div className="mb-3" key={field.id} style={wrapperStyle}>
                         <label
                           className={`form-label ${isBlueBackground ? "text-white" : ""}`}
                           style={{ fontSize: 14 }}
@@ -278,7 +287,8 @@ export default function CTAFooter({
                           </div>
                         )}
                       </div>
-                    ))}
+                      );
+                    })}
 
                     <button
                       type="submit"
@@ -288,7 +298,7 @@ export default function CTAFooter({
                       {submitting ? (
                         <><span className="spinner-border spinner-border-sm me-2" />Submitting…</>
                       ) : (
-                        <><i className="bi bi-send me-2" />Submit Request</>
+                        <><i className="bi bi-send me-2" />{submitText || "Submit Request"}</>
                       )}
                     </button>
                   </form>
