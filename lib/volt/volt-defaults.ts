@@ -1,5 +1,5 @@
 // lib/volt/volt-defaults.ts
-import { VoltLayer, VoltElementData, VoltState, DEFAULT_ANIMATION } from '@/types/volt'
+import { VoltLayer, VoltElementData, VoltState, DEFAULT_ANIMATION, DEFAULT_TEXT } from '@/types/volt'
 import { nanoid } from 'nanoid'
 
 export function createDefaultRestState(): VoltState {
@@ -63,6 +63,31 @@ export function createEllipseLayer(x: number, y: number, w: number, h: number): 
       closed: true,
     },
     animation: { ...DEFAULT_ANIMATION },
+  }
+}
+
+export function createTextLayer(
+  content: string,
+  x: number, y: number, w: number, h: number,
+  overrides?: Partial<import('@/types/volt').VoltTextLayerData>
+): VoltLayer {
+  return {
+    id: nanoid(),
+    name: content.slice(0, 24) || 'Text',
+    type: 'text',
+    role: 'content',
+    x, y, width: w, height: h,
+    rotation: 0,
+    zIndex: 10,
+    visible: true,
+    locked: false,
+    opacity: 1,
+    blendMode: 'normal',
+    textLayerData: { ...DEFAULT_TEXT, content, ...overrides },
+    animation: {
+      ...DEFAULT_ANIMATION,
+      animates: { opacity: true, scale: false, position: true, rotation: false, fill: false },
+    },
   }
 }
 

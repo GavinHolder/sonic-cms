@@ -28,6 +28,7 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
   const activeAnimationsRef = useRef<AnimeAnimation[]>([])
   const isFlippedRef  = useRef(false)
   const autoTimerRef  = useRef<ReturnType<typeof setInterval> | null>(null)
+  const isTiltingRef  = useRef(false)
 
   const { layers, states, canvasWidth, canvasHeight, flipCard } = voltElement
   const sortedLayers = sortLayersByZ(layers)
@@ -37,14 +38,25 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
   const flipTrigger    = flipCard?.trigger     ?? 'hover'
   const flipAxis       = flipCard?.axis === 'x' ? 'rotateX' : 'rotateY'
   const flipDuration   = flipCard?.duration    ?? 600
-  const flipEase       = flipCard?.ease        ?? 'easeInOut'
   const flipDirection  = flipCard?.direction   ?? 'right'
   const flipPerspective = flipCard?.perspective ?? 1200
   const flipAutoInterval = flipCard?.autoInterval ?? 3000
 
+  // ── Spring ease string builder ─────────────────────────────────────────────
+  // Anime.js v4 accepts 'spring(mass, stiffness, damping, velocity)' as an ease string
+  const rawFlipEase = flipCard?.ease ?? 'easeInOut'
+  const flipEase = rawFlipEase === 'spring'
+    ? `spring(${flipCard?.springMass ?? 1}, ${flipCard?.springStiffness ?? 180}, ${flipCard?.springDamping ?? 12}, ${flipCard?.springVelocity ?? 0})`
+    : rawFlipEase
+
   // Layers split by face for flip card mode.
   const frontLayers = isFlip ? sortedLayers.filter(l => l.face !== 'back') : sortedLayers
   const backLayers  = isFlip ? sortedLayers.filter(l => l.face === 'back')  : []
+
+  // ── 3D tilt config ────────────────────────────────────────────────────────
+  const tiltEnabled    = voltElement.tiltEnabled ?? false
+  const tiltMaxDeg     = voltElement.tiltMaxDeg ?? 8
+  const tiltPerspective = voltElement.tiltPerspective ?? 800
 
   useEffect(() => {
     const el = containerRef.current
@@ -124,13 +136,10 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
 
         const isHoriz  = flipDirection === 'left' || flipDirection === 'right'
         const prop     = isHoriz ? 'translateX' : 'translateY'
-        // Which direction the front slides OUT when going to back
         const outVal   = (flipDirection === 'right' || flipDirection === 'down') ? '-100%' : '100%'
-        // Where the back starts before sliding IN
         const inStart  = (flipDirection === 'right' || flipDirection === 'down') ? '100%'  : '-100%'
 
         if (toBack) {
-          // Reset back to off-screen start position
           if (isHoriz) back.style.transform = `translateX(${inStart})`
           else         back.style.transform = `translateY(${inStart})`
           const a1 = animate(front, { [prop]: outVal, duration: flipDuration, ease: flipEase }) as AnimeAnimation
@@ -153,16 +162,14 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
         const half = Math.round(flipDuration * 0.5)
 
         if (toBack) {
-          // Phase 1: front shrinks + fades out
-          const a1 = animate(front, { opacity: 0, scale: 0.85, duration: half, ease: 'easeIn' }) as AnimeAnimation
+          const a1 = animate(front, { opacity: 0, scale: 0.82, duration: half, ease: 'easeInCubic' }) as AnimeAnimation
           activeAnimationsRef.current.push(a1)
-          // Phase 2: back scales up + fades in
-          const a2 = animate(back,  { opacity: 1, scale: 1,    duration: half, ease: 'easeOut', delay: half }) as AnimeAnimation
+          const a2 = animate(back,  { opacity: 1, scale: 1,    duration: half, ease: flipEase, delay: half }) as AnimeAnimation
           activeAnimationsRef.current.push(a2)
         } else {
-          const a1 = animate(back,  { opacity: 0, scale: 0.85, duration: half, ease: 'easeIn' }) as AnimeAnimation
+          const a1 = animate(back,  { opacity: 0, scale: 0.82, duration: half, ease: 'easeInCubic' }) as AnimeAnimation
           activeAnimationsRef.current.push(a1)
-          const a2 = animate(front, { opacity: 1, scale: 1,    duration: half, ease: 'easeOut', delay: half }) as AnimeAnimation
+          const a2 = animate(front, { opacity: 1, scale: 1,    duration: half, ease: flipEase, delay: half }) as AnimeAnimation
           activeAnimationsRef.current.push(a2)
         }
 
@@ -173,14 +180,13 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
         if (!front || !back) return
 
         const half = Math.round(flipDuration * 0.5)
-        const rotProp = flipAxis  // 'rotateY' or 'rotateX'
+        const rotProp = flipAxis
 
-        // transformOrigin: the edge that acts as the hinge
         const originMap: Record<string, string> = {
-          right: '0% 50%',    // hinge on left edge, right side opens
-          left:  '100% 50%',  // hinge on right edge, left side opens
-          down:  '50% 0%',    // hinge on top edge, bottom opens
-          up:    '50% 100%',  // hinge on bottom edge, top opens
+          right: '0% 50%',
+          left:  '100% 50%',
+          down:  '50% 0%',
+          up:    '50% 100%',
         }
         const origin   = originMap[flipDirection] ?? '0% 50%'
         const frontOut = (flipDirection === 'right' || flipDirection === 'down') ? '-90deg' : '90deg'
@@ -190,16 +196,14 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
         back.style.transformOrigin  = origin
 
         if (toBack) {
-          // Reset back to its start angle
           back.style.transform = `${rotProp}(${backFrom})`
-          const a1 = animate(front, { [rotProp]: frontOut, duration: half, ease: 'easeIn' }) as AnimeAnimation
-          // Slight overlap (45% delay) for seamless transition
-          const a2 = animate(back,  { [rotProp]: '0deg',   duration: half, ease: 'easeOut', delay: Math.round(flipDuration * 0.45) }) as AnimeAnimation
+          const a1 = animate(front, { [rotProp]: frontOut, duration: half, ease: 'easeInCubic' }) as AnimeAnimation
+          const a2 = animate(back,  { [rotProp]: '0deg',   duration: half, ease: flipEase, delay: Math.round(flipDuration * 0.45) }) as AnimeAnimation
           activeAnimationsRef.current.push(a1, a2)
         } else {
           front.style.transform = `${rotProp}(${backFrom})`
-          const a1 = animate(back,  { [rotProp]: frontOut, duration: half, ease: 'easeIn' }) as AnimeAnimation
-          const a2 = animate(front, { [rotProp]: '0deg',   duration: half, ease: 'easeOut', delay: Math.round(flipDuration * 0.45) }) as AnimeAnimation
+          const a1 = animate(back,  { [rotProp]: frontOut, duration: half, ease: 'easeInCubic' }) as AnimeAnimation
+          const a2 = animate(front, { [rotProp]: '0deg',   duration: half, ease: flipEase, delay: Math.round(flipDuration * 0.45) }) as AnimeAnimation
           activeAnimationsRef.current.push(a1, a2)
         }
       }
@@ -242,6 +246,74 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
       }, flipAutoInterval)
     }
 
+    // ── 3D Tilt + parallax depth ─────────────────────────────────────────────
+    // Only active on non-flip cards (flip cards already have 3D perspective from the flip itself)
+    let tiltRafId = 0
+    let targetMX = 0
+    let targetMY = 0
+    let currentMX = 0
+    let currentMY = 0
+
+    const onTiltMove = (e: MouseEvent) => {
+      const rect = el.getBoundingClientRect()
+      targetMX = ((e.clientX - rect.left) / rect.width  - 0.5) * 2  // -1 to 1
+      targetMY = ((e.clientY - rect.top)  / rect.height - 0.5) * 2  // -1 to 1
+    }
+
+    function tiltFrame() {
+      if (!isTiltingRef.current || !el) return
+      // Smooth lerp toward target
+      currentMX += (targetMX - currentMX) * 0.12
+      currentMY += (targetMY - currentMY) * 0.12
+
+      const tx = currentMX * tiltMaxDeg
+      const ty = currentMY * tiltMaxDeg
+      el.style.transform = `perspective(${tiltPerspective}px) rotateX(${-ty}deg) rotateY(${tx}deg) scale(1.02)`
+
+      // Parallax depth layers
+      el.querySelectorAll<HTMLElement>('[data-volt-z]').forEach(layerEl => {
+        const z = parseFloat(layerEl.dataset.voltZ || '0')
+        if (z === 0) return
+        const factor = z / 120  // z=120 → ~full parallax range
+        const px = currentMX * factor * 14
+        const py = currentMY * factor * 14
+        const baseRot = layerEl.dataset.voltBaseRot || ''
+        layerEl.style.transform = `translate(${px}px, ${py}px)${baseRot ? ` ${baseRot}` : ''}`
+      })
+
+      tiltRafId = requestAnimationFrame(tiltFrame)
+    }
+
+    const onTiltEnter = () => {
+      if (!tiltEnabled || isFlip) return
+      isTiltingRef.current = true
+      el.style.transition = 'transform 0.1s ease-out'
+      tiltRafId = requestAnimationFrame(tiltFrame)
+    }
+
+    const onTiltLeave = () => {
+      if (!tiltEnabled || isFlip) return
+      isTiltingRef.current = false
+      cancelAnimationFrame(tiltRafId)
+      targetMX = 0; targetMY = 0
+
+      // Animate back to flat
+      el.style.transition = 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)'
+      el.style.transform = 'perspective(800px) rotateX(0deg) rotateY(0deg) scale(1)'
+
+      el.querySelectorAll<HTMLElement>('[data-volt-z]').forEach(layerEl => {
+        const baseRot = layerEl.dataset.voltBaseRot || ''
+        layerEl.style.transition = 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)'
+        layerEl.style.transform = baseRot || ''
+      })
+    }
+
+    if (tiltEnabled && !isFlip) {
+      el.addEventListener('mouseenter', onTiltEnter)
+      el.addEventListener('mousemove',  onTiltMove)
+      el.addEventListener('mouseleave', onTiltLeave)
+    }
+
     return () => {
       el.removeEventListener('mouseenter', onEnter)
       el.removeEventListener('mouseleave', onLeave)
@@ -251,8 +323,15 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
       activeAnimationsRef.current.forEach(anim => anim.cancel())
       activeAnimationsRef.current = []
       if (autoTimerRef.current) { clearInterval(autoTimerRef.current); autoTimerRef.current = null }
+      if (tiltEnabled && !isFlip) {
+        el.removeEventListener('mouseenter', onTiltEnter)
+        el.removeEventListener('mousemove',  onTiltMove)
+        el.removeEventListener('mouseleave', onTiltLeave)
+        isTiltingRef.current = false
+        cancelAnimationFrame(tiltRafId)
+      }
     }
-  }, [voltElement, isFlip, flipAnimType, flipTrigger, flipAxis, flipDuration, flipEase, flipDirection, flipPerspective, flipAutoInterval])
+  }, [voltElement, isFlip, flipAnimType, flipTrigger, flipAxis, flipDuration, flipEase, flipDirection, flipPerspective, flipAutoInterval, tiltEnabled, tiltMaxDeg, tiltPerspective, layers, states])
 
   const aspectRatio = `${canvasWidth} / ${canvasHeight}`
 
@@ -292,6 +371,150 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
       })
   }
 
+  /**
+   * Converts a VoltLayerEffects object into CSS box-shadow + filter strings.
+   * Returns an object with `boxShadow` and `filter` ready to spread into a style prop.
+   */
+  function layerEffectStyles(layer: typeof sortedLayers[0]): React.CSSProperties {
+    const fx = layer.effects
+    if (!fx) return {}
+
+    const shadows: string[] = []
+    const filters: string[] = []
+
+    if (fx.dropShadow?.enabled) {
+      const s = fx.dropShadow
+      const rgba = hexToRgba(s.color, s.opacity)
+      const inset = s.inset ? 'inset ' : ''
+      shadows.push(`${inset}${s.offsetX}px ${s.offsetY}px ${s.blur}px ${s.spread}px ${rgba}`)
+    }
+
+    if (fx.outerGlow?.enabled) {
+      const g = fx.outerGlow
+      const rgba = hexToRgba(g.color, g.opacity)
+      shadows.push(`0 0 ${g.blur}px ${g.spread}px ${rgba}`)
+    }
+
+    if (fx.layerBlur?.enabled) {
+      filters.push(`blur(${fx.layerBlur.blur}px)`)
+    }
+
+    const result: React.CSSProperties = {}
+    if (shadows.length) result.boxShadow = shadows.join(', ')
+    if (filters.length) result.filter = filters.join(' ')
+    return result
+  }
+
+  function hexToRgba(hex: string, opacity: number): string {
+    const h = hex.replace('#', '')
+    const r = parseInt(h.substring(0, 2), 16)
+    const g = parseInt(h.substring(2, 4), 16)
+    const b = parseInt(h.substring(4, 6), 16)
+    return `rgba(${r},${g},${b},${opacity})`
+  }
+
+  /** Renders text layers as positioned HTML divs with full typography. */
+  function renderTextLayers(layerList: typeof sortedLayers) {
+    return layerList
+      .filter(l => l.type === 'text' && l.visible !== false && l.textLayerData)
+      .map(layer => {
+        const td = layer.textLayerData!
+        // fontSize scaled by cqw: stored as px at canvasWidth → renders proportionally
+        const fontSizeCqw = `${(td.fontSize / canvasWidth) * 100}cqw`
+        const letterSpacingCqw = td.letterSpacing
+          ? `${(td.letterSpacing / canvasWidth) * 100}cqw`
+          : undefined
+        const alignItems =
+          td.verticalAlign === 'center' ? 'center' :
+          td.verticalAlign === 'bottom' ? 'flex-end' : 'flex-start'
+
+        return (
+          <div
+            key={layer.id}
+            id={`volt-layer-${layer.id}`}
+            data-volt-z={layer.translateZ && layer.translateZ !== 0 ? layer.translateZ : undefined}
+            data-volt-base-rot={layer.rotation ? `rotate(${layer.rotation}deg)` : undefined}
+            style={{
+              position: 'absolute',
+              left: `${layer.x}%`,
+              top: `${layer.y}%`,
+              width: `${layer.width}%`,
+              height: `${layer.height}%`,
+              opacity: layer.opacity ?? 1,
+              transform: layer.rotation ? `rotate(${layer.rotation}deg)` : undefined,
+              mixBlendMode: layer.blendMode as React.CSSProperties['mixBlendMode'],
+              display: 'flex',
+              alignItems,
+              overflow: 'hidden',
+              pointerEvents: 'none',
+              willChange: (layer.translateZ ?? 0) !== 0 ? 'transform' : undefined,
+              ...layerEffectStyles(layer),
+            }}
+          >
+            <div
+              style={{
+                width: '100%',
+                fontFamily: td.fontFamily,
+                fontSize: fontSizeCqw,
+                fontWeight: td.fontWeight,
+                fontStyle: td.fontStyle,
+                color: td.color,
+                textAlign: td.textAlign as React.CSSProperties['textAlign'],
+                lineHeight: td.lineHeight,
+                letterSpacing: letterSpacingCqw,
+                textTransform: td.textTransform as React.CSSProperties['textTransform'],
+                whiteSpace: td.wordWrap ? 'pre-wrap' : 'nowrap',
+                wordBreak: td.wordWrap ? 'break-word' : undefined,
+              }}
+            >
+              {td.content}
+            </div>
+          </div>
+        )
+      })
+  }
+
+  /** Renders image layers with optional parallax depth support. */
+  function renderImageLayers(layerList: typeof sortedLayers) {
+    return layerList
+      .filter(l => l.type === 'image' && l.visible !== false && l.imageData?.url)
+      .map(layer => {
+        const z = layer.translateZ ?? 0
+        const baseRot = layer.rotation ? `rotate(${layer.rotation}deg)` : ''
+        return (
+          <div
+            key={layer.id}
+            id={`volt-layer-${layer.id}`}
+            data-volt-z={z !== 0 ? z : undefined}
+            data-volt-base-rot={baseRot || undefined}
+            style={{
+              position: 'absolute',
+              left: `${layer.x}%`,
+              top: `${layer.y}%`,
+              width: `${layer.width}%`,
+              height: `${layer.height}%`,
+              opacity: layer.opacity ?? 1,
+              transform: baseRot || undefined,
+              overflow: 'hidden',
+              willChange: z !== 0 ? 'transform' : undefined,
+              ...layerEffectStyles(layer),
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={layer.imageData!.url}
+              alt={layer.imageData!.alt ?? ''}
+              style={{
+                width: '100%', height: '100%',
+                objectFit: layer.imageData!.mode === 'fit' ? 'contain' : 'cover',
+                display: 'block',
+              }}
+            />
+          </div>
+        )
+      })
+  }
+
   /** Renders a single face's layers (vectors, slots, images). */
   function renderFaceContent(faceLayers: typeof sortedLayers) {
     return (
@@ -327,35 +550,8 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
             />
           ))}
 
-        {faceLayers
-          .filter(l => l.type === 'image' && l.visible !== false && l.imageData?.url)
-          .map(layer => (
-            <div
-              key={layer.id}
-              id={`volt-layer-${layer.id}`}
-              style={{
-                position: 'absolute',
-                left: `${layer.x}%`,
-                top: `${layer.y}%`,
-                width: `${layer.width}%`,
-                height: `${layer.height}%`,
-                opacity: layer.opacity ?? 1,
-                transform: layer.rotation ? `rotate(${layer.rotation}deg)` : undefined,
-                overflow: 'hidden',
-              }}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={layer.imageData!.url}
-                alt={layer.imageData!.alt ?? ''}
-                style={{
-                  width: '100%', height: '100%',
-                  objectFit: layer.imageData!.mode === 'fit' ? 'contain' : 'cover',
-                  display: 'block',
-                }}
-              />
-            </div>
-          ))}
+        {renderImageLayers(faceLayers)}
+        {renderTextLayers(faceLayers)}
       </>
     )
   }
@@ -365,7 +561,6 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
     const needs3DPerspective = flipAnimType === 'flip3d' || flipAnimType === 'swing'
     const clickable = flipTrigger === 'click'
 
-    // Compute initial transforms for back face based on animation type
     let backInitTransform: string | undefined
     let backInitOpacity: number | undefined
 
@@ -376,7 +571,7 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
       const inStart = (flipDirection === 'right' || flipDirection === 'down') ? '100%' : '-100%'
       backInitTransform = isHoriz ? `translateX(${inStart})` : `translateY(${inStart})`
     } else if (flipAnimType === 'scalefade') {
-      backInitTransform = 'scale(0.85)'
+      backInitTransform = 'scale(0.82)'
       backInitOpacity   = 0
     } else if (flipAnimType === 'swing') {
       const backFrom = (flipDirection === 'right' || flipDirection === 'down') ? '90deg' : '-90deg'
@@ -391,11 +586,11 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
           style={{
             position: 'relative', width: '100%', aspectRatio,
             perspective: `${flipPerspective}px`,
+            containerType: 'inline-size',
             cursor: clickable ? 'pointer' : undefined,
             ...style,
           }}
         >
-          {/* preserve-3d container — animejs rotates this for the 3D flip */}
           <div
             ref={flipInnerRef}
             style={{ position: 'absolute', inset: 0, transformStyle: 'preserve-3d' }}
@@ -414,7 +609,7 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
       )
     }
 
-    // slide / scalefade / swing — both faces overlap, animated independently
+    // slide / scalefade / swing
     return (
       <div
         ref={containerRef}
@@ -423,6 +618,7 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
           position: 'relative', width: '100%', aspectRatio,
           overflow: flipAnimType === 'slide' ? 'hidden' : undefined,
           perspective: needs3DPerspective ? `${flipPerspective}px` : undefined,
+          containerType: 'inline-size',
           cursor: clickable ? 'pointer' : undefined,
           ...style,
         }}
@@ -452,7 +648,13 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
     <div
       ref={containerRef}
       className={className}
-      style={{ position: 'relative', width: '100%', aspectRatio, overflow: 'hidden', ...style }}
+      style={{
+        position: 'relative', width: '100%', aspectRatio,
+        overflow: 'hidden',
+        containerType: 'inline-size',   // enables cqw units for text layer font scaling
+        willChange: tiltEnabled ? 'transform' : undefined,
+        ...style,
+      }}
     >
       {renderGlassOverlays(sortedLayers)}
       <svg
@@ -485,36 +687,8 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
           />
         ))}
 
-      {sortedLayers
-        .filter(l => l.type === 'image' && l.visible !== false && l.imageData?.url)
-        .map(layer => (
-          <div
-            key={layer.id}
-            id={`volt-layer-${layer.id}`}
-            style={{
-              position: 'absolute',
-              left: `${layer.x}%`,
-              top: `${layer.y}%`,
-              width: `${layer.width}%`,
-              height: `${layer.height}%`,
-              opacity: layer.opacity ?? 1,
-              transform: layer.rotation ? `rotate(${layer.rotation}deg)` : undefined,
-              overflow: 'hidden',
-            }}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={layer.imageData!.url}
-              alt={layer.imageData!.alt ?? ''}
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: layer.imageData!.mode === 'fit' ? 'contain' : 'cover',
-                display: 'block',
-              }}
-            />
-          </div>
-        ))}
+      {renderImageLayers(sortedLayers)}
+      {renderTextLayers(sortedLayers)}
     </div>
   )
 }

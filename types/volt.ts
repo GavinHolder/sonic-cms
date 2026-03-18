@@ -9,7 +9,7 @@ export type BlendMode =
 
 export type LayerType =
   | 'vector' | 'image' | 'gradient' | 'slot'
-  | 'text-decoration' | 'effect' | 'group' | '3d-object'
+  | 'text' | 'text-decoration' | 'effect' | 'group' | '3d-object'
 
 export type LayerRole = 'background' | 'structure' | 'accent' | 'content' | 'overlay'
 
@@ -114,6 +114,42 @@ export interface VoltImageData {
   opacity: number
 }
 
+/**
+ * Full-featured text layer — the primary way to put text on a Volt design.
+ * fontSize is stored in px at the design canvas width (canvasWidth).
+ * The renderer scales it proportionally using CSS container queries (cqw).
+ */
+export interface VoltTextLayerData {
+  content: string
+  fontFamily: string
+  /** px at design canvas width — renderer scales proportionally with cqw */
+  fontSize: number
+  fontWeight: number           // 100–900
+  fontStyle: 'normal' | 'italic'
+  color: string                // Primary text color (hex)
+  textAlign: 'left' | 'center' | 'right'
+  verticalAlign: 'top' | 'center' | 'bottom'
+  lineHeight: number           // Multiplier (default 1.2)
+  letterSpacing: number        // px at design scale (default 0)
+  textTransform: 'none' | 'uppercase' | 'lowercase' | 'capitalize'
+  wordWrap: boolean            // Wrap at layer width (default true)
+}
+
+export const DEFAULT_TEXT: VoltTextLayerData = {
+  content: 'Text',
+  fontFamily: 'Inter, system-ui, sans-serif',
+  fontSize: 28,
+  fontWeight: 600,
+  fontStyle: 'normal',
+  color: '#ffffff',
+  textAlign: 'left',
+  verticalAlign: 'top',
+  lineHeight: 1.2,
+  letterSpacing: 0,
+  textTransform: 'none',
+  wordWrap: true,
+}
+
 export interface VoltTextDecorationData {
   text: string
   fontFamily?: string
@@ -184,6 +220,38 @@ export interface VoltObject3DData {
   autoPeriod?: number
 }
 
+// ── Layer Effects ─────────────────────────────────────────────────────────────
+
+export interface VoltDropShadow {
+  enabled: boolean
+  offsetX: number    // px
+  offsetY: number    // px
+  blur: number       // px
+  spread: number     // px (box-shadow only; CSS filter drop-shadow ignores spread)
+  color: string      // hex
+  opacity: number    // 0–1
+  inset?: boolean    // inner shadow
+}
+
+export interface VoltLayerEffects {
+  dropShadow?: VoltDropShadow
+  /** Outer glow — implemented as a large blurred box-shadow with no offset */
+  outerGlow?: {
+    enabled: boolean
+    blur: number
+    spread: number
+    color: string
+    opacity: number
+  }
+  /** CSS backdrop blur applied as a filter (for glass/frosted effects) */
+  layerBlur?: {
+    enabled: boolean
+    blur: number     // px — applied as CSS filter: blur()
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export interface VoltLayer {
   id: string
   name: string
@@ -201,9 +269,14 @@ export interface VoltLayer {
   locked: boolean
   opacity: number
   blendMode: BlendMode
+  /** CSS translateZ depth in pixels — layers with higher Z float closer to viewer during 3D tilt (default: 0) */
+  translateZ?: number
+  /** Per-layer visual effects (shadow, glow, blur) */
+  effects?: VoltLayerEffects
   vectorData?: VoltVectorData
   slotData?: VoltSlotData
   imageData?: VoltImageData
+  textLayerData?: VoltTextLayerData
   textData?: VoltTextDecorationData
   object3DData?: VoltObject3DData
   children?: VoltLayer[]
@@ -250,10 +323,19 @@ export interface VoltFlipCard {
   perspective?: number
   /** Transition duration in ms (default: 600) */
   duration: number
-  /** Anime.js ease string (default: 'easeInOut') */
+  /** Anime.js ease string (default: 'easeInOut'). Use 'spring' to activate spring physics. */
   ease: string
   /** Auto-flip loop interval in ms — used when trigger === 'auto' (default: 3000) */
   autoInterval?: number
+  // ── Spring physics params — used only when ease === 'spring' ───────────────
+  /** Spring mass — heavier = slower overshoot (default: 1) */
+  springMass?: number
+  /** Spring stiffness — higher = snappier (default: 180) */
+  springStiffness?: number
+  /** Spring damping — lower = more bounce (default: 12) */
+  springDamping?: number
+  /** Spring initial velocity (default: 0) */
+  springVelocity?: number
 }
 
 export interface VoltElementData {
@@ -278,6 +360,13 @@ export interface VoltElementData {
   updatedAt: string
   /** Hover flip card config — when enabled, the Volt card flips on hover to reveal a back face */
   flipCard?: VoltFlipCard
+  // ── 3D Tilt (parallax depth hover) ─────────────────────────────────────────
+  /** Enable mouse-tracking 3D tilt effect on hover (default: false) */
+  tiltEnabled?: boolean
+  /** Maximum tilt angle in degrees (default: 8) */
+  tiltMaxDeg?: number
+  /** CSS perspective distance in px for tilt (default: 800) */
+  tiltPerspective?: number
 }
 
 /**

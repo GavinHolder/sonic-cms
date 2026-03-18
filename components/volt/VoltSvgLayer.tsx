@@ -1,5 +1,63 @@
 'use client'
-import type { VoltLayer, VoltLayerInstanceOverride, VoltFill } from '@/types/volt'
+import type { VoltLayer, VoltLayerInstanceOverride, VoltFill, VoltLayerEffects } from '@/types/volt'
+
+/** SVG <defs> filter block for layer effects (drop shadow, glow, blur). */
+function SvgFilterDef({ layerId, effects }: { layerId: string; effects: VoltLayerEffects }) {
+  const filterId = `fx-${layerId}`
+  const primitives: React.ReactNode[] = []
+
+  if (effects.layerBlur?.enabled) {
+    primitives.push(<feGaussianBlur key="blur" stdDeviation={effects.layerBlur.blur} />)
+  }
+
+  if (effects.dropShadow?.enabled) {
+    const s = effects.dropShadow
+    const { r, g, b } = hexToRgbParts(s.color)
+    primitives.push(
+      <feDropShadow
+        key="shadow"
+        dx={s.offsetX}
+        dy={s.offsetY}
+        stdDeviation={s.blur / 2}
+        floodColor={`rgb(${r},${g},${b})`}
+        floodOpacity={s.opacity}
+      />
+    )
+  }
+
+  if (effects.outerGlow?.enabled) {
+    const g2 = effects.outerGlow
+    const { r, g, b } = hexToRgbParts(g2.color)
+    primitives.push(
+      <feDropShadow
+        key="glow"
+        dx={0}
+        dy={0}
+        stdDeviation={g2.blur / 2}
+        floodColor={`rgb(${r},${g},${b})`}
+        floodOpacity={g2.opacity}
+      />
+    )
+  }
+
+  if (!primitives.length) return null
+  return (
+    <defs>
+      <filter id={filterId} x="-50%" y="-50%" width="200%" height="200%">
+        {primitives}
+      </filter>
+    </defs>
+  )
+}
+
+function hexToRgbParts(hex: string) {
+  const h = hex.replace('#', '')
+  return {
+    r: parseInt(h.substring(0, 2), 16),
+    g: parseInt(h.substring(2, 4), 16),
+    b: parseInt(h.substring(4, 6), 16),
+  }
+}
 
 interface Props {
   layer: VoltLayer
@@ -129,12 +187,21 @@ export default function VoltSvgLayer({ layer, canvasWidth, canvasHeight, instanc
   // Outer <g> receives the anime.js CSS-transform animations (translateX/Y, scale, rotate).
   // Inner <g> holds the SVG coordinate-mapping transforms (scale to canvas px, base rotation).
   // Separating them prevents anime CSS transforms from clobbering the SVG attribute transforms.
+  const hasFx = !!(layer.effects && (
+    layer.effects.dropShadow?.enabled ||
+    layer.effects.outerGlow?.enabled ||
+    layer.effects.layerBlur?.enabled
+  ))
+  const filterId = hasFx ? `fx-${layer.id}` : undefined
+
   return (
     <g
       id={`volt-layer-${layer.id}`}
       opacity={opacity}
       style={{ mixBlendMode: blendMode as React.CSSProperties['mixBlendMode'] }}
+      filter={filterId ? `url(#${filterId})` : undefined}
     >
+      {hasFx && layer.effects && <SvgFilterDef layerId={layer.id} effects={layer.effects} />}
       {hasGradient && primaryFill && <GradientDef fill={primaryFill} layerId={layer.id} />}
       <g transform={transform || undefined}>
         <path
