@@ -11,7 +11,10 @@
     "db:seed-seo": "npx tsx scripts/seed-seo.ts",
     "db:seed-motion-demo": "npx tsx scripts/seed-motion-demo.ts",
     "db:seed-readymix": "npx tsx prisma/seed-readymix.ts",
-    "db:seed-v6": "npx tsx prisma/seed-v6.ts"
+    "db:seed-v6": "npx tsx prisma/seed-v6.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"
@@ -64,11 +67,13 @@
     "@types/react": "^19",
     "@types/react-color": "^3.0.13",
     "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^4.1.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.1",
     "playwright": "^1.58.2",
     "prettier": "^3.7.4",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.0"
   }
 }
