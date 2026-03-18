@@ -308,6 +308,12 @@
           <button id="btn-state-rest" class="btn btn-sm btn-primary" style="font-size:10px;padding:2px 10px;" title="View REST state (default appearance)">REST</button>
           <button id="btn-state-hover" class="btn btn-sm btn-outline-secondary" style="font-size:10px;padding:2px 10px;" title="View &amp; edit HOVER state overrides">HOVER</button>
         </div>
+        <!-- Flip Card Face Preview (shown only when flip card enabled) -->
+        <div id="flip-face-switcher" class="d-flex align-items-center gap-1 ms-3" style="display:none!important;">
+          <span style="font-size:10px;font-weight:700;color:#6c757d;letter-spacing:0.3px;">FACE:</span>
+          <button id="btn-face-front" class="btn btn-sm btn-primary" style="font-size:10px;padding:2px 10px;" title="Show Front face layers">FRONT</button>
+          <button id="btn-face-back" class="btn btn-sm btn-outline-secondary" style="font-size:10px;padding:2px 10px;" title="Show Back face layers">BACK</button>
+        </div>
         <div class="ms-auto d-flex gap-1 align-items-center">
           <button id="btn-zoom-out" class="btn btn-sm btn-outline-secondary px-2"><i class="bi bi-zoom-out"></i></button>
           <span id="zoom-label" style="font-size:11px;min-width:40px;text-align:center;">100%</span>
@@ -427,7 +433,8 @@
       boolEditParentId:null,   // composite layer being edited (shows/moves its cutters)
       multiSelectIds:[],       // layers selected by marquee
       isDirty:false,history:[],historyIndex:-1,zoom:1,gridSize:10,
-      activeStateName:'rest'   // 'rest' | 'hover' — state machine view toggle
+      activeStateName:'rest',   // 'rest' | 'hover' — state machine view toggle
+      activeFace:'front'        // 'front' | 'back' — flip card face preview
     };
     // ── Manual dblclick trackers (timer-based; survive DOM rebuilds) ──────────
     // Canvas shape dblclick → vertex/bool-edit mode
@@ -476,6 +483,15 @@
       if(!hs.layerOverrides)hs.layerOverrides={};
       if(!hs.layerOverrides[layerId])hs.layerOverrides[layerId]={};
       hs.layerOverrides[layerId][prop]=val;
+    }
+    /** Show/hide flip card face switcher and sync button styles */
+    function _updateFaceSwitcher(){
+      var fcs=document.getElementById('flip-face-switcher');
+      var hasFlip=!!(state.element.flipCard&&state.element.flipCard.enabled);
+      if(fcs)fcs.style.display=hasFlip?'flex':'none';
+      var bf=document.getElementById('btn-face-front'),bb=document.getElementById('btn-face-back');
+      if(bf)bf.className='btn btn-sm '+(state.activeFace==='front'?'btn-primary':'btn-outline-secondary');
+      if(bb)bb.className='btn btn-sm '+(state.activeFace==='back'?'btn-info':'btn-outline-secondary');
     }
     /** Update state buttons to reflect activeStateName */
     function _updateStateButtons(){
@@ -704,6 +720,11 @@
         if(layer.boolRole==='cutter'&&!_isCutterEdit){var _cpar=state.element.layers.find(function(l){return l.id===layer.boolParentId;});if(_cpar&&_cpar.boolChildren){var _cbc=_cpar.boolChildren.find(function(bc){return bc.cutterId===layer.id;});_isCutterShown=!!(_cbc&&_cbc.showCutter);}}
         if(!layer.visible&&!_isCutterEdit&&!_isCutterShown)return;
         if(layer.boolRole==='cutter'&&!_isCutterEdit&&!_isCutterShown)return;
+        // Face filter: when flip card is enabled, only show layers matching the active face preview
+        if(state.element.flipCard&&state.element.flipCard.enabled){
+          var _layerFace=layer.face||'front';
+          if(_layerFace!==state.activeFace)return;
+        }
         // Apply hover-state overrides to effective display values
         var _ov=state.activeStateName==='hover'?_getHoverOverride(layer.id):{};
         var _lx=(_ov.x!==undefined)?_ov.x:layer.x;
@@ -739,7 +760,8 @@
           var isCutterEditVis=layer.boolRole==='cutter'&&state.boolEditParentId===layer.boolParentId;
           var path=svgNs('path');path.setAttribute('d',dispPath);
           if(dispMaskId)path.setAttribute('mask','url(#'+dispMaskId+')');
-          var fill=layer.vectorData.fills&&layer.vectorData.fills[0];
+          var _cvHovFills=state.activeStateName==='hover'?_getHoverOverride(layer.id).fills:null;
+          var fill=(_cvHovFills&&_cvHovFills.length>0)?_cvHovFills[0]:(layer.vectorData.fills&&layer.vectorData.fills[0]);
           if(isCutterEditVis){path.setAttribute('fill','none');path.setAttribute('stroke','#f97316');path.setAttribute('stroke-width',(2/(CW/100)).toFixed(3));path.setAttribute('stroke-dasharray',(5/(CW/100)).toFixed(3)+' '+(3/(CW/100)).toFixed(3));path.setAttribute('fill-rule','nonzero');}
           else{
           // Inject SVG gradient def if needed
@@ -2200,7 +2222,7 @@
         fcControls.appendChild(fcHint);
         fcSec.appendChild(fcControls);body.appendChild(fcSec);
         // Bind events
-        fcChk.addEventListener('change',function(){pushHistory();_ensureFC();state.element.flipCard.enabled=fcChk.checked;markDirty();renderProps();});
+        fcChk.addEventListener('change',function(){pushHistory();_ensureFC();state.element.flipCard.enabled=fcChk.checked;markDirty();_updateFaceSwitcher();if(!fcChk.checked)state.activeFace='front';renderCanvas();renderProps();});
         autoInp.addEventListener('input',function(){var n=parseInt(autoInp.value);if(!isNaN(n)&&n>=500){_ensureFC();state.element.flipCard.autoInterval=n;}});
         autoInp.addEventListener('change',function(){pushHistory();markDirty();});
         durInp.addEventListener('input',function(){var n=parseInt(durInp.value);if(!isNaN(n)&&n>=100){_ensureFC();state.element.flipCard.duration=n;}});
@@ -2557,7 +2579,14 @@
       return 'linear-gradient('+angle+'deg, '+stopStr+')';
     }
     function renderFillSec(body,layer){
-      var fill=layer.vectorData&&layer.vectorData.fills&&layer.vectorData.fills[0];
+      // ── Hover-aware fill read/write helpers ──────────────────────────────────
+      function _rdFills(i){var ov=state.activeStateName==='hover'?_getHoverOverride(layer.id).fills:null;return(ov&&ov.length)?ov:((state.element.layers[i]&&state.element.layers[i].vectorData&&state.element.layers[i].vectorData.fills)||[]);}
+      function _wrFills(i,fills){if(state.activeStateName==='hover'){_setHoverOverride(layer.id,'fills',fills);}else if(state.element.layers[i]&&state.element.layers[i].vectorData){state.element.layers[i].vectorData.fills=fills;}}
+      function _cloneFills(i){return _rdFills(i).map(function(f){return Object.assign({},f,{gradient:f.gradient?Object.assign({},f.gradient,{stops:(f.gradient.stops||[]).map(function(s){return Object.assign({},s);})}):undefined});});}
+      function _mutFill0(i,fn){var fills=_cloneFills(i);if(!fills.length)return;fn(fills[0]);_wrFills(i,fills);}
+      // Effective fill for UI rendering
+      var _hovFills0=state.activeStateName==='hover'?_getHoverOverride(layer.id).fills:null;
+      var fill=(_hovFills0&&_hovFills0.length>0)?_hovFills0[0]:(layer.vectorData&&layer.vectorData.fills&&layer.vectorData.fills[0]);
       var sec=mkSec();var hdr=document.createElement('div');hdr.className='d-flex align-items-center justify-content-between mb-1';
       var lb=document.createElement('div');lb.className='prop-label mb-0';lb.textContent='Fill';hdr.appendChild(lb);
       if(fill){var rm=document.createElement('button');rm.id='prop-fill-remove';rm.className='btn btn-sm p-0';rm.style.cssText='font-size:10px;color:#dc3545;border:none;background:none;';rm.textContent='Remove';hdr.appendChild(rm);}
@@ -2574,14 +2603,12 @@
           tb.addEventListener('click',function(){
             var i=state.element.layers.findIndex(function(l){return l.id===layer.id;});
             if(i<0)return;pushHistory();
-            if(!state.element.layers[i].vectorData.fills[0])return;
-            var newType=pair[0];
-            var curFill=state.element.layers[i].vectorData.fills[0];
-            curFill.type=newType;
-            // Initialise gradient stops if switching to gradient for the first time
-            if((newType==='linear-gradient'||newType==='radial-gradient')&&(!curFill.gradient||!curFill.gradient.stops||!curFill.gradient.stops.length)){
-              curFill.gradient={stops:[{color:curFill.color||'#6366f1',opacity:1,position:0},{color:'#8b5cf6',opacity:1,position:100}],angle:135};
-            }
+            _mutFill0(i,function(f){
+              f.type=pair[0];
+              if((pair[0]==='linear-gradient'||pair[0]==='radial-gradient')&&(!f.gradient||!f.gradient.stops||!f.gradient.stops.length)){
+                f.gradient={stops:[{color:f.color||'#6366f1',opacity:1,position:0},{color:'#8b5cf6',opacity:1,position:100}],angle:135};
+              }
+            });
             markDirty();renderCanvas();renderProps();
           });
           typeRow.appendChild(tb);
@@ -2615,24 +2642,24 @@
               var rmBtn=document.createElement('button');rmBtn.type='button';rmBtn.className='btn btn-sm p-0';rmBtn.style.cssText='color:#dc3545;border:none;background:none;font-size:14px;line-height:1;flex-shrink:0;';rmBtn.textContent='×';
               if(stops.length<=2)rmBtn.disabled=true;
               // Bind
-              pk.addEventListener('input',function(e){var i2=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i2<0)return;state.element.layers[i2].vectorData.fills[0].gradient.stops[si].color=e.target.value;renderCanvas();var pb=document.getElementById('prop-grad-preview');if(pb)pb.style.background=_gradPreviewCss(state.element.layers[i2].vectorData.fills[0]);});
+              pk.addEventListener('input',function(e){var i2=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i2<0)return;_mutFill0(i2,function(f){if(f.gradient&&f.gradient.stops&&f.gradient.stops[si])f.gradient.stops[si].color=e.target.value;});renderCanvas();var pb=document.getElementById('prop-grad-preview');if(pb)pb.style.background=_gradPreviewCss(_rdFills(i2)[0]);});
               pk.addEventListener('change',function(){pushHistory();markDirty();});
-              function _setPosVal(v){var i2=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i2<0)return;var clamped=Math.max(0,Math.min(100,parseFloat(v)||0));state.element.layers[i2].vectorData.fills[0].gradient.stops[si].position=clamped;state.element.layers[i2].vectorData.fills[0].gradient.stops.sort(function(a,b){return a.position-b.position;});renderCanvas();var pb=document.getElementById('prop-grad-preview');if(pb)pb.style.background=_gradPreviewCss(state.element.layers[i2].vectorData.fills[0]);_rebuildStops();}
+              function _setPosVal(v){var i2=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i2<0)return;var clamped=Math.max(0,Math.min(100,parseFloat(v)||0));_mutFill0(i2,function(f){if(f.gradient&&f.gradient.stops&&f.gradient.stops[si]){f.gradient.stops[si].position=clamped;f.gradient.stops.sort(function(a,b){return a.position-b.position;});}});renderCanvas();var pb=document.getElementById('prop-grad-preview');if(pb)pb.style.background=_gradPreviewCss(_rdFills(i2)[0]);stops=(_rdFills(i2)[0]&&_rdFills(i2)[0].gradient&&_rdFills(i2)[0].gradient.stops)||stops;_rebuildStops();}
               posSl.addEventListener('input',function(e){_setPosVal(e.target.value);posNum.value=e.target.value;});
               posSl.addEventListener('change',function(){pushHistory();markDirty();});
               posNum.addEventListener('change',function(e){_setPosVal(e.target.value);posSl.value=e.target.value;pushHistory();markDirty();});
-              rmBtn.addEventListener('click',function(){var i2=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i2<0||state.element.layers[i2].vectorData.fills[0].gradient.stops.length<=2)return;pushHistory();state.element.layers[i2].vectorData.fills[0].gradient.stops.splice(si,1);stops=state.element.layers[i2].vectorData.fills[0].gradient.stops;markDirty();renderCanvas();_rebuildStops();var pb=document.getElementById('prop-grad-preview');if(pb)pb.style.background=_gradPreviewCss(state.element.layers[i2].vectorData.fills[0]);});
+              rmBtn.addEventListener('click',function(){var i2=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i2<0)return;var fills=_cloneFills(i2);if(!fills[0]||!fills[0].gradient||!fills[0].gradient.stops||fills[0].gradient.stops.length<=2)return;pushHistory();fills[0].gradient.stops.splice(si,1);_wrFills(i2,fills);stops=fills[0].gradient.stops;markDirty();renderCanvas();_rebuildStops();var pb=document.getElementById('prop-grad-preview');if(pb)pb.style.background=_gradPreviewCss(fills[0]);});
               row.appendChild(pk);row.appendChild(posSl);row.appendChild(posNum);row.appendChild(rmBtn);stopsDiv.appendChild(row);
             });
           }
           _rebuildStops();sec.appendChild(stopsDiv);
           // Add stop button
           var addStopBtn=document.createElement('button');addStopBtn.type='button';addStopBtn.className='btn btn-sm p-0';addStopBtn.style.cssText='font-size:10px;color:#0d6efd;border:none;background:none;margin-bottom:4px;';addStopBtn.textContent='+ Add Stop';
-          addStopBtn.addEventListener('click',function(){var i2=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i2<0)return;pushHistory();var curStops=state.element.layers[i2].vectorData.fills[0].gradient.stops;var newPos=Math.round((curStops[curStops.length-1].position+curStops[0].position)/2);curStops.push({color:'#a78bfa',opacity:1,position:newPos});curStops.sort(function(a,b){return a.position-b.position;});stops=curStops;markDirty();renderCanvas();_rebuildStops();var pb=document.getElementById('prop-grad-preview');if(pb)pb.style.background=_gradPreviewCss(state.element.layers[i2].vectorData.fills[0]);});
+          addStopBtn.addEventListener('click',function(){var i2=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i2<0)return;pushHistory();var fills=_cloneFills(i2);if(!fills[0]||!fills[0].gradient)return;var curStops=fills[0].gradient.stops;var newPos=Math.round((curStops[curStops.length-1].position+curStops[0].position)/2);curStops.push({color:'#a78bfa',opacity:1,position:newPos});curStops.sort(function(a,b){return a.position-b.position;});_wrFills(i2,fills);stops=fills[0].gradient.stops;markDirty();renderCanvas();_rebuildStops();var pb=document.getElementById('prop-grad-preview');if(pb)pb.style.background=_gradPreviewCss(fills[0]);});
           sec.appendChild(addStopBtn);
           // Bind angle inputs — use captured vars (sec not yet in DOM at this point)
           if(fill.type==='linear-gradient'&&typeof angInp!=='undefined'&&angInp){
-            function _setAngle(v){var i2=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i2<0)return;if(!state.element.layers[i2].vectorData.fills[0].gradient)return;state.element.layers[i2].vectorData.fills[0].gradient.angle=parseFloat(v)||0;renderCanvas();var pb=document.getElementById('prop-grad-preview');if(pb)pb.style.background=_gradPreviewCss(state.element.layers[i2].vectorData.fills[0]);}
+            function _setAngle(v){var i2=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i2<0)return;_mutFill0(i2,function(f){if(f.gradient)f.gradient.angle=parseFloat(v)||0;});renderCanvas();var pb=document.getElementById('prop-grad-preview');if(pb)pb.style.background=_gradPreviewCss(_rdFills(i2)[0]);}
             angInp.addEventListener('input',function(e){_setAngle(e.target.value);if(angSl)angSl.value=e.target.value;});angInp.addEventListener('change',function(){pushHistory();markDirty();});
             if(angSl){angSl.addEventListener('input',function(e){_setAngle(e.target.value);angInp.value=e.target.value;});angSl.addEventListener('change',function(){pushHistory();markDirty();});}
           }
@@ -2643,13 +2670,13 @@
           var blurCol=document.createElement('div');blurCol.className='col-6';
           var blurLbl=document.createElement('label');blurLbl.className='prop-label';blurLbl.textContent='Blur (px)';
           var blurInp=document.createElement('input');blurInp.type='number';blurInp.id='prop-glass-blur';blurInp.className='form-control form-control-sm';blurInp.value=fill.blur!=null?fill.blur:12;blurInp.min='0';blurInp.max='80';blurInp.step='1';blurInp.style.fontSize='10px';
-          blurInp.addEventListener('change',function(e){var i=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i<0)return;pushHistory();state.element.layers[i].vectorData.fills[0].blur=parseFloat(e.target.value)||12;markDirty();});
+          blurInp.addEventListener('change',function(e){var i=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i<0)return;pushHistory();_mutFill0(i,function(f){f.blur=parseFloat(e.target.value)||12;});markDirty();});
           blurCol.appendChild(blurLbl);blurCol.appendChild(blurInp);glassGrid.appendChild(blurCol);
           // Border radius
           var radCol=document.createElement('div');radCol.className='col-6';
           var radLbl=document.createElement('label');radLbl.className='prop-label';radLbl.textContent='Radius (px)';
           var radInp=document.createElement('input');radInp.type='number';radInp.id='prop-glass-radius';radInp.className='form-control form-control-sm';radInp.value=fill.glassBorderRadius!=null?fill.glassBorderRadius:12;radInp.min='0';radInp.max='200';radInp.step='1';radInp.style.fontSize='10px';
-          radInp.addEventListener('change',function(e){var i=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i<0)return;pushHistory();state.element.layers[i].vectorData.fills[0].glassBorderRadius=parseFloat(e.target.value)||0;markDirty();});
+          radInp.addEventListener('change',function(e){var i=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i<0)return;pushHistory();_mutFill0(i,function(f){f.glassBorderRadius=parseFloat(e.target.value)||0;});markDirty();});
           radCol.appendChild(radLbl);radCol.appendChild(radInp);glassGrid.appendChild(radCol);
           sec.appendChild(glassGrid);
           // Tint color + opacity
@@ -2664,11 +2691,11 @@
           var borLbl=document.createElement('span');borLbl.style.cssText='font-size:10px;color:#6c757d;white-space:nowrap;';borLbl.textContent='Border';
           borRow.appendChild(borLbl);borRow.appendChild(borOp);sec.appendChild(borRow);
           // Bind glass events
-          tintPk.addEventListener('input',function(e){var i=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i<0)return;state.element.layers[i].vectorData.fills[0].color=e.target.value;renderCanvas();});
+          tintPk.addEventListener('input',function(e){var i=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i<0)return;_mutFill0(i,function(f){f.color=e.target.value;});renderCanvas();});
           tintPk.addEventListener('change',function(){pushHistory();markDirty();});
-          tintOp.addEventListener('input',function(e){var i=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i<0)return;state.element.layers[i].vectorData.fills[0].opacity=parseFloat(e.target.value);renderCanvas();});
+          tintOp.addEventListener('input',function(e){var i=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i<0)return;_mutFill0(i,function(f){f.opacity=parseFloat(e.target.value);});renderCanvas();});
           tintOp.addEventListener('change',function(){pushHistory();markDirty();});
-          borOp.addEventListener('input',function(e){var i=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i<0)return;state.element.layers[i].vectorData.fills[0].borderOpacity=parseFloat(e.target.value);renderCanvas();});
+          borOp.addEventListener('input',function(e){var i=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i<0)return;_mutFill0(i,function(f){f.borderOpacity=parseFloat(e.target.value);});renderCanvas();});
           borOp.addEventListener('change',function(){pushHistory();markDirty();});
         } else {
           // Solid fill: existing controls
@@ -2995,12 +3022,16 @@
           markDirty();renderAll();
         });
       });
-      var fa=document.getElementById('prop-fill-add');if(fa)fa.addEventListener('click',function(){var i=idx();if(i<0)return;pushHistory();if(!state.element.layers[i].vectorData)state.element.layers[i].vectorData={pathData:'',fills:[],stroke:null,fillRule:'nonzero',closed:true};state.element.layers[i].vectorData.fills=[{id:nanoid(),type:'solid',color:'#6366f1',opacity:1,blendMode:'normal'}];markDirty();renderCanvas();renderProps();});
-      var fr=document.getElementById('prop-fill-remove');if(fr)fr.addEventListener('click',function(){var i=idx();if(i<0)return;pushHistory();state.element.layers[i].vectorData.fills=[];markDirty();renderCanvas();renderProps();});
+      // Fill write helper in bindProps scope (mirrors renderFillSec helpers)
+      function _bpRdFills(i){var ov=state.activeStateName==='hover'?_getHoverOverride(layer.id).fills:null;return(ov&&ov.length)?ov:((state.element.layers[i]&&state.element.layers[i].vectorData&&state.element.layers[i].vectorData.fills)||[]);}
+      function _bpWrFills(i,fills){if(state.activeStateName==='hover'){_setHoverOverride(layer.id,'fills',fills);}else if(state.element.layers[i]&&state.element.layers[i].vectorData){state.element.layers[i].vectorData.fills=fills;}}
+      function _bpMutFill0(i,fn){var fills=_bpRdFills(i).map(function(f){return Object.assign({},f,{gradient:f.gradient?Object.assign({},f.gradient,{stops:(f.gradient.stops||[]).map(function(s){return Object.assign({},s);})}):undefined});});if(!fills.length)return;fn(fills[0]);_bpWrFills(i,fills);}
+      var fa=document.getElementById('prop-fill-add');if(fa)fa.addEventListener('click',function(){var i=idx();if(i<0)return;pushHistory();if(state.activeStateName==='hover'){_setHoverOverride(layer.id,'fills',[{id:nanoid(),type:'solid',color:'#6366f1',opacity:1,blendMode:'normal'}]);}else{if(!state.element.layers[i].vectorData)state.element.layers[i].vectorData={pathData:'',fills:[],stroke:null,fillRule:'nonzero',closed:true};state.element.layers[i].vectorData.fills=[{id:nanoid(),type:'solid',color:'#6366f1',opacity:1,blendMode:'normal'}];}markDirty();renderCanvas();renderProps();});
+      var fr=document.getElementById('prop-fill-remove');if(fr)fr.addEventListener('click',function(){var i=idx();if(i<0)return;pushHistory();if(state.activeStateName==='hover'){_setHoverOverride(layer.id,'fills',[]);}else{state.element.layers[i].vectorData.fills=[];}markDirty();renderCanvas();renderProps();});
       var fp=document.getElementById('prop-fill-color-picker'),ft=document.getElementById('prop-fill-color');
-      if(fp){fp.addEventListener('input',function(e){var i=idx();if(i<0)return;state.element.layers[i].vectorData.fills[0].color=e.target.value;if(ft)ft.value=e.target.value;renderCanvas();});fp.addEventListener('change',function(){pushHistory();markDirty();});}
-      if(ft)ft.addEventListener('input',function(e){var i=idx();if(i<0)return;if(/^#[0-9A-Fa-f]{6}$/.test(e.target.value)){state.element.layers[i].vectorData.fills[0].color=e.target.value;if(fp)fp.value=e.target.value;pushHistory();markDirty();renderCanvas();}});
-      var fo=document.getElementById('prop-fill-opacity');if(fo){fo.addEventListener('input',function(e){var i=idx();if(i<0)return;state.element.layers[i].vectorData.fills[0].opacity=parseFloat(e.target.value);renderCanvas();});fo.addEventListener('change',function(){pushHistory();markDirty();});}
+      if(fp){fp.addEventListener('input',function(e){var i=idx();if(i<0)return;_bpMutFill0(i,function(f){f.color=e.target.value;});if(ft)ft.value=e.target.value;renderCanvas();});fp.addEventListener('change',function(){pushHistory();markDirty();});}
+      if(ft)ft.addEventListener('input',function(e){var i=idx();if(i<0)return;if(/^#[0-9A-Fa-f]{6}$/.test(e.target.value)){_bpMutFill0(i,function(f){f.color=e.target.value;});if(fp)fp.value=e.target.value;pushHistory();markDirty();renderCanvas();}});
+      var fo=document.getElementById('prop-fill-opacity');if(fo){fo.addEventListener('input',function(e){var i=idx();if(i<0)return;_bpMutFill0(i,function(f){f.opacity=parseFloat(e.target.value);});renderCanvas();});fo.addEventListener('change',function(){pushHistory();markDirty();});}
       var sa=document.getElementById('prop-stroke-add');if(sa)sa.addEventListener('click',function(){var i=idx();if(i<0)return;pushHistory();if(!state.element.layers[i].vectorData)state.element.layers[i].vectorData={pathData:'',fills:[],stroke:null,fillRule:'nonzero',closed:true};state.element.layers[i].vectorData.stroke={color:'#212529',opacity:1,width:2,cap:'round',join:'round',dash:[]};markDirty();renderCanvas();renderProps();});
       var sr=document.getElementById('prop-stroke-remove');if(sr)sr.addEventListener('click',function(){var i=idx();if(i<0)return;pushHistory();state.element.layers[i].vectorData.stroke=null;markDirty();renderCanvas();renderProps();});
       var sp=document.getElementById('prop-stroke-color-picker'),st2=document.getElementById('prop-stroke-color');
@@ -3211,6 +3242,9 @@
     // ── State switcher ────────────────────────────────────────────────────────
     document.getElementById('btn-state-rest').addEventListener('click',function(){state.activeStateName='rest';_updateStateButtons();renderCanvas();renderProps();});
     document.getElementById('btn-state-hover').addEventListener('click',function(){_ensureStates();state.activeStateName='hover';_updateStateButtons();renderCanvas();renderProps();});
+    // ── Flip card face preview ────────────────────────────────────────────────
+    document.getElementById('btn-face-front').addEventListener('click',function(){state.activeFace='front';_updateFaceSwitcher();renderCanvas();renderLayers();});
+    document.getElementById('btn-face-back').addEventListener('click',function(){state.activeFace='back';_updateFaceSwitcher();renderCanvas();renderLayers();});
     // Ctrl+wheel to zoom
     document.getElementById('canvas-wrap').addEventListener('wheel',function(e){if(!e.ctrlKey&&!e.metaKey)return;e.preventDefault();applyZoom(e.deltaY<0?state.zoom*1.1:state.zoom/1.1);},{passive:false});
     // ── Toolbar ───────────────────────────────────────────────────────────────
@@ -3837,7 +3871,7 @@
       }catch(e){}
       if(!restored){state.element.id='preview';state.element.name='Test Design';document.getElementById('el-name').value='Test Design';document.getElementById('element-name-badge').textContent='Test Design';}
     }
-    pushHistory();_updateStateButtons();renderAll();updateDotGrid();
+    pushHistory();_updateStateButtons();_updateFaceSwitcher();renderAll();updateDotGrid();
     setTimeout(function(){document.getElementById('btn-zoom-fit').click();},200);
   }());
   </script>

@@ -96,6 +96,19 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
         if (animates.position) { targets.translateX = isRest ? (override?.translateX ?? 0) : (override?.translateX ?? 0); targets.translateY = isRest ? (override?.translateY ?? 0) : (override?.translateY ?? 0) }
         if (animates.rotation) targets.rotate     = isRest ? `${override?.rotation ?? 0}deg`            : `${override?.rotation ?? 0}deg`
 
+        // Apply fill override directly on the SVG path (no animation — instant colour swap)
+        if (layer.type === 'vector' && layer.vectorData) {
+          const pathEl = layerEl.querySelector('path')
+          if (pathEl) {
+            const overrideFills = isRest ? null : (override?.fills ?? null)
+            const activeFill = (overrideFills && overrideFills.length > 0) ? overrideFills[0] : layer.vectorData.fills?.[0]
+            if (activeFill?.type === 'solid' && activeFill.color) {
+              pathEl.setAttribute('fill', activeFill.color)
+              pathEl.setAttribute('fill-opacity', String(activeFill.opacity ?? 1))
+            }
+          }
+        }
+
         if (Object.keys(targets).length === 0) continue
 
         const anim = animate(layerEl, {
