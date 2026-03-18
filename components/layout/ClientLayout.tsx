@@ -1,4 +1,6 @@
 "use client";
+import { useEffect, useRef } from 'react'
+import { usePathname } from 'next/navigation'
 
 interface ClientLayoutProps {
   children: React.ReactNode;
@@ -15,12 +17,22 @@ interface ClientLayoutProps {
  * For admin pages (showNavigation=false): pure pass-through, no snap.
  */
 export default function ClientLayout({ children, showNavigation }: ClientLayoutProps) {
+  const snapRef = useRef<HTMLDivElement>(null)
+  const pathname = usePathname()
+
+  // Reset snap container to top on every route change so the hero always loads first
+  useEffect(() => {
+    if (snapRef.current) {
+      snapRef.current.scrollTop = 0
+    }
+  }, [pathname])
+
   if (!showNavigation) {
     return <>{children}</>;
   }
 
   return (
-    <div id="snap-container">
+    <div id="snap-container" ref={snapRef}>
       {children}
     </div>
   );
