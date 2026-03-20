@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import type { MetadataRoute } from "next";
 import { fetchSeoConfig } from "@/lib/metadata-generator";
 
