@@ -3353,6 +3353,56 @@ Toggle which CSS/SVG properties are animated on entrance:
 `;
 
 // ─────────────────────────────────────────────
+// MAINTENANCE MODE
+// ─────────────────────────────────────────────
+
+const MAINTENANCE_MODE_DOCS = `
+# Maintenance Mode
+
+Put your entire public-facing website on hold with a single toggle — no code changes, no redeployments required.
+
+## What It Does
+
+When **Maintenance Mode** is enabled:
+- Every public URL (home page, all pages, blog posts, etc.) shows a full-screen animated maintenance page
+- The **admin panel remains fully accessible** at \`/admin/*\` — you can keep editing content while the site is down
+- All admin APIs continue to function normally
+- The state is stored in the database so it persists across server restarts and re-deploys
+
+## How to Enable / Disable
+
+1. Go to **Settings → Site** (the default tab when you open Settings)
+2. Find the **Maintenance Mode** card
+3. Toggle the switch — changes are saved instantly (no save button needed)
+4. An **Active** badge appears next to the label, plus a yellow warning banner when enabled
+
+## The Maintenance Page
+
+Visitors see a full-screen animated page with:
+- Dark navy starfield background
+- Animated CSS construction worker with shovel, hard hat, traffic cone, and barrier
+- **"MAINTENANCE MODE"** heading in orange
+- **"Be back soon… making things awesome"** subtitle in italic
+- Three bouncing dots
+
+No external images are used — everything is CSS/HTML for zero load time.
+
+## Technical Notes
+
+- The flag is stored as a row in \`system_settings\` with key \`maintenance_mode\` and value \`"true"/"false"\`
+- The check runs **server-side** in the root layout before any client-side code executes
+- Routes skipped by maintenance check: \`/admin/*\`, \`/api/*\`, \`/volt-preview/*\`
+- The API endpoint is \`PUT /api/admin/maintenance\` and requires SUPER_ADMIN role
+
+## When to Use
+
+- Deploying a major update
+- Database migrations running on production
+- Fixing a live issue without visitors seeing broken pages
+- Scheduled maintenance windows
+`;
+
+// ─────────────────────────────────────────────
 // TOPIC TREE
 // ─────────────────────────────────────────────
 
@@ -3505,6 +3555,7 @@ export const DOC_TOPICS: DocTopic[] = [
     icon: "bi-speedometer2",
     children: [
       { id: "settings", label: "Settings", icon: "bi-gear", content: SETTINGS_PAGE },
+      { id: "maintenance-mode", label: "Maintenance Mode", icon: "bi-cone-striped", content: MAINTENANCE_MODE_DOCS },
       { id: "media", label: "Media Library", icon: "bi-image", content: MEDIA_LIBRARY },
       { id: "users", label: "Users & Roles", icon: "bi-people", content: USERS },
     ],
