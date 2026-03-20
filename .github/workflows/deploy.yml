@@ -1,33 +1,30 @@
 # =============================================================================
-# Sonic Website — Deploy to Production
+# White-Label CMS — Build & Publish Docker Image
 # =============================================================================
-# Triggers: push to gavin, or manual "Run workflow" on GitHub
+# Triggers: push to main, or manual "Run workflow"
 #
-# Architecture:
-#   Job 1 (build)  → GitHub's runners → builds Docker image → pushes to ghcr.io
-#   Job 2 (deploy) → self-hosted runner ON the VM → hits Portainer webhook
-#                    → Portainer pulls latest image and restarts the stack
+# Job 1 (build): GitHub runners → builds Docker image → pushes to ghcr.io
+# Job 2 (deploy): Calls Portainer webhook to pull new image and restart stack
 #
-# Setup checklist (one-time):
-#   1. Install self-hosted runner on VM (see deploy/ACCESS.md)
-#   2. Create the "sonic-app" stack in Portainer using deploy/app/docker-compose.yml
-#   3. Copy the stack webhook URL from Portainer → Settings → Webhook
-#   4. Add PORTAINER_WEBHOOK_ID to GitHub secrets
-#      (just the UUID portion of the webhook URL, not the full URL)
+# Setup checklist (one-time per deployment):
+#   1. Create stack in Portainer using deploy/app/docker-compose.yml
+#   2. Copy the stack webhook URL from Portainer → Stack → Webhook
+#   3. Add PORTAINER_WEBHOOK_URL to GitHub repo secrets
+#      (full URL, e.g. http://154.66.197.168:9000/api/stacks/webhooks/UUID)
 # =============================================================================
 
-name: Deploy to Production
+name: Build & Deploy
 
 on:
   push:
-    branches: [gavin]
+    branches: [main]
   workflow_dispatch:
 
 env:
-  IMAGE: ghcr.io/gavinholder/sonic-website
+  IMAGE: ghcr.io/gavinholder/white-label-cms
 
 jobs:
-  # ── Job 1: Build and push Docker image ──────────────────────────────────────
+  # ── Job 1: Build and push Docker image to ghcr.io ───────────────────────────
   build:
     name: Build & Push Image
     runs-on: ubuntu-latest
@@ -49,55 +46,31 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract image metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.IMAGE }}
-          tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-            type=sha,prefix=sha-,format=short
-
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ env.IMAGE }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
   # ── Job 2: Trigger Portainer stack redeploy ──────────────────────────────────
   deploy:
     name: Deploy via Portainer
-    runs-on: self-hosted    # Runs on the GitHub Actions runner installed on the VM
+    runs-on: ubuntu-latest
     needs: build
-    environment: production
+    # Only runs if PORTAINER_WEBHOOK_URL secret is set
+    if: ${{ vars.PORTAINER_WEBHOOK_URL != '' || secrets.PORTAINER_WEBHOOK_URL != '' }}
 
     steps:
-      - name: Trigger Portainer stack webhook
-        # Portainer pulls the latest image and restarts the stack automatically.
-        # The webhook ID comes from: Portainer → Stacks → sonic-app → Webhook
+      - name: Trigger Portainer webhook
         run: |
           RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-            "http://localhost:9000/api/stacks/webhooks/${{ secrets.PORTAINER_WEBHOOK_ID }}")
-          echo "Portainer webhook response: $RESPONSE"
+            "${{ secrets.PORTAINER_WEBHOOK_URL }}")
+          echo "Portainer response: $RESPONSE"
           if [ "$RESPONSE" != "200" ]; then
-            echo "Webhook failed with HTTP $RESPONSE"
+            echo "Webhook failed with HTTP $RESPONSE — check PORTAINER_WEBHOOK_URL secret"
             exit 1
           fi
-          echo "Stack redeploy triggered successfully"
-
-      - name: Wait and verify
-        run: |
-          echo "Waiting 20s for Portainer to pull and restart..."
-          sleep 20
-          STATUS=$(docker inspect sonic-app --format '{{.State.Status}}' 2>/dev/null || echo "not found")
-          echo "sonic-app status: $STATUS"
-          if [ "$STATUS" != "running" ]; then
-            echo "Container not running after deploy!"
-            docker logs sonic-app --tail 20 2>/dev/null || true
-            exit 1
-          fi
-          echo "Deployed successfully — https://web.sonicdns.co.za"
+          echo "Stack redeploy triggered"

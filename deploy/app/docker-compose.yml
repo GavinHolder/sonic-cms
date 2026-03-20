@@ -25,11 +25,8 @@
 services:
   # ── Next.js App ─────────────────────────────────────────────────────────────
   app:
-    build:
-      context: ../../       # Repo root — where Dockerfile lives
-      dockerfile: Dockerfile
-    image: white-label-cms:${APP_NAME:-cms}
-    pull_policy: build      # Always rebuild from source on deploy
+    image: ghcr.io/gavinholder/white-label-cms:latest
+    pull_policy: always     # Always pull latest from ghcr.io on redeploy
     container_name: ${APP_NAME:-cms}-app
     restart: unless-stopped
     depends_on:
