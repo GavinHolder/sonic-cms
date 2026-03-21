@@ -1,13 +1,37 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "date": "2026-03-21",
   "changelog": {
     "features": [
-      "Maintenance mode templates: Plain, Construction, Custom",
-      "Light/dark theme support for all maintenance templates",
-      "CMS Update system: check, install, and schedule updates from admin"
+      "SEO Wizard — multi-step modal to auto-populate SEO settings from business info",
+      "features sidebar dynamic + dedicated manage page + version in sidebar",
+      "CMS Update system — version check, update badge, modal, GitHub Actions trigger",
+      "maintenance colour picker + live preview",
+      "maintenance page template system — Plain, Construction, Custom",
+      "maintenance page redesign — industrial construction template",
+      "maintenance mode — animated construction worker page + admin toggle",
+      "add apex domain redirect ovbreadymix.co.za → www.ovbreadymix.co.za",
+      "redirect backend.domain to /admin/login via Traefik middleware",
+      "VPS deployment — subdomain routing, multi-site Traefik, ovbreadymix config",
+      "photo-card block type + Overberg Ready Mix v2 seed improvements"
     ],
-    "bugfixes": [],
+    "bugfixes": [
+      "restrict CMS Updates settings tab to SUPER_ADMIN only",
+      "maintenance mode — light/dark themes + reduced animations",
+      "serve runtime uploads via route handlers (Next.js standalone limitation)",
+      "ensure images/uploads dir is owned by nextjs in Docker image",
+      "add images_uploads volume to persist logo/favicon uploads across container restarts",
+      "replace tiny form-switch with explicit enable/disable button for maintenance mode",
+      "use RE2-compatible regex in backend redirect middleware",
+      "add migration for all schema additions since 20260303",
+      "force-dynamic on sitemap and robots — stops DB calls at build time",
+      "force-dynamic on root layout — prevents DB calls at Next.js build time",
+      "lazy JWT_SECRET check in auth.ts — prevents Next.js build failure when env not set at build time",
+      "remove invalid secrets reference from workflow if condition",
+      "build image on GitHub Actions, Portainer pulls from ghcr.io — avoids OOM on 2GB VPS",
+      "Overberg Ready Mix — footer text color, contact info in CTA left panel, Why Choose Us stats row",
+      "Overberg Ready Mix v2 — section layout, nav labels, CTA form, mixes typography"
+    ],
     "breaking": []
   }
 }
