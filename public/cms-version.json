@@ -1,9 +1,9 @@
 {
-  "version": "1.5.0",
+  "version": "1.6.0",
   "date": "2026-03-21",
   "changelog": {
     "features": [
-      "instrumentation.ts — server-side cron for scheduled updates + 45min maintenance failsafe"
+      "SEO wizard — multi-select business types with custom comma-separated input"
     ],
     "bugfixes": [],
     "breaking": []
