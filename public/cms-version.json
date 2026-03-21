@@ -1,18 +1,14 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "date": "2026-03-21",
   "changelog": {
     "features": [
-      "Maintenance mode templates: Plain, Construction, Custom",
-      "Light/dark theme support for all maintenance templates",
-      "Maintenance mode live preview (no site impact)",
-      "Colour picker for Construction template branding",
-      "CMS Update system: check, install, and schedule updates from admin"
+      "SEO Wizard: multi-step modal to auto-populate all SEO fields from business info",
+      "Features sidebar: only enabled features appear as sub-items",
+      "Dedicated Features management page at /admin/features",
+      "CMS version number shown in sidebar below logout"
     ],
-    "bugfixes": [
-      "Reduced maintenance page animations (no longer corny)",
-      "Construction template: drum rotation only, no wheel spin or smoke"
-    ],
+    "bugfixes": [],
     "breaking": []
   }
 }
