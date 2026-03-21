@@ -1,11 +1,11 @@
 {
-  "version": "1.4.5",
+  "version": "1.5.0",
   "date": "2026-03-21",
   "changelog": {
-    "features": [],
-    "bugfixes": [
-      "remove blocking health check — complete update immediately on Actions success"
+    "features": [
+      "instrumentation.ts — server-side cron for scheduled updates + 45min maintenance failsafe"
     ],
+    "bugfixes": [],
     "breaking": []
   }
 }
