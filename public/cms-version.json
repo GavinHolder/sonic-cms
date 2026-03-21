@@ -1,11 +1,11 @@
 {
-  "version": "1.2.1",
+  "version": "1.3.0",
   "date": "2026-03-21",
   "changelog": {
-    "features": [],
-    "bugfixes": [
-      "settings page waits for role before render — CMS Updates tab always visible for SUPER_ADMIN"
+    "features": [
+      "Test & Verify button for CMS Update GitHub config + docs for CMS Updates, SEO Wizard, Features sidebar"
     ],
+    "bugfixes": [],
     "breaking": []
   }
 }
