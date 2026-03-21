@@ -46,6 +46,7 @@ services:
     volumes:
       - uploads:/app/public/uploads
       - images_uploads:/app/public/images/uploads
+      - data:/app/data
     networks:
       - traefik-public
       - internal
@@ -108,6 +109,8 @@ volumes:
   uploads:
     driver: local
   images_uploads:
+    driver: local
+  data:
     driver: local
 
 networks:

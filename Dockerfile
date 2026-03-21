@@ -82,6 +82,10 @@ RUN chmod +x ./docker-entrypoint.sh
 RUN mkdir -p ./public/uploads ./public/images/uploads \
     && chown -R nextjs:nodejs ./public/uploads ./public/images/uploads
 
+# Copy runtime config defaults into image so the named volume is pre-populated on first deploy.
+# On subsequent deploys, the volume's client-configured files take precedence over the image.
+COPY --from=builder --chown=nextjs:nodejs /app/data ./data
+
 USER nextjs
 
 EXPOSE 3000

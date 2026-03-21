@@ -25,6 +25,7 @@ cmd = [
     "--network", app + "_internal",
     "-v", app + "_uploads:/app/public/uploads",
     "-v", app + "_images_uploads:/app/public/images/uploads",
+    "-v", app + "_data:/app/data",
     "--label", "traefik.enable=true",
     "--label", "traefik.http.routers." + app + "-www.rule=Host(" + bt + "www." + domain + bt + ")",
     "--label", "traefik.http.routers." + app + "-www.entrypoints=websecure",
@@ -58,13 +59,13 @@ print("STDOUT:", r.stdout.strip())
 print("STDERR:", r.stderr.strip())
 print("RC:", r.returncode)
 
-# Fix permissions on both upload volumes (new volumes mount as root:root)
+# Fix permissions on volumes (new volumes may mount as root:root)
 import time
 time.sleep(3)
 fix = subprocess.run(
     ["docker", "exec", "--user", "root", app + "-app",
      "chown", "-R", "nextjs:nodejs",
-     "/app/public/uploads", "/app/public/images/uploads"],
+     "/app/public/uploads", "/app/public/images/uploads", "/app/data"],
     capture_output=True, text=True
 )
 print("Permissions fixed, RC:", fix.returncode)
