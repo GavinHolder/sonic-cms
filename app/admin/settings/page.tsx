@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import FeaturesTab from "@/components/admin/FeaturesTab";
+import UpdateBadge from "@/components/admin/UpdateBadge";
+import UpdateModal from "@/components/admin/UpdateModal";
 import {
   getCMSSettings,
   saveCMSSettings,
@@ -12,6 +14,7 @@ import {
 } from "@/lib/cms-settings";
 
 type SettingsCategory =
+  | "cms-updates"
   | "site"
   | "ui"
   | "editor"
@@ -28,6 +31,7 @@ const BASE_CATEGORIES: Array<{
   label: string;
   icon: string;
 }> = [
+  { id: "cms-updates", label: "CMS Updates", icon: "bi-arrow-up-circle" },
   { id: "site", label: "Site", icon: "bi-globe2" },
   { id: "ui", label: "UI Preferences", icon: "bi-palette" },
   { id: "editor", label: "Editor", icon: "bi-pencil-square" },
@@ -78,6 +82,60 @@ export default function SettingsPage() {
   const [calcSaving, setCalcSaving] = useState(false);
   const [calcSuccess, setCalcSuccess] = useState<string | null>(null);
   const [calcError, setCalcError] = useState<string | null>(null);
+
+  // CMS Update modal
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [updateModalInfo, setUpdateModalInfo] = useState<Parameters<typeof UpdateModal>[0]["info"]>(null);
+
+  // CMS Update config (GitHub settings)
+  const [ghConfig, setGhConfig] = useState({
+    githubPatSet: false,
+    githubPatHint: "",
+    githubRepoOwner: "",
+    githubRepoName: "",
+    githubWorkflowId: "deploy.yml",
+    upstreamVersionUrl: "",
+  });
+  const [ghPat, setGhPat] = useState(""); // only set when user is changing it
+  const [ghSaving, setGhSaving] = useState(false);
+  const [ghMsg, setGhMsg] = useState<string | null>(null);
+  const [ghError, setGhError] = useState<string | null>(null);
+  const [showPat, setShowPat] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/admin/updates/config")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setGhConfig(d); })
+      .catch(() => {});
+  }, []);
+
+  async function handleSaveGhConfig() {
+    setGhSaving(true); setGhMsg(null); setGhError(null);
+    try {
+      const body: Record<string, string> = {
+        githubRepoOwner: ghConfig.githubRepoOwner,
+        githubRepoName: ghConfig.githubRepoName,
+        githubWorkflowId: ghConfig.githubWorkflowId,
+        upstreamVersionUrl: ghConfig.upstreamVersionUrl,
+      };
+      if (ghPat) body.githubPat = ghPat;
+      const res = await fetch("/api/admin/updates/config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to save");
+      setGhConfig(data);
+      setGhPat("");
+      setShowPat(false);
+      setGhMsg("GitHub config saved.");
+    } catch (err) {
+      setGhError(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setGhSaving(false);
+    }
+  }
 
   useEffect(() => {
     setSettings(getCMSSettings());
@@ -322,7 +380,15 @@ export default function SettingsPage() {
       title="Settings"
       subtitle="Configure CMS behavior and preferences"
       actions={
-        <div className="d-flex gap-2">
+        <div className="d-flex align-items-center gap-2">
+          {userRole === "SUPER_ADMIN" && (
+            <UpdateBadge
+              onOpenModal={(info) => {
+                setUpdateModalInfo(info as Parameters<typeof UpdateModal>[0]["info"]);
+                setShowUpdateModal(true);
+              }}
+            />
+          )}
           <button className="btn btn-outline-secondary" onClick={handleReset}>
             <i className="bi bi-arrow-counterclockwise me-1"></i>
             Reset All
@@ -1290,8 +1356,163 @@ export default function SettingsPage() {
           {activeCategory === "features" && userRole === "SUPER_ADMIN" && (
             <FeaturesTab />
           )}
+
+          {/* CMS Updates (SUPER_ADMIN only) */}
+          {activeCategory === "cms-updates" && userRole === "SUPER_ADMIN" && (
+            <div>
+              <h5 className="fw-semibold mb-4">
+                <i className="bi bi-arrow-up-circle me-2 text-primary" />
+                CMS Updates
+              </h5>
+
+              <div className="alert alert-info mb-4 small">
+                <i className="bi bi-info-circle me-1" />
+                Configure this CMS instance to receive updates from the master white-label-cms repo.
+                The GitHub PAT is stored securely in the database and never exposed client-side.
+              </div>
+
+              {ghMsg && (
+                <div className="alert alert-success alert-dismissible mb-3">
+                  {ghMsg}
+                  <button className="btn-close" onClick={() => setGhMsg(null)} />
+                </div>
+              )}
+              {ghError && (
+                <div className="alert alert-danger alert-dismissible mb-3">
+                  {ghError}
+                  <button className="btn-close" onClick={() => setGhError(null)} />
+                </div>
+              )}
+
+              <div className="card shadow-sm mb-4">
+                <div className="card-body vstack gap-3">
+                  <h6 className="fw-semibold mb-0">GitHub Configuration</h6>
+
+                  {/* PAT */}
+                  <div>
+                    <label className="form-label fw-medium">GitHub Personal Access Token</label>
+                    <p className="form-text mt-0 mb-2">
+                      Requires <code>repo</code> + <code>workflow</code> scopes. Used to trigger builds and check update status.
+                    </p>
+                    {ghConfig.githubPatSet && !showPat ? (
+                      <div className="d-flex align-items-center gap-2">
+                        <span className="form-control text-muted" style={{ maxWidth: 300 }}>
+                          ●●●●●●●●●●●●●●●● {ghConfig.githubPatHint}
+                        </span>
+                        <button className="btn btn-sm btn-outline-secondary" onClick={() => setShowPat(true)}>
+                          Change
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="d-flex align-items-center gap-2">
+                        <input
+                          type="password"
+                          className="form-control"
+                          style={{ maxWidth: 400 }}
+                          placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                          value={ghPat}
+                          onChange={e => setGhPat(e.target.value)}
+                          autoComplete="new-password"
+                        />
+                        {showPat && (
+                          <button className="btn btn-sm btn-outline-secondary" onClick={() => { setShowPat(false); setGhPat(""); }}>
+                            Cancel
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Repo owner + name */}
+                  <div className="row g-3">
+                    <div className="col-md-5">
+                      <label className="form-label fw-medium">GitHub Repo Owner</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="e.g. GavinHolder"
+                        value={ghConfig.githubRepoOwner}
+                        onChange={e => setGhConfig(c => ({ ...c, githubRepoOwner: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-7">
+                      <label className="form-label fw-medium">Repo Name</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="e.g. ovbreadymix-cms"
+                        value={ghConfig.githubRepoName}
+                        onChange={e => setGhConfig(c => ({ ...c, githubRepoName: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Workflow ID */}
+                  <div>
+                    <label className="form-label fw-medium">Workflow File</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      style={{ maxWidth: 260 }}
+                      placeholder="deploy.yml"
+                      value={ghConfig.githubWorkflowId}
+                      onChange={e => setGhConfig(c => ({ ...c, githubWorkflowId: e.target.value }))}
+                    />
+                    <p className="form-text">The workflow filename in <code>.github/workflows/</code> that has <code>workflow_dispatch</code> trigger.</p>
+                  </div>
+
+                  {/* Upstream version URL */}
+                  <div>
+                    <label className="form-label fw-medium">Upstream Version URL</label>
+                    <input
+                      type="url"
+                      className="form-control"
+                      placeholder="https://raw.githubusercontent.com/GavinHolder/white-label-cms/main/public/cms-version.json"
+                      value={ghConfig.upstreamVersionUrl}
+                      onChange={e => setGhConfig(c => ({ ...c, upstreamVersionUrl: e.target.value }))}
+                    />
+                    <p className="form-text">Raw URL to the master repo&apos;s <code>cms-version.json</code>.</p>
+                  </div>
+
+                  <div>
+                    <button className="btn btn-primary" onClick={handleSaveGhConfig} disabled={ghSaving}>
+                      {ghSaving ? <><span className="spinner-border spinner-border-sm me-2" />Saving...</> : <><i className="bi bi-floppy me-1" />Save GitHub Config</>}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick action */}
+              <div className="card shadow-sm">
+                <div className="card-body d-flex align-items-center justify-content-between gap-3">
+                  <div>
+                    <strong>Manual Update Check</strong>
+                    <p className="form-text mb-0">Force-check for a new version right now.</p>
+                  </div>
+                  <button
+                    className="btn btn-outline-primary btn-sm"
+                    onClick={async () => {
+                      const res = await fetch("/api/admin/updates/check");
+                      const d = await res.json();
+                      setUpdateModalInfo(d);
+                      setShowUpdateModal(true);
+                    }}
+                  >
+                    <i className="bi bi-cloud-download me-1" />Check Now
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Update Modal */}
+      <UpdateModal
+        show={showUpdateModal}
+        info={updateModalInfo}
+        onClose={() => setShowUpdateModal(false)}
+      />
     </AdminLayout>
   );
 }
