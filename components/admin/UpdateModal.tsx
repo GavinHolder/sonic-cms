@@ -279,7 +279,8 @@ export default function UpdateModal({ show, info, onClose }: Props) {
                   </div>
                   <div className="alert alert-warning small mb-0">
                     <i className="bi bi-cone-striped me-1" />
-                    <strong>Maintenance mode is still active.</strong> Fix the issue before disabling it manually in Settings → Maintenance Mode.
+                    <strong>Maintenance mode is still active.</strong> Retrying will attempt the update again.
+                    If you want to cancel, close and disable maintenance mode manually in Settings → Site.
                   </div>
                   {githubUrl && (
                     <a href={githubUrl} target="_blank" rel="noopener noreferrer" className="btn btn-outline-secondary btn-sm">
@@ -318,7 +319,15 @@ export default function UpdateModal({ show, info, onClose }: Props) {
                 <button className="btn btn-secondary" onClick={onClose}>Close</button>
               )}
               {phase === "error" && (
-                <button className="btn btn-secondary" onClick={onClose}>Close</button>
+                <>
+                  <button className="btn btn-secondary" onClick={onClose}>Close</button>
+                  <button
+                    className="btn btn-warning"
+                    onClick={() => { setErrorMsg(""); setGithubUrl(null); handleUpdate("now"); }}
+                  >
+                    <i className="bi bi-arrow-clockwise me-1" />Retry Update
+                  </button>
+                </>
               )}
             </div>
 
