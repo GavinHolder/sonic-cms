@@ -1,10 +1,11 @@
 {
-  "version": "1.4.5",
+  "version": "1.7.1",
   "date": "2026-03-21",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "remove blocking health check — complete update immediately on Actions success"
+      "canonicalBase field allows typing https:// — strip trailing slash on blur only",
+      "SEO — canonical fallback, JSON-LD guards, static page metadata, sitemap static routes, admin warning"
     ],
     "breaking": []
   }
