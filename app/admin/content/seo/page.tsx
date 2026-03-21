@@ -154,7 +154,7 @@ export default function SeoSettingsPage() {
     ? JSON.stringify(
         {
           "@context": "https://schema.org",
-          "@type": config.structuredData.type || "LocalBusiness",
+          "@type": (() => { const t = config.structuredData.type; const arr = Array.isArray(t) ? t : [t || "LocalBusiness"]; return arr.length === 1 ? arr[0] : arr; })(),
           name: config.structuredData.name,
           ...(config.structuredData.telephone ? { telephone: config.structuredData.telephone } : {}),
           ...(config.structuredData.url ? { url: config.structuredData.url } : {}),
@@ -552,16 +552,16 @@ export default function SeoSettingsPage() {
                     />
                   </div>
                   <div className="col-md-6">
-                    <label className="form-label fw-semibold">Business Type</label>
+                    <label className="form-label fw-semibold">Business Type(s)</label>
                     <input
                       type="text"
                       className="form-control"
-                      value={config.structuredData.type}
-                      onChange={(e) => setSchema("type", e.target.value)}
+                      value={Array.isArray(config.structuredData.type) ? config.structuredData.type.join(", ") : config.structuredData.type}
+                      onChange={(e) => setSchema("type", e.target.value.split(",").map((s) => s.trim()).filter(Boolean))}
                       disabled={!config.structuredData.enabled}
-                      placeholder="LocalBusiness"
+                      placeholder="LocalBusiness, Store"
                     />
-                    <div className="form-text">schema.org type: LocalBusiness, Organization, etc.</div>
+                    <div className="form-text">Comma-separated schema.org types. Use the SEO Wizard for a guided picker.</div>
                   </div>
                   <div className="col-12">
                     <label className="form-label fw-semibold">Street Address</label>

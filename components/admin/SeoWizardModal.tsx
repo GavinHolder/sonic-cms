@@ -24,7 +24,10 @@ type Step = "basics" | "location" | "keywords" | "preview";
 
 interface WizardData {
   businessName: string;
-  businessType: string;
+  /** Predefined types ticked by the user */
+  businessTypes: string[];
+  /** Free-text custom types, comma-separated */
+  customTypes: string;
   tagline: string;
   websiteUrl: string;
   phone: string;
@@ -37,7 +40,8 @@ interface WizardData {
 
 const EMPTY: WizardData = {
   businessName: "",
-  businessType: "LocalBusiness",
+  businessTypes: ["LocalBusiness"],
+  customTypes: "",
   tagline: "",
   websiteUrl: "",
   phone: "",
@@ -79,9 +83,21 @@ function generateDescription(data: WizardData): string {
     TravelAgency: "travel agency",
     SportsActivityLocation: "sports and recreation facility",
   };
-  const typeName = typeMap[data.businessType] || "business";
+  const allTypes = getAllTypes(data);
+  const typeName = typeMap[allTypes[0]] || allTypes[0] || "business";
   const desc = `${name} is a trusted ${typeName}${cityPart} specialising in ${kwPhrase}. Contact us for a quote today.`;
   return desc.slice(0, 160);
+}
+
+// ─── Helpers ───────────────────────────────────────────────────────────────
+
+/** Merge preset + custom types, deduplicated, blanks removed */
+function getAllTypes(data: WizardData): string[] {
+  const custom = data.customTypes
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return [...new Set([...data.businessTypes, ...custom])];
 }
 
 // ─── Props ─────────────────────────────────────────────────────────────────
@@ -126,7 +142,7 @@ export default function SeoWizardModal({ show, onClose, onApply }: Props) {
       },
       structuredData: {
         enabled:         true,
-        type:            data.businessType,
+        type:            getAllTypes(data),
         name:            data.businessName,
         streetAddress:   data.streetAddress,
         addressLocality: data.city,
@@ -243,17 +259,64 @@ export default function SeoWizardModal({ show, onClose, onApply }: Props) {
                   </div>
 
                   <div>
-                    <label className="form-label fw-semibold">Business Type</label>
-                    <select
-                      className="form-select"
-                      value={data.businessType}
-                      onChange={(e) => set("businessType", e.target.value)}
-                    >
-                      {BUSINESS_TYPES.map((bt) => (
-                        <option key={bt.value} value={bt.value}>{bt.label}</option>
-                      ))}
-                    </select>
-                    <div className="form-text">Used for Google&apos;s structured data (schema.org) — helps rich results.</div>
+                    <label className="form-label fw-semibold">Business Type(s)</label>
+                    <div className="form-text mb-2">
+                      Select all that apply — used for Google&apos;s structured data (schema.org).
+                    </div>
+
+                    {/* Predefined type checkboxes */}
+                    <div className="row g-2 mb-3">
+                      {BUSINESS_TYPES.map((bt) => {
+                        const checked = data.businessTypes.includes(bt.value);
+                        return (
+                          <div key={bt.value} className="col-12 col-md-6">
+                            <div
+                              className={`form-check border rounded px-3 py-2 ${checked ? "border-primary bg-primary bg-opacity-10" : "border-secondary-subtle"}`}
+                              style={{ cursor: "pointer" }}
+                              onClick={() =>
+                                set(
+                                  "businessTypes",
+                                  checked
+                                    ? data.businessTypes.filter((t) => t !== bt.value)
+                                    : [...data.businessTypes, bt.value],
+                                )
+                              }
+                            >
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                readOnly
+                                checked={checked}
+                                style={{ pointerEvents: "none" }}
+                              />
+                              <label className="form-check-label small" style={{ pointerEvents: "none" }}>
+                                {bt.label}
+                              </label>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Custom types */}
+                    <label className="form-label small fw-semibold">Custom types <span className="fw-normal text-muted">(comma-separated)</span></label>
+                    <input
+                      type="text"
+                      className="form-control form-control-sm"
+                      placeholder="e.g. ConcreteContractor, BuildingSupplier"
+                      value={data.customTypes}
+                      onChange={(e) => set("customTypes", e.target.value)}
+                    />
+                    <div className="form-text">Any schema.org type not listed above. See <a href="https://schema.org/LocalBusiness" target="_blank" rel="noopener noreferrer">schema.org</a> for the full list.</div>
+
+                    {/* Summary badges */}
+                    {getAllTypes(data).length > 0 && (
+                      <div className="mt-2 d-flex flex-wrap gap-1">
+                        {getAllTypes(data).map((t) => (
+                          <span key={t} className="badge bg-primary bg-opacity-75">{t}</span>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -424,7 +487,7 @@ export default function SeoWizardModal({ show, onClose, onApply }: Props) {
                             ["Site Name",          data.businessName || "—"],
                             ["Meta Description",   generatedDesc],
                             ["Canonical URL",      canonicalBase || "—"],
-                            ["Schema Type",        data.businessType],
+                            ["Schema Type(s)",      getAllTypes(data).join(", ") || "—"],
                             ["Business Name",      data.businessName || "—"],
                             ["Address",            [data.streetAddress, data.city, data.country].filter(Boolean).join(", ") || "—"],
                             ["Phone",              data.phone || "—"],

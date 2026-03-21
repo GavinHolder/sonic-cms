@@ -17,7 +17,7 @@
   },
   "structuredData": {
     "enabled": true,
-    "type": "LocalBusiness",
+    "type": ["LocalBusiness"],
     "name": "Your Company",
     "streetAddress": "",
     "addressLocality": "",

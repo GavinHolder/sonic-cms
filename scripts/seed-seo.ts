@@ -83,7 +83,7 @@ const config: SeoConfig = {
     enabled: true,
     // Set to false only for national/international brands without a physical location
 
-    type: "LocalBusiness",
+    type: ["LocalBusiness"],
     // CUSTOMISE: Use the most specific schema.org type for the client's industry.
     // Examples:
     //   Trades:      "Plumber", "Electrician", "HVACBusiness", "RoofingContractor"

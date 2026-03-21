@@ -93,7 +93,11 @@ export async function PATCH(request: NextRequest) {
         structuredData: {
           ...current.structuredData,
           ...(body.structuredData.enabled !== undefined && { enabled: Boolean(body.structuredData.enabled) }),
-          ...(body.structuredData.type !== undefined && { type: String(body.structuredData.type) }),
+          ...(body.structuredData.type !== undefined && {
+            type: Array.isArray(body.structuredData.type)
+              ? body.structuredData.type.map(String).filter(Boolean)
+              : [String(body.structuredData.type)].filter(Boolean),
+          }),
           ...(body.structuredData.name !== undefined && { name: String(body.structuredData.name) }),
           ...(body.structuredData.streetAddress !== undefined && { streetAddress: String(body.structuredData.streetAddress) }),
           ...(body.structuredData.addressLocality !== undefined && { addressLocality: String(body.structuredData.addressLocality) }),

@@ -118,9 +118,14 @@ export function buildStructuredData(seoConfig: SeoConfig): string | null {
   const sd = seoConfig.structuredData;
   if (!sd.enabled || !sd.name) return null;
 
+  // Normalise: legacy configs may store type as a string
+  const typeValue = Array.isArray(sd.type)
+    ? (sd.type.length === 1 ? sd.type[0] : sd.type)
+    : sd.type || "LocalBusiness";
+
   const schema: Record<string, unknown> = {
     "@context": "https://schema.org",
-    "@type": sd.type || "LocalBusiness",
+    "@type": typeValue,
     name: sd.name,
     ...(sd.telephone ? { telephone: sd.telephone } : {}),
     ...(sd.url ? { url: sd.url } : {}),

@@ -37,8 +37,8 @@ export interface SeoRobotsConfig {
 export interface SeoStructuredDataConfig {
   /** Enable LocalBusiness JSON-LD schema injection on all pages */
   enabled: boolean;
-  /** schema.org business type e.g. "LocalBusiness", "Organization" */
-  type: string;
+  /** schema.org business type(s) e.g. ["LocalBusiness", "Store"] — JSON-LD @type accepts array */
+  type: string[];
   /** Business name */
   name: string;
   /** Street address */
@@ -88,7 +88,7 @@ export const defaultSeoConfig: SeoConfig = {
   },
   structuredData: {
     enabled: false,
-    type: "LocalBusiness",
+    type: ["LocalBusiness"],
     name: "",
     streetAddress: "",
     addressLocality: "",
