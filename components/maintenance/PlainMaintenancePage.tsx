@@ -4,13 +4,14 @@ import React from "react";
 import type { MaintenanceTheme } from "@/components/MaintenancePage";
 
 export default function PlainMaintenancePage({ theme = {} }: { theme?: MaintenanceTheme }) {
-  const { logoUrl, companyName = "" } = theme;
+  const { logoUrl, companyName = "", colorScheme = "light" } = theme;
+  const dark = colorScheme === "dark";
 
   return (
-    <div className="pmm-root">
+    <div className={`pmm-root ${dark ? "pmm-dark" : "pmm-light"}`}>
       <style>{css}</style>
 
-      <div className="pmm-card">
+      <div className="pmm-inner">
         {logoUrl && (
           <div className="pmm-logo-wrap">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -18,105 +19,106 @@ export default function PlainMaintenancePage({ theme = {} }: { theme?: Maintenan
           </div>
         )}
 
-        {/* Icon */}
-        <div className="pmm-icon" aria-hidden="true">
-          <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" width="56" height="56">
-            <circle cx="32" cy="32" r="30" stroke="currentColor" strokeWidth="3" opacity="0.15"/>
-            <path d="M20 32 C20 25.4 25.4 20 32 20 C38.6 20 44 25.4 44 32" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
-              <animateTransform attributeName="transform" type="rotate" from="0 32 32" to="360 32 32" dur="2s" repeatCount="indefinite"/>
-            </path>
-            <circle cx="32" cy="32" r="4" fill="currentColor" opacity="0.7"/>
-          </svg>
-        </div>
-
         <div className="pmm-badge">
-          <span className="pmm-dot" aria-hidden="true" />
+          <span className="pmm-dot" />
           Maintenance Mode
         </div>
 
-        <h1 className="pmm-heading">We&rsquo;ll Be Right Back</h1>
-        <p className="pmm-sub">
-          We&rsquo;re making things awesome &mdash; back shortly.
-        </p>
+        <h1 className="pmm-heading">We'll Be Right Back</h1>
 
-        <div className="pmm-bar-wrap">
-          <div className="pmm-bar">
-            <div className="pmm-fill" />
-          </div>
-        </div>
+        <p className="pmm-sub">
+          Making things awesome &mdash; back shortly.
+        </p>
+      </div>
+
+      {/* Single subtle animation: thin scanning line at bottom */}
+      <div className="pmm-scan-wrap">
+        <div className="pmm-scan" />
       </div>
     </div>
   );
 }
 
 const css = `
+/* ── Base ─────────────────────────────────────────────────────────────────── */
 .pmm-root {
   position: fixed; inset: 0; z-index: 9999;
-  display: flex; align-items: center; justify-content: center;
-  background: #0d1117;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
   font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
 }
-.pmm-card {
+
+/* ── Light (default) ──────────────────────────────────────────────────────── */
+.pmm-light { background: #ffffff; }
+
+.pmm-light .pmm-logo-wrap {
+  border-bottom: 1px solid #e5e5e5;
+  padding-bottom: 28px; margin-bottom: 28px;
+}
+.pmm-light .pmm-badge  { color: #888; }
+.pmm-light .pmm-dot    { background: #aaa; }
+.pmm-light .pmm-heading { color: #111111; }
+.pmm-light .pmm-sub    { color: #777; }
+.pmm-light .pmm-scan-wrap { background: #e8e8e8; }
+.pmm-light .pmm-scan   { background: linear-gradient(90deg, transparent, #555, transparent); }
+
+/* ── Dark ─────────────────────────────────────────────────────────────────── */
+.pmm-dark  { background: #111111; }
+
+.pmm-dark .pmm-logo-wrap {
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  padding-bottom: 28px; margin-bottom: 28px;
+}
+.pmm-dark .pmm-badge   { color: #555; }
+.pmm-dark .pmm-dot     { background: #555; }
+.pmm-dark .pmm-heading  { color: #f0f0f0; }
+.pmm-dark .pmm-sub     { color: #555; }
+.pmm-dark .pmm-scan-wrap { background: rgba(255,255,255,0.06); }
+.pmm-dark .pmm-scan    { background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent); }
+
+/* ── Layout ───────────────────────────────────────────────────────────────── */
+.pmm-inner {
   display: flex; flex-direction: column;
   align-items: center; text-align: center;
-  padding: 48px 40px;
-  max-width: 440px; width: 100%;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.07);
-  border-radius: 16px;
-  backdrop-filter: blur(8px);
+  padding: 0 32px; max-width: 480px; width: 100%;
 }
-.pmm-logo-wrap {
-  margin-bottom: 24px;
-  padding: 8px 18px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 8px;
-}
+.pmm-logo-wrap { width: 100%; display: flex; justify-content: center; }
 .pmm-logo {
-  display: block;
-  max-width: 180px; max-height: 52px;
+  display: block; max-width: 200px; max-height: 64px;
   width: auto; height: auto; object-fit: contain;
 }
-.pmm-icon {
-  color: #4d9fff;
-  margin-bottom: 16px;
-}
+
 .pmm-badge {
   display: inline-flex; align-items: center; gap: 7px;
-  font-size: 0.66rem; font-weight: 700;
-  letter-spacing: 0.3em; text-transform: uppercase;
-  color: #4d9fff; margin-bottom: 12px;
+  font-size: 0.68rem; font-weight: 600; letter-spacing: 0.28em;
+  text-transform: uppercase; margin-bottom: 18px;
 }
 .pmm-dot {
-  width: 6px; height: 6px; background: #4d9fff;
-  border-radius: 50%;
-  animation: pmm-blink 1.4s step-start infinite;
+  width: 5px; height: 5px; border-radius: 50%;
+  animation: pmm-pulse 2.4s ease-in-out infinite;
 }
-@keyframes pmm-blink { 0%,100%{ opacity:1 } 50%{ opacity:0 } }
+@keyframes pmm-pulse { 0%,100%{ opacity:1 } 50%{ opacity:0.2 } }
+
 .pmm-heading {
-  font-size: clamp(1.6rem, 5vw, 2.6rem);
-  font-weight: 800; letter-spacing: -0.01em;
-  color: #f0f0f0; margin: 0 0 12px; line-height: 1.1;
+  font-size: clamp(2rem, 5.5vw, 3.2rem);
+  font-weight: 800; letter-spacing: -0.02em;
+  margin: 0 0 14px; line-height: 1.1;
 }
 .pmm-sub {
-  font-size: 0.95rem; color: #6e7681;
-  margin: 0 0 28px; line-height: 1.7;
+  font-size: 1rem; line-height: 1.7; margin: 0;
 }
-.pmm-bar-wrap { width: 100%; max-width: 280px; }
-.pmm-bar {
-  width: 100%; height: 3px;
-  background: rgba(255,255,255,0.06);
-  border-radius: 2px; overflow: hidden;
+
+/* ── Scanning line ────────────────────────────────────────────────────────── */
+.pmm-scan-wrap {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  height: 2px; overflow: hidden;
 }
-.pmm-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #1a5eaf, #4d9fff, #7bc5ff);
-  border-radius: 2px;
-  animation: pmm-slide 2.8s ease-in-out infinite;
+.pmm-scan {
+  height: 100%; width: 30%;
+  animation: pmm-sweep 2.2s ease-in-out infinite;
 }
-@keyframes pmm-slide {
-  0%,100% { width: 15%; margin-left: 0; }
-  50%      { width: 55%; margin-left: 30%; }
+@keyframes pmm-sweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(430%); }
 }
 `;

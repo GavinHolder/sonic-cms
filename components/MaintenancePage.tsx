@@ -20,6 +20,7 @@ export interface MaintenanceTheme {
   logoUrl?: string;
   companyName?: string;
   template?: MaintenanceTemplate;
+  colorScheme?: "light" | "dark";
   /** Full URL to background image (custom template only) */
   customImage?: string;
   /** Pantone 2290 C default: #78BE20 — construction template */

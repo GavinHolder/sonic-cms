@@ -9,6 +9,7 @@ function Preview() {
 
   const theme: MaintenanceTheme = {
     template:     (params.get("template") as MaintenanceTemplate) || "plain",
+    colorScheme:  (params.get("scheme") as "light" | "dark")     || "light",
     logoUrl:      params.get("logo")        || undefined,
     companyName:  params.get("company")     || undefined,
     customImage:  params.get("customImage") || undefined,

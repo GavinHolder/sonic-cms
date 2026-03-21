@@ -68,6 +68,7 @@ export default function SettingsPage() {
   const [maintenancePrimary, setMaintenancePrimary] = useState("#78BE20");
   const [maintenanceDark, setMaintenanceDark] = useState("#53565A");
   const [maintenanceLight, setMaintenanceLight] = useState("#BBBCBC");
+  const [maintenanceScheme, setMaintenanceScheme] = useState<"light" | "dark">("light");
   const [maintenanceLoading, setMaintenanceLoading] = useState(true);
   const [maintenanceSaving, setMaintenanceSaving] = useState(false);
   const [maintenanceMsg, setMaintenanceMsg] = useState<string | null>(null);
@@ -92,6 +93,7 @@ export default function SettingsPage() {
         if (d.primaryColor) setMaintenancePrimary(d.primaryColor);
         if (d.darkColor)    setMaintenanceDark(d.darkColor);
         if (d.lightColor)   setMaintenanceLight(d.lightColor);
+        if (d.colorScheme)  setMaintenanceScheme(d.colorScheme);
       })
       .catch(() => {})
       .finally(() => setMaintenanceLoading(false));
@@ -180,7 +182,7 @@ export default function SettingsPage() {
 
   const handleSaveMaintenanceTemplate = async (
     template: "plain" | "construction" | "custom",
-    opts?: { customImage?: string; primaryColor?: string; darkColor?: string; lightColor?: string },
+    opts?: { customImage?: string; primaryColor?: string; darkColor?: string; lightColor?: string; colorScheme?: string },
   ) => {
     setMaintenanceSaving(true);
     setMaintenanceMsg(null);
@@ -190,6 +192,7 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           template,
+          colorScheme:  opts?.colorScheme  ?? maintenanceScheme,
           customImage:  opts?.customImage  ?? maintenanceCustomImage,
           primaryColor: opts?.primaryColor ?? maintenancePrimary,
           darkColor:    opts?.darkColor    ?? maintenanceDark,
@@ -198,6 +201,7 @@ export default function SettingsPage() {
       });
       if (!res.ok) throw new Error("Failed");
       setMaintenanceTemplate(template);
+      if (opts?.colorScheme  !== undefined) setMaintenanceScheme(opts.colorScheme as "light" | "dark");
       if (opts?.customImage  !== undefined) setMaintenanceCustomImage(opts.customImage);
       if (opts?.primaryColor !== undefined) setMaintenancePrimary(opts.primaryColor);
       if (opts?.darkColor    !== undefined) setMaintenanceDark(opts.darkColor);
@@ -214,6 +218,7 @@ export default function SettingsPage() {
   const handlePreviewMaintenance = () => {
     const p = new URLSearchParams({
       template: maintenanceTemplate,
+      scheme:   maintenanceScheme,
       primary:  maintenancePrimary,
       dark:     maintenanceDark,
       light:    maintenanceLight,
@@ -541,6 +546,35 @@ export default function SettingsPage() {
                           {maintenanceTemplate === "custom" && <i className="bi bi-check-circle-fill text-primary" />}
                           <span className="small fw-semibold">Custom Image</span>
                         </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Light / Dark toggle */}
+                  <div className="d-flex align-items-center gap-2 mt-3">
+                    <span className="small fw-semibold text-muted">Colour Scheme:</span>
+                    <div className="btn-group btn-group-sm">
+                      <button
+                        type="button"
+                        className={`btn ${maintenanceScheme === "light" ? "btn-primary" : "btn-outline-secondary"}`}
+                        onClick={() => {
+                          setMaintenanceScheme("light");
+                          handleSaveMaintenanceTemplate(maintenanceTemplate, { colorScheme: "light" });
+                        }}
+                        disabled={maintenanceSaving}
+                      >
+                        <i className="bi bi-sun me-1" />Light
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn ${maintenanceScheme === "dark" ? "btn-primary" : "btn-outline-secondary"}`}
+                        onClick={() => {
+                          setMaintenanceScheme("dark");
+                          handleSaveMaintenanceTemplate(maintenanceTemplate, { colorScheme: "dark" });
+                        }}
+                        disabled={maintenanceSaving}
+                      >
+                        <i className="bi bi-moon me-1" />Dark
                       </button>
                     </div>
                   </div>

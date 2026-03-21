@@ -3,22 +3,21 @@
 import React from "react";
 import type { MaintenanceTheme } from "@/components/MaintenancePage";
 
-/**
- * Construction template — concrete mixer truck with Pantone brand colours.
- * Default palette: Pantone 2290 C (#78BE20) / Cool Gray 11 C (#53565A) / Cool Gray 4 C (#BBBCBC).
- */
 export default function ConstructionMaintenancePage({ theme = {} }: { theme?: MaintenanceTheme }) {
   const {
     logoUrl,
     companyName = "",
+    colorScheme  = "light",
     primaryColor = "#78BE20",
-    darkColor = "#53565A",
-    lightColor = "#BBBCBC",
+    darkColor    = "#53565A",
+    lightColor   = "#BBBCBC",
   } = theme;
+
+  const dark = colorScheme === "dark";
 
   return (
     <div
-      className="mm-root"
+      className={`cmm-root ${dark ? "cmm-dark" : "cmm-light"}`}
       style={{
         "--mm-p": primaryColor,
         "--mm-d": darkColor,
@@ -28,364 +27,272 @@ export default function ConstructionMaintenancePage({ theme = {} }: { theme?: Ma
       <style>{css}</style>
 
       {/* Hazard tape — top */}
-      <div className="mm-hazard mm-hazard-top" aria-hidden="true" />
+      <div className="cmm-tape cmm-tape-top" aria-hidden="true" />
 
-      {/* Main content */}
-      <div className="mm-content">
-
-        {/* Logo */}
+      <div className="cmm-content">
         {logoUrl && (
-          <div className="mm-logo-wrap">
+          <div className="cmm-logo-wrap">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={logoUrl} alt={companyName || "Logo"} className="mm-logo" />
+            <img src={logoUrl} alt={companyName || "Logo"} className="cmm-logo" />
           </div>
         )}
 
-        {/* Blinking badge */}
-        <div className="mm-badge" aria-label="Maintenance mode active">
-          <span className="mm-badge-dot" aria-hidden="true" />
-          Maintenance Mode
+        <div className="cmm-badge">
+          <span className="cmm-dot" />
+          Under Maintenance
         </div>
 
-        {/* Heading */}
-        <h1 className="mm-heading">
-          <span className="mm-h-under">Under</span>
-          <span className="mm-h-main">Construction</span>
-        </h1>
+        <h1 className="cmm-heading">Under Construction</h1>
 
-        {/* ── CSS Concrete Mixer Truck ── */}
-        <div className="mm-scene" aria-hidden="true">
-          {/* Ground + shadow */}
-          <div className="mm-ground" />
-          <div className="mm-shadow" />
-
-          {/* Chassis / frame */}
-          <div className="mm-chassis" />
-
-          {/* Cab */}
-          <div className="mm-cab">
-            <div className="mm-windshield" />
-            <div className="mm-door" />
+        {/* Mixer truck — drum rotation only, no wheel spin, no smoke */}
+        <div className="cmm-scene" aria-hidden="true">
+          <div className="cmm-ground" />
+          <div className="cmm-chassis" />
+          <div className="cmm-cab">
+            <div className="cmm-windshield" />
+            <div className="cmm-door" />
           </div>
-
-          {/* Exhaust pipe + smoke */}
-          <div className="mm-exhaust" />
-          <div className="mm-smoke mm-s1" />
-          <div className="mm-smoke mm-s2" />
-          <div className="mm-smoke mm-s3" />
-
-          {/* Rotating drum */}
-          <div className="mm-drum" />
-
-          {/* Discharge chute */}
-          <div className="mm-chute" />
-
-          {/* Rear guard */}
-          <div className="mm-rear-guard" />
-
-          {/* Three wheels */}
-          <div className="mm-wheel mm-wf"><div className="mm-hub" /></div>
-          <div className="mm-wheel mm-wr1"><div className="mm-hub" /></div>
-          <div className="mm-wheel mm-wr2"><div className="mm-hub" /></div>
+          <div className="cmm-drum" />
+          <div className="cmm-chute" />
+          {/* Static wheels — no spin animation */}
+          <div className="cmm-wheel cmm-wf"><div className="cmm-hub" /></div>
+          <div className="cmm-wheel cmm-wr1"><div className="cmm-hub" /></div>
+          <div className="cmm-wheel cmm-wr2"><div className="cmm-hub" /></div>
         </div>
 
-        {/* Body copy */}
-        <p className="mm-sub">
-          We&rsquo;re mixing something better &mdash; back shortly.
-        </p>
-
-        {/* Animated progress bar */}
-        <div className="mm-bar-wrap">
-          <div className="mm-bar">
-            <div className="mm-bar-fill" />
-          </div>
-          <span className="mm-bar-label">Mixing in progress&hellip;</span>
-        </div>
-
+        <p className="cmm-sub">Making things awesome &mdash; back shortly.</p>
       </div>
 
       {/* Hazard tape — bottom */}
-      <div className="mm-hazard mm-hazard-bottom" aria-hidden="true" />
+      <div className="cmm-tape cmm-tape-bottom" aria-hidden="true" />
     </div>
   );
 }
 
 const css = `
-.mm-root {
+/* ── Root ─────────────────────────────────────────────────────────────────── */
+.cmm-root {
   position: fixed; inset: 0; z-index: 9999;
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
-  overflow: hidden;
   font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
-  background-color: #0f0f0f;
+  overflow: hidden;
+}
+
+/* ── Light ─────────────────────────────────────────────────────────────────── */
+.cmm-light {
+  background: #f4f1ec;
+  /* Subtle concrete grain */
+  background-image: repeating-linear-gradient(
+    0deg, transparent 0px, transparent 4px,
+    rgba(0,0,0,0.018) 4px, rgba(0,0,0,0.018) 5px
+  );
+}
+.cmm-light .cmm-tape {
+  background: repeating-linear-gradient(
+    -50deg,
+    #f59e0b 0px, #f59e0b 20px,
+    #1a1a1a 20px, #1a1a1a 40px
+  );
+  opacity: 0.75;
+}
+.cmm-light .cmm-badge  { color: #888; }
+.cmm-light .cmm-dot    { background: #aaa; }
+.cmm-light .cmm-heading { color: #1a1a1a; }
+.cmm-light .cmm-sub    { color: #888; }
+.cmm-light .cmm-ground { background: #d0cab8; }
+.cmm-light .cmm-chassis { background: linear-gradient(180deg, var(--mm-d) 0%, #888 100%); }
+.cmm-light .cmm-drum   {
+  background: repeating-linear-gradient(
+    -55deg,
+    var(--mm-d) 0px, var(--mm-d) 14px,
+    #9a9a9a 14px, #9a9a9a 28px
+  );
+  border-color: #ccc;
+}
+.cmm-light .cmm-wheel  { border-color: var(--mm-d); background: #ddd; }
+.cmm-light .cmm-hub::before { background: #aaa; border-color: #888; }
+
+/* ── Dark ─────────────────────────────────────────────────────────────────── */
+.cmm-dark {
+  background: #0f0f0f;
   background-image:
     repeating-linear-gradient(0deg,
       transparent 0px, transparent 3px,
-      rgba(255,255,255,0.011) 3px, rgba(255,255,255,0.011) 4px),
-    repeating-linear-gradient(90deg,
-      transparent 0px, transparent 7px,
-      rgba(255,255,255,0.006) 7px, rgba(255,255,255,0.006) 8px);
+      rgba(255,255,255,0.011) 3px, rgba(255,255,255,0.011) 4px);
 }
-.mm-hazard {
-  position: fixed; left: 0; right: 0; height: 42px;
+.cmm-dark .cmm-tape {
   background: repeating-linear-gradient(
     -50deg,
-    var(--mm-p) 0px,   var(--mm-p) 21px,
-    #111       21px,   #111       42px
+    var(--mm-p) 0px, var(--mm-p) 20px,
+    #111 20px, #111 40px
   );
-  opacity: 0.9;
+  opacity: 0.85;
 }
-.mm-hazard-top    { top: 0; }
-.mm-hazard-bottom { bottom: 0; }
-.mm-content {
+.cmm-dark .cmm-badge   { color: var(--mm-p); }
+.cmm-dark .cmm-dot     { background: var(--mm-p); }
+.cmm-dark .cmm-heading  { color: #f0f0f0; }
+.cmm-dark .cmm-sub     { color: var(--mm-l); }
+.cmm-dark .cmm-ground  { background: linear-gradient(90deg, #1a1a1a, var(--mm-d) 50%, #1a1a1a); }
+.cmm-dark .cmm-chassis { background: linear-gradient(180deg, var(--mm-d) 0%, #1c1c1c 100%); }
+.cmm-dark .cmm-drum    {
+  background: repeating-linear-gradient(
+    -55deg,
+    var(--mm-d) 0px, var(--mm-d) 14px,
+    #383838 14px, #383838 28px
+  );
+  border-color: #1a1a1a;
+  border-right-color: #5c5c5c;
+}
+.cmm-dark .cmm-wheel   { border-color: var(--mm-d); background: #111; }
+.cmm-dark .cmm-hub::before { background: #444; border-color: #666; }
+
+/* ── Hazard tape ───────────────────────────────────────────────────────────── */
+.cmm-tape {
+  position: fixed; left: 0; right: 0; height: 36px;
+}
+.cmm-tape-top    { top: 0; }
+.cmm-tape-bottom { bottom: 0; }
+
+/* ── Content ───────────────────────────────────────────────────────────────── */
+.cmm-content {
   display: flex; flex-direction: column;
   align-items: center; z-index: 1;
-  padding: 60px 24px;
-  width: 100%; max-width: 480px;
+  padding: 56px 24px;
+  width: 100%; max-width: 500px;
 }
-.mm-logo-wrap {
-  margin-bottom: 18px;
-  padding: 10px 20px;
-  background: rgba(255,255,255,0.05);
-  border-radius: 8px;
-  border: 1px solid rgba(255,255,255,0.07);
+.cmm-logo-wrap {
+  margin-bottom: 20px;
+  padding: 8px 18px;
 }
-.mm-logo {
-  display: block;
-  max-width: 200px; max-height: 56px;
-  width: auto; height: auto;
-  object-fit: contain;
+.cmm-logo {
+  display: block; max-width: 200px; max-height: 60px;
+  width: auto; height: auto; object-fit: contain;
 }
-.mm-badge {
-  display: inline-flex; align-items: center; gap: 8px;
-  font-size: 0.67rem; font-weight: 700; letter-spacing: 0.32em;
-  text-transform: uppercase; color: var(--mm-p);
+.cmm-badge {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 0.67rem; font-weight: 600;
+  letter-spacing: 0.28em; text-transform: uppercase;
   margin-bottom: 10px;
 }
-.mm-badge-dot {
-  width: 6px; height: 6px;
-  background: var(--mm-p); border-radius: 50%;
-  animation: mm-blink 1.5s step-start infinite;
+.cmm-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  animation: cmm-pulse 2.4s ease-in-out infinite;
 }
-@keyframes mm-blink { 0%,100%{ opacity:1 } 50%{ opacity:0 } }
-.mm-heading {
-  margin: 0 0 20px; text-align: center; line-height: 1;
-  display: flex; flex-direction: column; align-items: center;
+@keyframes cmm-pulse { 0%,100%{ opacity:1 } 50%{ opacity:0.2 } }
+
+.cmm-heading {
+  font-size: clamp(2rem, 7vw, 3.8rem);
+  font-weight: 900; letter-spacing: 0.02em;
+  text-transform: uppercase; margin: 0 0 20px; line-height: 1;
 }
-.mm-h-under {
-  font-size: clamp(0.8rem, 2.2vw, 1.1rem);
-  font-weight: 300; letter-spacing: 0.65em;
-  text-transform: uppercase; color: var(--mm-l);
-  margin-bottom: 2px;
+
+/* ── Truck scene ───────────────────────────────────────────────────────────── */
+.cmm-scene {
+  position: relative; width: 300px; height: 130px;
+  margin-bottom: 18px; flex-shrink: 0;
 }
-.mm-h-main {
-  font-size: clamp(2.4rem, 8.5vw, 5.5rem);
-  font-weight: 900; letter-spacing: 0.04em;
-  text-transform: uppercase; color: #f5f5f5;
-  text-shadow: 0 3px 0 rgba(0,0,0,0.8), 0 0 60px rgba(120,190,32,0.08);
-  -webkit-text-stroke: 2px rgba(120,190,32,0.28);
+.cmm-ground {
+  position: absolute; bottom: 0; left: 0; right: 0; height: 4px;
+  border-radius: 2px;
 }
-.mm-scene {
-  position: relative;
-  width: 340px; height: 140px;
-  margin-bottom: 16px;
-  flex-shrink: 0;
-}
-.mm-ground {
-  position: absolute; bottom: 0; left: 0; right: 0; height: 5px;
-  background: linear-gradient(90deg, #1a1a1a, var(--mm-d) 35%, #454545 65%, #1a1a1a);
-  border-radius: 3px;
-}
-.mm-shadow {
-  position: absolute; bottom: 3px; left: 50px;
-  width: 240px; height: 8px;
-  background: rgba(0,0,0,0.65); border-radius: 50%;
-  filter: blur(4px);
-}
-.mm-chassis {
-  position: absolute; bottom: 5px; left: 12px;
-  width: 308px; height: 28px;
-  background: linear-gradient(180deg, var(--mm-d) 0%, #1c1c1c 100%);
+.cmm-chassis {
+  position: absolute; bottom: 4px; left: 10px;
+  width: 272px; height: 26px;
   border-radius: 3px 2px 2px 3px;
-  border-top: 2px solid #666;
+  border-top: 2px solid rgba(255,255,255,0.12);
 }
-.mm-cab {
-  position: absolute; bottom: 33px; left: 12px;
-  width: 84px; height: 64px;
-  background: linear-gradient(170deg, #fbbf24 0%, #f59e0b 55%, #d97706 100%);
+.cmm-cab {
+  position: absolute; bottom: 30px; left: 10px;
+  width: 76px; height: 58px;
+  background: linear-gradient(160deg, #fbbf24 0%, #f59e0b 55%, #d97706 100%);
   border-radius: 5px 3px 2px 2px;
   border-right: 3px solid #b45309;
 }
-.mm-cab::before {
+.cmm-cab::before {
   content: '';
-  position: absolute; top: -12px; left: 0; right: -3px;
-  height: 16px;
+  position: absolute; top: -10px; left: 0; right: -3px; height: 14px;
   background: linear-gradient(180deg, #fbbf24, #f59e0b);
-  border-radius: 7px 7px 0 0;
-  border-top: 2px solid #d97706;
+  border-radius: 6px 6px 0 0;
 }
-.mm-cab::after {
+.cmm-cab::after {
   content: '';
-  position: absolute; top: 18px; left: -6px;
-  width: 8px; height: 14px;
+  position: absolute; top: 16px; left: -5px;
+  width: 7px; height: 12px;
   background: rgba(255,250,180,0.95);
   border-radius: 2px 0 0 2px;
-  box-shadow: -6px 0 14px rgba(255,248,100,0.55);
+  box-shadow: -5px 0 12px rgba(255,248,100,0.4);
 }
-.mm-windshield {
+.cmm-windshield {
   position: absolute; top: 5px; left: 5px;
-  width: 32px; height: 44px;
+  width: 28px; height: 38px;
   background: linear-gradient(135deg, rgba(140,210,235,0.8), rgba(50,120,200,0.5));
   border-radius: 3px 2px 2px 3px;
-  border: 1.5px solid rgba(255,255,255,0.28);
+  border: 1px solid rgba(255,255,255,0.2);
 }
-.mm-windshield::after {
-  content: '';
-  position: absolute; top: 5px; left: 4px;
-  width: 9px; height: 14px;
-  background: rgba(255,255,255,0.38);
-  border-radius: 2px; transform: skewX(-6deg);
+.cmm-door {
+  position: absolute; bottom: 5px; right: 4px;
+  width: 34px; height: 28px;
+  border: 1px solid rgba(0,0,0,0.14); border-radius: 2px;
 }
-.mm-door {
-  position: absolute; bottom: 6px; right: 5px;
-  width: 38px; height: 32px;
-  border: 1.5px solid rgba(0,0,0,0.16);
-  border-radius: 2px;
+
+/* Drum — one rotation animation only */
+.cmm-drum {
+  position: absolute; bottom: 30px; left: 78px;
+  width: 135px; height: 72px;
+  border-radius: 8px 48px 48px 8px;
+  border: 3px solid;
+  animation: cmm-roll 3s linear infinite;
+  box-shadow: inset 0 0 18px rgba(0,0,0,0.3);
 }
-.mm-door::after {
-  content: '';
-  position: absolute; top: 50%; right: 5px;
-  width: 8px; height: 3px; margin-top: -1.5px;
-  background: rgba(0,0,0,0.2); border-radius: 2px;
-}
-.mm-exhaust {
-  position: absolute; bottom: 97px; left: 70px;
-  width: 9px; height: 32px;
-  background: linear-gradient(90deg, #555, var(--mm-d));
-  border-radius: 4px 4px 2px 2px;
-}
-.mm-exhaust::before {
-  content: '';
-  position: absolute; top: -5px; left: -2px;
-  width: 13px; height: 8px;
-  background: var(--mm-d); border-radius: 6px 6px 0 0;
-}
-.mm-smoke {
-  position: absolute; border-radius: 50%;
-  background: radial-gradient(circle, rgba(200,200,200,0.18) 0%, transparent 70%);
-  animation: mm-puff 2.4s ease-out infinite;
-}
-.mm-s1 { width: 14px; height: 14px; left: 66px; bottom: 112px; animation-delay: 0s; }
-.mm-s2 { width: 20px; height: 20px; left: 62px; bottom: 122px; animation-delay: 0.75s; }
-.mm-s3 { width: 28px; height: 28px; left: 57px; bottom: 133px; animation-delay: 1.5s; }
-@keyframes mm-puff {
-  0%   { opacity: 0.5;  transform: scale(1)   translateY(0);   }
-  100% { opacity: 0;    transform: scale(2.2) translateY(-16px); }
-}
-.mm-drum {
-  position: absolute; bottom: 33px; left: 88px;
-  width: 152px; height: 80px;
-  background: repeating-linear-gradient(
-    -55deg,
-    var(--mm-d)  0px, var(--mm-d)  14px,
-    #383838      14px, #383838     28px
-  );
-  border-radius: 10px 55px 55px 10px;
-  border: 3px solid #1a1a1a;
-  border-right-color: #5c5c5c;
-  animation: mm-roll 2s linear infinite;
-  box-shadow: inset 0 0 22px rgba(0,0,0,0.4);
-}
-.mm-drum::before {
-  content: '';
-  position: absolute; top: 8px; left: 8px; right: 12px; bottom: 8px;
-  border-radius: 6px 44px 44px 6px;
-  border: 1px solid rgba(255,255,255,0.055);
-}
-@keyframes mm-roll {
+@keyframes cmm-roll {
   from { background-position: 0 0; }
   to   { background-position: 56px 56px; }
 }
-.mm-chute {
-  position: absolute; bottom: 40px; left: 228px;
-  width: 55px; height: 10px;
-  background: #666;
-  border-radius: 2px 3px 4px 2px;
+
+.cmm-chute {
+  position: absolute; bottom: 36px; left: 202px;
+  width: 48px; height: 9px;
+  background: #888; border-radius: 2px 3px 3px 2px;
   transform: rotate(28deg); transform-origin: 0% 50%;
-  border: 1px solid #333;
+  border: 1px solid #555;
 }
-.mm-chute::after {
+.cmm-chute::after {
   content: '';
-  position: absolute; right: -4px; bottom: -6px;
-  width: 12px; height: 9px;
+  position: absolute; right: -3px; bottom: -5px;
+  width: 10px; height: 8px;
   background: var(--mm-p);
-  border-radius: 2px 4px 6px 2px;
-  opacity: 0.75;
+  border-radius: 2px 3px 5px 2px; opacity: 0.7;
 }
-.mm-rear-guard {
-  position: absolute; bottom: 5px; right: 10px;
-  width: 12px; height: 22px;
-  background: var(--mm-d);
-  border-left: 2px solid #666;
-  border-radius: 0 2px 2px 0;
-}
-.mm-wheel {
+
+/* Wheels — static, no spin */
+.cmm-wheel {
   position: absolute; bottom: -1px;
-  width: 38px; height: 38px;
-  background: #111; border-radius: 50%;
-  border: 4px solid var(--mm-d);
-  box-shadow: inset 0 0 0 4px #1a1a1a, 0 2px 6px rgba(0,0,0,0.65);
-  animation: mm-spin 2s linear infinite;
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  border: 4px solid;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.3);
 }
-@keyframes mm-spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
-}
-.mm-hub {
+.cmm-hub {
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
 }
-.mm-hub::before {
+.cmm-hub::before {
   content: '';
-  width: 14px; height: 14px;
-  background: #444; border-radius: 50%;
-  border: 2px solid #666;
-  box-shadow: 0 0 0 2px #1a1a1a;
+  width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid;
 }
-.mm-wf  { left: 38px; }
-.mm-wr1 { left: 195px; }
-.mm-wr2 { left: 226px; }
-.mm-sub {
-  font-size: clamp(0.9rem, 2.4vw, 1.1rem);
-  color: var(--mm-l);
-  text-align: center; margin: 0 0 18px; line-height: 1.75;
+.cmm-wf  { left: 32px; }
+.cmm-wr1 { left: 174px; }
+.cmm-wr2 { left: 202px; }
+
+/* ── Subtitle ─────────────────────────────────────────────────────────────── */
+.cmm-sub {
+  font-size: clamp(0.875rem, 2vw, 1rem);
+  text-align: center; margin: 0; line-height: 1.7;
 }
-.mm-bar-wrap {
-  display: flex; flex-direction: column;
-  align-items: center; gap: 8px;
-  width: 100%; max-width: 300px;
-}
-.mm-bar {
-  width: 100%; height: 5px;
-  background: rgba(255,255,255,0.07);
-  border-radius: 3px; overflow: hidden;
-}
-.mm-bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #3d6b0a, var(--mm-p), #a8d840);
-  border-radius: 3px;
-  animation: mm-pour 3.5s ease-in-out infinite;
-}
-@keyframes mm-pour {
-  0%,100% { width: 18%; }
-  50%     { width: 86%; }
-}
-.mm-bar-label {
-  font-size: 0.68rem; letter-spacing: 0.2em;
-  text-transform: uppercase; color: #4a4a4a; font-weight: 600;
-}
-@media (max-width: 380px) {
-  .mm-scene { transform: scale(0.85); transform-origin: center top; }
-  .mm-h-main { font-size: 2.4rem; }
+
+@media (max-width: 360px) {
+  .cmm-scene { transform: scale(0.82); transform-origin: center top; }
 }
 `;

@@ -3,121 +3,125 @@
 import React from "react";
 import type { MaintenanceTheme } from "@/components/MaintenancePage";
 
-/**
- * Custom template — user-supplied full-screen background image with dark overlay.
- * Falls back to plain dark background if no image set.
- */
 export default function CustomMaintenancePage({ theme = {} }: { theme?: MaintenanceTheme }) {
-  const { logoUrl, companyName = "", customImage } = theme;
+  const { logoUrl, companyName = "", colorScheme = "light", customImage } = theme;
+  const dark = colorScheme === "dark";
+
+  const overlayBg = dark
+    ? "rgba(0,0,0,0.62)"
+    : "rgba(255,255,255,0.72)";
+
+  const fallbackBg = dark ? "#111111" : "#f5f4f1";
 
   return (
     <div
-      className="cmm-root"
-      style={customImage ? { backgroundImage: `url(${customImage})` } : undefined}
+      className="xmm-root"
+      style={{
+        backgroundImage:    customImage ? `url(${customImage})` : undefined,
+        backgroundColor:    customImage ? undefined : fallbackBg,
+        backgroundSize:     "cover",
+        backgroundPosition: "center",
+      }}
     >
       <style>{css}</style>
 
-      <div className="cmm-overlay" />
+      {/* Overlay */}
+      <div className="xmm-overlay" style={{ background: overlayBg }} />
 
-      <div className="cmm-content">
+      <div className={`xmm-content ${dark ? "xmm-dark" : "xmm-light"}`}>
         {logoUrl && (
-          <div className="cmm-logo-wrap">
+          <div className="xmm-logo-wrap">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={logoUrl} alt={companyName || "Logo"} className="cmm-logo" />
+            <img src={logoUrl} alt={companyName || "Logo"} className="xmm-logo" />
           </div>
         )}
 
-        <div className="cmm-badge">
-          <span className="cmm-dot" aria-hidden="true" />
+        <div className="xmm-badge">
+          <span className="xmm-dot" />
           Maintenance Mode
         </div>
 
-        <h1 className="cmm-heading">Be Back Soon</h1>
-        <p className="cmm-sub">
-          We&rsquo;re making things awesome &mdash; back shortly.
-        </p>
+        <h1 className="xmm-heading">Be Back Soon</h1>
+        <p className="xmm-sub">Making things awesome &mdash; back shortly.</p>
+      </div>
 
-        <div className="cmm-bar-wrap">
-          <div className="cmm-bar">
-            <div className="cmm-fill" />
-          </div>
-        </div>
+      {/* Scanning line at bottom */}
+      <div className={`xmm-scan-wrap ${dark ? "xmm-scan-dark" : "xmm-scan-light"}`}>
+        <div className="xmm-scan" />
       </div>
     </div>
   );
 }
 
 const css = `
-.cmm-root {
+.xmm-root {
   position: fixed; inset: 0; z-index: 9999;
   display: flex; align-items: center; justify-content: center;
-  background-color: #0d1117;
-  background-size: cover;
-  background-position: center;
   font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
 }
-.cmm-overlay {
+.xmm-overlay {
   position: absolute; inset: 0;
-  background: rgba(0,0,0,0.62);
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(3px);
 }
-.cmm-content {
+.xmm-content {
   position: relative; z-index: 1;
   display: flex; flex-direction: column;
   align-items: center; text-align: center;
-  padding: 48px 32px;
-  max-width: 460px; width: 100%;
+  padding: 48px 32px; max-width: 480px; width: 100%;
 }
-.cmm-logo-wrap {
-  margin-bottom: 24px;
-  padding: 10px 20px;
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 10px;
-  backdrop-filter: blur(6px);
-}
-.cmm-logo {
-  display: block;
-  max-width: 200px; max-height: 56px;
+.xmm-logo-wrap { margin-bottom: 24px; }
+.xmm-logo {
+  display: block; max-width: 200px; max-height: 64px;
   width: auto; height: auto; object-fit: contain;
 }
-.cmm-badge {
+
+/* Light */
+.xmm-light .xmm-badge  { color: #555; }
+.xmm-light .xmm-dot    { background: #999; }
+.xmm-light .xmm-heading { color: #111; }
+.xmm-light .xmm-sub    { color: #666; }
+
+/* Dark */
+.xmm-dark .xmm-badge   { color: rgba(255,255,255,0.5); }
+.xmm-dark .xmm-dot     { background: rgba(255,255,255,0.5); }
+.xmm-dark .xmm-heading  { color: #fff; text-shadow: 0 2px 20px rgba(0,0,0,0.4); }
+.xmm-dark .xmm-sub     { color: rgba(255,255,255,0.65); }
+
+.xmm-badge {
   display: inline-flex; align-items: center; gap: 7px;
-  font-size: 0.66rem; font-weight: 700;
-  letter-spacing: 0.3em; text-transform: uppercase;
-  color: rgba(255,255,255,0.55); margin-bottom: 12px;
+  font-size: 0.67rem; font-weight: 600;
+  letter-spacing: 0.28em; text-transform: uppercase;
+  margin-bottom: 12px;
 }
-.cmm-dot {
-  width: 6px; height: 6px;
-  background: rgba(255,255,255,0.55);
-  border-radius: 50%;
-  animation: cmm-blink 1.4s step-start infinite;
+.xmm-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  animation: xmm-pulse 2.4s ease-in-out infinite;
 }
-@keyframes cmm-blink { 0%,100%{ opacity:1 } 50%{ opacity:0 } }
-.cmm-heading {
+@keyframes xmm-pulse { 0%,100%{ opacity:1 } 50%{ opacity:0.2 } }
+.xmm-heading {
   font-size: clamp(2rem, 6vw, 3.5rem);
   font-weight: 900; letter-spacing: -0.01em;
-  color: #ffffff; margin: 0 0 12px; line-height: 1.1;
-  text-shadow: 0 2px 20px rgba(0,0,0,0.6);
+  margin: 0 0 12px; line-height: 1.1;
 }
-.cmm-sub {
-  font-size: 1rem; color: rgba(255,255,255,0.65);
-  margin: 0 0 28px; line-height: 1.7;
+.xmm-sub {
+  font-size: 1rem; line-height: 1.7; margin: 0;
 }
-.cmm-bar-wrap { width: 100%; max-width: 280px; }
-.cmm-bar {
-  width: 100%; height: 3px;
-  background: rgba(255,255,255,0.15);
-  border-radius: 2px; overflow: hidden;
+
+/* Scanning line */
+.xmm-scan-wrap {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  height: 2px; overflow: hidden; z-index: 2;
 }
-.cmm-fill {
-  height: 100%;
-  background: linear-gradient(90deg, rgba(255,255,255,0.3), rgba(255,255,255,0.9), rgba(255,255,255,0.3));
-  border-radius: 2px;
-  animation: cmm-slide 2.8s ease-in-out infinite;
+.xmm-scan-light { background: rgba(0,0,0,0.1); }
+.xmm-scan-dark  { background: rgba(255,255,255,0.1); }
+.xmm-scan {
+  height: 100%; width: 30%;
+  animation: xmm-sweep 2.2s ease-in-out infinite;
 }
-@keyframes cmm-slide {
-  0%,100% { width: 15%; margin-left: 0; }
-  50%      { width: 55%; margin-left: 30%; }
+.xmm-scan-light .xmm-scan { background: linear-gradient(90deg,transparent,#333,transparent); }
+.xmm-scan-dark  .xmm-scan { background: linear-gradient(90deg,transparent,rgba(255,255,255,0.6),transparent); }
+@keyframes xmm-sweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(430%); }
 }
 `;

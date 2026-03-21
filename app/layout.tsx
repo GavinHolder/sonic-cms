@@ -73,13 +73,14 @@ export default async function RootLayout({
   let maintenanceTheme: import("@/components/MaintenancePage").MaintenanceTheme = {};
   if (isPublicRoute) {
     try {
-      const [mRow, tplRow, imgRow, primRow, darkRow, lightRow, siteConfig] = await Promise.all([
+      const [mRow, tplRow, imgRow, primRow, darkRow, lightRow, schemeRow, siteConfig] = await Promise.all([
         prisma.systemSettings.findUnique({ where: { key: "maintenance_mode" } }),
         prisma.systemSettings.findUnique({ where: { key: "maintenance_template" } }),
         prisma.systemSettings.findUnique({ where: { key: "maintenance_custom_img" } }),
         prisma.systemSettings.findUnique({ where: { key: "maintenance_primary_color" } }),
         prisma.systemSettings.findUnique({ where: { key: "maintenance_dark_color" } }),
         prisma.systemSettings.findUnique({ where: { key: "maintenance_light_color" } }),
+        prisma.systemSettings.findUnique({ where: { key: "maintenance_color_scheme" } }),
         prisma.siteConfig.findUnique({ where: { id: "singleton" }, select: { logoUrl: true, companyName: true } }),
       ]);
       maintenanceMode = mRow?.value === "true";
@@ -88,6 +89,7 @@ export default async function RootLayout({
           logoUrl:      siteConfig?.logoUrl     || undefined,
           companyName:  siteConfig?.companyName || undefined,
           template:     (tplRow?.value as import("@/components/MaintenancePage").MaintenanceTemplate) || "plain",
+          colorScheme:  (schemeRow?.value as "light" | "dark") || "light",
           customImage:  imgRow?.value   || undefined,
           primaryColor: primRow?.value  || undefined,
           darkColor:    darkRow?.value  || undefined,
