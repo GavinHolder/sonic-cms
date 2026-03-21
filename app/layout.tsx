@@ -65,7 +65,7 @@ export default async function RootLayout({
   const headersList = await headers();
   const pathname = headersList.get("x-pathname") || "";
   const isAdminRoute = pathname.startsWith("/admin");
-  const isIsolatedRoute = pathname.startsWith("/volt-preview");
+  const isIsolatedRoute = pathname.startsWith("/volt-preview") || pathname.startsWith("/maintenance-preview");
 
   // Maintenance mode — check DB only for public routes (skip admin, api, volt-preview)
   const isPublicRoute = !isAdminRoute && !isIsolatedRoute && !pathname.startsWith("/api");
@@ -73,19 +73,25 @@ export default async function RootLayout({
   let maintenanceTheme: import("@/components/MaintenancePage").MaintenanceTheme = {};
   if (isPublicRoute) {
     try {
-      const [mRow, tplRow, imgRow, siteConfig] = await Promise.all([
+      const [mRow, tplRow, imgRow, primRow, darkRow, lightRow, siteConfig] = await Promise.all([
         prisma.systemSettings.findUnique({ where: { key: "maintenance_mode" } }),
         prisma.systemSettings.findUnique({ where: { key: "maintenance_template" } }),
         prisma.systemSettings.findUnique({ where: { key: "maintenance_custom_img" } }),
+        prisma.systemSettings.findUnique({ where: { key: "maintenance_primary_color" } }),
+        prisma.systemSettings.findUnique({ where: { key: "maintenance_dark_color" } }),
+        prisma.systemSettings.findUnique({ where: { key: "maintenance_light_color" } }),
         prisma.siteConfig.findUnique({ where: { id: "singleton" }, select: { logoUrl: true, companyName: true } }),
       ]);
       maintenanceMode = mRow?.value === "true";
       if (maintenanceMode) {
         maintenanceTheme = {
-          logoUrl:     siteConfig?.logoUrl     || undefined,
-          companyName: siteConfig?.companyName || undefined,
-          template:    (tplRow?.value as import("@/components/MaintenancePage").MaintenanceTemplate) || "plain",
-          customImage: imgRow?.value || undefined,
+          logoUrl:      siteConfig?.logoUrl     || undefined,
+          companyName:  siteConfig?.companyName || undefined,
+          template:     (tplRow?.value as import("@/components/MaintenancePage").MaintenanceTemplate) || "plain",
+          customImage:  imgRow?.value   || undefined,
+          primaryColor: primRow?.value  || undefined,
+          darkColor:    darkRow?.value  || undefined,
+          lightColor:   lightRow?.value || undefined,
         };
       }
     } catch {

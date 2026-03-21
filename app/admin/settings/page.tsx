@@ -65,6 +65,9 @@ export default function SettingsPage() {
   const [maintenanceEnabled, setMaintenanceEnabled] = useState(false);
   const [maintenanceTemplate, setMaintenanceTemplate] = useState<"plain" | "construction" | "custom">("plain");
   const [maintenanceCustomImage, setMaintenanceCustomImage] = useState("");
+  const [maintenancePrimary, setMaintenancePrimary] = useState("#78BE20");
+  const [maintenanceDark, setMaintenanceDark] = useState("#53565A");
+  const [maintenanceLight, setMaintenanceLight] = useState("#BBBCBC");
   const [maintenanceLoading, setMaintenanceLoading] = useState(true);
   const [maintenanceSaving, setMaintenanceSaving] = useState(false);
   const [maintenanceMsg, setMaintenanceMsg] = useState<string | null>(null);
@@ -84,8 +87,11 @@ export default function SettingsPage() {
       .then((r) => r.json())
       .then((d) => {
         setMaintenanceEnabled(Boolean(d.enabled));
-        if (d.template) setMaintenanceTemplate(d.template);
-        if (d.customImage) setMaintenanceCustomImage(d.customImage);
+        if (d.template)     setMaintenanceTemplate(d.template);
+        if (d.customImage)  setMaintenanceCustomImage(d.customImage);
+        if (d.primaryColor) setMaintenancePrimary(d.primaryColor);
+        if (d.darkColor)    setMaintenanceDark(d.darkColor);
+        if (d.lightColor)   setMaintenanceLight(d.lightColor);
       })
       .catch(() => {})
       .finally(() => setMaintenanceLoading(false));
@@ -174,7 +180,7 @@ export default function SettingsPage() {
 
   const handleSaveMaintenanceTemplate = async (
     template: "plain" | "construction" | "custom",
-    customImage?: string,
+    opts?: { customImage?: string; primaryColor?: string; darkColor?: string; lightColor?: string },
   ) => {
     setMaintenanceSaving(true);
     setMaintenanceMsg(null);
@@ -182,18 +188,38 @@ export default function SettingsPage() {
       const res = await fetch("/api/admin/maintenance", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ template, customImage: customImage ?? maintenanceCustomImage }),
+        body: JSON.stringify({
+          template,
+          customImage:  opts?.customImage  ?? maintenanceCustomImage,
+          primaryColor: opts?.primaryColor ?? maintenancePrimary,
+          darkColor:    opts?.darkColor    ?? maintenanceDark,
+          lightColor:   opts?.lightColor   ?? maintenanceLight,
+        }),
       });
       if (!res.ok) throw new Error("Failed");
       setMaintenanceTemplate(template);
-      if (customImage !== undefined) setMaintenanceCustomImage(customImage);
-      setMaintenanceMsg("Maintenance template saved.");
+      if (opts?.customImage  !== undefined) setMaintenanceCustomImage(opts.customImage);
+      if (opts?.primaryColor !== undefined) setMaintenancePrimary(opts.primaryColor);
+      if (opts?.darkColor    !== undefined) setMaintenanceDark(opts.darkColor);
+      if (opts?.lightColor   !== undefined) setMaintenanceLight(opts.lightColor);
+      setMaintenanceMsg("Settings saved.");
       setTimeout(() => setMaintenanceMsg(null), 3000);
     } catch {
-      setMaintenanceMsg("Failed to save template.");
+      setMaintenanceMsg("Failed to save.");
     } finally {
       setMaintenanceSaving(false);
     }
+  };
+
+  const handlePreviewMaintenance = () => {
+    const p = new URLSearchParams({
+      template: maintenanceTemplate,
+      primary:  maintenancePrimary,
+      dark:     maintenanceDark,
+      light:    maintenanceLight,
+    });
+    if (maintenanceCustomImage) p.set("customImage", maintenanceCustomImage);
+    window.open(`/maintenance-preview?${p.toString()}`, "_blank");
   };
 
   const handleReset = () => {
@@ -426,11 +452,21 @@ export default function SettingsPage() {
               {/* ── Maintenance Template Picker ── */}
               <div className="card shadow-sm mt-3">
                 <div className="card-body">
-                  <div className="mb-3">
-                    <strong>Maintenance Page Template</strong>
-                    <div className="form-text mb-0">
-                      Choose what visitors see during maintenance. The logo from Site Config is shown on all templates.
+                  <div className="d-flex align-items-start justify-content-between gap-3 mb-3">
+                    <div>
+                      <strong>Maintenance Page Template</strong>
+                      <div className="form-text mb-0">
+                        Choose what visitors see during maintenance. The logo from Site Config is shown on all templates.
+                      </div>
                     </div>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-secondary flex-shrink-0"
+                      onClick={handlePreviewMaintenance}
+                    >
+                      <i className="bi bi-eye me-1" />
+                      Preview
+                    </button>
                   </div>
 
                   <div className="row g-3 mb-3">
@@ -509,6 +545,57 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
+                  {/* Colour pickers — only shown when construction is selected */}
+                  {maintenanceTemplate === "construction" && (
+                    <div className="mt-2 p-3 rounded border" style={{ background: "rgba(0,0,0,0.02)" }}>
+                      <div className="small fw-semibold mb-2">Brand Colours</div>
+                      <div className="row g-3">
+                        {[
+                          { label: "Primary", value: maintenancePrimary, setter: setMaintenancePrimary, hint: "Pantone 2290 C" },
+                          { label: "Dark",    value: maintenanceDark,    setter: setMaintenanceDark,    hint: "Cool Gray 11 C" },
+                          { label: "Light",   value: maintenanceLight,   setter: setMaintenanceLight,   hint: "Cool Gray 4 C" },
+                        ].map(({ label, value, setter, hint }) => (
+                          <div className="col-sm-4" key={label}>
+                            <label className="form-label small fw-semibold mb-1">{label}</label>
+                            <div className="d-flex gap-2 align-items-center">
+                              <input
+                                type="color"
+                                className="form-control form-control-color flex-shrink-0"
+                                style={{ width: 40, height: 34, padding: 2 }}
+                                value={value}
+                                onChange={(e) => setter(e.target.value)}
+                              />
+                              <input
+                                type="text"
+                                className="form-control form-control-sm"
+                                maxLength={7}
+                                value={value}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  if (/^#[0-9a-fA-F]{0,6}$/.test(v)) setter(v);
+                                }}
+                              />
+                            </div>
+                            <div className="form-text">{hint}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        className="btn btn-sm btn-primary mt-3"
+                        onClick={() => handleSaveMaintenanceTemplate("construction", {
+                          primaryColor: maintenancePrimary,
+                          darkColor:    maintenanceDark,
+                          lightColor:   maintenanceLight,
+                        })}
+                        disabled={maintenanceSaving}
+                      >
+                        {maintenanceSaving
+                          ? <span className="spinner-border spinner-border-sm" />
+                          : <><i className="bi bi-palette me-1" />Save Colours</>}
+                      </button>
+                    </div>
+                  )}
+
                   {/* Custom image URL input — only shown when custom is selected */}
                   {maintenanceTemplate === "custom" && (
                     <div className="mt-2">
@@ -523,7 +610,7 @@ export default function SettingsPage() {
                         />
                         <button
                           className="btn btn-sm btn-primary flex-shrink-0"
-                          onClick={() => handleSaveMaintenanceTemplate("custom", maintenanceCustomImage)}
+                          onClick={() => handleSaveMaintenanceTemplate("custom", { customImage: maintenanceCustomImage })}
                           disabled={maintenanceSaving}
                         >
                           Save
