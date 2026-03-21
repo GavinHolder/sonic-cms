@@ -16,7 +16,7 @@
  */
 
 import { execSync } from "child_process";
-import { readFileSync, writeFileSync } from "fs";
+import { readFileSync, writeFileSync, mkdirSync } from "fs";
 
 const VERSION_FILE = "public/cms-version.json";
 
@@ -107,3 +107,16 @@ console.log(`Bumped ${current.version} -> ${newVersion}`);
 console.log(
   `  Features: ${features.length}  Fixes: ${bugfixes.length}  Breaking: ${breaking.length}`
 );
+
+// -- Write bugfix channel manifest when bump is patch-only -----------------
+// bugfix.json tracks the latest version that contains ONLY fix: commits
+// (no new features, no breaking changes). Safe for clients on the bugfix channel.
+
+if (hasFix && !hasFeat && !hasBreaking) {
+  mkdirSync("public/versions", { recursive: true });
+  writeFileSync(
+    "public/versions/bugfix.json",
+    JSON.stringify(updated, null, 2) + "\n"
+  );
+  console.log(`Written public/versions/bugfix.json (bugfix channel -> ${newVersion})`);
+}

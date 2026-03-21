@@ -49,8 +49,8 @@ jobs:
 
       - name: Commit and push version bump
         run: |
-          git add public/cms-version.json
-          # Only commit if the file actually changed
+          git add public/cms-version.json public/versions/bugfix.json 2>/dev/null || git add public/cms-version.json
+          # Only commit if anything actually changed
           if git diff --staged --quiet; then
             echo "No version change — nothing to commit."
           else
