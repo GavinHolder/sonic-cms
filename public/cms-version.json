@@ -1,11 +1,11 @@
 {
-  "version": "1.3.0",
+  "version": "1.3.1",
   "date": "2026-03-21",
   "changelog": {
-    "features": [
-      "Test & Verify button for CMS Update GitHub config + docs for CMS Updates, SEO Wizard, Features sidebar"
+    "features": [],
+    "bugfixes": [
+      "modal z-index above sidebar + add update channel selector"
     ],
-    "bugfixes": [],
     "breaking": []
   }
 }
