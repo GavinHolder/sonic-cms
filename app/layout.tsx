@@ -70,10 +70,20 @@ export default async function RootLayout({
   // Maintenance mode — check DB only for public routes (skip admin, api, volt-preview)
   const isPublicRoute = !isAdminRoute && !isIsolatedRoute && !pathname.startsWith("/api");
   let maintenanceMode = false;
+  let maintenanceTheme: import("@/components/MaintenancePage").MaintenanceTheme = {};
   if (isPublicRoute) {
     try {
-      const row = await prisma.systemSettings.findUnique({ where: { key: "maintenance_mode" } });
-      maintenanceMode = row?.value === "true";
+      const [mRow, siteConfig] = await Promise.all([
+        prisma.systemSettings.findUnique({ where: { key: "maintenance_mode" } }),
+        prisma.siteConfig.findUnique({ where: { id: "singleton" }, select: { logoUrl: true, companyName: true } }),
+      ]);
+      maintenanceMode = mRow?.value === "true";
+      if (maintenanceMode && siteConfig) {
+        maintenanceTheme = {
+          logoUrl: siteConfig.logoUrl || undefined,
+          companyName: siteConfig.companyName || undefined,
+        };
+      }
     } catch {
       // DB unavailable during startup — don't block the site
     }
@@ -112,7 +122,7 @@ export default async function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         style={{ margin: 0, padding: 0 }}
       >
-        {maintenanceMode ? <MaintenancePage /> : isIsolatedRoute ? children : (
+        {maintenanceMode ? <MaintenancePage theme={maintenanceTheme} /> : isIsolatedRoute ? children : (
           <>
             <ScrollRestoration />
             <ClientLayout showNavigation={!isAdminRoute}>
