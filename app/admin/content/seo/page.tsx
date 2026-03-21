@@ -224,6 +224,22 @@ export default function SeoSettingsPage() {
         </div>
       }
     >
+      {/* Critical: canonicalBase missing warning */}
+      {!config.canonicalBase && (
+        <div className="alert alert-danger d-flex align-items-start gap-3 mb-4" role="alert">
+          <i className="bi bi-exclamation-octagon-fill fs-4 flex-shrink-0 mt-1" />
+          <div>
+            <strong>Canonical Base URL is not set — SEO is partially broken.</strong>
+            <ul className="mb-0 mt-1 ps-3 small">
+              <li>Sitemap (<code>/sitemap.xml</code>) returns <strong>zero entries</strong> — Googlebot finds nothing</li>
+              <li>No canonical tags on any page → duplicate content risk</li>
+              <li>OG images use relative paths → broken social previews on Facebook, LinkedIn &amp; WhatsApp</li>
+            </ul>
+            <div className="mt-2 small">Set <strong>Canonical Base URL</strong> in the <strong>Site Settings</strong> tab (e.g. <code>https://www.yourcompany.co.za</code>).</div>
+          </div>
+        </div>
+      )}
+
       {/* Alert */}
       {alert && (
         <div className={`alert alert-${alert.type === "success" ? "success" : "danger"} alert-dismissible mb-4`} role="alert">

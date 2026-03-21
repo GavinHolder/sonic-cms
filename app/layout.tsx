@@ -10,7 +10,7 @@ import Navbar from "@/components/layout/Navbar";
 import ClientLayout from "@/components/layout/ClientLayout";
 import ScrollRestoration from "@/components/ScrollRestoration";
 import { headers } from "next/headers";
-import { fetchSeoConfig, buildStructuredData } from "@/lib/metadata-generator";
+import { fetchSeoConfig, buildMetadata, buildStructuredData } from "@/lib/metadata-generator";
 import prisma from "@/lib/prisma";
 import MaintenancePage from "@/components/MaintenancePage";
 
@@ -31,17 +31,18 @@ export const viewport: Viewport = {
 
 export async function generateMetadata(): Promise<Metadata> {
   try {
-    const config = await prisma.siteConfig.findUnique({ where: { id: "singleton" } });
-    const companyName = config?.companyName || "Your Company";
-    const faviconUrl = config?.faviconUrl || "";
+    const [seoConfig, siteConfig] = await Promise.all([
+      fetchSeoConfig(),
+      prisma.siteConfig.findUnique({ where: { id: "singleton" }, select: { faviconUrl: true } }),
+    ]);
+    const base = buildMetadata(null, seoConfig);
     return {
-      title: `${companyName} - Website`,
-      description: "Professional services for your region.",
-      ...(faviconUrl ? { icons: { icon: faviconUrl } } : {}),
+      ...base,
+      ...(siteConfig?.faviconUrl ? { icons: { icon: siteConfig.faviconUrl } } : {}),
     };
   } catch {
     return {
-      title: "Your Company - Website",
+      title: "Your Company",
       description: "Professional services for your region.",
     };
   }
@@ -108,7 +109,7 @@ export default async function RootLayout({
     fetchSeoConfig(),
     isAdminRoute ? Promise.resolve(100) : getNavbarHeight(),
   ]);
-  const jsonLd = buildStructuredData(seoConfig);
+  const jsonLd = isAdminRoute ? null : buildStructuredData(seoConfig);
 
   return (
     <html

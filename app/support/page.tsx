@@ -1,3 +1,11 @@
+import type { Metadata } from "next";
+import { fetchSeoConfig, buildMetadata } from "@/lib/metadata-generator";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const seoConfig = await fetchSeoConfig();
+  return buildMetadata({ title: "Support", metaDescription: "Get help and contact our support team.", slug: "support" }, seoConfig);
+}
+
 export default function SupportPage() {
   return (
     <main className="w-full bg-white py-20">

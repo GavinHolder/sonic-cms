@@ -24,7 +24,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     orderBy: { updatedAt: "desc" },
   });
 
-  return pages.map((p) => {
+  // Static code-defined routes (not stored in DB as Pages)
+  // client-login is intentionally excluded — noindex, no SEO value
+  const staticRoutes: MetadataRoute.Sitemap = [
+    { url: `${base}/services`,    lastModified: new Date(), changeFrequency: "monthly", priority: 0.6 },
+    { url: `${base}/support`,     lastModified: new Date(), changeFrequency: "monthly", priority: 0.5 },
+    { url: `${base}/equipment`,   lastModified: new Date(), changeFrequency: "monthly", priority: 0.5 },
+    { url: `${base}/coverage`,    lastModified: new Date(), changeFrequency: "monthly", priority: 0.5 },
+    { url: `${base}/calculator`,  lastModified: new Date(), changeFrequency: "monthly", priority: 0.5 },
+  ];
+
+  const dbEntries: MetadataRoute.Sitemap = pages.map((p) => {
     const isHome = p.slug === "/" || p.slug === "";
     return {
       url: isHome ? base : `${base}/${p.slug.replace(/^\//, "")}`,
@@ -33,4 +43,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: isHome ? 1.0 : 0.7,
     };
   });
+
+  return [...dbEntries, ...staticRoutes];
 }

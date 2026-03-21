@@ -1,6 +1,13 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import CoveragePageClient from "./CoveragePageClient";
+import { fetchSeoConfig, buildMetadata } from "@/lib/metadata-generator";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const seoConfig = await fetchSeoConfig();
+  return buildMetadata({ title: "Coverage Map", metaDescription: "Check service coverage and availability in your area.", slug: "coverage" }, seoConfig);
+}
 
 export const dynamic = "force-dynamic";
 

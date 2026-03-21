@@ -1,3 +1,11 @@
+import type { Metadata } from "next";
+import { fetchSeoConfig, buildMetadata } from "@/lib/metadata-generator";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const seoConfig = await fetchSeoConfig();
+  return buildMetadata({ title: "Client Login", metaDescription: "Access your client account.", slug: "client-login", noindex: true }, seoConfig);
+}
+
 export default function ClientLoginPage() {
   return (
     <main className="w-full bg-white py-20">

@@ -116,7 +116,7 @@ export function buildMetadata(page: PageSeoData | null, seoConfig: SeoConfig): M
  */
 export function buildStructuredData(seoConfig: SeoConfig): string | null {
   const sd = seoConfig.structuredData;
-  if (!sd.enabled || !sd.name) return null;
+  if (!sd.enabled || !sd.name || sd.name === "Your Company") return null;
 
   // Normalise: legacy configs may store type as a string
   const typeValue = Array.isArray(sd.type)

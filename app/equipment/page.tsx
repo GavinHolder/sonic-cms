@@ -1,5 +1,12 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { fetchSeoConfig, buildMetadata } from "@/lib/metadata-generator";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const seoConfig = await fetchSeoConfig();
+  return buildMetadata({ title: "Equipment", metaDescription: "Browse our equipment range and specifications.", slug: "equipment" }, seoConfig);
+}
 
 export default function EquipmentPage() {
   return (
