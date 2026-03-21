@@ -47,6 +47,7 @@ export default function SettingsPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>("site");
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [userRoleLoaded, setUserRoleLoaded] = useState(false);
 
   // Email settings state (stored in DB via /api/settings/email)
   const [emailSettings, setEmailSettings] = useState({
@@ -163,7 +164,8 @@ export default function SettingsPage() {
           setUserRole(d.data.user.role);
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setUserRoleLoaded(true));
   }, []);
 
   useEffect(() => {
@@ -361,7 +363,7 @@ export default function SettingsPage() {
     }
   };
 
-  if (!settings) {
+  if (!settings || !userRoleLoaded) {
     return (
       <AdminLayout title="Settings" subtitle="Loading...">
         <div className="d-flex justify-content-center py-5">
