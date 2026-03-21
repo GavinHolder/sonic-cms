@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
-import FeaturesTab from "@/components/admin/FeaturesTab";
 import UpdateBadge from "@/components/admin/UpdateBadge";
 import UpdateModal from "@/components/admin/UpdateModal";
 import {
@@ -433,7 +432,6 @@ export default function SettingsPage() {
               ...BASE_CATEGORIES,
               ...(userRole === "SUPER_ADMIN"
                 ? [
-                    { id: "features" as SettingsCategory, label: "Features", icon: "bi-toggles" },
                     { id: "cms-updates" as SettingsCategory, label: "CMS Updates", icon: "bi-arrow-up-circle" },
                   ]
                 : []),
@@ -1352,11 +1350,6 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
-          )}
-
-          {/* Features (SUPER_ADMIN only) */}
-          {activeCategory === "features" && userRole === "SUPER_ADMIN" && (
-            <FeaturesTab />
           )}
 
           {/* CMS Updates (SUPER_ADMIN only) */}

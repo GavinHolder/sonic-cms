@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import cmsVersion from "@/public/cms-version.json";
 
 interface SubMenuItem {
   id: string;
@@ -82,26 +83,8 @@ const menuItems: MenuItem[] = [
     id: "features",
     label: "Features",
     icon: "bi-toggles",
-    subItems: [
-      {
-        id: "concrete-settings",
-        label: "Concrete Calculator",
-        icon: "bi-calculator",
-        href: "/admin/features/concrete-settings",
-      },
-      {
-        id: "coverage-maps",
-        label: "Coverage Maps",
-        icon: "bi-map",
-        href: "/admin/features/coverage-maps",
-      },
-      {
-        id: "projects",
-        label: "Projects",
-        icon: "bi-building",
-        href: "/admin/features/projects",
-      },
-    ],
+    href: "/admin/features",
+    subItems: [], // populated dynamically from enabledFeatures state
   },
   {
     id: "settings",
@@ -141,11 +124,19 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
+// Map slug → sidebar sub-item definition
+const FEATURE_SUB_ITEMS: Record<string, SubMenuItem> = {
+  "concrete-calculator": { id: "concrete-settings", label: "Concrete Calculator", icon: "bi-calculator", href: "/admin/features/concrete-settings" },
+  "coverage-maps":       { id: "coverage-maps",     label: "Coverage Maps",       icon: "bi-map",        href: "/admin/features/coverage-maps" },
+  "projects":            { id: "projects",           label: "Projects",            icon: "bi-building",   href: "/admin/features/projects" },
+};
+
 export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const [expandedItems, setExpandedItems] = useState<string[]>(["content"]);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState<string | null>(null);
+  const [enabledFeatures, setEnabledFeatures] = useState<string[]>([]);
 
   useEffect(() => {
     fetch("/api/site-config")
@@ -159,6 +150,21 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         setCompanyName("Your Company");
       });
   }, []);
+
+  useEffect(() => {
+    fetch("/api/features")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success) {
+          setEnabledFeatures(
+            (d.data as { slug: string; enabled: boolean }[])
+              .filter((f) => f.enabled)
+              .map((f) => f.slug)
+          );
+        }
+      })
+      .catch(() => {});
+  }, [pathname]); // re-fetch on nav so toggling a feature updates sidebar immediately
 
   // Close sidebar when route changes on mobile
   useEffect(() => {
@@ -235,14 +241,28 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
       {/* Navigation */}
       <ul className="nav nav-pills flex-column mb-auto p-2">
-        {menuItems.map((item) => (
-          <li key={item.id} className="nav-item">
-            {item.subItems ? (
+        {menuItems.map((item) => {
+          // Dynamically inject enabled feature sub-items
+          const effectiveItem = item.id === "features"
+            ? {
+                ...item,
+                subItems: [
+                  { id: "manage-features", label: "Manage Features", icon: "bi-sliders", href: "/admin/features" },
+                  ...enabledFeatures
+                    .filter((slug) => FEATURE_SUB_ITEMS[slug])
+                    .map((slug) => FEATURE_SUB_ITEMS[slug]),
+                ],
+              }
+            : item;
+          const item2 = effectiveItem;
+          return (
+          <li key={item2.id} className="nav-item">
+            {item2.subItems ? (
               <>
                 <button
-                  onClick={() => toggleExpanded(item.id)}
+                  onClick={() => toggleExpanded(item2.id)}
                   className={`nav-link d-flex align-items-center w-100 border-0 text-start ${
-                    hasActiveChild(item.subItems)
+                    hasActiveChild(item2.subItems)
                       ? "text-primary fw-semibold"
                       : "link-body-emphasis"
                   }`}
@@ -253,17 +273,17 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                     fontSize: "0.875rem",
                   }}
                 >
-                  <i className={`bi ${item.icon} me-2`} style={{ width: "20px" }}></i>
-                  <span className="flex-grow-1">{item.label}</span>
+                  <i className={`bi ${item2.icon} me-2`} style={{ width: "20px" }}></i>
+                  <span className="flex-grow-1">{item2.label}</span>
                   <i
-                    className={`bi bi-chevron-${expandedItems.includes(item.id) ? "down" : "right"}`}
+                    className={`bi bi-chevron-${expandedItems.includes(item2.id) ? "down" : "right"}`}
                     style={{ fontSize: "0.75rem", opacity: 0.5 }}
                   ></i>
                 </button>
 
-                {expandedItems.includes(item.id) && (
+                {expandedItems.includes(item2.id) && (
                   <ul className="nav flex-column ms-3 ps-1 border-start" style={{ borderColor: "#dee2e6 !important" }}>
-                    {item.subItems.map((subItem) => (
+                    {item2.subItems.map((subItem) => (
                       <li key={subItem.id} className="nav-item">
                         <Link
                           href={subItem.href}
@@ -288,9 +308,9 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
               </>
             ) : (
               <Link
-                href={item.href || "#"}
+                href={item2.href || "#"}
                 className={`nav-link d-flex align-items-center ${
-                  isActive(item.href) ? "active" : "link-body-emphasis"
+                  isActive(item2.href) ? "active" : "link-body-emphasis"
                 }`}
                 style={{
                   padding: "0.5rem 0.75rem",
@@ -298,12 +318,13 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                   fontSize: "0.875rem",
                 }}
               >
-                <i className={`bi ${item.icon} me-2`} style={{ width: "20px" }}></i>
-                {item.label}
+                <i className={`bi ${item2.icon} me-2`} style={{ width: "20px" }}></i>
+                {item2.label}
               </Link>
             )}
           </li>
-        ))}
+          );
+        })}
       </ul>
 
       {/* Divider */}
@@ -334,6 +355,9 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           <i className="bi bi-box-arrow-right"></i>
           Logout
         </Link>
+        <div className="text-center mt-2" style={{ fontSize: "0.6875rem", color: "var(--bs-secondary-color)" }}>
+          CMS v{cmsVersion.version}
+        </div>
       </div>
     </div>
     </>
