@@ -35,14 +35,14 @@ except ImportError:
     sys.exit(1)
 
 # ── Config ─────────────────────────────────────────────────────────────────────
-SERVER_IP      = "154.66.197.168"
-SERVER_HOST    = "web.ovbreadymix.co.za"
-ROOT_PASSWORD  = "B3rryP0rtal@5524"
-CMS_USER       = "cms"
-DEPLOY_DIR     = f"/home/{CMS_USER}/cms-deploy"
-ACME_EMAIL     = "admin@ovbreadymix.co.za"
-DOMAIN         = "web.ovbreadymix.co.za"
-SSH_KEY_NAME   = "ovb_cms"
+SERVER_IP      = "165.73.86.236"
+SERVER_HOST    = "sonicweb.dedicated.co.za"
+ROOT_PASSWORD  = "3ZfEcV"
+CMS_USER       = "sonic"
+DEPLOY_DIR     = f"/home/{CMS_USER}/sonic-deploy"
+ACME_EMAIL     = "admin@sonic.co.za"
+DOMAIN         = "sonic.co.za"
+SSH_KEY_NAME   = "sonic_cloud"
 SSH_KEY_PATH   = Path.home() / ".ssh" / SSH_KEY_NAME
 
 # Paths to local compose files (relative to this script's directory)
@@ -279,8 +279,8 @@ def main():
     print(f"    Public   : https://www.{SERVER_HOST}")
     print(f"    Admin    : https://backend.{SERVER_HOST}")
     print(f"\n  SSH        : ssh -i {SSH_KEY_PATH} {CMS_USER}@{SERVER_IP}")
-    print(f"\n  Add to ~/.ssh/config:")
-    print(f"    Host ovb-cms")
+    print(f"\n  SSH config (already saved as sonic-cloud):")
+    print(f"    Host sonic-cloud")
     print(f"        HostName {SERVER_IP}")
     print(f"        User {CMS_USER}")
     print(f"        IdentityFile {SSH_KEY_PATH}")

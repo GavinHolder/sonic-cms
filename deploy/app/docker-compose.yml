@@ -7,11 +7,14 @@
 #   Compose path:   deploy/app/docker-compose.yml
 #
 # REQUIRED environment variables in Portainer's "Environment variables" editor:
-#   APP_NAME        — unique slug, e.g. "ovb-cms" (unique across ALL sites)
-#   BASE_DOMAIN     — base domain, e.g. "ovbreadymix.co.za"
-#                     App is served on two subdomains of BASE_DOMAIN:
+#   APP_NAME        — unique slug, e.g. "sonic-cms" (unique across ALL sites)
+#   BASE_DOMAIN     — production domain, e.g. "sonic.co.za"
+#                     App is served on:
 #                       www.${BASE_DOMAIN}      → public website
 #                       backend.${BASE_DOMAIN}  → CMS admin panel
+#   STAGING_DOMAIN  — (optional) temporary domain for staging access before cutover
+#                     e.g. "sonicweb.dedicated.co.za" — served alongside BASE_DOMAIN
+#                     Leave blank ("") once fully cut over to BASE_DOMAIN
 #   DATABASE_URL    — full postgresql:// URL
 #   POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
 #   JWT_SECRET, JWT_REFRESH_SECRET
@@ -81,6 +84,13 @@ services:
       - "traefik.http.middlewares.${APP_NAME:-cms}-admin-redirect.redirectregex.regex=^https://backend\\.${BASE_DOMAIN}/?$"
       - "traefik.http.middlewares.${APP_NAME:-cms}-admin-redirect.redirectregex.replacement=https://backend.${BASE_DOMAIN}/admin/login"
       - "traefik.http.middlewares.${APP_NAME:-cms}-admin-redirect.redirectregex.permanent=false"
+      # Staging domain (optional): direct access before DNS cutover to BASE_DOMAIN
+      # Set STAGING_DOMAIN=sonicweb.dedicated.co.za during development, clear it after cutover
+      - "traefik.http.routers.${APP_NAME:-cms}-staging.rule=Host(`${STAGING_DOMAIN:-_disabled_.invalid}`)"
+      - "traefik.http.routers.${APP_NAME:-cms}-staging.entrypoints=websecure"
+      - "traefik.http.routers.${APP_NAME:-cms}-staging.tls=true"
+      - "traefik.http.routers.${APP_NAME:-cms}-staging.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.${APP_NAME:-cms}-staging.service=${APP_NAME:-cms}-svc"
       # Shared service (both routers point here)
       - "traefik.http.services.${APP_NAME:-cms}-svc.loadbalancer.server.port=3000"
 
