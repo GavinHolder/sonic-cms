@@ -1,11 +1,11 @@
 {
-  "version": "1.7.3",
+  "version": "1.8.0",
   "date": "2026-03-23",
   "changelog": {
-    "features": [],
-    "bugfixes": [
-      "SEO — add metadataBase, remove ISP-specific sitemap routes"
+    "features": [
+      "show update notification globally in sidebar for all admin users"
     ],
+    "bugfixes": [],
     "breaking": []
   }
 }
