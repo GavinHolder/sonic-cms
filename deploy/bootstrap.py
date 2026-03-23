@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Bootstrap script — web.ovbreadymix.co.za
+Bootstrap script — sonicweb.dedicated.co.za
 Runs ONCE as root (password auth) to fully configure the production server.
 
 Usage:
@@ -8,7 +8,7 @@ Usage:
     python deploy/bootstrap.py
 
 What it does:
-    1. Generates Ed25519 SSH keypair at ~/.ssh/ovb_cms (if not exists)
+    1. Generates Ed25519 SSH keypair at ~/.ssh/sonic_cloud (if not exists)
     2. Creates 'cms' OS user on the server
     3. Installs SSH public key for passwordless login
     4. Hardens SSH: disables root login and password auth
@@ -81,7 +81,7 @@ def generate_ssh_key() -> str:
             [
                 "ssh-keygen", "-t", "ed25519",
                 "-f", str(SSH_KEY_PATH),
-                "-C", "ovb-cms-deploy",
+                "-C", "sonic-cloud-deploy",
                 "-N", "",
             ],
             check=True,

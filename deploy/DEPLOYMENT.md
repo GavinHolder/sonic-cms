@@ -158,8 +158,8 @@ networks:
 ```
 
 Replace placeholders:
-- `BASE_DOMAIN` → e.g. `ovbreadymix.co.za`
-- `ACME_EMAIL` → e.g. `admin@ovbreadymix.co.za`
+- `BASE_DOMAIN` → e.g. `sonic.co.za`
+- `ACME_EMAIL` → e.g. `admin@sonic.co.za`
 - `HASHED_PASSWORD` → generate with: `echo $(htpasswd -nb admin 'YourPassword') | sed -e s/\\$/\\$\\$/g`
 
 Deploy:
@@ -238,10 +238,10 @@ In Portainer UI → **Stacks → Add stack → Repository**
 ```
 APP_NAME=CLIENT-cms
 BASE_DOMAIN=CLIENT.co.za
-DATABASE_URL=postgresql://cms:DB_PASSWORD@db:5432/cms_db
-POSTGRES_USER=cms
+DATABASE_URL=postgresql://sonic:DB_PASSWORD@db:5432/sonic_cms
+POSTGRES_USER=sonic
 POSTGRES_PASSWORD=DB_PASSWORD
-POSTGRES_DB=cms_db
+POSTGRES_DB=sonic_cms
 JWT_SECRET=GENERATE_64_BYTE_BASE64
 JWT_REFRESH_SECRET=GENERATE_64_BYTE_BASE64
 SESSION_TIMEOUT=14400000
