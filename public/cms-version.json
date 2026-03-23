@@ -1,11 +1,11 @@
 {
-  "version": "1.8.0",
+  "version": "1.8.1",
   "date": "2026-03-23",
   "changelog": {
-    "features": [
-      "show update notification globally in sidebar for all admin users"
+    "features": [],
+    "bugfixes": [
+      "dashboard real DB counts + migration fallback"
     ],
-    "bugfixes": [],
     "breaking": []
   }
 }
