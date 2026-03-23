@@ -21,7 +21,7 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE: ghcr.io/gavinholder/white-label-cms
+  IMAGE: ghcr.io/gavinholder/sonic-cms
 
 jobs:
   # ── Job 1: Build and push Docker image to ghcr.io ───────────────────────────
