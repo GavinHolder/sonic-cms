@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
-import UpdateBadge from "@/components/admin/UpdateBadge";
 import UpdateModal from "@/components/admin/UpdateModal";
 import {
   getCMSSettings,
@@ -417,14 +416,6 @@ export default function SettingsPage() {
       subtitle="Configure CMS behavior and preferences"
       actions={
         <div className="d-flex align-items-center gap-2">
-          {userRole === "SUPER_ADMIN" && (
-            <UpdateBadge
-              onOpenModal={(info) => {
-                setUpdateModalInfo(info as Parameters<typeof UpdateModal>[0]["info"]);
-                setShowUpdateModal(true);
-              }}
-            />
-          )}
           <button className="btn btn-outline-secondary" onClick={handleReset}>
             <i className="bi bi-arrow-counterclockwise me-1"></i>
             Reset All

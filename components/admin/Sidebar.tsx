@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import cmsVersion from "@/public/cms-version.json";
+import UpdateBadge from "@/components/admin/UpdateBadge";
+import UpdateModal from "@/components/admin/UpdateModal";
 
 interface SubMenuItem {
   id: string;
@@ -137,6 +138,8 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState<string | null>(null);
   const [enabledFeatures, setEnabledFeatures] = useState<string[]>([]);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [updateModalInfo, setUpdateModalInfo] = useState<Parameters<typeof UpdateModal>[0]["info"]>(null);
 
   useEffect(() => {
     fetch("/api/site-config")
@@ -355,11 +358,21 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           <i className="bi bi-box-arrow-right"></i>
           Logout
         </Link>
-        <div className="text-center mt-2" style={{ fontSize: "0.6875rem", color: "var(--bs-secondary-color)" }}>
-          CMS v{cmsVersion.version}
+        <div className="d-flex justify-content-center mt-2">
+          <UpdateBadge
+            onOpenModal={(info) => {
+              setUpdateModalInfo(info as Parameters<typeof UpdateModal>[0]["info"]);
+              setShowUpdateModal(true);
+            }}
+          />
         </div>
       </div>
     </div>
+    <UpdateModal
+      show={showUpdateModal}
+      info={updateModalInfo}
+      onClose={() => setShowUpdateModal(false)}
+    />
     </>
   );
 }

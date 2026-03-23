@@ -2,12 +2,11 @@
  * GET /api/admin/updates/check
  * Compare local cms-version.json against upstream master version URL.
  * Returns update availability, changelog, and current update status.
- * SUPER_ADMIN only.
+ * Any authenticated admin user (read-only check — trigger routes remain SUPER_ADMIN only).
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireRole } from "@/lib/api-middleware";
-import { UserRole } from "@prisma/client";
+import { requireAuth } from "@/lib/api-middleware";
 import prisma from "@/lib/prisma";
 import localVersion from "@/public/cms-version.json";
 
@@ -38,7 +37,7 @@ async function getSettings(keys: string[]) {
 }
 
 export async function GET(req: NextRequest) {
-  const auth = requireRole(req, UserRole.SUPER_ADMIN);
+  const auth = requireAuth(req);
   if (auth instanceof NextResponse) return auth;
 
   const settings = await getSettings([
