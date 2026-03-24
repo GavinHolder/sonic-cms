@@ -318,6 +318,9 @@
           <button id="btn-align-top"    class="btn btn-sm btn-outline-secondary px-2" title="Align top edge to canvas"><i class="bi bi-align-top"></i></button>
           <button id="btn-align-vcenter" class="btn btn-sm btn-outline-secondary px-2" title="Center vertically"><i class="bi bi-align-middle"></i></button>
           <button id="btn-align-bottom" class="btn btn-sm btn-outline-secondary px-2" title="Align bottom edge to canvas"><i class="bi bi-align-bottom"></i></button>
+          <div style="width:1px;height:14px;background:#dee2e6;margin:0 2px;"></div>
+          <button id="btn-distribute-h" class="btn btn-sm btn-outline-secondary px-2" title="Distribute horizontally (even spacing)"><i class="bi bi-distribute-horizontal"></i></button>
+          <button id="btn-distribute-v" class="btn btn-sm btn-outline-secondary px-2" title="Distribute vertically (even spacing)"><i class="bi bi-distribute-vertical"></i></button>
         </div>
         <!-- Flip Card Face Preview (shown only when flip card enabled) -->
         <div id="flip-face-switcher" class="d-flex align-items-center gap-1 ms-3" style="display:none!important;">
@@ -529,9 +532,9 @@
     function renderAll(){renderCanvas();renderLayers();renderProps();}
     // ── Contextual key legend ──────────────────────────────────────────────────
     var _KL={
-      idle:         {ctx:'Tools',            keys:[['V','Select'],['R','Rect'],['E','Ellipse'],['L','Line'],['B','Pen'],['P','Polygon'],['S','Slot'],['Ctrl+Z','Undo'],['Ctrl+Y','Redo']]},
+      idle:         {ctx:'Tools',            keys:[['V','Select'],['R','Rect'],['E','Ellipse'],['L','Line'],['B','Pen'],['P','Polygon'],['S','Slot'],['Ctrl+Z','Undo'],['Ctrl+Y','Redo'],['Ctrl+C/V','Copy/Paste'],['Ctrl+D','Duplicate']]},
       drawing_pen:  {ctx:'Pen Tool',         keys:[['Click','Sharp anchor'],['Click+Drag','Curve anchor'],['Near start','Close path'],['Enter','Commit open path'],['dblclick','Commit + close'],['Ctrl (hold)','⊙ Snap to grid'],['Backspace','Remove last point'],['Esc','Cancel']]},
-      selected:     {ctx:'Selection',        keys:[['Ctrl (hold drag)','⊙ Snap to grid'],['Del / Backspace','Delete'],['Alt+drag','Duplicate'],['dblclick','Vertex edit'],['Shift+click','Set bool base'],['Ctrl+Z','Undo'],['Ctrl+Y','Redo']]},
+      selected:     {ctx:'Selection',        keys:[['Arrows','Nudge 1%'],['Shift+Arrows','Nudge 5%'],['Ctrl+C/V','Copy/Paste'],['Ctrl+D','Duplicate'],['Del','Delete'],['Alt+drag','Duplicate'],['dblclick','Vertex edit'],['Shift+click','Set bool base'],['Ctrl+Scroll','Zoom']]},
       drawing_rect: {ctx:'Drawing Rect',     keys:[['Drag','Draw rect'],['Shift (hold)','Lock to square'],['Ctrl (hold)','⊙ Snap to grid'],['Esc','Cancel']]},
       drawing_ellipse:{ctx:'Drawing Ellipse',keys:[['Drag','Draw ellipse'],['Shift (hold)','Lock to circle'],['Ctrl (hold)','⊙ Snap to grid'],['Esc','Cancel']]},
       drawing_line: {ctx:'Drawing Line',     keys:[['Drag','Draw line'],['Ctrl (hold)','⊙ Snap to grid'],['Esc','Cancel']]},
@@ -1261,6 +1264,7 @@
     var ghostEl=null;
     var VX_RAD=4;       // vertex handle radius (screen px, scaled by zoom)
     var _altHeld=false;    // tracks Alt key; window capture listener below prevents browser menu interception
+    var _nudgeTimer=null;  // debounce timer for arrow key nudge history batching
     var _vxMousePt=null;   // last mouse position in vertex-edit mode (for edge add preview dot)
     var _vxDblClick={id:null,vi:-1,time:0}; // tracks double-click on a vertex handle (to delete)
     // ── SVG pointer events ────────────────────────────────────────────────────
@@ -3431,6 +3435,39 @@
     document.getElementById('btn-align-top').addEventListener('click',function(){_alignLayer('top');});
     document.getElementById('btn-align-vcenter').addEventListener('click',function(){_alignLayer('vcenter');});
     document.getElementById('btn-align-bottom').addEventListener('click',function(){_alignLayer('bottom');});
+    // ── Distribute selected layers evenly ────────────────────────────────────
+    function _distribute(axis){
+      var ids=state.multiSelectIds||[];if(ids.length<3)return;
+      pushHistory();
+      var layers=ids.map(function(id){return state.element.layers.find(function(l){return l.id===id;});}).filter(Boolean);
+      if(axis==='h'){
+        layers.sort(function(a,b){return a.x-b.x;});
+        var minX=layers[0].x,maxX=layers[layers.length-1].x+layers[layers.length-1].width;
+        var totalW=layers.reduce(function(s,l){return s+l.width;},0);
+        var gap=(maxX-minX-totalW)/(layers.length-1);
+        var cur=layers[0].x+layers[0].width+gap;
+        for(var i=1;i<layers.length-1;i++){layers[i].x=cur;cur+=layers[i].width+gap;}
+      } else {
+        layers.sort(function(a,b){return a.y-b.y;});
+        var minY=layers[0].y,maxY=layers[layers.length-1].y+layers[layers.length-1].height;
+        var totalH=layers.reduce(function(s,l){return s+l.height;},0);
+        var gapV=(maxY-minY-totalH)/(layers.length-1);
+        var curV=layers[0].y+layers[0].height+gapV;
+        for(var j=1;j<layers.length-1;j++){layers[j].y=curV;curV+=layers[j].height+gapV;}
+      }
+      markDirty();renderCanvas();renderProps();
+    }
+    document.getElementById('btn-distribute-h').addEventListener('click',function(){_distribute('h');});
+    document.getElementById('btn-distribute-v').addEventListener('click',function(){_distribute('v');});
+    // ── Scroll wheel zoom (Ctrl+scroll) ──────────────────────────────────────
+    document.getElementById('artboard-container').addEventListener('wheel',function(e){
+      if(!e.ctrlKey&&!e.metaKey)return;
+      e.preventDefault();
+      var delta=e.deltaY>0?-0.1:0.1;
+      state.zoom=Math.max(0.1,Math.min(5,state.zoom+delta));
+      document.getElementById('artboard').style.transform='scale('+state.zoom+')';
+      document.getElementById('zoom-label').textContent=Math.round(state.zoom*100)+'%';
+    },{passive:false});
     // ── Keyboard ──────────────────────────────────────────────────────────────
     document.addEventListener('keydown',function(e){
       if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;
@@ -3443,6 +3480,21 @@
       if((e.ctrlKey||e.metaKey)&&(e.key==='y'||(e.shiftKey&&e.key==='z'))){e.preventDefault();redo();return;}
       if((e.ctrlKey||e.metaKey)&&e.key==='g'){e.preventDefault();groupSelectedLayers();return;}
       if((e.key==='Delete'||e.key==='Backspace')&&state.selectedLayerId)document.getElementById('btn-delete-layer').click();
+      // Copy/Paste (Ctrl+C / Ctrl+V)
+      if((e.ctrlKey||e.metaKey)&&e.key==='c'&&state.selectedLayerId){e.preventDefault();var _cl=state.element.layers.find(function(l){return l.id===state.selectedLayerId;});if(_cl)state._clipboard=JSON.parse(JSON.stringify(_cl));return;}
+      if((e.ctrlKey||e.metaKey)&&e.key==='v'&&state._clipboard){e.preventDefault();pushHistory();var _pst=JSON.parse(JSON.stringify(state._clipboard));_pst.id=nanoid();_pst.name=_pst.name+' copy';_pst.x=_pst.x+3;_pst.y=_pst.y+3;_pst.zIndex=state.element.layers.reduce(function(m,x){return Math.max(m,x.zIndex||0);},0)+1;state.element.layers.push(_pst);state.selectedLayerId=_pst.id;state.multiSelectIds=[_pst.id];markDirty();renderAll();return;}
+      // Duplicate (Ctrl+D)
+      if((e.ctrlKey||e.metaKey)&&e.key==='d'&&state.selectedLayerId){e.preventDefault();ctxDuplicate();return;}
+      // Arrow key nudging (1% per press, 5% with Shift)
+      if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].indexOf(e.key)>=0&&state.selectedLayerId&&state.activeTool==='select'){
+        e.preventDefault();var _ni=state.element.layers.findIndex(function(l){return l.id===state.selectedLayerId;});
+        if(_ni>=0){var _step=e.shiftKey?5:1;var _nl=state.element.layers[_ni];
+        if(!_nudgeTimer){pushHistory();}clearTimeout(_nudgeTimer);_nudgeTimer=setTimeout(function(){_nudgeTimer=null;},500);
+        if(e.key==='ArrowLeft')_nl.x=Math.max(0,_nl.x-_step);
+        if(e.key==='ArrowRight')_nl.x=Math.min(100-_nl.width,_nl.x+_step);
+        if(e.key==='ArrowUp')_nl.y=Math.max(0,_nl.y-_step);
+        if(e.key==='ArrowDown')_nl.y=Math.min(100-_nl.height,_nl.y+_step);
+        markDirty();renderCanvas();renderProps();}return;}
     });
     // Alt key capture — intercept before browser opens menu (Windows)
     window.addEventListener('keydown',function(e){if(e.key==='Alt'){_altHeld=true;if(state.vertexEditLayerId){e.preventDefault();renderCanvas();}}},{capture:true});
