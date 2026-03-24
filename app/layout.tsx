@@ -13,6 +13,7 @@ import { headers } from "next/headers";
 import { fetchSeoConfig, buildMetadata, buildStructuredData } from "@/lib/metadata-generator";
 import prisma from "@/lib/prisma";
 import MaintenancePage from "@/components/MaintenancePage";
+import { getBrandTokens, brandTokensToCss, brandTokensToFontUrl } from "@/lib/brand-tokens";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -105,11 +106,14 @@ export default async function RootLayout({
   // JSON-LD structured data — only injected when admin has configured it
   // buildStructuredData() returns null when disabled or business name is empty
   // Output uses JSON.stringify with </script> escaped — safe to inline
-  const [seoConfig, navbarHeight] = await Promise.all([
+  const [seoConfig, navbarHeight, brandTokens] = await Promise.all([
     fetchSeoConfig(),
     isAdminRoute ? Promise.resolve(100) : getNavbarHeight(),
+    getBrandTokens(),
   ]);
   const jsonLd = isAdminRoute ? null : buildStructuredData(seoConfig);
+  const brandCss = brandTokensToCss(brandTokens);
+  const fontUrl = brandTokensToFontUrl(brandTokens);
 
   return (
     <html
@@ -117,6 +121,12 @@ export default async function RootLayout({
       style={{ "--navbar-height": `${navbarHeight}px`, height: "100%" } as React.CSSProperties}
     >
       <head>
+        {/* Brand tokens — CSS custom properties for site-wide theming.
+            Safe: brandCss is server-generated from validated hex colors + numbers only,
+            never user-controlled HTML/JS. Same pattern as JSON-LD injection below. */}
+        <style dangerouslySetInnerHTML={{ __html: brandCss }} />
+        {/* Google Fonts — loaded dynamically based on brand token font selections */}
+        {fontUrl && <link href={fontUrl} rel="stylesheet" />}
         {/* Bootstrap Icons — required for social icons in navbar and other public-facing components */}
         <link
           href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.min.css"
