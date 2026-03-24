@@ -349,6 +349,13 @@ export interface VoltLayer {
   timeline?: VoltTimelineConfig
   /** Clip mask — this layer is clipped to the shape of the referenced vector layer */
   clipMaskLayerId?: string
+  /** Component instance — this layer renders a reusable Volt component */
+  componentRef?: {
+    /** ID of the source VoltElement (elementType: "component") */
+    componentId: string
+    /** Per-layer overrides applied to the component's layers */
+    overrides?: Record<string, { fill?: string; visible?: boolean; opacity?: number }>
+  }
   vectorData?: VoltVectorData
   slotData?: VoltSlotData
   imageData?: VoltImageData

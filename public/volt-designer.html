@@ -292,6 +292,7 @@
           </div>
           <div style="position:relative;display:inline-flex;align-items:stretch;">
             <button id="btn-icon-picker" class="tool-btn-h" title="Icon Library — insert Lucide icon as vector layer" style="width:auto;padding:0 7px;gap:3px;"><i class="bi bi-grid-3x3"></i><span style="font-size:8px;font-weight:800;letter-spacing:0.3px;color:#10b981;">ICN</span></button>
+            <button id="btn-component-lib" class="tool-btn-h" title="Component Library — insert saved designs" style="width:auto;padding:0 7px;gap:3px;"><i class="bi bi-box-seam"></i><span style="font-size:8px;font-weight:800;letter-spacing:0.3px;color:#8b5cf6;">CMP</span></button>
             <div id="icon-picker-panel" class="shapes-preset-panel" style="display:none;width:320px;">
               <div style="font-size:10px;font-weight:700;color:#374151;margin-bottom:8px;letter-spacing:0.5px;text-transform:uppercase;">Icon Library</div>
               <input id="icon-search" type="text" placeholder="Search icons..." style="width:100%;font-size:11px;padding:4px 8px;border:1px solid #dee2e6;border-radius:5px;margin-bottom:8px;outline:none;" />
@@ -482,6 +483,7 @@
   <div class="ctx-sep"></div>
   <div class="ctx-item" id="ctx-duplicate"><i class="bi bi-copy"></i> Duplicate</div>
   <div class="ctx-sep"></div>
+  <div class="ctx-item" id="ctx-save-component"><i class="bi bi-box-seam"></i> Save as Component</div>
   <div class="ctx-item" id="ctx-clip-mask"><i class="bi bi-mask"></i> Set Clip Mask</div>
   <div class="ctx-item" id="ctx-release-mask"><i class="bi bi-x-circle"></i> Release Mask</div>
   <div class="ctx-sep"></div>
@@ -3921,7 +3923,64 @@
       if(!sel||!sel.clipMaskLayerId)return;
       pushHistory();delete sel.clipMaskLayerId;markDirty();renderAll();
     });
+    // Save as Component — saves selected layers as a reusable VoltElement
+    document.getElementById('ctx-save-component').addEventListener('click',function(){
+      closeCtxMenu();
+      var ids=state.multiSelectIds.length>0?state.multiSelectIds:(state.selectedLayerId?[state.selectedLayerId]:[]);
+      if(!ids.length)return;
+      var layers=ids.map(function(id){return state.element.layers.find(function(l){return l.id===id;});}).filter(Boolean);
+      if(!layers.length)return;
+      var name=prompt('Component name:','My Component');if(!name)return;
+      var compData={name:name,elementType:'component',isPublic:false,canvasWidth:state.element.canvasWidth,canvasHeight:state.element.canvasHeight,layers:JSON.parse(JSON.stringify(layers)),states:JSON.parse(JSON.stringify(state.element.states))};
+      fetch('/api/volt-elements',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(compData)})
+        .then(function(r){return r.json();})
+        .then(function(d){if(d.success||d.data)alert('Component "'+name+'" saved!');else alert('Error: '+(d.error||'Unknown'));})
+        .catch(function(){alert('Failed to save component');});
+    });
     document.getElementById('ctx-delete').addEventListener('click',function(){closeCtxMenu();ctxDelete();});
+    // ── Component Library panel ──────────────────────────────────────────────
+    var _cmpPanel=null;
+    document.getElementById('btn-component-lib').addEventListener('click',function(){
+      if(_cmpPanel){_cmpPanel.remove();_cmpPanel=null;return;}
+      _cmpPanel=document.createElement('div');
+      _cmpPanel.style.cssText='position:absolute;top:calc(100% + 4px);right:0;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,0.14);z-index:9999;padding:10px;width:280px;max-height:400px;overflow-y:auto;';
+      var hdr=document.createElement('div');hdr.style.cssText='font-size:10px;font-weight:700;color:#374151;margin-bottom:8px;letter-spacing:0.5px;text-transform:uppercase;';hdr.textContent='Components';_cmpPanel.appendChild(hdr);
+      var loading=document.createElement('div');loading.style.cssText='text-align:center;padding:20px;color:#94a3b8;font-size:11px;';loading.textContent='Loading...';_cmpPanel.appendChild(loading);
+      // Fetch components
+      fetch('/api/volt-elements?type=component')
+        .then(function(r){return r.json();})
+        .then(function(d){
+          loading.remove();
+          var items=(d.data||d||[]).filter(function(e){return e.elementType==='component';});
+          if(!items.length){var empty=document.createElement('div');empty.style.cssText='text-align:center;padding:20px;color:#94a3b8;font-size:11px;';empty.textContent='No components yet. Right-click layers → Save as Component.';_cmpPanel.appendChild(empty);return;}
+          items.forEach(function(comp){
+            var card=document.createElement('div');card.style.cssText='padding:8px;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:6px;cursor:pointer;transition:background 0.1s;';
+            card.addEventListener('mouseenter',function(){card.style.background='#f0f4ff';});
+            card.addEventListener('mouseleave',function(){card.style.background='';});
+            var nm=document.createElement('div');nm.style.cssText='font-size:11px;font-weight:600;color:#334155;';nm.textContent=comp.name;
+            var info=document.createElement('div');info.style.cssText='font-size:9px;color:#94a3b8;';info.textContent=(comp.layers||[]).length+' layers';
+            card.appendChild(nm);card.appendChild(info);
+            card.addEventListener('click',function(){
+              // Insert component layers as copies
+              pushHistory();
+              var maxZ=state.element.layers.reduce(function(m,x){return Math.max(m,x.zIndex||0);},0);
+              (comp.layers||[]).forEach(function(l,i){
+                var copy=JSON.parse(JSON.stringify(l));
+                copy.id=nanoid();copy.zIndex=maxZ+1+i;
+                copy.componentRef={componentId:comp.id};
+                state.element.layers.push(copy);
+              });
+              markDirty();renderAll();
+              _cmpPanel.remove();_cmpPanel=null;
+            });
+            _cmpPanel.appendChild(card);
+          });
+        })
+        .catch(function(){loading.textContent='Failed to load';});
+      document.getElementById('btn-component-lib').parentElement.style.position='relative';
+      document.getElementById('btn-component-lib').parentElement.appendChild(_cmpPanel);
+      document.addEventListener('click',function _cls(e){if(_cmpPanel&&!_cmpPanel.contains(e.target)&&e.target.id!=='btn-component-lib'){_cmpPanel.remove();_cmpPanel=null;document.removeEventListener('click',_cls);}},{capture:true});
+    });
     applyToolMode('auto'); // default on init
     // ── Slot type dropdown ────────────────────────────────────────────────────
     var _slotMenuOpen=false;
