@@ -106,6 +106,22 @@ export interface VoltEntranceAnim {
   distance?: number
 }
 
+/** Exit animation — mirror of entrance, plays when leaving viewport. */
+export type ExitAnimType =
+  | 'none'
+  | 'fadeOut'
+  | 'slideOutLeft' | 'slideOutRight' | 'slideOutUp' | 'slideOutDown'
+  | 'scaleOut'
+  | 'rotateOut'
+
+export interface VoltExitAnim {
+  type: ExitAnimType
+  duration?: number
+  delay?: number
+  ease?: string
+  distance?: number
+}
+
 // ── Timeline Keyframes ───────────────────────────────────────────────────────
 
 /** A single keyframe in a layer's animation timeline. */
@@ -327,6 +343,8 @@ export interface VoltLayer {
   effects?: VoltLayerEffects
   /** On-enter animation played once when the card enters the viewport */
   entranceAnim?: VoltEntranceAnim
+  /** On-exit animation played when the card leaves the viewport */
+  exitAnim?: VoltExitAnim
   /** Timeline animation — keyframe-based, opt-in per layer */
   timeline?: VoltTimelineConfig
   /** Clip mask — this layer is clipped to the shape of the referenced vector layer */
@@ -359,7 +377,7 @@ export interface VoltLayerStateOverride {
 export interface VoltState {
   id: string
   name: StateName
-  trigger: 'mouseenter' | 'mouseleave' | 'focus' | 'blur' | 'click' | 'auto'
+  trigger: 'mouseenter' | 'mouseleave' | 'focus' | 'blur' | 'click' | 'auto' | 'scroll-25' | 'scroll-50' | 'scroll-75' | 'scroll-100'
   layerOverrides: Record<string, VoltLayerStateOverride>
 }
 

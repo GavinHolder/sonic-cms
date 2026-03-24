@@ -360,6 +360,84 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
       ;(el as HTMLElement & { _voltEntranceObs?: IntersectionObserver })._voltEntranceObs = entranceObserver
     }
 
+    // ── Exit animations (fire when card leaves viewport) ────────────────────
+    const layersWithExit = layers.filter(l => l.exitAnim && l.exitAnim.type !== 'none')
+    if (layersWithExit.length > 0) {
+      const exitObserver = new IntersectionObserver(
+        async (entries) => {
+          // Fire when element is NO LONGER intersecting (leaving viewport)
+          if (entries[0].isIntersecting) return
+          const { animate } = await import('animejs')
+
+          for (const layer of layersWithExit) {
+            const xa = layer.exitAnim!
+            const layerEl = el.querySelector<HTMLElement>(`#volt-layer-${layer.id}`)
+            if (!layerEl) continue
+            const duration = xa.duration ?? 600
+            const delay = xa.delay ?? 0
+            const ease = xa.ease ?? 'easeInCubic'
+            const dist = xa.distance ?? 40
+            const targets: Record<string, unknown> = {}
+
+            switch (xa.type) {
+              case 'fadeOut':      targets.opacity = 0; break
+              case 'slideOutLeft': targets.translateX = -dist; targets.opacity = 0; break
+              case 'slideOutRight': targets.translateX = dist; targets.opacity = 0; break
+              case 'slideOutUp':   targets.translateY = -dist; targets.opacity = 0; break
+              case 'slideOutDown': targets.translateY = dist; targets.opacity = 0; break
+              case 'scaleOut':     targets.scale = 0.7; targets.opacity = 0; break
+              case 'rotateOut':    targets.rotate = '15deg'; targets.scale = 0.8; targets.opacity = 0; break
+            }
+            if (Object.keys(targets).length > 0) {
+              animate(layerEl, { ...targets, duration, delay, ease })
+            }
+          }
+        },
+        { threshold: 0 }
+      )
+      // Only start observing after a delay (so entrance plays first)
+      setTimeout(() => exitObserver.observe(el), 1000)
+      ;(el as HTMLElement & { _voltExitObs?: IntersectionObserver })._voltExitObs = exitObserver
+    }
+
+    // ── Scroll-triggered state transitions ──────────────────────────────────
+    const scrollStates = states.filter(s =>
+      s.trigger === 'scroll-25' || s.trigger === 'scroll-50' || s.trigger === 'scroll-75' || s.trigger === 'scroll-100'
+    )
+    if (scrollStates.length > 0) {
+      // Map trigger names to threshold values
+      const triggerThresholds: Record<string, number> = {
+        'scroll-25': 0.25, 'scroll-50': 0.5, 'scroll-75': 0.75, 'scroll-100': 1.0,
+      }
+      const thresholds = scrollStates.map(s => triggerThresholds[s.trigger] ?? 0.5)
+      let lastTriggered = ''
+
+      const scrollObserver = new IntersectionObserver(
+        (entries) => {
+          const entry = entries[0]
+          if (!entry.isIntersecting) {
+            if (lastTriggered) { transitionToState('rest'); lastTriggered = '' }
+            return
+          }
+          // Find the highest threshold that's been crossed
+          const ratio = entry.intersectionRatio
+          let bestState = ''
+          let bestThreshold = 0
+          for (const ss of scrollStates) {
+            const t = triggerThresholds[ss.trigger] ?? 0.5
+            if (ratio >= t && t >= bestThreshold) { bestState = ss.name; bestThreshold = t }
+          }
+          if (bestState && bestState !== lastTriggered) {
+            transitionToState(bestState)
+            lastTriggered = bestState
+          }
+        },
+        { threshold: [0, ...thresholds] }
+      )
+      scrollObserver.observe(el)
+      ;(el as HTMLElement & { _voltScrollObs?: IntersectionObserver })._voltScrollObs = scrollObserver
+    }
+
     // ── Timeline keyframe animations ──────────────────────────────────────────
     const layersWithTimeline = layers.filter(l => l.timeline && l.timeline.keyframes.length >= 2)
     if (layersWithTimeline.length > 0) {
@@ -525,6 +603,12 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
       // Disconnect entrance observer if component unmounts before it fires
       const obs = (el as HTMLElement & { _voltEntranceObs?: IntersectionObserver })._voltEntranceObs
       if (obs) obs.disconnect()
+      // Disconnect scroll observer
+      const sobs = (el as HTMLElement & { _voltScrollObs?: IntersectionObserver })._voltScrollObs
+      if (sobs) sobs.disconnect()
+      // Disconnect exit observer
+      const xobs = (el as HTMLElement & { _voltExitObs?: IntersectionObserver })._voltExitObs
+      if (xobs) xobs.disconnect()
     }
   }, [voltElement, isFlip, flipAnimType, flipTrigger, flipAxis, flipDuration, flipEase, flipDirection, flipPerspective, flipAutoInterval, tiltEnabled, tiltMaxDeg, tiltPerspective, layers, states])
 
