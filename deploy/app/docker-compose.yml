@@ -29,7 +29,7 @@ services:
   # ── Next.js App ─────────────────────────────────────────────────────────────
   app:
     image: ghcr.io/gavinholder/sonic-cms:latest
-    pull_policy: always     # Always pull latest image on deploy
+    pull_policy: missing    # Use local image; see docs/server.md for rebuild instructions
     container_name: ${APP_NAME:-cms}-app
     restart: unless-stopped
     depends_on:
