@@ -416,11 +416,25 @@
       <i class="bi bi-image" style="color:#10b981;font-size:18px;"></i>
       <span style="font-size:14px;font-weight:700;color:#212529;">Place Image</span>
       <div class="ms-auto d-flex gap-2 align-items-center">
-        <input id="img-picker-search" type="text" placeholder="Search..." style="font-size:12px;padding:4px 10px;border:1px solid #dee2e6;border-radius:6px;width:160px;" />
+        <input id="img-picker-search" type="text" placeholder="Search media..." style="font-size:12px;padding:4px 10px;border:1px solid #dee2e6;border-radius:6px;width:160px;" />
         <button id="img-picker-close" class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-lg"></i></button>
       </div>
     </div>
+    <!-- Tab bar: Library / Unsplash -->
+    <div style="display:flex;gap:0;border-bottom:1px solid #e2e8f0;padding:0 18px;">
+      <button id="img-tab-library" class="btn btn-sm" style="border:none;border-bottom:2px solid #2563eb;color:#2563eb;font-weight:600;font-size:11px;border-radius:0;padding:6px 12px;">Media Library</button>
+      <button id="img-tab-unsplash" class="btn btn-sm" style="border:none;border-bottom:2px solid transparent;color:#64748b;font-weight:600;font-size:11px;border-radius:0;padding:6px 12px;">Unsplash</button>
+    </div>
     <div id="img-picker-grid" style="flex:1;overflow-y:auto;padding:14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;"></div>
+    <!-- Unsplash search (hidden by default) -->
+    <div id="unsplash-panel" style="display:none;flex:1;overflow:hidden;flex-direction:column;">
+      <div style="padding:10px 18px;display:flex;gap:8px;align-items:center;border-bottom:1px solid #f0f0f0;">
+        <input id="unsplash-search" type="text" placeholder="Search free photos..." style="flex:1;font-size:12px;padding:6px 12px;border:1px solid #dee2e6;border-radius:6px;" />
+        <button id="unsplash-go" class="btn btn-sm btn-primary" style="font-size:11px;">Search</button>
+      </div>
+      <div id="unsplash-grid" style="flex:1;overflow-y:auto;padding:14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;"></div>
+      <div id="unsplash-footer" style="padding:6px 18px;border-top:1px solid #f0f0f0;font-size:9px;color:#94a3b8;text-align:center;">Photos by <a href="https://unsplash.com" target="_blank" rel="noopener" style="color:#64748b;">Unsplash</a></div>
+    </div>
     <div style="padding:10px 18px;border-top:1px solid #e2e8f0;display:flex;align-items:center;gap:8px;">
       <span style="font-size:10px;color:#6c757d;">Or paste URL:</span>
       <input id="img-picker-url" type="text" placeholder="https://..." style="flex:1;font-size:11px;padding:4px 8px;border:1px solid #dee2e6;border-radius:5px;" />
@@ -4245,6 +4259,57 @@
     });
     document.getElementById('img-picker-search').addEventListener('input',function(){
       clearTimeout(this._st);var v=this.value;this._st=setTimeout(function(){loadImagePickerGrid(v);},350);
+    });
+    // ── Image picker tab switching (Library / Unsplash) ──────────────────────
+    var _imgTabLib=document.getElementById('img-tab-library');
+    var _imgTabUns=document.getElementById('img-tab-unsplash');
+    var _imgGrid=document.getElementById('img-picker-grid');
+    var _unsPanel=document.getElementById('unsplash-panel');
+    _imgTabLib.addEventListener('click',function(){
+      _imgTabLib.style.borderBottomColor='#2563eb';_imgTabLib.style.color='#2563eb';
+      _imgTabUns.style.borderBottomColor='transparent';_imgTabUns.style.color='#64748b';
+      _imgGrid.style.display='grid';_unsPanel.style.display='none';
+    });
+    _imgTabUns.addEventListener('click',function(){
+      _imgTabUns.style.borderBottomColor='#2563eb';_imgTabUns.style.color='#2563eb';
+      _imgTabLib.style.borderBottomColor='transparent';_imgTabLib.style.color='#64748b';
+      _imgGrid.style.display='none';_unsPanel.style.display='flex';
+      if(!document.getElementById('unsplash-grid').children.length)_searchUnsplash('nature');
+    });
+    function _searchUnsplash(query,page){
+      page=page||1;
+      var grid=document.getElementById('unsplash-grid');
+      if(page===1)while(grid.firstChild)grid.removeChild(grid.firstChild);
+      var loading=document.createElement('div');loading.style.cssText='grid-column:1/-1;text-align:center;padding:20px;color:#94a3b8;font-size:12px;';loading.textContent='Searching...';grid.appendChild(loading);
+      fetch('/api/unsplash/search?q='+encodeURIComponent(query)+'&page='+page)
+        .then(function(r){return r.json();})
+        .then(function(d){
+          loading.remove();
+          if(!d.success){var err=document.createElement('div');err.style.cssText='grid-column:1/-1;text-align:center;padding:20px;color:#ef4444;font-size:11px;';err.textContent=d.error||'Search failed';grid.appendChild(err);return;}
+          d.data.forEach(function(photo){
+            var card=document.createElement('div');card.style.cssText='cursor:pointer;border-radius:8px;overflow:hidden;position:relative;aspect-ratio:4/3;background:#f1f5f9;';
+            var img=document.createElement('img');img.src=photo.thumb;img.alt=photo.alt;img.style.cssText='width:100%;height:100%;object-fit:cover;';img.loading='lazy';
+            var credit=document.createElement('div');credit.style.cssText='position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,0.6));padding:4px 6px;font-size:8px;color:#fff;';credit.textContent=photo.photographer;
+            card.appendChild(img);card.appendChild(credit);
+            card.addEventListener('click',function(){selectImagePickerUrl(photo.regular);});
+            card.addEventListener('mouseenter',function(){card.style.outline='2px solid #2563eb';});
+            card.addEventListener('mouseleave',function(){card.style.outline='none';});
+            grid.appendChild(card);
+          });
+          // Load more button
+          if(d.totalPages>page){
+            var more=document.createElement('button');more.className='btn btn-sm btn-outline-primary';more.style.cssText='grid-column:1/-1;margin:8px auto;font-size:11px;';more.textContent='Load more';
+            more.addEventListener('click',function(){more.remove();_searchUnsplash(query,page+1);});
+            grid.appendChild(more);
+          }
+        })
+        .catch(function(){loading.textContent='Network error';});
+    }
+    document.getElementById('unsplash-go').addEventListener('click',function(){
+      var q=document.getElementById('unsplash-search').value.trim();if(q)_searchUnsplash(q);
+    });
+    document.getElementById('unsplash-search').addEventListener('keydown',function(e){
+      if(e.key==='Enter'){var q=this.value.trim();if(q)_searchUnsplash(q);}
     });
     // ── Save / Done ───────────────────────────────────────────────────────────
     function captureThumbnail(){
