@@ -1,6 +1,6 @@
 'use client'
-import { useEffect, useRef } from 'react'
-import type { VoltElementData, VoltSlots, VoltInstanceOverrides } from '@/types/volt'
+import { useEffect, useRef, useState } from 'react'
+import type { VoltElementData, VoltSlots, VoltInstanceOverrides, VoltBreakpoint } from '@/types/volt'
 import { sortLayersByZ } from '@/lib/volt/volt-utils'
 import { personalityToAnimeConfig } from '@/lib/volt/personality-to-anime'
 import VoltSvgLayer from './VoltSvgLayer'
@@ -30,7 +30,40 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
   const autoTimerRef  = useRef<ReturnType<typeof setInterval> | null>(null)
   const isTiltingRef  = useRef(false)
 
-  const { layers, states, canvasWidth, canvasHeight, flipCard } = voltElement
+  const { layers: rawLayers, states, canvasWidth, canvasHeight, flipCard, breakpoints } = voltElement
+  const [activeBreakpoint, setActiveBreakpoint] = useState<VoltBreakpoint | null>(null)
+
+  // ResizeObserver to detect active breakpoint based on container width
+  useEffect(() => {
+    if (!breakpoints || breakpoints.length === 0 || !containerRef.current) return
+    const sorted = [...breakpoints].sort((a, b) => a.maxWidth - b.maxWidth)
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0].contentRect.width
+      const bp = sorted.find(b => width <= b.maxWidth) ?? null
+      setActiveBreakpoint(bp)
+    })
+    observer.observe(containerRef.current)
+    return () => observer.disconnect()
+  }, [breakpoints])
+
+  // Apply breakpoint overrides to layers
+  const layers = rawLayers.map(layer => {
+    if (!activeBreakpoint) return layer
+    const override = activeBreakpoint.layerOverrides[layer.id]
+    if (!override) return layer
+    return {
+      ...layer,
+      ...(override.x !== undefined ? { x: override.x } : {}),
+      ...(override.y !== undefined ? { y: override.y } : {}),
+      ...(override.width !== undefined ? { width: override.width } : {}),
+      ...(override.height !== undefined ? { height: override.height } : {}),
+      ...(override.visible !== undefined ? { visible: override.visible } : {}),
+      ...(override.fontSize !== undefined && layer.textLayerData ? {
+        textLayerData: { ...layer.textLayerData, fontSize: override.fontSize }
+      } : {}),
+    }
+  })
+
   const sortedLayers = sortLayersByZ(layers)
 
   const isFlip         = !!(flipCard?.enabled)

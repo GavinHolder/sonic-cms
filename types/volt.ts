@@ -153,6 +153,26 @@ export interface VoltTimelineConfig {
   autoplay: boolean
 }
 
+// ── Responsive Breakpoints ────────────────────────────────────────────────────
+
+export interface VoltBreakpoint {
+  /** Breakpoint name (e.g., "mobile", "tablet", "desktop") */
+  name: string
+  /** Max container width in px for this breakpoint */
+  maxWidth: number
+  /** Canvas width used in designer for this breakpoint */
+  canvasWidth: number
+  /** Per-layer overrides at this breakpoint */
+  layerOverrides: Record<string, {
+    x?: number
+    y?: number
+    width?: number
+    height?: number
+    visible?: boolean
+    fontSize?: number
+  }>
+}
+
 export interface VoltVectorData {
   pathData: string
   fills: VoltFill[]
@@ -452,6 +472,8 @@ export interface VoltElementData {
   tiltMaxDeg?: number
   /** CSS perspective distance in px for tilt (default: 800) */
   tiltPerspective?: number
+  /** Responsive breakpoints — per-breakpoint layer position/size/visibility overrides */
+  breakpoints?: VoltBreakpoint[]
 }
 
 /**
