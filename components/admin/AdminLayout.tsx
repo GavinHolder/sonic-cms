@@ -20,7 +20,7 @@ export default function AdminLayout({ children, title, subtitle, actions }: Admi
       {/* Auto-refresh authentication tokens */}
       <TokenRefresher />
 
-      <div className="d-flex" style={{ minHeight: "100vh", backgroundColor: "#f8f9fa" }}>
+      <div className="d-flex admin-layout" style={{ minHeight: "100vh", backgroundColor: "#f8f9fa" }}>
         {/* Mobile overlay — closes sidebar when tapping outside */}
         {sidebarOpen && (
           <div

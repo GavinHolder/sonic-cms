@@ -146,11 +146,17 @@ export function brandTokensToCss(tokens: BrandTokens): string {
   --bs-body-color: ${colors.text};
   --bs-body-bg: ${colors.background};
 }
-html body {
+/* Brand fonts apply to public site only — admin uses system fonts */
+body:not(:has(.admin-layout)) {
   font-family: var(--cms-body-font);
   color: var(--cms-text);
 }
-html h1, html h2, html h3, html h4, html h5, html h6 {
+body:not(:has(.admin-layout)) h1,
+body:not(:has(.admin-layout)) h2,
+body:not(:has(.admin-layout)) h3,
+body:not(:has(.admin-layout)) h4,
+body:not(:has(.admin-layout)) h5,
+body:not(:has(.admin-layout)) h6 {
   font-family: var(--cms-heading-font);
 }`
 }

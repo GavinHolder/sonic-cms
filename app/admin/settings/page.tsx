@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import UpdateModal from "@/components/admin/UpdateModal";
+import { useHelpText } from "@/hooks/useHelpText";
+import MediaPickerModal from "@/components/admin/MediaPickerModal";
 import {
   getCMSSettings,
   saveCMSSettings,
@@ -23,7 +25,6 @@ type SettingsCategory =
   | "data"
   | "about"
   | "email"
-  | "calculator"
   | "features";
 
 const BASE_CATEGORIES: Array<{
@@ -38,16 +39,32 @@ const BASE_CATEGORIES: Array<{
   { id: "preview", label: "Preview", icon: "bi-eye" },
   { id: "scroll", label: "Scroll Behavior", icon: "bi-arrows-vertical" },
   { id: "data", label: "Data Management", icon: "bi-database" },
-  { id: "email", label: "Email & SMTP", icon: "bi-envelope-gear" },
-  { id: "calculator", label: "Calculator", icon: "bi-calculator" },
+  { id: "email", label: "Email & SMTP", icon: "bi-envelope-at" },
   { id: "about", label: "About", icon: "bi-info-circle" },
 ];
 
+/** Inline helper text — only renders when showHelpTips is enabled */
+function HelpTip({ children }: { children: React.ReactNode }) {
+  return <div className="form-text mt-1">{children}</div>;
+}
+
 export default function SettingsPage() {
+  const { showHelp } = useHelpText();
   const [settings, setSettings] = useState<CMSSettings | null>(null);
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [activeCategory, setActiveCategory] = useState<SettingsCategory>("site");
+  const [activeCategory, setActiveCategoryState] = useState<SettingsCategory>(() => {
+    if (typeof window !== "undefined") {
+      const hash = window.location.hash.replace("#", "");
+      const valid = ["site", "brand", "ui", "editor", "preview", "scroll", "data", "email", "about", "cms-updates", "features"];
+      if (valid.includes(hash)) return hash as SettingsCategory;
+    }
+    return "site";
+  });
+  const setActiveCategory = (cat: SettingsCategory) => {
+    setActiveCategoryState(cat);
+    window.location.hash = cat;
+  };
   const [userRole, setUserRole] = useState<string | null>(null);
   const [userRoleLoaded, setUserRoleLoaded] = useState(false);
 
@@ -78,14 +95,9 @@ export default function SettingsPage() {
   const [maintenanceSaving, setMaintenanceSaving] = useState(false);
   const [maintenanceMsg, setMaintenanceMsg] = useState<string | null>(null);
 
-  // Calculator settings
-  const [calcSettings, setCalcSettings] = useState({ quote_ref_prefix: "CE", quote_ref_counter: "1001" });
-  const [calcSaving, setCalcSaving] = useState(false);
-  const [calcSuccess, setCalcSuccess] = useState<string | null>(null);
-  const [calcError, setCalcError] = useState<string | null>(null);
-
   // CMS Update modal
   const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [showMediaPicker, setShowMediaPicker] = useState<string | null>(null); // tracks which field opened the picker
   const [updateModalInfo, setUpdateModalInfo] = useState<Parameters<typeof UpdateModal>[0]["info"]>(null);
 
   // CMS Update config (GitHub settings)
@@ -218,17 +230,6 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/settings/calculator")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.settings) {
-          setCalcSettings((prev) => ({ ...prev, ...data.settings }));
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
     if (successMessage) {
       const timer = setTimeout(() => setSuccessMessage(null), 3000);
       return () => clearTimeout(timer);
@@ -353,26 +354,6 @@ export default function SettingsPage() {
       setEmailError("Failed to save email settings. Please try again.");
     } finally {
       setEmailSaving(false);
-    }
-  };
-
-  /** Save calculator settings (quote reference prefix + counter) */
-  const handleSaveCalcSettings = async () => {
-    setCalcSaving(true);
-    setCalcError(null);
-    try {
-      const res = await fetch("/api/settings/calculator", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(calcSettings),
-      });
-      if (!res.ok) throw new Error("Failed to save");
-      setCalcSuccess("Calculator settings saved!");
-      setTimeout(() => setCalcSuccess(null), 3000);
-    } catch {
-      setCalcError("Failed to save. Please try again.");
-    } finally {
-      setCalcSaving(false);
     }
   };
 
@@ -583,7 +564,7 @@ export default function SettingsPage() {
                         disabled={maintenanceSaving}
                       >
                         {/* Mini preview */}
-                        <div style={{ background: "#0d1117", padding: "16px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                        <div style={{ background: "#0d1117", padding: "16px 12px", height: 80, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
                           <div style={{ width: 28, height: 28, borderRadius: "50%", border: "2px solid #4d9fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
                             <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#4d9fff" }} />
                           </div>
@@ -608,7 +589,7 @@ export default function SettingsPage() {
                         disabled={maintenanceSaving}
                       >
                         {/* Mini preview */}
-                        <div style={{ background: "#0f0f0f", padding: "10px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                        <div style={{ background: "#0f0f0f", padding: "10px 12px", height: 80, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4 }}>
                           <div style={{ width: "100%", height: 6, background: "repeating-linear-gradient(-45deg,#78BE20 0,#78BE20 5px,#111 5px,#111 10px)", borderRadius: 2 }} />
                           <div style={{ display: "flex", gap: 8, alignItems: "flex-end", margin: "4px 0" }}>
                             <div style={{ width: 22, height: 16, background: "#f59e0b", borderRadius: "3px 2px 0 0" }} />
@@ -633,7 +614,7 @@ export default function SettingsPage() {
                         disabled={maintenanceSaving}
                       >
                         {/* Mini preview */}
-                        <div style={{ background: maintenanceCustomImage ? `url(${maintenanceCustomImage}) center/cover` : "#1a1a1a", padding: "16px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
+                        <div style={{ background: maintenanceCustomImage ? `url(${maintenanceCustomImage}) center/cover` : "#1a1a1a", padding: "16px 12px", height: 80, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 5 }}>
                           <div style={{ background: "rgba(0,0,0,0.55)", padding: "4px 8px", borderRadius: 4, display: "flex", alignItems: "center", gap: 4 }}>
                             <i className="bi bi-image" style={{ color: "#fff", fontSize: "0.7rem" }} />
                             <div style={{ width: 30, height: 4, background: "#fff", borderRadius: 2, opacity: 0.7 }} />
@@ -741,6 +722,14 @@ export default function SettingsPage() {
                           onChange={(e) => setMaintenanceCustomImage(e.target.value)}
                         />
                         <button
+                          type="button"
+                          className="btn btn-sm btn-outline-secondary flex-shrink-0"
+                          onClick={() => setShowMediaPicker("maintenance")}
+                          title="Browse Media Library"
+                        >
+                          <i className="bi bi-image" />
+                        </button>
+                        <button
                           className="btn btn-sm btn-primary flex-shrink-0"
                           onClick={() => handleSaveMaintenanceTemplate("custom", { customImage: maintenanceCustomImage })}
                           disabled={maintenanceSaving}
@@ -748,7 +737,7 @@ export default function SettingsPage() {
                           Save
                         </button>
                       </div>
-                      <div className="form-text">Paste any uploaded image URL from the Media Library.</div>
+                      {showHelp && <HelpTip>Browse the Media Library or paste a URL. Recommended: 1920×1080 or larger.</HelpTip>}
                     </div>
                   )}
                 </div>
@@ -883,6 +872,7 @@ export default function SettingsPage() {
                       </label>
                     </div>
                     <div className="form-text">Automatically save changes while editing</div>
+                    {showHelp && <HelpTip>Automatically saves your work at the set interval</HelpTip>}
                   </div>
 
                   {settings.autoSaveEnabled && (
@@ -924,6 +914,7 @@ export default function SettingsPage() {
                       </label>
                     </div>
                     <div className="form-text">Show confirmation dialog before deleting items</div>
+                    {showHelp && <HelpTip>Shows a confirmation dialog before deleting items</HelpTip>}
                   </div>
                 </div>
               </div>
@@ -958,6 +949,7 @@ export default function SettingsPage() {
                     <div className="form-text">
                       When clicking Preview, open the page in a new browser tab
                     </div>
+                    {showHelp && <HelpTip>Opens page previews in a new browser tab instead of inline</HelpTip>}
                   </div>
                 </div>
               </div>
@@ -996,6 +988,7 @@ export default function SettingsPage() {
                       Uses CSS scroll-snap to lock each section to the viewport when scrolling.
                       Disable for traditional free-scroll behavior.
                     </div>
+                    {showHelp && <HelpTip>Sections snap into view when scrolling on the public site</HelpTip>}
                   </div>
 
                   <hr />
@@ -1051,6 +1044,7 @@ export default function SettingsPage() {
                           <i className="bi bi-lightning-charge me-1 text-warning"></i>
                           Changes apply instantly — refresh the landing page to see the effect.
                         </div>
+                        {showHelp && <HelpTip>Mandatory: always snaps. Proximity: snaps only when close to a section boundary</HelpTip>}
                       </>
                     ) : (
                       <div className="alert alert-secondary py-2 small mb-0">
@@ -1094,6 +1088,7 @@ export default function SettingsPage() {
                     <i className="bi bi-exclamation-triangle me-2"></i>
                     Clearing browser data will remove all CMS content and settings.
                   </div>
+                  {showHelp && <HelpTip>These actions are irreversible — always export a backup first</HelpTip>}
                   <div className="d-flex gap-2 flex-wrap">
                     <button
                       className="btn btn-sm btn-outline-danger"
@@ -1169,6 +1164,7 @@ export default function SettingsPage() {
                           setEmailSettings({ ...emailSettings, smtp_host: e.target.value })
                         }
                       />
+                      {showHelp && <HelpTip>Your email provider&apos;s SMTP server address (e.g. smtp.gmail.com)</HelpTip>}
                     </div>
                     <div className="col-md-4">
                       <label className="form-label">Port</label>
@@ -1181,6 +1177,7 @@ export default function SettingsPage() {
                           setEmailSettings({ ...emailSettings, smtp_port: e.target.value })
                         }
                       />
+                      {showHelp && <HelpTip>Common ports: 587 (TLS), 465 (SSL), 25 (unencrypted)</HelpTip>}
                     </div>
                     <div className="col-md-6">
                       <label className="form-label">Username</label>
@@ -1193,6 +1190,7 @@ export default function SettingsPage() {
                           setEmailSettings({ ...emailSettings, smtp_user: e.target.value })
                         }
                       />
+                      {showHelp && <HelpTip>Usually your email address</HelpTip>}
                     </div>
                     <div className="col-md-6">
                       <label className="form-label">Password</label>
@@ -1259,6 +1257,7 @@ export default function SettingsPage() {
                   <div className="form-text">
                     All CTA and form page submissions will be forwarded to this address.
                   </div>
+                  {showHelp && <HelpTip>Receives form submissions and system notifications</HelpTip>}
                 </div>
               </div>
 
@@ -1332,72 +1331,6 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* Calculator Settings */}
-          {activeCategory === "calculator" && (
-            <div className="row g-4">
-              <div className="col-12">
-                <div className="card border-0 shadow-sm">
-                  <div className="card-body p-4">
-                    <h5 className="fw-bold mb-1">
-                      <i className="bi bi-calculator me-2 text-primary" />Calculator Quote References
-                    </h5>
-                    <p className="text-muted small mb-4">
-                      Configure the prefix and starting number for estimate reference codes (e.g. <code>CE-1001</code>).
-                      Each new estimate increments the counter automatically.
-                    </p>
-
-                    <div className="row g-3 mb-4">
-                      <div className="col-sm-4">
-                        <label className="form-label fw-semibold">Reference Prefix</label>
-                        <input
-                          type="text"
-                          className="form-control"
-                          placeholder="CE"
-                          maxLength={8}
-                          value={calcSettings.quote_ref_prefix}
-                          onChange={(e) => setCalcSettings({ ...calcSettings, quote_ref_prefix: e.target.value.toUpperCase() })}
-                        />
-                        <div className="form-text">Letters only, max 8 characters.</div>
-                      </div>
-                      <div className="col-sm-4">
-                        <label className="form-label fw-semibold">Next Reference Number</label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          min={1}
-                          step={1}
-                          value={calcSettings.quote_ref_counter}
-                          onChange={(e) => setCalcSettings({ ...calcSettings, quote_ref_counter: e.target.value })}
-                        />
-                        <div className="form-text">Auto-increments on each estimate.</div>
-                      </div>
-                      <div className="col-sm-4">
-                        <label className="form-label fw-semibold">Preview</label>
-                        <div className="form-control bg-light text-muted" style={{ fontFamily: "monospace" }}>
-                          {calcSettings.quote_ref_prefix || "CE"}-{String(calcSettings.quote_ref_counter || "1001").padStart(4, "0")}
-                        </div>
-                        <div className="form-text">How references will look.</div>
-                      </div>
-                    </div>
-
-                    {calcError && <div className="alert alert-danger py-2 small">{calcError}</div>}
-                    {calcSuccess && <div className="alert alert-success py-2 small">{calcSuccess}</div>}
-
-                    <button
-                      className="btn btn-primary"
-                      onClick={handleSaveCalcSettings}
-                      disabled={calcSaving}
-                    >
-                      {calcSaving
-                        ? <><span className="spinner-border spinner-border-sm me-2" />Saving…</>
-                        : <><i className="bi bi-check2-circle me-2" />Save Calculator Settings</>}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* CMS Updates (SUPER_ADMIN only) */}
           {activeCategory === "cms-updates" && userRole === "SUPER_ADMIN" && (
             <div>
@@ -1462,6 +1395,7 @@ export default function SettingsPage() {
                         )}
                       </div>
                     )}
+                    {showHelp && <HelpTip>Personal access token with repo and workflow scopes</HelpTip>}
                   </div>
 
                   {/* Repo owner + name */}
@@ -1475,6 +1409,7 @@ export default function SettingsPage() {
                         value={ghConfig.githubRepoOwner}
                         onChange={e => setGhConfig(c => ({ ...c, githubRepoOwner: e.target.value }))}
                       />
+                      {showHelp && <HelpTip>GitHub username or organization that owns this client&apos;s repo</HelpTip>}
                     </div>
                     <div className="col-md-7">
                       <label className="form-label fw-medium">Repo Name</label>
@@ -1537,6 +1472,7 @@ export default function SettingsPage() {
                       Controls which update stream this instance tracks.
                       Channels other than <em>Latest</em> require the master repo to publish channel manifest files.
                     </p>
+                    {showHelp && <HelpTip>Controls which version stream this instance follows</HelpTip>}
                   </div>
 
                   {/* Upstream version URL */}
@@ -1616,6 +1552,18 @@ export default function SettingsPage() {
         show={showUpdateModal}
         info={updateModalInfo}
         onClose={() => setShowUpdateModal(false)}
+      />
+      {/* Media Picker — shared by all image URL fields on this page */}
+      <MediaPickerModal
+        isOpen={showMediaPicker !== null}
+        onClose={() => setShowMediaPicker(null)}
+        filterType="image"
+        onSelect={(url) => {
+          if (showMediaPicker === "maintenance") {
+            setMaintenanceCustomImage(url);
+          }
+          setShowMediaPicker(null);
+        }}
       />
     </AdminLayout>
   );

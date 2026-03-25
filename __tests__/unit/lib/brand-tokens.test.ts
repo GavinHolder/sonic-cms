@@ -40,11 +40,10 @@ describe('brandTokensToCss', () => {
     expect(css).toContain('--cms-text: #111111')
   })
 
-  it('includes body and heading font declarations', () => {
+  it('includes body and heading font declarations scoped to public site', () => {
     const css = brandTokensToCss(DEFAULT_BRAND_TOKENS)
-    expect(css).toContain('html body')
+    expect(css).toContain('body:not(:has(.admin-layout))')
     expect(css).toContain('font-family: var(--cms-body-font)')
-    expect(css).toContain('html h1')
     expect(css).toContain('font-family: var(--cms-heading-font)')
   })
 

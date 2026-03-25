@@ -88,29 +88,23 @@ jobs:
       - name: Fetch upstream
         run: git fetch upstream main
 
-      - name: Merge upstream/main into client
-        id: merge
+      - name: Merge upstream and clean up
         run: |
-          # Attempt merge with "ours" strategy for conflicts
-          # .gitattributes merge=ours protects client-specific files
-          # -X ours is the fallback for any remaining conflicts
-          if git merge upstream/main \
-            --no-edit \
+          # Merge upstream. -X ours resolves text conflicts in our favour.
+          # modify/delete conflicts (upstream changed a file we deleted) need
+          # explicit resolution — we delete them since they'll be removed anyway.
+          if ! git merge upstream/main --no-edit --allow-unrelated-histories \
             -X ours \
-            -m "chore: merge upstream CMS $(git rev-parse --short upstream/main) [skip ci]"; then
-            echo "merge_result=success" >> "$GITHUB_OUTPUT"
-          else
-            echo "merge_result=conflict" >> "$GITHUB_OUTPUT"
-            # If merge still fails (shouldn't with -X ours), abort and report
-            git merge --abort
-            echo "::error::Merge failed even with -X ours strategy. Manual intervention needed."
-            exit 1
+            -m "chore: merge upstream CMS $(git rev-parse --short upstream/main)"; then
+            echo "Merge had conflicts — resolving..."
+            git diff --name-only --diff-filter=U | while read -r f; do
+              echo "  Resolving: $f (accepting ours / deleting)"
+              git rm -f "$f" 2>/dev/null || { git checkout --ours "$f" && git add "$f"; }
+            done
+            git commit --no-edit -m "chore: merge upstream CMS (conflicts resolved)"
           fi
 
-      - name: Remove upstream-only CI workflows
-        run: |
-          # Client repos keep ONLY deploy.yml — everything else from upstream
-          # (auto-version, publish-channel, notify-clients, templates) is removed
+          # Remove upstream-only workflows — client keeps ONLY deploy.yml
           KEEP="deploy.yml"
           for f in .github/workflows/*.yml .github/workflows/*.yaml .github/workflows/*.template; do
             [ -f "$f" ] || continue
@@ -119,7 +113,6 @@ jobs:
               git rm -f "$f" 2>/dev/null && echo "Removed upstream workflow: $f" || true
             fi
           done
-          # Commit removals if any
           if ! git diff --staged --quiet; then
             git commit -m "chore: remove upstream-only workflows [skip ci]"
           fi

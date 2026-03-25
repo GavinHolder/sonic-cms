@@ -260,9 +260,16 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           position: fixed;
           top: 0;
           left: 0;
-          overflow-y: auto;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
           z-index: 1030;
           transition: transform 0.25s ease;
+        }
+        .admin-sidebar-nav {
+          flex: 1;
+          overflow-y: auto;
+          min-height: 0;
         }
         @media (max-width: 767px) {
           .admin-sidebar {
@@ -299,8 +306,9 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         )}
       </Link>
 
-      {/* Navigation */}
-      <ul className="nav nav-pills flex-column mb-auto p-2">
+      {/* Navigation — scrollable area */}
+      <div className="admin-sidebar-nav">
+      <ul className="nav nav-pills flex-column p-2">
         {resolvedMenuItems.map((item) => {
           // Dynamically inject enabled feature sub-items
           const effectiveItem = item.id === "features"
@@ -386,6 +394,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           );
         })}
       </ul>
+      </div>
 
       {/* Divider */}
       <hr className="mx-3 my-0" />
