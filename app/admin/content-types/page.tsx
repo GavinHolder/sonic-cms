@@ -35,11 +35,31 @@ function slugify(text: string) {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
 }
 
-const ICONS = [
-  "bi-collection", "bi-journal-text", "bi-people", "bi-question-circle",
-  "bi-briefcase", "bi-card-checklist", "bi-chat-quote", "bi-star",
-  "bi-trophy", "bi-tag", "bi-gear", "bi-calendar-event",
-  "bi-megaphone", "bi-book", "bi-camera", "bi-music-note",
+const ICONS: { value: string; label: string }[] = [
+  { value: "bi-collection", label: "Collection" },
+  { value: "bi-journal-text", label: "Journal" },
+  { value: "bi-people", label: "People" },
+  { value: "bi-question-circle", label: "Question" },
+  { value: "bi-briefcase", label: "Briefcase" },
+  { value: "bi-card-checklist", label: "Checklist" },
+  { value: "bi-chat-quote", label: "Quote" },
+  { value: "bi-star", label: "Star" },
+  { value: "bi-trophy", label: "Trophy" },
+  { value: "bi-tag", label: "Tag" },
+  { value: "bi-gear", label: "Gear" },
+  { value: "bi-calendar-event", label: "Calendar" },
+  { value: "bi-megaphone", label: "Megaphone" },
+  { value: "bi-book", label: "Book" },
+  { value: "bi-camera", label: "Camera" },
+  { value: "bi-music-note", label: "Music" },
+  { value: "bi-house-door", label: "House" },
+  { value: "bi-cart", label: "Cart" },
+  { value: "bi-heart", label: "Heart" },
+  { value: "bi-lightning", label: "Lightning" },
+  { value: "bi-pin-map", label: "Map Pin" },
+  { value: "bi-puzzle", label: "Puzzle" },
+  { value: "bi-palette", label: "Palette" },
+  { value: "bi-tools", label: "Tools" },
 ];
 
 export default function ContentTypesPage() {
@@ -246,9 +266,32 @@ export default function ContentTypesPage() {
                   </div>
                   <div className="col-md-3">
                     <label className="form-label fw-semibold">Icon</label>
-                    <select className="form-select" value={form.icon} onChange={e => setForm(f => ({ ...f, icon: e.target.value }))}>
-                      {ICONS.map(i => <option key={i} value={i}>{i.replace("bi-", "")}</option>)}
-                    </select>
+                    <div className="dropdown">
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary w-100 d-flex align-items-center gap-2 text-start"
+                        data-bs-toggle="dropdown"
+                        aria-expanded="false"
+                      >
+                        <i className={`bi ${form.icon}`} />
+                        <span className="flex-grow-1">{ICONS.find(i => i.value === form.icon)?.label || form.icon.replace("bi-", "")}</span>
+                        <i className="bi bi-chevron-down" style={{ fontSize: "0.7rem", opacity: 0.5 }} />
+                      </button>
+                      <ul className="dropdown-menu w-100" style={{ maxHeight: 240, overflowY: "auto" }}>
+                        {ICONS.map(i => (
+                          <li key={i.value}>
+                            <button
+                              type="button"
+                              className={`dropdown-item d-flex align-items-center gap-2 ${form.icon === i.value ? "active" : ""}`}
+                              onClick={() => setForm(f => ({ ...f, icon: i.value }))}
+                            >
+                              <i className={`bi ${i.value}`} style={{ width: 20 }} />
+                              {i.label}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
                   <div className="col-md-3">
                     <label className="form-label fw-semibold">Layout</label>
