@@ -1,0 +1,39 @@
+# =============================================================================
+# Client CMS — Protected Files
+# =============================================================================
+# These files use git's merge=ours driver to prevent upstream CMS merges
+# from overwriting client-specific customizations.
+#
+# How it works:
+#   When the deploy workflow merges upstream/main, git sees these entries
+#   and keeps the CLIENT's version of these files, ignoring upstream changes.
+#
+# To add protection for custom client files:
+#   1. Add the file path below with "merge=ours"
+#   2. Commit .gitattributes
+#   3. The next upstream merge will skip that file
+#
+# IMPORTANT: The merge=ours driver must be configured before merge:
+#   git config merge.ours.driver true
+# (The client-deploy.yml workflow does this automatically)
+# =============================================================================
+
+# ── CMS version (client tracks its own version, not upstream's) ──────────────
+public/cms-version.json                 merge=ours
+
+# ── Seed data (client has its own content) ───────────────────────────────────
+prisma/seed.ts                          merge=ours
+
+# ── CI/CD workflows (client has its own deploy config) ───────────────────────
+.github/workflows/deploy.yml            merge=ours
+
+# ── Environment config ──────────────────────────────────────────────────────
+.env.example                            merge=ours
+
+# ── Client-specific customizations ──────────────────────────────────────────
+# Add any files the client has customized below. Examples:
+#
+# public/images/logo.svg                merge=ours
+# public/images/favicon.ico             merge=ours
+# app/globals.css                       merge=ours
+# prisma/seed-client.ts                 merge=ours

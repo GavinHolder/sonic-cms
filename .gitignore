@@ -78,3 +78,7 @@ next-env.d.ts
 public/images/uploads/
 public/uploads/
 .superpowers/
+
+# ad-hoc scripts and screenshots (local dev only)
+/scripts/
+/screenshots/

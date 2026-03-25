@@ -3519,6 +3519,326 @@ export const SEO_WIZARD_DOCS = `
 `;
 
 // ─────────────────────────────────────────────
+// CONTENT TYPES & BLOG
+// ─────────────────────────────────────────────
+
+const CONTENT_TYPES_DOCS = `
+# Content Types
+
+Content Types let you define structured data collections beyond standard pages and sections — perfect for **blog posts**, **team members**, **testimonials**, **FAQs**, and any custom data.
+
+---
+
+## How It Works
+
+1. **Define a Type** — Go to **Content → Types** and create a new content type (e.g. "Blog Post", "Team Member")
+2. **Add Fields** — Each type has a flexible field schema: text, rich text, image, date, select, number, boolean
+3. **Create Entries** — Add entries to your content type with the structured editor
+4. **Display on Site** — Entries are automatically available at \`/content/{type-slug}\` (listing) and \`/content/{type-slug}/{entry-slug}\` (detail)
+
+## Built-in Content Types
+
+The CMS comes seeded with two content types:
+
+### Blog Posts
+- Fields: title, slug, excerpt, body (rich text), featured image, author, published date, tags
+- Listing page: \`/blog\` (aliased from \`/content/blog-post\`)
+- Detail page: \`/blog/{slug}\`
+- RSS feed: \`/api/rss\` — auto-generated from published blog posts
+
+### Team Members
+- Fields: name, slug, role/title, bio, photo, email, phone, social links, display order
+- Listing page: \`/team\` (aliased from \`/content/team-member\`)
+- Detail page: \`/team/{slug}\`
+
+## RSS Feed
+
+An RSS 2.0 feed is automatically generated at \`/api/rss\` from all published blog post entries. The feed includes title, description, link, publication date, and excerpt for each post. Feed metadata (site name, description) comes from your SEO settings.
+
+## Admin UI
+
+- **Content → Types** — Create, edit, delete content types and their field schemas
+- **Content → Entries** — List all entries for a type, with search, sort, and status filter
+- **Entry Editor** — Full form editor with field validation, media picker, and preview
+`;
+
+// ─────────────────────────────────────────────
+// BRAND TOKENS
+// ─────────────────────────────────────────────
+
+const BRAND_TOKENS_DOCS = `
+# Brand Tokens
+
+Brand Tokens define your site's visual identity as CSS custom properties — colours, fonts, and spacing that cascade through every page and component automatically.
+
+---
+
+## How It Works
+
+Go to **Settings → Brand** to manage your brand tokens:
+
+### Colours
+Define primary, secondary, accent, and neutral colour palettes. Each colour is injected as a CSS custom property (e.g. \`--brand-primary\`, \`--brand-secondary\`) and automatically available in all sections, Volt designs, and components.
+
+### Typography
+Select Google Fonts for headings and body text. The chosen fonts are:
+- Auto-loaded via \`<link>\` tag (no manual font installation)
+- Applied as \`--brand-font-heading\` and \`--brand-font-body\` custom properties
+- Visible instantly across the entire site
+
+### Colour Swatches
+The Brand editor includes a swatch picker for quick colour selection, plus a full colour picker for custom values. Expanded Google Fonts integration provides 100+ curated font families.
+
+## Technical Details
+
+- Tokens stored in \`BrandToken\` Prisma model
+- CSS custom properties injected server-side in root layout
+- Google Fonts loaded dynamically based on selected families
+- All brand values accessible in Volt Designer for design consistency
+`;
+
+// ─────────────────────────────────────────────
+// SECTION TEMPLATE LIBRARY
+// ─────────────────────────────────────────────
+
+const SECTION_TEMPLATES_DOCS = `
+# Section Template Library
+
+Jumpstart your page design with **14 pre-built section templates** — professionally designed layouts ready to customise in the Designer.
+
+---
+
+## How to Use
+
+1. Open any page in the admin panel
+2. Click **Add Section** (or the + button)
+3. Browse the **Template Gallery** modal — templates are organised by category
+4. Click a template to preview it
+5. Click **Use Template** to insert it as a new section
+6. Open the section in the Designer to customise content, colours, and layout
+
+## Template Categories
+
+| Category | Templates | Examples |
+|----------|-----------|---------|
+| **Hero** | Full-width hero layouts | Image hero, video hero, split hero |
+| **Content** | Text and media sections | About, text+image, statistics |
+| **Features** | Card-based layouts | Service cards, feature grids, icon lists |
+| **CTA** | Call-to-action sections | Contact CTA, newsletter signup |
+| **Testimonials** | Social proof sections | Quote carousel, review grid |
+| **Footer** | Footer layouts | Multi-column footer, minimal footer |
+
+## Customisation
+
+Every template is a standard FLEXIBLE section — after inserting, you have full control:
+- Edit all text, images, and links in the Designer
+- Change colours and backgrounds
+- Add/remove blocks and columns
+- Apply animated backgrounds
+- Adjust spacing and padding
+
+Templates are starting points, not locked layouts.
+`;
+
+// ─────────────────────────────────────────────
+// FORM SUBMISSIONS
+// ─────────────────────────────────────────────
+
+const FORM_SUBMISSIONS_DOCS = `
+# Form Submissions Inbox
+
+All contact form and page form submissions are collected in a dedicated admin inbox with full detail views.
+
+---
+
+## Accessing Submissions
+
+Go to **Content → Form Submissions** in the admin sidebar.
+
+## Features
+
+### Submission List
+- All submissions listed chronologically (newest first)
+- Shows: form name, submitter email/name, date, read/unread status
+- Click any submission to open the detail panel
+
+### Detail Panel
+- Full submission data displayed in a clean read-only layout
+- All form fields shown with labels and values
+- Metadata: submission date, source page URL, IP address (if collected)
+- Mark as read/unread
+- Delete individual submissions
+
+### Filtering
+- Filter by form name (if multiple forms exist)
+- Filter by read/unread status
+- Search by submitter name or email
+
+## How Forms Create Submissions
+
+When a visitor submits a contact form or page form:
+1. OTP verification completes (if enabled)
+2. Submission is saved to the \`FormSubmission\` database table
+3. Admin notification email is sent (if configured in Settings → Email)
+4. Submission appears in the admin inbox immediately
+`;
+
+// ─────────────────────────────────────────────
+// CONTENT SCHEDULING & VERSION HISTORY
+// ─────────────────────────────────────────────
+
+const CONTENT_SCHEDULING_DOCS = `
+# Content Scheduling & Version History
+
+Schedule content to go live at a future date/time, and track all changes with automatic version history.
+
+---
+
+## Content Scheduling
+
+### How It Works
+1. Edit any section or page content
+2. Instead of clicking **Save**, click **Schedule**
+3. Pick a date and time for the content to go live
+4. The content is saved as a scheduled version — the current live content remains unchanged
+5. A background cron job checks every minute for scheduled content that's due
+6. When the scheduled time arrives, the new content replaces the live version automatically
+
+### Managing Scheduled Content
+- Scheduled items show a clock icon and the scheduled date
+- Cancel a scheduled publish at any time before it goes live
+- Multiple items can be scheduled independently
+
+## Version History
+
+### How It Works
+Every time content is saved or published, a version snapshot is created automatically.
+
+### Version History UI
+- Click **History** on any section or page to see all previous versions
+- Each version shows: date, author, change summary
+- Click any version to preview it
+- Click **Restore** to revert to a previous version (creates a new version, doesn't delete history)
+
+### What's Tracked
+- Section content changes
+- Page metadata changes
+- Designer data changes
+- Scheduled publish events
+`;
+
+// ─────────────────────────────────────────────
+// SECURITY HARDENING
+// ─────────────────────────────────────────────
+
+const SECURITY_HARDENING_DOCS = `
+# Security Hardening
+
+The CMS includes multiple security layers to protect against common web attacks.
+
+---
+
+## Rate Limiting
+
+All API endpoints are rate-limited to prevent abuse:
+
+| Endpoint Category | Limit | Window |
+|-------------------|-------|--------|
+| Authentication (login, OTP) | 5 requests | 15 minutes |
+| Admin API (CRUD operations) | 100 requests | 1 minute |
+| Public API (content reads) | 200 requests | 1 minute |
+| Form submissions | 10 requests | 10 minutes |
+
+When a rate limit is exceeded, the API returns \`429 Too Many Requests\` with a \`Retry-After\` header.
+
+## Audit Logs
+
+All admin actions are logged to the \`AuditLog\` table:
+
+- **What's logged:** Login/logout, content create/update/delete, settings changes, user management, media uploads
+- **What's captured:** User ID, action type, resource type, resource ID, IP address, timestamp, before/after values
+- **Viewing logs:** Settings → Audit Log (SUPER_ADMIN only)
+- **Retention:** Logs are kept indefinitely (future: configurable retention policy)
+
+## Security Headers
+
+The CMS sets secure HTTP headers on all responses:
+- \`X-Content-Type-Options: nosniff\`
+- \`X-Frame-Options: SAMEORIGIN\`
+- \`X-XSS-Protection: 1; mode=block\`
+- \`Referrer-Policy: strict-origin-when-cross-origin\`
+- \`Strict-Transport-Security\` (when HTTPS is enabled)
+
+## Open Redirect Prevention
+
+All redirect endpoints validate the target URL:
+- Only relative paths and same-origin URLs are allowed
+- External redirect attempts are blocked and logged
+- Applies to login redirects, OAuth callbacks, and admin navigation
+
+## Code Injection Prevention
+
+- All user input is sanitised before storage and rendering
+- Rich text fields use a whitelist of allowed HTML tags
+- SVG uploads are sanitised to remove script elements
+- JSON fields are validated against schemas before storage
+`;
+
+// ─────────────────────────────────────────────
+// CMS UPDATE CHANNELS
+// ─────────────────────────────────────────────
+
+const UPDATE_CHANNELS_DOCS = `
+# Update Channels
+
+Client CMS instances subscribe to an update channel that controls which version stream they track.
+
+---
+
+## Available Channels
+
+| Channel | Stability | How It's Published | Best For |
+|---------|-----------|-------------------|----------|
+| **Latest** | Unstable | Auto — every push to main | Development / staging |
+| **Bugfix** | High | Auto — fix-only pushes | Production (conservative) |
+| **Stable** | High | Manual tag \`stable-v*\` | Production instances |
+| **LTS** | Highest | Manual tag \`lts-v*\` | Enterprise / critical sites |
+| **Experimental** | Low | Manual tag \`experimental-v*\` | Beta testing |
+
+## How Channels Work
+
+1. Every push to \`main\` auto-bumps \`cms-version.json\` (the "latest" channel)
+2. Fix-only pushes also update \`versions/bugfix.json\`
+3. To promote a version to stable or LTS, the maintainer creates a git tag:
+   - \`git tag stable-v1.8.1 && git push origin stable-v1.8.1\`
+   - \`git tag lts-v1.8.1 && git push origin lts-v1.8.1\`
+4. GitHub Actions automatically publishes the channel manifest
+5. Client instances polling that channel see "Update available"
+
+## Choosing a Channel
+
+- **Stable** is recommended for most production sites
+- **LTS** for sites that need maximum stability and infrequent updates
+- **Bugfix** for sites that only want security/bug fixes, never new features
+- **Latest** only for development/staging environments
+
+## Configuring Your Channel
+
+1. Go to **Settings → CMS Updates**
+2. Select your preferred channel from the dropdown
+3. The upstream URL auto-updates to the correct manifest
+4. Click **Test & Verify** then **Save**
+
+## Global Update Notifications
+
+When the main CMS repo publishes a new version:
+1. The \`notify-clients.yml\` workflow reads the client registry (\`CLIENTS.json\`)
+2. Each registered client repo's deploy workflow is dispatched
+3. Client admins see the "Update available" badge
+4. Clients with \`auto_deploy: true\` automatically merge and deploy
+`;
+
+// ─────────────────────────────────────────────
 // TOPIC TREE
 // ─────────────────────────────────────────────
 
@@ -3634,6 +3954,17 @@ export const DOC_TOPICS: DocTopic[] = [
     ],
   },
   {
+    id: "content-types",
+    label: "Content Types & Blog",
+    icon: "bi-journal-text",
+    children: [
+      { id: "content-types-overview", label: "Content Types", icon: "bi-collection", content: CONTENT_TYPES_DOCS },
+      { id: "section-templates", label: "Section Template Library", icon: "bi-grid-3x3-gap", content: SECTION_TEMPLATES_DOCS },
+      { id: "form-submissions", label: "Form Submissions Inbox", icon: "bi-inbox", content: FORM_SUBMISSIONS_DOCS },
+      { id: "content-scheduling", label: "Scheduling & Version History", icon: "bi-clock-history", content: CONTENT_SCHEDULING_DOCS },
+    ],
+  },
+  {
     id: "pages",
     label: "Pages System",
     icon: "bi-files",
@@ -3672,8 +4003,11 @@ export const DOC_TOPICS: DocTopic[] = [
     icon: "bi-speedometer2",
     children: [
       { id: "settings", label: "Settings", icon: "bi-gear", content: SETTINGS_PAGE },
+      { id: "brand-tokens", label: "Brand Tokens", icon: "bi-palette2", content: BRAND_TOKENS_DOCS },
       { id: "maintenance-mode", label: "Maintenance Mode", icon: "bi-cone-striped", content: MAINTENANCE_MODE_DOCS },
+      { id: "security", label: "Security Hardening", icon: "bi-shield-check", content: SECURITY_HARDENING_DOCS },
       { id: "cms-updates", label: "CMS Update System", icon: "bi-arrow-up-circle", content: CMS_UPDATES_DOCS },
+      { id: "update-channels", label: "Update Channels", icon: "bi-broadcast", content: UPDATE_CHANNELS_DOCS },
       { id: "media", label: "Media Library", icon: "bi-image", content: MEDIA_LIBRARY },
       { id: "users", label: "Users & Roles", icon: "bi-people", content: USERS },
     ],

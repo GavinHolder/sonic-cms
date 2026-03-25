@@ -1,0 +1,20 @@
+[
+  {
+    "name": "OVB Ready Mix",
+    "org": "GavinHolder",
+    "repo": "ovbreadymix-cms",
+    "workflow": "deploy.yml",
+    "auto_deploy": false,
+    "channel": "stable",
+    "notes": "Production client — notify only, admin triggers update manually"
+  },
+  {
+    "name": "Sonic Internet",
+    "org": "GavinHolder",
+    "repo": "sonic-website",
+    "workflow": "deploy.yml",
+    "auto_deploy": false,
+    "channel": "stable",
+    "notes": "Original fork — notify only, admin triggers update manually"
+  }
+]

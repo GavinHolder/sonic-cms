@@ -1,0 +1,221 @@
+# =============================================================================
+# CLIENT CMS — Deploy with Upstream Merge
+# =============================================================================
+# This is a TEMPLATE. Copy to each client repo as .github/workflows/deploy.yml
+# and replace all {{PLACEHOLDERS}} with client-specific values.
+#
+# What this does:
+#   1. Merges latest from white-label-cms/main (global CMS updates)
+#   2. Protects client-specific files via .gitattributes (merge=ours)
+#   3. Runs Prisma migrations
+#   4. Builds Docker image and pushes to GHCR
+#   5. Deploys to client VPS via Portainer webhook
+#
+# Required GitHub Secrets:
+#   PORTAINER_WEBHOOK_URL  — Portainer stack webhook URL
+#   UPSTREAM_PAT           — PAT with read access to GavinHolder/white-label-cms
+#                            (only needed if upstream repo is private)
+#
+# Required .gitattributes in client repo (protects client files from overwrites):
+#   public/cms-version.json               merge=ours
+#   prisma/seed.ts                        merge=ours
+#   .env.example                          merge=ours
+#   .github/workflows/deploy.yml          merge=ours
+#   # Add any client-custom files here    merge=ours
+# =============================================================================
+
+name: "Deploy {{CLIENT_NAME}} CMS"
+
+on:
+  # Trigger from admin panel "Update Now" button
+  workflow_dispatch:
+    inputs:
+      merge_upstream:
+        description: "Merge latest from main CMS before building"
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+  # Also auto-deploy on push to main (client's own changes)
+  push:
+    branches: [main]
+
+env:
+  IMAGE: ghcr.io/{{GITHUB_ORG}}/{{CLIENT_REPO_NAME}}
+  UPSTREAM_REPO: https://github.com/GavinHolder/white-label-cms.git
+
+jobs:
+  # ── Job 1: Merge upstream CMS changes ─────────────────────────────────────
+  merge-upstream:
+    name: Merge Upstream CMS
+    runs-on: ubuntu-latest
+    # Only run merge on workflow_dispatch with merge_upstream=true
+    # Skip on regular push (client's own changes don't need upstream merge)
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.merge_upstream == 'true'
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout client repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Configure merge=ours driver
+        run: |
+          # Enable the "ours" merge driver so .gitattributes works
+          git config merge.ours.driver true
+
+      - name: Add upstream remote
+        run: |
+          # Use PAT if upstream is private, otherwise public URL
+          if [ -n "${{ secrets.UPSTREAM_PAT }}" ]; then
+            git remote add upstream https://${{ secrets.UPSTREAM_PAT }}@github.com/GavinHolder/white-label-cms.git
+          else
+            git remote add upstream ${{ env.UPSTREAM_REPO }}
+          fi
+
+      - name: Fetch upstream
+        run: git fetch upstream main
+
+      - name: Merge upstream/main into client
+        id: merge
+        run: |
+          # Attempt merge with "ours" strategy for conflicts
+          # .gitattributes merge=ours protects client-specific files
+          # -X ours is the fallback for any remaining conflicts
+          if git merge upstream/main \
+            --no-edit \
+            -X ours \
+            -m "chore: merge upstream CMS $(git rev-parse --short upstream/main) [skip ci]"; then
+            echo "merge_result=success" >> "$GITHUB_OUTPUT"
+          else
+            echo "merge_result=conflict" >> "$GITHUB_OUTPUT"
+            # If merge still fails (shouldn't with -X ours), abort and report
+            git merge --abort
+            echo "::error::Merge failed even with -X ours strategy. Manual intervention needed."
+            exit 1
+          fi
+
+      - name: Remove upstream-only CI workflows
+        run: |
+          # Client repos should NOT have these workflows — they belong to main CMS only
+          UPSTREAM_ONLY_WORKFLOWS=(
+            ".github/workflows/auto-version.yml"
+            ".github/workflows/publish-channel.yml"
+            ".github/workflows/notify-clients.yml"
+          )
+          for wf in "${UPSTREAM_ONLY_WORKFLOWS[@]}"; do
+            if [ -f "$wf" ]; then
+              git rm "$wf"
+              echo "Removed upstream-only workflow: $wf"
+            fi
+          done
+          # Commit removals if any
+          if ! git diff --staged --quiet; then
+            git commit -m "chore: remove upstream-only workflows [skip ci]"
+          fi
+
+      - name: Push merged changes
+        run: git push origin main
+
+  # ── Job 2: Run tests ──────────────────────────────────────────────────────
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: [merge-upstream]
+    # Run even if merge-upstream was skipped (push event)
+    if: always() && !failure()
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Re-fetch after potential merge
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Run tests
+        run: npm test
+        env:
+          JWT_SECRET: test-secret-key-for-ci-pipeline-at-least-32-chars
+          JWT_REFRESH_SECRET: test-refresh-secret-key-for-ci-at-least-32-chars
+
+  # ── Job 3: Build and push Docker image ─────────────────────────────────────
+  build:
+    name: Build & Push Image
+    runs-on: ubuntu-latest
+    needs: [test]
+    if: always() && !failure()
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── Job 4: Deploy to client VPS ───────────────────────────────────────────
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: always() && !failure()
+
+    steps:
+      - name: Trigger Portainer webhook
+        run: |
+          if [ -z "${{ secrets.PORTAINER_WEBHOOK_URL }}" ]; then
+            echo "PORTAINER_WEBHOOK_URL secret not set — skipping redeploy"
+            exit 0
+          fi
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            "${{ secrets.PORTAINER_WEBHOOK_URL }}")
+          echo "Portainer response: $RESPONSE"
+          if [ "$RESPONSE" != "200" ]; then
+            echo "Webhook failed with HTTP $RESPONSE"
+            exit 1
+          fi
+          echo "Stack redeploy triggered successfully"

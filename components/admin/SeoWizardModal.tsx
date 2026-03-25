@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { SeoConfig } from "@/lib/seo-config";
 
 // ─── Business type options ──────────────────────────────────────────────────
@@ -35,7 +35,15 @@ const TYPE_KEYWORDS: Record<string, string[]> = {
 
 // ─── Wizard data types ───────────────────────────────────────────────────────
 
-type Step = "basics" | "location" | "keywords" | "preview";
+type Step = "basics" | "location" | "keywords" | "preview" | "golive";
+
+interface ReadinessCheck {
+  id: string;
+  label: string;
+  pass: boolean;
+  hint?: string;
+  link?: string;
+}
 
 interface WizardData {
   businessName: string;
@@ -212,7 +220,7 @@ export default function SeoWizardModal({ show, onClose, onApply }: Props) {
 
   // ── Step metadata ─────────────────────────────────────────────────────────
 
-  const steps: Step[] = ["basics", "location", "keywords", "preview"];
+  const steps: Step[] = ["basics", "location", "keywords", "preview", "golive"];
   const stepIdx = steps.indexOf(step);
 
   const stepLabel: Record<Step, string> = {
@@ -220,7 +228,30 @@ export default function SeoWizardModal({ show, onClose, onApply }: Props) {
     location: "Location & Contact",
     keywords: "Keywords & Description",
     preview:  "Review & Apply",
+    golive:   "Go Live Checklist",
   };
+
+  // ── Go Live readiness checks ─────────────────────────────────────────────
+  const [readinessChecks, setReadinessChecks] = useState<ReadinessCheck[]>([]);
+  const [readinessLoading, setReadinessLoading] = useState(false);
+  const [readinessCanonical, setReadinessCanonical] = useState("");
+
+  const fetchReadiness = useCallback(async () => {
+    setReadinessLoading(true);
+    try {
+      const res = await fetch("/api/seo/readiness");
+      if (res.ok) {
+        const data = await res.json();
+        setReadinessChecks(data.checks ?? []);
+        setReadinessCanonical(data.canonicalBase ?? "");
+      }
+    } catch { /* ignore */ }
+    setReadinessLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (step === "golive") fetchReadiness();
+  }, [step, fetchReadiness]);
 
   return (
     <>
@@ -603,6 +634,92 @@ export default function SeoWizardModal({ show, onClose, onApply }: Props) {
                 </div>
               )}
 
+              {/* ── Step 5: Go Live Checklist ───────────────────────── */}
+              {step === "golive" && (
+                <div className="vstack gap-3">
+                  <h6 className="fw-bold mb-0">
+                    <i className="bi bi-rocket-takeoff me-2 text-primary" />Go Live Checklist
+                  </h6>
+                  <p className="text-muted small mb-0">Complete these before turning the site live.</p>
+
+                  {readinessLoading ? (
+                    <div className="text-center py-4">
+                      <div className="spinner-border spinner-border-sm text-primary" />
+                      <span className="ms-2 text-muted">Checking readiness...</span>
+                    </div>
+                  ) : (
+                    <div className="list-group">
+                      {readinessChecks.map((check) => (
+                        <div key={check.id} className="list-group-item d-flex align-items-start gap-3 py-3">
+                          <span style={{ fontSize: "1.2rem", lineHeight: 1 }}>
+                            {check.pass
+                              ? <i className="bi bi-check-circle-fill text-success" />
+                              : <i className="bi bi-x-circle-fill text-danger" />}
+                          </span>
+                          <div className="flex-grow-1">
+                            <div className={`fw-semibold small ${check.pass ? "text-success" : ""}`}>
+                              {check.label}
+                            </div>
+                            {!check.pass && check.hint && (
+                              <div className="text-muted small mt-1">
+                                <i className="bi bi-arrow-return-right me-1" />
+                                {check.hint}
+                                {check.link && (
+                                  <a href={check.link} className="ms-2 text-decoration-none" target="_blank" rel="noopener noreferrer">
+                                    <i className="bi bi-box-arrow-up-right" />
+                                  </a>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Google Search Console — always shown */}
+                      <div className="list-group-item d-flex align-items-start gap-3 py-3">
+                        <span style={{ fontSize: "1.2rem", lineHeight: 1 }}>
+                          <i className="bi bi-link-45deg text-primary" />
+                        </span>
+                        <div className="flex-grow-1">
+                          <div className="fw-semibold small">Google Search Console</div>
+                          <div className="text-muted small mt-1">Submit your site to Google to start appearing in search results.</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Badge summary */}
+                  {!readinessLoading && readinessChecks.length > 0 && (
+                    <div className="text-center">
+                      <span className={`badge ${readinessChecks.every(c => c.pass) ? "bg-success" : "bg-warning text-dark"} px-3 py-2`}>
+                        {readinessChecks.filter(c => c.pass).length}/{readinessChecks.length} checks passed
+                      </span>
+                    </div>
+                  )}
+
+                  {/* GSC instructions */}
+                  <div className="card border-0 bg-light">
+                    <div className="card-body p-3">
+                      <h6 className="fw-bold small mb-2">
+                        <i className="bi bi-google me-1" />Submit to Google Search Console
+                      </h6>
+                      <p className="small text-muted mb-2">
+                        Google won&apos;t discover the site until you tell it the site exists.
+                      </p>
+                      <ol className="small mb-2 ps-3">
+                        <li>Go to <a href="https://search.google.com/search-console" target="_blank" rel="noopener noreferrer">search.google.com/search-console</a> &rarr; Add property</li>
+                        <li>Enter <code>{readinessCanonical || "https://www.yourdomain.co.za"}</code> &rarr; verify via DNS TXT record</li>
+                        <li>Submit sitemap: <code>{readinessCanonical || "https://www.yourdomain.co.za"}/sitemap.xml</code></li>
+                        <li>Open URL Inspection &rarr; paste homepage URL &rarr; Request Indexing</li>
+                      </ol>
+                      <p className="small text-muted mb-0">
+                        <i className="bi bi-clock me-1" />New sites typically take <strong>1&ndash;4 weeks</strong> to appear in search results after submission.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
             </div>
 
             {/* Footer */}
@@ -618,7 +735,13 @@ export default function SeoWizardModal({ show, onClose, onApply }: Props) {
                 </button>
               )}
 
-              {step !== "preview" && (
+              {step === "preview" && (
+                <button className="btn btn-success" onClick={handleApply}>
+                  <i className="bi bi-check-circle me-1" />Apply to SEO
+                </button>
+              )}
+
+              {step !== "preview" && step !== "golive" && (
                 <button
                   className="btn btn-primary"
                   disabled={step === "basics" && !basicsValid}
@@ -629,8 +752,17 @@ export default function SeoWizardModal({ show, onClose, onApply }: Props) {
               )}
 
               {step === "preview" && (
-                <button className="btn btn-success" onClick={handleApply}>
-                  <i className="bi bi-check-circle me-1" />Apply to SEO
+                <button
+                  className="btn btn-outline-primary ms-1"
+                  onClick={() => setStep("golive")}
+                >
+                  Go Live Checklist <i className="bi bi-arrow-right ms-1" />
+                </button>
+              )}
+
+              {step === "golive" && (
+                <button className="btn btn-primary" onClick={handleClose}>
+                  <i className="bi bi-check-lg me-1" />Done
                 </button>
               )}
             </div>
