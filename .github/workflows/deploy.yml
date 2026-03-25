@@ -60,11 +60,20 @@ jobs:
           git remote add upstream https://github.com/GavinHolder/white-label-cms.git
           git fetch upstream main
 
-          git merge upstream/main --no-edit --allow-unrelated-histories \
+          # Merge upstream. -X ours resolves text conflicts in our favour.
+          # modify/delete conflicts need explicit resolution.
+          if ! git merge upstream/main --no-edit --allow-unrelated-histories \
             -X ours \
-            -m "chore: merge upstream CMS updates [skip ci-merge]"
+            -m "chore: merge upstream CMS updates"; then
+            echo "Merge had conflicts — resolving..."
+            git diff --name-only --diff-filter=U | while read -r f; do
+              echo "  Resolving: $f (accepting ours / deleting)"
+              git rm -f "$f" 2>/dev/null || { git checkout --ours "$f" && git add "$f"; }
+            done
+            git commit --no-edit -m "chore: merge upstream CMS (conflicts resolved)"
+          fi
 
-          # Remove upstream-only workflows — client keeps only deploy.yml
+          # Remove upstream-only workflows — client keeps ONLY deploy.yml
           KEEP="deploy.yml"
           for f in .github/workflows/*.yml .github/workflows/*.yaml .github/workflows/*.template; do
             [ -f "$f" ] || continue
@@ -73,7 +82,6 @@ jobs:
               git rm -f "$f" 2>/dev/null && echo "Removed upstream workflow: $f" || true
             fi
           done
-
           if ! git diff --staged --quiet; then
             git commit -m "chore: remove upstream workflow files from client repo [skip ci]"
           fi
