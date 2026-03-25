@@ -1,11 +1,18 @@
 {
-  "version": "1.16.1",
+  "version": "1.17.0",
   "date": "2026-03-25",
   "changelog": {
-    "features": [],
-    "bugfixes": [
-      "always show Manage Types link in Content submenu regardless of content type count"
+    "features": [
+      "auto-version affects tags, boot-time plugin seeding, registry tests",
+      "sidebar Plugin Manager link + update modal impact analysis",
+      "Plugin Manager admin page — card grid with enable/disable toggles",
+      "plugin API routes — list, seed, get, enable/disable, public",
+      "plugin registry — seed, query, enable/disable, impact analysis, migration",
+      "built-in plugin manifests for all 16 features",
+      "Plugin prisma model for plugin registry",
+      "plugin manifest type definitions"
     ],
+    "bugfixes": [],
     "breaking": []
   }
 }
