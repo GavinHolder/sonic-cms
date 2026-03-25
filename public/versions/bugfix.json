@@ -1,10 +1,10 @@
 {
-  "version": "1.12.1",
+  "version": "1.12.2",
   "date": "2026-03-25",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "move client-deploy template out of workflows dir"
+      "correct Sonic repo name to sonic-cms"
     ],
     "breaking": []
   }
