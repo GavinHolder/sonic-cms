@@ -1,11 +1,11 @@
 {
-  "version": "1.9.2",
+  "version": "1.10.0",
   "date": "2026-03-25",
   "changelog": {
-    "features": [],
-    "bugfixes": [
-      "remove gavin ref from Sonic client config — uses main"
+    "features": [
+      "scrollable sidebar + complete in-app docs for all features"
     ],
+    "bugfixes": [],
     "breaking": []
   }
 }
