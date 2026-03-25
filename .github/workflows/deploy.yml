@@ -131,17 +131,32 @@ jobs:
     if: always() && needs.build.result == 'success'
 
     steps:
-      - name: Trigger Portainer webhook
+      - name: Trigger Portainer git redeploy
+        env:
+          PORTAINER_URL: ${{ secrets.PORTAINER_URL }}
+          PORTAINER_PASSWORD: ${{ secrets.PORTAINER_PASSWORD }}
+          PORTAINER_STACK_ID: ${{ secrets.PORTAINER_STACK_ID }}
+          PORTAINER_ENDPOINT_ID: ${{ secrets.PORTAINER_ENDPOINT_ID }}
         run: |
-          if [ -z "${{ secrets.PORTAINER_WEBHOOK_URL }}" ]; then
-            echo "PORTAINER_WEBHOOK_URL secret not set — skipping redeploy trigger"
+          if [ -z "$PORTAINER_URL" ] || [ -z "$PORTAINER_PASSWORD" ]; then
+            echo "PORTAINER_URL or PORTAINER_PASSWORD secret not set — skipping"
             exit 0
           fi
-          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-            "${{ secrets.PORTAINER_WEBHOOK_URL }}")
-          echo "Portainer response: $RESPONSE"
+
+          JWT=$(curl -s -X POST "$PORTAINER_URL/api/auth" \
+            -H "Content-Type: application/json" \
+            -d "{\"username\":\"admin\",\"password\":\"$PORTAINER_PASSWORD\"}" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['jwt'])")
+
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
+            "$PORTAINER_URL/api/stacks/$PORTAINER_STACK_ID/git/redeploy?endpointId=$PORTAINER_ENDPOINT_ID" \
+            -H "Authorization: Bearer $JWT" \
+            -H "Content-Type: application/json" \
+            -d '{"pullImage":true,"prune":false,"RepositoryReferenceName":"refs/heads/main"}')
+
+          echo "Portainer redeploy response: $RESPONSE"
           if [ "$RESPONSE" != "200" ]; then
-            echo "Webhook failed with HTTP $RESPONSE — check PORTAINER_WEBHOOK_URL secret"
+            echo "Redeploy failed with HTTP $RESPONSE"
             exit 1
           fi
-          echo "Stack redeploy triggered"
+          echo "Stack redeploy triggered successfully"
