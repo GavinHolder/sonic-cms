@@ -1,10 +1,10 @@
 {
-  "version": "1.9.1",
+  "version": "1.9.2",
   "date": "2026-03-25",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "support per-client ref in notify-clients dispatch"
+      "remove gavin ref from Sonic client config — uses main"
     ],
     "breaking": []
   }
