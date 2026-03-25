@@ -109,16 +109,14 @@ jobs:
 
       - name: Remove upstream-only CI workflows
         run: |
-          # Client repos should NOT have these workflows — they belong to main CMS only
-          UPSTREAM_ONLY_WORKFLOWS=(
-            ".github/workflows/auto-version.yml"
-            ".github/workflows/publish-channel.yml"
-            ".github/workflows/notify-clients.yml"
-          )
-          for wf in "${UPSTREAM_ONLY_WORKFLOWS[@]}"; do
-            if [ -f "$wf" ]; then
-              git rm "$wf"
-              echo "Removed upstream-only workflow: $wf"
+          # Client repos keep ONLY deploy.yml — everything else from upstream
+          # (auto-version, publish-channel, notify-clients, templates) is removed
+          KEEP="deploy.yml"
+          for f in .github/workflows/*.yml .github/workflows/*.yaml .github/workflows/*.template; do
+            [ -f "$f" ] || continue
+            basename=$(basename "$f")
+            if [ "$basename" != "$KEEP" ]; then
+              git rm -f "$f" 2>/dev/null && echo "Removed upstream workflow: $f" || true
             fi
           done
           # Commit removals if any
