@@ -229,18 +229,18 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
   // Build resolved menu items with dynamic content types injected into Content submenu
   const resolvedMenuItems = menuItems.map(item => {
-    if (item.id === "content" && contentTypes.length > 0) {
+    if (item.id === "content") {
       const dynamicItems: SubMenuItem[] = contentTypes.map(ct => ({
         id: `ct-${ct.slug}`,
         label: ct.pluralName,
         icon: ct.icon,
         href: `/admin/content/${ct.slug}`,
       }));
-      // Add separator-like "Content Types" management link at the end
+      // Always show "Manage Types" link — even when no types exist yet
       const manageItem: SubMenuItem = {
         id: "content-types-manage",
         label: "Manage Types",
-        icon: "bi-gear",
+        icon: "bi-sliders2",
         href: "/admin/content-types",
       };
       return {
