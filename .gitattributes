@@ -18,10 +18,7 @@ deploy/app/docker-compose.yml       merge=ours
 public/cms-version.json             merge=ours
 
 # =============================================================================
-# CLIENT REPO ADDITIONS — add lines below when you modify core CMS files
-# Examples:
-#   app/page.tsx                    merge=ours
-#   app/calculator/page.tsx         merge=ours
-#   prisma/seed.ts                  merge=ours
-#   lib/client-config.ts            merge=ours
+# SONIC CLIENT ADDITIONS
 # =============================================================================
+prisma/seed.ts                      merge=ours
+.env.example                        merge=ours

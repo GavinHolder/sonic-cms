@@ -1,16 +1,15 @@
 # =============================================================================
-# White-Label CMS — Build & Publish Docker Image
+# Sonic CMS — Build & Deploy
 # =============================================================================
-# Triggers: push to main, or manual "Run workflow"
+# Triggers:
+#   - push to main (standard deploy)
+#   - workflow_dispatch (manual or triggered by CMS Update system)
 #
-# Job 1 (build): GitHub runners → builds Docker image → pushes to ghcr.io
-# Job 2 (deploy): Calls Portainer webhook to pull new image and restart stack
+# When triggered by workflow_dispatch with merge_upstream=true, merges latest
+# from upstream white-label-cms before building.
 #
-# Setup checklist (one-time per deployment):
-#   1. Create stack in Portainer using deploy/app/docker-compose.yml
-#   2. Copy the stack webhook URL from Portainer → Stack → Webhook
-#   3. Add PORTAINER_WEBHOOK_URL to GitHub repo secrets
-#      (full URL, e.g. http://154.66.197.168:9000/api/stacks/webhooks/UUID)
+# Secrets required:
+#   PORTAINER_WEBHOOK_URL — Full Portainer stack webhook URL
 # =============================================================================
 
 name: Build & Deploy
@@ -19,15 +18,74 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      merge_upstream:
+        description: "Merge latest from upstream white-label-cms before building"
+        required: false
+        default: "true"
+        type: choice
+        options: ["true", "false"]
 
 env:
   IMAGE: ghcr.io/gavinholder/sonic-cms
 
+permissions:
+  contents: write
+  packages: write
+
 jobs:
-  # ── Job 1: Build and push Docker image to ghcr.io ───────────────────────────
+  # ── Job 0: (Optional) Merge from upstream CMS ─────────────────────────────
+  upstream-merge:
+    name: Merge Upstream CMS Updates
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.merge_upstream == 'true'
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote and merge
+        run: |
+          git config merge.ours.driver true
+          git remote add upstream https://github.com/GavinHolder/white-label-cms.git
+          git fetch upstream main
+
+          git merge upstream/main --no-edit --allow-unrelated-histories \
+            -X ours \
+            -m "chore: merge upstream CMS updates [skip ci-merge]"
+
+          # Remove upstream-only workflows — client keeps only deploy.yml
+          KEEP="deploy.yml"
+          for f in .github/workflows/*.yml .github/workflows/*.yaml .github/workflows/*.template; do
+            [ -f "$f" ] || continue
+            basename=$(basename "$f")
+            if [ "$basename" != "$KEEP" ]; then
+              git rm -f "$f" 2>/dev/null && echo "Removed upstream workflow: $f" || true
+            fi
+          done
+
+          if ! git diff --staged --quiet; then
+            git commit -m "chore: remove upstream workflow files from client repo [skip ci]"
+          fi
+
+          git push origin main
+
+  # ── Job 1: Build and push Docker image ─────────────────────────────────────
   build:
     name: Build & Push Image
     runs-on: ubuntu-latest
+    needs: [upstream-merge]
+    if: always() && (needs.upstream-merge.result == 'success' || needs.upstream-merge.result == 'skipped')
     permissions:
       contents: read
       packages: write
@@ -35,6 +93,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -60,8 +120,7 @@ jobs:
     name: Deploy via Portainer
     runs-on: ubuntu-latest
     needs: build
-    # Skips gracefully if PORTAINER_WEBHOOK_URL secret is not yet configured
-    if: always()
+    if: always() && needs.build.result == 'success'
 
     steps:
       - name: Trigger Portainer webhook
