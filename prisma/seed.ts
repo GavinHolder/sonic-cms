@@ -10,7 +10,7 @@ const prisma = new PrismaClient();
 
 // Pre-computed bcrypt hash for 'B3rryP0rtal@5' (rounds=12)
 // Regenerate with: node -e "require('bcryptjs').hash('B3rryP0rtal@5',12).then(console.log)"
-const PASSWORD_HASH = '$2b$12$nQSA82hXXZCRTrrGl5Ej9eDSP3ZCbvBoX0VM/l653Z/Afw7S/CKyW';
+const PASSWORD_HASH = '$2b$12$3KqU1CLflNP7avN0U6J2B./h/3admfYaznTyTorMxG4Pn.WNHNd.q';
 
 async function main() {
   console.log('🌱 Seeding admin user...');
