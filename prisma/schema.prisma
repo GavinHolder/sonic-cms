@@ -590,3 +590,19 @@ model Redirect {
   @@index([fromPath])
   @@map("redirects")
 }
+
+// ── Plugin Architecture ──────────────────────────────────────────────────────
+
+model Plugin {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  version     String   @default("1.0.0")
+  enabled     Boolean  @default(true)
+  manifest    Json
+  config      Json     @default("{}")
+  installedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("plugins")
+}
