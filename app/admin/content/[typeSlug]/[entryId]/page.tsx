@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import AdminLayout from "@/components/admin/AdminLayout";
+import MediaPickerModal from "@/components/admin/MediaPickerModal";
+import MediaUploadModal from "@/components/admin/MediaUploadModal";
 
 interface Field {
   id: string;
@@ -47,6 +49,8 @@ export default function ContentEntryEditorPage() {
   const [coverImage, setCoverImage] = useState("");
   const [tags, setTags] = useState("");
   const [data, setData] = useState<Record<string, unknown>>({});
+  const [mediaPicker, setMediaPicker] = useState<string | null>(null);
+  const [mediaUpload, setMediaUpload] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -139,12 +143,20 @@ export default function ContentEntryEditorPage() {
       case "image":
         return (
           <div>
-            <input
-              className="form-control"
-              value={(value as string) || ""}
-              onChange={e => updateData(key, e.target.value)}
-              placeholder="Image URL or /uploads/..."
-            />
+            <div className="d-flex gap-2">
+              <input
+                className="form-control"
+                value={(value as string) || ""}
+                onChange={e => updateData(key, e.target.value)}
+                placeholder="Image URL or /uploads/..."
+              />
+              <button type="button" className="btn btn-outline-secondary flex-shrink-0" onClick={() => setMediaPicker(`field-${key}`)} title="Browse Media Library">
+                <i className="bi bi-folder2-open" />
+              </button>
+              <button type="button" className="btn btn-outline-primary flex-shrink-0" onClick={() => setMediaUpload(`field-${key}`)} title="Upload New Image">
+                <i className="bi bi-cloud-arrow-up" />
+              </button>
+            </div>
             {typeof value === 'string' && value && (
               <img src={value} alt="" className="mt-2 rounded" style={{ maxWidth: 200, maxHeight: 120, objectFit: "cover" }} />
             )}
@@ -332,7 +344,15 @@ export default function ContentEntryEditorPage() {
             <div className="card shadow-sm mb-3">
               <div className="card-header bg-white py-2"><h6 className="mb-0">Cover Image</h6></div>
               <div className="card-body">
-                <input className="form-control" value={coverImage} onChange={e => setCoverImage(e.target.value)} placeholder="Image URL" />
+                <div className="d-flex gap-2">
+                  <input className="form-control" value={coverImage} onChange={e => setCoverImage(e.target.value)} placeholder="Image URL" />
+                  <button type="button" className="btn btn-outline-secondary flex-shrink-0" onClick={() => setMediaPicker("cover")} title="Browse Media Library">
+                    <i className="bi bi-folder2-open" />
+                  </button>
+                  <button type="button" className="btn btn-outline-primary flex-shrink-0" onClick={() => setMediaUpload("cover")} title="Upload New Image">
+                    <i className="bi bi-cloud-arrow-up" />
+                  </button>
+                </div>
                 {coverImage && <img src={coverImage} alt="" className="mt-2 rounded w-100" style={{ maxHeight: 120, objectFit: "cover" }} />}
               </div>
             </div>
@@ -350,6 +370,34 @@ export default function ContentEntryEditorPage() {
           </div>
         </div>
       </div>
+      <MediaPickerModal
+        isOpen={mediaPicker !== null}
+        onClose={() => setMediaPicker(null)}
+        filterType="image"
+        onSelect={(url) => {
+          if (mediaPicker === "cover") {
+            setCoverImage(url);
+          } else if (mediaPicker?.startsWith("field-")) {
+            const key = mediaPicker.replace("field-", "");
+            setData((prev) => ({ ...prev, [key]: url }));
+          }
+          setMediaPicker(null);
+        }}
+      />
+      <MediaUploadModal
+        isOpen={mediaUpload !== null}
+        onClose={() => setMediaUpload(null)}
+        acceptedTypes="image/*"
+        onUploadComplete={(url) => {
+          if (mediaUpload === "cover") {
+            setCoverImage(url);
+          } else if (mediaUpload?.startsWith("field-")) {
+            const key = mediaUpload.replace("field-", "");
+            setData((prev) => ({ ...prev, [key]: url }));
+          }
+          setMediaUpload(null);
+        }}
+      />
     </AdminLayout>
   );
 }

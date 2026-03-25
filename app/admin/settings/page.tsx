@@ -5,6 +5,7 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import UpdateModal from "@/components/admin/UpdateModal";
 import { useHelpText } from "@/hooks/useHelpText";
 import MediaPickerModal from "@/components/admin/MediaPickerModal";
+import MediaUploadModal from "@/components/admin/MediaUploadModal";
 import {
   getCMSSettings,
   saveCMSSettings,
@@ -97,7 +98,8 @@ export default function SettingsPage() {
 
   // CMS Update modal
   const [showUpdateModal, setShowUpdateModal] = useState(false);
-  const [showMediaPicker, setShowMediaPicker] = useState<string | null>(null); // tracks which field opened the picker
+  const [showMediaPicker, setShowMediaPicker] = useState<string | null>(null);
+  const [showMediaUpload, setShowMediaUpload] = useState<string | null>(null);
   const [updateModalInfo, setUpdateModalInfo] = useState<Parameters<typeof UpdateModal>[0]["info"]>(null);
 
   // CMS Update config (GitHub settings)
@@ -727,7 +729,15 @@ export default function SettingsPage() {
                           onClick={() => setShowMediaPicker("maintenance")}
                           title="Browse Media Library"
                         >
-                          <i className="bi bi-image" />
+                          <i className="bi bi-folder2-open" />
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-primary flex-shrink-0"
+                          onClick={() => setShowMediaUpload("maintenance")}
+                          title="Upload New Image"
+                        >
+                          <i className="bi bi-cloud-arrow-up" />
                         </button>
                         <button
                           className="btn btn-sm btn-primary flex-shrink-0"
@@ -1563,6 +1573,17 @@ export default function SettingsPage() {
             setMaintenanceCustomImage(url);
           }
           setShowMediaPicker(null);
+        }}
+      />
+      <MediaUploadModal
+        isOpen={showMediaUpload !== null}
+        onClose={() => setShowMediaUpload(null)}
+        acceptedTypes="image/*"
+        onUploadComplete={(url) => {
+          if (showMediaUpload === "maintenance") {
+            setMaintenanceCustomImage(url);
+          }
+          setShowMediaUpload(null);
         }}
       />
     </AdminLayout>
