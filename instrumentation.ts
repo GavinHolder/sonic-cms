@@ -105,7 +105,7 @@ export async function register() {
     }
   }
 
-  // Run immediately on startup, then every 60 seconds
-  void tick();
+  // Delay first tick by 5s to let Prisma/DB connections establish
+  setTimeout(tick, 5_000);
   setInterval(tick, 60_000);
 }
