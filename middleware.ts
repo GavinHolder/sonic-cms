@@ -10,8 +10,26 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { verifyAccessToken } from "./lib/auth";
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // ── 301 Redirect check (public routes only) ─────────────────────────────
+  if (!pathname.startsWith("/admin") && !pathname.startsWith("/api") && !pathname.startsWith("/_next")) {
+    try {
+      // Dynamic import to avoid Prisma in Edge Runtime — use fetch instead
+      const origin = request.nextUrl.origin;
+      const redirectRes = await fetch(`${origin}/api/redirects/check?path=${encodeURIComponent(pathname)}`, { headers: { "x-internal": "1" } });
+      if (redirectRes.ok) {
+        const data = await redirectRes.json();
+        if (data.redirect) {
+          const dest = data.redirect.toPath.startsWith("http") ? data.redirect.toPath : `${origin}${data.redirect.toPath}`;
+          return NextResponse.redirect(dest, data.redirect.statusCode);
+        }
+      }
+    } catch {
+      // Redirect check failure should not block the request
+    }
+  }
 
   // Set custom headers
   const requestHeaders = new Headers(request.headers);

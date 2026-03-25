@@ -106,6 +106,73 @@ export interface VoltEntranceAnim {
   distance?: number
 }
 
+/** Exit animation — mirror of entrance, plays when leaving viewport. */
+export type ExitAnimType =
+  | 'none'
+  | 'fadeOut'
+  | 'slideOutLeft' | 'slideOutRight' | 'slideOutUp' | 'slideOutDown'
+  | 'scaleOut'
+  | 'rotateOut'
+
+export interface VoltExitAnim {
+  type: ExitAnimType
+  duration?: number
+  delay?: number
+  ease?: string
+  distance?: number
+}
+
+// ── Timeline Keyframes ───────────────────────────────────────────────────────
+
+/** A single keyframe in a layer's animation timeline. */
+export interface VoltKeyframe {
+  /** Time position in milliseconds from start */
+  time: number
+  /** Animated property values at this keyframe */
+  props: {
+    opacity?: number
+    translateX?: number
+    translateY?: number
+    scaleX?: number
+    scaleY?: number
+    rotate?: number
+  }
+  /** Per-segment easing (from this keyframe to the next) */
+  ease?: string
+}
+
+/** Timeline configuration on a VoltLayer (opt-in per layer). */
+export interface VoltTimelineConfig {
+  /** Keyframe array — if present, timeline mode is active for this layer */
+  keyframes: VoltKeyframe[]
+  /** Total timeline duration in ms (default: 3000) */
+  duration: number
+  /** Loop after completion (default: false) */
+  loop: boolean
+  /** Auto-play when component enters viewport (default: true) */
+  autoplay: boolean
+}
+
+// ── Responsive Breakpoints ────────────────────────────────────────────────────
+
+export interface VoltBreakpoint {
+  /** Breakpoint name (e.g., "mobile", "tablet", "desktop") */
+  name: string
+  /** Max container width in px for this breakpoint */
+  maxWidth: number
+  /** Canvas width used in designer for this breakpoint */
+  canvasWidth: number
+  /** Per-layer overrides at this breakpoint */
+  layerOverrides: Record<string, {
+    x?: number
+    y?: number
+    width?: number
+    height?: number
+    visible?: boolean
+    fontSize?: number
+  }>
+}
+
 export interface VoltVectorData {
   pathData: string
   fills: VoltFill[]
@@ -296,6 +363,19 @@ export interface VoltLayer {
   effects?: VoltLayerEffects
   /** On-enter animation played once when the card enters the viewport */
   entranceAnim?: VoltEntranceAnim
+  /** On-exit animation played when the card leaves the viewport */
+  exitAnim?: VoltExitAnim
+  /** Timeline animation — keyframe-based, opt-in per layer */
+  timeline?: VoltTimelineConfig
+  /** Clip mask — this layer is clipped to the shape of the referenced vector layer */
+  clipMaskLayerId?: string
+  /** Component instance — this layer renders a reusable Volt component */
+  componentRef?: {
+    /** ID of the source VoltElement (elementType: "component") */
+    componentId: string
+    /** Per-layer overrides applied to the component's layers */
+    overrides?: Record<string, { fill?: string; visible?: boolean; opacity?: number }>
+  }
   vectorData?: VoltVectorData
   slotData?: VoltSlotData
   imageData?: VoltImageData
@@ -324,7 +404,7 @@ export interface VoltLayerStateOverride {
 export interface VoltState {
   id: string
   name: StateName
-  trigger: 'mouseenter' | 'mouseleave' | 'focus' | 'blur' | 'click' | 'auto'
+  trigger: 'mouseenter' | 'mouseleave' | 'focus' | 'blur' | 'click' | 'auto' | 'scroll-25' | 'scroll-50' | 'scroll-75' | 'scroll-100'
   layerOverrides: Record<string, VoltLayerStateOverride>
 }
 
@@ -392,6 +472,8 @@ export interface VoltElementData {
   tiltMaxDeg?: number
   /** CSS perspective distance in px for tilt (default: 800) */
   tiltPerspective?: number
+  /** Responsive breakpoints — per-breakpoint layer position/size/visibility overrides */
+  breakpoints?: VoltBreakpoint[]
 }
 
 /**

@@ -158,8 +158,11 @@ export default function VoltSvgLayer({ layer, canvasWidth, canvasHeight, instanc
 
   const isLinearGrad = !isGlass && primaryFill?.type === 'linear-gradient'
   const isRadialGrad = !isGlass && primaryFill?.type === 'radial-gradient'
+  const isAngularGrad = !isGlass && primaryFill?.type === 'angular-gradient'
+  const isImageFill = !isGlass && primaryFill?.type === 'image'
   const hasGradient = isLinearGrad || isRadialGrad
   const gradId = `volt-grad-${layer.id}`
+  const patternId = `volt-pat-${layer.id}`
 
   let fillAttr = 'none'
   if (instanceOverride?.fill) {
@@ -168,6 +171,8 @@ export default function VoltSvgLayer({ layer, canvasWidth, canvasHeight, instanc
     fillAttr = primaryFill.color
   } else if (hasGradient) {
     fillAttr = `url(#${gradId})`
+  } else if (isAngularGrad || isImageFill) {
+    fillAttr = `url(#${patternId})`
   }
 
   const strokeAttr = stroke ? {
@@ -213,6 +218,51 @@ export default function VoltSvgLayer({ layer, canvasWidth, canvasHeight, instanc
     >
       {hasFx && layer.effects && <SvgFilterDef layerId={layer.id} effects={layer.effects} />}
       {hasGradient && primaryFill && <GradientDef fill={primaryFill} layerId={layer.id} />}
+      {/* Angular gradient: SVG has no conic-gradient, so use foreignObject with CSS */}
+      {isAngularGrad && primaryFill?.gradient && (
+        <defs>
+          <pattern id={patternId} patternUnits="objectBoundingBox" width="1" height="1">
+            <foreignObject width={aw} height={ah}>
+              <div
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  background: `conic-gradient(from ${primaryFill.gradient.angle ?? 0}deg, ${
+                    (primaryFill.gradient.stops ?? [])
+                      .map(s => `${s.color} ${s.position}%`)
+                      .join(', ')
+                  })`,
+                }}
+              />
+            </foreignObject>
+          </pattern>
+        </defs>
+      )}
+      {/* Image fill: SVG pattern with embedded image */}
+      {isImageFill && primaryFill?.imageUrl && (
+        <defs>
+          <pattern
+            id={patternId}
+            patternUnits="objectBoundingBox"
+            width="1"
+            height="1"
+            preserveAspectRatio={
+              primaryFill.imageMode === 'fit' ? 'xMidYMid meet' :
+              primaryFill.imageMode === 'tile' ? 'none' : 'xMidYMid slice'
+            }
+          >
+            <image
+              href={primaryFill.imageUrl}
+              width={aw}
+              height={ah}
+              preserveAspectRatio={
+                primaryFill.imageMode === 'fit' ? 'xMidYMid meet' :
+                primaryFill.imageMode === 'tile' ? 'none' : 'xMidYMid slice'
+              }
+            />
+          </pattern>
+        </defs>
+      )}
       {hasCornerRadius && (
         <defs>
           <clipPath id={crClipId!}>

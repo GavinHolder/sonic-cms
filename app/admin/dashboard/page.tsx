@@ -1,12 +1,20 @@
-"use client";
-
 import AdminLayout from "@/components/admin/AdminLayout";
 import InfoCard from "@/components/admin/InfoCard";
 import HelpText from "@/components/admin/HelpText";
+import prisma from "@/lib/prisma";
 
-export default function AdminDashboard() {
+export const dynamic = "force-dynamic";
+
+export default async function AdminDashboard() {
+  const [pageCount, sectionCount, mediaCount, userCount] = await Promise.all([
+    prisma.page.count(),
+    prisma.section.count(),
+    prisma.mediaAsset.count(),
+    prisma.user.count(),
+  ]);
+
   return (
-    <AdminLayout title="Dashboard" subtitle="Welcome back to Your Company CMS">
+    <AdminLayout title="Dashboard" subtitle="Welcome back to your CMS">
       <div style={{ maxWidth: "1320px" }}>
         {/* Welcome Message */}
         <HelpText variant="info" collapsible={false}>
@@ -23,18 +31,17 @@ export default function AdminDashboard() {
           <div className="col-12 col-sm-6 col-lg-3">
             <InfoCard
               title="Total Pages"
-              value="12"
+              value={String(pageCount)}
               icon="bi-file-earmark-text"
-              description="Active pages"
+              description="Pages in CMS"
               variant="primary"
               href="/admin/content/landing-page"
-              trend={{ value: 8, direction: "up" }}
             />
           </div>
           <div className="col-12 col-sm-6 col-lg-3">
             <InfoCard
               title="Sections"
-              value="47"
+              value={String(sectionCount)}
               icon="bi-columns-gap"
               description="Content sections"
               variant="info"
@@ -43,20 +50,19 @@ export default function AdminDashboard() {
           <div className="col-12 col-sm-6 col-lg-3">
             <InfoCard
               title="Media Files"
-              value="128"
+              value={String(mediaCount)}
               icon="bi-images"
               description="Images & videos"
               variant="success"
               href="/admin/media"
-              trend={{ value: 12, direction: "up" }}
             />
           </div>
           <div className="col-12 col-sm-6 col-lg-3">
             <InfoCard
               title="Users"
-              value="5"
+              value={String(userCount)}
               icon="bi-people"
-              description="Active users"
+              description="Admin users"
               variant="warning"
               href="/admin/users"
             />

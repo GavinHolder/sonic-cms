@@ -35,6 +35,9 @@ export default function SeoSettingsPage() {
   const [alert, setAlert] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [audit, setAudit] = useState<AuditResult | null>(null);
   const [showWizard, setShowWizard] = useState(false);
+  const [readiness, setReadiness] = useState<{ checks: Array<{ id: string; label: string; pass: boolean; hint?: string; link?: string }>; passCount: number; totalCount: number; canonicalBase: string } | null>(null);
+  const [readinessOpen, setReadinessOpen] = useState(false);
+  const [readinessLoading, setReadinessLoading] = useState(false);
 
   // ── Load config + last audit on mount ──────────────────────────────────────
   useEffect(() => {
@@ -60,6 +63,17 @@ export default function SeoSettingsPage() {
     };
     load();
   }, []);
+
+  // ── Fetch readiness when audit tab is active ────────────────────────────────
+  useEffect(() => {
+    if (activeTab !== "audit") return;
+    setReadinessLoading(true);
+    fetch("/api/seo/readiness")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) setReadiness(data); })
+      .catch(() => {})
+      .finally(() => setReadinessLoading(false));
+  }, [activeTab]);
 
   // ── Auto-dismiss alert ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -671,6 +685,78 @@ export default function SeoSettingsPage() {
       {/* ── Tab: SEO Audit ────────────────────────────────────────────────── */}
       {activeTab === "audit" && (
         <div>
+          {/* Go Live Readiness panel */}
+          <div className="card border-0 shadow-sm mb-4">
+            <div
+              className="card-header bg-transparent border-bottom py-3 d-flex align-items-center justify-content-between"
+              style={{ cursor: "pointer" }}
+              onClick={() => setReadinessOpen(!readinessOpen)}
+            >
+              <h6 className="mb-0 fw-semibold">
+                <i className="bi bi-rocket-takeoff me-2 text-primary" />
+                Go Live Readiness
+              </h6>
+              <div className="d-flex align-items-center gap-2">
+                {readinessLoading ? (
+                  <span className="spinner-border spinner-border-sm text-muted" />
+                ) : readiness ? (
+                  <span className={`badge ${readiness.passCount === readiness.totalCount ? "bg-success" : "bg-warning text-dark"}`}>
+                    {readiness.passCount}/{readiness.totalCount}
+                  </span>
+                ) : null}
+                <i className={`bi bi-chevron-${readinessOpen ? "up" : "down"} text-muted`} />
+              </div>
+            </div>
+            {readinessOpen && (
+              <div className="card-body p-0">
+                {readinessLoading ? (
+                  <div className="text-center py-4">
+                    <span className="spinner-border spinner-border-sm text-primary" />
+                    <span className="ms-2 text-muted small">Checking...</span>
+                  </div>
+                ) : readiness ? (
+                  <>
+                    <div className="list-group list-group-flush">
+                      {readiness.checks.map((check) => (
+                        <div key={check.id} className="list-group-item d-flex align-items-start gap-3 py-2 px-4">
+                          <span style={{ fontSize: "1.1rem", lineHeight: 1, marginTop: "2px" }}>
+                            {check.pass
+                              ? <i className="bi bi-check-circle-fill text-success" />
+                              : <i className="bi bi-x-circle-fill text-danger" />}
+                          </span>
+                          <div className="flex-grow-1">
+                            <span className="small fw-medium">{check.label}</span>
+                            {!check.pass && check.hint && (
+                              <div className="text-muted" style={{ fontSize: "0.75rem" }}>
+                                {check.hint}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      {/* GSC info link — always shown */}
+                      <div className="list-group-item d-flex align-items-start gap-3 py-2 px-4">
+                        <span style={{ fontSize: "1.1rem", lineHeight: 1, marginTop: "2px" }}>
+                          <i className="bi bi-link-45deg text-primary" />
+                        </span>
+                        <div className="flex-grow-1">
+                          <a href="https://search.google.com/search-console" target="_blank" rel="noopener noreferrer" className="small fw-medium text-decoration-none">
+                            Submit to Google Search Console <i className="bi bi-box-arrow-up-right ms-1" />
+                          </a>
+                          <div className="text-muted" style={{ fontSize: "0.75rem" }}>
+                            Google won&apos;t discover your site until you submit it. Takes 1&ndash;4 weeks.
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-3 text-muted small">Unable to load readiness checks</div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Summary cards */}
           {audit ? (
             <>

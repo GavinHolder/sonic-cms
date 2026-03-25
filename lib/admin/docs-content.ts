@@ -3315,11 +3315,11 @@ See **Admin → API Keys** for key management.
 const VOLT_ANIMATION = `
 # Volt Designer — Animation
 
-Each layer has an **Animation** configuration that controls how it enters the viewport when the Volt element is revealed.
+Each layer has a full **Animation** system covering entrance effects, exit effects, hover transitions, scroll-triggered states, and timeline keyframes.
 
 ---
 
-## Animation Properties
+## Animation Personality (Legacy Sliders)
 
 | Property | Range | Description |
 |----------|-------|-------------|
@@ -3328,9 +3328,7 @@ Each layer has an **Animation** configuration that controls how it enters the vi
 | **Style** | 0–100 | Animation curve / easing style |
 | **Character** | 0–100 | Amount of "personality" in the motion |
 
----
-
-## Animates Flags
+### Animates Flags
 
 Toggle which CSS/SVG properties are animated on entrance:
 
@@ -3344,12 +3342,284 @@ Toggle which CSS/SVG properties are animated on entrance:
 
 ---
 
+## Entrance Animations
+
+Each layer can have an entrance animation that plays when the element first appears.
+
+| Type | Description |
+|------|-------------|
+| \`fadeIn\` | Simple opacity fade from 0 to 1 |
+| \`slideInLeft\` | Slide in from the left edge |
+| \`slideInRight\` | Slide in from the right edge |
+| \`slideInUp\` | Slide in from below |
+| \`slideInDown\` | Slide in from above |
+| \`scaleIn\` | Scale up from 0 to full size |
+| \`rotateIn\` | Rotate in from a specified angle |
+| \`flipInX\` | 3D flip on the X axis |
+| \`flipInY\` | 3D flip on the Y axis |
+
+### Entrance Properties
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| **Duration** | 600ms | How long the entrance takes |
+| **Delay** | 0ms | Wait before starting |
+| **Easing** | \`easeOutCubic\` | Timing curve |
+| **Distance** | 100px | How far slide/flip animations travel |
+
+---
+
+## Exit Animations
+
+Exit animations play when the element leaves the viewport or is removed.
+
+| Type | Description |
+|------|-------------|
+| \`fadeOut\` | Opacity fade from 1 to 0 |
+| \`slideOutLeft\` | Slide out to the left |
+| \`slideOutRight\` | Slide out to the right |
+| \`slideOutUp\` | Slide out upward |
+| \`slideOutDown\` | Slide out downward |
+| \`scaleOut\` | Scale down to 0 |
+| \`rotateOut\` | Rotate out to a specified angle |
+
+Exit animations share the same duration/delay/easing properties as entrance animations.
+
+---
+
+## Hover State Transitions
+
+Each layer can define hover overrides that animate when the user hovers over the Volt element:
+
+| Property | Description |
+|----------|-------------|
+| **Opacity** | Change opacity on hover (e.g. dim or reveal) |
+| **Scale** | Grow or shrink on hover |
+| **Position (X/Y)** | Translate layer on hover |
+| **Rotation** | Rotate layer on hover |
+| **Fill** | Change colour/fill on hover |
+
+Hover transitions animate smoothly between rest and hover states using the layer's configured easing.
+
+---
+
+## Scroll-Triggered States
+
+Layers can change properties as the user scrolls past defined thresholds:
+
+| Threshold | Trigger Point |
+|-----------|---------------|
+| \`scroll-25\` | Element is 25% through the viewport |
+| \`scroll-50\` | Element is 50% through the viewport |
+| \`scroll-75\` | Element is 75% through the viewport |
+| \`scroll-100\` | Element has fully scrolled past |
+
+Each threshold can override opacity, scale, position, rotation, and fill. States are tracked using **IntersectionObserver** with the corresponding threshold ratios. As the user scrolls, layers transition smoothly between states.
+
+---
+
+## Timeline Keyframes
+
+The timeline system gives fine-grained control over complex multi-step animations.
+
+### VoltKeyframe System
+
+Each layer's timeline is a sequence of **VoltKeyframe** objects:
+
+| Keyframe Property | Description |
+|-------------------|-------------|
+| **Time (%)** | Position on the timeline (0–100%) |
+| **Opacity** | Opacity at this keyframe |
+| **Scale X / Y** | Scale at this keyframe |
+| **Position X / Y** | Translation at this keyframe |
+| **Rotation** | Rotation angle at this keyframe |
+| **Easing** | Per-keyframe easing curve |
+
+### Timeline Controls
+
+| Action | How |
+|--------|-----|
+| **Add keyframe** | Click the + button on the timeline track |
+| **Remove keyframe** | Select a keyframe and press Delete |
+| **Move keyframe** | Drag a keyframe left/right on the timeline |
+| **Edit values** | Click a keyframe to edit its properties in the panel |
+| **Play preview** | Click the Play button to see the full animation |
+| **Scrub** | Drag the playhead to preview any point in time |
+| **Loop mode** | Toggle loop to repeat the animation continuously |
+| **Duration** | Set total timeline duration (ms) in the duration field |
+| **Toggle panel** | \`Ctrl+T\` opens/closes the timeline panel |
+
+### Tips
+
+- Keyframes interpolate between each other — you only need to set the properties that change
+- Use per-keyframe easing to create complex motion curves (ease-in at start, ease-out at end)
+- Combine timeline keyframes with entrance animations for layered effects
+
+---
+
 ## Notes
 
 - Animation is powered by **Anime.js 4.x** using the named \`animate\` export
-- Animations are triggered when the element scrolls into view
+- Entrance/exit animations are triggered when the element scrolls into/out of view
 - Each layer animates independently — use **Delay** to stagger a sequence
 - Use **Speed** = 0 for instant reveal, 100 for very slow
+- Keyboard shortcut: **Ctrl+T** to toggle the timeline panel
+`;
+
+// ─────────────────────────────────────────────
+// VOLT UX, SHORTCUTS & FEATURES
+// ─────────────────────────────────────────────
+
+const VOLT_UX_DOCS = `
+# Volt Designer — UX, Shortcuts & Features
+
+A complete reference for keyboard shortcuts, alignment tools, and advanced features in Volt Studio.
+
+---
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| \`V\` | Select tool |
+| \`R\` | Rectangle tool |
+| \`E\` | Ellipse tool |
+| \`L\` | Line tool |
+| \`B\` | Pen/Bezier tool |
+| \`P\` | Polygon tool |
+| \`T\` | Text tool |
+| \`S\` | Slot tool |
+| \`Ctrl+Z\` | Undo |
+| \`Ctrl+Y\` | Redo |
+| \`Ctrl+C\` | Copy selected layer |
+| \`Ctrl+V\` | Paste copied layer |
+| \`Ctrl+D\` | Duplicate selected layer |
+| \`Ctrl+G\` | Group selected layers |
+| \`Ctrl+T\` | Toggle timeline panel |
+| \`Delete / Backspace\` | Delete selected layer |
+| \`Arrow keys\` | Nudge layer 1% |
+| \`Shift + Arrow keys\` | Nudge layer 5% |
+| \`Ctrl + Scroll wheel\` | Zoom in/out |
+| \`Escape\` | Cancel current tool / Exit vertex edit |
+
+---
+
+## Copy & Paste
+
+- **Ctrl+C** copies the selected layer to an internal clipboard
+- **Ctrl+V** pastes it as a new layer, offset +3% from the original
+- The pasted layer gets a new unique ID and name suffix " copy"
+- Works within the same design (cross-design paste not yet supported)
+
+## Arrow Key Nudging
+
+- Select any layer and use **arrow keys** to move it precisely
+- **1%** per press (single arrow key)
+- **5%** per press (Shift + arrow key)
+- Multiple rapid nudges are batched into a single undo step
+
+## Distribute Alignment
+
+- **Multi-select** 3 or more layers (Shift+click or marquee select)
+- Click **Distribute Horizontal** ⇄ to space them evenly on the X axis
+- Click **Distribute Vertical** ⇅ to space them evenly on the Y axis
+- Existing **Align** buttons (left/center/right/top/middle/bottom) align to canvas edges
+
+## Zoom
+
+- **Ctrl + scroll wheel** zooms the canvas (0.1× to 5×)
+- Zoom buttons (+/−) in the toolbar
+- **Fit** button auto-fits the canvas to the viewport
+
+---
+
+## Google Fonts
+
+52 Google Fonts available in the text property panel, organised by category:
+
+- **Sans-serif (modern):** Inter, Roboto, Open Sans, Lato, Montserrat, Poppins, Raleway, Nunito, DM Sans, Space Grotesk, Rubik, Outfit, Work Sans, Plus Jakarta Sans, Sora, Manrope, Lexend, Figtree, Be Vietnam Pro, and more
+- **Serif (elegant):** Playfair Display, Merriweather, Cormorant Garamond, Libre Baskerville, Crimson Text, Lora, EB Garamond, Bitter, Spectral, DM Serif Display
+- **Display (headlines):** Bebas Neue, Anton, Righteous, Archivo Black, Russo One
+- **Monospace:** JetBrains Mono, Fira Code, Source Code Pro
+- **System:** System UI, Georgia, Arial, Courier New
+
+Fonts are loaded dynamically from Google Fonts CDN. The renderer also auto-loads any non-system fonts used in text layers.
+
+## Brand Colour Swatches
+
+- Colour pickers (text colour, fill colour) show a **Brand** row of 8 swatches
+- Swatches are loaded from **Settings → Brand** tokens
+- Click any swatch to instantly apply that colour
+- Keeps designs consistent with your brand palette
+
+---
+
+## Unsplash Photo Search
+
+The image picker has two tabs: **Media Library** and **Unsplash**.
+
+1. Click the Unsplash tab
+2. Search for any topic (e.g., "mountains", "office", "food")
+3. Browse results in a grid with photographer credits
+4. Click a photo to insert it into the selected image layer
+5. "Load more" button for pagination
+
+> **Note:** Requires \`UNSPLASH_ACCESS_KEY\` in your environment. Get a free key at [unsplash.com/developers](https://unsplash.com/developers).
+
+---
+
+## Component / Symbol System
+
+Save and reuse groups of layers across designs.
+
+### Saving a Component
+1. Select one or more layers (Shift+click for multi-select)
+2. Right-click → **Save as Component**
+3. Enter a name → the layers are saved as a reusable VoltElement
+
+### Using a Component
+1. Click the **CMP** button in the toolbar
+2. Browse your component library (shows name + layer count)
+3. Click a component to insert its layers into the current design
+4. Inserted layers get new IDs and are stacked on top
+
+---
+
+## Responsive Breakpoints
+
+Design for mobile, tablet, and desktop in one Volt design.
+
+| Breakpoint | Icon | Canvas Width |
+|------------|------|-------------|
+| Desktop | 🖥 | 800px (default) |
+| Tablet | 📱 | 600px |
+| Mobile | 📱 | 375px |
+
+### How to Use
+1. Open the timeline (\`Ctrl+T\`) — breakpoint switcher appears
+2. Click a breakpoint button to resize the canvas
+3. Reposition/resize layers at the new size
+4. Overrides are saved per breakpoint (position, size, visibility, font size)
+5. Desktop layout is not affected by tablet/mobile edits
+
+The renderer uses a **ResizeObserver** to detect the container width and apply the matching breakpoint overrides automatically.
+
+---
+
+## Clip Mask
+
+Clip an image or text layer to the shape of a vector layer below it.
+
+### Setting a Clip Mask
+1. Draw a **vector shape** (rectangle, circle, custom path)
+2. Add an **image layer** above it
+3. Select the image layer → right-click → **Set Clip Mask**
+4. The image is clipped to the vector shape
+
+### Releasing a Clip Mask
+- Right-click the masked layer → **Release Mask**
+
+> The mask uses CSS \`clip-path\` with the vector's SVG path data.
 `;
 
 // ─────────────────────────────────────────────
@@ -3519,6 +3789,666 @@ export const SEO_WIZARD_DOCS = `
 `;
 
 // ─────────────────────────────────────────────
+// CONTENT TYPES & BLOG
+// ─────────────────────────────────────────────
+
+const CONTENT_TYPES_DOCS = `
+# Content Types
+
+Content Types let you define structured data collections beyond standard pages and sections — perfect for **blog posts**, **team members**, **testimonials**, **FAQs**, and any custom data.
+
+---
+
+## How It Works
+
+1. **Define a Type** — Go to **Content → Types** and create a new content type (e.g. "Blog Post", "Team Member")
+2. **Add Fields** — Each type has a flexible field schema with many field types (see below)
+3. **Create Entries** — Add entries to your content type with the structured editor
+4. **Display on Site** — Entries are automatically available at \`/content/{type-slug}\` (listing) and \`/content/{type-slug}/{entry-slug}\` (detail)
+
+## Field Types
+
+| Field Type | Description | Example Use |
+|------------|-------------|-------------|
+| \`text\` | Single-line plain text | Title, name, tagline |
+| \`richtext\` | Rich text editor with formatting | Body content, bio |
+| \`image\` | Image upload via media picker | Featured image, avatar |
+| \`date\` | Date/time picker | Published date, event date |
+| \`number\` | Numeric input | Price, display order, rating |
+| \`boolean\` | Toggle switch (true/false) | Featured flag, active status |
+| \`select\` | Dropdown single-select | Category, status |
+| \`multiselect\` | Multi-choice select | Tags, categories |
+| \`url\` | URL input with validation | Website link, social profile |
+| \`color\` | Colour picker | Theme colour, accent |
+
+## Built-in Content Types
+
+The CMS comes seeded with two content types:
+
+### Blog Posts
+- Fields: title, slug, excerpt, body (rich text), featured image, author, published date, tags
+- Listing page: \`/blog\` (aliased from \`/content/blog-post\`)
+- Detail page: \`/blog/{slug}\`
+- RSS feed: \`/api/rss\` — auto-generated from published blog posts
+
+### Team Members
+- Fields: name, slug, role/title, bio, photo, email, phone, social links, display order
+- Listing page: \`/team\` (aliased from \`/content/team-member\`)
+- Detail page: \`/team/{slug}\`
+
+## RSS Feed
+
+An RSS 2.0 feed is automatically generated at \`/api/rss\` from all published blog post entries. The feed includes title, description, link, publication date, and excerpt for each post. Feed metadata (site name, description) comes from your SEO settings.
+
+## Tags & Search
+
+- Entries support **tags** — add tags when editing any entry to enable filtering
+- The public listing pages include a **search bar** to filter entries by title or content
+- Tag-based filtering is available on listing pages (click a tag to filter)
+
+## Version History
+
+Every time an entry is saved, a **version snapshot** is created automatically. You can:
+- View all previous versions via the **History** button on any entry
+- Preview any past version
+- **Restore** a previous version (creates a new version — history is never deleted)
+
+## Content Scheduling
+
+Entries can be **scheduled** for future publication:
+1. In the entry editor, click **Schedule** instead of **Publish**
+2. Pick a future date and time
+3. The entry stays in draft until the scheduled time, then auto-publishes
+
+## Admin UI
+
+- **Content → Types** — Create, edit, delete content types and their field schemas
+- **Content → Entries** — List all entries for a type, with search, sort, and status filter
+- **Entry Editor** — Full form editor with field validation, media picker, and preview
+`;
+
+// ─────────────────────────────────────────────
+// BRAND TOKENS
+// ─────────────────────────────────────────────
+
+const BRAND_TOKENS_DOCS = `
+# Brand Tokens
+
+Brand Tokens define your site's visual identity as CSS custom properties — colours, fonts, spacing, and borders that cascade through every page and component automatically.
+
+---
+
+## How It Works
+
+Go to **Settings → Brand** to manage your brand tokens.
+
+---
+
+## Colour Tokens
+
+8 colour tokens define your palette:
+
+| Token | CSS Variable | Purpose |
+|-------|-------------|---------|
+| **Primary** | \`--brand-primary\` | Main brand colour (buttons, links, accents) |
+| **Primary Light** | \`--brand-primary-light\` | Lighter variant for hover states, backgrounds |
+| **Primary Dark** | \`--brand-primary-dark\` | Darker variant for active states |
+| **Secondary** | \`--brand-secondary\` | Supporting brand colour |
+| **Accent** | \`--brand-accent\` | Highlight / call-to-action colour |
+| **Neutral** | \`--brand-neutral\` | Text and border defaults |
+| **Background** | \`--brand-background\` | Page background |
+| **Surface** | \`--brand-surface\` | Card/panel backgrounds |
+
+Each token has a swatch picker for quick selection plus a full colour picker for custom hex/rgb values.
+
+---
+
+## Typography
+
+| Setting | CSS Variable | Description |
+|---------|-------------|-------------|
+| **Heading Font** | \`--brand-font-heading\` | Google Font for h1–h6 headings |
+| **Body Font** | \`--brand-font-body\` | Google Font for body text and paragraphs |
+| **Base Font Size** | \`--brand-font-size-base\` | Root font size (default: 16px) |
+| **Scale Ratio** | — | Type scale multiplier for heading sizes (e.g. 1.25 = Major Third) |
+
+- Fonts are auto-loaded from Google Fonts via \`<link>\` tag — no manual installation
+- The font picker provides 100+ curated Google Font families
+- Changes are visible instantly across the entire site
+
+---
+
+## Spacing
+
+| Setting | CSS Variable | Description |
+|---------|-------------|-------------|
+| **Section Padding** | \`--brand-section-padding\` | Default vertical padding for sections (0–200px) |
+| **Container Max Width** | \`--brand-container-max\` | Maximum content width (e.g. 1200px, 1400px) |
+
+---
+
+## Borders
+
+| Setting | CSS Variable | Description |
+|---------|-------------|-------------|
+| **Border Radius** | \`--brand-radius\` | Default corner radius for cards, buttons, inputs |
+
+---
+
+## How CSS Variables Flow
+
+1. Brand tokens are stored in the \`BrandToken\` Prisma model
+2. On page load, the root layout injects all tokens as CSS custom properties on \`:root\`
+3. Bootstrap overrides pick up the variables (e.g. \`--bs-primary\` maps to \`--brand-primary\`)
+4. All sections, Volt designs, and components inherit the tokens automatically
+5. Volt Designer colour pickers show brand swatches for easy consistency
+
+## Technical Details
+
+- Tokens stored in \`BrandToken\` Prisma model
+- CSS custom properties injected server-side in root layout
+- Google Fonts loaded dynamically based on selected families
+- All brand values accessible in Volt Designer for design consistency
+`;
+
+// ─────────────────────────────────────────────
+// SECTION TEMPLATE LIBRARY
+// ─────────────────────────────────────────────
+
+const SECTION_TEMPLATES_DOCS = `
+# Section Template Library
+
+Jumpstart your page design with **14 pre-built section templates** — professionally designed layouts ready to customise in the Designer.
+
+---
+
+## How to Use
+
+1. Open any page in the admin panel
+2. Click **Add Section** (or the + button)
+3. Browse the **Template Gallery** modal — templates are organised by category
+4. Click a template to preview it
+5. Click **Use Template** to insert it as a new section
+6. Open the section in the Designer to customise content, colours, and layout
+
+## Template Categories
+
+| Category | Templates | Examples |
+|----------|-----------|---------|
+| **Hero** | Full-width hero layouts | Image hero, video hero, split hero |
+| **Content** | Text and media sections | About, text+image, statistics |
+| **Features** | Card-based layouts | Service cards, feature grids, icon lists |
+| **CTA** | Call-to-action sections | Contact CTA, newsletter signup |
+| **Testimonials** | Social proof sections | Quote carousel, review grid |
+| **Footer** | Footer layouts | Multi-column footer, minimal footer |
+
+## Customisation
+
+Every template is a standard FLEXIBLE section — after inserting, you have full control:
+- Edit all text, images, and links in the Designer
+- Change colours and backgrounds
+- Add/remove blocks and columns
+- Apply animated backgrounds
+- Adjust spacing and padding
+
+Templates are starting points, not locked layouts.
+`;
+
+// ─────────────────────────────────────────────
+// FORM SUBMISSIONS
+// ─────────────────────────────────────────────
+
+const FORM_SUBMISSIONS_DOCS = `
+# Form Submissions Inbox
+
+All contact form and page form submissions are collected in a dedicated admin inbox with full detail views.
+
+---
+
+## Accessing Submissions
+
+Go to **Content → Form Submissions** in the admin sidebar.
+
+## Features
+
+### Submission List
+- All submissions listed chronologically (newest first)
+- Shows: form name, submitter email/name, date, read/unread status
+- Click any submission to open the detail panel
+
+### Detail Panel
+- Full submission data displayed in a clean read-only layout
+- All form fields shown with labels and values
+- Metadata: submission date, source page URL, IP address (if collected)
+- Mark as read/unread
+- Delete individual submissions
+
+### Filtering
+- Filter by form name (if multiple forms exist)
+- Filter by read/unread status
+- Search by submitter name or email
+
+## How Forms Create Submissions
+
+When a visitor submits a contact form or page form:
+1. OTP verification completes (if enabled)
+2. Submission is saved to the \`FormSubmission\` database table
+3. Admin notification email is sent (if configured in Settings → Email)
+4. Submission appears in the admin inbox immediately
+`;
+
+// ─────────────────────────────────────────────
+// CONTENT SCHEDULING & VERSION HISTORY
+// ─────────────────────────────────────────────
+
+const CONTENT_SCHEDULING_DOCS = `
+# Content Scheduling & Version History
+
+Schedule content to go live at a future date/time, and track all changes with automatic version history.
+
+---
+
+## Content Scheduling
+
+### How It Works
+1. Edit any section or page content
+2. Instead of clicking **Save**, click **Schedule**
+3. Pick a date and time for the content to go live
+4. The content is saved as a scheduled version — the current live content remains unchanged
+5. A background cron job checks every minute for scheduled content that's due
+6. When the scheduled time arrives, the new content replaces the live version automatically
+
+### Managing Scheduled Content
+- Scheduled items show a clock icon and the scheduled date
+- Cancel a scheduled publish at any time before it goes live
+- Multiple items can be scheduled independently
+
+## Version History
+
+### How It Works
+Every time content is saved or published, a version snapshot is created automatically.
+
+### Version History UI
+- Click **History** on any section or page to see all previous versions
+- Each version shows: date, author, change summary
+- Click any version to preview it
+- Click **Restore** to revert to a previous version (creates a new version, doesn't delete history)
+
+### What's Tracked
+- Section content changes
+- Page metadata changes
+- Designer data changes
+- Scheduled publish events
+`;
+
+// ─────────────────────────────────────────────
+// SECURITY HARDENING
+// ─────────────────────────────────────────────
+
+const SECURITY_HARDENING_DOCS = `
+# Security Hardening
+
+The CMS includes multiple security layers to protect against common web attacks.
+
+---
+
+## Rate Limiting
+
+All API endpoints are rate-limited to prevent abuse:
+
+| Endpoint Category | Limit | Window |
+|-------------------|-------|--------|
+| Authentication (login, OTP) | 5 requests | 15 minutes |
+| Admin API (CRUD operations) | 100 requests | 1 minute |
+| Public API (content reads) | 200 requests | 1 minute |
+| Form submissions | 10 requests | 10 minutes |
+
+When a rate limit is exceeded, the API returns \`429 Too Many Requests\` with a \`Retry-After\` header.
+
+## Audit Logs
+
+All admin actions are logged to the \`AuditLog\` table:
+
+- **What's logged:** Login/logout, content create/update/delete, settings changes, user management, media uploads
+- **What's captured:** User ID, action type, resource type, resource ID, IP address, timestamp, before/after values
+- **Viewing logs:** Settings → Audit Log (SUPER_ADMIN only)
+- **Retention:** Logs are kept indefinitely (future: configurable retention policy)
+
+## Security Headers
+
+The CMS sets secure HTTP headers on all responses:
+- \`X-Content-Type-Options: nosniff\`
+- \`X-Frame-Options: SAMEORIGIN\`
+- \`X-XSS-Protection: 1; mode=block\`
+- \`Referrer-Policy: strict-origin-when-cross-origin\`
+- \`Strict-Transport-Security\` (when HTTPS is enabled)
+
+## Open Redirect Prevention
+
+All redirect endpoints validate the target URL:
+- Only relative paths and same-origin URLs are allowed
+- External redirect attempts are blocked and logged
+- Applies to login redirects, OAuth callbacks, and admin navigation
+
+## Code Injection Prevention
+
+- All user input is sanitised before storage and rendering
+- Rich text fields use a whitelist of allowed HTML tags
+- SVG uploads are sanitised to remove script elements
+- JSON fields are validated against schemas before storage
+`;
+
+// ─────────────────────────────────────────────
+// CMS UPDATE CHANNELS
+// ─────────────────────────────────────────────
+
+const UPDATE_CHANNELS_DOCS = `
+# Update Channels
+
+Client CMS instances subscribe to an update channel that controls which version stream they track.
+
+---
+
+## Available Channels
+
+| Channel | Stability | How It's Published | Best For |
+|---------|-----------|-------------------|----------|
+| **Latest** | Unstable | Auto — every push to main | Development / staging |
+| **Bugfix** | High | Auto — fix-only pushes | Production (conservative) |
+| **Stable** | High | Manual tag \`stable-v*\` | Production instances |
+| **LTS** | Highest | Manual tag \`lts-v*\` | Enterprise / critical sites |
+| **Experimental** | Low | Manual tag \`experimental-v*\` | Beta testing |
+
+## How Channels Work
+
+1. Every push to \`main\` auto-bumps \`cms-version.json\` (the "latest" channel)
+2. Fix-only pushes also update \`versions/bugfix.json\`
+3. To promote a version to stable or LTS, the maintainer creates a git tag:
+   - \`git tag stable-v1.8.1 && git push origin stable-v1.8.1\`
+   - \`git tag lts-v1.8.1 && git push origin lts-v1.8.1\`
+4. GitHub Actions automatically publishes the channel manifest
+5. Client instances polling that channel see "Update available"
+
+## Choosing a Channel
+
+- **Stable** is recommended for most production sites
+- **LTS** for sites that need maximum stability and infrequent updates
+- **Bugfix** for sites that only want security/bug fixes, never new features
+- **Latest** only for development/staging environments
+
+## Configuring Your Channel
+
+1. Go to **Settings → CMS Updates**
+2. Select your preferred channel from the dropdown
+3. The upstream URL auto-updates to the correct manifest
+4. Click **Test & Verify** then **Save**
+
+## Global Update Notifications
+
+When the main CMS repo publishes a new version:
+1. The \`notify-clients.yml\` workflow reads the client registry (\`CLIENTS.json\`)
+2. Each registered client repo's deploy workflow is dispatched
+3. Client admins see the "Update available" badge
+4. Clients with \`auto_deploy: true\` automatically merge and deploy
+`;
+
+// ─────────────────────────────────────────────
+// ACTIVITY LOG
+// ─────────────────────────────────────────────
+
+const ACTIVITY_LOG_DOCS = `
+# Activity Log
+
+Track every admin action with a comprehensive audit trail.
+
+---
+
+## Accessing the Log
+
+Go to **Activity Log** in the admin sidebar.
+
+## What's Logged
+
+Every admin action is automatically recorded:
+
+| Action | Examples |
+|--------|---------|
+| **Auth** | Login, logout, failed login attempts |
+| **Pages** | Create, update, delete, publish, unpublish |
+| **Sections** | Create, update, delete, reorder |
+| **Media** | Upload, delete, rename |
+| **Users** | Create, update role, deactivate, delete |
+| **Settings** | Any settings change (site config, SEO, email, etc.) |
+
+## Log Entry Details
+
+Each entry records:
+- **Timestamp** — exact time of the action
+- **User** — who performed the action
+- **Action** — what was done (create, update, delete, login, etc.)
+- **Resource** — what was affected (page, section, user, etc.)
+- **IP Address** — where the request came from
+
+## Filtering
+
+Use the resource type filter at the top to narrow results:
+- All, Auth, Pages, Sections, Media, Users, Settings
+
+## Pagination
+
+Logs are displayed 50 per page with pagination controls at the bottom.
+`;
+
+// ─────────────────────────────────────────────
+// REDIRECTS
+// ─────────────────────────────────────────────
+
+const REDIRECTS_DOCS = `
+# Redirects
+
+Manage HTTP redirects for URL migrations and link management.
+
+---
+
+## Accessing Redirects
+
+Go to **Redirects** in the admin sidebar.
+
+## Creating a Redirect
+
+1. Click **Add Redirect**
+2. Enter the **From** path (e.g. \`/old-page\`)
+3. Enter the **To** path or URL (e.g. \`/new-page\` or \`https://example.com\`)
+4. Select the **Status Code**:
+   - **301** — Permanent redirect (SEO-friendly, search engines update their index)
+   - **302** — Temporary redirect (search engines keep the old URL)
+   - **307** — Temporary redirect (preserves request method)
+5. Click **Save**
+
+## Managing Redirects
+
+- **Hit Count** — see how many times each redirect has been triggered
+- **Enable/Disable** — toggle redirects on/off without deleting them
+- **Edit** — change the destination or status code
+- **Delete** — permanently remove a redirect
+
+## Use Cases
+
+- Page URL changed after redesign
+- Old marketing campaign URLs
+- Merging duplicate pages
+- External link forwarding
+`;
+
+// ─────────────────────────────────────────────
+// SITE CONFIGURATION
+// ─────────────────────────────────────────────
+
+const SITE_CONFIG_DOCS = `
+# Site Configuration
+
+Configure your company's identity and contact information used across the website.
+
+---
+
+## Accessing Site Config
+
+Go to **Settings → Site Config** in the admin sidebar.
+
+## Fields
+
+### Company Info
+- **Company Name** — displayed in navbar, footer, and SEO
+- **Tagline** — short description shown in header areas
+- **Logo URL** — main logo displayed in the navbar
+- **Favicon URL** — browser tab icon
+
+### Contact Details
+- **Phone** — displayed in footer and contact sections
+- **Email** — public contact email
+- **Address, City, Postal Code, Country** — used in footer and structured data
+
+### Social Media Links
+- Facebook, Instagram, Twitter/X, LinkedIn, YouTube, TikTok
+- Enter full URLs — these appear as social icons in the navbar and footer
+
+### Display Options
+- **Navbar Style** — choose the navigation layout
+- **Copyright Text** — footer copyright line
+- **Show Regulatory Links** — toggle compliance/regulatory section in footer
+`;
+
+// ─────────────────────────────────────────────
+// API KEYS
+// ─────────────────────────────────────────────
+
+const API_KEYS_DOCS = `
+# API Keys
+
+Manage API keys for third-party integrations like the Blender 3D addon.
+
+---
+
+## Accessing API Keys
+
+Go to **Settings → API Keys** in the admin sidebar.
+
+## Creating a Key
+
+1. Click **Generate New Key**
+2. Enter a **label** (e.g. "Blender Addon", "External Script")
+3. The key is displayed **once** — copy it immediately
+4. Click **Done**
+
+## Managing Keys
+
+- **Label** — descriptive name for the key
+- **Last Used** — timestamp of the most recent API call using this key
+- **Delete** — revoke the key permanently
+
+## Security
+
+- Keys are shown in full only once at creation time
+- After creation, only a prefix is visible in the list
+- Deleting a key immediately revokes all access
+- Use separate keys for each integration so you can revoke individually
+`;
+
+// ─────────────────────────────────────────────
+// FEATURES SYSTEM
+// ─────────────────────────────────────────────
+
+const FEATURES_SYSTEM_DOCS = `
+# Features
+
+Toggle optional CMS features on or off for your site.
+
+---
+
+## Accessing Features
+
+Go to **Features → Manage Features** in the admin sidebar.
+
+## Available Features
+
+| Feature | Description | Settings Page |
+|---------|-------------|---------------|
+| **Concrete Calculator** | Volume and cost calculator for concrete orders | Features → Concrete Calculator |
+| **Coverage Maps** | Interactive service area maps with regions | Features → Coverage Maps |
+| **Projects** | Portfolio/case study gallery with categories | Features → Projects |
+
+## How It Works
+
+Each feature is a toggle switch:
+- **Enabled** — the feature's public pages are visible, and its admin settings appear in the sidebar
+- **Disabled** — the feature is completely hidden from the public site and admin sidebar
+
+Feature state is stored in the \`ClientFeature\` database table and can be toggled by SUPER_ADMIN users only.
+
+## Concrete Calculator
+
+When enabled, provides a concrete volume calculator at \`/calculator\`:
+- Configure price per cubic meter
+- Set quote reference prefix and counter
+- Manage materials library
+- Generate PDF quotes
+
+## Coverage Maps
+
+When enabled, provides interactive maps showing service coverage:
+- Create multiple maps with regions
+- Define polygon boundaries for each region
+- Assign colours and labels to regions
+- Embed maps on any page
+
+## Projects Gallery
+
+When enabled, provides a portfolio gallery at \`/projects\`:
+- Create project entries with images and descriptions
+- Categorise projects
+- Toggle featured status
+- Published/draft workflow
+`;
+
+// ─────────────────────────────────────────────
+// NAVBAR LINKS
+// ─────────────────────────────────────────────
+
+const NAVBAR_LINKS_DOCS = `
+# Navbar Links
+
+Configure the navigation link structure for your site's top navigation bar.
+
+---
+
+## Accessing Navbar Links
+
+Go to **Settings → Navbar Links** in the admin sidebar, or use the **Navbar** editor under Content.
+
+## Link Types
+
+| Type | Description |
+|------|-------------|
+| **Page Link** | Links to a CMS page by slug (e.g. \`/about\`) |
+| **Section Anchor** | Scrolls to a section on the homepage (e.g. \`#services\`) |
+| **External URL** | Links to any external website |
+
+## Managing Links
+
+- **Add Link** — create a new navigation link with label and destination
+- **Reorder** — drag and drop to rearrange link order
+- **Edit** — change label, destination, or link type
+- **Delete** — remove a link
+
+## CTA Button
+
+The navbar supports an optional call-to-action button:
+- **Label** — button text (e.g. "Contact Us")
+- **URL** — destination when clicked
+- **Variant** — button style (primary, outline, etc.)
+`;
+
+// ─────────────────────────────────────────────
 // TOPIC TREE
 // ─────────────────────────────────────────────
 
@@ -3634,6 +4564,17 @@ export const DOC_TOPICS: DocTopic[] = [
     ],
   },
   {
+    id: "content-types",
+    label: "Content Types & Blog",
+    icon: "bi-journal-text",
+    children: [
+      { id: "content-types-overview", label: "Content Types", icon: "bi-collection", content: CONTENT_TYPES_DOCS },
+      { id: "section-templates", label: "Section Template Library", icon: "bi-grid-3x3-gap", content: SECTION_TEMPLATES_DOCS },
+      { id: "form-submissions", label: "Form Submissions Inbox", icon: "bi-inbox", content: FORM_SUBMISSIONS_DOCS },
+      { id: "content-scheduling", label: "Scheduling & Version History", icon: "bi-clock-history", content: CONTENT_SCHEDULING_DOCS },
+    ],
+  },
+  {
     id: "pages",
     label: "Pages System",
     icon: "bi-files",
@@ -3656,6 +4597,7 @@ export const DOC_TOPICS: DocTopic[] = [
     icon: "bi-compass",
     children: [
       { id: "nav-overview", label: "Navbar Settings", icon: "bi-layout-text-window-reverse", content: NAVIGATION },
+      { id: "nav-links", label: "Navbar Links", icon: "bi-link-45deg", content: NAVBAR_LINKS_DOCS },
     ],
   },
   {
@@ -3672,10 +4614,18 @@ export const DOC_TOPICS: DocTopic[] = [
     icon: "bi-speedometer2",
     children: [
       { id: "settings", label: "Settings", icon: "bi-gear", content: SETTINGS_PAGE },
+      { id: "site-config", label: "Site Configuration", icon: "bi-building", content: SITE_CONFIG_DOCS },
+      { id: "brand-tokens", label: "Brand Tokens", icon: "bi-palette2", content: BRAND_TOKENS_DOCS },
       { id: "maintenance-mode", label: "Maintenance Mode", icon: "bi-cone-striped", content: MAINTENANCE_MODE_DOCS },
+      { id: "security", label: "Security Hardening", icon: "bi-shield-check", content: SECURITY_HARDENING_DOCS },
       { id: "cms-updates", label: "CMS Update System", icon: "bi-arrow-up-circle", content: CMS_UPDATES_DOCS },
+      { id: "update-channels", label: "Update Channels", icon: "bi-broadcast", content: UPDATE_CHANNELS_DOCS },
+      { id: "api-keys", label: "API Keys", icon: "bi-key", content: API_KEYS_DOCS },
       { id: "media", label: "Media Library", icon: "bi-image", content: MEDIA_LIBRARY },
       { id: "users", label: "Users & Roles", icon: "bi-people", content: USERS },
+      { id: "activity-log", label: "Activity Log", icon: "bi-clock-history", content: ACTIVITY_LOG_DOCS },
+      { id: "redirects", label: "Redirects", icon: "bi-signpost-split", content: REDIRECTS_DOCS },
+      { id: "features-system", label: "Features", icon: "bi-toggles", content: FEATURES_SYSTEM_DOCS },
     ],
   },
   {
@@ -3692,6 +4642,7 @@ export const DOC_TOPICS: DocTopic[] = [
       { id: "volt-boolean", label: "Boolean Operations", icon: "bi-intersect", content: VOLT_BOOLEAN },
       { id: "volt-3d", label: "3D Objects", icon: "bi-box", content: VOLT_3D },
       { id: "volt-animation", label: "Animation", icon: "bi-play-circle", content: VOLT_ANIMATION },
+      { id: "volt-ux", label: "UX & Shortcuts", icon: "bi-keyboard", content: VOLT_UX_DOCS },
     ],
   },
 ];

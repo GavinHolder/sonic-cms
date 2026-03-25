@@ -10,10 +10,12 @@ import {
   restoreAllBanners,
   type CMSSettings,
 } from "@/lib/cms-settings";
+import BrandTokenEditor from "@/components/admin/BrandTokenEditor";
 
 type SettingsCategory =
   | "cms-updates"
   | "site"
+  | "brand"
   | "ui"
   | "editor"
   | "preview"
@@ -30,6 +32,7 @@ const BASE_CATEGORIES: Array<{
   icon: string;
 }> = [
   { id: "site", label: "Site", icon: "bi-globe2" },
+  { id: "brand", label: "Brand", icon: "bi-brush" },
   { id: "ui", label: "UI Preferences", icon: "bi-palette" },
   { id: "editor", label: "Editor", icon: "bi-pencil-square" },
   { id: "preview", label: "Preview", icon: "bi-eye" },
@@ -750,6 +753,20 @@ export default function SettingsPage() {
                   )}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Brand */}
+          {activeCategory === "brand" && (
+            <div>
+              <h5 className="fw-semibold mb-4">
+                <i className="bi bi-brush me-2 text-primary"></i>
+                Brand Identity
+              </h5>
+              <p className="text-muted mb-3" style={{ fontSize: 13 }}>
+                Configure your site&apos;s colours, typography, spacing, and borders. Changes apply globally across all pages, sections, and Volt designs.
+              </p>
+              <BrandTokenEditor />
             </div>
           )}
 

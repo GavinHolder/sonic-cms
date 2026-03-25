@@ -23,8 +23,9 @@ model User {
   mediaAssets  MediaAsset[]
   pages        Page[]
   sections     Section[]
-  volt3DAssets Volt3DAsset[]
-  voltElements VoltElement[]
+  volt3DAssets    Volt3DAsset[]
+  voltElements   VoltElement[]
+  contentEntries ContentEntry[]
 
   @@map("users")
 }
@@ -474,4 +475,118 @@ enum ElementType {
   SPACER
   DIVIDER
   HTML
+}
+
+// ── Content Type Engine ──────────────────────────────────────────────────────
+
+model ContentType {
+  id               String         @id @default(cuid())
+  slug             String         @unique
+  name             String
+  pluralName       String
+  icon             String         @default("bi-collection")
+  description      String?
+  hasPublicListing Boolean        @default(true)
+  hasPublicDetail  Boolean        @default(true)
+  listingLayout    String         @default("grid")
+  detailLayout     String         @default("standard")
+  sortField        String         @default("publishedAt")
+  sortDirection    String         @default("desc")
+  enableComments   Boolean        @default(false)
+  enableTags       Boolean        @default(true)
+  fields           ContentField[]
+  entries          ContentEntry[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@map("content_types")
+}
+
+model ContentField {
+  id            String      @id @default(cuid())
+  contentTypeId String
+  contentType   ContentType @relation(fields: [contentTypeId], references: [id], onDelete: Cascade)
+  name          String
+  slug          String
+  fieldType     String
+  required      Boolean     @default(false)
+  defaultValue  String?
+  options       Json?
+  placeholder   String?
+  helpText      String?
+  sortOrder     Int         @default(0)
+  validation    Json?
+
+  @@unique([contentTypeId, slug])
+  @@map("content_fields")
+}
+
+model ContentEntry {
+  id            String                @id @default(cuid())
+  contentTypeId String
+  contentType   ContentType           @relation(fields: [contentTypeId], references: [id], onDelete: Cascade)
+  slug          String
+  title         String
+  data          Json
+  status        String                @default("draft")
+  publishedAt   DateTime?
+  scheduledAt   DateTime?
+  authorId      String
+  author        User                  @relation(fields: [authorId], references: [id])
+  tags          String[]              @default([])
+  excerpt       String?
+  coverImage    String?
+  versions      ContentEntryVersion[]
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  @@unique([contentTypeId, slug])
+  @@index([contentTypeId, status])
+  @@index([contentTypeId, publishedAt])
+  @@map("content_entries")
+}
+
+model ContentEntryVersion {
+  id          String       @id @default(cuid())
+  entryId     String
+  entry       ContentEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  data        Json
+  title       String
+  createdAt   DateTime     @default(now())
+  createdById String
+
+  @@map("content_entry_versions")
+}
+
+// ── Security & Operations ────────────────────────────────────────────────────
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  username  String?
+  action    String
+  resource  String
+  resourceId String?
+  details   Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([resource])
+  @@map("audit_logs")
+}
+
+model Redirect {
+  id          String   @id @default(cuid())
+  fromPath    String   @unique
+  toPath      String
+  statusCode  Int      @default(301)
+  isActive    Boolean  @default(true)
+  hitCount    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([fromPath])
+  @@map("redirects")
 }

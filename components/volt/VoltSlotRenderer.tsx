@@ -31,7 +31,10 @@ export default function VoltSlotRenderer({ layer, canvasWidth, canvasHeight, slo
     alignItems: 'center',
   }
 
-  const content = slots[layer.id] ?? slots[slotData.slotType] ?? slots[slotData.contentFieldHint]
+  // Use explicit undefined checks — empty string "" is valid content (not a fallback trigger)
+  const content = slots[layer.id] !== undefined ? slots[layer.id]
+    : slots[slotData.slotType] !== undefined ? slots[slotData.slotType]
+    : slots[slotData.contentFieldHint]
 
   if (slotData.slotType === 'image') {
     const imageUrl = content ?? slots.imageUrl

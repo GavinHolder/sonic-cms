@@ -1,6 +1,6 @@
 'use client'
-import { useEffect, useRef } from 'react'
-import type { VoltElementData, VoltSlots, VoltInstanceOverrides } from '@/types/volt'
+import { useEffect, useRef, useState } from 'react'
+import type { VoltElementData, VoltSlots, VoltInstanceOverrides, VoltBreakpoint } from '@/types/volt'
 import { sortLayersByZ } from '@/lib/volt/volt-utils'
 import { personalityToAnimeConfig } from '@/lib/volt/personality-to-anime'
 import VoltSvgLayer from './VoltSvgLayer'
@@ -30,7 +30,40 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
   const autoTimerRef  = useRef<ReturnType<typeof setInterval> | null>(null)
   const isTiltingRef  = useRef(false)
 
-  const { layers, states, canvasWidth, canvasHeight, flipCard } = voltElement
+  const { layers: rawLayers, states, canvasWidth, canvasHeight, flipCard, breakpoints } = voltElement
+  const [activeBreakpoint, setActiveBreakpoint] = useState<VoltBreakpoint | null>(null)
+
+  // ResizeObserver to detect active breakpoint based on container width
+  useEffect(() => {
+    if (!breakpoints || breakpoints.length === 0 || !containerRef.current) return
+    const sorted = [...breakpoints].sort((a, b) => a.maxWidth - b.maxWidth)
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0].contentRect.width
+      const bp = sorted.find(b => width <= b.maxWidth) ?? null
+      setActiveBreakpoint(bp)
+    })
+    observer.observe(containerRef.current)
+    return () => observer.disconnect()
+  }, [breakpoints])
+
+  // Apply breakpoint overrides to layers
+  const layers = rawLayers.map(layer => {
+    if (!activeBreakpoint) return layer
+    const override = activeBreakpoint.layerOverrides[layer.id]
+    if (!override) return layer
+    return {
+      ...layer,
+      ...(override.x !== undefined ? { x: override.x } : {}),
+      ...(override.y !== undefined ? { y: override.y } : {}),
+      ...(override.width !== undefined ? { width: override.width } : {}),
+      ...(override.height !== undefined ? { height: override.height } : {}),
+      ...(override.visible !== undefined ? { visible: override.visible } : {}),
+      ...(override.fontSize !== undefined && layer.textLayerData ? {
+        textLayerData: { ...layer.textLayerData, fontSize: override.fontSize }
+      } : {}),
+    }
+  })
+
   const sortedLayers = sortLayersByZ(layers)
 
   const isFlip         = !!(flipCard?.enabled)
@@ -58,12 +91,38 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
   const tiltMaxDeg     = voltElement.tiltMaxDeg ?? 8
   const tiltPerspective = voltElement.tiltPerspective ?? 800
 
+  // ── Load Google Fonts used by text layers ──────────────────────────────────
+  useEffect(() => {
+    const systemFonts = new Set(['Arial', 'Georgia', 'Times New Roman', 'Helvetica', 'Courier New', 'system-ui', 'inherit'])
+    const fonts = new Set<string>()
+    for (const layer of layers) {
+      if (layer.type === 'text' && layer.textLayerData?.fontFamily) {
+        const family = layer.textLayerData.fontFamily.split(',')[0].trim().replace(/['"]/g, '')
+        if (family && !systemFonts.has(family)) fonts.add(family)
+      }
+    }
+    if (fonts.size === 0) return
+    const families = [...fonts].map(f => `family=${encodeURIComponent(f)}:wght@300;400;500;600;700;800;900`).join('&')
+    const href = `https://fonts.googleapis.com/css2?${families}&display=swap`
+    // Check if link already exists
+    const existing = document.querySelector(`link[href="${href}"]`)
+    if (existing) return
+    const link = document.createElement('link')
+    link.rel = 'stylesheet'
+    link.href = href
+    document.head.appendChild(link)
+  }, [layers])
+
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
 
     // ── Layer state transitions (hover/rest/focus) ─────────────────────────────
     async function transitionToState(targetStateName: string) {
+      // Cancel any in-flight animations before starting new transition
+      activeAnimationsRef.current.forEach(a => a.cancel())
+      activeAnimationsRef.current = []
+
       const { animate } = await import('animejs')
       const targetState = states.find(s => s.name === targetStateName)
       if (!targetState && targetStateName !== 'rest') return
@@ -91,20 +150,42 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
         const { duration, ease, delay } = personalityToAnimeConfig(layer.animation)
         const targets: Record<string, unknown> = {}
 
-        if (animates.opacity)  targets.opacity   = isRest ? (override?.opacity   ?? layer.opacity)     : (override?.opacity   ?? layer.opacity)
-        if (animates.scale)    targets.scale      = isRest ? (override?.scale     ?? 1)                 : (override?.scale     ?? 1)
-        if (animates.position) { targets.translateX = isRest ? (override?.translateX ?? 0) : (override?.translateX ?? 0); targets.translateY = isRest ? (override?.translateY ?? 0) : (override?.translateY ?? 0) }
-        if (animates.rotation) targets.rotate     = isRest ? `${override?.rotation ?? 0}deg`            : `${override?.rotation ?? 0}deg`
+        // REST: animate back to base layer values (ignore overrides)
+        // HOVER: animate to override values (the hover state target)
+        if (animates.opacity)  targets.opacity   = isRest ? layer.opacity       : (override?.opacity   ?? layer.opacity)
+        if (animates.scale)    targets.scale      = isRest ? 1                  : (override?.scale     ?? 1)
+        if (animates.position) {
+          targets.translateX = isRest ? 0 : (override?.translateX ?? 0)
+          targets.translateY = isRest ? 0 : (override?.translateY ?? 0)
+        }
+        if (animates.rotation) targets.rotate     = isRest ? '0deg'             : `${override?.rotation ?? 0}deg`
 
         // Apply fill override directly on the SVG path (no animation — instant colour swap)
         if (layer.type === 'vector' && layer.vectorData) {
           const pathEl = layerEl.querySelector('path')
           if (pathEl) {
-            const overrideFills = isRest ? null : (override?.fills ?? null)
-            const activeFill = (overrideFills && overrideFills.length > 0) ? overrideFills[0] : layer.vectorData.fills?.[0]
-            if (activeFill?.type === 'solid' && activeFill.color) {
-              pathEl.setAttribute('fill', activeFill.color)
-              pathEl.setAttribute('fill-opacity', String(activeFill.opacity ?? 1))
+            if (isRest) {
+              // Restore base fill — could be solid, gradient, or glass
+              const baseFill = layer.vectorData.fills?.[0]
+              if (baseFill) {
+                if (baseFill.type === 'solid' && baseFill.color) {
+                  pathEl.setAttribute('fill', baseFill.color)
+                  pathEl.setAttribute('fill-opacity', String(baseFill.opacity ?? 1))
+                } else if (baseFill.type === 'linear-gradient' || baseFill.type === 'radial-gradient' || baseFill.type === 'angular-gradient') {
+                  // Restore gradient reference — gradient defs use layer id as part of the id
+                  const gradId = `volt-grad-${layer.id}`
+                  pathEl.setAttribute('fill', `url(#${gradId})`)
+                  pathEl.removeAttribute('fill-opacity')
+                }
+              }
+            } else {
+              // Apply hover override fill (if any)
+              const overrideFills = override?.fills ?? null
+              const activeFill = (overrideFills && overrideFills.length > 0) ? overrideFills[0] : null
+              if (activeFill?.type === 'solid' && activeFill.color) {
+                pathEl.setAttribute('fill', activeFill.color)
+                pathEl.setAttribute('fill-opacity', String(activeFill.opacity ?? 1))
+              }
             }
           }
         }
@@ -312,6 +393,162 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
       ;(el as HTMLElement & { _voltEntranceObs?: IntersectionObserver })._voltEntranceObs = entranceObserver
     }
 
+    // ── Exit animations (fire when card leaves viewport) ────────────────────
+    const layersWithExit = layers.filter(l => l.exitAnim && l.exitAnim.type !== 'none')
+    if (layersWithExit.length > 0) {
+      const exitObserver = new IntersectionObserver(
+        async (entries) => {
+          // Fire when element is NO LONGER intersecting (leaving viewport)
+          if (entries[0].isIntersecting) return
+          const { animate } = await import('animejs')
+
+          for (const layer of layersWithExit) {
+            const xa = layer.exitAnim!
+            const layerEl = el.querySelector<HTMLElement>(`#volt-layer-${layer.id}`)
+            if (!layerEl) continue
+            const duration = xa.duration ?? 600
+            const delay = xa.delay ?? 0
+            const ease = xa.ease ?? 'easeInCubic'
+            const dist = xa.distance ?? 40
+            const targets: Record<string, unknown> = {}
+
+            switch (xa.type) {
+              case 'fadeOut':      targets.opacity = 0; break
+              case 'slideOutLeft': targets.translateX = -dist; targets.opacity = 0; break
+              case 'slideOutRight': targets.translateX = dist; targets.opacity = 0; break
+              case 'slideOutUp':   targets.translateY = -dist; targets.opacity = 0; break
+              case 'slideOutDown': targets.translateY = dist; targets.opacity = 0; break
+              case 'scaleOut':     targets.scale = 0.7; targets.opacity = 0; break
+              case 'rotateOut':    targets.rotate = '15deg'; targets.scale = 0.8; targets.opacity = 0; break
+            }
+            if (Object.keys(targets).length > 0) {
+              animate(layerEl, { ...targets, duration, delay, ease })
+            }
+          }
+        },
+        { threshold: 0 }
+      )
+      // Only start observing after a delay (so entrance plays first)
+      setTimeout(() => exitObserver.observe(el), 1000)
+      ;(el as HTMLElement & { _voltExitObs?: IntersectionObserver })._voltExitObs = exitObserver
+    }
+
+    // ── Scroll-triggered state transitions ──────────────────────────────────
+    const scrollStates = states.filter(s =>
+      s.trigger === 'scroll-25' || s.trigger === 'scroll-50' || s.trigger === 'scroll-75' || s.trigger === 'scroll-100'
+    )
+    if (scrollStates.length > 0) {
+      // Map trigger names to threshold values
+      const triggerThresholds: Record<string, number> = {
+        'scroll-25': 0.25, 'scroll-50': 0.5, 'scroll-75': 0.75, 'scroll-100': 1.0,
+      }
+      const thresholds = scrollStates.map(s => triggerThresholds[s.trigger] ?? 0.5)
+      let lastTriggered = ''
+
+      const scrollObserver = new IntersectionObserver(
+        (entries) => {
+          const entry = entries[0]
+          if (!entry.isIntersecting) {
+            if (lastTriggered) { transitionToState('rest'); lastTriggered = '' }
+            return
+          }
+          // Find the highest threshold that's been crossed
+          const ratio = entry.intersectionRatio
+          let bestState = ''
+          let bestThreshold = 0
+          for (const ss of scrollStates) {
+            const t = triggerThresholds[ss.trigger] ?? 0.5
+            if (ratio >= t && t >= bestThreshold) { bestState = ss.name; bestThreshold = t }
+          }
+          if (bestState && bestState !== lastTriggered) {
+            transitionToState(bestState)
+            lastTriggered = bestState
+          }
+        },
+        { threshold: [0, ...thresholds] }
+      )
+      scrollObserver.observe(el)
+      ;(el as HTMLElement & { _voltScrollObs?: IntersectionObserver })._voltScrollObs = scrollObserver
+    }
+
+    // ── Timeline keyframe animations ──────────────────────────────────────────
+    const layersWithTimeline = layers.filter(l => l.timeline && l.timeline.keyframes.length >= 2)
+    if (layersWithTimeline.length > 0) {
+      const playTimelines = async () => {
+        const { animate } = await import('animejs')
+        for (const layer of layersWithTimeline) {
+          const tl = layer.timeline!
+          const layerEl = el.querySelector<HTMLElement>(`#volt-layer-${layer.id}`)
+          if (!layerEl) continue
+
+          const sortedKf = [...tl.keyframes].sort((a, b) => a.time - b.time)
+
+          // Animate through each keyframe segment sequentially
+          for (let i = 0; i < sortedKf.length - 1; i++) {
+            const from = sortedKf[i]
+            const to = sortedKf[i + 1]
+            const segDuration = to.time - from.time
+            if (segDuration <= 0) continue
+
+            const targets: Record<string, unknown> = {}
+            if (to.props.opacity !== undefined) targets.opacity = to.props.opacity
+            if (to.props.translateX !== undefined) targets.translateX = to.props.translateX
+            if (to.props.translateY !== undefined) targets.translateY = to.props.translateY
+            if (to.props.scaleX !== undefined || to.props.scaleY !== undefined) {
+              const sx = to.props.scaleX ?? 1
+              const sy = to.props.scaleY ?? 1
+              targets.scale = sx === sy ? sx : sx // uniform scale for now
+            }
+            if (to.props.rotate !== undefined) targets.rotate = `${to.props.rotate}deg`
+
+            if (Object.keys(targets).length === 0) continue
+
+            // Set initial state from first keyframe
+            if (i === 0) {
+              if (from.props.opacity !== undefined) layerEl.style.opacity = String(from.props.opacity)
+              if (from.props.translateX !== undefined || from.props.translateY !== undefined) {
+                layerEl.style.transform = `translate(${from.props.translateX ?? 0}px, ${from.props.translateY ?? 0}px) scale(${from.props.scaleX ?? 1}) rotate(${from.props.rotate ?? 0}deg)`
+              }
+            }
+
+            const anim = animate(layerEl, {
+              ...targets,
+              duration: segDuration,
+              ease: to.ease ?? 'easeInOutQuad',
+              delay: i === 0 ? from.time : 0,
+            }) as AnimeAnimation
+            activeAnimationsRef.current.push(anim)
+          }
+
+          // Loop: replay from start after last keyframe
+          if (tl.loop) {
+            const totalDuration = sortedKf[sortedKf.length - 1].time
+            const loopTimer = setInterval(() => {
+              // Re-run all keyframe animations
+              playTimelines()
+            }, totalDuration + 100) // small gap between loops
+            // Store for cleanup
+            const origCleanup = autoTimerRef.current
+            autoTimerRef.current = loopTimer
+            if (origCleanup) clearInterval(origCleanup)
+          }
+        }
+      }
+
+      if (layersWithTimeline.some(l => l.timeline!.autoplay !== false)) {
+        // Use IntersectionObserver to trigger on viewport entry
+        const timelineObserver = new IntersectionObserver(
+          (entries) => {
+            if (!entries[0].isIntersecting) return
+            timelineObserver.disconnect()
+            playTimelines()
+          },
+          { threshold: 0.1 }
+        )
+        timelineObserver.observe(el)
+      }
+    }
+
     // ── 3D Tilt + parallax depth ─────────────────────────────────────────────
     // Only active on non-flip cards (flip cards already have 3D perspective from the flip itself)
     let tiltRafId = 0
@@ -399,6 +636,12 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
       // Disconnect entrance observer if component unmounts before it fires
       const obs = (el as HTMLElement & { _voltEntranceObs?: IntersectionObserver })._voltEntranceObs
       if (obs) obs.disconnect()
+      // Disconnect scroll observer
+      const sobs = (el as HTMLElement & { _voltScrollObs?: IntersectionObserver })._voltScrollObs
+      if (sobs) sobs.disconnect()
+      // Disconnect exit observer
+      const xobs = (el as HTMLElement & { _voltExitObs?: IntersectionObserver })._voltExitObs
+      if (xobs) xobs.disconnect()
     }
   }, [voltElement, isFlip, flipAnimType, flipTrigger, flipAxis, flipDuration, flipEase, flipDirection, flipPerspective, flipAutoInterval, tiltEnabled, tiltMaxDeg, tiltPerspective, layers, states])
 
@@ -444,6 +687,15 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
    * Converts a VoltLayerEffects object into CSS box-shadow + filter strings.
    * Returns an object with `boxShadow` and `filter` ready to spread into a style prop.
    */
+  /** Build clip-path CSS from a mask layer's SVG path data (percentage coords). */
+  function getClipPath(layer: typeof sortedLayers[0]): string | undefined {
+    if (!layer.clipMaskLayerId) return undefined
+    const maskLayer = layers.find(l => l.id === layer.clipMaskLayerId)
+    if (!maskLayer || maskLayer.type !== 'vector' || !maskLayer.vectorData?.pathData) return undefined
+    // SVG path data is in 0-100% coordinate space — use it directly as CSS clip-path
+    return `path('${maskLayer.vectorData.pathData}')`
+  }
+
   function layerEffectStyles(layer: typeof sortedLayers[0]): React.CSSProperties {
     const fx = layer.effects
     if (!fx) return {}
@@ -489,9 +741,11 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
       .map(layer => {
         const td = layer.textLayerData!
         // fontSize scaled by cqw: stored as px at canvasWidth → renders proportionally
-        const fontSizeCqw = `${(td.fontSize / canvasWidth) * 100}cqw`
+        const safeCanvasWidth = Math.max(canvasWidth, 1)
+        const safeFontSize = Math.max(td.fontSize ?? 16, 6)
+        const fontSizeCqw = `${Math.min((safeFontSize / safeCanvasWidth) * 100, 50)}cqw`
         const letterSpacingCqw = td.letterSpacing
-          ? `${(td.letterSpacing / canvasWidth) * 100}cqw`
+          ? `${(td.letterSpacing / safeCanvasWidth) * 100}cqw`
           : undefined
         const alignItems =
           td.verticalAlign === 'center' ? 'center' :
@@ -566,6 +820,7 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
               transform: baseRot || undefined,
               overflow: 'hidden',
               willChange: z !== 0 ? 'transform' : undefined,
+              clipPath: getClipPath(layer),
               ...layerEffectStyles(layer),
             }}
           >

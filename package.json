@@ -13,6 +13,7 @@
     "db:seed-readymix": "npx tsx prisma/seed-readymix.ts",
     "db:seed-readymix-v2": "npx tsx prisma/seed-readymix-v2.ts",
     "db:seed-v6": "npx tsx prisma/seed-v6.ts",
+    "db:seed-content-types": "npx tsx prisma/seed-content-types.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
