@@ -1,10 +1,10 @@
 {
-  "version": "1.12.9",
+  "version": "1.16.1",
   "date": "2026-03-25",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "uniform height for maintenance template preview cards"
+      "always show Manage Types link in Content submenu regardless of content type count"
     ],
     "breaking": []
   }

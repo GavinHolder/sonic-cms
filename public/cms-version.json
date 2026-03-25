@@ -1,11 +1,11 @@
 {
-  "version": "1.16.0",
+  "version": "1.16.1",
   "date": "2026-03-25",
   "changelog": {
-    "features": [
-      "uniform browse + upload buttons on ALL image fields app-wide"
+    "features": [],
+    "bugfixes": [
+      "always show Manage Types link in Content submenu regardless of content type count"
     ],
-    "bugfixes": [],
     "breaking": []
   }
 }
