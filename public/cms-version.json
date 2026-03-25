@@ -1,11 +1,11 @@
 {
-  "version": "1.17.1",
+  "version": "1.18.0",
   "date": "2026-03-25",
   "changelog": {
-    "features": [],
-    "bugfixes": [
-      "accept 204 from Portainer webhook (OVB returns 204 not 200)"
+    "features": [
+      "canonical client deploy workflow template — ONE standard for all clients"
     ],
+    "bugfixes": [],
     "breaking": []
   }
 }
