@@ -1,10 +1,10 @@
 {
-  "version": "1.8.2",
-  "date": "2026-03-23",
+  "version": "1.8.3",
+  "date": "2026-03-25",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "remove lib/auth import from seed, use pre-computed hash for production container compat"
+      "correct bcrypt hash for support user, auto-seed on every boot via entrypoint"
     ],
     "breaking": []
   }
