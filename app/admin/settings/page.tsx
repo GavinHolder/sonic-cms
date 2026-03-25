@@ -47,7 +47,18 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<CMSSettings | null>(null);
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [activeCategory, setActiveCategory] = useState<SettingsCategory>("site");
+  const [activeCategory, setActiveCategoryState] = useState<SettingsCategory>(() => {
+    if (typeof window !== "undefined") {
+      const hash = window.location.hash.replace("#", "");
+      const valid = ["site", "brand", "ui", "editor", "preview", "scroll", "data", "email", "calculator", "about", "cms-updates", "features"];
+      if (valid.includes(hash)) return hash as SettingsCategory;
+    }
+    return "site";
+  });
+  const setActiveCategory = (cat: SettingsCategory) => {
+    setActiveCategoryState(cat);
+    window.location.hash = cat;
+  };
   const [userRole, setUserRole] = useState<string | null>(null);
   const [userRoleLoaded, setUserRoleLoaded] = useState(false);
 
