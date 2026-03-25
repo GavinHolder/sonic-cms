@@ -594,7 +594,7 @@ export default function SettingsPage() {
                         disabled={maintenanceSaving}
                       >
                         {/* Mini preview */}
-                        <div style={{ background: "#0d1117", padding: "16px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                        <div style={{ background: "#0d1117", padding: "16px 12px", height: 80, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
                           <div style={{ width: 28, height: 28, borderRadius: "50%", border: "2px solid #4d9fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
                             <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#4d9fff" }} />
                           </div>
@@ -619,7 +619,7 @@ export default function SettingsPage() {
                         disabled={maintenanceSaving}
                       >
                         {/* Mini preview */}
-                        <div style={{ background: "#0f0f0f", padding: "10px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                        <div style={{ background: "#0f0f0f", padding: "10px 12px", height: 80, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4 }}>
                           <div style={{ width: "100%", height: 6, background: "repeating-linear-gradient(-45deg,#78BE20 0,#78BE20 5px,#111 5px,#111 10px)", borderRadius: 2 }} />
                           <div style={{ display: "flex", gap: 8, alignItems: "flex-end", margin: "4px 0" }}>
                             <div style={{ width: 22, height: 16, background: "#f59e0b", borderRadius: "3px 2px 0 0" }} />
@@ -644,7 +644,7 @@ export default function SettingsPage() {
                         disabled={maintenanceSaving}
                       >
                         {/* Mini preview */}
-                        <div style={{ background: maintenanceCustomImage ? `url(${maintenanceCustomImage}) center/cover` : "#1a1a1a", padding: "16px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
+                        <div style={{ background: maintenanceCustomImage ? `url(${maintenanceCustomImage}) center/cover` : "#1a1a1a", padding: "16px 12px", height: 80, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 5 }}>
                           <div style={{ background: "rgba(0,0,0,0.55)", padding: "4px 8px", borderRadius: 4, display: "flex", alignItems: "center", gap: 4 }}>
                             <i className="bi bi-image" style={{ color: "#fff", fontSize: "0.7rem" }} />
                             <div style={{ width: 30, height: 4, background: "#fff", borderRadius: 2, opacity: 0.7 }} />
