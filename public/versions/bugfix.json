@@ -1,10 +1,10 @@
 {
-  "version": "1.12.6",
+  "version": "1.12.7",
   "date": "2026-03-25",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "skip redundant Build & Deploy on version bump commits"
+      "handle modify/delete merge conflicts in client deploy template"
     ],
     "breaking": []
   }
