@@ -202,11 +202,16 @@ export default function UpdateModal({ show, info, onClose }: Props) {
                   {changelog ? (
                     <div className="vstack gap-3">
                       {changelog.breaking.length > 0 && (
-                        <div>
-                          <h6 className="text-danger fw-semibold mb-2">
-                            <i className="bi bi-exclamation-octagon me-1" />Breaking Changes
+                        <div className="alert alert-danger mb-0">
+                          <h6 className="fw-bold mb-2 d-flex align-items-center gap-2">
+                            <i className="bi bi-exclamation-octagon-fill" />
+                            {changelog.breaking.length} Breaking Change{changelog.breaking.length > 1 ? "s" : ""}
                           </h6>
-                          <ul className="mb-0 ps-3">
+                          <p className="mb-2 small">
+                            This update includes changes that may affect custom development.
+                            Review carefully before updating — especially if you have customised components or database schema.
+                          </p>
+                          <ul className="mb-0 ps-3 small">
                             {changelog.breaking.map((item, i) => <li key={i}>{item}</li>)}
                           </ul>
                         </div>

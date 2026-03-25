@@ -5,6 +5,7 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import type { SeoConfig } from "@/lib/seo-config";
 import { defaultSeoConfig } from "@/lib/seo-config";
 import SeoWizardModal from "@/components/admin/SeoWizardModal";
+import MediaPickerModal from "@/components/admin/MediaPickerModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -35,6 +36,7 @@ export default function SeoSettingsPage() {
   const [alert, setAlert] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [audit, setAudit] = useState<AuditResult | null>(null);
   const [showWizard, setShowWizard] = useState(false);
+  const [showMediaPicker, setShowMediaPicker] = useState(false);
   const [readiness, setReadiness] = useState<{ checks: Array<{ id: string; label: string; pass: boolean; hint?: string; link?: string }>; passCount: number; totalCount: number; canonicalBase: string } | null>(null);
   const [readinessOpen, setReadinessOpen] = useState(false);
   const [readinessLoading, setReadinessLoading] = useState(false);
@@ -393,13 +395,23 @@ export default function SeoSettingsPage() {
               <div className="card-body p-4">
                 <div className="mb-4">
                   <label className="form-label fw-semibold">Default OG Image URL</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={config.social.ogImage}
-                    onChange={(e) => setSocial("ogImage", e.target.value)}
-                    placeholder="/images/og-default.jpg"
-                  />
+                  <div className="d-flex gap-2">
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={config.social.ogImage}
+                      onChange={(e) => setSocial("ogImage", e.target.value)}
+                      placeholder="/images/og-default.jpg"
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-outline-secondary flex-shrink-0"
+                      onClick={() => setShowMediaPicker(true)}
+                      title="Browse Media Library"
+                    >
+                      <i className="bi bi-image" />
+                    </button>
+                  </div>
                   <div className="form-text">Used when a page has no custom OG image. Recommended: 1200×630px JPG/PNG. Use an absolute URL for best social sharing compatibility.</div>
                 </div>
 
@@ -872,6 +884,15 @@ export default function SeoSettingsPage() {
         show={showWizard}
         onClose={() => setShowWizard(false)}
         onApply={handleWizardApply}
+      />
+      <MediaPickerModal
+        isOpen={showMediaPicker}
+        onClose={() => setShowMediaPicker(false)}
+        filterType="image"
+        onSelect={(url) => {
+          setSocial("ogImage", url);
+          setShowMediaPicker(false);
+        }}
       />
     </AdminLayout>
   );

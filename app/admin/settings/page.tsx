@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import UpdateModal from "@/components/admin/UpdateModal";
 import { useHelpText } from "@/hooks/useHelpText";
+import MediaPickerModal from "@/components/admin/MediaPickerModal";
 import {
   getCMSSettings,
   saveCMSSettings,
@@ -96,6 +97,7 @@ export default function SettingsPage() {
 
   // CMS Update modal
   const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [showMediaPicker, setShowMediaPicker] = useState<string | null>(null); // tracks which field opened the picker
   const [updateModalInfo, setUpdateModalInfo] = useState<Parameters<typeof UpdateModal>[0]["info"]>(null);
 
   // CMS Update config (GitHub settings)
@@ -720,6 +722,14 @@ export default function SettingsPage() {
                           onChange={(e) => setMaintenanceCustomImage(e.target.value)}
                         />
                         <button
+                          type="button"
+                          className="btn btn-sm btn-outline-secondary flex-shrink-0"
+                          onClick={() => setShowMediaPicker("maintenance")}
+                          title="Browse Media Library"
+                        >
+                          <i className="bi bi-image" />
+                        </button>
+                        <button
                           className="btn btn-sm btn-primary flex-shrink-0"
                           onClick={() => handleSaveMaintenanceTemplate("custom", { customImage: maintenanceCustomImage })}
                           disabled={maintenanceSaving}
@@ -727,7 +737,7 @@ export default function SettingsPage() {
                           Save
                         </button>
                       </div>
-                      <div className="form-text">Paste any uploaded image URL from the Media Library.</div>
+                      {showHelp && <HelpTip>Browse the Media Library or paste a URL. Recommended: 1920×1080 or larger.</HelpTip>}
                     </div>
                   )}
                 </div>
@@ -1542,6 +1552,18 @@ export default function SettingsPage() {
         show={showUpdateModal}
         info={updateModalInfo}
         onClose={() => setShowUpdateModal(false)}
+      />
+      {/* Media Picker — shared by all image URL fields on this page */}
+      <MediaPickerModal
+        isOpen={showMediaPicker !== null}
+        onClose={() => setShowMediaPicker(null)}
+        filterType="image"
+        onSelect={(url) => {
+          if (showMediaPicker === "maintenance") {
+            setMaintenanceCustomImage(url);
+          }
+          setShowMediaPicker(null);
+        }}
       />
     </AdminLayout>
   );
