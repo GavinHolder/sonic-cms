@@ -87,10 +87,10 @@ const menuItems: MenuItem[] = [
     href: "/admin/users",
   },
   {
-    id: "features",
-    label: "Features",
-    icon: "bi-toggles",
-    href: "/admin/features",
+    id: "plugins",
+    label: "Plugins",
+    icon: "bi-puzzle",
+    href: "/admin/plugins",
     subItems: [], // populated dynamically from enabledFeatures state
   },
   {
@@ -311,7 +311,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       <ul className="nav nav-pills flex-column p-2">
         {resolvedMenuItems.map((item) => {
           // Dynamically inject enabled feature sub-items
-          const effectiveItem = item.id === "features"
+          const effectiveItem = item.id === "plugins"
             ? {
                 ...item,
                 subItems: [

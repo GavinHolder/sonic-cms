@@ -92,7 +92,18 @@ function stripPrefix(m) {
 
 const features = commits.filter(isFeat).map(stripPrefix);
 const bugfixes = commits.filter(isFix).map(stripPrefix);
-const breaking = commits.filter(isBreaking).map(stripPrefix);
+const breaking = commits.filter(isBreaking).map((m) => {
+  // Parse optional [affects:plugin-slug] or [affects:plugin-a,plugin-b] tag
+  const affectsMatch = m.match(/\[affects:([^\]]+)\]/);
+  const affects = affectsMatch ? affectsMatch[1].split(",").map((s) => s.trim()) : ["core"];
+  const severity = m.startsWith("feat!:") ? "high" : "medium";
+  return {
+    message: stripPrefix(m.replace(/\[affects:[^\]]+\]/, "").trim()),
+    affects,
+    severity,
+    migration: "",
+  };
+});
 
 // -- Write updated file ----------------------------------------------------
 

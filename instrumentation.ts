@@ -108,4 +108,12 @@ export async function register() {
   // Delay first tick by 5s to let Prisma/DB connections establish
   setTimeout(tick, 5_000);
   setInterval(tick, 60_000);
+
+  // Seed plugin registry (idempotent — safe on every startup)
+  try {
+    const { seedBuiltinPlugins } = await import("@/lib/plugins/registry");
+    await seedBuiltinPlugins();
+  } catch (e) {
+    console.error("[Plugins] Failed to seed plugin registry:", e);
+  }
 }

@@ -2,17 +2,27 @@
 
 import { useEffect, useRef, useState } from "react";
 
+interface BreakingChangeObj {
+  description: string;
+  severity?: "low" | "medium" | "high" | "critical";
+  affects?: string[];
+  migrationSteps?: string[];
+}
+
+type BreakingChangeItem = string | BreakingChangeObj;
+
 interface UpdateInfo {
   localVersion: string;
   upstreamVersion: string | null;
   upstreamDate?: string;
   updateAvailable: boolean;
-  changelog: { features: string[]; bugfixes: string[]; breaking: string[] } | null;
+  changelog: { features: string[]; bugfixes: string[]; breaking: BreakingChangeItem[] } | null;
   updateStatus: "idle" | "in_progress" | "scheduled" | "failed" | "completed";
   scheduledTime: string | null;
   lastError: string | null;
   largeJump?: boolean;
   versionGap?: { major: number; minor: number; patch: number };
+  hasCustomFiles?: boolean;
 }
 
 interface StatusResult {
@@ -215,8 +225,44 @@ export default function UpdateModal({ show, info, onClose }: Props) {
                             Review carefully before updating — especially if you have customised components or database schema.
                           </p>
                           <ul className="mb-0 ps-3 small">
-                            {changelog.breaking.map((item, i) => <li key={i}>{item}</li>)}
+                            {changelog.breaking.map((item, i) => {
+                              if (typeof item === "string") return <li key={i}>{item}</li>;
+                              const sevColors: Record<string, string> = { low: "#0d6efd", medium: "#ffc107", high: "#fd7e14", critical: "#dc3545" };
+                              return (
+                                <li key={i} className="mb-2">
+                                  <div className="d-flex align-items-center gap-2 flex-wrap">
+                                    <span>{item.description}</span>
+                                    {item.severity && (
+                                      <span className="badge" style={{ backgroundColor: sevColors[item.severity] ?? "#6c757d", fontSize: "0.7rem" }}>
+                                        {item.severity}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {item.affects && item.affects.length > 0 && (
+                                    <div className="mt-1 d-flex flex-wrap gap-1">
+                                      {item.affects.map((plugin) => (
+                                        <span key={plugin} className="badge bg-secondary" style={{ fontSize: "0.65rem" }}>
+                                          <i className="bi bi-puzzle me-1" />{plugin}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {item.migrationSteps && item.migrationSteps.length > 0 && (
+                                    <ol className="mt-1 mb-0 ps-3" style={{ fontSize: "0.75rem" }}>
+                                      {item.migrationSteps.map((step, si) => <li key={si}>{step}</li>)}
+                                    </ol>
+                                  )}
+                                </li>
+                              );
+                            })}
                           </ul>
+                        </div>
+                      )}
+                      {info.hasCustomFiles && (
+                        <div className="alert alert-warning mb-0 small">
+                          <i className="bi bi-code-slash me-1" />
+                          <strong>Custom Development Warning:</strong>{" "}
+                          You have custom development files that should be reviewed manually after updating.
                         </div>
                       )}
                       {changelog.features.length > 0 && (
