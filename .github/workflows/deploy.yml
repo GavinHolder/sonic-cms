@@ -9,7 +9,8 @@
 # from upstream white-label-cms before building.
 #
 # Secrets required:
-#   PORTAINER_WEBHOOK_URL — Full Portainer stack webhook URL
+#   PORTAINER_WEBHOOK_URL — Portainer stack GitOps webhook URL (stack → edit → GitOps updates → Webhook)
+#   UPSTREAM_REPO_URL     — (optional) upstream CMS repo, defaults to white-label-cms
 # =============================================================================
 
 name: Build & Deploy
@@ -56,8 +57,14 @@ jobs:
 
       - name: Add upstream remote and merge
         run: |
+          UPSTREAM="${{ secrets.UPSTREAM_REPO_URL }}"
+          if [ -z "$UPSTREAM" ]; then
+            echo "UPSTREAM_REPO_URL secret not set — using default"
+            UPSTREAM="https://github.com/GavinHolder/white-label-cms.git"
+          fi
+
           git config merge.ours.driver true
-          git remote add upstream https://github.com/GavinHolder/white-label-cms.git
+          git remote add upstream "$UPSTREAM"
           git fetch upstream main
 
           # Merge upstream. -X ours resolves text conflicts in our favour.
