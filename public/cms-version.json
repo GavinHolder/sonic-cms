@@ -1,10 +1,32 @@
 {
-  "version": "1.8.2",
-  "date": "2026-03-23",
+  "version": "1.9.0",
+  "date": "2026-03-25",
   "changelog": {
-    "features": [],
+    "features": [
+      "global update pipeline, SEO go-live checklist, seed cleanup",
+      "security hardening — rate limiting, audit logs, redirects, code injection",
+      "content scheduling cron + version history UI",
+      "section template library — 14 pre-built designs + gallery modal",
+      "form submissions inbox — dedicated admin page with detail panel",
+      "blog + team content types seeded, RSS feed route",
+      "responsive breakpoints — mobile/tablet/desktop in Volt",
+      "component/symbol system — save and reuse design elements",
+      "scroll-triggered states + exit animations",
+      "clip mask + TS fixes for content types and metadata",
+      "Unsplash photo search in Volt designer image picker",
+      "animation timeline — keyframe editor + Anime.js renderer",
+      "Volt designer UX polish — copy/paste, nudge, distribute, zoom",
+      "expanded Google Fonts + brand colour swatches in Volt designer",
+      "test infrastructure — brand token + content type tests, CI integration",
+      "public content type routes — listing and detail pages",
+      "content type admin UI — type manager, entry list, entry editor, sidebar",
+      "content type engine — Prisma models, lib, and API routes",
+      "brand token admin UI — Brand tab in Settings with full editor",
+      "brand token system — CSS custom properties + Google Fonts injection"
+    ],
     "bugfixes": [
-      "remember me now controls cookie persistence"
+      "delay instrumentation tick by 5s to avoid Prisma startup race condition",
+      "critical Volt rendering bugs — hover animation, fill types, state transitions"
     ],
     "breaking": []
   }
