@@ -1,19 +1,27 @@
 # =============================================================================
-# Sonic CMS — Build & Deploy
+# CLIENT CMS — Build & Deploy (STANDARD TEMPLATE)
 # =============================================================================
-# Triggers:
-#   - push to main (standard deploy)
-#   - workflow_dispatch (manual or triggered by CMS Update system)
 #
-# When triggered by workflow_dispatch with merge_upstream=true, merges latest
-# from upstream white-label-cms before building.
+# This is the CANONICAL deploy workflow for ALL client CMS instances.
+# Copy this file to: .github/workflows/deploy.yml in the client repo.
 #
-# Secrets required:
-#   PORTAINER_URL         — e.g. https://portainer.sonic.co.za
-#   PORTAINER_PASSWORD    — Portainer admin password
-#   PORTAINER_STACK_ID    — Stack ID from Portainer URL (e.g. 6)
-#   PORTAINER_ENDPOINT_ID — Endpoint ID from Portainer URL (e.g. 3)
-#   UPSTREAM_REPO_URL     — (optional) upstream CMS repo, defaults to white-label-cms
+# ┌─────────────────────────────────────────────────────────────────────┐
+# │  SETUP: Add these 4 secrets to the client GitHub repo:             │
+# │                                                                     │
+# │  PORTAINER_URL         https://portainer.example.com  (no slash)   │
+# │  PORTAINER_PASSWORD    Portainer admin password                     │
+# │  PORTAINER_STACK_ID    From Portainer URL: #!/3/stacks/name?id=X   │
+# │  PORTAINER_ENDPOINT_ID From Portainer URL: #!/X/docker/...         │
+# │                                                                     │
+# │  ALSO: Update IMAGE env var below to match the client repo name.   │
+# └─────────────────────────────────────────────────────────────────────┘
+#
+# Flow:
+#   push to main → test → build Docker image → push to GHCR → Portainer redeploys
+#
+# Manual trigger with merge_upstream=true:
+#   → merges latest white-label-cms → then builds → deploys
+#
 # =============================================================================
 
 name: Build & Deploy
@@ -21,6 +29,9 @@ name: Build & Deploy
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'public/cms-version.json'
+      - 'public/versions/**'
   workflow_dispatch:
     inputs:
       merge_upstream:
@@ -30,6 +41,11 @@ on:
         type: choice
         options: ["true", "false"]
 
+# ┌──────────────────────────────────────────────────────┐
+# │  CHANGE THIS to match your client repo name:         │
+# │  e.g. ghcr.io/gavinholder/sonic-cms                  │
+# │  e.g. ghcr.io/gavinholder/ovbreadymix-cms            │
+# └──────────────────────────────────────────────────────┘
 env:
   IMAGE: ghcr.io/gavinholder/sonic-cms
 
@@ -38,13 +54,11 @@ permissions:
   packages: write
 
 jobs:
-  # ── Job 0: (Optional) Merge from upstream CMS ─────────────────────────────
+  # ── Job 0: Merge upstream CMS updates (only on manual trigger) ───────────
   upstream-merge:
-    name: Merge Upstream CMS Updates
+    name: Merge Upstream
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.merge_upstream == 'true'
-    permissions:
-      contents: write
 
     steps:
       - name: Checkout
@@ -58,55 +72,59 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Add upstream remote and merge
+      - name: Enable merge=ours driver
+        run: git config merge.ours.driver true
+
+      - name: Add upstream and merge
         run: |
-          UPSTREAM="${{ secrets.UPSTREAM_REPO_URL }}"
-          if [ -z "$UPSTREAM" ]; then
-            echo "UPSTREAM_REPO_URL secret not set — using default"
-            UPSTREAM="https://github.com/GavinHolder/white-label-cms.git"
-          fi
-
-          git config merge.ours.driver true
-          git remote add upstream "$UPSTREAM"
+          UPSTREAM="${{ secrets.UPSTREAM_REPO_URL || 'https://github.com/GavinHolder/white-label-cms.git' }}"
+          git remote add upstream "$UPSTREAM" || git remote set-url upstream "$UPSTREAM"
           git fetch upstream main
-
-          # Merge upstream. -X ours resolves text conflicts in our favour.
-          # modify/delete conflicts need explicit resolution.
-          if ! git merge upstream/main --no-edit --allow-unrelated-histories \
-            -X ours \
-            -m "chore: merge upstream CMS updates"; then
-            echo "Merge had conflicts — resolving..."
-            git diff --name-only --diff-filter=U | while read -r f; do
-              echo "  Resolving: $f (accepting ours / deleting)"
-              git rm -f "$f" 2>/dev/null || { git checkout --ours "$f" && git add "$f"; }
-            done
-            git commit --no-edit -m "chore: merge upstream CMS (conflicts resolved)"
-          fi
-
-          # Remove upstream-only workflows — client keeps ONLY deploy.yml
-          KEEP="deploy.yml"
-          for f in .github/workflows/*.yml .github/workflows/*.yaml .github/workflows/*.template; do
-            [ -f "$f" ] || continue
-            basename=$(basename "$f")
-            if [ "$basename" != "$KEEP" ]; then
-              git rm -f "$f" 2>/dev/null && echo "Removed upstream workflow: $f" || true
-            fi
-          done
-          if ! git diff --staged --quiet; then
-            git commit -m "chore: remove upstream workflow files from client repo [skip ci]"
-          fi
-
+          echo "Merging upstream/main into local main..."
+          git merge upstream/main --no-edit --allow-unrelated-histories || {
+            echo "Merge conflict detected — auto-resolving with ours strategy for protected files"
+            git checkout --ours .
+            git add .
+            git commit --no-edit || true
+          }
           git push origin main
 
-  # ── Job 1: Build and push Docker image ─────────────────────────────────────
-  build:
-    name: Build & Push Image
+  # ── Job 1: Run tests ────────────────────────────────────────────────────
+  test:
+    name: Test
     runs-on: ubuntu-latest
     needs: [upstream-merge]
     if: always() && (needs.upstream-merge.result == 'success' || needs.upstream-merge.result == 'skipped')
-    permissions:
-      contents: read
-      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Run tests
+        run: npm test
+        env:
+          JWT_SECRET: test-secret-key-for-ci-pipeline-at-least-32-chars
+          JWT_REFRESH_SECRET: test-refresh-secret-key-for-ci-at-least-32-chars
+
+  # ── Job 2: Build and push Docker image to GHCR ──────────────────────────
+  build:
+    name: Build & Push Image
+    runs-on: ubuntu-latest
+    needs: [test]
 
     steps:
       - name: Checkout
@@ -117,7 +135,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GitHub Container Registry
+      - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -133,35 +151,57 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # ── Job 2: Trigger Portainer stack redeploy ──────────────────────────────────
+  # ── Job 3: Redeploy via Portainer API ────────────────────────────────────
   deploy:
     name: Deploy via Portainer
     runs-on: ubuntu-latest
-    needs: build
-    if: always() && needs.build.result == 'success'
+    needs: [build]
 
     steps:
-      - name: Redeploy stack via Portainer API
+      - name: Redeploy stack
         run: |
+          # Skip if secrets not configured
           if [ -z "${{ secrets.PORTAINER_URL }}" ] || [ -z "${{ secrets.PORTAINER_PASSWORD }}" ]; then
-            echo "PORTAINER_URL or PORTAINER_PASSWORD secret not set — skipping redeploy"
+            echo "⚠️ PORTAINER_URL or PORTAINER_PASSWORD not set — skipping deploy"
+            echo "Set these 4 secrets: PORTAINER_URL, PORTAINER_PASSWORD, PORTAINER_STACK_ID, PORTAINER_ENDPOINT_ID"
             exit 0
           fi
 
+          # Authenticate with Portainer
+          echo "🔑 Authenticating with Portainer..."
           JWT=$(curl -s -X POST "${{ secrets.PORTAINER_URL }}/api/auth" \
             -H "Content-Type: application/json" \
             -d '{"username":"admin","password":"${{ secrets.PORTAINER_PASSWORD }}"}' \
-            | python3 -c "import sys,json; print(json.load(sys.stdin)['jwt'])")
+            | jq -r '.jwt')
 
+          if [ -z "$JWT" ] || [ "$JWT" = "null" ]; then
+            echo "❌ Portainer authentication failed — check PORTAINER_PASSWORD"
+            exit 1
+          fi
+
+          # Trigger stack redeploy (pulls latest image)
+          echo "🚀 Triggering stack redeploy..."
           RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
             "${{ secrets.PORTAINER_URL }}/api/stacks/${{ secrets.PORTAINER_STACK_ID }}/git/redeploy?endpointId=${{ secrets.PORTAINER_ENDPOINT_ID }}" \
             -H "Authorization: Bearer $JWT" \
             -H "Content-Type: application/json" \
-            -d '{"pullImage":true,"prune":false,"RepositoryReferenceName":"refs/heads/main"}')
+            -d '{"pullImage":true}')
 
-          echo "Portainer redeploy response: $RESPONSE"
-          if [ "$RESPONSE" != "200" ]; then
-            echo "Redeploy failed with HTTP $RESPONSE"
+          echo "Portainer response: $RESPONSE"
+
+          if [ "$RESPONSE" = "200" ]; then
+            echo "✅ Stack redeploy triggered successfully"
+          elif [ "$RESPONSE" = "400" ]; then
+            echo "⚠️ Stack redeploy returned 400 — stack may not be a git-based stack."
+            echo "Trying alternative: stop + start stack..."
+            curl -s -X POST "${{ secrets.PORTAINER_URL }}/api/stacks/${{ secrets.PORTAINER_STACK_ID }}/stop?endpointId=${{ secrets.PORTAINER_ENDPOINT_ID }}" \
+              -H "Authorization: Bearer $JWT" > /dev/null
+            sleep 2
+            curl -s -X POST "${{ secrets.PORTAINER_URL }}/api/stacks/${{ secrets.PORTAINER_STACK_ID }}/start?endpointId=${{ secrets.PORTAINER_ENDPOINT_ID }}" \
+              -H "Authorization: Bearer $JWT" > /dev/null
+            echo "✅ Stack stop/start triggered"
+          else
+            echo "❌ Deploy failed with HTTP $RESPONSE"
+            echo "Check: PORTAINER_STACK_ID=${{ secrets.PORTAINER_STACK_ID }}, PORTAINER_ENDPOINT_ID=${{ secrets.PORTAINER_ENDPOINT_ID }}"
             exit 1
           fi
-          echo "Stack redeploy triggered successfully"
