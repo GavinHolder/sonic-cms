@@ -11,7 +11,7 @@
   {
     "name": "Sonic Internet",
     "org": "GavinHolder",
-    "repo": "sonic-website",
+    "repo": "sonic-cms",
     "workflow": "deploy.yml",
     "secret": "SONIC_PAT",
     "auto_deploy": false,
