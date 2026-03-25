@@ -8,14 +8,17 @@
 ## Overview: How It Works
 
 ```
-git push → GitHub Actions builds image → pushes to ghcr.io → Portainer webhook triggers → container restarts
+git push → GitHub Actions builds image → pushes to ghcr.io → Portainer API redeploys stack → container restarts
 ```
 
 Every client has:
 - Their own GitHub repo (fork of this repo)
 - Their own Docker image on GHCR (`ghcr.io/gavinholder/<client>-cms:latest`)
 - Their own Portainer stack on the shared VPS
-- One GitHub secret (`PORTAINER_WEBHOOK_URL`) wiring the two together
+- Four GitHub secrets connecting GitHub Actions to Portainer
+
+> **Note:** Portainer CE does not support image re-pull via the GitOps webhook (Business Edition only).
+> We use the Portainer REST API directly instead — it is confirmed working and requires no extra tooling.
 
 ---
 
@@ -82,51 +85,53 @@ MEDIA_URL=https://www.<client-domain.co.za>/uploads
 
 Deploy the stack. Wait ~60s for migrations to complete (watch container logs).
 
----
+### Find Your Stack ID and Endpoint ID
 
-## Step 4 — Enable GitOps Webhook
-
-1. Portainer → Stacks → `<client>-cms` → **Edit**
-2. Scroll to **GitOps updates** → toggle **ON**
-3. Select **Webhook** (not Polling)
-4. Copy the generated webhook URL:
-   `https://portainer.<domain>/api/stacks/webhooks/<uuid>`
-5. Click **Save settings**
+After creating the stack, check the Portainer URL:
+```
+https://portainer.<domain>/#!/3/docker/stacks/sonic-cms?id=6&type=2...
+                                              ↑                ↑
+                                       ENDPOINT_ID        STACK_ID
+```
 
 ---
 
-## Step 5 — Add GitHub Secret
+## Step 4 — Add GitHub Secrets
 
-1. Go to `https://github.com/GavinHolder/<client>-cms/settings/secrets/actions`
-2. Click **New repository secret**
-3. Name: `PORTAINER_WEBHOOK_URL`
-4. Value: the webhook URL from Step 4
-5. Click **Add secret**
+Go to `https://github.com/GavinHolder/<client>-cms/settings/secrets/actions` and add:
+
+| Secret | Value | Description |
+|---|---|---|
+| `PORTAINER_URL` | `https://portainer.<vps-domain>` | Portainer base URL (no trailing slash) |
+| `PORTAINER_PASSWORD` | `<admin password>` | Portainer admin account password |
+| `PORTAINER_STACK_ID` | `6` | From the Portainer stack URL (`id=X`) |
+| `PORTAINER_ENDPOINT_ID` | `3` | From the Portainer stack URL (first number in path) |
+| `UPSTREAM_REPO_URL` | *(optional)* | Defaults to `https://github.com/GavinHolder/white-label-cms.git` |
+
+> `GITHUB_TOKEN` is automatic — no setup needed.
 
 ---
 
-## Step 6 — Verify the Pipeline
+## Step 5 — Verify the Pipeline
 
 Push any change to `main` (or trigger manually via GitHub Actions → Run workflow).
 
 Expected flow:
 1. GitHub Actions: `upstream-merge` (skipped on push) → `build` → `deploy`
 2. `build` job pushes new image to GHCR
-3. `deploy` job POSTs to Portainer webhook → returns `200`
-4. Portainer pulls new image and restarts the container
+3. `deploy` job logs into Portainer API, calls `PUT /api/stacks/{id}/git/redeploy` → returns `200`
+4. Portainer pulls latest image from GHCR and restarts the container
 
-Check in Portainer → Containers → `<client>-cms-app` → Logs for startup messages.
+Check Portainer → Containers → `<client>-cms-app` → Logs for startup messages.
 
 ---
 
-## GitHub Secrets Reference
+## Active Client Deployments
 
-| Secret | Required | Description |
-|---|---|---|
-| `PORTAINER_WEBHOOK_URL` | **Yes** | Full webhook URL from Portainer stack GitOps settings |
-| `UPSTREAM_REPO_URL` | No | Upstream CMS repo for updates. Defaults to `https://github.com/GavinHolder/white-label-cms.git` |
-
-> `GITHUB_TOKEN` is automatic — no setup needed.
+| Client | Repo | Portainer URL | Stack ID | Endpoint ID | VPS | Domain |
+|---|---|---|---|---|---|---|
+| Sonic Internet | `sonic-cms` | `https://portainer.sonic.co.za` | `6` | `3` | 165.73.86.236 | sonic.co.za |
+| Overberg Ready Mix | `ovbreadymix-cms` | *(SSH deploy — migrate to API)* | — | — | 154.66.197.168 | ovbreadymix.co.za |
 
 ---
 
@@ -148,7 +153,7 @@ with `merge_upstream=true`. This:
 
 1. Merges latest changes from `white-label-cms` into the client repo
 2. Rebuilds the Docker image with the new code
-3. Portainer webhook redeploys the container
+3. Portainer API redeploys the container with the new image
 
 No manual action needed after setup is complete.
 
@@ -159,17 +164,10 @@ No manual action needed after setup is complete.
 | Problem | Cause | Fix |
 |---|---|---|
 | GHCR pull fails (403) | Package is private | Make package public (Step 2) |
-| Portainer webhook returns 404 | GitOps not saved | Save settings in Portainer after enabling webhook |
-| Portainer webhook returns non-200 | Wrong URL or webhook disabled | Re-copy URL from Portainer, check GitOps is ON |
-| Container starts but site errors | Missing env vars | Check Portainer env vars, redeploy |
+| Deploy job skipped | Secrets not set | Add all 4 Portainer secrets to GitHub repo |
+| Portainer API returns 401 | Wrong password | Check `PORTAINER_PASSWORD` secret |
+| Portainer API returns 404 | Wrong stack/endpoint ID | Check IDs from Portainer URL |
+| Container starts but site errors | Missing env vars | Check Portainer stack env vars, redeploy |
 | Login fails | Seed not run | Seed runs automatically on every boot via `docker-entrypoint.sh` |
-| Update Now does nothing | `PORTAINER_WEBHOOK_URL` not set | Add secret to GitHub repo |
-
----
-
-## Active Client Deployments
-
-| Client | Repo | VPS | Stack | Domain |
-|---|---|---|---|---|
-| Sonic Internet | `sonic-cms` | 165.73.86.236 | `sonic-cms` | sonic.co.za |
-| Overberg Ready Mix | `ovbreadymix-cms` | 154.66.197.168 | `ovbreadymix-cms` | ovbreadymix.co.za |
+| Update Now does nothing | Secrets not set | Add all 4 Portainer secrets to GitHub |
+| GitOps webhook returns 404 | CE limitation | Use Portainer API approach (this doc) — webhook Re-pull requires Business Edition |
