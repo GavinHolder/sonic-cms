@@ -103,7 +103,7 @@ jobs:
           RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
             "${{ secrets.PORTAINER_WEBHOOK_URL }}")
           echo "Portainer response: $RESPONSE"
-          if [ "$RESPONSE" != "200" ]; then
+          if [ "$RESPONSE" != "200" ] && [ "$RESPONSE" != "204" ]; then
             echo "Webhook failed with HTTP $RESPONSE — check PORTAINER_WEBHOOK_URL secret"
             exit 1
           fi
