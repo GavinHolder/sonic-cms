@@ -1,11 +1,10 @@
 {
-  "version": "1.12.4",
+  "version": "1.12.5",
   "date": "2026-03-25",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "test client notification pipeline",
-      "notify-clients now triggers + sidebar scroll stays within nav"
+      "auto-version uses PAT so version bump triggers notify-clients"
     ],
     "breaking": []
   }
