@@ -1,11 +1,11 @@
 {
-  "version": "1.8.3",
+  "version": "1.9.0",
   "date": "2026-03-25",
   "changelog": {
-    "features": [],
-    "bugfixes": [
-      "correct bcrypt hash for support user, auto-seed on every boot via entrypoint"
+    "features": [
+      "upstream merge support in deploy pipeline"
     ],
+    "bugfixes": [],
     "breaking": []
   }
 }
