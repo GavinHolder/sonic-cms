@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useToast } from "@/components/admin/ToastProvider";
+import MediaPickerModal from "@/components/admin/MediaPickerModal";
+import MediaUploadModal from "@/components/admin/MediaUploadModal";
 
 interface Project {
   id: string; title: string; location: string | null;
@@ -27,6 +29,8 @@ function ProjectsInner() {
   const [editing, setEditing] = useState<Partial<Project> | null>(null);
   const [saving, setSaving] = useState(false);
   const [newImageUrl, setNewImageUrl] = useState("");
+  const [mediaPicker, setMediaPicker] = useState<string | null>(null);
+  const [mediaUpload, setMediaUpload] = useState<string | null>(null);
 
   const loadProjects = async () => {
     try {
@@ -271,12 +275,20 @@ function ProjectsInner() {
                   </div>
                   <div className="mb-3">
                     <label className="form-label fw-semibold">Cover Image URL</label>
-                    <input
-                      type="url" className="form-control"
-                      placeholder="https://..."
-                      value={editing.coverImageUrl ?? ""}
-                      onChange={(e) => setEditing((p) => ({ ...p!, coverImageUrl: e.target.value }))}
-                    />
+                    <div className="d-flex gap-2">
+                      <input
+                        type="url" className="form-control"
+                        placeholder="https://..."
+                        value={editing.coverImageUrl ?? ""}
+                        onChange={(e) => setEditing((p) => ({ ...p!, coverImageUrl: e.target.value }))}
+                      />
+                      <button type="button" className="btn btn-outline-secondary flex-shrink-0" onClick={() => setMediaPicker("cover")} title="Browse">
+                        <i className="bi bi-folder2-open" />
+                      </button>
+                      <button type="button" className="btn btn-outline-primary flex-shrink-0" onClick={() => setMediaUpload("cover")} title="Upload">
+                        <i className="bi bi-cloud-arrow-up" />
+                      </button>
+                    </div>
                     {editing.coverImageUrl && (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -298,6 +310,12 @@ function ProjectsInner() {
                         onChange={(e) => setNewImageUrl(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addImage(); } }}
                       />
+                      <button type="button" className="btn btn-sm btn-outline-secondary flex-shrink-0" onClick={() => setMediaPicker("gallery")} title="Browse">
+                        <i className="bi bi-folder2-open" />
+                      </button>
+                      <button type="button" className="btn btn-sm btn-outline-primary flex-shrink-0" onClick={() => setMediaUpload("gallery")} title="Upload">
+                        <i className="bi bi-cloud-arrow-up" />
+                      </button>
                       <button type="button" className="btn btn-sm btn-outline-success" onClick={addImage}>
                         Add
                       </button>
@@ -363,6 +381,32 @@ function ProjectsInner() {
           </div>
         </>
       )}
+      <MediaPickerModal
+        isOpen={mediaPicker !== null}
+        onClose={() => setMediaPicker(null)}
+        filterType="image"
+        onSelect={(url) => {
+          if (mediaPicker === "cover") {
+            setEditing((p) => ({ ...p!, coverImageUrl: url }));
+          } else if (mediaPicker === "gallery") {
+            setNewImageUrl(url);
+          }
+          setMediaPicker(null);
+        }}
+      />
+      <MediaUploadModal
+        isOpen={mediaUpload !== null}
+        onClose={() => setMediaUpload(null)}
+        acceptedTypes="image/*"
+        onUploadComplete={(url) => {
+          if (mediaUpload === "cover") {
+            setEditing((p) => ({ ...p!, coverImageUrl: url }));
+          } else if (mediaUpload === "gallery") {
+            setEditing((p) => ({ ...p!, images: [...(p?.images ?? []), url] }));
+          }
+          setMediaUpload(null);
+        }}
+      />
     </div>
   );
 }

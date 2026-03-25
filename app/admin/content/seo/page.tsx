@@ -6,6 +6,7 @@ import type { SeoConfig } from "@/lib/seo-config";
 import { defaultSeoConfig } from "@/lib/seo-config";
 import SeoWizardModal from "@/components/admin/SeoWizardModal";
 import MediaPickerModal from "@/components/admin/MediaPickerModal";
+import MediaUploadModal from "@/components/admin/MediaUploadModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -37,6 +38,7 @@ export default function SeoSettingsPage() {
   const [audit, setAudit] = useState<AuditResult | null>(null);
   const [showWizard, setShowWizard] = useState(false);
   const [showMediaPicker, setShowMediaPicker] = useState(false);
+  const [showMediaUpload, setShowMediaUpload] = useState(false);
   const [readiness, setReadiness] = useState<{ checks: Array<{ id: string; label: string; pass: boolean; hint?: string; link?: string }>; passCount: number; totalCount: number; canonicalBase: string } | null>(null);
   const [readinessOpen, setReadinessOpen] = useState(false);
   const [readinessLoading, setReadinessLoading] = useState(false);
@@ -409,7 +411,15 @@ export default function SeoSettingsPage() {
                       onClick={() => setShowMediaPicker(true)}
                       title="Browse Media Library"
                     >
-                      <i className="bi bi-image" />
+                      <i className="bi bi-folder2-open" />
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-outline-primary flex-shrink-0"
+                      onClick={() => setShowMediaUpload(true)}
+                      title="Upload New Image"
+                    >
+                      <i className="bi bi-cloud-arrow-up" />
                     </button>
                   </div>
                   <div className="form-text">Used when a page has no custom OG image. Recommended: 1200×630px JPG/PNG. Use an absolute URL for best social sharing compatibility.</div>
@@ -892,6 +902,15 @@ export default function SeoSettingsPage() {
         onSelect={(url) => {
           setSocial("ogImage", url);
           setShowMediaPicker(false);
+        }}
+      />
+      <MediaUploadModal
+        isOpen={showMediaUpload}
+        onClose={() => setShowMediaUpload(false)}
+        acceptedTypes="image/*"
+        onUploadComplete={(url) => {
+          setSocial("ogImage", url);
+          setShowMediaUpload(false);
         }}
       />
     </AdminLayout>
