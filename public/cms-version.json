@@ -1,9 +1,9 @@
 {
-  "version": "1.14.0",
+  "version": "1.15.0",
   "date": "2026-03-25",
   "changelog": {
     "features": [
-      "media browse buttons, breaking change alerts, fix test"
+      "update modal progress bar with step-by-step status"
     ],
     "bugfixes": [],
     "breaking": []
