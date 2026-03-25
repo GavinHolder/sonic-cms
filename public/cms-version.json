@@ -1,9 +1,9 @@
 {
-  "version": "1.13.0",
+  "version": "1.14.0",
   "date": "2026-03-25",
   "changelog": {
     "features": [
-      "visual icon picker, help text system, remove calculator from settings"
+      "media browse buttons, breaking change alerts, fix test"
     ],
     "bugfixes": [],
     "breaking": []
