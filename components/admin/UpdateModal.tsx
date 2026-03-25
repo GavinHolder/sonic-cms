@@ -37,6 +37,7 @@ export default function UpdateModal({ show, info, onClose }: Props) {
   const [statusMsg, setStatusMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [githubUrl, setGithubUrl] = useState<string | null>(null);
+  const [pollCount, setPollCount] = useState(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Reset phase when modal opens
@@ -64,7 +65,9 @@ export default function UpdateModal({ show, info, onClose }: Props) {
 
   function startPolling() {
     stopPolling();
+    setPollCount(0);
     pollRef.current = setInterval(async () => {
+      setPollCount((c) => c + 1);
       try {
         const res = await fetch("/api/admin/updates/status");
         if (!res.ok) return;
@@ -259,20 +262,74 @@ export default function UpdateModal({ show, info, onClose }: Props) {
               )}
 
               {/* Triggering / Polling */}
-              {(phase === "triggering" || phase === "polling") && (
-                <div className="text-center py-4 vstack gap-3 align-items-center">
-                  <div className="spinner-border text-primary" style={{ width: "3rem", height: "3rem" }} role="status" />
-                  <div>
-                    <p className="fw-semibold mb-1">{statusMsg || "Starting update..."}</p>
-                    <p className="text-muted small mb-0">Maintenance mode is active. Do not close this window.</p>
+              {(phase === "triggering" || phase === "polling") && (() => {
+                // Estimate progress based on poll count (each poll = 8s, typical build = ~3min)
+                const steps = [
+                  { label: "Enabling maintenance mode", threshold: 0 },
+                  { label: "Triggering GitHub Actions workflow", threshold: 1 },
+                  { label: "Merging upstream CMS changes", threshold: 3 },
+                  { label: "Installing dependencies", threshold: 6 },
+                  { label: "Building application", threshold: 10 },
+                  { label: "Pushing Docker image", threshold: 16 },
+                  { label: "Deploying to server", threshold: 20 },
+                  { label: "Running database migrations", threshold: 22 },
+                  { label: "Verifying deployment", threshold: 24 },
+                ];
+                const activeStep = [...steps].reverse().find(s => pollCount >= s.threshold) ?? steps[0];
+                const progress = Math.min(95, phase === "triggering" ? 5 : Math.round((pollCount / 26) * 100));
+
+                return (
+                  <div className="py-3 vstack gap-3">
+                    {/* Progress bar */}
+                    <div className="progress" style={{ height: 8 }}>
+                      <div
+                        className="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+                        role="progressbar"
+                        style={{ width: `${progress}%`, transition: "width 0.5s ease" }}
+                      />
+                    </div>
+
+                    {/* Current step */}
+                    <div className="text-center">
+                      <p className="fw-semibold mb-1">
+                        <span className="spinner-border spinner-border-sm me-2" />
+                        {activeStep.label}...
+                      </p>
+                      <p className="text-muted small mb-0">
+                        Maintenance mode is active. Do not close this window.
+                      </p>
+                    </div>
+
+                    {/* Step list */}
+                    <div className="small">
+                      {steps.map((step, i) => {
+                        const done = pollCount > step.threshold + 2;
+                        const active = step === activeStep;
+                        return (
+                          <div key={i} className={`d-flex align-items-center gap-2 py-1 ${active ? "fw-semibold" : done ? "text-success" : "text-muted"}`}>
+                            {done ? (
+                              <i className="bi bi-check-circle-fill text-success" style={{ width: 16 }} />
+                            ) : active ? (
+                              <span className="spinner-border spinner-border-sm text-primary" style={{ width: 14, height: 14 }} />
+                            ) : (
+                              <i className="bi bi-circle text-muted" style={{ width: 16, opacity: 0.3 }} />
+                            )}
+                            {step.label}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {githubUrl && (
+                      <div className="text-center">
+                        <a href={githubUrl} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-secondary">
+                          <i className="bi bi-github me-1" />View build on GitHub
+                        </a>
+                      </div>
+                    )}
                   </div>
-                  {githubUrl && (
-                    <a href={githubUrl} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-secondary">
-                      <i className="bi bi-github me-1" />View build on GitHub
-                    </a>
-                  )}
-                </div>
-              )}
+                );
+              })()}
 
               {/* Done */}
               {phase === "done" && (
