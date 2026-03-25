@@ -13,9 +13,8 @@
     "org": "GavinHolder",
     "repo": "sonic-website",
     "workflow": "deploy.yml",
-    "ref": "gavin",
     "auto_deploy": false,
     "channel": "stable",
-    "notes": "Original fork — deploys from 'gavin' branch, notify only"
+    "notes": "Original fork — notify only, admin triggers update manually"
   }
 ]
