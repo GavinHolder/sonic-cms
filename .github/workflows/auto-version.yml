@@ -31,7 +31,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # Use PAT so the version bump push triggers notify-clients.yml
+          # (GITHUB_TOKEN pushes don't trigger subsequent workflows)
+          token: ${{ secrets.AUTO_VERSION_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Configure git
         run: |
