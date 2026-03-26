@@ -1,10 +1,10 @@
 {
-  "version": "1.18.3",
+  "version": "1.18.4",
   "date": "2026-03-26",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "deploy template removes main-repo-only workflows after upstream merge"
+      "deploy preserves Portainer env vars during redeploy — reads stack config before PUT"
     ],
     "breaking": []
   }
