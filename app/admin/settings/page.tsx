@@ -14,6 +14,7 @@ import {
   type CMSSettings,
 } from "@/lib/cms-settings";
 import BrandTokenEditor from "@/components/admin/BrandTokenEditor";
+import BackupRestore from "@/components/admin/BackupRestore";
 
 type SettingsCategory =
   | "cms-updates"
@@ -1081,67 +1082,7 @@ export default function SettingsPage() {
           )}
 
           {/* Data Management */}
-          {activeCategory === "data" && (
-            <div>
-              <h5 className="fw-semibold mb-4">
-                <i className="bi bi-database me-2 text-warning"></i>
-                Data Management
-              </h5>
-
-              <div className="card shadow-sm">
-                <div className="card-body">
-                  <p className="small text-muted mb-3">
-                    All CMS data is currently stored in your browser&apos;s local storage. This data
-                    persists across sessions but is not shared between devices.
-                  </p>
-                  <div className="alert alert-warning py-2 small mb-3">
-                    <i className="bi bi-exclamation-triangle me-2"></i>
-                    Clearing browser data will remove all CMS content and settings.
-                  </div>
-                  {showHelp && <HelpTip>These actions are irreversible — always export a backup first</HelpTip>}
-                  <div className="d-flex gap-2 flex-wrap">
-                    <button
-                      className="btn btn-sm btn-outline-danger"
-                      onClick={() => {
-                        if (
-                          confirm(
-                            "Are you sure you want to clear ALL CMS data? This cannot be undone."
-                          )
-                        ) {
-                          localStorage.clear();
-                          window.location.reload();
-                        }
-                      }}
-                    >
-                      <i className="bi bi-trash me-1"></i>
-                      Clear All Data
-                    </button>
-                    <button
-                      className="btn btn-sm btn-outline-secondary"
-                      onClick={() => {
-                        const data = {
-                          sections: localStorage.getItem("cms_sections_home"),
-                          settings: localStorage.getItem("cms_settings"),
-                        };
-                        const blob = new Blob([JSON.stringify(data, null, 2)], {
-                          type: "application/json",
-                        });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = url;
-                        a.download = `cms-backup-${new Date().toISOString().split("T")[0]}.json`;
-                        a.click();
-                        URL.revokeObjectURL(url);
-                      }}
-                    >
-                      <i className="bi bi-download me-1"></i>
-                      Export Backup
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+          {activeCategory === "data" && <BackupRestore />}
 
           {/* ── Email & SMTP ──────────────────────────────────────────────── */}
           {activeCategory === "email" && (

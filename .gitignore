@@ -82,3 +82,6 @@ public/uploads/
 # ad-hoc scripts and screenshots (local dev only)
 /scripts/
 /screenshots/
+
+# backup archives (generated via admin panel)
+/data/backups/

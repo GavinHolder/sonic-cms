@@ -6,16 +6,44 @@ import prisma from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboard() {
-  const [pageCount, sectionCount, mediaCount, userCount] = await Promise.all([
+  const [pageCount, sectionCount, mediaCount, userCount, setupFlag] = await Promise.all([
     prisma.page.count(),
     prisma.section.count(),
     prisma.mediaAsset.count(),
     prisma.user.count(),
+    prisma.systemSettings.findUnique({ where: { key: "cms_setup_complete" } }),
   ]);
+
+  const needsSetup = setupFlag?.value !== "true";
 
   return (
     <AdminLayout title="Dashboard" subtitle="Welcome back to your CMS">
       <div style={{ maxWidth: "1320px" }}>
+        {/* Setup Banner — shown until first-run wizard is completed */}
+        {needsSetup && (
+          <div className="card border-warning shadow-sm mb-4">
+            <div className="card-body d-flex align-items-center gap-3 py-3">
+              <div
+                className="d-flex align-items-center justify-content-center rounded-circle bg-warning bg-opacity-10 flex-shrink-0"
+                style={{ width: 48, height: 48 }}
+              >
+                <i className="bi bi-gear-wide-connected text-warning fs-4"></i>
+              </div>
+              <div className="flex-grow-1">
+                <h6 className="mb-1 fw-bold">CMS Setup Required</h6>
+                <p className="mb-0 text-muted small">
+                  Your CMS hasn&apos;t been configured yet. Connect your GitHub repo and deployment
+                  settings to enable updates and auto-deploy.
+                </p>
+              </div>
+              <a href="/admin/setup" className="btn btn-warning btn-sm flex-shrink-0">
+                <i className="bi bi-arrow-right me-1"></i>
+                Run Setup
+              </a>
+            </div>
+          </div>
+        )}
+
         {/* Welcome Message */}
         <HelpText variant="info" collapsible={false}>
           <strong>Welcome to Your Company CMS!</strong>
