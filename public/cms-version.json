@@ -1,11 +1,11 @@
 {
-  "version": "1.23.2",
+  "version": "1.24.0",
   "date": "2026-03-26",
   "changelog": {
-    "features": [],
-    "bugfixes": [
-      "Volt designer — CW/CH undefined in mousedown handler + zoom uses applyZoom()"
+    "features": [
+      "Volt full-canvas button — expand any layer to fill entire canvas width+height"
     ],
+    "bugfixes": [],
     "breaking": []
   }
 }
