@@ -1,39 +1,49 @@
 # =============================================================================
 # White-Label CMS — Notify Client Instances of New Version
 # =============================================================================
-# Triggers after auto-version.yml bumps cms-version.json.
-# Dispatches each registered client repo's deploy workflow so they can
-# merge upstream and redeploy automatically (or just be notified).
+# Triggers when cms-version.json changes (after auto-version bump).
+# Reads client registry from CLIENT_REGISTRY secret (JSON array).
+# Dispatches each client's deploy workflow to merge upstream + redeploy.
 #
-# Client repos are registered in CLIENTS.json at the repo root.
-# Each entry has a "secret" field naming the GitHub secret that holds
-# that client's PAT (e.g. "CLIENT1_PAT").
+# SETUP (one-time):
+#   1. Go to repo Settings → Secrets → Actions
+#   2. Create secret: CLIENT_REGISTRY
+#   3. Value: JSON array of client objects (see format below)
+#   4. Create one PAT secret per client (name matches "secret" field)
 #
-# Required Secrets (one per client):
-#   Add a PAT secret for each client listed in CLIENTS.json.
-#   The secret name must match the "secret" field in the client entry.
+# CLIENT_REGISTRY format:
+#   [
+#     {
+#       "name": "My Client",
+#       "org": "GavinHolder",
+#       "repo": "client-cms",
+#       "workflow": "deploy.yml",
+#       "secret": "CLIENT1_PAT",
+#       "auto_deploy": true
+#     }
+#   ]
+#
+# Required Secrets:
+#   CLIENT_REGISTRY  — JSON array of client entries
+#   <CLIENT_PAT>     — One PAT per client (repo + workflow scope)
 # =============================================================================
 
 name: Notify Clients
 
 on:
-  # Runs after auto-version commits the version bump
   push:
     branches: [main]
     paths:
       - "public/cms-version.json"
 
-  # Manual trigger to notify all clients
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Dry run — log what would be dispatched without actually dispatching"
+        description: "Dry run — log without dispatching"
         required: false
         default: "false"
         type: choice
-        options:
-          - "false"
-          - "true"
+        options: ["false", "true"]
 
 jobs:
   notify:
@@ -44,60 +54,55 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Read version and client registry
-        id: read
+      - name: Read version
+        id: version
         run: |
           VERSION=$(node -e "console.log(require('./public/cms-version.json').version)")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "CMS version: $VERSION"
 
-          if [ ! -f "CLIENTS.json" ]; then
-            echo "No CLIENTS.json found — nothing to notify"
-            echo "has_clients=false" >> "$GITHUB_OUTPUT"
+      - name: Dispatch to clients
+        env:
+          CLIENT_REGISTRY: ${{ secrets.CLIENT_REGISTRY }}
+          VERSION: ${{ steps.version.outputs.version }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+          # ─── CLIENT PAT SECRETS ─────────────────────────────
+          # Add each client's PAT here. Name must match the
+          # "secret" field in the CLIENT_REGISTRY JSON.
+          # To add a new client: add entry to CLIENT_REGISTRY
+          # secret, create PAT secret, add line below.
+          OVB_PAT: ${{ secrets.OVB_PAT }}
+          SONIC_PAT: ${{ secrets.SONIC_PAT }}
+          # ────────────────────────────────────────────────────
+        run: |
+          if [ -z "$CLIENT_REGISTRY" ] || [ "$CLIENT_REGISTRY" = "[]" ]; then
+            echo "No clients registered (CLIENT_REGISTRY secret empty or not set)"
             exit 0
           fi
 
-          echo "has_clients=true" >> "$GITHUB_OUTPUT"
-          echo "CMS version: $VERSION"
-          echo "Registered clients:"
-          cat CLIENTS.json | node -e "
-            const clients = JSON.parse(require('fs').readFileSync(0, 'utf8'));
-            clients.forEach(c => console.log('  - ' + c.org + '/' + c.repo + ' (secret: ' + c.secret + ')'));
-          "
-
-      - name: Dispatch to client repos
-        if: steps.read.outputs.has_clients == 'true'
-        env:
-          OVB_PAT: ${{ secrets.OVB_PAT }}
-          SONIC_PAT: ${{ secrets.SONIC_PAT }}
-          VERSION: ${{ steps.read.outputs.version }}
-          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
-        run: |
           node -e "
-            const fs = require('fs');
-            const clients = JSON.parse(fs.readFileSync('CLIENTS.json', 'utf8'));
+            const clients = JSON.parse(process.env.CLIENT_REGISTRY || '[]');
             const version = process.env.VERSION;
             const dryRun = process.env.DRY_RUN === 'true';
 
-            async function dispatch(client) {
-              const { org, repo, auto_deploy, workflow, secret } = client;
-              const workflowFile = workflow || 'deploy.yml';
-              const clientRef = client.ref || 'main';
-              const mergeUpstream = auto_deploy ? 'true' : 'false';
+            if (!clients.length) { console.log('No clients to notify'); process.exit(0); }
 
-              // Look up the PAT from environment using the secret name
+            async function dispatch(client) {
+              const { name, org, repo, workflow = 'deploy.yml', secret, auto_deploy } = client;
+              const mergeUpstream = auto_deploy !== false ? 'true' : 'false';
               const pat = process.env[secret];
+
               if (!pat) {
-                console.error('[' + org + '/' + repo + '] Secret ' + secret + ' not set — skipping');
-                return { repo: org + '/' + repo, status: 'failed', error: 'Secret ' + secret + ' not configured' };
+                console.error('[' + (name || repo) + '] Secret ' + secret + ' not set — skipping');
+                return { name: name || repo, status: 'skipped', error: 'Missing PAT secret' };
               }
 
-              const url = 'https://api.github.com/repos/' + org + '/' + repo + '/actions/workflows/' + workflowFile + '/dispatches';
-
-              console.log('[' + org + '/' + repo + '] Dispatching ' + workflowFile + ' (ref=' + clientRef + ', merge_upstream=' + mergeUpstream + ')');
+              const url = 'https://api.github.com/repos/' + org + '/' + repo + '/actions/workflows/' + workflow + '/dispatches';
+              console.log('[' + (name || repo) + '] → ' + org + '/' + repo + ' (merge=' + mergeUpstream + ')');
 
               if (dryRun) {
-                console.log('  → DRY RUN: would POST to ' + url);
-                return { repo: org + '/' + repo, status: 'dry_run' };
+                console.log('  DRY RUN: would dispatch');
+                return { name: name || repo, status: 'dry_run' };
               }
 
               try {
@@ -109,44 +114,36 @@ jobs:
                     'X-GitHub-Api-Version': '2022-11-28',
                     'Content-Type': 'application/json',
                   },
-                  body: JSON.stringify({
-                    ref: clientRef,
-                    inputs: { merge_upstream: mergeUpstream },
-                  }),
+                  body: JSON.stringify({ ref: 'main', inputs: { merge_upstream: mergeUpstream } }),
                 });
 
                 if (res.status === 204) {
-                  console.log('  → Dispatched successfully');
-                  return { repo: org + '/' + repo, status: 'dispatched' };
+                  console.log('  ✅ Dispatched');
+                  return { name: name || repo, status: 'dispatched' };
                 } else {
                   const body = await res.text();
-                  console.error('  → Failed (' + res.status + '): ' + body);
-                  return { repo: org + '/' + repo, status: 'failed', error: body };
+                  console.error('  ❌ Failed (' + res.status + '): ' + body);
+                  return { name: name || repo, status: 'failed', error: body };
                 }
               } catch (err) {
-                console.error('  → Error: ' + err.message);
-                return { repo: org + '/' + repo, status: 'error', error: err.message };
+                console.error('  ❌ Error: ' + err.message);
+                return { name: name || repo, status: 'error', error: err.message };
               }
             }
 
             (async () => {
               const results = [];
-              for (const client of clients) {
-                results.push(await dispatch(client));
-              }
+              for (const client of clients) results.push(await dispatch(client));
 
               console.log('');
-              console.log('=== Summary ===');
+              console.log('=== Notification Summary ===');
               console.log('CMS Version: v' + version);
               console.log('Clients: ' + results.length);
               console.log('Dispatched: ' + results.filter(r => r.status === 'dispatched').length);
-              console.log('Failed: ' + results.filter(r => r.status === 'failed' || r.status === 'error').length);
-
+              console.log('Skipped: ' + results.filter(r => r.status === 'skipped').length);
               const failures = results.filter(r => r.status === 'failed' || r.status === 'error');
-              if (failures.length > 0) {
-                console.error('');
-                console.error('Failed dispatches:');
-                failures.forEach(f => console.error('  ' + f.repo + ': ' + f.error));
+              if (failures.length) {
+                failures.forEach(f => console.error('  ' + f.name + ': ' + f.error));
                 process.exit(1);
               }
             })();
