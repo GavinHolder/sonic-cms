@@ -1,11 +1,11 @@
 {
-  "version": "1.18.4",
+  "version": "1.19.0",
   "date": "2026-03-26",
   "changelog": {
-    "features": [],
-    "bugfixes": [
-      "deploy preserves Portainer env vars during redeploy — reads stack config before PUT"
+    "features": [
+      "plugin system docs topic + fix Prisma JSON type errors"
     ],
+    "bugfixes": [],
     "breaking": []
   }
 }
