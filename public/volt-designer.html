@@ -684,6 +684,25 @@
       });
       return out.join(' ');
     }
+    /** Scale an SVG path's coordinates by sx (horizontal) and sy (vertical). */
+    function scalePath(d,sx,sy){
+      if(!d||(sx===1&&sy===1))return d;
+      var out=[];
+      d.replace(/([MmLlHhVvCcSsQqTtAaZz])([^MmLlHhVvCcSsQqTtAaZz]*)/g,function(_,cmd,args){
+        var n=args.trim()?args.trim().split(/[\s,]+/).filter(Boolean).map(Number):[];
+        switch(cmd){
+          case 'M':case 'L':case 'T':for(var i=0;i<n.length;i+=2){n[i]*=sx;n[i+1]*=sy;}break;
+          case 'H':for(var i=0;i<n.length;i++)n[i]*=sx;break;
+          case 'V':for(var i=0;i<n.length;i++)n[i]*=sy;break;
+          case 'C':for(var i=0;i<n.length;i+=6){n[i]*=sx;n[i+1]*=sy;n[i+2]*=sx;n[i+3]*=sy;n[i+4]*=sx;n[i+5]*=sy;}break;
+          case 'S':for(var i=0;i<n.length;i+=4){n[i]*=sx;n[i+1]*=sy;n[i+2]*=sx;n[i+3]*=sy;}break;
+          case 'Q':for(var i=0;i<n.length;i+=4){n[i]*=sx;n[i+1]*=sy;n[i+2]*=sx;n[i+3]*=sy;}break;
+          case 'A':for(var i=0;i<n.length;i+=7){n[i]*=sx;n[i+1]*=sy;n[i+5]*=sx;n[i+6]*=sy;}break;
+        }
+        out.push(n.length?cmd+' '+n.map(function(v){return parseFloat(v.toFixed(4));}).join(' '):cmd);
+      });
+      return out.join(' ');
+    }
     function layerToPoly(layer){if(layer.type!=='vector'||!layer.vectorData)return null;var d=layer.vectorData.pathData;if(/\bA\b/.test(d)){var cx=layer.x+layer.width/2,cy=layer.y+layer.height/2,rx=layer.width/2,ry=layer.height/2,pts=[];for(var i=0;i<64;i++){var a=(2*Math.PI*i)/64;pts.push({x:cx+rx*Math.cos(a),y:cy+ry*Math.sin(a)});}return pts;}return parsePts(d);}
     // ── Boolean display path (non-destructive) ────────────────────────────────
     function getBoolDisplayPath(layer){
@@ -1648,7 +1667,8 @@
       else if(tool==='line')layer=mkLine(pct(rawSX,CW),pct(rawSY,CH),pct(rawCX,CW),pct(rawCY,CH));
       else if(tool==='text'){
         // Use drag bounds; if tiny drag use default size
-        var _tw2=pw>2?pw:35,_th2=ph>2?ph:12;
+        // Auto-size: default width ~40% of canvas, height based on fontSize * lineHeight
+        var _tw2=pw>2?pw:40,_th2=ph>2?ph:(28*1.2/state.element.canvasHeight*100+2);
         var _nid=(function(){var a='';for(var i=0;i<10;i++)a+=Math.random().toString(36)[2+i%8]||'x';return a;})();
         layer={id:_nid,name:'Text',type:'text',role:'content',x:px2,y:py2,width:_tw2,height:_th2,rotation:0,zIndex:maxZ+1,visible:true,locked:false,opacity:1,blendMode:'normal',textLayerData:{content:'Text',fontFamily:'Inter, system-ui, sans-serif',fontSize:28,fontWeight:600,fontStyle:'normal',color:'#ffffff',textAlign:'left',verticalAlign:'top',lineHeight:1.2,letterSpacing:0,textTransform:'none',wordWrap:true},animation:{character:50,speed:40,style:60,delay:0,animates:{opacity:true,scale:false,position:true,rotation:false,fill:false}}};
       }
@@ -3245,10 +3265,22 @@
           }else{
             if(pid==='prop-pos-x'){var pv=vpx/CW*100;if(state.element.layers[i].vectorData)state.element.layers[i].vectorData.pathData=translatePath(state.element.layers[i].vectorData.pathData,pv-state.element.layers[i].x,0);state.element.layers[i].x=pv;}
             else if(pid==='prop-pos-y'){var pv=vpx/CH*100;if(state.element.layers[i].vectorData)state.element.layers[i].vectorData.pathData=translatePath(state.element.layers[i].vectorData.pathData,0,pv-state.element.layers[i].y);state.element.layers[i].y=pv;}
-            else if(pid==='prop-sz-w'){state.element.layers[i].width=Math.max(0.1,vpx/CW*100);}
-            else if(pid==='prop-sz-h'){state.element.layers[i].height=Math.max(0.1,vpx/CH*100);}
+            else if(pid==='prop-sz-w'){
+              var _oldW=state.element.layers[i].width;var _newW=Math.max(0.1,vpx/CW*100);
+              if(state.element.layers[i].vectorData&&state.element.layers[i].vectorData.pathData&&_oldW>0){
+                state.element.layers[i].vectorData.pathData=scalePath(state.element.layers[i].vectorData.pathData,_newW/_oldW,1);
+              }
+              state.element.layers[i].width=_newW;
+            }
+            else if(pid==='prop-sz-h'){
+              var _oldH=state.element.layers[i].height;var _newH=Math.max(0.1,vpx/CH*100);
+              if(state.element.layers[i].vectorData&&state.element.layers[i].vectorData.pathData&&_oldH>0){
+                state.element.layers[i].vectorData.pathData=scalePath(state.element.layers[i].vectorData.pathData,1,_newH/_oldH);
+              }
+              state.element.layers[i].height=_newH;
+            }
           }
-          markDirty();renderAll();
+          markDirty();renderAll();renderProps();
         });
       });
       // Fill write helper in bindProps scope (mirrors renderFillSec helpers)
