@@ -1,10 +1,10 @@
 {
-  "version": "1.18.2",
+  "version": "1.18.3",
   "date": "2026-03-26",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "deploy template handles modify/delete merge conflicts during upstream merge"
+      "deploy template removes main-repo-only workflows after upstream merge"
     ],
     "breaking": []
   }
