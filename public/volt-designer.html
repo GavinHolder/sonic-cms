@@ -301,22 +301,22 @@
           </div>
           <div class="tools-sep"></div>
           <div style="position:relative;display:inline-flex;align-items:stretch;">
-            <button id="btn-shapes-preset" class="tool-btn-h" title="Shape Presets — insert ready-made shapes" style="width:auto;padding:0 7px;gap:3px;"><i class="bi bi-stars"></i><span style="font-size:8px;font-weight:800;letter-spacing:0.3px;color:#6366f1;">SHP</span></button>
+            <button id="btn-shapes-preset" class="tool-btn-h" title="Shape Presets" style="width:auto;padding:0 7px;gap:3px;"><i class="bi bi-stars"></i><span style="font-size:8px;font-weight:800;letter-spacing:0.3px;color:#6366f1;">SHP</span></button>
             <div id="shapes-preset-panel" class="shapes-preset-panel" style="display:none;">
               <div style="font-size:10px;font-weight:700;color:#374151;margin-bottom:8px;letter-spacing:0.5px;text-transform:uppercase;">Shape Presets</div>
               <div class="shapes-preset-grid" id="shapes-preset-grid"></div>
             </div>
           </div>
           <div style="position:relative;display:inline-flex;align-items:stretch;">
-            <button id="btn-grad-presets" class="tool-btn-h" title="Gradient Presets — quick-apply to selected fill" style="width:auto;padding:0 7px;gap:3px;"><i class="bi bi-palette2"></i><span style="font-size:8px;font-weight:800;letter-spacing:0.3px;color:#f59e0b;">GRD</span></button>
+            <button id="btn-grad-presets" class="tool-btn-h" title="Gradient Presets" style="width:auto;padding:0 7px;gap:3px;"><i class="bi bi-palette2"></i><span style="font-size:8px;font-weight:800;letter-spacing:0.3px;color:#f59e0b;">GRD</span></button>
             <div id="grad-presets-panel" class="shapes-preset-panel" style="display:none;width:280px;">
               <div style="font-size:10px;font-weight:700;color:#374151;margin-bottom:8px;letter-spacing:0.5px;text-transform:uppercase;">Gradient Presets</div>
               <div id="grad-presets-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;"></div>
             </div>
           </div>
           <div style="position:relative;display:inline-flex;align-items:stretch;">
-            <button id="btn-icon-picker" class="tool-btn-h" title="Icon Library — insert Lucide icon as vector layer" style="width:auto;padding:0 7px;gap:3px;"><i class="bi bi-grid-3x3"></i><span style="font-size:8px;font-weight:800;letter-spacing:0.3px;color:#10b981;">ICN</span></button>
-            <button id="btn-component-lib" class="tool-btn-h" title="Component Library — insert saved designs" style="width:auto;padding:0 7px;gap:3px;"><i class="bi bi-box-seam"></i><span style="font-size:8px;font-weight:800;letter-spacing:0.3px;color:#8b5cf6;">CMP</span></button>
+            <button id="btn-icon-picker" class="tool-btn-h" title="Icon Library" style="width:auto;padding:0 7px;gap:3px;"><i class="bi bi-grid-3x3"></i><span style="font-size:8px;font-weight:800;letter-spacing:0.3px;color:#10b981;">ICN</span></button>
+            <button id="btn-component-lib" class="tool-btn-h" title="Components" style="width:auto;padding:0 7px;gap:3px;"><i class="bi bi-box-seam"></i><span style="font-size:8px;font-weight:800;letter-spacing:0.3px;color:#8b5cf6;">CMP</span></button>
             <div id="icon-picker-panel" class="shapes-preset-panel" style="display:none;width:320px;">
               <div style="font-size:10px;font-weight:700;color:#374151;margin-bottom:8px;letter-spacing:0.5px;text-transform:uppercase;">Icon Library</div>
               <input id="icon-search" type="text" placeholder="Search icons..." style="width:100%;font-size:11px;padding:4px 8px;border:1px solid #dee2e6;border-radius:5px;margin-bottom:8px;outline:none;" />
@@ -3586,13 +3586,25 @@
       if(i<0)return;
       pushHistory();
       var layer=state.element.layers[i];
-      var oldW=layer.width,oldH=layer.height;
-      // Scale vector path to match new full-canvas bounds
-      if(layer.vectorData&&layer.vectorData.pathData&&oldW>0&&oldH>0){
-        // First translate path to origin (0,0)
-        layer.vectorData.pathData=translatePath(layer.vectorData.pathData,-layer.x,-layer.y);
-        // Then scale to fill 100%
-        layer.vectorData.pathData=scalePath(layer.vectorData.pathData,100/oldW,100/oldH);
+      if(layer.vectorData&&layer.vectorData.pathData){
+        // Get actual path bounding box by parsing coordinates
+        var nums=layer.vectorData.pathData.match(/-?\d+\.?\d*/g);
+        if(nums&&nums.length>=2){
+          var xs=[],ys=[];
+          // Parse all coordinate pairs from path
+          var _pd=layer.vectorData.pathData;
+          _pd.replace(/([MLT])\s*(-?\d+\.?\d*)\s+(-?\d+\.?\d*)/g,function(_,cmd,x,y){xs.push(+x);ys.push(+y);});
+          _pd.replace(/[CS]\s*(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)/g,function(_,x1,y1,x2,y2){xs.push(+x1,+x2);ys.push(+y1,+y2);});
+          _pd.replace(/A\s*(?:-?\d+\.?\d*\s+){5}(-?\d+\.?\d*)\s+(-?\d+\.?\d*)/g,function(_,x,y){xs.push(+x);ys.push(+y);});
+          if(xs.length&&ys.length){
+            var minX=Math.min.apply(null,xs),maxX=Math.max.apply(null,xs);
+            var minY=Math.min.apply(null,ys),maxY=Math.max.apply(null,ys);
+            var pathW=maxX-minX||1,pathH=maxY-minY||1;
+            // Translate path to origin then scale to 0-100 range
+            layer.vectorData.pathData=translatePath(layer.vectorData.pathData,-minX,-minY);
+            layer.vectorData.pathData=scalePath(layer.vectorData.pathData,100/pathW,100/pathH);
+          }
+        }
       }
       layer.x=0;layer.y=0;layer.width=100;layer.height=100;
       markDirty();renderAll();renderProps();
