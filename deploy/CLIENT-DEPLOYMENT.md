@@ -5,6 +5,23 @@
 
 ---
 
+## ⛔ NON-NEGOTIABLE RULES
+
+1. **ONE deploy method** — Portainer API with env var preservation. No SSH. No webhooks. No manual docker commands.
+2. **ONE workflow template** — `deploy/client-deploy-template.yml` from the main CMS. NEVER write a custom deploy.yml.
+3. **ONE process** — Fork → Template → Secrets → Deploy. No shortcuts, no variations.
+4. **deploy.yml is protected** — `.gitattributes merge=ours` prevents upstream merges from overwriting it. Once set, it stays.
+5. **Environment variables live in Portainer** — never in the repo, never in GitHub env vars. Only Portainer connection secrets in GitHub.
+6. **DATABASE_URL special chars must be URL-encoded** — `!` → `%21`, `#` → `%23`. This is non-optional.
+7. **The deploy workflow handles ALL Portainer stack types** — git-based stacks, manual stacks, and standalone stacks. Three fallback methods built in.
+8. **Changes flow one direction only** — Main CMS → Client repo (via upstream merge). Never the reverse.
+9. **Client custom code goes in `app/_client/`** — protected by `.gitattributes merge=ours`. Never edit core CMS files.
+10. **Test before deploy** — every deploy runs `npm test` before building. Tests fail = no deploy.
+
+**If something doesn't work, the fix goes in the MAIN CMS template, not in the client repo. Client deploy.yml is ALWAYS a copy of the template.**
+
+---
+
 ## How It Works
 
 ```
