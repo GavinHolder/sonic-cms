@@ -238,13 +238,13 @@ jobs:
           if [ "$RESPONSE" = "200" ]; then
             echo "✅ Stack redeployed successfully (env vars preserved)"
           elif [ "$RESPONSE" = "400" ] || [ "$RESPONSE" = "500" ]; then
-            echo "⚠️ Git redeploy failed ($RESPONSE). Trying container recreation..."
-            cat /tmp/portainer_response.txt 2>/dev/null
+            ERRDETAIL=$(cat /tmp/portainer_response.txt 2>/dev/null)
+            echo "⚠️ Git redeploy failed ($RESPONSE): $ERRDETAIL"
 
-            # Fallback: update stack directly (non-git method)
-            # Get the current compose file content from the stack
+            # Fallback 1: Direct stack update (works for stacks with compose content)
             COMPOSE=$(echo "$STACK_DATA" | jq -r '.StackFileContent // empty')
             if [ -n "$COMPOSE" ]; then
+              echo "Trying direct stack update..."
               UPDATE_BODY=$(jq -n \
                 --argjson env "$CURRENT_ENV" \
                 --arg compose "$COMPOSE" \
@@ -257,14 +257,33 @@ jobs:
                 -d "$UPDATE_BODY")
 
               if [ "$RESPONSE2" = "200" ]; then
-                echo "✅ Stack updated via fallback method (env vars preserved)"
+                echo "✅ Stack updated via direct method (env vars preserved)"
               else
-                echo "❌ Fallback also failed ($RESPONSE2)"
+                echo "⚠️ Direct update failed ($RESPONSE2). Trying container restart..."
+              fi
+            fi
+
+            # Fallback 2: Restart containers (works for ALL stack types)
+            # Stop + start forces Portainer to pull :latest tag
+            if [ "${RESPONSE2:-0}" != "200" ]; then
+              echo "Trying stop + start (forces image pull)..."
+              STOP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+                "$BASE_URL/api/stacks/$STACK_ID/stop?endpointId=$ENDPOINT_ID" \
+                -H "$AUTH")
+              echo "  Stop: $STOP"
+              sleep 3
+
+              START=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+                "$BASE_URL/api/stacks/$STACK_ID/start?endpointId=$ENDPOINT_ID" \
+                -H "$AUTH")
+              echo "  Start: $START"
+
+              if [ "$START" = "200" ]; then
+                echo "✅ Stack restarted (stop + start)"
+              else
+                echo "❌ All deploy methods failed. Check Portainer manually."
                 exit 1
               fi
-            else
-              echo "❌ Cannot read compose content for fallback. Check Portainer manually."
-              exit 1
             fi
           else
             echo "❌ Deploy failed with HTTP $RESPONSE"
