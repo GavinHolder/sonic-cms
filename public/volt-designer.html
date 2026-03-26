@@ -453,7 +453,7 @@
   </div>
 </div>
 <!-- Timeline Panel (collapsible, below canvas) -->
-<div id="timeline-panel" style="display:none;background:#fff;border-top:2px solid #e2e8f0;flex-shrink:0;max-height:240px;overflow:hidden;">
+<div id="timeline-panel" style="display:none;flex-direction:column;background:#fff;border-top:2px solid #e2e8f0;flex-shrink:0;min-height:180px;height:220px;overflow:hidden;resize:vertical;">
   <div id="timeline-header" style="display:flex;align-items:center;gap:8px;padding:6px 12px;border-bottom:1px solid #f0f0f0;cursor:pointer;user-select:none;">
     <i class="bi bi-film" style="color:#6366f1;font-size:14px;"></i>
     <span style="font-size:11px;font-weight:700;color:#334155;letter-spacing:0.3px;">TIMELINE</span>
@@ -469,7 +469,7 @@
       </label>
     </div>
   </div>
-  <div id="timeline-body" style="display:flex;overflow:auto;max-height:190px;">
+  <div id="timeline-body" style="display:flex;overflow:auto;flex:1;">
     <!-- Layer labels column -->
     <div id="tl-labels" style="width:120px;flex-shrink:0;border-right:1px solid #f0f0f0;background:#fafafa;"></div>
     <!-- Keyframe tracks area -->
@@ -3612,7 +3612,7 @@
     var _tlPlayStart=0;
     function toggleTimeline(){
       _tlVisible=!_tlVisible;
-      document.getElementById('timeline-panel').style.display=_tlVisible?'flex':'none';
+      var _tlPanel=document.getElementById('timeline-panel');_tlPanel.style.display=_tlVisible?'flex':'none';_tlPanel.style.flexDirection='column';
       document.getElementById('btn-toggle-timeline').classList.toggle('btn-primary',_tlVisible);
       document.getElementById('btn-toggle-timeline').classList.toggle('btn-outline-secondary',!_tlVisible);
       if(_tlVisible)renderTimeline();
