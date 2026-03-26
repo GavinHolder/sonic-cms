@@ -1,9 +1,9 @@
 {
-  "version": "1.22.0",
+  "version": "1.23.0",
   "date": "2026-03-26",
   "changelog": {
     "features": [
-      "changelog system — auto-generated from git history, viewable in admin"
+      "enhanced SEO wizard Go Live step — comprehensive Google Search Console guide"
     ],
     "bugfixes": [],
     "breaking": []
