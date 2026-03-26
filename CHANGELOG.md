@@ -7,7 +7,75 @@ All notable changes to the White-Label CMS.
 ## Unreleased
 
 ### Bug Fixes
+- toolbar single-line — zoom moved to floating bar, key legend hidden, buttons compact
+
+---
+
+## v1.25.0 (2026-03-26)
+
+### Features
+- context-aware floating action panel — align/size appears next to selected layer
+
+---
+
+## v1.24.8 (2026-03-26)
+
+### Bug Fixes
+- revert Insert buttons to toolbar + fix full-canvas path remapping
+
+### Refactoring
+- Volt toolbar decluttered — SHP/GRD/ICN/CMP moved to left panel
+
+---
+
+## v1.24.7 (2026-03-26)
+
+### Bug Fixes
+- align buttons moved to left panel, canvas hint subtler, toolbar decluttered
+
+---
+
+## v1.24.6 (2026-03-26)
+
+### Bug Fixes
+- timeline panel — proper min-height, resizable, flex layout fills space
+
+---
+
+## v1.24.5 (2026-03-26)
+
+### Bug Fixes
+- move canvas size + breakpoints to top bar, toolbar wraps instead of scrolls
+
+---
+
+## v1.24.4 (2026-03-26)
+
+### Bug Fixes
+- align toolbar scrollable — all buttons visible on narrow screens
+
+---
+
+## v1.24.3 (2026-03-26)
+
+### Bug Fixes
+- changelog page fallback to cms-version.json when CHANGELOG.md missing
+
+---
+
+## v1.24.2 (2026-03-26)
+
+### Bug Fixes
 - align buttons now translate SVG pathData to match bounding box position
+
+### Documentation
+- regenerate changelog
+
+---
+
+## v1.24.1 (2026-03-26)
+
+### Bug Fixes
 - Volt designer cursor forced to default — prevents white cursor from globals.css
 
 ### Documentation
