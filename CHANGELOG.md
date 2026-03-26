@@ -9,7 +9,11 @@ All notable changes to the White-Label CMS.
 ### Features
 - Volt full-canvas button — expand any layer to fill entire canvas width+height
 
+### Bug Fixes
+- Volt designer cursor forced to default — prevents white cursor from globals.css
+
 ### Documentation
+- regenerate changelog
 - regenerate changelog
 
 ---
