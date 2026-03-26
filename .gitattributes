@@ -1,24 +1,3 @@
-# =============================================================================
-# White-Label CMS — Git Merge Strategy
-# =============================================================================
-# CLIENT REPOS: Copy this file and add your client-specific overrides below.
-# The 'merge=ours' driver preserves your version when pulling upstream updates.
-#
-# Enable the driver once per machine:
-#   git config merge.ours.driver true
-# =============================================================================
-
-# Client deploy workflow — never overwrite with upstream version
 .github/workflows/deploy.yml        merge=ours
-
-# Client docker-compose — image name is client-specific
 deploy/app/docker-compose.yml       merge=ours
-
-# Version file — each client tracks their own deployed version
 public/cms-version.json             merge=ours
-
-# =============================================================================
-# SONIC CLIENT ADDITIONS
-# =============================================================================
-prisma/seed.ts                      merge=ours
-.env.example                        merge=ours
