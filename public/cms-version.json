@@ -1,10 +1,10 @@
 {
-  "version": "1.21.1",
+  "version": "1.21.2",
   "date": "2026-03-26",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "main CMS deploy.yml now preserves Portainer env vars + has fallback method"
+      "deploy handles non-git stacks — stop+start fallback for all Portainer stack types"
     ],
     "breaking": []
   }
