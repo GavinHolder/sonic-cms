@@ -1,11 +1,11 @@
 {
-  "version": "1.21.3",
+  "version": "1.22.0",
   "date": "2026-03-26",
   "changelog": {
-    "features": [],
-    "bugfixes": [
-      "3 Volt designer bugs — shape stuck, text auto-size, resize scaling"
+    "features": [
+      "changelog system — auto-generated from git history, viewable in admin"
     ],
+    "bugfixes": [],
     "breaking": []
   }
 }
