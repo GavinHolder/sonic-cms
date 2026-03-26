@@ -697,24 +697,85 @@ export default function SeoWizardModal({ show, onClose, onApply }: Props) {
                     </div>
                   )}
 
-                  {/* GSC instructions */}
+                  {/* Google Search Console — step-by-step guide */}
+                  <div className="card border-primary" style={{ borderWidth: 2 }}>
+                    <div className="card-header bg-primary text-white py-2">
+                      <h6 className="mb-0 d-flex align-items-center gap-2">
+                        <i className="bi bi-google" />
+                        Submit to Google (Required)
+                      </h6>
+                    </div>
+                    <div className="card-body p-3">
+                      <p className="small fw-semibold text-danger mb-2">
+                        <i className="bi bi-exclamation-triangle me-1" />
+                        Your site will NOT appear on Google until you complete these steps.
+                      </p>
+
+                      <div className="mb-3">
+                        <div className="fw-bold small mb-1">Step 1: Add your site to Google Search Console</div>
+                        <ol className="small mb-0 ps-3" style={{ lineHeight: 1.8 }}>
+                          <li>Go to <a href="https://search.google.com/search-console" target="_blank" rel="noopener noreferrer" className="fw-semibold">search.google.com/search-console</a></li>
+                          <li>Click <strong>&quot;Add property&quot;</strong></li>
+                          <li>Choose <strong>&quot;URL prefix&quot;</strong> method</li>
+                          <li>Enter: <code className="bg-light px-1">{readinessCanonical || "https://www.yoursite.com"}</code></li>
+                        </ol>
+                      </div>
+
+                      <div className="mb-3">
+                        <div className="fw-bold small mb-1">Step 2: Verify ownership via DNS</div>
+                        <ol className="small mb-0 ps-3" style={{ lineHeight: 1.8 }}>
+                          <li>Google will show a <strong>TXT record</strong> to add to your DNS</li>
+                          <li>Go to your domain registrar (e.g., GoDaddy, Cloudflare, Afrihost)</li>
+                          <li>Add a <strong>TXT record</strong> to your domain with the value Google gives you</li>
+                          <li>Wait 5-10 minutes, then click <strong>&quot;Verify&quot;</strong> in Google Search Console</li>
+                        </ol>
+                        <div className="small text-muted mt-1">
+                          <i className="bi bi-info-circle me-1" />
+                          Alternative: you can also verify via HTML file upload or meta tag (ask your developer)
+                        </div>
+                      </div>
+
+                      <div className="mb-3">
+                        <div className="fw-bold small mb-1">Step 3: Submit your sitemap</div>
+                        <ol className="small mb-0 ps-3" style={{ lineHeight: 1.8 }}>
+                          <li>In Search Console, go to <strong>Sitemaps</strong> (left sidebar)</li>
+                          <li>Enter: <code className="bg-light px-1">{readinessCanonical || "https://www.yoursite.com"}/sitemap.xml</code></li>
+                          <li>Click <strong>&quot;Submit&quot;</strong></li>
+                          <li>Status should change to <strong>&quot;Success&quot;</strong> (may take a few minutes)</li>
+                        </ol>
+                      </div>
+
+                      <div className="mb-3">
+                        <div className="fw-bold small mb-1">Step 4: Request indexing for your homepage</div>
+                        <ol className="small mb-0 ps-3" style={{ lineHeight: 1.8 }}>
+                          <li>In Search Console, go to <strong>URL Inspection</strong> (top search bar)</li>
+                          <li>Paste your homepage URL: <code className="bg-light px-1">{readinessCanonical || "https://www.yoursite.com"}</code></li>
+                          <li>Click <strong>&quot;Request Indexing&quot;</strong></li>
+                          <li>Repeat for any other important pages</li>
+                        </ol>
+                      </div>
+
+                      <div className="alert alert-info small mb-0 py-2">
+                        <i className="bi bi-clock me-1" />
+                        <strong>Timeline:</strong> New sites typically take <strong>1&ndash;4 weeks</strong> to start appearing in Google search results. Some pages may appear faster than others. Keep publishing quality content — Google rewards active sites.
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Additional SEO tips */}
                   <div className="card border-0 bg-light">
                     <div className="card-body p-3">
                       <h6 className="fw-bold small mb-2">
-                        <i className="bi bi-google me-1" />Submit to Google Search Console
+                        <i className="bi bi-lightbulb me-1 text-warning" />After Submission — Keep Improving
                       </h6>
-                      <p className="small text-muted mb-2">
-                        Google won&apos;t discover the site until you tell it the site exists.
-                      </p>
-                      <ol className="small mb-2 ps-3">
-                        <li>Go to <a href="https://search.google.com/search-console" target="_blank" rel="noopener noreferrer">search.google.com/search-console</a> &rarr; Add property</li>
-                        <li>Enter <code>{readinessCanonical || "https://www.yourdomain.co.za"}</code> &rarr; verify via DNS TXT record</li>
-                        <li>Submit sitemap: <code>{readinessCanonical || "https://www.yourdomain.co.za"}/sitemap.xml</code></li>
-                        <li>Open URL Inspection &rarr; paste homepage URL &rarr; Request Indexing</li>
-                      </ol>
-                      <p className="small text-muted mb-0">
-                        <i className="bi bi-clock me-1" />New sites typically take <strong>1&ndash;4 weeks</strong> to appear in search results after submission.
-                      </p>
+                      <ul className="small mb-0 ps-3" style={{ lineHeight: 1.8 }}>
+                        <li><strong>Add content regularly</strong> — blog posts, new pages, updated sections</li>
+                        <li><strong>Set meta descriptions</strong> on every page (SEO → Per-Page SEO)</li>
+                        <li><strong>Use keywords naturally</strong> in headings and body text</li>
+                        <li><strong>Add alt text</strong> to all images in the media library</li>
+                        <li><strong>Get backlinks</strong> — list your site on Google Business, directories, social media</li>
+                        <li><strong>Check Search Console weekly</strong> for errors, coverage issues, and performance</li>
+                      </ul>
                     </div>
                   </div>
                 </div>
