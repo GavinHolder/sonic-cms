@@ -218,6 +218,17 @@
             </div>
           </div>
         </div>
+        <div class="panel">
+          <div class="panel-header" data-panel="insert"><i class="bi bi-plus-circle"></i> Insert <i class="bi bi-chevron-down chevron"></i></div>
+          <div class="panel-body" id="pb-insert">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
+              <button id="btn-shapes-panel" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1" style="font-size:10px;"><i class="bi bi-stars text-primary"></i> Shapes</button>
+              <button id="btn-grad-panel" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1" style="font-size:10px;"><i class="bi bi-palette2 text-warning"></i> Gradients</button>
+              <button id="btn-icon-panel" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1" style="font-size:10px;"><i class="bi bi-grid-3x3 text-success"></i> Icons</button>
+              <button id="btn-comp-panel" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1" style="font-size:10px;"><i class="bi bi-box-seam text-purple"></i> Components</button>
+            </div>
+          </div>
+        </div>
         <div class="panel" id="align-panel">
           <div class="panel-header" data-panel="align"><i class="bi bi-grid-3x3"></i> Align & Size <i class="bi bi-chevron-down chevron"></i></div>
           <div class="panel-body" id="pb-align">
@@ -299,24 +310,25 @@
             <button id="btn-slot-type-caret" style="width:18px;padding:0 3px;border:none;background:transparent;cursor:pointer;border-radius:0 5px 5px 0;font-size:9px;color:#6c757d;line-height:1;transition:color 0.12s;border-left:1px solid rgba(0,0,0,0.08);" title="Choose slot type">&#9660;</button>
             <div id="slot-type-menu" style="display:none;position:absolute;top:calc(100% + 4px);left:0;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:9999;min-width:200px;padding:4px 0;"></div>
           </div>
-          <div class="tools-sep"></div>
-          <div style="position:relative;display:inline-flex;align-items:stretch;">
-            <button id="btn-shapes-preset" class="tool-btn-h" title="Shape Presets — insert ready-made shapes" style="width:auto;padding:0 7px;gap:3px;"><i class="bi bi-stars"></i><span style="font-size:8px;font-weight:800;letter-spacing:0.3px;color:#6366f1;">SHP</span></button>
+          <!-- SHP/GRD/ICN/CMP moved to left panel "Insert" section -->
+          <!-- Popup panels still here (positioned absolute, rendered by JS) -->
+          <div style="position:relative;display:none;" id="shapes-preset-wrap">
+            <button id="btn-shapes-preset" style="display:none;"></button>
             <div id="shapes-preset-panel" class="shapes-preset-panel" style="display:none;">
               <div style="font-size:10px;font-weight:700;color:#374151;margin-bottom:8px;letter-spacing:0.5px;text-transform:uppercase;">Shape Presets</div>
               <div class="shapes-preset-grid" id="shapes-preset-grid"></div>
             </div>
           </div>
-          <div style="position:relative;display:inline-flex;align-items:stretch;">
-            <button id="btn-grad-presets" class="tool-btn-h" title="Gradient Presets — quick-apply to selected fill" style="width:auto;padding:0 7px;gap:3px;"><i class="bi bi-palette2"></i><span style="font-size:8px;font-weight:800;letter-spacing:0.3px;color:#f59e0b;">GRD</span></button>
+          <div style="position:relative;display:none;" id="grad-presets-wrap">
+            <button id="btn-grad-presets" style="display:none;"></button>
             <div id="grad-presets-panel" class="shapes-preset-panel" style="display:none;width:280px;">
               <div style="font-size:10px;font-weight:700;color:#374151;margin-bottom:8px;letter-spacing:0.5px;text-transform:uppercase;">Gradient Presets</div>
               <div id="grad-presets-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;"></div>
             </div>
           </div>
-          <div style="position:relative;display:inline-flex;align-items:stretch;">
-            <button id="btn-icon-picker" class="tool-btn-h" title="Icon Library — insert Lucide icon as vector layer" style="width:auto;padding:0 7px;gap:3px;"><i class="bi bi-grid-3x3"></i><span style="font-size:8px;font-weight:800;letter-spacing:0.3px;color:#10b981;">ICN</span></button>
-            <button id="btn-component-lib" class="tool-btn-h" title="Component Library — insert saved designs" style="width:auto;padding:0 7px;gap:3px;"><i class="bi bi-box-seam"></i><span style="font-size:8px;font-weight:800;letter-spacing:0.3px;color:#8b5cf6;">CMP</span></button>
+          <div style="position:relative;display:none;" id="icon-picker-wrap">
+            <button id="btn-icon-picker" style="display:none;"></button>
+            <button id="btn-component-lib" style="display:none;"></button>
             <div id="icon-picker-panel" class="shapes-preset-panel" style="display:none;width:320px;">
               <div style="font-size:10px;font-weight:700;color:#374151;margin-bottom:8px;letter-spacing:0.5px;text-transform:uppercase;">Icon Library</div>
               <input id="icon-search" type="text" placeholder="Search icons..." style="width:100%;font-size:11px;padding:4px 8px;border:1px solid #dee2e6;border-radius:5px;margin-bottom:8px;outline:none;" />
@@ -4512,6 +4524,15 @@
     document.getElementById('unsplash-search').addEventListener('keydown',function(e){
       if(e.key==='Enter'){var q=this.value.trim();if(q)_searchUnsplash(q);}
     });
+    // ── Left panel Insert buttons → trigger same popups as old toolbar buttons ──
+    var _btnShapesPanel=document.getElementById('btn-shapes-panel');
+    if(_btnShapesPanel)_btnShapesPanel.addEventListener('click',function(){document.getElementById('btn-shapes-preset').click();});
+    var _btnGradPanel=document.getElementById('btn-grad-panel');
+    if(_btnGradPanel)_btnGradPanel.addEventListener('click',function(){document.getElementById('btn-grad-presets').click();});
+    var _btnIconPanel=document.getElementById('btn-icon-panel');
+    if(_btnIconPanel)_btnIconPanel.addEventListener('click',function(){document.getElementById('btn-icon-picker').click();});
+    var _btnCompPanel=document.getElementById('btn-comp-panel');
+    if(_btnCompPanel)_btnCompPanel.addEventListener('click',function(){document.getElementById('btn-component-lib').click();});
     // ── Save / Done ───────────────────────────────────────────────────────────
     function captureThumbnail(){
       try{
