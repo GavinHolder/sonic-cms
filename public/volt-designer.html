@@ -87,16 +87,16 @@
     #key-legend .kl-item{display:flex;align-items:center;gap:3px;font-size:10px;white-space:nowrap;flex-shrink:0;}
     #key-legend .kl-key{font-family:monospace;font-size:9px;font-weight:700;color:#495057;background:#e9ecef;border:1px solid #ced4da;border-radius:3px;padding:0px 4px;white-space:nowrap;}
     #key-legend .kl-label{color:#6c757d;font-size:10px;white-space:nowrap;}
-    .canvas-empty-hint-card{background:rgba(255,255,255,0.82);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(100,116,139,0.22);border-radius:16px;padding:28px 36px;display:flex;flex-direction:column;align-items:center;gap:10px;box-shadow:0 2px 16px rgba(0,0,0,0.08);}
+    .canvas-empty-hint-card{background:rgba(255,255,255,0.4);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);border:1px solid rgba(100,116,139,0.12);border-radius:12px;padding:16px 24px;display:flex;flex-direction:column;align-items:center;gap:6px;}
     /* Shape presets popup */
     .shapes-preset-panel{position:absolute;top:calc(100% + 4px);left:0;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,0.14);z-index:9999;padding:10px;width:248px;}
     .shapes-preset-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
     .shape-preset-item{display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 4px;border:1.5px solid #e2e8f0;border-radius:7px;cursor:pointer;background:#fafafa;transition:all 0.12s;}
     .shape-preset-item:hover{border-color:#6366f1;background:#f0f0ff;}
     .shape-preset-item span{font-size:9px;color:#64748b;text-align:center;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:52px;}
-    .canvas-empty-hint i{font-size:38px;color:#475569;}
-    .canvas-empty-hint p{font-size:14px;color:#1e293b;margin:0;font-weight:700;letter-spacing:0.1px;}
-    .canvas-empty-hint small{font-size:11px;color:#475569;letter-spacing:0.5px;background:rgba(241,245,249,0.95);padding:5px 14px;border-radius:20px;border:1px solid rgba(100,116,139,0.25);font-weight:600;}
+    .canvas-empty-hint i{font-size:24px;color:#94a3b8;}
+    .canvas-empty-hint p{font-size:12px;color:#94a3b8;margin:0;font-weight:500;}
+    .canvas-empty-hint small{font-size:10px;color:#94a3b8;letter-spacing:0.3px;padding:3px 10px;border-radius:12px;border:1px solid rgba(100,116,139,0.15);font-weight:500;background:transparent;}
     .v3d-modal{position:fixed;inset:0;z-index:9000;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);}
     .v3d-modal.open{display:flex;}
     /* ── Canvas right-click context menu ──────────────────────────── */
@@ -218,6 +218,23 @@
             </div>
           </div>
         </div>
+        <div class="panel" id="align-panel">
+          <div class="panel-header" data-panel="align"><i class="bi bi-grid-3x3"></i> Align & Size <i class="bi bi-chevron-down chevron"></i></div>
+          <div class="panel-body" id="pb-align">
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:3px;margin-bottom:6px;">
+              <button id="btn-align-left" class="btn btn-sm btn-outline-secondary" title="Align left"><i class="bi bi-align-start"></i></button>
+              <button id="btn-align-hcenter" class="btn btn-sm btn-outline-secondary" title="Center H"><i class="bi bi-align-center"></i></button>
+              <button id="btn-align-right" class="btn btn-sm btn-outline-secondary" title="Align right"><i class="bi bi-align-end"></i></button>
+              <button id="btn-full-canvas" class="btn btn-sm btn-outline-primary" title="Fill canvas"><i class="bi bi-fullscreen"></i></button>
+              <button id="btn-align-top" class="btn btn-sm btn-outline-secondary" title="Align top"><i class="bi bi-align-top"></i></button>
+              <button id="btn-align-vcenter" class="btn btn-sm btn-outline-secondary" title="Center V"><i class="bi bi-align-middle"></i></button>
+              <button id="btn-align-bottom" class="btn btn-sm btn-outline-secondary" title="Align bottom"><i class="bi bi-align-bottom"></i></button>
+              <span></span>
+              <button id="btn-distribute-h" class="btn btn-sm btn-outline-secondary" title="Distribute H"><i class="bi bi-distribute-horizontal"></i></button>
+              <button id="btn-distribute-v" class="btn btn-sm btn-outline-secondary" title="Distribute V"><i class="bi bi-distribute-vertical"></i></button>
+            </div>
+          </div>
+        </div>
         <div class="panel">
           <div class="panel-header" data-panel="bool"><i class="bi bi-intersect"></i> Boolean Ops <i class="bi bi-chevron-down chevron"></i></div>
           <div class="panel-body" id="pb-bool">
@@ -316,22 +333,7 @@
           <button id="btn-state-rest" class="btn btn-sm btn-primary" style="font-size:10px;padding:2px 10px;" title="View REST state (default appearance)">REST</button>
           <button id="btn-state-hover" class="btn btn-sm btn-outline-secondary" style="font-size:10px;padding:2px 10px;" title="View &amp; edit HOVER state overrides">HOVER</button>
         </div>
-        <!-- Alignment tools (shown when a layer is selected) -->
-        <div id="align-tools" class="d-flex align-items-center gap-1 ms-2" style="display:none;flex-shrink:0;">
-          <span style="font-size:10px;font-weight:700;color:#6c757d;letter-spacing:0.3px;">ALIGN:</span>
-          <button id="btn-align-left"   class="btn btn-sm btn-outline-secondary px-2" title="Align left edge to canvas"><i class="bi bi-align-start"></i></button>
-          <button id="btn-align-hcenter" class="btn btn-sm btn-outline-secondary px-2" title="Center horizontally"><i class="bi bi-align-center"></i></button>
-          <button id="btn-align-right"  class="btn btn-sm btn-outline-secondary px-2" title="Align right edge to canvas"><i class="bi bi-align-end"></i></button>
-          <div style="width:1px;height:14px;background:#dee2e6;margin:0 2px;"></div>
-          <button id="btn-align-top"    class="btn btn-sm btn-outline-secondary px-2" title="Align top edge to canvas"><i class="bi bi-align-top"></i></button>
-          <button id="btn-align-vcenter" class="btn btn-sm btn-outline-secondary px-2" title="Center vertically"><i class="bi bi-align-middle"></i></button>
-          <button id="btn-align-bottom" class="btn btn-sm btn-outline-secondary px-2" title="Align bottom edge to canvas"><i class="bi bi-align-bottom"></i></button>
-          <div style="width:1px;height:14px;background:#dee2e6;margin:0 2px;"></div>
-          <button id="btn-distribute-h" class="btn btn-sm btn-outline-secondary px-2" title="Distribute horizontally (even spacing)"><i class="bi bi-distribute-horizontal"></i></button>
-          <button id="btn-distribute-v" class="btn btn-sm btn-outline-secondary px-2" title="Distribute vertically (even spacing)"><i class="bi bi-distribute-vertical"></i></button>
-          <div style="width:1px;height:14px;background:#dee2e6;margin:0 2px;"></div>
-          <button id="btn-full-canvas" class="btn btn-sm btn-outline-secondary px-2" title="Fill entire canvas (selected layer)"><i class="bi bi-fullscreen"></i></button>
-        </div>
+        <!-- Alignment tools moved to left panel -->
         <!-- Flip Card Face Preview (shown only when flip card enabled) -->
         <div id="flip-face-switcher" class="d-flex align-items-center gap-1 ms-3" style="display:none!important;">
           <span style="font-size:10px;font-weight:700;color:#6c757d;letter-spacing:0.3px;">FACE:</span>
@@ -568,11 +570,8 @@
       if(bf)bf.className='btn btn-sm '+(state.activeFace==='front'?'btn-primary':'btn-outline-secondary');
       if(bb)bb.className='btn btn-sm '+(state.activeFace==='back'?'btn-info':'btn-outline-secondary');
     }
-    /** Show/hide the alignment toolbar based on whether a layer is selected */
-    function _updateAlignTools(){
-      var at=document.getElementById('align-tools');
-      if(at)at.style.display=state.selectedLayerId?'flex':'none';
-    }
+    /** Show/hide the alignment panel based on whether a layer is selected (no-op — now in left panel, always visible) */
+    function _updateAlignTools(){}
     /** Update state buttons to reflect activeStateName */
     function _updateStateButtons(){
       var br=document.getElementById('btn-state-rest'),bh=document.getElementById('btn-state-hover');
