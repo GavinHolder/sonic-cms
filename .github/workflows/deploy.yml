@@ -96,6 +96,16 @@ jobs:
             git add -A
             git commit --no-edit -m "chore: merge upstream with conflict resolution" || true
           }
+          # Remove main-repo-only workflow files that clients shouldn't have
+          # (GITHUB_TOKEN can't push workflow files it didn't create)
+          for wf in notify-clients.yml auto-version.yml publish-channel.yml; do
+            if [ -f ".github/workflows/$wf" ]; then
+              git rm ".github/workflows/$wf" 2>/dev/null || true
+            fi
+          done
+          if ! git diff --cached --quiet 2>/dev/null; then
+            git commit -m "chore: remove main-repo-only workflows from client"
+          fi
           git push origin main
 
   # ── Job 1: Run tests ────────────────────────────────────────────────────
