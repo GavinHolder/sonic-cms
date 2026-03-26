@@ -1,11 +1,11 @@
 {
-  "version": "1.24.0",
+  "version": "1.24.1",
   "date": "2026-03-26",
   "changelog": {
-    "features": [
-      "Volt full-canvas button — expand any layer to fill entire canvas width+height"
+    "features": [],
+    "bugfixes": [
+      "Volt designer cursor forced to default — prevents white cursor from globals.css"
     ],
-    "bugfixes": [],
     "breaking": []
   }
 }

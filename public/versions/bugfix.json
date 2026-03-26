@@ -1,10 +1,10 @@
 {
-  "version": "1.23.2",
+  "version": "1.24.1",
   "date": "2026-03-26",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "Volt designer — CW/CH undefined in mousedown handler + zoom uses applyZoom()"
+      "Volt designer cursor forced to default — prevents white cursor from globals.css"
     ],
     "breaking": []
   }
