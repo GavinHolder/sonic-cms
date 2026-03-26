@@ -94,6 +94,7 @@ export default function LandingPageManager() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterCategory>("all");
+  const [pluginSectionTypes, setPluginSectionTypes] = useState<{ pluginId: string; pluginName: string; id: string; label: string; icon: string; description: string }[]>([]);
 
   // Drag-and-drop sensors
   const sensors = useSensors(
@@ -143,6 +144,11 @@ export default function LandingPageManager() {
 
   useEffect(() => {
     reloadSections();
+    // Load plugin section types
+    fetch("/api/admin/plugins/section-types")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.success) setPluginSectionTypes(d.data); })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -191,14 +197,21 @@ export default function LandingPageManager() {
   };
 
   const handleCreateSection = async () => {
-    const newSection = await createSection("/", selectedType, {
-      displayName: `New ${getSectionTypeLabel(selectedType)}`,
-      content: {},
+    // Plugin section types use "plugin:<id>" format → stored as FLEXIBLE with pluginType in content
+    const isPlugin = selectedType.startsWith("plugin:");
+    const actualType = isPlugin ? "FLEXIBLE" as SectionType : selectedType;
+    const pluginTypeId = isPlugin ? selectedType.replace("plugin:", "") : undefined;
+    const pluginInfo = pluginTypeId ? pluginSectionTypes.find(p => p.id === pluginTypeId) : undefined;
+    const displayName = pluginInfo ? pluginInfo.label : `New ${getSectionTypeLabel(actualType)}`;
+
+    const newSection = await createSection("/", actualType, {
+      displayName,
+      content: pluginTypeId ? { pluginType: pluginTypeId, pluginId: pluginInfo?.pluginId } as Record<string, unknown> : {},
     });
     if (newSection) {
       await reloadSections();
       setShowCreateModal(false);
-      setSuccessMessage(`${getSectionTypeLabel(selectedType)} created successfully!`);
+      setSuccessMessage(`${displayName} created successfully!`);
     }
   };
 
@@ -681,6 +694,15 @@ export default function LandingPageManager() {
                   <option value="CTA">Call to Action (Movable)</option>
                   <option value="NORMAL">Content Section (Movable)</option>
                   <option value="FLEXIBLE">Flexible Section (Custom Layout)</option>
+                  {pluginSectionTypes.length > 0 && (
+                    <optgroup label="── Plugin Sections ──">
+                      {pluginSectionTypes.map(pst => (
+                        <option key={pst.id} value={`plugin:${pst.id}`}>
+                          {pst.label} ({pst.pluginName})
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
                 <div className="form-text mt-2">
                   {selectedType === "HERO" && (

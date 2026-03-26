@@ -45,6 +45,20 @@ export interface PluginManifest {
   tier: 'core' | 'free' | 'pro' | 'enterprise'
   canDisable: boolean
   defaultEnabled: boolean
+  /** Section types this plugin contributes to the "Add Section" picker */
+  sectionTypes?: {
+    id: string
+    label: string
+    icon: string
+    description: string
+  }[]
+  /** Page types this plugin contributes to the "Create Page" picker */
+  pageTypes?: {
+    id: string
+    label: string
+    icon: string
+    description: string
+  }[]
 }
 
 export interface PluginWithState {

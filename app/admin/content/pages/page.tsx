@@ -827,6 +827,14 @@ function CreatePageModal({
   const [type, setType] = useState<PageType>("designer");
   const [isCreating, setIsCreating] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [pluginPageTypes, setPluginPageTypes] = useState<{ pluginId: string; pluginName: string; id: string; label: string; icon: string; description: string }[]>([]);
+
+  useEffect(() => {
+    fetch("/api/admin/plugins/page-types")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.success) setPluginPageTypes(d.data); })
+      .catch(() => {});
+  }, []);
 
   const handleCreate = async () => {
     if (!title.trim()) {
@@ -915,6 +923,25 @@ function CreatePageModal({
                     </div>
                   </button>
                 ))}
+                {pluginPageTypes.length > 0 && (
+                  <>
+                    <div className="text-muted text-center my-2" style={{ fontSize: 11 }}>
+                      <span className="badge bg-light text-secondary">Plugin Page Types</span>
+                    </div>
+                    {pluginPageTypes.map(ppt => (
+                      <button
+                        key={ppt.id}
+                        onClick={() => setType(`plugin:${ppt.id}` as PageType)}
+                        className={`btn text-start ${type === `plugin:${ppt.id}` ? "btn-primary" : "btn-outline-secondary"}`}
+                      >
+                        <i className={`bi ${ppt.icon} me-2`}></i>
+                        <strong>{ppt.label}</strong>
+                        <span className="badge bg-light text-muted ms-2" style={{ fontSize: 9 }}>{ppt.pluginName}</span>
+                        <div className="small mt-1">{ppt.description}</div>
+                      </button>
+                    ))}
+                  </>
+                )}
               </div>
             </div>
           </div>

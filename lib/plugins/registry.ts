@@ -217,6 +217,50 @@ export async function getPluginSidebarItems(): Promise<{ parentId: string; items
 }
 
 // ---------------------------------------------------------------------------
+// Plugin section + page types for creation UIs
+// ---------------------------------------------------------------------------
+
+export interface PluginContentType {
+  pluginId: string
+  pluginName: string
+  pluginIcon: string
+  id: string
+  label: string
+  icon: string
+  description: string
+}
+
+/**
+ * Get all section types contributed by enabled plugins.
+ * Used by the "Add Section" picker.
+ */
+export async function getPluginSectionTypes(): Promise<PluginContentType[]> {
+  const plugins = await getEnabledPlugins()
+  const result: PluginContentType[] = []
+  for (const p of plugins) {
+    for (const st of p.manifest.sectionTypes ?? []) {
+      result.push({ pluginId: p.slug, pluginName: p.name, pluginIcon: p.manifest.icon, ...st })
+    }
+  }
+  return result
+}
+
+/**
+ * Get all page types contributed by enabled plugins.
+ * Used by the "Create Page" picker.
+ */
+export async function getPluginPageTypes(): Promise<PluginContentType[]> {
+  const plugins = await getEnabledPlugins()
+  const result: PluginContentType[] = []
+  for (const p of plugins) {
+    for (const pt of p.manifest.pageTypes ?? []) {
+      result.push({ pluginId: p.slug, pluginName: p.name, pluginIcon: p.manifest.icon, ...pt })
+    }
+  }
+  return result
+}
+
+// ---------------------------------------------------------------------------
 // Breaking change impact analysis
 // ---------------------------------------------------------------------------
 

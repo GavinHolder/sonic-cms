@@ -342,6 +342,10 @@ export const CONTENT_TYPES_MANIFEST: PluginManifest = {
   tier: 'free',
   canDisable: true,
   defaultEnabled: true,
+  sectionTypes: [
+    { id: 'blog-feed', label: 'Blog Feed', icon: 'bi-journal-text', description: 'Latest blog posts in a card grid — automatically pulls from your Blog content type' },
+    { id: 'team-grid', label: 'Team Grid', icon: 'bi-people', description: 'Team member cards — automatically pulls from your Team content type' },
+  ],
 }
 
 export const VOLT_STUDIO_MANIFEST: PluginManifest = {
@@ -636,6 +640,12 @@ export const CONCRETE_CALCULATOR_MANIFEST: PluginManifest = {
   tier: 'pro',
   canDisable: true,
   defaultEnabled: false,
+  sectionTypes: [
+    { id: 'concrete-calculator', label: 'Concrete Calculator', icon: 'bi-calculator', description: 'Embeddable concrete volume calculator with quote generation' },
+  ],
+  pageTypes: [
+    { id: 'calculator-page', label: 'Calculator Page', icon: 'bi-calculator', description: 'Standalone page with the concrete volume calculator' },
+  ],
 }
 
 export const COVERAGE_MAPS_MANIFEST: PluginManifest = {
@@ -682,6 +692,12 @@ export const COVERAGE_MAPS_MANIFEST: PluginManifest = {
   tier: 'pro',
   canDisable: true,
   defaultEnabled: false,
+  sectionTypes: [
+    { id: 'coverage-map', label: 'Coverage Map', icon: 'bi-map', description: 'Interactive map showing service areas with regions and labels' },
+  ],
+  pageTypes: [
+    { id: 'coverage-page', label: 'Coverage Page', icon: 'bi-map', description: 'Standalone coverage area page with interactive map' },
+  ],
 }
 
 export const PROJECTS_MANIFEST: PluginManifest = {
@@ -720,6 +736,12 @@ export const PROJECTS_MANIFEST: PluginManifest = {
   tier: 'pro',
   canDisable: true,
   defaultEnabled: false,
+  sectionTypes: [
+    { id: 'projects-showcase', label: 'Projects Showcase', icon: 'bi-building', description: 'Grid of project cards with image gallery and lightbox' },
+  ],
+  pageTypes: [
+    { id: 'projects-page', label: 'Projects Page', icon: 'bi-building', description: 'Standalone page showcasing all projects' },
+  ],
 }
 
 // ── Aggregate Export ─────────────────────────────────────────────────────────
