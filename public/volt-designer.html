@@ -1391,6 +1391,7 @@
           if(_vexL&&_vexL.boolRole==='cutter'&&_vexL.boolParentId){state.boolEditParentId=_vexL.boolParentId;state.selectedLayerId=_vexL.id;renderCanvas();renderLayers();return;}
         }
         var sel=state.selectedLayerId?state.element.layers.find(function(l){return l.id===state.selectedLayerId;}):null;
+        var CW=state.element.canvasWidth,CH=state.element.canvasHeight;
         // Check shadow direction handle first
         var _selDs=sel&&sel.effects&&sel.effects.dropShadow&&sel.effects.dropShadow.enabled&&sel.effects.dropShadow;
         if(_selDs){
@@ -3575,10 +3576,8 @@
     document.getElementById('canvas-wrap').addEventListener('wheel',function(e){
       if(!e.ctrlKey&&!e.metaKey)return;
       e.preventDefault();
-      var delta=e.deltaY>0?-0.1:0.1;
-      state.zoom=Math.max(0.1,Math.min(5,state.zoom+delta));
-      document.getElementById('artboard').style.transform='scale('+state.zoom+')';
-      document.getElementById('zoom-label').textContent=Math.round(state.zoom*100)+'%';
+      var delta=e.deltaY>0?-0.05:0.05;
+      applyZoom(state.zoom+delta);
     },{passive:false});
     // ── Timeline Panel Logic ────────────────────────────────────────────────
     var _tlVisible=false;
