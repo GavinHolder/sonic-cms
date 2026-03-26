@@ -3536,12 +3536,17 @@
       if(i<0)return;
       pushHistory();
       var l=state.element.layers[i];
+      var oldX=l.x,oldY=l.y;
       if(mode==='left')   l.x=0;
       else if(mode==='hcenter') l.x=50-l.width/2;
       else if(mode==='right')   l.x=100-l.width;
       else if(mode==='top')     l.y=0;
       else if(mode==='vcenter') l.y=50-l.height/2;
       else if(mode==='bottom')  l.y=100-l.height;
+      // Move the SVG path to match the new position
+      if(l.vectorData&&l.vectorData.pathData){
+        l.vectorData.pathData=translatePath(l.vectorData.pathData,l.x-oldX,l.y-oldY);
+      }
       markDirty();renderCanvas();renderProps();
     }
     document.getElementById('btn-align-left').addEventListener('click',function(){_alignLayer('left');});

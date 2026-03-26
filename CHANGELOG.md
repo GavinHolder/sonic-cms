@@ -6,11 +6,19 @@ All notable changes to the White-Label CMS.
 
 ## Unreleased
 
+### Bug Fixes
+- align buttons now translate SVG pathData to match bounding box position
+- Volt designer cursor forced to default — prevents white cursor from globals.css
+
+### Documentation
+- regenerate changelog
+
+---
+
+## v1.24.0 (2026-03-26)
+
 ### Features
 - Volt full-canvas button — expand any layer to fill entire canvas width+height
-
-### Bug Fixes
-- Volt designer cursor forced to default — prevents white cursor from globals.css
 
 ### Documentation
 - regenerate changelog
