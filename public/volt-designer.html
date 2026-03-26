@@ -3572,7 +3572,7 @@
     document.getElementById('btn-distribute-h').addEventListener('click',function(){_distribute('h');});
     document.getElementById('btn-distribute-v').addEventListener('click',function(){_distribute('v');});
     // ── Scroll wheel zoom (Ctrl+scroll) ──────────────────────────────────────
-    document.getElementById('artboard-container').addEventListener('wheel',function(e){
+    document.getElementById('canvas-wrap').addEventListener('wheel',function(e){
       if(!e.ctrlKey&&!e.metaKey)return;
       e.preventDefault();
       var delta=e.deltaY>0?-0.1:0.1;
