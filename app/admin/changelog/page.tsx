@@ -10,13 +10,34 @@ export const dynamic = "force-dynamic";
  * Safe: content is server-generated from a local file, never user input.
  */
 export default async function ChangelogPage() {
-  let content = "No changelog available.";
+  let content = "";
   const filePath = path.join(process.cwd(), "CHANGELOG.md");
 
   if (existsSync(filePath)) {
-    const raw = await readFile(filePath, "utf-8");
-    content = raw;
+    content = await readFile(filePath, "utf-8");
   }
+
+  // Fallback: generate from cms-version.json if no CHANGELOG.md
+  if (!content) {
+    try {
+      const versionPath = path.join(process.cwd(), "public", "cms-version.json");
+      if (existsSync(versionPath)) {
+        const ver = JSON.parse(await readFile(versionPath, "utf-8"));
+        content = `# Changelog\n\n## v${ver.version} (${ver.date})\n\n`;
+        if (ver.changelog?.features?.length) {
+          content += "### Features\n" + ver.changelog.features.map((f: string) => `- ${f}`).join("\n") + "\n\n";
+        }
+        if (ver.changelog?.bugfixes?.length) {
+          content += "### Bug Fixes\n" + ver.changelog.bugfixes.map((f: string) => `- ${f}`).join("\n") + "\n\n";
+        }
+        if (ver.changelog?.breaking?.length) {
+          content += "### Breaking Changes\n" + ver.changelog.breaking.map((f: unknown) => `- ${typeof f === "string" ? f : (f as { message: string }).message}`).join("\n") + "\n\n";
+        }
+      }
+    } catch { /* ignore */ }
+  }
+
+  if (!content) content = "No changelog available. Run `npm run changelog` to generate from git history.";
 
   // Simple markdown to HTML (headings, lists, rules, inline code)
   const html = content
