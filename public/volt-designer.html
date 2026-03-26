@@ -218,23 +218,7 @@
             </div>
           </div>
         </div>
-        <div class="panel" id="align-panel">
-          <div class="panel-header" data-panel="align"><i class="bi bi-grid-3x3"></i> Align & Size <i class="bi bi-chevron-down chevron"></i></div>
-          <div class="panel-body" id="pb-align">
-            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:3px;margin-bottom:6px;">
-              <button id="btn-align-left" class="btn btn-sm btn-outline-secondary" title="Align left"><i class="bi bi-align-start"></i></button>
-              <button id="btn-align-hcenter" class="btn btn-sm btn-outline-secondary" title="Center H"><i class="bi bi-align-center"></i></button>
-              <button id="btn-align-right" class="btn btn-sm btn-outline-secondary" title="Align right"><i class="bi bi-align-end"></i></button>
-              <button id="btn-full-canvas" class="btn btn-sm btn-outline-primary" title="Fill canvas"><i class="bi bi-fullscreen"></i></button>
-              <button id="btn-align-top" class="btn btn-sm btn-outline-secondary" title="Align top"><i class="bi bi-align-top"></i></button>
-              <button id="btn-align-vcenter" class="btn btn-sm btn-outline-secondary" title="Center V"><i class="bi bi-align-middle"></i></button>
-              <button id="btn-align-bottom" class="btn btn-sm btn-outline-secondary" title="Align bottom"><i class="bi bi-align-bottom"></i></button>
-              <span></span>
-              <button id="btn-distribute-h" class="btn btn-sm btn-outline-secondary" title="Distribute H"><i class="bi bi-distribute-horizontal"></i></button>
-              <button id="btn-distribute-v" class="btn btn-sm btn-outline-secondary" title="Distribute V"><i class="bi bi-distribute-vertical"></i></button>
-            </div>
-          </div>
-        </div>
+        <!-- Align & Size panel removed — now in floating action panel next to selected shape -->
         <div class="panel">
           <div class="panel-header" data-panel="bool"><i class="bi bi-intersect"></i> Boolean Ops <i class="bi bi-chevron-down chevron"></i></div>
           <div class="panel-body" id="pb-bool">
@@ -367,6 +351,20 @@
         <div id="artboard" style="width:800px;height:500px;">
           <div class="cdotgrid"></div>
           <svg id="artboard-svg" viewBox="0 0 800 500" width="800" height="500" style="cursor:default;user-select:none;"></svg>
+        </div>
+        <!-- Floating context-aware action panel — appears next to selected layer -->
+        <div id="layer-actions" style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);z-index:20;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,0.12);padding:4px;display:flex;flex-direction:column;gap:2px;">
+          <button id="btn-align-left" class="btn btn-sm btn-light px-2 py-1" title="Align left"><i class="bi bi-align-start"></i></button>
+          <button id="btn-align-hcenter" class="btn btn-sm btn-light px-2 py-1" title="Center horizontally"><i class="bi bi-align-center"></i></button>
+          <button id="btn-align-right" class="btn btn-sm btn-light px-2 py-1" title="Align right"><i class="bi bi-align-end"></i></button>
+          <div style="height:1px;background:#e2e8f0;margin:2px 0;"></div>
+          <button id="btn-align-top" class="btn btn-sm btn-light px-2 py-1" title="Align top"><i class="bi bi-align-top"></i></button>
+          <button id="btn-align-vcenter" class="btn btn-sm btn-light px-2 py-1" title="Center vertically"><i class="bi bi-align-middle"></i></button>
+          <button id="btn-align-bottom" class="btn btn-sm btn-light px-2 py-1" title="Align bottom"><i class="bi bi-align-bottom"></i></button>
+          <div style="height:1px;background:#e2e8f0;margin:2px 0;"></div>
+          <button id="btn-full-canvas" class="btn btn-sm btn-light px-2 py-1" title="Fill canvas"><i class="bi bi-fullscreen"></i></button>
+          <button id="btn-distribute-h" class="btn btn-sm btn-light px-2 py-1" title="Distribute H"><i class="bi bi-distribute-horizontal"></i></button>
+          <button id="btn-distribute-v" class="btn btn-sm btn-light px-2 py-1" title="Distribute V"><i class="bi bi-distribute-vertical"></i></button>
         </div>
       </div>
     </div>
@@ -570,8 +568,11 @@
       if(bf)bf.className='btn btn-sm '+(state.activeFace==='front'?'btn-primary':'btn-outline-secondary');
       if(bb)bb.className='btn btn-sm '+(state.activeFace==='back'?'btn-info':'btn-outline-secondary');
     }
-    /** Show/hide the alignment panel based on whether a layer is selected (no-op — now in left panel, always visible) */
-    function _updateAlignTools(){}
+    /** Show/hide the floating action panel based on whether a layer is selected */
+    function _updateAlignTools(){
+      var panel=document.getElementById('layer-actions');
+      if(panel)panel.style.display=state.selectedLayerId?'flex':'none';
+    }
     /** Update state buttons to reflect activeStateName */
     function _updateStateButtons(){
       var br=document.getElementById('btn-state-rest'),bh=document.getElementById('btn-state-hover');
