@@ -30,7 +30,7 @@
     .sidebar-toggle{flex-shrink:0;width:14px;background:#f0f0f0;color:#adb5bd;border:none;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;font-size:10px;transition:background 0.15s,color 0.15s;}
     .sidebar-toggle:hover{background:#0d6efd;color:white;}
     .canvas-area{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;}
-    .canvas-toolbar{background:white;border-bottom:1px solid #dee2e6;padding:6px 12px;display:flex;align-items:center;gap:8px;font-size:12px;flex-shrink:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;}
+    .canvas-toolbar{background:white;border-bottom:1px solid #dee2e6;padding:6px 12px;display:flex;align-items:center;gap:6px;font-size:12px;flex-shrink:0;flex-wrap:wrap;}
     .tool-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;}
     .tool-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:8px 4px;border:1.5px solid #dee2e6;border-radius:6px;background:white;cursor:pointer;font-size:10px;font-weight:700;color:#495057;transition:all 0.15s;}
     .tool-btn:hover{border-color:#0d6efd;background:#f0f4ff;color:#0d6efd;}
@@ -129,6 +129,13 @@
     <span id="element-name-badge" class="mode-badge">New Design</span>
     <span id="unsaved-indicator">&#9679; unsaved</span>
     <div class="ms-auto d-flex align-items-center gap-2">
+      <span id="canvas-size-label" class="text-muted" style="font-size:11px;">800&#215;500px</span>
+      <div id="breakpoint-switcher" class="d-flex align-items-center gap-1" style="display:none;">
+        <button class="bp-btn btn btn-sm px-1" data-bp="desktop" title="Desktop" style="font-size:12px;padding:2px 6px;border:1px solid #dee2e6;background:#fff;border-radius:4px;cursor:pointer;"><i class="bi bi-display"></i></button>
+        <button class="bp-btn btn btn-sm px-1" data-bp="tablet" title="Tablet" style="font-size:12px;padding:2px 6px;border:1px solid #dee2e6;background:#fff;border-radius:4px;cursor:pointer;"><i class="bi bi-tablet"></i></button>
+        <button class="bp-btn btn btn-sm px-1" data-bp="mobile" title="Mobile" style="font-size:12px;padding:2px 6px;border:1px solid #dee2e6;background:#fff;border-radius:4px;cursor:pointer;"><i class="bi bi-phone"></i></button>
+      </div>
+      <div style="width:1px;height:16px;background:#dee2e6;"></div>
       <button id="btn-undo" class="btn btn-sm btn-outline-secondary" title="Undo (Ctrl+Z)"><i class="bi bi-arrow-counterclockwise"></i></button>
       <button id="btn-redo" class="btn btn-sm btn-outline-secondary" title="Redo (Ctrl+Y)"><i class="bi bi-arrow-clockwise"></i></button>
       <button id="btn-delete-layer" class="btn btn-sm btn-outline-danger" disabled><i class="bi bi-trash"></i></button>
@@ -300,12 +307,7 @@
             </div>
           </div>
         </div>
-        <span id="canvas-size-label" class="text-muted ms-3" style="font-size:11px;">800&#215;500px</span>
-        <div id="breakpoint-switcher" class="d-flex align-items-center gap-1 ms-2" style="display:none;">
-          <button class="bp-btn btn btn-sm px-1" data-bp="desktop" title="Desktop" style="font-size:12px;padding:2px 6px;border:1px solid #dee2e6;background:#fff;border-radius:4px;cursor:pointer;"><i class="bi bi-display"></i></button>
-          <button class="bp-btn btn btn-sm px-1" data-bp="tablet" title="Tablet" style="font-size:12px;padding:2px 6px;border:1px solid #dee2e6;background:#fff;border-radius:4px;cursor:pointer;"><i class="bi bi-tablet"></i></button>
-          <button class="bp-btn btn btn-sm px-1" data-bp="mobile" title="Mobile" style="font-size:12px;padding:2px 6px;border:1px solid #dee2e6;background:#fff;border-radius:4px;cursor:pointer;"><i class="bi bi-phone"></i></button>
-        </div>
+        <!-- canvas-size-label + breakpoint-switcher moved to top bar -->
         <span id="bool-edit-badge" style="display:none;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;background:#fff3cd;color:#664d03;border:1px solid #ffc107;margin-left:8px;">&#9986; Bool Edit Mode — move cutter &nbsp;<kbd>Esc</kbd> to exit</span>
         <button id="btn-slot-preview" style="display:none;font-size:10px;padding:2px 10px;border-radius:20px;font-weight:700;background:transparent;color:#22c55e;border:1px solid #22c55e;margin-left:8px;cursor:pointer;transition:background 0.15s,color 0.15s;" title="Toggle slot preview mode"><i class="bi bi-eye"></i> Preview</button>
         <!-- State Machine Switcher -->
