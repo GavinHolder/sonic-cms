@@ -1,10 +1,10 @@
 {
-  "version": "1.21.2",
+  "version": "1.21.3",
   "date": "2026-03-26",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "deploy handles non-git stacks — stop+start fallback for all Portainer stack types"
+      "3 Volt designer bugs — shape stuck, text auto-size, resize scaling"
     ],
     "breaking": []
   }
