@@ -327,6 +327,8 @@
           <div style="width:1px;height:14px;background:#dee2e6;margin:0 2px;"></div>
           <button id="btn-distribute-h" class="btn btn-sm btn-outline-secondary px-2" title="Distribute horizontally (even spacing)"><i class="bi bi-distribute-horizontal"></i></button>
           <button id="btn-distribute-v" class="btn btn-sm btn-outline-secondary px-2" title="Distribute vertically (even spacing)"><i class="bi bi-distribute-vertical"></i></button>
+          <div style="width:1px;height:14px;background:#dee2e6;margin:0 2px;"></div>
+          <button id="btn-full-canvas" class="btn btn-sm btn-outline-secondary px-2" title="Fill entire canvas (selected layer)"><i class="bi bi-fullscreen"></i></button>
         </div>
         <!-- Flip Card Face Preview (shown only when flip card enabled) -->
         <div id="flip-face-switcher" class="d-flex align-items-center gap-1 ms-3" style="display:none!important;">
@@ -3572,6 +3574,23 @@
     }
     document.getElementById('btn-distribute-h').addEventListener('click',function(){_distribute('h');});
     document.getElementById('btn-distribute-v').addEventListener('click',function(){_distribute('v');});
+    // ── Full Canvas — expand selected layer to fill 100% width + height ──────
+    document.getElementById('btn-full-canvas').addEventListener('click',function(){
+      var i=state.element.layers.findIndex(function(l){return l.id===state.selectedLayerId;});
+      if(i<0)return;
+      pushHistory();
+      var layer=state.element.layers[i];
+      var oldW=layer.width,oldH=layer.height;
+      // Scale vector path to match new full-canvas bounds
+      if(layer.vectorData&&layer.vectorData.pathData&&oldW>0&&oldH>0){
+        // First translate path to origin (0,0)
+        layer.vectorData.pathData=translatePath(layer.vectorData.pathData,-layer.x,-layer.y);
+        // Then scale to fill 100%
+        layer.vectorData.pathData=scalePath(layer.vectorData.pathData,100/oldW,100/oldH);
+      }
+      layer.x=0;layer.y=0;layer.width=100;layer.height=100;
+      markDirty();renderAll();renderProps();
+    });
     // ── Scroll wheel zoom (Ctrl+scroll) ──────────────────────────────────────
     document.getElementById('canvas-wrap').addEventListener('wheel',function(e){
       if(!e.ctrlKey&&!e.metaKey)return;
