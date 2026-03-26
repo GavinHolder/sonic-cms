@@ -6,12 +6,13 @@
 # Copy this file to: .github/workflows/deploy.yml in the client repo.
 #
 # ┌─────────────────────────────────────────────────────────────────────┐
-# │  SETUP: Add these 4 secrets to the client GitHub repo:             │
+# │  SETUP: Add these 5 secrets to the client GitHub repo:             │
 # │                                                                     │
-# │  PORTAINER_URL         https://portainer.example.com  (no slash)   │
-# │  PORTAINER_PASSWORD    Portainer admin password                     │
-# │  PORTAINER_STACK_ID    From Portainer URL: #!/3/stacks/name?id=X   │
-# │  PORTAINER_ENDPOINT_ID From Portainer URL: #!/X/docker/...         │
+# │  PORTAINER_URL          https://portainer.example.com (no slash)   │
+# │  PORTAINER_USERNAME     Portainer login user (default: admin)      │
+# │  PORTAINER_PASSWORD     Portainer login password                   │
+# │  PORTAINER_STACK_ID     From Portainer URL: ?id=X                  │
+# │  PORTAINER_ENDPOINT_ID  From Portainer URL: #!/X/docker/...        │
 # │                                                                     │
 # │  ALSO: Update IMAGE env var below to match the client repo name.   │
 # └─────────────────────────────────────────────────────────────────────┘
@@ -168,10 +169,12 @@ jobs:
           fi
 
           # Authenticate with Portainer
-          echo "🔑 Authenticating with Portainer..."
+          PORTAINER_USER="${{ secrets.PORTAINER_USERNAME }}"
+          PORTAINER_USER="${PORTAINER_USER:-admin}"
+          echo "🔑 Authenticating with Portainer as $PORTAINER_USER..."
           JWT=$(curl -s -X POST "${{ secrets.PORTAINER_URL }}/api/auth" \
             -H "Content-Type: application/json" \
-            -d '{"username":"admin","password":"${{ secrets.PORTAINER_PASSWORD }}"}' \
+            -d "{\"username\":\"$PORTAINER_USER\",\"password\":\"${{ secrets.PORTAINER_PASSWORD }}\"}" \
             | jq -r '.jwt')
 
           if [ -z "$JWT" ] || [ "$JWT" = "null" ]; then
