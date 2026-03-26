@@ -1,11 +1,11 @@
 {
-  "version": "1.24.8",
+  "version": "1.25.0",
   "date": "2026-03-26",
   "changelog": {
-    "features": [],
-    "bugfixes": [
-      "revert Insert buttons to toolbar + fix full-canvas path remapping"
+    "features": [
+      "context-aware floating action panel — align/size appears next to selected layer"
     ],
+    "bugfixes": [],
     "breaking": []
   }
 }
