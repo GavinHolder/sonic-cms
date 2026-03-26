@@ -44,8 +44,7 @@ on:
 
 # ┌──────────────────────────────────────────────────────┐
 # │  CHANGE THIS to match your client repo name:         │
-# │  e.g. ghcr.io/gavinholder/sonic-cms                  │
-# │  e.g. ghcr.io/gavinholder/ovbreadymix-cms            │
+# │  e.g. ghcr.io/yourorg/my-company-cms                 │
 # └──────────────────────────────────────────────────────┘
 env:
   IMAGE: ghcr.io/gavinholder/sonic-cms
@@ -83,10 +82,19 @@ jobs:
           git fetch upstream main
           echo "Merging upstream/main into local main..."
           git merge upstream/main --no-edit --allow-unrelated-histories || {
-            echo "Merge conflict detected — auto-resolving with ours strategy for protected files"
-            git checkout --ours .
-            git add .
-            git commit --no-edit || true
+            echo "Merge conflict detected — auto-resolving..."
+            # Accept all upstream changes, then re-apply ours for protected files
+            git checkout --theirs . 2>/dev/null || true
+            # Re-apply our versions of protected files (.gitattributes merge=ours)
+            git diff --name-only --diff-filter=U | while read f; do
+              if git show HEAD:"$f" >/dev/null 2>&1; then
+                git checkout --ours "$f" 2>/dev/null || true
+              else
+                git add "$f" 2>/dev/null || true
+              fi
+            done
+            git add -A
+            git commit --no-edit -m "chore: merge upstream with conflict resolution" || true
           }
           git push origin main
 
