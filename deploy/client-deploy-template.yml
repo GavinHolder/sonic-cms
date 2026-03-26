@@ -200,29 +200,74 @@ jobs:
             exit 1
           fi
 
-          # Trigger stack redeploy (pulls latest image)
-          echo "🚀 Triggering stack redeploy..."
-          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
-            "${{ secrets.PORTAINER_URL }}/api/stacks/${{ secrets.PORTAINER_STACK_ID }}/git/redeploy?endpointId=${{ secrets.PORTAINER_ENDPOINT_ID }}" \
-            -H "Authorization: Bearer $JWT" \
+          STACK_ID="${{ secrets.PORTAINER_STACK_ID }}"
+          ENDPOINT_ID="${{ secrets.PORTAINER_ENDPOINT_ID }}"
+          BASE_URL="${{ secrets.PORTAINER_URL }}"
+          AUTH="Authorization: Bearer $JWT"
+
+          # Step 1: Read current stack to preserve environment variables
+          echo "📋 Reading current stack configuration..."
+          STACK_DATA=$(curl -s "$BASE_URL/api/stacks/$STACK_ID" \
+            -H "$AUTH")
+
+          # Extract current env vars (CRITICAL — without this, redeploy wipes all env vars)
+          CURRENT_ENV=$(echo "$STACK_DATA" | jq -c '.Env // []')
+          ENV_COUNT=$(echo "$CURRENT_ENV" | jq 'length')
+          echo "  Found $ENV_COUNT environment variables to preserve"
+
+          if [ "$ENV_COUNT" = "0" ] || [ "$CURRENT_ENV" = "null" ] || [ "$CURRENT_ENV" = "[]" ]; then
+            echo "⚠️ WARNING: Stack has 0 env vars! This usually means the stack was created without env vars."
+            echo "⚠️ Set env vars in Portainer UI first, then redeploy."
+            echo "⚠️ Proceeding anyway — container will start but may fail without DATABASE_URL etc."
+          fi
+
+          # Step 2: Redeploy WITH env vars preserved
+          echo "🚀 Triggering stack redeploy (preserving $ENV_COUNT env vars)..."
+          REDEPLOY_BODY=$(jq -n \
+            --argjson env "$CURRENT_ENV" \
+            '{env: $env, pullImage: true, prune: false}')
+
+          RESPONSE=$(curl -s -o /tmp/portainer_response.txt -w "%{http_code}" -X PUT \
+            "$BASE_URL/api/stacks/$STACK_ID/git/redeploy?endpointId=$ENDPOINT_ID" \
+            -H "$AUTH" \
             -H "Content-Type: application/json" \
-            -d '{"pullImage":true}')
+            -d "$REDEPLOY_BODY")
 
           echo "Portainer response: $RESPONSE"
 
           if [ "$RESPONSE" = "200" ]; then
-            echo "✅ Stack redeploy triggered successfully"
-          elif [ "$RESPONSE" = "400" ]; then
-            echo "⚠️ Stack redeploy returned 400 — stack may not be a git-based stack."
-            echo "Trying alternative: stop + start stack..."
-            curl -s -X POST "${{ secrets.PORTAINER_URL }}/api/stacks/${{ secrets.PORTAINER_STACK_ID }}/stop?endpointId=${{ secrets.PORTAINER_ENDPOINT_ID }}" \
-              -H "Authorization: Bearer $JWT" > /dev/null
-            sleep 2
-            curl -s -X POST "${{ secrets.PORTAINER_URL }}/api/stacks/${{ secrets.PORTAINER_STACK_ID }}/start?endpointId=${{ secrets.PORTAINER_ENDPOINT_ID }}" \
-              -H "Authorization: Bearer $JWT" > /dev/null
-            echo "✅ Stack stop/start triggered"
+            echo "✅ Stack redeployed successfully (env vars preserved)"
+          elif [ "$RESPONSE" = "400" ] || [ "$RESPONSE" = "500" ]; then
+            echo "⚠️ Git redeploy failed ($RESPONSE). Trying container recreation..."
+            cat /tmp/portainer_response.txt 2>/dev/null
+
+            # Fallback: update stack directly (non-git method)
+            # Get the current compose file content from the stack
+            COMPOSE=$(echo "$STACK_DATA" | jq -r '.StackFileContent // empty')
+            if [ -n "$COMPOSE" ]; then
+              UPDATE_BODY=$(jq -n \
+                --argjson env "$CURRENT_ENV" \
+                --arg compose "$COMPOSE" \
+                '{env: $env, stackFileContent: $compose, prune: false}')
+
+              RESPONSE2=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
+                "$BASE_URL/api/stacks/$STACK_ID?endpointId=$ENDPOINT_ID" \
+                -H "$AUTH" \
+                -H "Content-Type: application/json" \
+                -d "$UPDATE_BODY")
+
+              if [ "$RESPONSE2" = "200" ]; then
+                echo "✅ Stack updated via fallback method (env vars preserved)"
+              else
+                echo "❌ Fallback also failed ($RESPONSE2)"
+                exit 1
+              fi
+            else
+              echo "❌ Cannot read compose content for fallback. Check Portainer manually."
+              exit 1
+            fi
           else
             echo "❌ Deploy failed with HTTP $RESPONSE"
-            echo "Check: PORTAINER_STACK_ID=${{ secrets.PORTAINER_STACK_ID }}, PORTAINER_ENDPOINT_ID=${{ secrets.PORTAINER_ENDPOINT_ID }}"
+            cat /tmp/portainer_response.txt 2>/dev/null
             exit 1
           fi
