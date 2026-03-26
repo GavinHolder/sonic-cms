@@ -1,10 +1,10 @@
 {
-  "version": "1.18.4",
+  "version": "1.21.1",
   "date": "2026-03-26",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "deploy preserves Portainer env vars during redeploy — reads stack config before PUT"
+      "main CMS deploy.yml now preserves Portainer env vars + has fallback method"
     ],
     "breaking": []
   }

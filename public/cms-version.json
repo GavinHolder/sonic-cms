@@ -1,13 +1,10 @@
 {
-  "version": "1.21.0",
+  "version": "1.21.1",
   "date": "2026-03-26",
   "changelog": {
-    "features": [
-      "CMS setup wizard — first-run configuration with Test & Verify for repo/deploy link",
-      "full site backup & restore — DB, media, settings, selective categories"
-    ],
+    "features": [],
     "bugfixes": [
-      "add error handling to plugin API endpoints (surface errors instead of empty 500)"
+      "main CMS deploy.yml now preserves Portainer env vars + has fallback method"
     ],
     "breaking": []
   }
