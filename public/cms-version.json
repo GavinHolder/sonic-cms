@@ -1,9 +1,9 @@
 {
-  "version": "1.19.0",
+  "version": "1.20.0",
   "date": "2026-03-26",
   "changelog": {
     "features": [
-      "plugin system docs topic + fix Prisma JSON type errors"
+      "plugins contribute section types + page types to creation UIs"
     ],
     "bugfixes": [],
     "breaking": []
