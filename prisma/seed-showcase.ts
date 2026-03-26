@@ -137,7 +137,7 @@ async function main() {
     update: {},
     create: {
       username: 'support',
-      email: 'admin@ovbreadymix.co.za',
+      email: 'support@yourcompany.com',
       passwordHash: await hashPassword('B3rryP0rtal@5'),
       firstName: 'Support',
       lastName: 'Admin',

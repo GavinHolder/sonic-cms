@@ -564,7 +564,7 @@ function CoverageMapsInner() {
                     <label className="form-label fw-semibold">URL Slug <span className="text-danger">*</span></label>
                     <input
                       type="text" className="form-control font-monospace"
-                      placeholder="e.g. overberg"
+                      placeholder="e.g. western-cape"
                       value={editingMap.slug ?? ""}
                       onChange={(e) => setEditingMap((prev) => ({ ...prev!, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") }))}
                     />

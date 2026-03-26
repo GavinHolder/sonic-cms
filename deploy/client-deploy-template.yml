@@ -44,8 +44,7 @@ on:
 
 # ┌──────────────────────────────────────────────────────┐
 # │  CHANGE THIS to match your client repo name:         │
-# │  e.g. ghcr.io/gavinholder/sonic-cms                  │
-# │  e.g. ghcr.io/gavinholder/ovbreadymix-cms            │
+# │  e.g. ghcr.io/yourorg/my-company-cms                 │
 # └──────────────────────────────────────────────────────┘
 env:
   IMAGE: ghcr.io/gavinholder/CLIENT-NAME-cms

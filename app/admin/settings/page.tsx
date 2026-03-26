@@ -1426,7 +1426,7 @@ export default function SettingsPage() {
                       <input
                         type="text"
                         className="form-control"
-                        placeholder="e.g. ovbreadymix-cms"
+                        placeholder="e.g. my-company-cms"
                         value={ghConfig.githubRepoName}
                         onChange={e => setGhConfig(c => ({ ...c, githubRepoName: e.target.value }))}
                       />

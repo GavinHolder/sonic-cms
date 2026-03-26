@@ -7,8 +7,8 @@
 #   Compose path:   deploy/app/docker-compose.yml
 #
 # REQUIRED environment variables in Portainer's "Environment variables" editor:
-#   APP_NAME        — unique slug, e.g. "ovb-cms" (unique across ALL sites)
-#   BASE_DOMAIN     — base domain, e.g. "ovbreadymix.co.za"
+#   APP_NAME        — unique slug, e.g. "my-company-cms" (unique across ALL sites)
+#   BASE_DOMAIN     — base domain, e.g. "mycompany.co.za"
 #                     App is served on two subdomains of BASE_DOMAIN:
 #                       www.${BASE_DOMAIN}      → public website
 #                       backend.${BASE_DOMAIN}  → CMS admin panel

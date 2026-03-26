@@ -7,11 +7,11 @@
 #
 # Client repos are registered in CLIENTS.json at the repo root.
 # Each entry has a "secret" field naming the GitHub secret that holds
-# that client's PAT (e.g. "OVB_PAT", "SONIC_PAT").
+# that client's PAT (e.g. "CLIENT1_PAT").
 #
 # Required Secrets (one per client):
-#   OVB_PAT   — PAT with repo+workflow scope for ovbreadymix-cms
-#   SONIC_PAT — PAT with repo+workflow scope for sonic-website
+#   Add a PAT secret for each client listed in CLIENTS.json.
+#   The secret name must match the "secret" field in the client entry.
 # =============================================================================
 
 name: Notify Clients
