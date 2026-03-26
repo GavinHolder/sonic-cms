@@ -6,6 +6,16 @@ All notable changes to the White-Label CMS.
 
 ## Unreleased
 
+### Features
+- Volt full-canvas button — expand any layer to fill entire canvas width+height
+
+### Documentation
+- regenerate changelog
+
+---
+
+## v1.23.2 (2026-03-26)
+
 ### Bug Fixes
 - Volt designer — CW/CH undefined in mousedown handler + zoom uses applyZoom()
 
