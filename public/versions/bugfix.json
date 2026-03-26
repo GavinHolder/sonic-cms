@@ -1,10 +1,10 @@
 {
-  "version": "1.24.3",
+  "version": "1.24.4",
   "date": "2026-03-26",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "changelog page fallback to cms-version.json when CHANGELOG.md missing"
+      "align toolbar scrollable — all buttons visible on narrow screens"
     ],
     "breaking": []
   }
