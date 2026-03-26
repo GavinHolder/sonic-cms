@@ -75,8 +75,8 @@ export async function migrateClientFeatures(): Promise<{ migrated: number; skipp
           name: cf.name,
           version: manifest.version,
           enabled: cf.enabled,
-          manifest: manifest as unknown as Record<string, unknown>,
-          config: (cf.config ?? {}) as Record<string, unknown>,
+          manifest: JSON.parse(JSON.stringify(manifest)),
+          config: JSON.parse(JSON.stringify(cf.config ?? {})),
         },
       })
 

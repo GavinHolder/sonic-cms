@@ -74,14 +74,14 @@ export async function seedBuiltinPlugins(): Promise<void> {
         update: {
           name: manifest.name,
           version: manifest.version,
-          manifest: manifest as unknown as Record<string, unknown>,
+          manifest: JSON.parse(JSON.stringify(manifest)),
         },
         create: {
           slug: manifest.id,
           name: manifest.name,
           version: manifest.version,
           enabled: manifest.defaultEnabled,
-          manifest: manifest as unknown as Record<string, unknown>,
+          manifest: JSON.parse(JSON.stringify(manifest)),
           config: {},
         },
       })
@@ -185,7 +185,7 @@ export async function updatePluginConfig(slug: string, config: Record<string, un
 
   await prisma.plugin.update({
     where: { slug },
-    data: { config: mergedConfig },
+    data: { config: JSON.parse(JSON.stringify(mergedConfig)) },
   })
 }
 

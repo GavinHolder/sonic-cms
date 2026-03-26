@@ -4449,6 +4449,108 @@ The navbar supports an optional call-to-action button:
 `;
 
 // ─────────────────────────────────────────────
+// PLUGIN SYSTEM
+// ─────────────────────────────────────────────
+
+const PLUGIN_SYSTEM_DOCS = `
+# Plugin System
+
+Every CMS feature is a **plugin** — a self-contained unit that can be enabled or disabled per client. Plugins register their routes, sidebar items, settings tabs, and database models via a manifest.
+
+---
+
+## Plugin Manager
+
+Go to **Plugins** in the admin sidebar (or \`/admin/plugins\`).
+
+### What You See
+
+Plugins are grouped into tiers:
+
+| Tier | Description | Can Disable? |
+|------|-------------|--------------|
+| **Core** | Pages, Auth, Media, Settings, Updates | No — always active |
+| **Standard** | Content Types, Volt Studio, Brand Tokens, Templates, Forms, Activity Log, Redirects, Code Injection | Yes |
+| **Optional** | Concrete Calculator, Coverage Maps, Projects | Yes (disabled by default) |
+
+### Enable / Disable
+
+- Click the toggle switch on any non-core plugin
+- Disabled plugins: their sidebar items disappear, their routes become inactive
+- Core plugins: toggle is locked — you can't disable pages, auth, or media
+
+### Dependencies
+
+Some plugins depend on others. For example, if Plugin B depends on Plugin A:
+- You can't disable Plugin A while Plugin B is enabled
+- The toggle shows a warning listing which plugins depend on it
+
+---
+
+## How Plugins Work
+
+Each plugin has a **manifest** that declares:
+
+| Field | Purpose |
+|-------|---------|
+| **Routes** | Admin pages, API endpoints, and public pages the plugin provides |
+| **Sidebar Items** | Navigation links added to the admin sidebar when enabled |
+| **Settings Tabs** | Tabs added to the Settings page |
+| **Prisma Models** | Database tables the plugin owns |
+| **Dependencies** | Other plugins this one requires |
+| **Tier** | core / free / pro / enterprise (for SaaS pricing) |
+
+### Plugin Lifecycle
+
+1. On CMS boot: all built-in manifests are seeded into the Plugin table
+2. Existing plugins keep their enabled/disabled state
+3. New plugins (from updates) appear automatically
+4. Sidebar and routes are built dynamically from enabled plugins
+
+---
+
+## Breaking Change Detection
+
+When updating the CMS, the update modal shows which **enabled plugins** are affected by breaking changes:
+
+- Each breaking change is tagged with which plugins it affects
+- The modal shows: plugin name, severity (low/medium/high/critical), and migration steps
+- Unaffected plugins show a green "safe" indicator
+- You must acknowledge breaking changes before updating
+
+### Commit Format for Breaking Changes
+
+\`\`\`
+feat!: rename CSS variable [affects:brand-tokens]
+fix!: change field validation [affects:content-types]
+\`\`\`
+
+The \`[affects:plugin-slug]\` tag tells the system which plugin is impacted.
+
+---
+
+## Auto-Update Flow
+
+When the main CMS pushes a new version:
+
+1. \`auto-version.yml\` bumps \`cms-version.json\`
+2. \`notify-clients.yml\` reads \`CLIENT_REGISTRY\` secret
+3. Each registered client's deploy workflow is dispatched
+4. Client merges upstream → tests → builds Docker image → Portainer redeploys
+
+Clients configure their connection to the main CMS in **Settings → CMS Updates**.
+
+---
+
+## Adding a Plugin (for developers)
+
+1. Create a manifest in \`lib/plugins/manifests.ts\`
+2. Implement routes, components, and API endpoints
+3. The manifest declares everything the plugin provides
+4. On next boot, the plugin appears in Plugin Manager automatically
+`;
+
+// ─────────────────────────────────────────────
 // TOPIC TREE
 // ─────────────────────────────────────────────
 
@@ -4626,6 +4728,7 @@ export const DOC_TOPICS: DocTopic[] = [
       { id: "activity-log", label: "Activity Log", icon: "bi-clock-history", content: ACTIVITY_LOG_DOCS },
       { id: "redirects", label: "Redirects", icon: "bi-signpost-split", content: REDIRECTS_DOCS },
       { id: "features-system", label: "Features", icon: "bi-toggles", content: FEATURES_SYSTEM_DOCS },
+      { id: "plugin-system", label: "Plugin System", icon: "bi-puzzle", content: PLUGIN_SYSTEM_DOCS },
     ],
   },
   {
