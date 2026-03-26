@@ -4449,6 +4449,157 @@ The navbar supports an optional call-to-action button:
 `;
 
 // ─────────────────────────────────────────────
+// BACKUP & RESTORE
+// ─────────────────────────────────────────────
+
+const BACKUP_RESTORE_DOCS = `
+# Backup & Restore
+
+Create full site backups and restore from them — including database, media files, settings, plugins, and all content.
+
+---
+
+## Creating a Backup
+
+Go to **Settings → Data Management**.
+
+Click **Create Full Backup**. This captures:
+
+| Data | Included |
+|------|----------|
+| All database tables (pages, sections, users, content types, entries, volt designs, plugins, settings, media records, redirects, audit logs, form submissions, coverage maps, projects) | ✅ |
+| Media files (\`/public/uploads/\`) | ✅ |
+| Config files (SEO config, navbar config) | ✅ |
+| User accounts (including password hashes) | ✅ |
+| Plugin configurations | ✅ |
+
+The backup is saved as a ZIP file on the server (\`/data/backups/\`) and can also be downloaded to your computer.
+
+## Backup History
+
+The Data Management page shows all server-stored backups with:
+- Date and time created
+- File size
+- **Download** — save to your computer for off-site storage
+- **Restore** — restore the site to this backup's state
+- **Delete** — remove the backup file
+
+## Restoring from a Backup
+
+### Selective Restore
+
+You don't have to restore everything. Choose what to restore:
+
+| Category | What it restores |
+|----------|-----------------|
+| **Everything** | Full wipe + replace all data |
+| **Settings** | System settings, site config, brand tokens, navbar, SEO |
+| **Pages & Sections** | All pages and their sections |
+| **Content** | Content types, fields, entries, versions |
+| **Media** | Media library records + upload files |
+| **Volt Designs** | All vector designs and 3D assets |
+| **Users** | User accounts and API keys |
+| **Plugins** | Plugin configurations |
+| **Forms & Logs** | Form submissions, audit logs, redirects |
+| **Features** | Coverage maps, projects |
+
+### Safety Backup
+
+Before ANY restore, the system **automatically creates a safety backup** of the current state. If something goes wrong, you can restore from the safety backup.
+
+### Restore from Upload
+
+You can also upload a previously downloaded backup ZIP to restore from it. This is useful for:
+- Migrating between servers
+- Restoring from an off-site backup
+- Cloning a site configuration to a new client
+
+## Important Notes
+
+- **SUPER_ADMIN only** — only super administrators can create backups or restore
+- **Treat backup files as sensitive** — they contain password hashes and all site data
+- Backups are stored in \`/data/backups/\` which persists across Docker redeployments (via volume mount)
+- The restore process is transactional — if it fails partway through, the safety backup is available
+`;
+
+// ─────────────────────────────────────────────
+// CMS SETUP WIZARD
+// ─────────────────────────────────────────────
+
+const SETUP_WIZARD_DOCS = `
+# CMS Setup Wizard
+
+When you first deploy a new CMS instance, the Setup Wizard guides you through connecting it to your GitHub repository and deployment infrastructure.
+
+---
+
+## When It Appears
+
+A yellow **"CMS needs configuration"** banner appears on the Dashboard when the setup hasn't been completed. Click it to open the wizard at \`/admin/setup\`.
+
+You can also access it directly at any time via the URL.
+
+## Setup Steps
+
+### Step 1: Site Identity
+
+| Field | Description | Example |
+|-------|-------------|---------|
+| Company Name | Your business name | "Acme Corp" |
+| Site Domain | Your live website URL | "www.acmecorp.co.za" |
+
+### Step 2: GitHub Connection
+
+These settings enable the **CMS Update System** — pulling updates from the main white-label CMS repository.
+
+| Field | Description | Example |
+|-------|-------------|---------|
+| Repo Owner | GitHub username or org | "GavinHolder" |
+| Repo Name | Your client CMS repo name | "acme-cms" |
+| GitHub PAT | Personal Access Token (needs \`repo\` + \`workflow\` scope) | "ghp_xxxx..." |
+| Workflow ID | Deploy workflow filename | "deploy.yml" |
+| Upstream URL | Main CMS version check URL | Pre-filled automatically |
+
+Click **Test GitHub Connection** to verify:
+- ✅ PAT is valid and has correct scopes
+- ✅ Repository exists and is accessible
+- ✅ Deploy workflow file exists
+- ✅ Upstream version URL is reachable
+
+### Step 3: Portainer Deployment
+
+These settings enable **automatic deployment** when updates are merged.
+
+| Field | Description | Example |
+|-------|-------------|---------|
+| Portainer URL | Your Portainer instance URL (no trailing slash) | "https://portainer.acme.co.za" |
+| Username | Portainer login username | "admin" |
+| Password | Portainer login password | "MySecurePass" |
+| Stack ID | From the Portainer stack URL (\`?id=X\`) | "5" |
+| Endpoint ID | From the Portainer URL (\`#!/X/docker/...\`) | "3" |
+
+Click **Test Portainer Connection** to verify:
+- ✅ Authentication succeeds
+- ✅ Stack exists and is accessible
+- ✅ Endpoint exists
+
+### Step 4: Review & Save
+
+Shows a summary of all configured values (passwords masked). Green checkmarks indicate verified connections. Click **Complete Setup** to save everything.
+
+## After Setup
+
+- The dashboard banner disappears
+- CMS Update system works (Settings → CMS Updates → Update Now)
+- Auto-updates from the main CMS repo flow through automatically
+- You can re-run the wizard at any time by visiting \`/admin/setup\`
+
+## Skipping Setup
+
+Click **"Skip for now"** to dismiss the wizard. The dashboard banner remains until setup is completed. The CMS works without setup — but updates and auto-deploy won't function.
+`;
+
+// ─────────────────────────────────────────────
 // PLUGIN SYSTEM
 // ─────────────────────────────────────────────
 
@@ -4729,6 +4880,8 @@ export const DOC_TOPICS: DocTopic[] = [
       { id: "redirects", label: "Redirects", icon: "bi-signpost-split", content: REDIRECTS_DOCS },
       { id: "features-system", label: "Features", icon: "bi-toggles", content: FEATURES_SYSTEM_DOCS },
       { id: "plugin-system", label: "Plugin System", icon: "bi-puzzle", content: PLUGIN_SYSTEM_DOCS },
+      { id: "backup-restore", label: "Backup & Restore", icon: "bi-archive", content: BACKUP_RESTORE_DOCS },
+      { id: "setup-wizard", label: "Setup Wizard", icon: "bi-magic", content: SETUP_WIZARD_DOCS },
     ],
   },
   {
