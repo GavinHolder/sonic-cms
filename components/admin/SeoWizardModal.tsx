@@ -394,7 +394,7 @@ export default function SeoWizardModal({ show, onClose, onApply }: Props) {
                       autoFocus
                       type="url"
                       className="form-control"
-                      placeholder="https://www.overbergreadymix.co.za"
+                      placeholder="https://www.yourcompany.com"
                       value={data.websiteUrl}
                       onChange={(e) => set("websiteUrl", e.target.value)}
                     />
@@ -459,7 +459,7 @@ export default function SeoWizardModal({ show, onClose, onApply }: Props) {
                       <input
                         type="text"
                         className="form-control"
-                        placeholder="overbergreadymix"
+                        placeholder="yourcompany"
                         value={data.twitterHandle.replace(/^@/, "")}
                         onChange={(e) => set("twitterHandle", e.target.value)}
                       />

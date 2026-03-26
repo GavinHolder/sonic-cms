@@ -3715,8 +3715,8 @@ export const CMS_UPDATES_DOCS = `
   <thead class="table-light"><tr><th>Field</th><th>Description</th><th>Example</th></tr></thead>
   <tbody>
     <tr><td>GitHub PAT</td><td>Personal Access Token with <code>repo</code> + <code>workflow</code> scopes</td><td><code>ghp_xxx...</code></td></tr>
-    <tr><td>Repo Owner</td><td>GitHub username or org that owns the client repo</td><td><code>GavinHolder</code></td></tr>
-    <tr><td>Repo Name</td><td>Client repository name</td><td><code>ovbreadymix-cms</code></td></tr>
+    <tr><td>Repo Owner</td><td>GitHub username or org that owns the client repo</td><td><code>YourOrg</code></td></tr>
+    <tr><td>Repo Name</td><td>Client repository name</td><td><code>my-company-cms</code></td></tr>
     <tr><td>Workflow ID</td><td>Filename of the deploy workflow</td><td><code>deploy.yml</code></td></tr>
     <tr><td>Upstream Version URL</td><td>Raw URL to master's <code>cms-version.json</code></td><td><code>https://raw.githubusercontent.com/GavinHolder/white-label-cms/main/public/cms-version.json</code></td></tr>
   </tbody>

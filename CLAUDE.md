@@ -1,8 +1,8 @@
 # CLAUDE.md
 
 > ⚠️ **WHITE-LABEL CMS — Generic business website CMS.**
-> Forked from `sonic-website` (Sonic Internet ISP). All ISP-specific references removed.
-> **NEVER modify `D:\Projects\2026\sonic-website` from this project.**
+> This is the single source of truth. Client instances link TO this repo, not the other way around.
+> **This repo must have ZERO client-specific references.**
 
 ---
 
