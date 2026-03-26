@@ -7,6 +7,34 @@ All notable changes to the White-Label CMS.
 ## Unreleased
 
 ### Bug Fixes
+- Volt designer — CW/CH undefined in mousedown handler + zoom uses applyZoom()
+
+---
+
+## v1.23.1 (2026-03-26)
+
+### Bug Fixes
+- Volt designer crash — wrong element ID for scroll zoom (artboard-container → canvas-wrap)
+
+---
+
+## v1.23.0 (2026-03-26)
+
+### Features
+- enhanced SEO wizard Go Live step — comprehensive Google Search Console guide
+
+---
+
+## v1.22.0 (2026-03-26)
+
+### Features
+- changelog system — auto-generated from git history, viewable in admin
+
+---
+
+## v1.21.3 (2026-03-26)
+
+### Bug Fixes
 - 3 Volt designer bugs — shape stuck, text auto-size, resize scaling
 
 ### Documentation
