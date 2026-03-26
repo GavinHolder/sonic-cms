@@ -14,7 +14,8 @@
     "db:seed-content-types": "npx tsx prisma/seed-content-types.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "changelog": "node bin/generate-changelog.mjs"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"

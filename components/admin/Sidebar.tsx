@@ -136,6 +136,12 @@ const menuItems: MenuItem[] = [
     icon: "bi-book",
     href: "/admin/documents",
   },
+  {
+    id: "changelog",
+    label: "Changelog",
+    icon: "bi-journal-code",
+    href: "/admin/changelog",
+  },
 ];
 
 interface SidebarProps {
