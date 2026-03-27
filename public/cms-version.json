@@ -1,11 +1,11 @@
 {
-  "version": "1.26.0",
+  "version": "1.26.1",
   "date": "2026-03-27",
   "changelog": {
-    "features": [
-      "timeline — visible +Key/-Key buttons, enhanced keyframe editor, easing curves"
+    "features": [],
+    "bugfixes": [
+      "full-canvas toggle, multi-select align/distribute, path sync"
     ],
-    "bugfixes": [],
     "breaking": []
   }
 }
