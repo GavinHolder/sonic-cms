@@ -1,11 +1,11 @@
 {
-  "version": "1.25.1",
-  "date": "2026-03-26",
+  "version": "1.26.0",
+  "date": "2026-03-27",
   "changelog": {
-    "features": [],
-    "bugfixes": [
-      "toolbar single-line — zoom moved to floating bar, key legend hidden, buttons compact"
+    "features": [
+      "timeline — visible +Key/-Key buttons, enhanced keyframe editor, easing curves"
     ],
+    "bugfixes": [],
     "breaking": []
   }
 }
