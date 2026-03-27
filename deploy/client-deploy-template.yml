@@ -263,23 +263,29 @@ jobs:
               fi
             fi
 
-            # Fallback 2: Restart containers (works for ALL stack types)
-            # Stop + start forces Portainer to pull :latest tag
+            # Fallback 2: Pull new image via Portainer Docker API, then stop + start
             if [ "${RESPONSE2:-0}" != "200" ]; then
-              echo "Trying stop + start (forces image pull)..."
+              echo "📦 Pulling latest image via Portainer Docker API..."
+              PULL_RESP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+                "$BASE_URL/api/endpoints/$ENDPOINT_ID/docker/images/create?fromImage=${{ env.IMAGE }}&tag=latest" \
+                -H "$AUTH")
+              echo "  Image pull: $PULL_RESP"
+
+              echo "🔄 Stopping stack..."
               STOP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
                 "$BASE_URL/api/stacks/$STACK_ID/stop?endpointId=$ENDPOINT_ID" \
                 -H "$AUTH")
               echo "  Stop: $STOP"
               sleep 3
 
+              echo "🚀 Starting stack with new image..."
               START=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
                 "$BASE_URL/api/stacks/$STACK_ID/start?endpointId=$ENDPOINT_ID" \
                 -H "$AUTH")
               echo "  Start: $START"
 
               if [ "$START" = "200" ]; then
-                echo "✅ Stack restarted (stop + start)"
+                echo "✅ Stack restarted with new image"
               else
                 echo "❌ All deploy methods failed. Check Portainer manually."
                 exit 1
