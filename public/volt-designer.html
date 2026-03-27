@@ -353,7 +353,7 @@
           <svg id="artboard-svg" viewBox="0 0 800 500" width="800" height="500" style="cursor:default;user-select:none;"></svg>
         </div>
         <!-- Floating context-aware action panel — appears next to selected layer -->
-        <div id="layer-actions" style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);z-index:20;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,0.12);padding:4px;display:flex;flex-direction:column;gap:2px;">
+        <div id="layer-actions" style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);z-index:20;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,0.12);padding:4px;flex-direction:column;gap:2px;">
           <button id="btn-align-left" class="btn btn-sm btn-light px-2 py-1" title="Align left"><i class="bi bi-align-start"></i></button>
           <button id="btn-align-hcenter" class="btn btn-sm btn-light px-2 py-1" title="Center horizontally"><i class="bi bi-align-center"></i></button>
           <button id="btn-align-right" class="btn btn-sm btn-light px-2 py-1" title="Align right"><i class="bi bi-align-end"></i></button>
@@ -574,7 +574,13 @@
     /** Show/hide the floating action panel based on whether a layer is selected */
     function _updateAlignTools(){
       var panel=document.getElementById('layer-actions');
-      if(panel)panel.style.display=state.selectedLayerId?'flex':'none';
+      if(!panel)return;
+      if(state.selectedLayerId||state.multiSelectIds.length>0){
+        panel.style.display='flex';
+        panel.style.flexDirection='column';
+      } else {
+        panel.style.display='none';
+      }
     }
     /** Update state buttons to reflect activeStateName */
     function _updateStateButtons(){
