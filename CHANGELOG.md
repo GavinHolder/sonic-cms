@@ -6,11 +6,19 @@ All notable changes to the White-Label CMS.
 
 ## Unreleased
 
+### Bug Fixes
+- Shift+click now adds/removes layers from multi-select (was only boolean base)
+- full-canvas toggle, multi-select align/distribute, path sync
+
+### Documentation
+- regenerate changelog
+
+---
+
+## v1.26.0 (2026-03-27)
+
 ### Features
 - timeline — visible +Key/-Key buttons, enhanced keyframe editor, easing curves
-
-### Bug Fixes
-- full-canvas toggle, multi-select align/distribute, path sync
 
 ### Documentation
 - regenerate changelog

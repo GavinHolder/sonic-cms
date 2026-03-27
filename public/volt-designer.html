@@ -1413,12 +1413,20 @@
         // Hit test
         var hit=hitTest(pt);
         if(hit&&!hit.locked){
-          // Shift+click on a different layer → assign as boolean base (keep cutter selected)
-          // Not allowed if either layer is a slot (no boolean ops on slots)
-          if(e.shiftKey&&state.selectedLayerId&&hit.id!==state.selectedLayerId){
-            var _selForBool=state.element.layers.find(function(l){return l.id===state.selectedLayerId;});
-            if(hit.type!=='slot'&&_selForBool&&_selForBool.type!=='slot'){state.boolBaseId=hit.id;renderAll();return;}
-            return;
+          // Shift+click → multi-select (add/remove from selection)
+          if(e.shiftKey&&hit.id){
+            var _msIdx=state.multiSelectIds.indexOf(hit.id);
+            if(_msIdx>=0){
+              // Already selected → remove from multi-select
+              state.multiSelectIds.splice(_msIdx,1);
+              if(state.selectedLayerId===hit.id)state.selectedLayerId=state.multiSelectIds[0]||null;
+            } else {
+              // Add to multi-select
+              state.multiSelectIds.push(hit.id);
+              state.selectedLayerId=hit.id;
+            }
+            document.getElementById('btn-delete-layer').disabled=!state.selectedLayerId;
+            renderAll();return;
           }
           dragSt={layerId:hit.id,startPt:pt,startX:hit.x,startY:hit.y,origPath:hit.vectorData?hit.vectorData.pathData:null,moved:false,altDuped:false,isCutter:hit.boolRole==='cutter',cutterParentId:hit.boolParentId||null};
           // When clicking a cutter in bool-edit mode, stay in bool-edit (don't call selectLayer which would clear boolEditParentId)
