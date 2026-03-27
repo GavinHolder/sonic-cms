@@ -1,11 +1,10 @@
 {
-  "version": "1.26.5",
+  "version": "1.26.6",
   "date": "2026-03-27",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "update system never merged upstream — dispatchWorkflow was missing inputs parameter",
-      "multi-select visual feedback + drag — Ctrl+click in layers panel now renders canvas, clicking multi-selected layer on canvas preserves group"
+      "deploy fallback now pulls new Docker image before restart"
     ],
     "breaking": []
   }
