@@ -3537,20 +3537,41 @@
     document.getElementById('btn-delete-layer').addEventListener('click',function(){if(!state.selectedLayerId)return;var i=state.element.layers.findIndex(function(l){return l.id===state.selectedLayerId;});if(i>=0){pushHistory();state.element.layers.splice(i,1);state.selectedLayerId=null;markDirty();renderAll();document.getElementById('btn-delete-layer').disabled=true;}});
     // ── Alignment tools ────────────────────────────────────────────────────────
     function _alignLayer(mode){
-      var i=state.element.layers.findIndex(function(l){return l.id===state.selectedLayerId;});
-      if(i<0)return;
+      // Get layers to align: multi-select or single
+      var ids=state.multiSelectIds.length>1?state.multiSelectIds:(state.selectedLayerId?[state.selectedLayerId]:[]);
+      if(!ids.length)return;
       pushHistory();
-      var l=state.element.layers[i];
-      var oldX=l.x,oldY=l.y;
-      if(mode==='left')   l.x=0;
-      else if(mode==='hcenter') l.x=50-l.width/2;
-      else if(mode==='right')   l.x=100-l.width;
-      else if(mode==='top')     l.y=0;
-      else if(mode==='vcenter') l.y=50-l.height/2;
-      else if(mode==='bottom')  l.y=100-l.height;
-      // Move the SVG path to match the new position
-      if(l.vectorData&&l.vectorData.pathData){
-        l.vectorData.pathData=translatePath(l.vectorData.pathData,l.x-oldX,l.y-oldY);
+      var layers=ids.map(function(id){return state.element.layers.find(function(l){return l.id===id;});}).filter(Boolean);
+      if(!layers.length)return;
+
+      if(layers.length===1){
+        // Single layer: align to canvas
+        var l=layers[0];var oldX=l.x,oldY=l.y;
+        if(mode==='left')   l.x=0;
+        else if(mode==='hcenter') l.x=50-l.width/2;
+        else if(mode==='right')   l.x=100-l.width;
+        else if(mode==='top')     l.y=0;
+        else if(mode==='vcenter') l.y=50-l.height/2;
+        else if(mode==='bottom')  l.y=100-l.height;
+        if(l.vectorData&&l.vectorData.pathData)l.vectorData.pathData=translatePath(l.vectorData.pathData,l.x-oldX,l.y-oldY);
+      } else {
+        // Multi-select: align relative to selection bounding box
+        var minX=Math.min.apply(null,layers.map(function(l){return l.x;}));
+        var maxX=Math.max.apply(null,layers.map(function(l){return l.x+l.width;}));
+        var minY=Math.min.apply(null,layers.map(function(l){return l.y;}));
+        var maxY=Math.max.apply(null,layers.map(function(l){return l.y+l.height;}));
+        var selW=maxX-minX,selH=maxY-minY,selCx=minX+selW/2,selCy=minY+selH/2;
+
+        layers.forEach(function(l){
+          var oldX=l.x,oldY=l.y;
+          if(mode==='left')   l.x=minX;
+          else if(mode==='hcenter') l.x=selCx-l.width/2;
+          else if(mode==='right')   l.x=maxX-l.width;
+          else if(mode==='top')     l.y=minY;
+          else if(mode==='vcenter') l.y=selCy-l.height/2;
+          else if(mode==='bottom')  l.y=maxY-l.height;
+          if(l.vectorData&&l.vectorData.pathData)l.vectorData.pathData=translatePath(l.vectorData.pathData,l.x-oldX,l.y-oldY);
+        });
       }
       markDirty();renderCanvas();renderProps();
     }
@@ -3562,23 +3583,35 @@
     document.getElementById('btn-align-bottom').addEventListener('click',function(){_alignLayer('bottom');});
     // ── Distribute selected layers evenly ────────────────────────────────────
     function _distribute(axis){
-      var ids=state.multiSelectIds||[];if(ids.length<3)return;
+      var ids=state.multiSelectIds||[];if(ids.length<2)return;
       pushHistory();
       var layers=ids.map(function(id){return state.element.layers.find(function(l){return l.id===id;});}).filter(Boolean);
+      if(layers.length<2)return;
       if(axis==='h'){
         layers.sort(function(a,b){return a.x-b.x;});
-        var minX=layers[0].x,maxX=layers[layers.length-1].x+layers[layers.length-1].width;
-        var totalW=layers.reduce(function(s,l){return s+l.width;},0);
-        var gap=(maxX-minX-totalW)/(layers.length-1);
-        var cur=layers[0].x+layers[0].width+gap;
-        for(var i=1;i<layers.length-1;i++){layers[i].x=cur;cur+=layers[i].width+gap;}
+        if(layers.length===2){
+          // 2 layers: center both horizontally between their outer edges
+          var mid=(layers[0].x+layers[0].width/2+layers[1].x+layers[1].width/2)/2;
+          layers.forEach(function(l){var oldX=l.x;l.x=mid-l.width/2;if(l.vectorData&&l.vectorData.pathData)l.vectorData.pathData=translatePath(l.vectorData.pathData,l.x-oldX,0);});
+        } else {
+          var minX=layers[0].x,maxX=layers[layers.length-1].x+layers[layers.length-1].width;
+          var totalW=layers.reduce(function(s,l){return s+l.width;},0);
+          var gap=(maxX-minX-totalW)/(layers.length-1);
+          var cur=layers[0].x+layers[0].width+gap;
+          for(var i=1;i<layers.length-1;i++){var oldX=layers[i].x;layers[i].x=cur;if(layers[i].vectorData&&layers[i].vectorData.pathData)layers[i].vectorData.pathData=translatePath(layers[i].vectorData.pathData,layers[i].x-oldX,0);cur+=layers[i].width+gap;}
+        }
       } else {
         layers.sort(function(a,b){return a.y-b.y;});
-        var minY=layers[0].y,maxY=layers[layers.length-1].y+layers[layers.length-1].height;
-        var totalH=layers.reduce(function(s,l){return s+l.height;},0);
-        var gapV=(maxY-minY-totalH)/(layers.length-1);
-        var curV=layers[0].y+layers[0].height+gapV;
-        for(var j=1;j<layers.length-1;j++){layers[j].y=curV;curV+=layers[j].height+gapV;}
+        if(layers.length===2){
+          var mid=(layers[0].y+layers[0].height/2+layers[1].y+layers[1].height/2)/2;
+          layers.forEach(function(l){var oldY=l.y;l.y=mid-l.height/2;if(l.vectorData&&l.vectorData.pathData)l.vectorData.pathData=translatePath(l.vectorData.pathData,0,l.y-oldY);});
+        } else {
+          var minY=layers[0].y,maxY=layers[layers.length-1].y+layers[layers.length-1].height;
+          var totalH=layers.reduce(function(s,l){return s+l.height;},0);
+          var gapV=(maxY-minY-totalH)/(layers.length-1);
+          var curV=layers[0].y+layers[0].height+gapV;
+          for(var j=1;j<layers.length-1;j++){var oldY=layers[j].y;layers[j].y=curV;if(layers[j].vectorData&&layers[j].vectorData.pathData)layers[j].vectorData.pathData=translatePath(layers[j].vectorData.pathData,0,layers[j].y-oldY);curV+=layers[j].height+gapV;}
+        }
       }
       markDirty();renderCanvas();renderProps();
     }
@@ -3590,24 +3623,32 @@
       if(i<0)return;
       pushHistory();
       var layer=state.element.layers[i];
+
+      // Toggle: if already full canvas, restore original bounds
+      if(layer._origBounds){
+        layer.x=layer._origBounds.x;layer.y=layer._origBounds.y;
+        layer.width=layer._origBounds.w;layer.height=layer._origBounds.h;
+        if(layer.vectorData&&layer._origBounds.path)layer.vectorData.pathData=layer._origBounds.path;
+        delete layer._origBounds;
+        markDirty();renderAll();renderProps();
+        return;
+      }
+
+      // Store original bounds for toggle-back
+      layer._origBounds={x:layer.x,y:layer.y,w:layer.width,h:layer.height,path:layer.vectorData?layer.vectorData.pathData:null};
+
       if(layer.vectorData&&layer.vectorData.pathData){
-        // Get actual path bounding box by parsing coordinates
-        var nums=layer.vectorData.pathData.match(/-?\d+\.?\d*/g);
-        if(nums&&nums.length>=2){
-          var xs=[],ys=[];
-          // Parse all coordinate pairs from path
-          var _pd=layer.vectorData.pathData;
-          _pd.replace(/([MLT])\s*(-?\d+\.?\d*)\s+(-?\d+\.?\d*)/g,function(_,cmd,x,y){xs.push(+x);ys.push(+y);});
-          _pd.replace(/[CS]\s*(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)/g,function(_,x1,y1,x2,y2){xs.push(+x1,+x2);ys.push(+y1,+y2);});
-          _pd.replace(/A\s*(?:-?\d+\.?\d*\s+){5}(-?\d+\.?\d*)\s+(-?\d+\.?\d*)/g,function(_,x,y){xs.push(+x);ys.push(+y);});
-          if(xs.length&&ys.length){
-            var minX=Math.min.apply(null,xs),maxX=Math.max.apply(null,xs);
-            var minY=Math.min.apply(null,ys),maxY=Math.max.apply(null,ys);
-            var pathW=maxX-minX||1,pathH=maxY-minY||1;
-            // Translate path to origin then scale to 0-100 range
-            layer.vectorData.pathData=translatePath(layer.vectorData.pathData,-minX,-minY);
-            layer.vectorData.pathData=scalePath(layer.vectorData.pathData,100/pathW,100/pathH);
-          }
+        var xs=[],ys=[];
+        var _pd=layer.vectorData.pathData;
+        _pd.replace(/([MLT])\s*(-?\d+\.?\d*)\s+(-?\d+\.?\d*)/g,function(_,cmd,x,y){xs.push(+x);ys.push(+y);});
+        _pd.replace(/[CS]\s*(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)/g,function(_,x1,y1,x2,y2){xs.push(+x1,+x2);ys.push(+y1,+y2);});
+        _pd.replace(/A\s*(?:-?\d+\.?\d*\s+){5}(-?\d+\.?\d*)\s+(-?\d+\.?\d*)/g,function(_,x,y){xs.push(+x);ys.push(+y);});
+        if(xs.length&&ys.length){
+          var minX=Math.min.apply(null,xs),maxX=Math.max.apply(null,xs);
+          var minY=Math.min.apply(null,ys),maxY=Math.max.apply(null,ys);
+          var pathW=maxX-minX||1,pathH=maxY-minY||1;
+          layer.vectorData.pathData=translatePath(layer.vectorData.pathData,-minX,-minY);
+          layer.vectorData.pathData=scalePath(layer.vectorData.pathData,100/pathW,100/pathH);
         }
       }
       layer.x=0;layer.y=0;layer.width=100;layer.height=100;
