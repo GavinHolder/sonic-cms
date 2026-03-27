@@ -39,7 +39,7 @@ export async function dispatchWorkflow(
   const res = await fetch(url, {
     method: "POST",
     headers: ghHeaders(pat),
-    body: JSON.stringify({ ref }),
+    body: JSON.stringify({ ref, inputs: { merge_upstream: "true" } }),
   });
 
   if (res.status === 204) return; // success — GitHub returns no body

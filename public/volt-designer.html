@@ -1440,7 +1440,15 @@
             state.selectedLayerId=hit.id;state.multiSelectIds=[hit.id];
             document.getElementById('btn-delete-layer').disabled=false;
             renderCanvas();renderLayers();renderProps();
-          }else if(state.selectedLayerId!==hit.id){selectLayer(hit.id);}
+          }else if(state.selectedLayerId!==hit.id){
+            // If clicked layer is already in multi-select, just change primary without resetting
+            if(state.multiSelectIds.length>1&&state.multiSelectIds.indexOf(hit.id)>=0){
+              state.selectedLayerId=hit.id;
+              renderCanvas();renderLayers();renderProps();
+            } else {
+              selectLayer(hit.id);
+            }
+          }
         }
         else{
           // Start marquee selection on empty canvas
@@ -1889,7 +1897,7 @@
             var mIdx=state.multiSelectIds.indexOf(layer.id);
             if(mIdx>=0){state.multiSelectIds.splice(mIdx,1);}else{state.multiSelectIds.push(layer.id);}
             if(!state.selectedLayerId)state.selectedLayerId=layer.id;
-            renderLayers();return;
+            renderCanvas();renderLayers();return;
           }
           if(ev.shiftKey&&state.selectedLayerId&&layer.id!==state.selectedLayerId){
             // No boolean ops on slots — Shift+click on/from a slot does nothing
