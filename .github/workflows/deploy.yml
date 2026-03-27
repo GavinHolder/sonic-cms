@@ -291,3 +291,8 @@ jobs:
                 exit 1
               fi
             fi
+          else
+            echo "❌ Deploy failed with HTTP $RESPONSE"
+            cat /tmp/portainer_response.txt 2>/dev/null
+            exit 1
+          fi
