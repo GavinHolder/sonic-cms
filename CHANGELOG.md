@@ -7,7 +7,24 @@ All notable changes to the White-Label CMS.
 ## Unreleased
 
 ### Bug Fixes
+- multi-select drag moves ALL selected layers + floating panel toggle fix
+- floating action panel had duplicate display property — was always visible, now toggles correctly
+
+---
+
+## v1.26.2 (2026-03-27)
+
+### Bug Fixes
 - Shift+click now adds/removes layers from multi-select (was only boolean base)
+
+### Documentation
+- regenerate changelog
+
+---
+
+## v1.26.1 (2026-03-27)
+
+### Bug Fixes
 - full-canvas toggle, multi-select align/distribute, path sync
 
 ### Documentation
