@@ -154,8 +154,6 @@ export default function SeoWizardModal({ show, onClose, onApply }: Props) {
   const [step, setStep] = useState<Step>("basics");
   const [data, setData] = useState<WizardData>(EMPTY);
 
-  if (!show) return null;
-
   const set = <K extends keyof WizardData>(key: K, value: WizardData[K]) =>
     setData((prev) => ({ ...prev, [key]: value }));
 
@@ -252,6 +250,8 @@ export default function SeoWizardModal({ show, onClose, onApply }: Props) {
   useEffect(() => {
     if (step === "golive") fetchReadiness();
   }, [step, fetchReadiness]);
+
+  if (!show) return null;
 
   return (
     <>
