@@ -1,10 +1,11 @@
 {
-  "version": "1.26.4",
+  "version": "1.26.5",
   "date": "2026-03-27",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "multi-select drag moves ALL selected layers + floating panel toggle fix"
+      "update system never merged upstream — dispatchWorkflow was missing inputs parameter",
+      "multi-select visual feedback + drag — Ctrl+click in layers panel now renders canvas, clicking multi-selected layer on canvas preserves group"
     ],
     "breaking": []
   }
