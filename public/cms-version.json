@@ -1,10 +1,10 @@
 {
-  "version": "1.26.1",
+  "version": "1.26.2",
   "date": "2026-03-27",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "full-canvas toggle, multi-select align/distribute, path sync"
+      "Shift+click now adds/removes layers from multi-select (was only boolean base)"
     ],
     "breaking": []
   }
