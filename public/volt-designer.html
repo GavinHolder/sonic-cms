@@ -1560,8 +1560,27 @@
           var snapped=snapPt({x:rawTx,y:rawTy},e.ctrlKey);
           var nx2=pct(snapped.x,CW),ny2=pct(snapped.y,CH);
           var ddx2=nx2-dragSt.startX,ddy2=ny2-dragSt.startY;
-          state.element.layers[idx2].x=nx2;state.element.layers[idx2].y=ny2;
-          if(dragSt.origPath&&state.element.layers[idx2].vectorData)state.element.layers[idx2].vectorData.pathData=translatePath(dragSt.origPath,ddx2,ddy2);
+          // Multi-select drag: move ALL selected layers by the same delta
+          if(state.multiSelectIds.length>1&&state.multiSelectIds.indexOf(dragSt.layerId)>=0){
+            if(!dragSt._multiOrigPositions){
+              dragSt._multiOrigPositions={};
+              state.multiSelectIds.forEach(function(mid){
+                var ml=state.element.layers.find(function(l){return l.id===mid;});
+                if(ml)dragSt._multiOrigPositions[mid]={x:ml.x,y:ml.y,path:ml.vectorData?ml.vectorData.pathData:null};
+              });
+            }
+            state.multiSelectIds.forEach(function(mid){
+              var ml=state.element.layers.find(function(l){return l.id===mid;});
+              var orig=dragSt._multiOrigPositions[mid];
+              if(ml&&orig){
+                ml.x=orig.x+ddx2;ml.y=orig.y+ddy2;
+                if(ml.vectorData&&orig.path)ml.vectorData.pathData=translatePath(orig.path,ddx2,ddy2);
+              }
+            });
+          } else {
+            state.element.layers[idx2].x=nx2;state.element.layers[idx2].y=ny2;
+            if(dragSt.origPath&&state.element.layers[idx2].vectorData)state.element.layers[idx2].vectorData.pathData=translatePath(dragSt.origPath,ddx2,ddy2);
+          }
           if(Math.abs(dpx2)>2||Math.abs(dpy2)>2)dragSt.moved=true;
           // If moving a cutter in bool-edit mode, recalc parent bounds live
           if(dragSt.isCutter&&dragSt.cutterParentId){
