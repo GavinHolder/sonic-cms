@@ -9,7 +9,11 @@ All notable changes to the White-Label CMS.
 ### Features
 - timeline — visible +Key/-Key buttons, enhanced keyframe editor, easing curves
 
+### Bug Fixes
+- full-canvas toggle, multi-select align/distribute, path sync
+
 ### Documentation
+- regenerate changelog
 - regenerate changelog
 
 ---
