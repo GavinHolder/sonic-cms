@@ -1,10 +1,10 @@
 {
-  "version": "1.26.3",
+  "version": "1.26.4",
   "date": "2026-03-27",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "floating action panel had duplicate display property — was always visible, now toggles correctly"
+      "multi-select drag moves ALL selected layers + floating panel toggle fix"
     ],
     "breaking": []
   }
