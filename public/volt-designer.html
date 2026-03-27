@@ -457,14 +457,17 @@
   <div id="timeline-header" style="display:flex;align-items:center;gap:8px;padding:6px 12px;border-bottom:1px solid #f0f0f0;cursor:pointer;user-select:none;">
     <i class="bi bi-film" style="color:#6366f1;font-size:14px;"></i>
     <span style="font-size:11px;font-weight:700;color:#334155;letter-spacing:0.3px;">TIMELINE</span>
-    <div style="margin-left:auto;display:flex;gap:4px;align-items:center;">
+    <div style="margin-left:auto;display:flex;gap:6px;align-items:center;">
+      <button id="tl-add-kf" class="btn btn-sm px-2 py-0" style="font-size:10px;border:1px solid #22c55e;color:#22c55e;background:none;border-radius:4px;font-weight:700;" title="Add keyframe at current time for selected layer">+ Key</button>
+      <button id="tl-del-kf" class="btn btn-sm px-2 py-0" style="font-size:10px;border:1px solid #ef4444;color:#ef4444;background:none;border-radius:4px;font-weight:700;" title="Delete last keyframe on selected layer">- Key</button>
+      <div style="width:1px;height:14px;background:#e2e8f0;"></div>
       <button id="tl-play" class="btn btn-sm p-0 px-1" style="font-size:14px;color:#22c55e;border:none;background:none;" title="Play"><i class="bi bi-play-fill"></i></button>
       <button id="tl-stop" class="btn btn-sm p-0 px-1" style="font-size:14px;color:#ef4444;border:none;background:none;" title="Stop"><i class="bi bi-stop-fill"></i></button>
       <span id="tl-time" style="font-size:10px;font-weight:600;color:#64748b;min-width:40px;text-align:right;">0ms</span>
       <span style="font-size:10px;color:#94a3b8;">/</span>
       <input id="tl-duration" type="number" value="3000" min="500" max="30000" step="100" style="width:56px;font-size:10px;padding:1px 4px;border:1px solid #dee2e6;border-radius:4px;text-align:right;" title="Total duration (ms)" />
       <span style="font-size:10px;color:#94a3b8;">ms</span>
-      <label style="font-size:10px;color:#64748b;display:flex;align-items:center;gap:2px;margin-left:8px;cursor:pointer;">
+      <label style="font-size:10px;color:#64748b;display:flex;align-items:center;gap:2px;margin-left:4px;cursor:pointer;">
         <input id="tl-loop" type="checkbox" style="width:12px;height:12px;cursor:pointer;" /> Loop
       </label>
     </div>
@@ -3741,28 +3744,47 @@
       var existing=document.getElementById('kf-props-popup');if(existing)existing.remove();
       var kf=layer.timeline&&layer.timeline.keyframes[kfIndex];if(!kf)return;
       var popup=document.createElement('div');popup.id='kf-props-popup';
-      popup.style.cssText='position:fixed;bottom:260px;left:50%;transform:translateX(-50%);background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px 14px;box-shadow:0 4px 20px rgba(0,0,0,0.15);z-index:9999;font-size:11px;display:flex;gap:8px;align-items:center;';
-      var fields=[['opacity','Op',kf.props.opacity!=null?kf.props.opacity:1,0,1,0.05],['translateX','X',kf.props.translateX||0,-200,200,1],['translateY','Y',kf.props.translateY||0,-200,200,1],['scaleX','Sx',kf.props.scaleX!=null?kf.props.scaleX:1,0,5,0.1],['scaleY','Sy',kf.props.scaleY!=null?kf.props.scaleY:1,0,5,0.1],['rotate','Rot',kf.props.rotate||0,-360,360,1]];
+      popup.style.cssText='position:fixed;bottom:240px;left:50%;transform:translateX(-50%);background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,0.18);z-index:9999;font-size:11px;min-width:420px;';
+
+      // Header with time + close
+      var hdr=document.createElement('div');hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;';
+      var hdrLeft=document.createElement('div');hdrLeft.style.cssText='display:flex;align-items:center;gap:6px;';
+      var diamond=document.createElement('span');diamond.style.cssText='display:inline-block;width:10px;height:10px;background:#6366f1;transform:rotate(45deg);border-radius:2px;';
+      var timeLabel=document.createElement('span');timeLabel.style.cssText='font-size:10px;font-weight:700;color:#334155;';timeLabel.textContent='Keyframe '+(kfIndex+1);
+      var timeInp=document.createElement('input');timeInp.type='number';timeInp.value=kf.time;timeInp.min=0;timeInp.max=_tlGetDuration();timeInp.step=50;
+      timeInp.style.cssText='width:60px;font-size:10px;padding:2px 4px;border:1px solid #dee2e6;border-radius:4px;text-align:center;margin-left:4px;';
+      timeInp.addEventListener('change',function(){pushHistory();kf.time=parseInt(timeInp.value)||0;layer.timeline.keyframes.sort(function(a,b){return a.time-b.time;});markDirty();renderTimeline();});
+      var msLabel=document.createElement('span');msLabel.style.cssText='font-size:9px;color:#94a3b8;';msLabel.textContent='ms';
+      hdrLeft.appendChild(diamond);hdrLeft.appendChild(timeLabel);hdrLeft.appendChild(timeInp);hdrLeft.appendChild(msLabel);
+      var cls=document.createElement('button');cls.textContent='×';cls.style.cssText='font-size:18px;border:none;background:none;color:#94a3b8;cursor:pointer;padding:0 4px;line-height:1;';
+      cls.addEventListener('click',function(){popup.remove();});
+      hdr.appendChild(hdrLeft);hdr.appendChild(cls);popup.appendChild(hdr);
+
+      // Properties grid
+      var grid=document.createElement('div');grid.style.cssText='display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:10px;';
+      var fields=[['opacity','Opacity',kf.props.opacity!=null?kf.props.opacity:1,0,1,0.05],['translateX','Move X',kf.props.translateX||0,-200,200,1],['translateY','Move Y',kf.props.translateY||0,-200,200,1],['scaleX','Scale X',kf.props.scaleX!=null?kf.props.scaleX:1,0,5,0.1],['scaleY','Scale Y',kf.props.scaleY!=null?kf.props.scaleY:1,0,5,0.1],['rotate','Rotate',kf.props.rotate||0,-360,360,1]];
       fields.forEach(function(f){
-        var wrap=document.createElement('div');wrap.style.cssText='display:flex;flex-direction:column;align-items:center;';
-        var lbl=document.createElement('span');lbl.style.cssText='font-size:8px;font-weight:700;color:#94a3b8;text-transform:uppercase;';lbl.textContent=f[1];
+        var wrap=document.createElement('div');wrap.style.cssText='display:flex;flex-direction:column;gap:2px;';
+        var lbl=document.createElement('span');lbl.style.cssText='font-size:8px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.3px;';lbl.textContent=f[1];
         var inp=document.createElement('input');inp.type='number';inp.value=f[2];inp.min=f[3];inp.max=f[4];inp.step=f[5];
-        inp.style.cssText='width:48px;font-size:10px;padding:2px 4px;border:1px solid #dee2e6;border-radius:4px;text-align:center;';
+        inp.style.cssText='width:100%;font-size:10px;padding:3px 4px;border:1px solid #dee2e6;border-radius:4px;text-align:center;';
         inp.addEventListener('input',function(){kf.props[f[0]]=parseFloat(inp.value);markDirty();});
         inp.addEventListener('change',function(){pushHistory();});
-        wrap.appendChild(lbl);wrap.appendChild(inp);popup.appendChild(wrap);
+        wrap.appendChild(lbl);wrap.appendChild(inp);grid.appendChild(wrap);
       });
-      // Ease selector
-      var eWrap=document.createElement('div');eWrap.style.cssText='display:flex;flex-direction:column;align-items:center;';
-      var eLbl=document.createElement('span');eLbl.style.cssText='font-size:8px;font-weight:700;color:#94a3b8;';eLbl.textContent='Ease';
-      var eSel=document.createElement('select');eSel.style.cssText='font-size:9px;padding:2px;border:1px solid #dee2e6;border-radius:4px;';
-      ['linear','easeInQuad','easeOutQuad','easeInOutQuad','easeInCubic','easeOutCubic','easeInOutCubic','easeInOutBack','easeOutElastic','easeOutBounce'].forEach(function(e){var o=document.createElement('option');o.value=e;o.textContent=e.replace('ease','');if((kf.ease||'easeInOutQuad')===e)o.selected=true;eSel.appendChild(o);});
+      popup.appendChild(grid);
+
+      // Easing selector with descriptive labels
+      var eRow=document.createElement('div');eRow.style.cssText='display:flex;align-items:center;gap:8px;';
+      var eLbl=document.createElement('span');eLbl.style.cssText='font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;';eLbl.textContent='Easing:';
+      var eSel=document.createElement('select');eSel.style.cssText='flex:1;font-size:10px;padding:3px 6px;border:1px solid #dee2e6;border-radius:4px;';
+      [['linear','Linear — constant speed'],['easeInQuad','Ease In — slow start'],['easeOutQuad','Ease Out — slow end'],['easeInOutQuad','Ease In-Out — smooth'],['easeInCubic','Ease In Cubic — slower start'],['easeOutCubic','Ease Out Cubic — slower end'],['easeInOutCubic','Ease In-Out Cubic — very smooth'],['easeInOutBack','Back — overshoot'],['easeOutElastic','Elastic — spring bounce'],['easeOutBounce','Bounce — ball drop'],['spring','Spring — physics-based']].forEach(function(e){var o=document.createElement('option');o.value=e[0];o.textContent=e[1];if((kf.ease||'easeInOutQuad')===e[0])o.selected=true;eSel.appendChild(o);});
       eSel.addEventListener('change',function(){pushHistory();kf.ease=eSel.value;markDirty();});
-      eWrap.appendChild(eLbl);eWrap.appendChild(eSel);popup.appendChild(eWrap);
-      // Close button
-      var cls=document.createElement('button');cls.textContent='×';cls.style.cssText='font-size:16px;border:none;background:none;color:#94a3b8;cursor:pointer;padding:0 4px;';
-      cls.addEventListener('click',function(){popup.remove();});
-      popup.appendChild(cls);
+      // Delete keyframe button
+      var delBtn=document.createElement('button');delBtn.style.cssText='font-size:10px;padding:3px 8px;border:1px solid #ef4444;color:#ef4444;background:none;border-radius:4px;cursor:pointer;white-space:nowrap;';delBtn.textContent='Delete';
+      delBtn.addEventListener('click',function(){pushHistory();layer.timeline.keyframes.splice(kfIndex,1);if(layer.timeline.keyframes.length===0)delete layer.timeline;markDirty();renderTimeline();renderProps();popup.remove();});
+      eRow.appendChild(eLbl);eRow.appendChild(eSel);eRow.appendChild(delBtn);popup.appendChild(eRow);
+
       document.body.appendChild(popup);
     }
 
@@ -3803,6 +3825,35 @@
       var loop=_tlGetLoop();
       state.element.layers.forEach(function(l){if(l.timeline)l.timeline.loop=loop;});
       markDirty();
+    });
+
+    // ── Add/Delete keyframe buttons ─────────────────────────────────────────
+    document.getElementById('tl-add-kf').addEventListener('click',function(){
+      var i=state.element.layers.findIndex(function(l){return l.id===state.selectedLayerId;});
+      if(i<0){alert('Select a layer first');return;}
+      var layer=state.element.layers[i];
+      var dur=_tlGetDuration();
+      // Place keyframe at playhead position, or at 0 if not playing, or after last keyframe
+      var time=0;
+      if(layer.timeline&&layer.timeline.keyframes.length>0){
+        time=layer.timeline.keyframes[layer.timeline.keyframes.length-1].time+500;
+        if(time>dur)time=dur;
+      }
+      pushHistory();
+      if(!layer.timeline)layer.timeline={keyframes:[],duration:dur,loop:_tlGetLoop(),autoplay:true};
+      layer.timeline.keyframes.push({time:time,props:{opacity:layer.opacity,translateX:0,translateY:0,scaleX:1,scaleY:1,rotate:0},ease:'easeInOutQuad'});
+      layer.timeline.keyframes.sort(function(a,b){return a.time-b.time;});
+      markDirty();renderTimeline();renderProps();
+    });
+    document.getElementById('tl-del-kf').addEventListener('click',function(){
+      var i=state.element.layers.findIndex(function(l){return l.id===state.selectedLayerId;});
+      if(i<0)return;
+      var layer=state.element.layers[i];
+      if(!layer.timeline||!layer.timeline.keyframes.length)return;
+      pushHistory();
+      layer.timeline.keyframes.pop(); // Remove last keyframe
+      if(layer.timeline.keyframes.length===0)delete layer.timeline;
+      markDirty();renderTimeline();renderProps();
     });
 
     // Re-render timeline when layers change
