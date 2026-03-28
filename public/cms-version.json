@@ -1,10 +1,12 @@
 {
-  "version": "1.26.7",
-  "date": "2026-03-27",
+  "version": "1.27.0",
+  "date": "2026-03-28",
   "changelog": {
-    "features": [],
+    "features": [
+      "Google integration tab — step-by-step checklist for Search Console, Analytics, Business Profile"
+    ],
     "bugfixes": [
-      "add git pull --rebase before push in upstream merge step"
+      "SEO Wizard crash — early return before useCallback/useEffect violated React hooks rules"
     ],
     "breaking": []
   }
