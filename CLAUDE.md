@@ -92,6 +92,7 @@ Rules:
 | Hero carousel | `HERO_CAROUSEL` |
 | Section spacing | `TAB_SPACING` |
 | Lower Third / Motion Elements | `LOWER_THIRD_DOCS` / `MOTION_ELEMENTS_DOCS` |
+| SEO / Google integration | `SEO_MANAGEMENT` |
 
 2. **Commit** all modified files. Do NOT push unless user asks.
 

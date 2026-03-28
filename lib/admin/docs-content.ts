@@ -2142,6 +2142,39 @@ The audit checks:
 
 ---
 
+## Google Integration (Tab: Google)
+
+A step-by-step checklist that guides you through connecting your site to Google's services.
+
+### Steps
+
+| # | Step | Type | What it does |
+|---|------|------|-------------|
+| 1 | **Set canonical base URL** | Auto-detected | Your site's public URL — required for sitemap and robots.txt |
+| 2 | **Verify site in Google Search Console** | Manual | Prove domain ownership so Google will index your site |
+| 3 | **Submit sitemap** | Manual | Tell Google where to find your pages |
+| 4 | **Connect Google Analytics (GA4)** | Auto-detected | Track visitor behaviour — paste your Measurement ID (G-XXXXXXXXXX) |
+| 5 | **Claim Google Business Profile** | Manual | Appear on Google Maps and in local search results |
+| 6 | **Request indexing** | Manual | Ask Google to crawl your pages (speeds up discovery) |
+
+**Auto-detected** steps check automatically whether the config value is set.
+**Manual** steps have a toggle you mark as done after completing the action in Google's tools.
+
+### Google Analytics (GA4)
+
+When you enter a GA4 Measurement ID, the CMS automatically injects the Google Analytics tracking script on all public pages. No code editing required.
+
+1. Go to [Google Analytics](https://analytics.google.com)
+2. Create a GA4 property for your site
+3. Copy the Measurement ID (starts with \`G-\`)
+4. Paste it in the Google tab → GA4 field
+
+### Timeline
+
+After completing all steps, Google typically takes **1–4 weeks** to fully index a new site. Monitor progress in Google Search Console → Coverage → Pages.
+
+---
+
 ## Dynamic Files
 
 | URL | Description |

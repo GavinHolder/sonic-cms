@@ -7,6 +7,7 @@ import { defaultSeoConfig } from "@/lib/seo-config";
 import SeoWizardModal from "@/components/admin/SeoWizardModal";
 import MediaPickerModal from "@/components/admin/MediaPickerModal";
 import MediaUploadModal from "@/components/admin/MediaUploadModal";
+import GoogleSetupTab from "@/components/admin/GoogleSetupTab";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,7 +34,7 @@ export default function SeoSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [runningAudit, setRunningAudit] = useState(false);
-  const [activeTab, setActiveTab] = useState<"site" | "social" | "robots" | "schema" | "audit">("site");
+  const [activeTab, setActiveTab] = useState<"site" | "social" | "robots" | "schema" | "google" | "audit">("site");
   const [alert, setAlert] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [audit, setAudit] = useState<AuditResult | null>(null);
   const [showWizard, setShowWizard] = useState(false);
@@ -269,7 +270,7 @@ export default function SeoSettingsPage() {
 
       {/* Tabs */}
       <ul className="nav nav-pills mb-4 flex-wrap gap-1">
-        {(["site", "social", "robots", "schema", "audit"] as const).map((tab) => (
+        {(["site", "social", "robots", "schema", "google", "audit"] as const).map((tab) => (
           <li key={tab} className="nav-item">
             <button
               className={`nav-link ${activeTab === tab ? "active" : ""}`}
@@ -279,6 +280,7 @@ export default function SeoSettingsPage() {
               {tab === "social" && <><i className="bi bi-share me-1" />Social & OG</>}
               {tab === "robots" && <><i className="bi bi-robot me-1" />Robots &amp; Sitemap</>}
               {tab === "schema" && <><i className="bi bi-code-slash me-1" />Structured Data</>}
+              {tab === "google" && <><i className="bi bi-google me-1" />Google</>}
               {tab === "audit" && (
                 <>
                   <i className="bi bi-clipboard-check me-1" />
@@ -703,6 +705,9 @@ export default function SeoSettingsPage() {
           </div>
         </div>
       )}
+
+      {/* ── Tab: Google Setup ──────────────────────────────────────────────── */}
+      {activeTab === "google" && <GoogleSetupTab />}
 
       {/* ── Tab: SEO Audit ────────────────────────────────────────────────── */}
       {activeTab === "audit" && (
