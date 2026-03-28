@@ -1,10 +1,10 @@
 {
-  "version": "1.26.6",
+  "version": "1.26.7",
   "date": "2026-03-27",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "deploy fallback now pulls new Docker image before restart"
+      "add git pull --rebase before push in upstream merge step"
     ],
     "breaking": []
   }
