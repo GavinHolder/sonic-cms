@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- Decorative circular badge — transparent background, irregular enough for alpha hull -->
+  <!-- Outer starburst ring -->
+  <g transform="translate(100,100)">
+    <!-- 12-pointed starburst -->
+    <path d="
+      M 0,-90 L 8,-72 L 26,-82 L 18,-64 L 38,-60 L 24,-46
+      L 44,-38 L 28,-28 L 44,-16 L 26,-10 L 36,8 L 18,8
+      L 22,28 L 6,22 L 4,42 L -8,32 L -18,50 L -22,30
+      L -40,36 L -38,16 L -58,16 L -52,0 L -70,-10 L -52,-14
+      L -62,-32 L -44,-30 L -46,-50 L -30,-42 L -26,-62 L -14,-50
+      L -4,-68 Z
+    " fill="#c0392b" opacity="0.15"/>
+    <!-- Main circle -->
+    <circle cx="0" cy="0" r="72" fill="#c0392b" opacity="0.12"/>
+    <!-- Bold ring -->
+    <circle cx="0" cy="0" r="68" fill="none" stroke="#c0392b" stroke-width="8" opacity="0.7"/>
+    <circle cx="0" cy="0" r="56" fill="none" stroke="#c0392b" stroke-width="2" opacity="0.5"/>
+    <!-- Inner fill -->
+    <circle cx="0" cy="0" r="50" fill="#e74c3c" opacity="0.25"/>
+    <!-- Decorative inner petals -->
+    <path d="M 0,-44 Q 12,-28 0,-12 Q -12,-28 0,-44 Z" fill="#c0392b" opacity="0.6"/>
+    <path d="M 44,0 Q 28,12 12,0 Q 28,-12 44,0 Z" fill="#c0392b" opacity="0.6"/>
+    <path d="M 0,44 Q -12,28 0,12 Q 12,28 0,44 Z" fill="#c0392b" opacity="0.6"/>
+    <path d="M -44,0 Q -28,-12 -12,0 Q -28,12 -44,0 Z" fill="#c0392b" opacity="0.6"/>
+    <!-- Diagonal petals -->
+    <path d="M 32,-32 Q 22,-12 4,-4 Q 12,-26 32,-32 Z" fill="#c0392b" opacity="0.45"/>
+    <path d="M 32,32 Q 12,24 4,4 Q 24,10 32,32 Z" fill="#c0392b" opacity="0.45"/>
+    <path d="M -32,32 Q -24,12 -4,4 Q -12,26 -32,32 Z" fill="#c0392b" opacity="0.45"/>
+    <path d="M -32,-32 Q -12,-24 -4,-4 Q -26,-10 -32,-32 Z" fill="#c0392b" opacity="0.45"/>
+    <!-- Center dot -->
+    <circle cx="0" cy="0" r="10" fill="#c0392b" opacity="0.8"/>
+    <circle cx="0" cy="0" r="5" fill="white" opacity="0.6"/>
+  </g>
+</svg>

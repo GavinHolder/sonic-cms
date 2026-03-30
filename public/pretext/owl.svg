@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 260" width="200" height="260">
+  <!-- Owl body — irregular silhouette for alpha hull demo -->
+  <path d="
+    M 100 10
+    C 130 10, 155 25, 165 45
+    C 175 65, 178 85, 172 105
+    C 168 118, 162 128, 158 140
+    C 165 148, 172 158, 174 170
+    C 178 185, 172 200, 162 210
+    C 152 220, 140 224, 128 226
+    C 120 228, 115 232, 118 238
+    C 121 244, 130 248, 130 250
+    C 115 255, 100 256, 85 250
+    C 85 250, 95 244, 98 238
+    C 101 232, 96 228, 88 226
+    C 76 224, 64 220, 54 210
+    C 44 200, 38 185, 42 170
+    C 44 158, 50 148, 58 140
+    C 54 128, 47 118, 43 105
+    C 37 85, 40 65, 50 45
+    C 60 25, 78 10, 100 10
+    Z
+  " fill="#2c2c2c"/>
+  <!-- Left ear tuft -->
+  <path d="M 72 18 C 68 8, 58 2, 52 6 C 56 12, 62 20, 68 28 Z" fill="#2c2c2c"/>
+  <!-- Right ear tuft -->
+  <path d="M 128 18 C 132 8, 142 2, 148 6 C 144 12, 138 20, 132 28 Z" fill="#2c2c2c"/>
+  <!-- Left eye -->
+  <circle cx="78" cy="75" r="18" fill="#f5c842"/>
+  <circle cx="78" cy="75" r="10" fill="#1a1a1a"/>
+  <circle cx="74" cy="71" r="3" fill="white"/>
+  <!-- Right eye -->
+  <circle cx="122" cy="75" r="18" fill="#f5c842"/>
+  <circle cx="122" cy="75" r="10" fill="#1a1a1a"/>
+  <circle cx="118" cy="71" r="3" fill="white"/>
+  <!-- Beak -->
+  <path d="M 96 88 L 100 100 L 104 88 Z" fill="#d4831a"/>
+  <!-- Wing texture lines -->
+  <path d="M 55 130 Q 80 125, 100 130 Q 120 135, 145 130" stroke="#444" stroke-width="1.5" fill="none" opacity="0.5"/>
+  <path d="M 52 145 Q 78 138, 100 143 Q 122 148, 148 143" stroke="#444" stroke-width="1.5" fill="none" opacity="0.5"/>
+  <path d="M 50 160 Q 76 152, 100 156 Q 124 160, 150 156" stroke="#444" stroke-width="1.5" fill="none" opacity="0.5"/>
+  <!-- Breast speckle pattern -->
+  <ellipse cx="100" cy="160" rx="28" ry="32" fill="#8a7a6a" opacity="0.5"/>
+  <ellipse cx="100" cy="160" rx="18" ry="22" fill="#a09080" opacity="0.4"/>
+</svg>

@@ -16,7 +16,6 @@
  */
 
 import { useRef, useState, useEffect, useCallback } from 'react'
-import Image from 'next/image'
 import type { EditorialBlockProps, EditorialObstacle } from '@/lib/pretext/types'
 import { usePretextLayout } from '@/lib/pretext/usePretextLayout'
 import { useObstaclePolygons } from '@/lib/pretext/useAlphaHull'
@@ -143,9 +142,6 @@ function ObstacleImage({
   const absW = obs.width * containerWidth
   const absH = obs.height * containerHeight
 
-  // Use next/image for remote URLs, plain img for relative paths
-  const isAbsolute = obs.src.startsWith('http://') || obs.src.startsWith('https://')
-
   return (
     <div
       style={{
@@ -160,25 +156,14 @@ function ObstacleImage({
       }}
       aria-hidden
     >
-      {isAbsolute ? (
-        <Image
-          src={obs.src}
-          alt={obs.alt ?? ''}
-          fill
-          style={{ objectFit: 'contain' }}
-          sizes={`${Math.round(absW)}px`}
-          crossOrigin="anonymous"
-        />
-      ) : (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={obs.src}
-          alt={obs.alt ?? ''}
-          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-          crossOrigin="anonymous"
-          onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-        />
-      )}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={obs.src}
+        alt={obs.alt ?? ''}
+        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+        crossOrigin="anonymous"
+        onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+      />
     </div>
   )
 }
