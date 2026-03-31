@@ -359,6 +359,8 @@ export interface VoltLayer {
   blendMode: BlendMode
   /** CSS translateZ depth in pixels — layers with higher Z float closer to viewer during 3D tilt (default: 0) */
   translateZ?: number
+  /** When true, this layer is intentionally positioned outside the canvas bounds (requires canvasOverflow: 'visible') */
+  bleed?: boolean
   /** Per-layer visual effects (shadow, glow, blur) */
   effects?: VoltLayerEffects
   /** On-enter animation played once when the card enters the viewport */
@@ -441,6 +443,41 @@ export interface VoltFlipCard {
   springVelocity?: number
 }
 
+// ── Carousel / Multi-Slide ────────────────────────────────────────────────────
+
+export type CarouselTransition = 'fade' | 'slide-left' | 'slide-right' | 'scale' | 'flip'
+
+/** A single slide — overrides slot values and optionally per-layer visibility for this variant. */
+export interface VoltSlide {
+  id: string
+  name: string
+  /** Slot value overrides merged over the base slots at render time. Key = slot id or slotType. */
+  slotOverrides: Record<string, string>
+  /** Optional per-layer visibility overrides for this slide. Key = layer id. */
+  layerVisibility?: Record<string, boolean>
+}
+
+export interface VoltCarousel {
+  enabled: boolean
+  slides: VoltSlide[]
+  /** Visual transition between slides (default: 'fade') */
+  transition: CarouselTransition
+  /** Transition duration in ms (default: 400) */
+  duration: number
+  /** Anime.js ease string (default: 'easeInOutCubic') */
+  ease: string
+  /** Auto-advance slides (default: false) */
+  autoPlay: boolean
+  /** Auto-advance interval in ms (default: 3000) */
+  autoInterval: number
+  /** Show prev/next arrows (default: true) */
+  showArrows: boolean
+  /** Show dot indicators (default: true) */
+  showDots: boolean
+  /** Arrow visual style (default: 'minimal') */
+  arrowStyle: 'minimal' | 'rounded' | 'pill'
+}
+
 export interface VoltElementData {
   id: string
   name: string
@@ -463,6 +500,10 @@ export interface VoltElementData {
   updatedAt: string
   /** Card background colour (CSS colour string). Undefined = transparent/inherited. */
   canvasBackground?: string
+  /** Allow layers to extend visually outside the card boundary. Default 'hidden' (clips at card edge). */
+  canvasOverflow?: 'visible' | 'hidden'
+  /** Multi-slide carousel config — when enabled, the card cycles through multiple content variants */
+  carousel?: VoltCarousel
   /** Hover flip card config — when enabled, the Volt card flips on hover to reveal a back face */
   flipCard?: VoltFlipCard
   // ── 3D Tilt (parallax depth hover) ─────────────────────────────────────────

@@ -349,6 +349,8 @@
           </div>
         </div>
         <div id="artboard" style="width:800px;height:500px;">
+          <!-- Bleed zone indicator: shown when canvasOverflow==='visible' -->
+          <div id="artboard-bleed-zone" style="display:none;position:absolute;inset:-15%;z-index:0;pointer-events:none;border:2px dashed rgba(129,140,248,0.4);border-radius:6px;background:repeating-linear-gradient(45deg,rgba(129,140,248,0.04) 0px,rgba(129,140,248,0.04) 4px,transparent 4px,transparent 12px);"></div>
           <div class="cdotgrid"></div>
           <svg id="artboard-svg" viewBox="0 0 800 500" width="800" height="500" style="cursor:default;user-select:none;"></svg>
         </div>
@@ -2401,6 +2403,24 @@
         bgHex.addEventListener('input',function(){var v=bgHex.value.trim();if(/^#[0-9a-fA-F]{6}$/.test(v)){bgSwatch.value=v;_applyBg(v);}});
         bgHex.addEventListener('change',function(){pushHistory();});
         bgTrBtn.addEventListener('click',function(){pushHistory();state.element.canvasBackground='transparent';bgHex.value='transparent';var ab2=document.getElementById('artboard');if(ab2)ab2.style.background='transparent';markDirty();});
+        // ── Canvas Overflow (Bleed) section ───────────────────────────────────
+        var ovfSec=mkSec();
+        var ovfHdr=document.createElement('div');ovfHdr.style.cssText='font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;';ovfHdr.textContent='Canvas Overflow (Bleed)';
+        ovfSec.appendChild(ovfHdr);
+        var ovfRow=document.createElement('div');ovfRow.style.cssText='display:flex;align-items:center;justify-content:space-between;';
+        var ovfLbl=document.createElement('label');ovfLbl.style.cssText='font-size:11px;color:#94a3b8;cursor:pointer;';ovfLbl.htmlFor='prop-canvas-overflow';ovfLbl.textContent='Allow bleed outside card';
+        var ovfSwitch=document.createElement('div');ovfSwitch.className='form-check form-switch mb-0';
+        var ovfChk=document.createElement('input');ovfChk.type='checkbox';ovfChk.className='form-check-input';ovfChk.id='prop-canvas-overflow';ovfChk.style.cursor='pointer';ovfChk.checked=state.element.canvasOverflow==='visible';
+        ovfSwitch.appendChild(ovfChk);ovfRow.appendChild(ovfLbl);ovfRow.appendChild(ovfSwitch);ovfSec.appendChild(ovfRow);
+        var ovfHint=document.createElement('div');ovfHint.style.cssText='font-size:10px;color:#6c757d;margin-top:4px;';ovfHint.textContent='Lets image/text layers extend past the card edge. Mark individual layers as "Bleed" in their properties.';ovfSec.appendChild(ovfHint);
+        body.appendChild(ovfSec);
+        ovfChk.addEventListener('change',function(){
+          pushHistory();
+          state.element.canvasOverflow=ovfChk.checked?'visible':'hidden';
+          var bleedZone=document.getElementById('artboard-bleed-zone');
+          if(bleedZone)bleedZone.style.display=ovfChk.checked?'block':'none';
+          markDirty();
+        });
         // Info hint
         var fcHint=document.createElement('div');fcHint.style.cssText='font-size:10px;color:#6c757d;background:#1e1e3a;border-radius:4px;padding:6px 8px;line-height:1.4;';
         fcHint.textContent='Assign layers to front or back faces using the Face property when a layer is selected.';
@@ -2421,6 +2441,139 @@
         spD.sl.addEventListener('change',function(){pushHistory();markDirty();});
         spV.sl.addEventListener('input',function(){spV.vspan.textContent=spV.sl.value;_ensureFC();state.element.flipCard.springVelocity=parseInt(spV.sl.value);});
         spV.sl.addEventListener('change',function(){pushHistory();markDirty();});
+        // ── Carousel / Multi-Slide section ───────────────────────────────────
+        (function(){
+          var crSec=mkSec();
+          var crHdr=document.createElement('div');crHdr.style.cssText='font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;';crHdr.textContent='Carousel / Multi-Slide';
+          crSec.appendChild(crHdr);
+          // Mutual exclusion note
+          var crMutex=document.createElement('div');crMutex.style.cssText='font-size:10px;color:#f59e0b;margin-bottom:6px;';crMutex.textContent='⚠ Carousel and Flip Card are mutually exclusive.';
+          crSec.appendChild(crMutex);
+          // Enable toggle
+          var crRow=document.createElement('div');crRow.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;';
+          var crLbl=document.createElement('label');crLbl.style.cssText='font-size:11px;color:#94a3b8;cursor:pointer;';crLbl.htmlFor='prop-carousel-enabled';crLbl.textContent='Enable Carousel';
+          var crSwitch=document.createElement('div');crSwitch.className='form-check form-switch mb-0';
+          var crChk=document.createElement('input');crChk.type='checkbox';crChk.className='form-check-input';crChk.id='prop-carousel-enabled';crChk.style.cursor='pointer';
+          var cr=state.element.carousel;crChk.checked=!!(cr&&cr.enabled);
+          crSwitch.appendChild(crChk);crRow.appendChild(crLbl);crRow.appendChild(crSwitch);crSec.appendChild(crRow);
+          // Controls panel (shown/hidden by enable toggle)
+          var crCtrl=document.createElement('div');crCtrl.style.cssText='opacity:'+(crChk.checked?'1':'0.5')+';pointer-events:'+(crChk.checked?'all':'none')+';transition:opacity 0.2s;';
+          function _ensureCR(){if(!state.element.carousel)state.element.carousel={enabled:false,slides:[],transition:'fade',duration:400,ease:'easeInOutCubic',autoPlay:false,autoInterval:3000,showArrows:true,showDots:true,arrowStyle:'minimal'};}
+          // Transition type
+          var trRow=document.createElement('div');trRow.style.cssText='margin-bottom:8px;';
+          var trLbl=document.createElement('div');trLbl.style.cssText='font-size:10px;color:#64748b;margin-bottom:4px;';trLbl.textContent='Transition';
+          var trGrp=document.createElement('div');trGrp.className='btn-group btn-group-sm w-100';trGrp.setAttribute('role','group');
+          var crTrans=cr&&cr.transition?cr.transition:'fade';
+          [['fade','Fade'],['slide-left','◀ Slide'],['slide-right','▶ Slide'],['scale','Scale'],['flip','Flip']].forEach(function(t){
+            var b=document.createElement('button');b.type='button';b.className='btn btn-sm '+(crTrans===t[0]?'btn-primary':'btn-outline-secondary');b.textContent=t[1];b.style.cssText='font-size:9px;padding:2px 4px;';
+            b.addEventListener('click',function(){pushHistory();_ensureCR();state.element.carousel.transition=t[0];markDirty();
+              trGrp.querySelectorAll('button').forEach(function(x){x.className='btn btn-sm btn-outline-secondary';});b.className='btn btn-sm btn-primary';});
+            trGrp.appendChild(b);
+          });
+          trRow.appendChild(trLbl);trRow.appendChild(trGrp);crCtrl.appendChild(trRow);
+          // Duration + Ease row
+          var deRow=document.createElement('div');deRow.style.cssText='display:flex;gap:8px;margin-bottom:8px;';
+          var durDiv=document.createElement('div');durDiv.style.flex='1';
+          var durLbl=document.createElement('div');durLbl.style.cssText='font-size:10px;color:#64748b;margin-bottom:3px;';durLbl.textContent='Duration (ms)';
+          var durInp2=document.createElement('input');durInp2.type='number';durInp2.className='form-control form-control-sm';durInp2.style.cssText='font-size:10px;';durInp2.value=cr&&cr.duration!=null?cr.duration:400;durInp2.min=100;durInp2.step=50;
+          durDiv.appendChild(durLbl);durDiv.appendChild(durInp2);
+          var easDiv=document.createElement('div');easDiv.style.flex='1';
+          var easLbl=document.createElement('div');easLbl.style.cssText='font-size:10px;color:#64748b;margin-bottom:3px;';easLbl.textContent='Ease';
+          var easSel2=document.createElement('select');easSel2.className='form-select form-select-sm';easSel2.style.cssText='font-size:10px;';
+          var crEase=cr&&cr.ease?cr.ease:'easeInOutCubic';
+          ['easeInOutCubic','easeOutCubic','easeInOutQuad','easeOutBack','linear'].forEach(function(e){var o=document.createElement('option');o.value=e;o.textContent=e.replace('easeInOut','⇄ ').replace('easeOut','→ ').replace('easeIn','← ');if(crEase===e)o.selected=true;easSel2.appendChild(o);});
+          easDiv.appendChild(easLbl);easDiv.appendChild(easSel2);
+          deRow.appendChild(durDiv);deRow.appendChild(easDiv);crCtrl.appendChild(deRow);
+          durInp2.addEventListener('change',function(){pushHistory();_ensureCR();var n=parseInt(durInp2.value);if(!isNaN(n)&&n>=100)state.element.carousel.duration=n;markDirty();});
+          easSel2.addEventListener('change',function(){pushHistory();_ensureCR();state.element.carousel.ease=easSel2.value;markDirty();});
+          // Toggles row: showArrows, showDots, autoPlay
+          var togRow=document.createElement('div');togRow.style.cssText='display:flex;gap:10px;margin-bottom:8px;flex-wrap:wrap;';
+          function mkToggle(id,lbl,checked,onChange){
+            var w=document.createElement('div');w.style.cssText='display:flex;align-items:center;gap:4px;';
+            var chk=document.createElement('input');chk.type='checkbox';chk.id=id;chk.className='form-check-input';chk.style.cssText='width:14px;height:14px;cursor:pointer;';chk.checked=checked;
+            var l=document.createElement('label');l.htmlFor=id;l.style.cssText='font-size:10px;color:#94a3b8;cursor:pointer;';l.textContent=lbl;
+            w.appendChild(chk);w.appendChild(l);chk.addEventListener('change',function(){pushHistory();_ensureCR();onChange(chk.checked);markDirty();});return w;
+          }
+          togRow.appendChild(mkToggle('cr-arrows','Arrows',!!(cr?cr.showArrows!==false:true),function(v){state.element.carousel.showArrows=v;}));
+          togRow.appendChild(mkToggle('cr-dots','Dots',!!(cr?cr.showDots!==false:true),function(v){state.element.carousel.showDots=v;}));
+          togRow.appendChild(mkToggle('cr-auto','Auto-play',!!(cr&&cr.autoPlay),function(v){state.element.carousel.autoPlay=v;autoIntRow.style.display=v?'':'none';}));
+          crCtrl.appendChild(togRow);
+          // Auto-interval row
+          var autoIntRow=document.createElement('div');autoIntRow.style.cssText='display:'+(cr&&cr.autoPlay?'':'none')+';margin-bottom:8px;';
+          var aiLbl=document.createElement('div');aiLbl.style.cssText='font-size:10px;color:#64748b;margin-bottom:3px;';aiLbl.textContent='Auto-play interval (ms)';
+          var aiInp=document.createElement('input');aiInp.type='number';aiInp.className='form-control form-control-sm';aiInp.style.cssText='font-size:10px;';aiInp.value=cr&&cr.autoInterval?cr.autoInterval:3000;aiInp.min=500;aiInp.step=500;
+          aiInp.addEventListener('change',function(){pushHistory();_ensureCR();var n=parseInt(aiInp.value);if(!isNaN(n)&&n>=500)state.element.carousel.autoInterval=n;markDirty();});
+          autoIntRow.appendChild(aiLbl);autoIntRow.appendChild(aiInp);crCtrl.appendChild(autoIntRow);
+          // ── Slide list editor ───────────────────────────────────────────────
+          var slideListHdr=document.createElement('div');slideListHdr.style.cssText='font-size:10px;font-weight:700;color:#818cf8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;';slideListHdr.textContent='Slides';
+          crCtrl.appendChild(slideListHdr);
+          var slideList=document.createElement('div');slideList.id='cr-slide-list';crCtrl.appendChild(slideList);
+          var addSlideBtn=document.createElement('button');addSlideBtn.type='button';addSlideBtn.className='btn btn-sm btn-outline-primary w-100';addSlideBtn.style.cssText='font-size:10px;margin-top:4px;';addSlideBtn.textContent='+ Add Slide';crCtrl.appendChild(addSlideBtn);
+
+          function renderSlideList(){
+            slideList.innerHTML='';
+            _ensureCR();
+            var slides=state.element.carousel.slides||[];
+            if(slides.length===0){var emp=document.createElement('div');emp.style.cssText='font-size:10px;color:#6c757d;padding:6px 0;text-align:center;';emp.textContent='No slides yet. Add one below.';slideList.appendChild(emp);return;}
+            slides.forEach(function(slide,idx){
+              var row=document.createElement('div');row.style.cssText='border:1px solid #334155;border-radius:4px;margin-bottom:4px;overflow:hidden;';
+              // Header row
+              var hdr=document.createElement('div');hdr.style.cssText='display:flex;align-items:center;gap:4px;padding:5px 8px;background:#1e1e3a;cursor:pointer;';
+              var idxBadge=document.createElement('span');idxBadge.style.cssText='font-size:9px;color:#818cf8;font-weight:700;min-width:16px;';idxBadge.textContent=(idx+1)+'';
+              var nameInp=document.createElement('input');nameInp.type='text';nameInp.style.cssText='flex:1;background:transparent;border:none;color:#e2e8f0;font-size:10px;outline:none;';nameInp.value=slide.name||('Slide '+(idx+1));
+              nameInp.addEventListener('change',function(){pushHistory();state.element.carousel.slides[idx].name=nameInp.value;markDirty();});
+              var delBtn=document.createElement('button');delBtn.type='button';delBtn.style.cssText='background:none;border:none;color:#f87171;font-size:12px;cursor:pointer;padding:0 2px;';delBtn.textContent='×';
+              delBtn.addEventListener('click',function(e){e.stopPropagation();pushHistory();state.element.carousel.slides.splice(idx,1);markDirty();renderSlideList();});
+              hdr.appendChild(idxBadge);hdr.appendChild(nameInp);hdr.appendChild(delBtn);
+              // Expandable slot overrides
+              var body2=document.createElement('div');body2.style.cssText='padding:6px 8px;display:none;';
+              hdr.addEventListener('click',function(e){if(e.target===nameInp||e.target===delBtn)return;body2.style.display=body2.style.display==='none'?'':'none';});
+              // Slot override inputs — detect slot layers in design
+              var slotLayers=state.element.layers.filter(function(l){return l.type==='slot'&&l.visible!==false;});
+              if(slotLayers.length===0){var nsl=document.createElement('div');nsl.style.cssText='font-size:10px;color:#6c757d;';nsl.textContent='No slot layers in design.';body2.appendChild(nsl);}
+              slotLayers.forEach(function(sl){
+                var slRow=document.createElement('div');slRow.style.cssText='display:flex;align-items:center;gap:6px;margin-bottom:4px;';
+                var slLbl=document.createElement('label');slLbl.style.cssText='font-size:10px;color:#94a3b8;min-width:70px;';slLbl.textContent=(sl.slotData&&sl.slotData.slotLabel)||sl.name;
+                var slInp=document.createElement('input');slInp.type='text';slInp.className='form-control form-control-sm';slInp.style.cssText='font-size:10px;flex:1;';
+                slInp.placeholder='(use base value)';
+                slInp.value=(slide.slotOverrides&&slide.slotOverrides[sl.id])||'';
+                slInp.addEventListener('change',function(){pushHistory();if(!state.element.carousel.slides[idx].slotOverrides)state.element.carousel.slides[idx].slotOverrides={};state.element.carousel.slides[idx].slotOverrides[sl.id]=slInp.value;markDirty();});
+                slRow.appendChild(slLbl);slRow.appendChild(slInp);body2.appendChild(slRow);
+              });
+              // Layer visibility overrides
+              if(state.element.layers.length>0){
+                var visHdr2=document.createElement('div');visHdr2.style.cssText='font-size:10px;color:#64748b;margin-top:6px;margin-bottom:3px;font-weight:600;';visHdr2.textContent='Layer Visibility';body2.appendChild(visHdr2);
+                state.element.layers.forEach(function(ll){
+                  var vRow=document.createElement('div');vRow.style.cssText='display:flex;align-items:center;gap:6px;margin-bottom:2px;';
+                  var vChk=document.createElement('input');vChk.type='checkbox';vChk.className='form-check-input';vChk.style.cssText='width:12px;height:12px;';
+                  var curVis=slide.layerVisibility&&slide.layerVisibility[ll.id]!=null?slide.layerVisibility[ll.id]:true;
+                  vChk.checked=curVis;
+                  var vLbl=document.createElement('label');vLbl.style.cssText='font-size:10px;color:#94a3b8;';vLbl.textContent=ll.name;
+                  vChk.addEventListener('change',function(){pushHistory();if(!state.element.carousel.slides[idx].layerVisibility)state.element.carousel.slides[idx].layerVisibility={};state.element.carousel.slides[idx].layerVisibility[ll.id]=vChk.checked;markDirty();});
+                  vRow.appendChild(vChk);vRow.appendChild(vLbl);body2.appendChild(vRow);
+                });
+              }
+              row.appendChild(hdr);row.appendChild(body2);slideList.appendChild(row);
+            });
+          }
+          renderSlideList();
+          addSlideBtn.addEventListener('click',function(){
+            pushHistory();_ensureCR();
+            var n=state.element.carousel.slides.length+1;
+            state.element.carousel.slides.push({id:'slide-'+Date.now(),name:'Slide '+n,slotOverrides:{},layerVisibility:{}});
+            markDirty();renderSlideList();
+          });
+          crSec.appendChild(crCtrl);body.appendChild(crSec);
+          // Enable/disable toggle behaviour
+          crChk.addEventListener('change',function(){
+            pushHistory();_ensureCR();
+            state.element.carousel.enabled=crChk.checked;
+            crCtrl.style.opacity=crChk.checked?'1':'0.5';crCtrl.style.pointerEvents=crChk.checked?'all':'none';
+            // Mutual exclusion: if carousel enabled, disable flip card
+            if(crChk.checked&&state.element.flipCard){state.element.flipCard.enabled=false;_updateFaceSwitcher();}
+            markDirty();
+          });
+        })();
         return;
       }
       // ── Hover state banner ──────────────────────────────────────────────────
@@ -2470,6 +2623,23 @@
       var bmSel=document.createElement('select');bmSel.id='prop-blend-mode';bmSel.className='form-select form-select-sm';
       ['normal','multiply','screen','overlay','darken','lighten','color-dodge','color-burn','hard-light','soft-light','difference','exclusion','hue','saturation','color','luminosity'].forEach(function(bm){var opt=document.createElement('option');opt.value=bm;opt.textContent=bm.replace(/-/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();});if(layer.blendMode===bm)opt.selected=true;bmSel.appendChild(opt);});
       sBM.appendChild(bmSel);body.appendChild(sBM);
+      // Bleed checkbox — only visible when canvas overflow is enabled
+      if(state.element.canvasOverflow==='visible'&&(layer.type==='image'||layer.type==='text'||layer.type==='slot')){
+        var sBleed=mkSec();
+        var bleedRow=document.createElement('div');bleedRow.style.cssText='display:flex;align-items:center;justify-content:space-between;';
+        var bleedLbl=document.createElement('label');bleedLbl.style.cssText='font-size:11px;color:#818cf8;cursor:pointer;font-weight:600;';bleedLbl.htmlFor='prop-layer-bleed';bleedLbl.textContent='Bleed (extends outside card)';
+        var bleedSwitch=document.createElement('div');bleedSwitch.className='form-check form-switch mb-0';
+        var bleedChk=document.createElement('input');bleedChk.type='checkbox';bleedChk.className='form-check-input';bleedChk.id='prop-layer-bleed';bleedChk.style.cursor='pointer';bleedChk.checked=!!(layer.bleed);
+        bleedSwitch.appendChild(bleedChk);bleedRow.appendChild(bleedLbl);bleedRow.appendChild(bleedSwitch);sBleed.appendChild(bleedRow);
+        var bleedHint=document.createElement('div');bleedHint.style.cssText='font-size:10px;color:#6c757d;margin-top:4px;';bleedHint.textContent='This layer will render outside the card boundary.';sBleed.appendChild(bleedHint);
+        body.appendChild(sBleed);
+        bleedChk.addEventListener('change',function(){
+          pushHistory();
+          var i=state.element.layers.findIndex(function(l){return l.id===layer.id;});
+          if(i>=0)state.element.layers[i].bleed=bleedChk.checked;
+          markDirty();
+        });
+      }
       // Z Depth (all layer types — drives parallax when tilt is enabled)
       if(layer.type==='image'||layer.type==='slot'||layer.type==='vector'||layer.type==='text'){
         var sZ=mkSec();var zLblRow=document.createElement('div');zLblRow.className='d-flex justify-content-between align-items-center mb-1';
@@ -4671,7 +4841,7 @@
         return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(xml);
       }catch(e){return null;}
     }
-    function buildPayload(){return {id:state.element.id,name:state.element.name,mood:state.element.mood,elementType:state.element.elementType,isPublic:state.element.isPublic,layers:state.element.layers,states:state.element.states||[],canvasWidth:state.element.canvasWidth,canvasHeight:state.element.canvasHeight,flipCard:state.element.flipCard||null,thumbnail:captureThumbnail()};}
+    function buildPayload(){return {id:state.element.id,name:state.element.name,mood:state.element.mood,elementType:state.element.elementType,isPublic:state.element.isPublic,layers:state.element.layers,states:state.element.states||[],canvasWidth:state.element.canvasWidth,canvasHeight:state.element.canvasHeight,flipCard:state.element.flipCard||null,canvasOverflow:state.element.canvasOverflow||null,carousel:state.element.carousel||null,thumbnail:captureThumbnail()};}
     document.getElementById('btn-save').addEventListener('click',function(){if(window.parent&&window.parent!==window)window.parent.postMessage({type:'VOLT_DESIGNER_SAVE',payload:buildPayload()},'*');markClean();});
     document.getElementById('btn-done').addEventListener('click',function(){if(window.parent&&window.parent!==window)window.parent.postMessage({type:'VOLT_DESIGNER_DONE',payload:buildPayload()},'*');});
     // ── Load from host ────────────────────────────────────────────────────────
@@ -4714,6 +4884,9 @@
       document.getElementById('canvas-size-label').textContent=w+'\u00d7'+h+'px';
       document.getElementById('canvas-w').value=w;document.getElementById('canvas-h').value=h;
       markClean();renderAll();setTimeout(function(){document.getElementById('btn-zoom-fit').click();},100);
+      // Sync bleed zone indicator to loaded element
+      var bleedZoneEl=document.getElementById('artboard-bleed-zone');
+      if(bleedZoneEl)bleedZoneEl.style.display=(el.canvasOverflow==='visible')?'block':'none';
     });
     // ── Init ──────────────────────────────────────────────────────────────────
     if(window.parent&&window.parent!==window){

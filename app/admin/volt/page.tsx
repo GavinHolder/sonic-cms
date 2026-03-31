@@ -114,7 +114,17 @@ function VoltLibrary() {
       const res = await fetch(`/api/volt/${element.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: element.name, layers: element.layers, states: element.states, isPublic: element.isPublic, mood: element.mood, elementType: element.elementType, thumbnail: element.thumbnail }),
+        body: JSON.stringify({
+          name: element.name,
+          layers: element.layers,
+          states: element.states,
+          isPublic: element.isPublic,
+          mood: element.mood,
+          elementType: element.elementType,
+          thumbnail: element.thumbnail,
+          flipCard: element.flipCard ?? null,
+          designerData: element,
+        }),
       });
       if (!res.ok) { toast.error("Failed to save Volt"); return; }
       setVolts(v => v.map(x => x.id === element.id ? { ...x, name: element.name, isPublic: element.isPublic, mood: element.mood ?? null, elementType: element.elementType, thumbnail: element.thumbnail ?? x.thumbnail } : x));

@@ -7,9 +7,10 @@ interface Props {
   canvasWidth: number
   canvasHeight: number
   slots: VoltSlots
+  canvasOverflow?: 'visible' | 'hidden'
 }
 
-export default function VoltSlotRenderer({ layer, canvasWidth, canvasHeight, slots }: Props) {
+export default function VoltSlotRenderer({ layer, canvasWidth, canvasHeight, slots, canvasOverflow }: Props) {
   if (!layer.visible || layer.type !== 'slot' || !layer.slotData) return null
 
   const { slotData, x, y, width, height, opacity } = layer
@@ -26,7 +27,7 @@ export default function VoltSlotRenderer({ layer, canvasWidth, canvasHeight, slo
     fontWeight: slotData.fontWeight ?? 'inherit',
     color: slotData.color ?? 'inherit',
     textAlign: slotData.textAlign ?? 'left',
-    overflow: 'hidden',
+    overflow: (layer.bleed && canvasOverflow === 'visible') ? 'visible' : 'hidden',
     display: 'flex',
     alignItems: 'center',
   }
