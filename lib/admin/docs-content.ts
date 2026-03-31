@@ -952,7 +952,7 @@ Each zone boundary is a CSS scroll-snap point — scrolling snaps cleanly to eac
 const FLEXIBLE_ELEMENTS = `
 # Flexible Sections — Element Types
 
-The block panel on the left contains **13 element types**. **Card, Banner, and Stats** now use the same free-positioning sub-element system as Text Block — all content is draggable, dblclick editable, and the block auto-resizes in all directions.
+The block panel on the left contains **14 element types**. **Card, Banner, and Stats** now use the same free-positioning sub-element system as Text Block — all content is draggable, dblclick editable, and the block auto-resizes in all directions.
 
 ---
 
@@ -1328,7 +1328,50 @@ The **Layer Colors** section in the Properties panel lists every vector layer in
 
 ---
 
+## 14. Editorial 📰
+
+Magazine-style text layout powered by **[@chenglou/pretext](https://github.com/chenglou/pretext)**. Text flows around obstacle images using precise alpha hull tracing — the actual shape of the image, not just its bounding box.
+
+### How it works
+
+- Text is measured using the browser's own font engine (via Canvas) — no DOM reflow
+- Each line is laid out individually, routing around any obstacles
+- Text is real DOM content: **fully selectable and copyable**
+- Layout re-runs instantly on resize (~0.09ms hot path)
+
+### Adding text
+
+Type or paste your body copy in the **Body Text** textarea in the Properties panel. Choose a **Font Family** and adjust **Font Size** and **Line Height** to match your design.
+
+### Obstacles
+
+Obstacles are images that text flows around. Text routes around the actual shape of the image (alpha channel tracing), not just its rectangular bounds.
+
+| Property | Description |
+|----------|-------------|
+| **Image** | Upload an image — PNG with transparency works best |
+| **Alpha Hull** | When checked, traces the image's actual alpha contour. When unchecked, uses the bounding rectangle |
+| **X / Y** | Fractional position within the block (0–100%) — drag in canvas or use sliders |
+| **W / H** | Fractional width/height relative to block size |
+| **Padding** | Extra space between the image shape and the nearest text line (px) |
+
+### Dragging obstacles
+
+In the Designer canvas, obstacle images show a **dashed blue outline** and a move cursor. Drag them to reposition — text reflows instantly around the new position.
+
+### Supported fonts
+
+Any **Google Font** works. The font is loaded automatically before layout runs. Popular editorial choices:
+- **Merriweather** (default) — classic serif for long-form reading
+- **Lora**, **EB Garamond**, **Libre Baskerville** — traditional editorial serifs
+- **Inter**, **Open Sans** — clean sans-serif for modern layouts
+
+> **Tip:** Use a PNG image with a transparent background and enable Alpha Hull for the most dramatic text-wrapping effect.
+
+---
+
 `;
+
 
 const FLEXIBLE_STYLING = `
 # Flexible Sections — Element Styling
@@ -3345,6 +3388,127 @@ The **volt-sync.py** Blender addon syncs assets directly from Blender to the CMS
 See **Admin → API Keys** for key management.
 `;
 
+const VOLT_OVERFLOW_BLEED = `
+# Volt Designer — Canvas Overflow & Layer Bleed
+
+Allow layers to extend **outside the card boundary** — the image or element "bleeds" beyond the canvas edge for a cinematic floating effect.
+
+---
+
+## Enabling Canvas Overflow
+
+1. With no layer selected, open the **Canvas Overflow (Bleed)** section in the right panel
+2. Toggle **Allow overflow** to \`visible\`
+3. A hatched dashed indicator appears around the artboard showing the bleed zone
+
+> Without overflow enabled, all content is clipped to the canvas rectangle.
+
+---
+
+## Making a Layer Bleed
+
+Once canvas overflow is enabled, any image, text, or slot layer can bleed:
+
+1. Select the layer
+2. Tick the **Bleed** checkbox in the Layer Properties panel
+3. Drag the layer so part of it extends beyond the canvas edge
+4. The layer renders outside the card in the live page
+
+### Typical use
+
+- Hero product image overlapping the top-left corner of a card
+- Badge or sticker floating above the card edge
+- A rotated image bleeding out at an angle
+
+---
+
+## Behaviour in the Renderer
+
+| \`canvasOverflow\` | Layer \`bleed\` | Result |
+|--------------------|-----------------|--------|
+| \`hidden\` (default) | any | Layer clipped to canvas |
+| \`visible\` | \`false\` | Layer clipped to canvas |
+| \`visible\` | \`true\` | Layer renders beyond canvas edge |
+
+> Vector (SVG) layers are always clipped at their SVG viewBox — only HTML-rendered layers (image, text, slot) bleed.
+
+---
+
+## Notes
+
+- Overflow is per-design, not per-instance — set it once in Volt Studio
+- Bleed works inside any Flexible section block
+- Bleed layers have z-index above the card background automatically
+`;
+
+const VOLT_CAROUSEL = `
+# Volt Designer — Carousel / Multi-Slide
+
+Turn a single Volt design into a **multi-slide carousel** where each slide can display different content through the Slot system — no duplicate designs needed.
+
+---
+
+## Enabling the Carousel
+
+1. Scroll to the **Carousel / Multi-Slide** section in the right panel (with no layer selected)
+2. Toggle **Enable carousel**
+3. A slide list appears — add slides with **+ Add Slide**
+
+> Enabling the carousel disables the Flip Card feature (they are mutually exclusive).
+
+---
+
+## Managing Slides
+
+Each slide has:
+
+| Field | Description |
+|-------|-------------|
+| **Name** | Label shown in the designer panel |
+| **Slot Overrides** | Per-slot content for this slide (overrides the base slot value) |
+| **Layer Visibility** | Show/hide individual layers for this slide only |
+
+### Slot overrides
+
+If your design has a \`slot-title\` slot, you can set a different title per slide without duplicating the design. Enter the value in the **Slot Overrides** section of that slide.
+
+---
+
+## Transition Settings
+
+| Setting | Options / Range | Description |
+|---------|----------------|-------------|
+| **Transition** | fade, slide-left, slide-right, scale, flip | How slides change |
+| **Duration** | 100–2000 ms | Length of the transition animation |
+| **Ease** | easeInOutCubic, linear, spring, etc. | Timing curve |
+
+---
+
+## Navigation Controls
+
+| Setting | Description |
+|---------|-------------|
+| **Show Arrows** | Prev/Next arrow buttons |
+| **Arrow Style** | minimal, rounded, pill |
+| **Show Dots** | Dot indicators below the card |
+| **Auto Play** | Automatically advance slides |
+| **Auto Interval** | Milliseconds between auto-advances (min 500) |
+
+---
+
+## How Slides Render
+
+On the live page:
+
+1. The base design (layers + slots) renders as the current slide
+2. The current slide's **slot overrides** replace the base slot values
+3. The current slide's **layer visibility** hides/shows layers
+4. Transitions animate between slides via Anime.js v4
+5. Arrows and dots are rendered over the card
+
+> Carousel state is per-instance — each Volt block on a page runs its own carousel independently.
+`;
+
 const VOLT_ANIMATION = `
 # Volt Designer — Animation
 
@@ -4930,6 +5094,8 @@ export const DOC_TOPICS: DocTopic[] = [
       { id: "volt-effects", label: "Fill, Stroke & Shadow", icon: "bi-palette", content: VOLT_EFFECTS },
       { id: "volt-boolean", label: "Boolean Operations", icon: "bi-intersect", content: VOLT_BOOLEAN },
       { id: "volt-3d", label: "3D Objects", icon: "bi-box", content: VOLT_3D },
+      { id: "volt-overflow-bleed", label: "Canvas Overflow & Bleed", icon: "bi-fullscreen", content: VOLT_OVERFLOW_BLEED },
+      { id: "volt-carousel", label: "Carousel / Multi-Slide", icon: "bi-collection-play", content: VOLT_CAROUSEL },
       { id: "volt-animation", label: "Animation", icon: "bi-play-circle", content: VOLT_ANIMATION },
       { id: "volt-ux", label: "UX & Shortcuts", icon: "bi-keyboard", content: VOLT_UX_DOCS },
     ],

@@ -261,6 +261,7 @@ model VoltElement {
   updatedAt    DateTime    @updatedAt
   thumbnail    String?
   flipCard     Json?
+  designerData Json?
   sections     Section[]   @relation("SectionVolt")
   assets       VoltAsset[]
   author       User        @relation(fields: [authorId], references: [id])

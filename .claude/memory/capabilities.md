@@ -121,6 +121,7 @@ motionElements Json?         // MotionElement[] parallax overlays, z-20
 | `projects-gallery` | `heading`, `subtext`, `textColor`, `columns` | Pulls from Project DB records |
 | `coverage-map` | `mapSlug`, `mapHeight`, `showSearch`, `showGeolocation` | Leaflet map (feature-gated) |
 | `concrete-calculator` | — | Calculator widget (feature-gated) |
+| `editorial` | `text`, `fontFamily`, `fontSize`, `lineHeight`, `textColor`, `bgColor`, `obstacles[]` | Magazine-style text layout via @chenglou/pretext — text flows around alpha-hull-traced obstacle images. Obstacles: `{id, src, x, y, width, height, useAlphaHull, padding}` all fractional 0-1 except padding (px). Text is selectable DOM spans. |
 
 ### `subElements[]` — used in `text` and `card` blocks
 

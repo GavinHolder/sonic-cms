@@ -30,7 +30,13 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
   const autoTimerRef  = useRef<ReturnType<typeof setInterval> | null>(null)
   const isTiltingRef  = useRef(false)
 
-  const { layers: rawLayers, states, canvasWidth, canvasHeight, flipCard, breakpoints } = voltElement
+  // ── Carousel state ──────────────────────────────────────────────────────────
+  const [currentSlide, setCurrentSlide] = useState(0)
+  const isTransitioningRef = useRef(false)
+  const carouselContentRef = useRef<HTMLDivElement>(null)
+  const carouselAutoTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const { layers: rawLayers, states, canvasWidth, canvasHeight, flipCard, breakpoints, canvasOverflow, carousel } = voltElement
   const [activeBreakpoint, setActiveBreakpoint] = useState<VoltBreakpoint | null>(null)
 
   // ResizeObserver to detect active breakpoint based on container width
@@ -66,7 +72,24 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
 
   const sortedLayers = sortLayersByZ(layers)
 
-  const isFlip         = !!(flipCard?.enabled)
+  // ── Carousel: derive effective slots and layer visibility for current slide ──
+  const isCarousel = !!(carousel?.enabled) && (carousel?.slides?.length ?? 0) > 0
+  const activeSlide = isCarousel ? carousel!.slides[currentSlide] : undefined
+
+  const effectiveSlots: typeof slots = isCarousel && activeSlide
+    ? { ...slots, ...activeSlide.slotOverrides }
+    : slots
+
+  // Apply per-slide layer visibility overrides (immutable — don't mutate layers array)
+  const carouselLayers = isCarousel && activeSlide?.layerVisibility
+    ? sortedLayers.map(l => {
+        const vis = activeSlide.layerVisibility![l.id]
+        return vis !== undefined ? { ...l, visible: vis } : l
+      })
+    : sortedLayers
+
+  // Carousel disables flip card
+  const isFlip = !isCarousel && !!(flipCard?.enabled)
   const flipAnimType   = flipCard?.animType    ?? 'flip3d'
   const flipTrigger    = flipCard?.trigger     ?? 'hover'
   const flipAxis       = flipCard?.axis === 'x' ? 'rotateX' : 'rotateY'
@@ -647,6 +670,147 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
 
   const aspectRatio = `${canvasWidth} / ${canvasHeight}`
 
+  // ── Carousel: goToSlide, auto-play ───────────────────────────────────────────
+  async function goToSlide(nextIndex: number) {
+    if (!isCarousel || !carousel) return
+    if (isTransitioningRef.current) return
+    if (nextIndex === currentSlide) return
+    const slides = carousel.slides
+    const safeIndex = ((nextIndex % slides.length) + slides.length) % slides.length
+    const el = carouselContentRef.current
+    if (!el) { setCurrentSlide(safeIndex); return }
+
+    isTransitioningRef.current = true
+    const { animate } = await import('animejs')
+    const dur = carousel.duration ?? 400
+    const ease = carousel.ease ?? 'easeInOutCubic'
+    const trans = carousel.transition ?? 'fade'
+
+    // Anime.js v4: wrap animate() in a Promise via onComplete (onComplete receives the animation, not void)
+    const anim = (target: HTMLElement, params: Record<string, unknown>) =>
+      new Promise<void>(resolve => animate(target, { ...params, onComplete: () => resolve() }))
+
+    const slideDir = nextIndex > currentSlide ? 1 : -1
+
+    if (trans === 'fade') {
+      await anim(el, { opacity: [1, 0], duration: dur / 2, ease })
+      setCurrentSlide(safeIndex)
+      await anim(el, { opacity: [0, 1], duration: dur / 2, ease })
+    } else if (trans === 'slide-left' || trans === 'slide-right') {
+      const dir = trans === 'slide-left' ? -1 : 1
+      const outX = `${dir * slideDir * -100}%`
+      const inX  = `${dir * slideDir * 100}%`
+      await anim(el, { translateX: [0, outX], duration: dur / 2, ease })
+      setCurrentSlide(safeIndex)
+      el.style.transform = `translateX(${inX})`
+      await anim(el, { translateX: [inX, '0%'], duration: dur / 2, ease })
+      el.style.transform = ''
+    } else if (trans === 'scale') {
+      await anim(el, { scale: [1, 0.85], opacity: [1, 0], duration: dur / 2, ease })
+      setCurrentSlide(safeIndex)
+      await anim(el, { scale: [0.85, 1], opacity: [0, 1], duration: dur / 2, ease })
+    } else if (trans === 'flip') {
+      await anim(el, { rotateY: [0, 90], opacity: [1, 0], duration: dur / 2, ease })
+      setCurrentSlide(safeIndex)
+      await anim(el, { rotateY: [-90, 0], opacity: [0, 1], duration: dur / 2, ease })
+    } else {
+      setCurrentSlide(safeIndex)
+    }
+
+    isTransitioningRef.current = false
+  }
+
+  // Auto-play setup
+  useEffect(() => {
+    if (!isCarousel || !carousel?.autoPlay) return
+    const interval = setInterval(() => {
+      if (!isTransitioningRef.current) {
+        goToSlide((currentSlide + 1) % carousel.slides.length)
+      }
+    }, carousel.autoInterval ?? 3000)
+    carouselAutoTimerRef.current = interval
+    return () => clearInterval(interval)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCarousel, currentSlide, carousel?.autoPlay, carousel?.autoInterval, carousel?.slides?.length])
+
+  /** Carousel arrow + dot overlays. Rendered only in carousel mode. */
+  function renderCarouselControls() {
+    if (!isCarousel || !carousel) return null
+    const slides = carousel.slides
+    const arrowStyle = carousel.arrowStyle ?? 'minimal'
+
+    const arrowBase: React.CSSProperties = {
+      position: 'absolute', top: '50%', transform: 'translateY(-50%)',
+      zIndex: 50, cursor: 'pointer', background: 'none', border: 'none',
+      padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      color: '#fff', lineHeight: 1,
+    }
+    const arrowBg: React.CSSProperties =
+      arrowStyle === 'rounded'
+        ? { background: 'rgba(0,0,0,0.45)', borderRadius: '50%', width: 32, height: 32 }
+        : arrowStyle === 'pill'
+        ? { background: 'rgba(0,0,0,0.45)', borderRadius: 20, width: 36, height: 28 }
+        : {}
+
+    const ChevronLeft = () => (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="15 18 9 12 15 6"/>
+      </svg>
+    )
+    const ChevronRight = () => (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="9 18 15 12 9 6"/>
+      </svg>
+    )
+
+    return (
+      <>
+        {carousel.showArrows && slides.length > 1 && (
+          <>
+            <button
+              onClick={(e) => { e.stopPropagation(); goToSlide(currentSlide - 1) }}
+              style={{ ...arrowBase, ...arrowBg, left: 8 }}
+              aria-label="Previous slide"
+            >
+              <ChevronLeft />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); goToSlide(currentSlide + 1) }}
+              style={{ ...arrowBase, ...arrowBg, right: 8 }}
+              aria-label="Next slide"
+            >
+              <ChevronRight />
+            </button>
+          </>
+        )}
+        {carousel.showDots && slides.length > 1 && (
+          <div style={{
+            position: 'absolute', bottom: 10, left: 0, right: 0,
+            display: 'flex', justifyContent: 'center', gap: 6, zIndex: 50,
+          }}>
+            {slides.map((slide, i) => (
+              <button
+                key={slide.id}
+                onClick={(e) => { e.stopPropagation(); goToSlide(i) }}
+                aria-label={`Go to slide ${i + 1}`}
+                style={{
+                  width: i === currentSlide ? 18 : 8,
+                  height: 8,
+                  borderRadius: 4,
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  background: i === currentSlide ? '#fff' : 'rgba(255,255,255,0.45)',
+                  transition: 'width 0.2s ease, background 0.2s ease',
+                }}
+              />
+            ))}
+          </div>
+        )}
+      </>
+    )
+  }
+
   /** Glass overlay divs for vector layers whose primary fill is type 'glass'. */
   function renderGlassOverlays(layerList: typeof sortedLayers) {
     return layerList
@@ -768,7 +932,7 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
               mixBlendMode: layer.blendMode as React.CSSProperties['mixBlendMode'],
               display: 'flex',
               alignItems,
-              overflow: 'hidden',
+              overflow: (layer.bleed && canvasOverflow === 'visible') ? 'visible' : 'hidden',
               pointerEvents: 'none',
               willChange: (layer.translateZ ?? 0) !== 0 ? 'transform' : undefined,
               ...layerEffectStyles(layer),
@@ -818,7 +982,7 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
               height: `${layer.height}%`,
               opacity: layer.opacity ?? 1,
               transform: baseRot || undefined,
-              overflow: 'hidden',
+              overflow: (layer.bleed && canvasOverflow === 'visible') ? 'visible' : 'hidden',
               willChange: z !== 0 ? 'transform' : undefined,
               clipPath: getClipPath(layer),
               ...layerEffectStyles(layer),
@@ -871,6 +1035,7 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
               canvasWidth={canvasWidth}
               canvasHeight={canvasHeight}
               slots={slots}
+              canvasOverflow={canvasOverflow}
             />
           ))}
 
@@ -968,52 +1133,65 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
   }
 
   // ── Standard (non-flip) mode ──────────────────────────────────────────────────
+  const displayLayers = isCarousel ? carouselLayers : sortedLayers
+  const displaySlots  = isCarousel ? effectiveSlots : slots
+
   return (
     <div
       ref={containerRef}
       className={className}
       style={{
         position: 'relative', width: '100%', aspectRatio,
-        overflow: 'hidden',
+        overflow: canvasOverflow === 'visible' ? 'visible' : 'hidden',
         containerType: 'inline-size',   // enables cqw units for text layer font scaling
         willChange: tiltEnabled ? 'transform' : undefined,
         background: voltElement.canvasBackground ?? undefined,
         ...style,
       }}
     >
-      {renderGlassOverlays(sortedLayers)}
-      <svg
-        viewBox={`0 0 ${canvasWidth} ${canvasHeight}`}
+      {/* Carousel: wrap animatable content in a ref-able div */}
+      <div
+        ref={carouselContentRef}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
-        aria-hidden="true"
       >
-        {sortedLayers
-          .filter(l => l.type === 'vector')
+        {renderGlassOverlays(displayLayers)}
+        <svg
+          viewBox={`0 0 ${canvasWidth} ${canvasHeight}`}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+          aria-hidden="true"
+        >
+          {displayLayers
+            .filter(l => l.type === 'vector')
+            .map(layer => (
+              <VoltSvgLayer
+                key={layer.id}
+                layer={layer}
+                canvasWidth={canvasWidth}
+                canvasHeight={canvasHeight}
+                instanceOverride={instanceOverrides?.[layer.id]}
+              />
+            ))}
+        </svg>
+
+        {displayLayers
+          .filter(l => l.type === 'slot')
           .map(layer => (
-            <VoltSvgLayer
+            <VoltSlotRenderer
               key={layer.id}
               layer={layer}
               canvasWidth={canvasWidth}
               canvasHeight={canvasHeight}
-              instanceOverride={instanceOverrides?.[layer.id]}
+              slots={displaySlots}
+              canvasOverflow={canvasOverflow}
             />
           ))}
-      </svg>
 
-      {sortedLayers
-        .filter(l => l.type === 'slot')
-        .map(layer => (
-          <VoltSlotRenderer
-            key={layer.id}
-            layer={layer}
-            canvasWidth={canvasWidth}
-            canvasHeight={canvasHeight}
-            slots={slots}
-          />
-        ))}
+        {renderImageLayers(displayLayers)}
+        {renderTextLayers(displayLayers)}
+      </div>
 
-      {renderImageLayers(sortedLayers)}
-      {renderTextLayers(sortedLayers)}
+      {/* Carousel arrows + dot indicators */}
+      {renderCarouselControls()}
     </div>
   )
 }

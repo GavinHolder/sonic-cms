@@ -31,7 +31,8 @@ export default function VoltStudio({ initialElement, onSave, onDone }: Props) {
 
       if (e.data?.type === 'VOLT_DESIGNER_SAVE' || e.data?.type === 'VOLT_DESIGNER_DONE') {
         const payload = e.data.payload as Partial<VoltElementData>
-        const updated: VoltElementData = { ...initialElement, ...payload }
+        // Always preserve the DB id — designer payload may send empty string for new elements
+        const updated: VoltElementData = { ...initialElement, ...payload, id: initialElement.id }
         try {
           await onSave?.(updated)
         } catch {

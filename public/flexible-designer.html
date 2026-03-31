@@ -1258,6 +1258,11 @@
                 <div class="ec-name">Divider</div>
                 <span class="ec-badge container">Block</span>
               </div>
+              <div class="element-card" draggable="true" ondragstart="onLibDragStart(event,'editorial')">
+                <div class="ec-icon">📰</div>
+                <div class="ec-name">Editorial</div>
+                <span class="ec-badge container">Block</span>
+              </div>
             </div>
 
             <!-- Sub-elements -->
@@ -1514,6 +1519,7 @@ const BLOCK_DEFAULTS = {
   html:        { label:'HTML',    html:'<p>Custom HTML</p>', customCss:'' },
   divider:     { label:'Divider', thickness:2, dividerColor:'#dee2e6', customCss:'' },
   volt:        { label:'Volt', bgColor:'transparent', voltId:'', voltName:'', voltThumbnail:null, voltLayerOverrides:{}, customCss:'' },
+  editorial:   { label:'Editorial', text:'Start typing your editorial content here. This text will flow around any obstacle images you place in the block. You can use multiple obstacles — each with its own position, size, and alpha hull tracing for precise text wrapping.', fontFamily:'Merriweather', fontSize:18, lineHeight:1.6, textColor:'#212529', bgColor:'transparent', obstacles:[], customCss:'' },
 };
 
 const SUB_DEFAULTS = {
@@ -2333,6 +2339,55 @@ function createBlockPreview(block) {
         vContainer.appendChild(vLabel);
         wrap.appendChild(vContainer);
       }
+      break;
+    }
+    case 'editorial': {
+      wrap.style.cssText = 'position:relative;width:100%;height:100%;overflow:hidden;';
+      // Text preview (scaled down, truncated)
+      const edTextDiv = document.createElement('div');
+      const edFontSize = Math.round((p.fontSize || 18) * 0.65);
+      edTextDiv.style.cssText = `padding:8px;font-family:"${escHtml(p.fontFamily||'Merriweather')}",serif;font-size:${edFontSize}px;color:${p.textColor||'#212529'};line-height:${p.lineHeight||1.6};word-break:break-word;overflow:hidden;height:100%;`;
+      edTextDiv.textContent = p.text ? (p.text.length > 200 ? p.text.substring(0, 200) + '…' : p.text) : 'Editorial block — add text in properties';
+      wrap.appendChild(edTextDiv);
+      // Obstacle images — draggable within the canvas block
+      (p.obstacles || []).forEach(function(obs) {
+        if (!obs.src) return;
+        const edObsEl = document.createElement('img');
+        edObsEl.src = obs.src;
+        edObsEl.alt = obs.alt || '';
+        edObsEl.style.cssText = `position:absolute;left:${obs.x*100}%;top:${obs.y*100}%;width:${obs.width*100}%;height:${obs.height*100}%;object-fit:contain;cursor:move;z-index:5;outline:2px dashed rgba(9,105,218,0.6);border-radius:2px;`;
+        edObsEl.title = 'Drag to reposition';
+        edObsEl.dataset.obsId = obs.id;
+        edObsEl.addEventListener('mousedown', function(e) {
+          e.stopPropagation();
+          e.preventDefault();
+          const blockEl = edObsEl.closest('[data-block-id]');
+          if (!blockEl) return;
+          const rect = blockEl.getBoundingClientRect();
+          const startMx = e.clientX, startMy = e.clientY;
+          const startFx = obs.x, startFy = obs.y;
+          function edOnMove(me) {
+            const dx = me.clientX - startMx, dy = me.clientY - startMy;
+            obs.x = Math.max(0, Math.min(1 - obs.width, startFx + dx / rect.width));
+            obs.y = Math.max(0, Math.min(1 - obs.height, startFy + dy / rect.height));
+            edObsEl.style.left = (obs.x * 100) + '%';
+            edObsEl.style.top  = (obs.y * 100) + '%';
+          }
+          function edOnUp() {
+            document.removeEventListener('mousemove', edOnMove);
+            document.removeEventListener('mouseup', edOnUp);
+            const blk = state.blocks.find(function(b){ return b.id == blockEl.dataset.blockId; });
+            if (blk) {
+              const o = (blk.props.obstacles || []).find(function(o){ return o.id === obs.id; });
+              if (o) { o.x = obs.x; o.y = obs.y; }
+              autoSave();
+            }
+          }
+          document.addEventListener('mousemove', edOnMove);
+          document.addEventListener('mouseup', edOnUp);
+        });
+        wrap.appendChild(edObsEl);
+      });
       break;
     }
     default:
@@ -4137,6 +4192,67 @@ function renderTypeProps(block) {
       }
       break;
     }
+    case 'editorial': {
+      const EDITORIAL_FONTS = [
+        ['Merriweather','Merriweather (Serif)'],['Lora','Lora (Serif)'],['Playfair Display','Playfair Display'],
+        ['EB Garamond','EB Garamond'],['Libre Baskerville','Libre Baskerville'],
+        ['Inter','Inter (Sans)'],['Open Sans','Open Sans'],['Source Sans 3','Source Sans 3'],
+        ['Roboto','Roboto'],['Raleway','Raleway'],
+      ];
+      // Text content
+      h += `<div class="props-row" style="flex-direction:column;align-items:stretch;margin-bottom:8px;">
+        <label style="margin-bottom:4px;font-size:12px;font-weight:600;">Body Text</label>
+        <textarea class="css-editor" rows="5" style="color:#212529;font-size:12px;resize:vertical;" oninput="updateBlockProp('${block.id}','text',this.value);renderCanvas()">${escHtml(p.text||'')}</textarea>
+      </div>`;
+      // Font family
+      h += selectRow('Font Family', p.fontFamily||'Merriweather', EDITORIAL_FONTS, `updateBlockProp('${block.id}','fontFamily',this.value);renderCanvas()`);
+      // Font size
+      h += `<div class="props-row"><label>Font Size</label><input class="props-input" type="range" min="12" max="36" step="1" value="${p.fontSize||18}" oninput="updateBlockProp('${block.id}','fontSize',parseInt(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.fontSize||18}px</span></div>`;
+      // Line height
+      h += `<div class="props-row"><label>Line Height</label><input class="props-input" type="range" min="1.0" max="2.5" step="0.05" value="${p.lineHeight||1.6}" oninput="updateBlockProp('${block.id}','lineHeight',parseFloat(this.value));renderCanvas();this.nextElementSibling.textContent=parseFloat(this.value).toFixed(2)"><span class="val">${(p.lineHeight||1.6).toFixed(2)}</span></div>`;
+      // Text color
+      h += colorRow('Text Color', p.textColor||'#212529', `updateBlockProp('${block.id}','textColor',this.value);renderCanvas()`);
+      h += colorRow('Background', p.bgColor||'transparent', `updateBlockProp('${block.id}','bgColor',this.value);renderCanvas()`);
+      // Obstacles section
+      const obs = p.obstacles || [];
+      h += `<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e9ecef;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div style="font-size:11px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;">Obstacles (${obs.length})</div>
+          <button class="action-btn" style="width:auto;margin-bottom:0;font-size:11px;padding:3px 8px;" onclick="editorialAddObstacle('${block.id}')"><i class="bi bi-plus-lg"></i> Add</button>
+        </div>`;
+      obs.forEach(function(ob, oi) {
+        const pid = 'mpick-ed-' + block.id + '-' + oi;
+        window._mediaPickers[pid] = { type:'editorialObstacle', blockId: block.id, obsId: ob.id, accept:'image/*', rerender:true };
+        const thumbHtml = ob.src
+          ? `<img src="${escHtml(ob.src)}" alt="" style="width:100%;height:100%;object-fit:contain;">`
+          : `<div class="media-thumb-placeholder"><i class="bi bi-image"></i><span>No image</span></div>`;
+        h += `<div style="background:#f8f9fa;border:1px solid #dee2e6;border-radius:6px;padding:8px;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+            <div class="media-picker" style="flex:1;">
+              <div class="media-thumb" id="${pid}-thumb" style="height:60px;">${thumbHtml}</div>
+              <div class="media-picker-btns" style="margin-top:4px;">
+                <button class="media-pick-btn" style="font-size:10px;padding:2px 6px;" onclick="triggerMediaPick('${pid}')"><i class="bi bi-upload"></i> ${ob.src?'Change':'Browse'}</button>
+              </div>
+            </div>
+            <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;" title="Use alpha hull tracing">
+              <input type="checkbox" ${ob.useAlphaHull?'checked':''} onchange="editorialUpdateObstacle('${block.id}','${ob.id}','useAlphaHull',this.checked)"> Alpha Hull
+            </label>
+            <button class="action-btn" style="width:auto;margin:0;font-size:10px;padding:2px 6px;color:#dc3545;border-color:#dc3545;flex-shrink:0;" onclick="editorialRemoveObstacle('${block.id}','${ob.id}')"><i class="bi bi-trash"></i></button>
+          </div>
+          <div style="font-size:10px;color:#6c757d;margin-bottom:4px;">Position &amp; Size (drag in canvas or use sliders)</div>
+          <div class="props-row" style="margin-bottom:4px;"><label style="font-size:10px;width:28px;">X</label><input class="props-input" type="range" min="0" max="0.9" step="0.01" value="${ob.x||0}" oninput="editorialUpdateObstacle('${block.id}','${ob.id}','x',parseFloat(this.value));renderCanvas();this.nextElementSibling.textContent=Math.round(parseFloat(this.value)*100)+'%'"><span class="val" style="font-size:10px;">${Math.round((ob.x||0)*100)}%</span></div>
+          <div class="props-row" style="margin-bottom:4px;"><label style="font-size:10px;width:28px;">Y</label><input class="props-input" type="range" min="0" max="0.9" step="0.01" value="${ob.y||0}" oninput="editorialUpdateObstacle('${block.id}','${ob.id}','y',parseFloat(this.value));renderCanvas();this.nextElementSibling.textContent=Math.round(parseFloat(this.value)*100)+'%'"><span class="val" style="font-size:10px;">${Math.round((ob.y||0)*100)}%</span></div>
+          <div class="props-row" style="margin-bottom:4px;"><label style="font-size:10px;width:28px;">W</label><input class="props-input" type="range" min="0.05" max="0.9" step="0.01" value="${ob.width||0.3}" oninput="editorialUpdateObstacle('${block.id}','${ob.id}','width',parseFloat(this.value));renderCanvas();this.nextElementSibling.textContent=Math.round(parseFloat(this.value)*100)+'%'"><span class="val" style="font-size:10px;">${Math.round((ob.width||0.3)*100)}%</span></div>
+          <div class="props-row" style="margin-bottom:4px;"><label style="font-size:10px;width:28px;">H</label><input class="props-input" type="range" min="0.05" max="0.9" step="0.01" value="${ob.height||0.3}" oninput="editorialUpdateObstacle('${block.id}','${ob.id}','height',parseFloat(this.value));renderCanvas();this.nextElementSibling.textContent=Math.round(parseFloat(this.value)*100)+'%'"><span class="val" style="font-size:10px;">${Math.round((ob.height||0.3)*100)}%</span></div>
+          <div class="props-row" style="margin-bottom:0;"><label style="font-size:10px;width:48px;">Padding</label><input class="props-input" type="range" min="0" max="40" step="1" value="${ob.padding||12}" oninput="editorialUpdateObstacle('${block.id}','${ob.id}','padding',parseInt(this.value));this.nextElementSibling.textContent=this.value+'px'"><span class="val" style="font-size:10px;">${ob.padding||12}px</span></div>
+        </div>`;
+      });
+      if (obs.length === 0) {
+        h += `<div style="text-align:center;font-size:11px;color:#adb5bd;font-style:italic;padding:8px 0;">No obstacles yet — click Add to place an image obstacle</div>`;
+      }
+      h += `</div>`;
+      break;
+    }
   }
   return h;
 }
@@ -4444,6 +4560,38 @@ function resetVoltLayerOverrides(bId) {
   autoSave();
   refreshVoltIframe(bId);
   renderPropsPanel();
+}
+
+// ── Editorial obstacle helpers ────────────────────────────────────────────────
+function editorialAddObstacle(bId) {
+  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
+  if (!b) return;
+  if (!Array.isArray(b.props.obstacles)) b.props.obstacles = [];
+  b.props.obstacles = b.props.obstacles.concat([{
+    id: 'obs-' + Date.now(),
+    src: '', alt: '',
+    x: 0.6, y: 0.05,
+    width: 0.35, height: 0.4,
+    useAlphaHull: true,
+    padding: 12,
+  }]);
+  autoSave(); renderPropsPanel();
+}
+
+function editorialRemoveObstacle(bId, obsId) {
+  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
+  if (!b || !Array.isArray(b.props.obstacles)) return;
+  b.props.obstacles = b.props.obstacles.filter(function(o){return o.id !== obsId;});
+  autoSave(); renderCanvas(); renderPropsPanel();
+}
+
+function editorialUpdateObstacle(bId, obsId, key, val) {
+  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
+  if (!b || !Array.isArray(b.props.obstacles)) return;
+  const obs = b.props.obstacles.find(function(o){return o.id === obsId;});
+  if (!obs) return;
+  obs[key] = val;
+  autoSave();
 }
 
 // ── Carousel helpers ──────────────────────────────────────────────────────────
@@ -4918,6 +5066,9 @@ function triggerMediaPick(pid) {
       } else if (m.type === 'sub') {
         updateSubProp(m.blockId, m.seId, m.propKey, dataUrl);
         renderCanvas();
+      } else if (m.type === 'editorialObstacle') {
+        editorialUpdateObstacle(m.blockId, m.obsId, 'src', dataUrl);
+        renderCanvas();
       }
       renderPropsPanel();
     };
@@ -5127,7 +5278,7 @@ function installDesignerFont(bId, sId, safeId) {
  * @returns {string} Bootstrap icon class (e.g. 'bi-layout-text-window').
  */
 function getBlockIcon(type) {
-  return {hero:'bi-layout-text-window',card:'bi-card-text','text-block':'bi-text-paragraph',banner:'bi-megaphone',stats:'bi-graph-up',image:'bi-image',video:'bi-play-circle',html:'bi-code-slash',divider:'bi-dash-lg',volt:'bi-lightning-charge'}[type]||'bi-square';
+  return {hero:'bi-layout-text-window',card:'bi-card-text','text-block':'bi-text-paragraph',banner:'bi-megaphone',stats:'bi-graph-up',image:'bi-image',video:'bi-play-circle',html:'bi-code-slash',divider:'bi-dash-lg',volt:'bi-lightning-charge',editorial:'bi-newspaper'}[type]||'bi-square';
 }
 /**
  * Converts a hex colour and an integer opacity value (0–100) to a CSS rgba()

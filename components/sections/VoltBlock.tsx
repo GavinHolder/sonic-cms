@@ -46,10 +46,12 @@ export default function VoltBlock({ voltId, slots = {}, instanceOverrides, fitMo
     );
   }
 
+  const allowOverflow = volt.canvasOverflow === 'visible'
+
   const containerStyle: React.CSSProperties =
     fitMode === "fill"
-      ? { width: "100%", height: "100%", position: "relative" }
-      : { width: "100%", maxWidth: "100%", position: "relative" };
+      ? { width: "100%", height: "100%", position: "relative", overflow: allowOverflow ? 'visible' : undefined }
+      : { width: "100%", maxWidth: "100%", position: "relative", overflow: allowOverflow ? 'visible' : undefined };
 
   const layers3D = volt.layers.filter(
     l => l.type === "3d-object" && l.visible !== false && l.object3DData?.assetUrl

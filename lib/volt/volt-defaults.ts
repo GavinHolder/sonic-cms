@@ -1,6 +1,30 @@
 // lib/volt/volt-defaults.ts
-import { VoltLayer, VoltElementData, VoltState, DEFAULT_ANIMATION, DEFAULT_TEXT } from '@/types/volt'
+import { VoltLayer, VoltElementData, VoltState, VoltCarousel, VoltSlide, DEFAULT_ANIMATION, DEFAULT_TEXT } from '@/types/volt'
 import { nanoid } from 'nanoid'
+
+export function createDefaultCarousel(): VoltCarousel {
+  return {
+    enabled: false,
+    slides: [],
+    transition: 'fade',
+    duration: 400,
+    ease: 'easeInOutCubic',
+    autoPlay: false,
+    autoInterval: 3000,
+    showArrows: true,
+    showDots: true,
+    arrowStyle: 'minimal',
+  }
+}
+
+export function createDefaultSlide(name = 'Slide'): VoltSlide {
+  return {
+    id: nanoid(),
+    name,
+    slotOverrides: {},
+    layerVisibility: {},
+  }
+}
 
 export function createDefaultRestState(): VoltState {
   return {
