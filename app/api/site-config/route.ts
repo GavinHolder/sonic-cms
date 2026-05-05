@@ -31,3 +31,19 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Failed to update config' }, { status: 500 });
   }
 }
+
+/** PATCH — partial update, used for single-field changes like homePage */
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const config = await prisma.siteConfig.upsert({
+      where: { id: SINGLETON_ID },
+      create: { id: SINGLETON_ID, ...body },
+      update: body,
+    });
+    return NextResponse.json({ success: true, data: config });
+  } catch (error) {
+    console.error('Failed to patch site config:', error);
+    return NextResponse.json({ success: false, error: 'Failed to update config' }, { status: 500 });
+  }
+}

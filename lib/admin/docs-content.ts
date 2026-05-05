@@ -4488,18 +4488,33 @@ Current built-ins:
 
 ---
 
+## Use as Page — Launch a Template Directly
+
+Standalone templates have a **Use as Page** button (yellow rocket button on the card). This creates a live page in one step:
+
+1. Go to **Admin → Content → Templates**
+2. Find a Standalone template → click **Use as Page**
+3. Enter a **title** and **URL slug** (slug is auto-generated from title, editable)
+4. Click **Create Page** — the page is created and published immediately at \`/{slug}\`
+
+The new page appears in **Admin → Content → Pages** and is live at \`/{slug}\` straight away. You can still open it in the editor to fine-tune the HTML/CSS.
+
+---
+
 ## Managing Templates
 
 Visit **Admin → Content → Templates** to:
 - Browse all templates (filter by type, section type, search by name)
 - See usage counts
+- **Use as Page** — launch a standalone template as a live page instantly
 - Rename or delete user-created templates (built-ins cannot be deleted)
 
 ---
 
 ## What Templates Do NOT Do
 
-- Templates are **editor-only** — applying one never changes routing, slug, or page type
+- Templates are **editor-only** when loaded via Load Template — applying one never changes routing, slug, or page type
+- **Use as Page** is the exception: it creates a brand new page pre-filled with the template content
 - Templates do not replace sections — for sections, you choose a target section first, then load
 - Templates are not versioned — saving a new version just creates a new template
 `;

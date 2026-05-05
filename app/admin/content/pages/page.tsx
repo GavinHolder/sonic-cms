@@ -97,6 +97,8 @@ export default function PagesManager() {
   const [submissions, setSubmissions] = useState<FormSubmission[]>([]);
   const [submissionsTotal, setSubmissionsTotal] = useState(0);
   const [submissionsLoading, setSubmissionsLoading] = useState(false);
+  const [homePage, setHomePage] = useState<string | null>(null);
+  const [homePageSaving, setHomePageSaving] = useState(false);
 
   const setEditParam = useCallback((slug: string | null) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -138,6 +140,14 @@ export default function PagesManager() {
     fetch("/api/features")
       .then((r) => r.json())
       .then((d) => { if (d.success) setFeatures(d.data); })
+      .catch(() => {});
+  }, []);
+
+  // Load current homepage slug
+  useEffect(() => {
+    fetch("/api/site-config")
+      .then((r) => r.json())
+      .then((d) => { if (d.success) setHomePage(d.data.homePage ?? null); })
       .catch(() => {});
   }, []);
 
@@ -221,6 +231,24 @@ export default function PagesManager() {
       console.error("Duplicate failed:", error);
       setSuccessMessage("Failed to duplicate page");
     }
+  };
+
+  const handleSetHomePage = async (slug: string | null) => {
+    setHomePageSaving(true);
+    try {
+      const res = await fetch("/api/site-config", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ homePage: slug }),
+      });
+      if (res.ok) {
+        setHomePage(slug);
+        setSuccessMessage(slug ? `/${slug} set as homepage` : "Homepage cleared — using default landing page");
+      }
+    } catch {
+      setSuccessMessage("Failed to update homepage");
+    }
+    setHomePageSaving(false);
   };
 
   const handleEditPDF = (page: PageConfig) => {
@@ -675,7 +703,14 @@ export default function PagesManager() {
                     {/* Page Title & Slug */}
                     <td>
                       <div>
-                        <div className="fw-semibold mb-1">{page.title}</div>
+                        <div className="fw-semibold mb-1 d-flex align-items-center gap-2">
+                          {page.title}
+                          {homePage === page.slug && (
+                            <span className="badge bg-success" title="This page is the homepage at /">
+                              <i className="bi bi-house-fill me-1"></i>Homepage
+                            </span>
+                          )}
+                        </div>
                         <div className="d-flex align-items-center gap-2">
                           <code className="text-primary small">/{page.slug}</code>
                           <a
@@ -795,6 +830,15 @@ export default function PagesManager() {
                           title="Duplicate page"
                         >
                           <i className="bi bi-files"></i>
+                        </button>
+
+                        <button
+                          onClick={() => handleSetHomePage(homePage === page.slug ? null : page.slug)}
+                          className={`btn btn-sm ${homePage === page.slug ? "btn-success" : "btn-outline-secondary"}`}
+                          title={homePage === page.slug ? "Clear homepage (restore default)" : "Set as homepage at /"}
+                          disabled={homePageSaving}
+                        >
+                          <i className={`bi ${homePage === page.slug ? "bi-house-fill" : "bi-house"}`}></i>
                         </button>
 
                         <button

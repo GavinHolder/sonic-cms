@@ -36,6 +36,33 @@ export async function middleware(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-pathname", pathname);
 
+  // ── Homepage rewrite: / → internal renderer based on SiteConfig.homePage ──
+  // Never redirect — always NextResponse.rewrite() so browser URL stays /
+  // Falls through silently if homePage is unset → app/page.tsx handles it normally.
+  if (pathname === "/" && isPublicPath) {
+    try {
+      const homeRes = await fetch(`${origin}/api/internal/homepage`, { headers: { "x-internal": "1" } });
+      if (homeRes.ok) {
+        const data = await homeRes.json();
+        if (data.slug && data.type) {
+          if (data.type === "STANDALONE") {
+            requestHeaders.set("x-standalone-rewrite", "1");
+            return NextResponse.rewrite(new URL(`/standalone/${data.slug}`, request.url), {
+              request: { headers: requestHeaders },
+            });
+          } else {
+            // FULL_PAGE, FORM, PDF, DESIGNER — rewrite to /{slug} (PageClient handles it)
+            return NextResponse.rewrite(new URL(`/${data.slug}`, request.url), {
+              request: { headers: requestHeaders },
+            });
+          }
+        }
+      }
+    } catch {
+      // Homepage lookup failure — fall through to default app/page.tsx
+    }
+  }
+
   // ── Standalone page rewrite: /{slug} → /standalone/{slug} ───────────────
   // Single-segment public paths that are not already at /standalone/* are checked.
   // If the page type is STANDALONE, we rewrite internally so the browser sees /{slug}
