@@ -1,9 +1,9 @@
 {
-  "version": "1.35.0",
+  "version": "1.36.0",
   "date": "2026-05-05",
   "changelog": {
     "features": [
-      "Use as Page button — create standalone page directly from template"
+      "cms-forms.js — standalone page form helper with OTP + leads pipeline"
     ],
     "bugfixes": [],
     "breaking": []
