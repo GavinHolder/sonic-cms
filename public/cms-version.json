@@ -1,10 +1,10 @@
 {
-  "version": "1.32.1",
+  "version": "1.32.2",
   "date": "2026-05-05",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "add v1.32 migration — resolve production schema drift"
+      "safety net migration for cms_templates on drifted client DBs"
     ],
     "breaking": []
   }
