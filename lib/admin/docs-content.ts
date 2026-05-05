@@ -1816,6 +1816,81 @@ When the visitor clicks **Submit**, a compact **human check modal** appears befo
 These slugs cannot be used (they conflict with existing routes):
 
 \`admin\`, \`api\`, \`_next\`, \`images\`, \`home\`, \`index\`
+
+---
+
+## Standalone Pages
+
+Standalone pages are fully **self-contained HTML pages** served at \`/standalone/{slug}\`. They bypass the CMS layout entirely — no navbar, no footer, no section snap-scroll. You write raw HTML and CSS; the page renders exactly as-is.
+
+**Create via:** Admin → Content → Pages → **Standalone**
+
+---
+
+### How It Works
+
+1. Create a Standalone page in Admin → Content → Pages
+2. Click the **Edit (pencil) button** — this opens the **Standalone HTML Editor** modal
+3. Write or paste your HTML in the **HTML tab**
+4. Add custom CSS in the **CSS tab** (optional)
+5. Link external CSS files (CDN URLs, e.g. Bootstrap) in the **CSS Files tab**
+6. Use the **Variables tab** to insert \`{{cms.*}}\` placeholders that are replaced server-side
+7. Click **Save** — your page is live at \`/standalone/{slug}\`
+
+> The editor uses Monaco (VS Code's editor) with syntax highlighting for HTML and CSS.
+
+---
+
+### CMS Variable Substitution
+
+Inside your standalone HTML, you can use \`{{cms.*}}\` placeholders. These are replaced **server-side** at render time with live values from your Site Configuration.
+
+| Variable | Replaced with |
+|----------|--------------|
+| \`{{cms.logo}}\` | Logo image URL |
+| \`{{cms.company}}\` | Company name |
+| \`{{cms.tagline}}\` | Tagline / slogan |
+| \`{{cms.phone}}\` | Phone number |
+| \`{{cms.email}}\` | Email address |
+| \`{{cms.address}}\` | Street address |
+| \`{{cms.city}}\` | City |
+| \`{{cms.postal}}\` | Postal / zip code |
+| \`{{cms.country}}\` | Country |
+| \`{{cms.copyright}}\` | Copyright text |
+| \`{{cms.facebook}}\` | Facebook URL |
+| \`{{cms.instagram}}\` | Instagram URL |
+| \`{{cms.twitter}}\` | Twitter / X URL |
+| \`{{cms.linkedin}}\` | LinkedIn URL |
+| \`{{cms.youtube}}\` | YouTube URL |
+| \`{{cms.tiktok}}\` | TikTok URL |
+
+Example: \`<p>Call us on {{cms.phone}}</p>\` renders as \`<p>Call us on 021 123 4567</p>\`
+
+---
+
+### Template Library
+
+Standalone pages support **save and load templates**. In the HTML Editor modal:
+
+- **Save as Template** (footer, left side) — saves the current HTML/CSS/CSS files as a reusable template
+- **Load Template** (footer, left side) — opens the Template Picker to apply a saved standalone template
+
+Templates only populate the **editor content** — they never change the page slug, routing, or type.
+
+See **Content → Templates** in the admin sidebar for the full template library.
+
+---
+
+### What Standalone Is For
+
+| Use case | Recommended type |
+|----------|-----------------|
+| Fully custom landing pages | **Standalone** |
+| Self-contained micro-sites | **Standalone** |
+| Third-party HTML drops (React, Vue, vanilla) | **Standalone** |
+| CMS-branded pages with sections | Full / PDF / Form |
+
+> Standalone pages do not inherit Bootstrap, the site theme, or any CMS JavaScript. All dependencies must be included in your HTML or linked via CSS Files.
 `;
 
 const NAVIGATION = `
@@ -4310,42 +4385,166 @@ Each token has a swatch picker for quick selection plus a full colour picker for
 // ─────────────────────────────────────────────
 
 const SECTION_TEMPLATES_DOCS = `
-# Section Template Library
+# Template Library
 
-Jumpstart your page design with **14 pre-built section templates** — professionally designed layouts ready to customise in the Designer.
+The Template Library (**Admin → Content → Templates**) stores reusable templates that you build and save over time. Templates are not pre-built — you create them from your own pages and sections, then reuse them across the site.
 
 ---
 
-## How to Use
+## Template Types
 
-1. Open any page in the admin panel
-2. Click **Add Section** (or the + button)
-3. Browse the **Template Gallery** modal — templates are organised by category
-4. Click a template to preview it
-5. Click **Use Template** to insert it as a new section
-6. Open the section in the Designer to customise content, colours, and layout
+| Type | What it stores | Where to use |
+|------|---------------|-------------|
+| **Standalone** | Full HTML + CSS + linked CSS files | Standalone page editor — Load Template |
+| **Section** | Full section config (background, blocks, spacing, overlays) | Landing page — bookmark icon on any section row |
+| **Page** | Full page config (future use) | — |
 
-## Template Categories
+---
 
-| Category | Templates | Examples |
-|----------|-----------|---------|
-| **Hero** | Full-width hero layouts | Image hero, video hero, split hero |
-| **Content** | Text and media sections | About, text+image, statistics |
-| **Features** | Card-based layouts | Service cards, feature grids, icon lists |
-| **CTA** | Call-to-action sections | Contact CTA, newsletter signup |
-| **Testimonials** | Social proof sections | Quote carousel, review grid |
-| **Footer** | Footer layouts | Multi-column footer, minimal footer |
+## Saving a Template
 
-## Customisation
+### From a Standalone Page
 
-Every template is a standard FLEXIBLE section — after inserting, you have full control:
-- Edit all text, images, and links in the Designer
-- Change colours and backgrounds
-- Add/remove blocks and columns
-- Apply animated backgrounds
-- Adjust spacing and padding
+1. Go to **Admin → Content → Pages**, click the **Edit (pencil)** on a Standalone page
+2. In the HTML Editor modal, click **Save as Template** (bottom-left of the modal footer)
+3. Enter a name and optional description, then click **Save Template**
 
-Templates are starting points, not locked layouts.
+### From a Landing Page Section
+
+1. Go to **Admin → Content → Landing Page**
+2. Click the **bookmark icon** (bi-bookmark-plus) in the action column of any section row
+3. Enter a name and optional description — the full section config is captured automatically
+
+---
+
+## Using a Template
+
+### In the Standalone Editor
+
+Click **Load Template** in the HTML Editor modal footer. The picker shows only standalone templates. Selecting one populates the HTML, CSS, and CSS Files tabs — it does **not** change the page slug, type, or any structural setting.
+
+### On the Landing Page
+
+Click the **bookmark icon** again on a section that already has content (or use the picker from any section's bookmark action) to load a saved section template into that section.
+
+---
+
+## Built-in Templates
+
+Some templates are marked **Built-in** — these ship with the CMS and cannot be deleted. They are seeded automatically on fresh installs via \`npm run db:seed\`.
+
+Current built-ins:
+- **Blank Standalone** — empty starting point for a standalone page
+- **OVB Readymix Landing Page** — full standalone landing reference design
+
+---
+
+## Managing Templates
+
+Visit **Admin → Content → Templates** to:
+- Browse all templates (filter by type, section type, search by name)
+- See usage counts
+- Rename or delete user-created templates (built-ins cannot be deleted)
+
+---
+
+## What Templates Do NOT Do
+
+- Templates are **editor-only** — applying one never changes routing, slug, or page type
+- Templates do not replace sections — for sections, you choose a target section first, then load
+- Templates are not versioned — saving a new version just creates a new template
+`;
+
+// ─────────────────────────────────────────────
+// CMS VARIABLES
+// ─────────────────────────────────────────────
+
+const CMS_VARIABLES_DOCS = `
+# CMS Variables
+
+CMS variables let you embed live site data into your content without hardcoding it. Update your company details once in **Admin → Settings → Site Configuration** and every reference updates automatically.
+
+---
+
+## Variable Reference
+
+| Variable | Description | Example value |
+|----------|-------------|--------------|
+| \`{{cms.logo}}\` | Logo image URL | \`/images/logo.png\` |
+| \`{{cms.company}}\` | Company name | \`OVB Readymix\` |
+| \`{{cms.tagline}}\` | Tagline / slogan | \`Built for the Overberg\` |
+| \`{{cms.phone}}\` | Phone number | \`021 123 4567\` |
+| \`{{cms.email}}\` | Email address | \`info@ovbreadymix.co.za\` |
+| \`{{cms.address}}\` | Street address | \`12 Industrial Rd\` |
+| \`{{cms.city}}\` | City | \`Caledon\` |
+| \`{{cms.postal}}\` | Postal / zip code | \`7230\` |
+| \`{{cms.country}}\` | Country | \`South Africa\` |
+| \`{{cms.copyright}}\` | Copyright text | \`© 2026 OVB Readymix\` |
+| \`{{cms.facebook}}\` | Facebook URL | \`https://facebook.com/…\` |
+| \`{{cms.instagram}}\` | Instagram URL | \`https://instagram.com/…\` |
+| \`{{cms.twitter}}\` | Twitter / X URL | \`https://x.com/…\` |
+| \`{{cms.linkedin}}\` | LinkedIn URL | \`https://linkedin.com/…\` |
+| \`{{cms.youtube}}\` | YouTube channel URL | \`https://youtube.com/…\` |
+| \`{{cms.tiktok}}\` | TikTok URL | \`https://tiktok.com/…\` |
+
+---
+
+## Where Variables Work
+
+### Standalone Pages (server-side substitution)
+
+In the HTML Editor for a Standalone page, place any \`{{cms.*}}\` variable anywhere in your HTML. Substitution happens **server-side** at render time — the browser receives already-replaced HTML, so variables work even in plain HTML with no JavaScript.
+
+\`\`\`html
+<footer>
+  <p>{{cms.copyright}} · <a href="tel:{{cms.phone}}">{{cms.phone}}</a></p>
+  <img src="{{cms.logo}}" alt="{{cms.company}}" height="40" />
+</footer>
+\`\`\`
+
+### FLEXIBLE Section HTML Blocks (client-side)
+
+In the Flexible Designer, **HTML blocks** also support \`{{cms.*}}\` variables. These are substituted client-side via the \`window.__CMS_SITE\` object that the CMS injects on every non-isolated page.
+
+---
+
+## Developer: \`window.__CMS_SITE\`
+
+On all standard (non-isolated) public pages, the CMS injects a global JavaScript object:
+
+\`\`\`javascript
+window.__CMS_SITE = {
+  logo:       "/images/logo.png",
+  company:    "OVB Readymix",
+  tagline:    "Built for the Overberg",
+  phone:      "021 123 4567",
+  email:      "info@ovbreadymix.co.za",
+  address:    "12 Industrial Rd",
+  city:       "Caledon",
+  postal:     "7230",
+  country:    "South Africa",
+  copyright:  "© 2026 OVB Readymix",
+  facebook:   "https://facebook.com/…",
+  instagram:  "https://instagram.com/…",
+  twitter:    "",
+  linkedin:   "",
+  youtube:    "",
+  tiktok:     "",
+}
+\`\`\`
+
+You can read this in any inline script on public pages:
+\`\`\`javascript
+document.getElementById('phone').textContent = window.__CMS_SITE.phone;
+\`\`\`
+
+> **Note:** Standalone pages are isolated routes and do **not** receive the layout script that injects \`window.__CMS_SITE\`. Use \`{{cms.*}}\` template syntax instead — it's substituted server-side and requires no JavaScript.
+
+---
+
+## Where to Set Variable Values
+
+**Admin → Settings → Site Configuration** — all fields map directly to \`{{cms.*}}\` variables.
 `;
 
 // ─────────────────────────────────────────────
@@ -5176,7 +5375,6 @@ export const DOC_TOPICS: DocTopic[] = [
     icon: "bi-journal-text",
     children: [
       { id: "content-types-overview", label: "Content Types", icon: "bi-collection", content: CONTENT_TYPES_DOCS },
-      { id: "section-templates", label: "Section Template Library", icon: "bi-grid-3x3-gap", content: SECTION_TEMPLATES_DOCS },
       { id: "form-submissions", label: "Form Submissions Inbox", icon: "bi-inbox", content: FORM_SUBMISSIONS_DOCS },
       { id: "content-scheduling", label: "Scheduling & Version History", icon: "bi-clock-history", content: CONTENT_SCHEDULING_DOCS },
     ],
@@ -5186,7 +5384,16 @@ export const DOC_TOPICS: DocTopic[] = [
     label: "Pages System",
     icon: "bi-files",
     children: [
-      { id: "pages-overview", label: "Full, PDF & Form Pages", icon: "bi-file-earmark", content: PAGES_SYSTEM },
+      { id: "pages-overview", label: "Page Types (Full, PDF, Form, Standalone)", icon: "bi-file-earmark", content: PAGES_SYSTEM },
+    ],
+  },
+  {
+    id: "templates",
+    label: "Template Library",
+    icon: "bi-bookmark-star",
+    children: [
+      { id: "section-templates", label: "Using Templates", icon: "bi-grid-3x3-gap", content: SECTION_TEMPLATES_DOCS },
+      { id: "cms-variables", label: "CMS Variables ({{cms.*}})", icon: "bi-braces", content: CMS_VARIABLES_DOCS },
     ],
   },
   {
