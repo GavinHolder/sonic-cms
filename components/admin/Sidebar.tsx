@@ -57,6 +57,12 @@ const menuItems: MenuItem[] = [
         icon: "bi-search",
         href: "/admin/content/seo",
       },
+      {
+        id: "templates",
+        label: "Templates",
+        icon: "bi-bookmark-star",
+        href: "/admin/content/templates",
+      },
     ],
   },
   {
