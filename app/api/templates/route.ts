@@ -32,7 +32,8 @@ export async function GET(req: NextRequest) {
     orderBy: [{ isBuiltIn: "desc" }, { usageCount: "desc" }, { createdAt: "desc" }],
   });
 
-  return NextResponse.json({ success: true, data: templates });
+  const data = templates.map(t => ({ ...t, tags: JSON.parse(t.tags as string) }));
+  return NextResponse.json({ success: true, data });
 }
 
 export async function POST(req: NextRequest) {

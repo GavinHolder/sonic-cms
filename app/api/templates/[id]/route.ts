@@ -18,7 +18,7 @@ export async function GET(req: NextRequest, { params }: Ctx) {
   const { id } = await params;
   const t = await prisma.cmsTemplate.findUnique({ where: { id } });
   if (!t) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json({ success: true, data: t });
+  return NextResponse.json({ success: true, data: { ...t, tags: JSON.parse(t.tags as string) } });
 }
 
 export async function PUT(req: NextRequest, { params }: Ctx) {
@@ -35,7 +35,7 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
     where: { id },
     data: { ...rest, ...(tags !== undefined ? { tags: JSON.stringify(tags) } : {}) },
   });
-  return NextResponse.json({ success: true, data: t });
+  return NextResponse.json({ success: true, data: { ...t, tags: JSON.parse(t.tags as string) } });
 }
 
 export async function DELETE(req: NextRequest, { params }: Ctx) {
