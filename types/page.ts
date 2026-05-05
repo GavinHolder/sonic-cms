@@ -70,6 +70,8 @@ export interface DesignerPageConfig extends PageConfig {
 export interface StandalonePageConfig extends PageConfig {
   type: 'standalone';
   customHtml: string;
+  customCss: string;
+  customCssUrls: string[];
 }
 
 /**

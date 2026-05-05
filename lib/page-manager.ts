@@ -75,6 +75,8 @@ function mapApiPage(p: any): PageConfig {
     // Standalone-specific
     ...(p.type === "standalone" ? {
       customHtml: p.customHtml ?? "",
+      customCss: p.customCss ?? "",
+      customCssUrls: (() => { try { return JSON.parse(p.customCssUrls || "[]"); } catch { return []; } })(),
     } : {}),
   } as PageConfig;
 }
