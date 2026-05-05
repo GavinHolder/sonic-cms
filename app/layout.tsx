@@ -12,7 +12,7 @@ import ScrollRestoration from "@/components/ScrollRestoration";
 import { headers } from "next/headers";
 import { fetchSeoConfig, buildMetadata, buildStructuredData } from "@/lib/metadata-generator";
 import prisma from "@/lib/prisma";
-import { getPageType } from "@/lib/page-type-cache";
+import { getPageType, getHomePage } from "@/lib/page-type-cache";
 import MaintenancePage from "@/components/MaintenancePage";
 import { getBrandTokens, brandTokensToCss, brandTokensToFontUrl } from "@/lib/brand-tokens";
 import { getCmsSiteData, cmsSiteDataScript } from "@/lib/cms-site-data";
@@ -80,6 +80,11 @@ export default async function RootLayout({
     if (slug && !slug.includes("/")) {
       const type = await getPageType(slug);
       if (type === "STANDALONE") isStandaloneSlug = true;
+    }
+    // When / is configured as a STANDALONE homepage, suppress navbar/footer
+    if (!slug && pathname === "/") {
+      const home = await getHomePage();
+      if (home?.type === "STANDALONE") isStandaloneSlug = true;
     }
   }
   const isEffectivelyIsolated = isIsolatedRoute || isStandaloneSlug;

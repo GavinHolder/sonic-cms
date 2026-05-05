@@ -449,6 +449,7 @@ model SiteConfig {
   navbarStyle    String   @default("standard")
   tiktok         String   @default("")
   defaultTheme   String   @default("dark")
+  homePage       String?
 
   @@map("site_config")
 }
