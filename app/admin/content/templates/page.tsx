@@ -34,6 +34,131 @@ const SECTION_ICONS: Record<string, string> = {
   FLEXIBLE: "bi-grid-1x2",
 };
 
+function toSlug(str: string) {
+  return str.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+interface UseAsPageModalProps {
+  template: CmsTemplate;
+  onClose: () => void;
+  onCreated: (slug: string) => void;
+}
+
+function UseAsPageModal({ template, onClose, onCreated }: UseAsPageModalProps) {
+  const [title, setTitle]   = useState(template.name);
+  const [slug, setSlug]     = useState(toSlug(template.name));
+  const [slugEdited, setSlugEdited] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState<string | null>(null);
+
+  const handleTitleChange = (v: string) => {
+    setTitle(v);
+    if (!slugEdited) setSlug(toSlug(v));
+  };
+
+  const handleSlugChange = (v: string) => {
+    setSlug(v.toLowerCase().replace(/[^a-z0-9-]/g, ""));
+    setSlugEdited(true);
+  };
+
+  const handleCreate = async () => {
+    if (!slug || !title.trim()) return;
+    setSaving(true);
+    setError(null);
+    const data = template.data as { customHtml?: string; customCss?: string; customCssUrls?: string[] };
+    try {
+      const res = await fetch("/api/pages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          slug,
+          title: title.trim(),
+          type: "standalone",
+          enabled: true,
+          status: "PUBLISHED",
+          customHtml:    data.customHtml    ?? "",
+          customCss:     data.customCss     ?? "",
+          customCssUrls: data.customCssUrls ? JSON.stringify(data.customCssUrls) : "[]",
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json?.error || "Failed to create page");
+      } else {
+        onCreated(slug);
+      }
+    } catch {
+      setError("Network error");
+    }
+    setSaving(false);
+  };
+
+  return (
+    <div className="modal d-block" tabIndex={-1} style={{ background: "rgba(0,0,0,0.5)" }}>
+      <div className="modal-dialog modal-dialog-centered">
+        <div className="modal-content">
+          <div className="modal-header">
+            <h5 className="modal-title">
+              <i className="bi bi-rocket-takeoff me-2 text-warning"></i>Use as Page
+            </h5>
+            <button className="btn-close" onClick={onClose} disabled={saving} />
+          </div>
+          <div className="modal-body">
+            <p className="text-muted small mb-3">
+              Creates a new <strong>Standalone page</strong> pre-filled with <em>{template.name}</em>.
+              The page will be live immediately at the URL below.
+            </p>
+            <div className="mb-3">
+              <label className="form-label fw-semibold">Page Title</label>
+              <input
+                className="form-control"
+                value={title}
+                onChange={e => handleTitleChange(e.target.value)}
+                placeholder="e.g. Services"
+                autoFocus
+              />
+            </div>
+            <div className="mb-3">
+              <label className="form-label fw-semibold">URL Slug</label>
+              <div className="input-group">
+                <span className="input-group-text text-muted">/</span>
+                <input
+                  className="form-control font-monospace"
+                  value={slug}
+                  onChange={e => handleSlugChange(e.target.value)}
+                  placeholder="services"
+                />
+              </div>
+              {slug && (
+                <div className="mt-1 text-muted small">
+                  Live at: <code className="text-warning">/{slug}</code>
+                </div>
+              )}
+            </div>
+            {error && (
+              <div className="alert alert-danger py-2 small">
+                <i className="bi bi-exclamation-circle me-1"></i>{error}
+              </div>
+            )}
+          </div>
+          <div className="modal-footer">
+            <button className="btn btn-outline-secondary" onClick={onClose} disabled={saving}>Cancel</button>
+            <button
+              className="btn btn-warning"
+              onClick={handleCreate}
+              disabled={saving || !slug || !title.trim()}
+            >
+              {saving
+                ? <><span className="spinner-border spinner-border-sm me-2" />Creating…</>
+                : <><i className="bi bi-rocket-takeoff me-2"></i>Create Page</>}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function TemplatesLibraryPage() {
   const [templates, setTemplates]       = useState<CmsTemplate[]>([]);
   const [loading, setLoading]           = useState(true);
@@ -45,11 +170,12 @@ export default function TemplatesLibraryPage() {
   const [editName, setEditName]         = useState("");
   const [editDesc, setEditDesc]         = useState("");
   const [editSaving, setEditSaving]     = useState(false);
-  const [toast, setToast]               = useState<{ msg: string; ok: boolean } | null>(null);
+  const [toast, setToast]               = useState<{ msg: string; ok: boolean; slug?: string } | null>(null);
+  const [useAsPageFor, setUseAsPageFor] = useState<CmsTemplate | null>(null);
 
-  const showToast = (msg: string, ok = true) => {
-    setToast({ msg, ok });
-    setTimeout(() => setToast(null), 3000);
+  const showToast = (msg: string, ok = true, slug?: string) => {
+    setToast({ msg, ok, slug });
+    setTimeout(() => setToast(null), 6000);
   };
 
   const load = useCallback(async () => {
@@ -124,8 +250,25 @@ export default function TemplatesLibraryPage() {
             style={{ zIndex: 9999, fontSize: "0.875rem" }}
           >
             <i className={`bi ${toast.ok ? "bi-check-circle" : "bi-exclamation-circle"}`}></i>
-            {toast.msg}
+            <span>{toast.msg}</span>
+            {toast.slug && (
+              <a href={`/${toast.slug}`} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-light ms-2">
+                <i className="bi bi-box-arrow-up-right me-1"></i>View
+              </a>
+            )}
           </div>
+        )}
+
+        {/* Use as Page modal */}
+        {useAsPageFor && (
+          <UseAsPageModal
+            template={useAsPageFor}
+            onClose={() => setUseAsPageFor(null)}
+            onCreated={(slug) => {
+              setUseAsPageFor(null);
+              showToast(`Page created at /${slug}`, true, slug);
+            }}
+          />
         )}
 
         {/* Header */}
@@ -234,6 +377,7 @@ export default function TemplatesLibraryPage() {
             {templates.map(t => {
               const info = TYPE_INFO[t.templateType] ?? TYPE_INFO.standalone;
               const sIcon = t.sectionType ? SECTION_ICONS[t.sectionType] ?? "bi-layout-split" : info.icon;
+              const isStandalone = t.templateType === "standalone";
               return (
                 <div className="col-12 col-md-6 col-lg-4" key={t.id}>
                   <div className="card h-100 shadow-sm border-0">
@@ -304,9 +448,18 @@ export default function TemplatesLibraryPage() {
                     </div>
 
                     {editingId !== t.id && (
-                      <div className="card-footer bg-transparent border-0 pt-0 d-flex gap-2">
-                        <button className="btn btn-sm btn-outline-secondary flex-grow-1" onClick={() => startEdit(t)} disabled={t.isBuiltIn}>
-                          <i className="bi bi-pencil me-1"></i>Rename
+                      <div className="card-footer bg-transparent border-0 pt-0 d-flex gap-2 flex-wrap">
+                        {isStandalone && (
+                          <button
+                            className="btn btn-sm btn-warning flex-grow-1"
+                            onClick={() => setUseAsPageFor(t)}
+                            title="Create a live page from this template"
+                          >
+                            <i className="bi bi-rocket-takeoff me-1"></i>Use as Page
+                          </button>
+                        )}
+                        <button className="btn btn-sm btn-outline-secondary" onClick={() => startEdit(t)} disabled={t.isBuiltIn} title="Rename">
+                          <i className="bi bi-pencil"></i>
                         </button>
                         <button
                           className="btn btn-sm btn-outline-danger"

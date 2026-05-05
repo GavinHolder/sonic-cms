@@ -111,6 +111,9 @@ const createPageSchema = z.object({
   metaDescription: z.string().optional(),
   ogImage: z.string().optional(),
   status: z.nativeEnum(PageStatus).optional().default(PageStatus.DRAFT),
+  customHtml: z.string().nullable().optional(),
+  customCss: z.string().nullable().optional(),
+  customCssUrls: z.string().nullable().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -146,6 +149,9 @@ export async function POST(request: NextRequest) {
         createdBy: user.userId,
         publishedAt: data.status === PageStatus.PUBLISHED ? new Date() : null,
         publishedBy: data.status === PageStatus.PUBLISHED ? user.userId : null,
+        ...(data.customHtml !== undefined && { customHtml: data.customHtml }),
+        ...(data.customCss  !== undefined && { customCss:  data.customCss }),
+        ...(data.customCssUrls !== undefined && { customCssUrls: data.customCssUrls }),
       },
       include: { createdByUser: { select: { username: true } } },
     });
