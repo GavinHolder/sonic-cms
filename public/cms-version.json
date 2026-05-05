@@ -1,11 +1,11 @@
 {
-  "version": "1.32.2",
+  "version": "1.33.0",
   "date": "2026-05-05",
   "changelog": {
-    "features": [],
-    "bugfixes": [
-      "safety net migration for cms_templates on drifted client DBs"
+    "features": [
+      "harden template library — built-in templates, tags fix, accurate docs"
     ],
+    "bugfixes": [],
     "breaking": []
   }
 }
