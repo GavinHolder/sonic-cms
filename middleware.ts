@@ -13,11 +13,12 @@ import { verifyAccessToken } from "./lib/auth";
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  const origin = request.nextUrl.origin;
+  const isPublicPath = !pathname.startsWith("/admin") && !pathname.startsWith("/api") && !pathname.startsWith("/_next");
+
   // ── 301 Redirect check (public routes only) ─────────────────────────────
-  if (!pathname.startsWith("/admin") && !pathname.startsWith("/api") && !pathname.startsWith("/_next")) {
+  if (isPublicPath) {
     try {
-      // Dynamic import to avoid Prisma in Edge Runtime — use fetch instead
-      const origin = request.nextUrl.origin;
       const redirectRes = await fetch(`${origin}/api/redirects/check?path=${encodeURIComponent(pathname)}`, { headers: { "x-internal": "1" } });
       if (redirectRes.ok) {
         const data = await redirectRes.json();
@@ -31,9 +32,33 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Set custom headers
+  // Set custom headers (x-pathname always reflects the ORIGINAL path so layout.tsx can detect type)
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-pathname", pathname);
+
+  // ── Standalone page rewrite: /{slug} → /standalone/{slug} ───────────────
+  // Single-segment public paths that are not already at /standalone/* are checked.
+  // If the page type is STANDALONE, we rewrite internally so the browser sees /{slug}
+  // but the renderer at /standalone/[slug]/page.tsx handles the HTML.
+  if (isPublicPath && !pathname.startsWith("/standalone") && !pathname.startsWith("/volt-preview") && !pathname.startsWith("/maintenance-preview")) {
+    const parts = pathname.slice(1).split("/");
+    if (parts.length === 1 && parts[0]) {
+      try {
+        const typeRes = await fetch(`${origin}/api/internal/page-type?slug=${encodeURIComponent(parts[0])}`, { headers: { "x-internal": "1" } });
+        if (typeRes.ok) {
+          const data = await typeRes.json();
+          if (data.type === "STANDALONE") {
+            requestHeaders.set("x-standalone-rewrite", "1");
+            return NextResponse.rewrite(new URL(`/standalone/${parts[0]}`, request.url), {
+              request: { headers: requestHeaders },
+            });
+          }
+        }
+      } catch {
+        // Type check failure — fall through to normal routing
+      }
+    }
+  }
 
   // TODO: Currently using localStorage-based auth, so skip JWT validation
   // When implementing proper backend auth with Phase 1, uncomment the code below

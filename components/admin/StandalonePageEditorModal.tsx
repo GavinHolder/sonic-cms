@@ -87,7 +87,7 @@ export default function StandalonePageEditorModal({ page, onSave, onCancel }: Pr
 
   const copyVar = (v: string) => navigator.clipboard?.writeText(v).catch(() => {});
 
-  const previewUrl = `/standalone/${page.slug}`;
+  const previewUrl = `/${page.slug}`;
 
   const handleTemplateSaved = (id: string) => {
     setShowSaveTemplate(false);
@@ -126,7 +126,7 @@ export default function StandalonePageEditorModal({ page, onSave, onCancel }: Pr
               <div className="text-muted small mt-1">
                 {page.title}
                 <span className="mx-2">·</span>
-                <code className="text-primary">/standalone/{page.slug}</code>
+                <code className="text-primary">/{page.slug}</code>
                 <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="ms-2 text-primary" title="Preview in new tab">
                   <i className="bi bi-box-arrow-up-right" style={{ fontSize: "0.75rem" }}></i>
                 </a>
@@ -328,7 +328,7 @@ site.navLinks.forEach(link => {
             <div className="me-auto d-flex align-items-center gap-2 flex-wrap">
               <span className="text-muted small">
                 <i className="bi bi-shield-lock me-1"></i>
-                <code className="text-primary">/standalone/{page.slug}</code>
+                <code className="text-primary">/{page.slug}</code>
               </span>
               <button
                 className="btn btn-outline-secondary btn-sm"

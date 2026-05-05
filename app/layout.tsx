@@ -12,6 +12,7 @@ import ScrollRestoration from "@/components/ScrollRestoration";
 import { headers } from "next/headers";
 import { fetchSeoConfig, buildMetadata, buildStructuredData } from "@/lib/metadata-generator";
 import prisma from "@/lib/prisma";
+import { getPageType } from "@/lib/page-type-cache";
 import MaintenancePage from "@/components/MaintenancePage";
 import { getBrandTokens, brandTokensToCss, brandTokensToFontUrl } from "@/lib/brand-tokens";
 import { getCmsSiteData, cmsSiteDataScript } from "@/lib/cms-site-data";
@@ -71,8 +72,20 @@ export default async function RootLayout({
   const isAdminRoute = pathname.startsWith("/admin");
   const isIsolatedRoute = pathname.startsWith("/volt-preview") || pathname.startsWith("/maintenance-preview") || pathname.startsWith("/standalone");
 
-  // Maintenance mode — check DB only for public routes (skip admin, api, volt-preview)
-  const isPublicRoute = !isAdminRoute && !isIsolatedRoute && !pathname.startsWith("/api");
+  // Detect standalone pages served at /{slug} (without /standalone/ prefix).
+  // Uses a 30s cached DB lookup so only the first request after TTL hits Prisma.
+  let isStandaloneSlug = false;
+  if (!isAdminRoute && !isIsolatedRoute && !pathname.startsWith("/api") && !pathname.startsWith("/_next")) {
+    const slug = pathname.slice(1); // strip leading /
+    if (slug && !slug.includes("/")) {
+      const type = await getPageType(slug);
+      if (type === "STANDALONE") isStandaloneSlug = true;
+    }
+  }
+  const isEffectivelyIsolated = isIsolatedRoute || isStandaloneSlug;
+
+  // Maintenance mode — check DB only for public routes (skip admin, api, volt-preview, standalone)
+  const isPublicRoute = !isAdminRoute && !isEffectivelyIsolated && !pathname.startsWith("/api");
   let maintenanceMode = false;
   let maintenanceTheme: import("@/components/MaintenancePage").MaintenanceTheme = {};
   if (isPublicRoute) {
@@ -174,7 +187,7 @@ export default async function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         style={{ margin: 0, padding: 0 }}
       >
-        {maintenanceMode ? <MaintenancePage theme={maintenanceTheme} /> : isIsolatedRoute ? children : (
+        {maintenanceMode ? <MaintenancePage theme={maintenanceTheme} /> : isEffectivelyIsolated ? children : (
           <>
             <ScrollRestoration />
             <ClientLayout showNavigation={!isAdminRoute}>

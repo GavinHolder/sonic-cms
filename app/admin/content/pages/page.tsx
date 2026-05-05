@@ -20,7 +20,7 @@ import {
 import type { PageConfig, PageType, PDFPageConfig, FormPageConfig, DesignerPageConfig, StandalonePageConfig } from "@/types/page";
 import Link from "next/link";
 
-type FilterType = "all" | "pdf" | "form" | "designer" | "standalone" | "feature" | "submissions";
+type FilterType = "all" | "full" | "pdf" | "form" | "designer" | "standalone" | "feature" | "submissions";
 
 interface FormSubmission {
   id: string;
@@ -311,6 +311,7 @@ export default function PagesManager() {
   const getPageStats = () => {
     return {
       total: pages.length + features.length,
+      full: pages.filter((p) => p.type === "full").length,
       pdf: pages.filter((p) => p.type === "pdf").length,
       form: pages.filter((p) => p.type === "form").length,
       designer: pages.filter((p) => p.type === "designer").length,
@@ -355,6 +356,14 @@ export default function PagesManager() {
             <div className="card-body p-3">
               <div className="text-body-secondary small mb-1">Total Pages</div>
               <div className="h4 mb-0 fw-semibold">{stats.total}</div>
+            </div>
+          </div>
+        </div>
+        <div className="col-12 col-sm-6 col-lg-2">
+          <div className="card border-0 shadow-sm" style={{ borderLeft: "3px solid #0d6efd" }}>
+            <div className="card-body p-3">
+              <div className="text-body-secondary small mb-1">Section Pages</div>
+              <div className="h4 mb-0 fw-semibold text-primary">{stats.full}</div>
             </div>
           </div>
         </div>
@@ -408,6 +417,15 @@ export default function PagesManager() {
             onClick={() => setFilter("all")}
           >
             All Pages ({stats.total})
+          </button>
+        </li>
+        <li className="nav-item">
+          <button
+            className={`nav-link ${filter === "full" ? "active" : ""}`}
+            onClick={() => setFilter("full")}
+          >
+            <i className="bi bi-file-earmark-text me-1"></i>
+            Sections ({stats.full})
           </button>
         </li>
         <li className="nav-item">
@@ -659,15 +677,13 @@ export default function PagesManager() {
                       <div>
                         <div className="fw-semibold mb-1">{page.title}</div>
                         <div className="d-flex align-items-center gap-2">
-                          <code className="text-primary small">
-                            {page.type === "standalone" ? `/standalone/${page.slug}` : `/${page.slug}`}
-                          </code>
+                          <code className="text-primary small">/{page.slug}</code>
                           <a
-                            href={page.type === "standalone" ? `/standalone/${page.slug}` : `/${page.slug}`}
+                            href={`/${page.slug}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="btn btn-link btn-sm p-0"
-                            title="View page"
+                            title="Preview page"
                           >
                             <i className="bi bi-box-arrow-up-right"></i>
                           </a>
