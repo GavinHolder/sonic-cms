@@ -1,9 +1,9 @@
 {
-  "version": "1.31.0",
+  "version": "1.32.0",
   "date": "2026-05-05",
   "changelog": {
     "features": [
-      "universal CMS data injection + standalone editor polish"
+      "template library — save/load reusable templates for all page types"
     ],
     "bugfixes": [],
     "breaking": []
