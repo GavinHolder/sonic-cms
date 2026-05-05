@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import prisma from "@/lib/prisma";
+import { getCmsSiteData, replaceCmsVars } from "@/lib/cms-site-data";
 
 export const dynamic = "force-dynamic";
 
@@ -30,8 +31,9 @@ export default async function StandalonePage({ params }: Props) {
 
   if (!page) notFound();
 
-  const html = page.customHtml || "";
-  const css = page.customCss || "";
+  const siteData = await getCmsSiteData();
+  const html = replaceCmsVars(page.customHtml || "", siteData);
+  const css = replaceCmsVars(page.customCss || "", siteData);
   const cssUrls: string[] = (() => {
     try { return JSON.parse(page.customCssUrls || "[]"); } catch { return []; }
   })();

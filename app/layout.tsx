@@ -14,6 +14,7 @@ import { fetchSeoConfig, buildMetadata, buildStructuredData } from "@/lib/metada
 import prisma from "@/lib/prisma";
 import MaintenancePage from "@/components/MaintenancePage";
 import { getBrandTokens, brandTokensToCss, brandTokensToFontUrl } from "@/lib/brand-tokens";
+import { getCmsSiteData, cmsSiteDataScript } from "@/lib/cms-site-data";
 import Script from "next/script";
 
 const geistSans = Geist({
@@ -107,13 +108,14 @@ export default async function RootLayout({
   // JSON-LD structured data — only injected when admin has configured it
   // buildStructuredData() returns null when disabled or business name is empty
   // Output uses JSON.stringify with </script> escaped — safe to inline
-  const [seoConfig, navbarHeight, brandTokens, customHeadScripts, customBodyScripts, ga4Id] = await Promise.all([
+  const [seoConfig, navbarHeight, brandTokens, customHeadScripts, customBodyScripts, ga4Id, cmsSiteData] = await Promise.all([
     fetchSeoConfig(),
     isAdminRoute ? Promise.resolve(100) : getNavbarHeight(),
     getBrandTokens(),
     isAdminRoute ? Promise.resolve("") : prisma.systemSettings.findUnique({ where: { key: "custom_head_scripts" } }).then(r => r?.value || "").catch(() => ""),
     isAdminRoute ? Promise.resolve("") : prisma.systemSettings.findUnique({ where: { key: "custom_body_scripts" } }).then(r => r?.value || "").catch(() => ""),
     isAdminRoute ? Promise.resolve("") : prisma.systemSettings.findUnique({ where: { key: "ga4_measurement_id" } }).then(r => r?.value || "").catch(() => ""),
+    isAdminRoute ? Promise.resolve(null) : getCmsSiteData(),
   ]);
   const jsonLd = isAdminRoute ? null : buildStructuredData(seoConfig);
   const brandCss = brandTokensToCss(brandTokens);
@@ -130,6 +132,13 @@ export default async function RootLayout({
         <Script id="cms-theme-init" strategy="beforeInteractive">{`
           (function(){try{var t=localStorage.getItem('cms-theme')||'dark';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();
         `}</Script>
+        {/* Universal CMS site data — window.__CMS_SITE available on all public pages.
+            Provides logo, contact info, social links, nav links to any HTML/JS on the page.
+            Safe: server-generated JSON with </script> escaped, admin-only write access. */}
+        {cmsSiteData && (
+          // eslint-disable-next-line react/no-danger
+          <script id="cms-site-data" dangerouslySetInnerHTML={{ __html: cmsSiteDataScript(cmsSiteData) }} />
+        )}
         {/* Brand tokens — CSS custom properties for site-wide theming.
             Safe: brandCss is server-generated from validated hex colors + numbers only,
             never user-controlled HTML/JS. Same pattern as JSON-LD injection below. */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import Editor from "@monaco-editor/react";
 import type { StandalonePageConfig } from "@/types/page";
 
@@ -10,7 +10,26 @@ interface Props {
   onCancel: () => void;
 }
 
-type Tab = "html" | "css" | "files";
+type Tab = "html" | "css" | "files" | "vars";
+
+const CMS_VARS = [
+  { var: "{{cms.logo}}",      desc: "Logo image URL" },
+  { var: "{{cms.company}}",   desc: "Company name" },
+  { var: "{{cms.tagline}}",   desc: "Tagline / slogan" },
+  { var: "{{cms.phone}}",     desc: "Phone number" },
+  { var: "{{cms.email}}",     desc: "Email address" },
+  { var: "{{cms.address}}",   desc: "Street address" },
+  { var: "{{cms.city}}",      desc: "City" },
+  { var: "{{cms.postal}}",    desc: "Postal / zip code" },
+  { var: "{{cms.country}}",   desc: "Country" },
+  { var: "{{cms.copyright}}", desc: "Copyright text" },
+  { var: "{{cms.facebook}}",  desc: "Facebook URL" },
+  { var: "{{cms.instagram}}", desc: "Instagram URL" },
+  { var: "{{cms.twitter}}",   desc: "Twitter / X URL" },
+  { var: "{{cms.linkedin}}",  desc: "LinkedIn URL" },
+  { var: "{{cms.youtube}}",   desc: "YouTube URL" },
+  { var: "{{cms.tiktok}}",    desc: "TikTok URL" },
+];
 
 export default function StandalonePageEditorModal({ page, onSave, onCancel }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>("html");
@@ -20,8 +39,6 @@ export default function StandalonePageEditorModal({ page, onSave, onCancel }: Pr
   const [newUrl, setNewUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const htmlEditorRef = useRef<any>(null);
-  const cssEditorRef = useRef<any>(null);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -63,245 +80,151 @@ export default function StandalonePageEditorModal({ page, onSave, onCancel }: Pr
     setCssUrls(next);
   };
 
-  const previewUrl = `/standalone/${page.slug}`;
+  const copyVar = (v: string) => navigator.clipboard?.writeText(v).catch(() => {});
 
-  const tabStyle = (t: Tab): React.CSSProperties => ({
-    padding: "8px 18px",
-    border: "none",
-    borderBottom: activeTab === t ? "2px solid #f59e0b" : "2px solid transparent",
-    background: "none",
-    color: activeTab === t ? "#f59e0b" : "#9ca3af",
-    fontWeight: activeTab === t ? 600 : 400,
-    cursor: "pointer",
-    fontSize: 13,
-    transition: "color 0.15s",
-  });
+  const previewUrl = `/standalone/${page.slug}`;
 
   return (
     <div
       className="modal show d-block"
       tabIndex={-1}
-      style={{ backgroundColor: "rgba(0,0,0,0.75)", zIndex: 1055 }}
+      style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1055 }}
     >
-      <div className="modal-dialog modal-xl modal-dialog-centered">
-        <div className="modal-content" style={{ height: "92vh", display: "flex", flexDirection: "column", background: "#111827" }}>
+      <div className="modal-dialog modal-xl modal-dialog-centered" style={{ maxWidth: "90vw" }}>
+        <div className="modal-content" style={{ height: "90vh", display: "flex", flexDirection: "column" }}>
 
-          {/* Header */}
-          <div className="modal-header border-0 pb-0" style={{ flexShrink: 0, background: "#111827" }}>
+          {/* Header — standard Bootstrap admin style */}
+          <div className="modal-header">
             <div>
-              <h5 className="modal-title mb-0" style={{ color: "#f9fafb" }}>
+              <h5 className="modal-title">
                 <i className="bi bi-code-slash me-2 text-warning"></i>
-                Standalone Page Editor
+                Standalone HTML Editor
+                <span className="badge bg-warning text-dark ms-2" style={{ fontSize: "0.65rem" }}>
+                  {page.slug}
+                </span>
               </h5>
-              <div className="small mt-1" style={{ color: "#6b7280" }}>
+              <div className="text-muted small mt-1">
                 {page.title}
                 <span className="mx-2">·</span>
-                <code style={{ color: "#60a5fa" }}>/standalone/{page.slug}</code>
-                <a
-                  href={previewUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="ms-2"
-                  title="Open preview"
-                  style={{ color: "#60a5fa" }}
-                >
-                  <i className="bi bi-box-arrow-up-right"></i>
+                <code className="text-primary">/standalone/{page.slug}</code>
+                <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="ms-2 text-primary" title="Preview in new tab">
+                  <i className="bi bi-box-arrow-up-right" style={{ fontSize: "0.75rem" }}></i>
                 </a>
               </div>
             </div>
-            <button
-              type="button"
-              className="btn-close btn-close-white"
-              onClick={onCancel}
-              disabled={saving}
-            />
+            <button type="button" className="btn-close" onClick={onCancel} disabled={saving} />
           </div>
 
           {/* Tab bar */}
-          <div style={{ borderBottom: "1px solid #1f2937", flexShrink: 0, background: "#111827", display: "flex", alignItems: "center", paddingLeft: 16 }}>
-            <button style={tabStyle("html")} onClick={() => setActiveTab("html")}>
-              <i className="bi bi-filetype-html me-1"></i>HTML
-            </button>
-            <button style={tabStyle("css")} onClick={() => setActiveTab("css")}>
-              <i className="bi bi-filetype-css me-1"></i>CSS
-            </button>
-            <button style={tabStyle("files")} onClick={() => setActiveTab("files")}>
-              <i className="bi bi-link-45deg me-1"></i>CSS Files
-              {cssUrls.length > 0 && (
-                <span style={{ marginLeft: 6, background: "#f59e0b", color: "#000", borderRadius: 10, fontSize: 10, padding: "1px 6px", fontWeight: 700 }}>
-                  {cssUrls.length}
-                </span>
-              )}
-            </button>
+          <div className="border-bottom px-3 pt-2" style={{ flexShrink: 0 }}>
+            <ul className="nav nav-tabs border-0">
+              {([
+                { id: "html", icon: "bi-filetype-html", label: "HTML" },
+                { id: "css",  icon: "bi-filetype-css",  label: "CSS" },
+                { id: "files", icon: "bi-link-45deg",   label: `CSS Files${cssUrls.length ? ` (${cssUrls.length})` : ""}` },
+                { id: "vars", icon: "bi-braces",        label: "Variables" },
+              ] as { id: Tab; icon: string; label: string }[]).map(t => (
+                <li className="nav-item" key={t.id}>
+                  <button
+                    className={`nav-link ${activeTab === t.id ? "active" : ""}`}
+                    onClick={() => setActiveTab(t.id)}
+                    style={{ border: "none", background: "none" }}
+                  >
+                    <i className={`bi ${t.icon} me-1`}></i>{t.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
           </div>
 
           {error && (
-            <div className="alert alert-danger m-3 mb-0 py-2" style={{ flexShrink: 0 }}>
+            <div className="alert alert-danger mx-3 mt-3 mb-0 py-2">
               <i className="bi bi-exclamation-triangle me-2"></i>{error}
             </div>
           )}
 
-          {/* Editor area */}
-          <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+          {/* Content area */}
+          <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
 
-            {/* HTML tab */}
-            <div style={{ display: activeTab === "html" ? "flex" : "none", flex: 1, minHeight: 0, flexDirection: "column" }}>
+            {/* HTML editor */}
+            <div style={{ display: activeTab === "html" ? "block" : "none", height: "100%" }}>
               <Editor
                 height="100%"
                 language="html"
                 theme="vs-dark"
                 value={html}
-                onChange={(v) => setHtml(v || "")}
-                onMount={(editor) => {
-                  htmlEditorRef.current = editor;
-                  setTimeout(() => editor.layout(), 50);
-                  setTimeout(() => editor.layout(), 250);
-                }}
-                options={{
-                  minimap: { enabled: false },
-                  lineNumbers: "on",
-                  fontSize: 13,
-                  wordWrap: "on",
-                  tabSize: 2,
-                  automaticLayout: true,
-                  scrollBeyondLastLine: false,
-                  formatOnPaste: true,
-                  bracketPairColorization: { enabled: true },
-                  autoClosingBrackets: "always",
-                  padding: { top: 8 },
-                }}
+                onChange={v => setHtml(v || "")}
+                onMount={editor => { setTimeout(() => editor.layout(), 50); setTimeout(() => editor.layout(), 250); }}
+                options={{ minimap: { enabled: false }, lineNumbers: "on", fontSize: 13, wordWrap: "on", tabSize: 2, automaticLayout: true, scrollBeyondLastLine: false, formatOnPaste: true, bracketPairColorization: { enabled: true }, autoClosingBrackets: "always", padding: { top: 8 } }}
               />
             </div>
 
-            {/* CSS tab */}
-            <div style={{ display: activeTab === "css" ? "flex" : "none", flex: 1, minHeight: 0, flexDirection: "column" }}>
-              <div style={{ padding: "6px 16px", background: "#0d1117", flexShrink: 0 }}>
-                <span style={{ fontSize: 11, color: "#6b7280" }}>
-                  <i className="bi bi-info-circle me-1"></i>
-                  Injected as a <code style={{ color: "#60a5fa" }}>&lt;style&gt;</code> block in the page head — no selector conflicts with CMS styles.
-                </span>
+            {/* CSS editor */}
+            <div style={{ display: activeTab === "css" ? "flex" : "none", flexDirection: "column", height: "100%" }}>
+              <div className="alert alert-info m-3 mb-0 py-2 small">
+                <i className="bi bi-info-circle me-1"></i>
+                Injected as a <code>&lt;style&gt;</code> block in the page <code>&lt;head&gt;</code>. Use <code>{"{{cms.*}}"}</code> variables here too.
               </div>
-              <Editor
-                height="100%"
-                language="css"
-                theme="vs-dark"
-                value={css}
-                onChange={(v) => setCss(v || "")}
-                onMount={(editor) => {
-                  cssEditorRef.current = editor;
-                  setTimeout(() => editor.layout(), 50);
-                  setTimeout(() => editor.layout(), 250);
-                }}
-                options={{
-                  minimap: { enabled: false },
-                  lineNumbers: "on",
-                  fontSize: 13,
-                  wordWrap: "on",
-                  tabSize: 2,
-                  automaticLayout: true,
-                  scrollBeyondLastLine: false,
-                  formatOnPaste: true,
-                  bracketPairColorization: { enabled: true },
-                  padding: { top: 8 },
-                }}
-              />
+              <div style={{ flex: 1, minHeight: 0 }}>
+                <Editor
+                  height="100%"
+                  language="css"
+                  theme="vs-dark"
+                  value={css}
+                  onChange={v => setCss(v || "")}
+                  onMount={editor => { setTimeout(() => editor.layout(), 50); setTimeout(() => editor.layout(), 250); }}
+                  options={{ minimap: { enabled: false }, lineNumbers: "on", fontSize: 13, wordWrap: "on", tabSize: 2, automaticLayout: true, scrollBeyondLastLine: false, formatOnPaste: true, padding: { top: 8 } }}
+                />
+              </div>
             </div>
 
-            {/* CSS Files tab */}
+            {/* CSS Files */}
             {activeTab === "files" && (
-              <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 24, background: "#0d1117" }}>
-                <p style={{ color: "#9ca3af", fontSize: 13, marginBottom: 20 }}>
-                  External CSS files are loaded before your HTML renders — great for CDN libraries, Google Fonts, or hosted stylesheets.
-                  They are injected as <code style={{ color: "#60a5fa" }}>&lt;link rel="stylesheet"&gt;</code> tags in the page head, in order.
+              <div style={{ height: "100%", overflowY: "auto", padding: 24 }}>
+                <p className="text-muted small mb-3">
+                  External stylesheets loaded before your HTML renders — CDN libraries, Google Fonts, or hosted files.
+                  Injected as <code>&lt;link rel="stylesheet"&gt;</code> tags in the page <code>&lt;head&gt;</code>, in listed order.
                 </p>
 
-                {/* Add URL input */}
                 <div className="d-flex gap-2 mb-4">
                   <input
                     type="url"
                     className="form-control form-control-sm"
                     placeholder="https://fonts.googleapis.com/css2?family=Archivo..."
                     value={newUrl}
-                    onChange={(e) => setNewUrl(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && addUrl()}
-                    style={{ background: "#1f2937", border: "1px solid #374151", color: "#f9fafb", flexGrow: 1 }}
+                    onChange={e => setNewUrl(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && addUrl()}
                   />
-                  <button
-                    className="btn btn-sm btn-warning"
-                    onClick={addUrl}
-                    disabled={!newUrl.trim()}
-                  >
+                  <button className="btn btn-sm btn-warning" onClick={addUrl} disabled={!newUrl.trim()}>
                     <i className="bi bi-plus-lg me-1"></i>Add
                   </button>
                 </div>
 
                 {cssUrls.length === 0 ? (
-                  <div style={{ textAlign: "center", color: "#4b5563", padding: "40px 0" }}>
-                    <i className="bi bi-link-45deg" style={{ fontSize: 32, display: "block", marginBottom: 8 }}></i>
+                  <div className="text-center text-muted py-5">
+                    <i className="bi bi-link-45deg fs-1 d-block mb-2 opacity-25"></i>
                     No CSS files added yet
                   </div>
                 ) : (
-                  <div className="d-flex flex-column gap-2">
+                  <div className="d-flex flex-column gap-2 mb-4">
                     {cssUrls.map((url, i) => (
-                      <div
-                        key={i}
-                        style={{
-                          display: "flex", alignItems: "center", gap: 8,
-                          background: "#1f2937", border: "1px solid #374151",
-                          borderRadius: 6, padding: "8px 12px",
-                        }}
-                      >
-                        <span style={{ color: "#6b7280", fontSize: 12, minWidth: 22, textAlign: "center" }}>
-                          {i + 1}
-                        </span>
-                        <i className="bi bi-filetype-css" style={{ color: "#60a5fa", fontSize: 14 }}></i>
-                        <code style={{ color: "#d1d5db", fontSize: 12, flex: 1, wordBreak: "break-all" }}>{url}</code>
-                        <div className="d-flex gap-1 ms-2">
-                          <button
-                            className="btn btn-sm"
-                            style={{ background: "#374151", color: "#9ca3af", padding: "2px 6px" }}
-                            onClick={() => moveUrl(i, -1)}
-                            disabled={i === 0}
-                            title="Move up"
-                          >
-                            <i className="bi bi-chevron-up" style={{ fontSize: 10 }}></i>
-                          </button>
-                          <button
-                            className="btn btn-sm"
-                            style={{ background: "#374151", color: "#9ca3af", padding: "2px 6px" }}
-                            onClick={() => moveUrl(i, 1)}
-                            disabled={i === cssUrls.length - 1}
-                            title="Move down"
-                          >
-                            <i className="bi bi-chevron-down" style={{ fontSize: 10 }}></i>
-                          </button>
-                          <a
-                            href={url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="btn btn-sm"
-                            style={{ background: "#374151", color: "#60a5fa", padding: "2px 6px" }}
-                            title="Open URL"
-                          >
-                            <i className="bi bi-box-arrow-up-right" style={{ fontSize: 10 }}></i>
-                          </a>
-                          <button
-                            className="btn btn-sm btn-outline-danger"
-                            style={{ padding: "2px 6px" }}
-                            onClick={() => removeUrl(i)}
-                            title="Remove"
-                          >
-                            <i className="bi bi-trash" style={{ fontSize: 10 }}></i>
-                          </button>
+                      <div key={i} className="d-flex align-items-center gap-2 border rounded p-2 bg-light">
+                        <span className="text-muted small" style={{ minWidth: 20 }}>{i + 1}</span>
+                        <i className="bi bi-filetype-css text-primary"></i>
+                        <code className="small flex-grow-1 text-truncate">{url}</code>
+                        <div className="d-flex gap-1">
+                          <button className="btn btn-sm btn-outline-secondary" onClick={() => moveUrl(i, -1)} disabled={i === 0} title="Move up"><i className="bi bi-chevron-up" style={{ fontSize: 10 }}></i></button>
+                          <button className="btn btn-sm btn-outline-secondary" onClick={() => moveUrl(i, 1)} disabled={i === cssUrls.length - 1} title="Move down"><i className="bi bi-chevron-down" style={{ fontSize: 10 }}></i></button>
+                          <a href={url} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-info" title="Open URL"><i className="bi bi-box-arrow-up-right" style={{ fontSize: 10 }}></i></a>
+                          <button className="btn btn-sm btn-outline-danger" onClick={() => removeUrl(i)} title="Remove"><i className="bi bi-trash" style={{ fontSize: 10 }}></i></button>
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
 
-                {/* Quick-add presets */}
-                <div className="mt-4">
-                  <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 8 }}>Quick-add common libraries:</div>
+                <div className="border-top pt-3">
+                  <div className="text-muted small mb-2"><i className="bi bi-lightning me-1"></i>Quick-add common libraries:</div>
                   <div className="d-flex flex-wrap gap-2">
                     {[
                       { label: "Bootstrap 5.3", url: "https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" },
@@ -309,55 +232,86 @@ export default function StandalonePageEditorModal({ page, onSave, onCancel }: Pr
                       { label: "Tailwind CDN", url: "https://cdn.tailwindcss.com" },
                       { label: "Animate.css", url: "https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" },
                       { label: "Font Awesome 6", url: "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" },
-                    ].map((preset) => (
-                      <button
-                        key={preset.label}
-                        className="btn btn-sm"
-                        style={{ background: "#1f2937", border: "1px solid #374151", color: "#9ca3af", fontSize: 11 }}
-                        onClick={() => {
-                          if (!cssUrls.includes(preset.url)) setCssUrls(prev => [...prev, preset.url]);
-                        }}
-                        disabled={cssUrls.includes(preset.url)}
-                      >
-                        <i className="bi bi-plus me-1"></i>{preset.label}
+                    ].map(p => (
+                      <button key={p.label} className="btn btn-sm btn-outline-secondary" onClick={() => { if (!cssUrls.includes(p.url)) setCssUrls(prev => [...prev, p.url]); }} disabled={cssUrls.includes(p.url)}>
+                        <i className="bi bi-plus me-1"></i>{p.label}
                       </button>
                     ))}
                   </div>
                 </div>
               </div>
             )}
+
+            {/* Variables reference */}
+            {activeTab === "vars" && (
+              <div style={{ height: "100%", overflowY: "auto", padding: 24 }}>
+                <div className="alert alert-info py-2 small mb-4">
+                  <i className="bi bi-info-circle me-1"></i>
+                  These variables are replaced with live CMS data at render time — server-side for Standalone pages, client-side for HTML blocks in flexible sections.
+                  All values come from <strong>Admin → Settings → Site Config</strong>.
+                  Click any variable to copy it.
+                </div>
+
+                <div className="row g-2 mb-4">
+                  {CMS_VARS.map(v => (
+                    <div className="col-12 col-md-6" key={v.var}>
+                      <div
+                        className="d-flex align-items-center justify-content-between border rounded p-2 bg-light"
+                        style={{ cursor: "pointer" }}
+                        onClick={() => copyVar(v.var)}
+                        title="Click to copy"
+                      >
+                        <div>
+                          <code className="text-warning fw-semibold">{v.var}</code>
+                          <div className="text-muted small">{v.desc}</div>
+                        </div>
+                        <i className="bi bi-clipboard text-muted ms-2" style={{ fontSize: 12 }}></i>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="border-top pt-3">
+                  <div className="fw-semibold small mb-2">JS access (all page types)</div>
+                  <pre className="bg-dark text-light rounded p-3 small" style={{ fontSize: "0.75rem" }}>{`// Available on every public page via window.__CMS_SITE
+const site = window.__CMS_SITE;
+
+site.logoUrl        // logo image URL
+site.companyName    // company name
+site.phone          // phone number
+site.email          // email address
+site.address        // street address
+site.navLinks       // [{ type, label, href, navOrder }]
+
+// Example: build a nav
+site.navLinks.forEach(link => {
+  if (link.href) {
+    const a = document.createElement('a');
+    a.href = link.href;
+    a.textContent = link.label;
+    nav.appendChild(a);
+  }
+});`}</pre>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Footer */}
-          <div
-            className="d-flex align-items-center justify-content-between px-4 py-3"
-            style={{ borderTop: "1px solid #1f2937", flexShrink: 0, background: "#111827" }}
-          >
-            <div style={{ fontSize: 11, color: "#4b5563" }}>
+          <div className="modal-footer">
+            <div className="me-auto text-muted small">
               <i className="bi bi-shield-lock me-1"></i>
-              Admin-only content · rendered at
-              <code style={{ color: "#60a5fa", marginLeft: 4 }}>/standalone/{page.slug}</code>
+              Admin-only · <code className="text-primary">/standalone/{page.slug}</code>
             </div>
-            <div className="d-flex gap-2">
-              <button className="btn btn-sm btn-secondary" onClick={onCancel} disabled={saving}>
-                Cancel
-              </button>
-              <a
-                href={previewUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-sm btn-outline-info"
-              >
-                <i className="bi bi-eye me-1"></i>Preview
-              </a>
-              <button className="btn btn-sm btn-warning" onClick={handleSave} disabled={saving}>
-                {saving ? (
-                  <><span className="spinner-border spinner-border-sm me-1" role="status" />Saving…</>
-                ) : (
-                  <><i className="bi bi-floppy me-1"></i>Save All</>
-                )}
-              </button>
-            </div>
+            <button className="btn btn-secondary btn-sm" onClick={onCancel} disabled={saving}>Cancel</button>
+            <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="btn btn-outline-primary btn-sm">
+              <i className="bi bi-eye me-1"></i>Preview
+            </a>
+            <button className="btn btn-warning btn-sm" onClick={handleSave} disabled={saving}>
+              {saving
+                ? <><span className="spinner-border spinner-border-sm me-1" role="status" />Saving…</>
+                : <><i className="bi bi-floppy me-1"></i>Save All</>}
+            </button>
           </div>
 
         </div>

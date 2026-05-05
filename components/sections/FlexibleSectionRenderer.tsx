@@ -2268,7 +2268,27 @@ function DividerElement({ element }: { element: FlexibleElement }) {
  */
 function HTMLElement({ element }: { element: FlexibleElement }) {
   /* SECURITY: admin-only CMS content */
-  return <div className="html-element" dangerouslySetInnerHTML={{ __html: element.content.html || "" }} />;
+  /* Replaces {{cms.*}} template vars using window.__CMS_SITE injected by layout.tsx */
+  const raw = element.content.html || "";
+  const html = typeof window !== "undefined" && (window as any).__CMS_SITE
+    ? raw.replace(/\{\{cms\.logo\}\}/g, (window as any).__CMS_SITE.logoUrl ?? "")
+        .replace(/\{\{cms\.company\}\}/g, (window as any).__CMS_SITE.companyName ?? "")
+        .replace(/\{\{cms\.tagline\}\}/g, (window as any).__CMS_SITE.tagline ?? "")
+        .replace(/\{\{cms\.phone\}\}/g, (window as any).__CMS_SITE.phone ?? "")
+        .replace(/\{\{cms\.email\}\}/g, (window as any).__CMS_SITE.email ?? "")
+        .replace(/\{\{cms\.address\}\}/g, (window as any).__CMS_SITE.address ?? "")
+        .replace(/\{\{cms\.city\}\}/g, (window as any).__CMS_SITE.city ?? "")
+        .replace(/\{\{cms\.postal\}\}/g, (window as any).__CMS_SITE.postalCode ?? "")
+        .replace(/\{\{cms\.country\}\}/g, (window as any).__CMS_SITE.country ?? "")
+        .replace(/\{\{cms\.copyright\}\}/g, (window as any).__CMS_SITE.copyrightText ?? "")
+        .replace(/\{\{cms\.facebook\}\}/g, (window as any).__CMS_SITE.facebook ?? "")
+        .replace(/\{\{cms\.instagram\}\}/g, (window as any).__CMS_SITE.instagram ?? "")
+        .replace(/\{\{cms\.twitter\}\}/g, (window as any).__CMS_SITE.twitter ?? "")
+        .replace(/\{\{cms\.linkedin\}\}/g, (window as any).__CMS_SITE.linkedin ?? "")
+        .replace(/\{\{cms\.youtube\}\}/g, (window as any).__CMS_SITE.youtube ?? "")
+        .replace(/\{\{cms\.tiktok\}\}/g, (window as any).__CMS_SITE.tiktok ?? "")
+    : raw;
+  return <div className="html-element" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
 /**
