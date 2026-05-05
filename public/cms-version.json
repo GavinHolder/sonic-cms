@@ -1,11 +1,9 @@
 {
-  "version": "1.29.0",
+  "version": "1.30.0",
   "date": "2026-05-05",
   "changelog": {
     "features": [
-      "add STANDALONE page type with raw HTML editor",
-      "advanced layout geometry — mosaic grid, steps, photo-strip, theme toggle, hero enhancements",
-      "advanced layout geometry — mosaic grid, steps, counter stats, photo strip, silhouette parallax, theme toggle, hero enhancements"
+      "standalone page — multi-CSS support (inline CSS tab + external CSS files)"
     ],
     "bugfixes": [],
     "breaking": []
