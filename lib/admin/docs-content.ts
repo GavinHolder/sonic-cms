@@ -1897,6 +1897,49 @@ See **Content → Templates** in the admin sidebar for the full template library
 | CMS-branded pages with sections | Full / PDF / Form |
 
 > Standalone pages do not inherit Bootstrap, the site theme, or any CMS JavaScript. All dependencies must be included in your HTML or linked via CSS Files.
+
+---
+
+### CMS Forms — Leads Pipeline Integration
+
+To connect a form in your standalone page to the CMS leads pipeline (admin email notification + leads DB), include the CMS Forms script:
+
+\`\`\`html
+<script src="/cms-forms.js"></script>
+
+<form data-cms-form
+      data-source="Contact Us"
+      data-email-to="admin@example.com"
+      data-success="Thanks! We'll be in touch.">
+  <input type="text"  name="name"    data-label="Full Name"     required>
+  <input type="email" name="email"   data-label="Email Address" required>
+  <textarea           name="message" data-label="Message"></textarea>
+  <button type="submit">Send</button>
+</form>
+\`\`\`
+
+**How it works:**
+1. User fills in the form and clicks Submit
+2. A 6-digit OTP is emailed to the address in the email field
+3. An overlay prompt appears asking for the code
+4. On success, the form data is sent to **Admin → Leads** and the admin email is notified
+
+**Form attributes:**
+
+| Attribute | Effect |
+|-----------|--------|
+| \`data-source\` | Label shown in admin email subject (default: page title) |
+| \`data-email-to\` | Override the admin notification email |
+| \`data-success\` | Message shown to the user after successful submission |
+
+**Field attributes:**
+
+| Attribute | Effect |
+|-----------|--------|
+| \`data-label\` | Friendly label in the admin email (default: capitalised field name) |
+| \`required\` | Native HTML required — blocks submission if empty |
+
+If the form has **no email field**, OTP is skipped and the data is submitted directly (suitable for newsletter sign-ups where you already trust the input).
 `;
 
 const NAVIGATION = `

@@ -313,6 +313,33 @@ site.navLinks.forEach(link => {
   }
 });`}</pre>
                 </div>
+
+                <div className="border-top pt-3">
+                  <div className="fw-semibold small mb-2">
+                    <i className="bi bi-envelope-check me-1 text-warning"></i>
+                    CMS Forms — leads pipeline
+                  </div>
+                  <p className="text-muted" style={{ fontSize: "0.75rem" }}>
+                    Add <code>/cms-forms.js</code> to send form submissions to admin email + leads DB.
+                    Forms with an <code>email</code> field are OTP-verified before submission.
+                  </p>
+                  <pre className="bg-dark text-light rounded p-3 small" style={{ fontSize: "0.72rem" }}>{`<script src="/cms-forms.js"></script>
+
+<form data-cms-form
+      data-source="Contact Us"
+      data-email-to="admin@example.com"
+      data-success="Thanks! We'll be in touch.">
+  <input type="text"  name="name"    data-label="Full Name"     required>
+  <input type="email" name="email"   data-label="Email Address" required>
+  <textarea           name="message" data-label="Message"></textarea>
+  <button type="submit">Send</button>
+</form>`}</pre>
+                  <div className="text-muted" style={{ fontSize: "0.72rem" }}>
+                    <code>data-source</code> — form name in email subject &nbsp;·&nbsp;
+                    <code>data-email-to</code> — override admin email &nbsp;·&nbsp;
+                    <code>data-label</code> — field name in email
+                  </div>
+                </div>
               </div>
             )}
           </div>
