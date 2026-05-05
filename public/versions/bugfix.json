@@ -1,10 +1,10 @@
 {
-  "version": "1.26.7",
-  "date": "2026-03-27",
+  "version": "1.32.1",
+  "date": "2026-05-05",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "add git pull --rebase before push in upstream merge step"
+      "add v1.32 migration — resolve production schema drift"
     ],
     "breaking": []
   }

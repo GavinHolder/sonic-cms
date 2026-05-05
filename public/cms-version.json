@@ -1,11 +1,11 @@
 {
-  "version": "1.32.0",
+  "version": "1.32.1",
   "date": "2026-05-05",
   "changelog": {
-    "features": [
-      "template library — save/load reusable templates for all page types"
+    "features": [],
+    "bugfixes": [
+      "add v1.32 migration — resolve production schema drift"
     ],
-    "bugfixes": [],
     "breaking": []
   }
 }
