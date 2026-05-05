@@ -3,6 +3,8 @@
 import { useState, useCallback } from "react";
 import Editor from "@monaco-editor/react";
 import type { StandalonePageConfig } from "@/types/page";
+import SaveTemplateModal from "@/components/admin/SaveTemplateModal";
+import TemplatePickerModal, { type CmsTemplate } from "@/components/admin/TemplatePickerModal";
 
 interface Props {
   page: StandalonePageConfig;
@@ -39,6 +41,9 @@ export default function StandalonePageEditorModal({ page, onSave, onCancel }: Pr
   const [newUrl, setNewUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [showPickTemplate, setShowPickTemplate] = useState(false);
+  const [templateSavedMsg, setTemplateSavedMsg] = useState<string | null>(null);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -84,7 +89,22 @@ export default function StandalonePageEditorModal({ page, onSave, onCancel }: Pr
 
   const previewUrl = `/standalone/${page.slug}`;
 
+  const handleTemplateSaved = (id: string) => {
+    setShowSaveTemplate(false);
+    setTemplateSavedMsg(`Template saved! (id: ${id.slice(0, 8)}…)`);
+    setTimeout(() => setTemplateSavedMsg(null), 3000);
+  };
+
+  const handleTemplateApplied = (t: CmsTemplate) => {
+    const data = t.data as { customHtml?: string; customCss?: string; customCssUrls?: string[] };
+    if (data.customHtml !== undefined) setHtml(data.customHtml);
+    if (data.customCss  !== undefined) setCss(data.customCss);
+    if (data.customCssUrls !== undefined) setCssUrls(data.customCssUrls);
+    setShowPickTemplate(false);
+  };
+
   return (
+    <>
     <div
       className="modal show d-block"
       tabIndex={-1}
@@ -298,10 +318,34 @@ site.navLinks.forEach(link => {
           </div>
 
           {/* Footer */}
+          {templateSavedMsg && (
+            <div className="alert alert-success mx-3 mb-0 mt-2 py-2 small d-flex align-items-center gap-2">
+              <i className="bi bi-bookmark-check"></i>{templateSavedMsg}
+            </div>
+          )}
+
           <div className="modal-footer">
-            <div className="me-auto text-muted small">
-              <i className="bi bi-shield-lock me-1"></i>
-              Admin-only · <code className="text-primary">/standalone/{page.slug}</code>
+            <div className="me-auto d-flex align-items-center gap-2 flex-wrap">
+              <span className="text-muted small">
+                <i className="bi bi-shield-lock me-1"></i>
+                <code className="text-primary">/standalone/{page.slug}</code>
+              </span>
+              <button
+                className="btn btn-outline-secondary btn-sm"
+                onClick={() => setShowPickTemplate(true)}
+                disabled={saving}
+                title="Load from Template Library"
+              >
+                <i className="bi bi-bookmark me-1"></i>Load Template
+              </button>
+              <button
+                className="btn btn-outline-secondary btn-sm"
+                onClick={() => setShowSaveTemplate(true)}
+                disabled={saving}
+                title="Save current content as a template"
+              >
+                <i className="bi bi-bookmark-plus me-1"></i>Save as Template
+              </button>
             </div>
             <button className="btn btn-secondary btn-sm" onClick={onCancel} disabled={saving}>Cancel</button>
             <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="btn btn-outline-primary btn-sm">
@@ -317,5 +361,25 @@ site.navLinks.forEach(link => {
         </div>
       </div>
     </div>
+
+    {showSaveTemplate && (
+      <SaveTemplateModal
+        templateType="standalone"
+        data={{ customHtml: html, customCss: css, customCssUrls: cssUrls }}
+        defaultName={page.title}
+        onSaved={handleTemplateSaved}
+        onCancel={() => setShowSaveTemplate(false)}
+      />
+    )}
+
+    {showPickTemplate && (
+      <TemplatePickerModal
+        templateType="standalone"
+        title="Load Standalone Template"
+        onSelect={handleTemplateApplied}
+        onCancel={() => setShowPickTemplate(false)}
+      />
+    )}
+    </>
   );
 }

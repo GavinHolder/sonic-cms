@@ -10,6 +10,8 @@ import NormalSectionEditor from "@/components/admin/NormalSectionEditor";
 import FlexibleSectionEditorModal from "@/components/admin/FlexibleSectionEditorModal";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import type { SectionConfig, SectionType, HeroSection, FooterSection, CTASection, NormalSection, FlexibleSection } from "@/types/section";
+import SaveTemplateModal from "@/components/admin/SaveTemplateModal";
+import TemplatePickerModal, { type CmsTemplate } from "@/components/admin/TemplatePickerModal";
 import {
   getSections,
   createSection,
@@ -95,6 +97,8 @@ export default function LandingPageManager() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterCategory>("all");
   const [pluginSectionTypes, setPluginSectionTypes] = useState<{ pluginId: string; pluginName: string; id: string; label: string; icon: string; description: string }[]>([]);
+  const [templateSection, setTemplateSection] = useState<SectionConfig | null>(null);
+  const [showTemplatePickerFor, setShowTemplatePickerFor] = useState<SectionConfig | null>(null);
 
   // Drag-and-drop sensors
   const sensors = useSensors(
@@ -563,6 +567,14 @@ export default function LandingPageManager() {
                       </button>
 
                       <button
+                        className="btn btn-sm btn-outline-secondary"
+                        title="Save as Template"
+                        onClick={() => setTemplateSection(section)}
+                      >
+                        <i className="bi bi-bookmark-plus"></i>
+                      </button>
+
+                      <button
                         className="btn btn-sm btn-outline-danger"
                         onClick={() => handleDeleteSection(section.id)}
                         title="Delete Section"
@@ -759,6 +771,59 @@ export default function LandingPageManager() {
           setConfirmDialog({ ...confirmDialog, isOpen: false })
         }
       />
+
+      {/* Save section as template */}
+      {templateSection && (
+        <SaveTemplateModal
+          templateType="section"
+          sectionType={templateSection.type}
+          defaultName={templateSection.displayName || templateSection.type}
+          data={{
+            type:               templateSection.type,
+            displayName:        templateSection.displayName,
+            background:         templateSection.background,
+            paddingTop:         templateSection.paddingTop,
+            paddingBottom:      templateSection.paddingBottom,
+            paddingTopMobile:   (templateSection as any).paddingTopMobile,
+            paddingBottomMobile:(templateSection as any).paddingBottomMobile,
+            content:            templateSection.content,
+            bgImageUrl:         (templateSection as any).bgImageUrl,
+            bgImageSize:        (templateSection as any).bgImageSize,
+            bgImagePosition:    (templateSection as any).bgImagePosition,
+            bgImageRepeat:      (templateSection as any).bgImageRepeat,
+            bgImageOpacity:     (templateSection as any).bgImageOpacity,
+            bgParallax:         (templateSection as any).bgParallax,
+            triangleEnabled:    (templateSection as any).triangleEnabled,
+            triangleShape:      (templateSection as any).triangleShape,
+            triangleHeight:     (templateSection as any).triangleHeight,
+            triangleColor1:     (templateSection as any).triangleColor1,
+            triangleColor2:     (templateSection as any).triangleColor2,
+            hoverTextEnabled:   (templateSection as any).hoverTextEnabled,
+            hoverText:          (templateSection as any).hoverText,
+            lowerThird:         (templateSection as any).lowerThird,
+            motionElements:     (templateSection as any).motionElements,
+          }}
+          onSaved={() => { setTemplateSection(null); setSuccessMessage("Template saved to library!"); }}
+          onCancel={() => setTemplateSection(null)}
+        />
+      )}
+
+      {/* Template picker for applying to a section (future: from create modal) */}
+      {showTemplatePickerFor && (
+        <TemplatePickerModal
+          templateType="section"
+          sectionType={showTemplatePickerFor.type}
+          title={`Load ${showTemplatePickerFor.type} Template`}
+          onSelect={async (t: CmsTemplate) => {
+            const data = t.data as Record<string, unknown>;
+            await (await import("@/lib/section-manager")).updateSection(showTemplatePickerFor.id, data);
+            await reloadSections();
+            setShowTemplatePickerFor(null);
+            setSuccessMessage(`Template "${t.name}" applied!`);
+          }}
+          onCancel={() => setShowTemplatePickerFor(null)}
+        />
+      )}
     </AdminLayout>
   );
 }

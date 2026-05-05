@@ -195,6 +195,24 @@ model MediaAsset {
   @@map("media_assets")
 }
 
+model CmsTemplate {
+  id           String   @id @default(uuid())
+  name         String
+  description  String?
+  templateType String   // "standalone" | "section" | "page"
+  sectionType  String?  // "HERO" | "NORMAL" | "CTA" | "FOOTER" | "FLEXIBLE" (for section templates)
+  thumbnail    String?
+  data         Json
+  tags         String   @default("[]")
+  isBuiltIn    Boolean  @default(false)
+  usageCount   Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([templateType])
+  @@map("cms_templates")
+}
+
 model SectionVersion {
   id        String   @id @default(uuid())
   sectionId String
