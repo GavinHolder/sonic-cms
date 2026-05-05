@@ -1,9 +1,9 @@
 {
-  "version": "1.36.0",
+  "version": "1.37.0",
   "date": "2026-05-05",
   "changelog": {
     "features": [
-      "cms-forms.js — standalone page form helper with OTP + leads pipeline"
+      "universal homepage routing — any page type serves at / via internal rewrite"
     ],
     "bugfixes": [],
     "breaking": []
