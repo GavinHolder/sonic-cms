@@ -4,6 +4,33 @@
   --background: #ffffff;
   --foreground: #171717;
   --navbar-height: 100px; /* Navbar + safe clearance */
+  /* CMS theme tokens — dark mode (default) */
+  --cms-ink: #14120e;
+  --cms-ink-2: #2a2520;
+  --cms-ink-3: #3d3830;
+  --cms-char: #1a1714;
+  --cms-line: rgba(255,255,255,0.1);
+  --cms-line-2: rgba(255,255,255,0.16);
+  --cms-text: rgba(255,255,255,0.92);
+  --cms-text-muted: rgba(255,255,255,0.6);
+  --cms-surface: rgba(255,255,255,0.06);
+  --cms-surface-hover: rgba(255,255,255,0.1);
+}
+
+/* Light theme overrides — applied via data-theme="light" on <html> */
+[data-theme="light"] {
+  --cms-ink: #f5f3ee;
+  --cms-ink-2: #ecebe5;
+  --cms-ink-3: #e3e0d8;
+  --cms-char: #f0eee8;
+  --cms-line: rgba(20,18,14,0.1);
+  --cms-line-2: rgba(20,18,14,0.16);
+  --cms-text: rgba(20,18,14,0.92);
+  --cms-text-muted: rgba(20,18,14,0.6);
+  --cms-surface: rgba(20,18,14,0.04);
+  --cms-surface-hover: rgba(20,18,14,0.08);
+  --background: #f5f3ee;
+  --foreground: #14120e;
 }
 
 @media (prefers-color-scheme: dark) {

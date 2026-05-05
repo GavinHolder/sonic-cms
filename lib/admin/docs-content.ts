@@ -1467,6 +1467,114 @@ Controls a one-shot **scroll entry animation** — plays once when the block fir
 All animations use a **0.65 s cubic-bezier(0.16, 1, 0.3, 1)** easing — snappy entry, smooth landing.
 
 > The animation fires **once per page load**, triggered by IntersectionObserver when at least 10 % of the block is visible.
+
+---
+
+## Steps Block
+
+Numbered process steps with large accent counters.
+
+| Field | Description |
+|-------|-------------|
+| **steps** | Array of \`{ number, heading, subtext }\` |
+| **numberStyle** | \`"large-accent"\` — 64px green tabular number |
+| **dividers** | Show horizontal rules between items |
+| **lastDivider** | Include rule after the final item |
+| **numberWidth** | Width reserved for the number column (px) |
+
+Use inside a mosaic cell (\`colSpan: 8\` or \`colSpan: 12\`) for full-width numbered lists.
+
+---
+
+## Photo Strip Block
+
+Horizontal image strip — ideal for portfolio or before/after showcases.
+
+| Field | Description |
+|-------|-------------|
+| **images** | Array of \`{ src, alt }\` |
+| **height** | Strip height (e.g. \`"380px"\`) |
+| **gap** | Space between images (px) |
+| **columns** | Number of equal columns (default: images.length) |
+| **hoverBrightness** | Brightness on hover (e.g. \`1.1\`) |
+
+---
+
+## Mosaic Grid Layout Mode
+
+Add \`layoutMode: "mosaic"\` to any FLEXIBLE section config to switch from the default column grid to a 12-column CSS mosaic.
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| **layoutMode** | \`"columns"\` | \`"mosaic"\` enables the 12-column grid |
+| **gridAutoRows** | 180px | Height of each implicit grid row |
+| **gap** | 14px | Gap between cells |
+
+Each element inside a mosaic section gets:
+
+| Field | Range | Description |
+|-------|-------|-------------|
+| **colSpan** | 1–12 | How many columns the cell spans |
+| **rowSpan** | 1–6 | How many rows the cell spans |
+| **mosaicPreset** | see below | Named size shortcut |
+
+### Named Mosaic Presets
+
+| Preset | Columns | Rows | Use case |
+|--------|---------|------|----------|
+| \`s-lg\` | 6 | 2 | Large feature card |
+| \`s-md\` | 4 | 2 | Medium card |
+| \`s-sm\` | 4 | 1 | Compact card |
+| \`s-tall\` | 4 | 2 | Tall portrait card |
+| \`s-wide\` | 8 | 1 | Wide banner card |
+| \`s-mid\` | 6 | 1 | Half-width banner |
+
+Mobile: all cells collapse to full-width single column.
+
+---
+
+## Section Header Variants
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| **sectionHeaderVariant** | \`"centered"\` | \`"split"\` — heading left, lead right |
+| **sectionEyebrow** | — | Small uppercase label above heading |
+| **sectionLead** | — | Lead paragraph (shown right in split variant) |
+
+**Split variant** creates a 2-column layout: ~60% heading on the left, ~40% lead text on the right, baseline-aligned. Stacks on mobile.
+
+---
+
+## Section Footer Row
+
+Add a footer row at the bottom of any FLEXIBLE section:
+
+\`\`\`json
+"sectionFooter": {
+  "leftText": "A portfolio shaped by [em]184[/em] projects",
+  "rightButton": { "label": "All Projects →", "href": "/projects" }
+}
+\`\`\`
+
+- \`leftText\` supports \`[em]value[/em]\` syntax for inline emphasis spans
+- \`rightButton\` renders as a ghost link aligned to the right
+
+---
+
+## Animated Counter Stats (Enhanced)
+
+The \`stats\` block type now supports scroll-triggered counting animation:
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| **statsAnimateOnScroll** | false | Counts up from 0 when scrolled into view |
+| **statsCountDuration** | 2000 | Animation duration in ms |
+| **statsStyleVariant** | \`"stacked"\` | \`"counter"\` — large number + label stacked |
+| **prefix** | — | Text before number (e.g. \`"$"\`) |
+| **suffix** | — | Text after number (e.g. \`"+"\`, \`"k"\`) |
+| **displaySuffix** | — | Override suffix shown during animation |
+
+The animation uses cubic ease-out via \`requestAnimationFrame\`.
 `;
 
 const FLEXIBLE_ANIMATIONS = `
@@ -1552,6 +1660,34 @@ The Hero Carousel is the first section on the landing page — a full-screen sli
 | **Show Dots** | ✅ on | Navigation dot indicators |
 | **Show Arrows** | ✅ on | Left/right navigation arrows |
 | **Transition** | fade | Slide transition style |
+| **Show Slide Counter** | ❌ off | "01/03" counter shown on slide |
+| **Show Scroll Indicator** | ❌ off | Animated "SCROLL ↓" prompt at bottom |
+| **Controls Position** | bottom-right | Where arrows/dots sit: bottom-right, bottom-left, bottom-center |
+| **Meta Line** | — | Array of small info strings below the heading (e.g. coordinates, dates, location tags) |
+
+---
+
+## Per-Slide Advanced Fields
+
+| Field | Description |
+|-------|-------------|
+| **Eyebrow** | Small uppercase label above the main heading |
+| **Heading Rows** | Replace single heading with multi-row array — each row can have its own color, size, weight, font, and animation |
+
+### Multi-Row Heading (headingRows)
+
+Instead of a single \`heading\` string, use \`headingRows\` for per-line styling:
+
+\`\`\`json
+"headingRows": [
+  { "text": "Ready.", "color": "#ffffff", "fontSize": "clamp(60px,10vw,110px)", "fontWeight": 700 },
+  { "text": "Concrete.", "color": "#22c55e", "fontSize": "clamp(60px,10vw,110px)", "animation": "slideUp" }
+]
+\`\`\`
+
+Each row supports: \`text\`, \`color\`, \`fontSize\`, \`fontWeight\`, \`fontFamily\`, \`animation\`, \`animationDuration\`, \`animationDelay\`.
+
+> **Backward compatible:** Slides with a plain \`heading\` string continue to work unchanged.
 `;
 
 const PAGES_SYSTEM = `
@@ -2577,6 +2713,27 @@ export const MOTION_ELEMENTS_DOCS = `
     <tr><td><strong>Opacity</strong></td><td>0–100%</td><td>Slider control. 100 = fully opaque, 0 = invisible. Entrance animation respects this target opacity.</td></tr>
   </tbody>
 </table>
+
+<h5 class="mt-4">Filter Presets &amp; Blend Modes</h5>
+<table class="table table-sm">
+  <thead class="table-light"><tr><th>Setting</th><th>Options</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Filter Preset</strong></td><td>none / silhouette / custom</td><td><code>silhouette</code> applies grayscale + high contrast to create a dark shape from any image. <code>custom</code> enables the Custom Filter field.</td></tr>
+    <tr><td><strong>Custom Filter</strong></td><td>CSS filter string</td><td>e.g. <code>blur(2px) brightness(1.5)</code> — only active when Filter Preset = custom.</td></tr>
+    <tr><td><strong>Mix Blend Mode</strong></td><td>normal / screen / multiply / overlay / soft-light / color-dodge</td><td>Composites the element against the section background. <code>screen</code> makes black transparent — perfect for vehicle or figure silhouettes.</td></tr>
+  </tbody>
+</table>
+
+<h5 class="mt-4">Horizontal Parallax</h5>
+<table class="table table-sm">
+  <thead class="table-light"><tr><th>Setting</th><th>Default</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Horizontal Parallax</strong></td><td>off</td><td>Element drifts left/right as the section scrolls, creating a cross-axis depth effect.</td></tr>
+    <tr><td><strong>Horizontal Amount</strong></td><td>60px</td><td>Total horizontal travel distance (split evenly either side of center).</td></tr>
+  </tbody>
+</table>
+
+<p>Combine <code>filterPreset: "silhouette"</code> + <code>mixBlendMode: "screen"</code> + horizontal parallax to create dramatic foreground subjects that appear to move against the background.</p>
 
 <div class="alert alert-success">
   <strong>Best Results:</strong> Use transparent PNGs or SVGs. Use <code>%</code>-based positioning to stay responsive. Combine <strong>entrance + idle</strong> for the richest effect — element slides in then continuously floats.

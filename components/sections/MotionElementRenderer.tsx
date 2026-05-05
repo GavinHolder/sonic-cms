@@ -59,15 +59,18 @@ export default function MotionElementRenderer({ elements, sectionId }: MotionEle
         const imgEl = document.getElementById(`motion-el-${el.id}`) as HTMLElement | null;
         if (!imgEl) return;
 
-        // ── 1. Scroll parallax ───────────────────────────────────────────────
-        if (el.parallax.enabled) {
+        // ── 1. Scroll parallax (vertical + optional horizontal) ─────────────
+        const hasVertParallax = el.parallax.enabled;
+        const hasHorizParallax = el.horizontalParallax;
+        if (hasVertParallax || hasHorizParallax) {
+          const horizAmount = (el.horizontalParallaxAmount ?? 60) / 2;
           const onScroll = () => {
             const rect = section.getBoundingClientRect();
             const viewportH = window.innerHeight;
-            // Progress: 0 when section top is at bottom of viewport, 1 when section bottom is at top
             const progress = 1 - (rect.top + rect.height) / (viewportH + rect.height);
-            const offset = progress * rect.height * el.parallax.speed;
-            imgEl.style.transform = `translateY(${offset}px)`;
+            const ty = hasVertParallax ? progress * rect.height * el.parallax.speed : 0;
+            const tx = hasHorizParallax ? (progress - 0.5) * horizAmount * 2 : 0;
+            imgEl.style.transform = `translateX(${tx}px) translateY(${ty}px)`;
           };
           const scrollEl = document.getElementById("snap-container") || window as unknown as HTMLElement;
           (scrollEl as HTMLElement).addEventListener("scroll", onScroll, { passive: true });
@@ -168,6 +171,13 @@ export default function MotionElementRenderer({ elements, sectionId }: MotionEle
         };
         const zIndex = el.layer ? (layerZIndex[el.layer] ?? 5) : (el.zIndex ?? 5);
         const opacity = el.entrance.enabled ? 0 : (el.opacity ?? 100) / 100;
+
+        const filterCss = el.filterPreset === "silhouette"
+          ? "grayscale(1) brightness(2) contrast(2.5)"
+          : el.filterPreset === "custom"
+          ? (el.customFilter || "none")
+          : "none";
+
         const commonStyle: React.CSSProperties = {
           position: "absolute",
           top: el.top,
@@ -177,6 +187,8 @@ export default function MotionElementRenderer({ elements, sectionId }: MotionEle
           width: el.width,
           zIndex,
           opacity,
+          ...(filterCss !== "none" ? { filter: filterCss } : {}),
+          ...(el.mixBlendMode ? { mixBlendMode: el.mixBlendMode } : {}),
         };
 
         if (elType === "video") {

@@ -52,6 +52,7 @@ model Page {
   ogTitle         String?
   enabled         Boolean          @default(true)
   formConfig      Json?
+  customHtml      String?
   navLabel        String?
   navOrder        Int?
   showOnNavbar    Boolean          @default(false)
@@ -427,6 +428,7 @@ model SiteConfig {
   updatedAt      DateTime @updatedAt
   navbarStyle    String   @default("standard")
   tiktok         String   @default("")
+  defaultTheme   String   @default("dark")
 
   @@map("site_config")
 }
@@ -445,6 +447,7 @@ enum PageType {
   FORM
   PDF
   DESIGNER
+  STANDALONE
 }
 
 enum PageStatus {

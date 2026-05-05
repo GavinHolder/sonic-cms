@@ -167,6 +167,17 @@ export interface MotionElement {
   entrance: MotionElementEntrance;
   exit: MotionElementExit;
   idle: MotionElementIdle;
+  // ── Silhouette / blend mode enhancements ─────────────────────────────────
+  /** "silhouette" applies grayscale+brightness+contrast filter + overlay blend mode */
+  filterPreset?: "none" | "silhouette" | "custom";
+  /** Custom CSS filter string (used when filterPreset === "custom") */
+  customFilter?: string;
+  /** CSS mix-blend-mode (default: "normal") */
+  mixBlendMode?: React.CSSProperties["mixBlendMode"];
+  /** Horizontal parallax — moves element on x-axis as section scrolls (-amount to +amount px) */
+  horizontalParallax?: boolean;
+  /** px range for horizontal parallax movement (default: 60) */
+  horizontalParallaxAmount?: number;
 }
 
 /**
@@ -278,9 +289,32 @@ export interface GradientOverlay {
 }
 
 /**
+ * Single row in a multi-row hero heading (OVB-style stacked display type).
+ * Each row can have independent color, size, weight, and animation.
+ */
+export interface HeadingRow {
+  text: string;
+  fontSize: number;        // px — rendered with clamp(28px, 7vw, Xpx)
+  fontWeight: number;      // 100–900
+  fontFamily: string;
+  color: string;
+  animation: AnimationType;
+  animationDuration: number; // ms
+  animationDelay: number;    // ms
+}
+
+/**
  * Text overlay element (per slide)
+ *
+ * Supports two heading modes — backward compatible:
+ *   legacy: `heading` (single object, original format)
+ *   new:    `headingRows` (array, OVB-style multi-row stacked display type)
+ *
+ * When `headingRows` is present and non-empty, it takes precedence over `heading`.
+ * Renderers that see only `heading` but not `headingRows` treat it as a one-row array.
  */
 export interface TextOverlayElement {
+  /** Legacy single heading — kept for backward compat. Use headingRows for multi-row. */
   heading: {
     text: string;
     fontSize: number; // px
@@ -291,6 +325,12 @@ export interface TextOverlayElement {
     animationDuration: number; // ms
     animationDelay: number; // ms
   };
+  /** Multi-row stacked display heading (OVB-style). Overrides `heading` when present. */
+  headingRows?: HeadingRow[];
+  /** Small uppercase label shown above the heading rows (e.g. "TWENTY-FIVE YEARS ON") */
+  eyebrow?: string;
+  /** Eyebrow text color (default: accent / brand green) */
+  eyebrowColor?: string;
   subheading?: {
     text: string;
     fontSize: number;
@@ -340,6 +380,8 @@ export interface HeroCarouselSlide {
   // Mobile-specific overrides
   mobileSrc?: string; // Portrait-oriented mobile image (falls back to src if not set)
   mobileBgColor?: string; // Solid background color for mobile (overrides image)
+  /** Small uppercase eyebrow label above the heading (e.g. "Overberg · Western Cape") */
+  eyebrow?: string;
 }
 
 /**
@@ -355,6 +397,14 @@ export interface HeroSection extends BaseSectionConfig {
     showDots: boolean;
     showArrows: boolean;
     transitionDuration: number; // ms (default 800)
+    /** Show "01 / 03" slide counter at bottom-left (OVB-style) */
+    showSlideCounter?: boolean;
+    /** Show animated scroll indicator at bottom-right ("SCROLL" text + green line) */
+    showScrollIndicator?: boolean;
+    /** Meta text lines shown near the slide counter (e.g. ["34°25′S · 19°48′E", "SINCE 2001"]) */
+    metaLine?: string[];
+    /** Position for nav controls (dots + counter) — default: bottom-left */
+    controlsPosition?: "bottom-left" | "bottom-right";
   };
 }
 
@@ -507,6 +557,22 @@ export interface NormalSection extends BaseSectionConfig {
   };
 }
 
+/** Named mosaic size presets — map to colSpan/rowSpan pairs */
+export type MosaicSizePreset = "s-lg" | "s-md" | "s-sm" | "s-tall" | "s-wide" | "s-mid";
+
+/** Row in a numbered steps block */
+export interface StepItem {
+  number: string;   // e.g. "01", "1", "A"
+  heading: string;
+  subtext?: string;
+}
+
+/** Single image in a photo-strip block */
+export interface PhotoStripImage {
+  src: string;
+  alt?: string;
+}
+
 /**
  * Flexible Section - New section type with advanced layout control
  * Supports Bootstrap grid, absolute positioning, element library, and creative layouts
@@ -530,12 +596,35 @@ export interface FlexibleSection extends BaseSectionConfig {
       preset?: "2-col-split" | "3-col-grid" | "asymmetric-2col-60-40" | "asymmetric-2col-40-60"
         | "asymmetric-3col-50-25-25" | "asymmetric-3col-25-50-25" | "4-col-grid"
         | "hero-2col" | "sidebar-70-30" | "sidebar-30-70" | "masonry";
+      /** Mosaic layout: 12-column CSS grid with per-element colSpan/rowSpan */
+      layoutMode?: "columns" | "mosaic";
+      /** Mosaic: auto row height in px (default: 180) */
+      gridAutoRows?: number;
     };
     // Elements in the section
     elements: FlexibleElement[];
     // Header/footer graphics (blend into theme)
     headerGraphic?: GraphicConfig;
     footerGraphic?: GraphicConfig;
+
+    // ── Section header variants ───────────────────────────────────────────
+    /** Section-level heading (above elements) */
+    sectionHeading?: string;
+    /** Section-level subheading */
+    sectionSubheading?: string;
+    /** Small uppercase eyebrow label above the section heading */
+    sectionEyebrow?: string;
+    /** Lead paragraph — shown right column in split variant */
+    sectionLead?: string;
+    /** "centered" = standard centred heading; "split" = heading left ~60% / lead right ~40% */
+    sectionHeaderVariant?: "centered" | "split";
+
+    // ── Section footer row ────────────────────────────────────────────────
+    /** Row rendered below section content: left text + optional right ghost button */
+    sectionFooter?: {
+      leftText?: string;   // Supports <em> tag for green highlights
+      rightButton?: { label: string; href: string };
+    };
   };
 }
 
@@ -544,7 +633,7 @@ export interface FlexibleSection extends BaseSectionConfig {
  */
 export interface FlexibleElement {
   id: string;
-  type: "hero" | "text" | "image" | "video" | "banner" | "button" | "card" | "stats" | "divider" | "html" | "isp-price-card";
+  type: "hero" | "text" | "image" | "video" | "banner" | "button" | "card" | "stats" | "divider" | "html" | "isp-price-card" | "steps" | "photo-strip";
   // Position (grid-based OR absolute)
   position: {
     mode: "grid" | "absolute";
@@ -553,6 +642,10 @@ export interface FlexibleElement {
     gridCol?: number; // 1-based column index
     gridColSpan?: number; // How many columns to span (1-12)
     gridRowSpan?: number; // How many rows to span
+    // Mosaic grid position (12-col CSS grid)
+    colSpan?: number;       // 1–12 (mosaic mode)
+    rowSpan?: number;       // 1–6 (mosaic mode)
+    mosaicPreset?: MosaicSizePreset; // Named preset — sets colSpan/rowSpan automatically
     // Absolute position (px or %)
     x?: string; // "100px" or "50%"
     y?: string;
@@ -662,6 +755,25 @@ export interface FlexibleElement {
     statsTrend?: "up" | "down" | "neutral";
     statsTrendValue?: string;
     statsGlass?: boolean;
+    // Extended stats (animated counter + style variants)
+    statsAnimateOnScroll?: boolean;   // Count up from 0 on IntersectionObserver
+    statsCountDuration?: number;      // ms (default: 1600)
+    statsPrefix?: string;             // e.g. "R"
+    statsSuffix?: string;             // e.g. "+", "m³", "%"
+    statsDisplaySuffix?: string;      // Separate label under the number
+    statsStyleVariant?: "stacked" | "counter" | "row-dividers";
+    // ── Steps block ──
+    steps?: StepItem[];
+    stepsNumberStyle?: "large-accent"; // 64px green tabular-nums (default)
+    stepsDividers?: boolean;           // border-top on each step
+    stepsLastDivider?: boolean;        // border-bottom on last step
+    stepsNumberWidth?: number;         // px (default: 120)
+    // ── Photo strip block ──
+    photoStripImages?: PhotoStripImage[];
+    photoStripHeight?: number;         // px (default: 180)
+    photoStripGap?: number;            // px (default: 4)
+    photoStripHoverBrightness?: boolean;
+    photoStripColumns?: number;        // default: auto (fills evenly)
     // ── Divider ──
     dividerType?: "line" | "dots" | "gradient" | "wave";
     dividerHeight?: number;

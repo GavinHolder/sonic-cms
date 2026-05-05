@@ -8,6 +8,7 @@ import PDFPageEditor from "@/components/admin/PDFPageEditor";
 import FormPageEditor from "@/components/admin/FormPageEditor";
 import DesignerPageEditorModal from "@/components/admin/DesignerPageEditorModal";
 import SeoPageEditorModal from "@/components/admin/SeoPageEditorModal";
+import StandalonePageEditorModal from "@/components/admin/StandalonePageEditorModal";
 import {
   getPages,
   deletePage,
@@ -16,10 +17,10 @@ import {
   updatePage,
   getDesignerData,
 } from "@/lib/page-manager";
-import type { PageConfig, PageType, PDFPageConfig, FormPageConfig, DesignerPageConfig } from "@/types/page";
+import type { PageConfig, PageType, PDFPageConfig, FormPageConfig, DesignerPageConfig, StandalonePageConfig } from "@/types/page";
 import Link from "next/link";
 
-type FilterType = "all" | "pdf" | "form" | "designer" | "feature" | "submissions";
+type FilterType = "all" | "pdf" | "form" | "designer" | "standalone" | "feature" | "submissions";
 
 interface FormSubmission {
   id: string;
@@ -59,6 +60,7 @@ const PAGE_TYPE_LABELS: Record<PageType, string> = {
   pdf: "PDF Document",
   form: "Contact Form",
   designer: "Designer Page",
+  standalone: "Standalone HTML",
 };
 
 const PAGE_TYPE_ICONS: Record<PageType, string> = {
@@ -66,6 +68,7 @@ const PAGE_TYPE_ICONS: Record<PageType, string> = {
   pdf: "bi-file-earmark-pdf",
   form: "bi-ui-checks",
   designer: "bi-grid-1x2",
+  standalone: "bi-code-slash",
 };
 
 const PAGE_TYPE_COLORS: Record<PageType, string> = {
@@ -73,6 +76,7 @@ const PAGE_TYPE_COLORS: Record<PageType, string> = {
   pdf: "danger",
   form: "success",
   designer: "info",
+  standalone: "warning",
 };
 
 export default function PagesManager() {
@@ -88,6 +92,7 @@ export default function PagesManager() {
   const [editingFormPage, setEditingFormPage] = useState<FormPageConfig | null>(null);
   const [editingDesignerPage, setEditingDesignerPage] = useState<DesignerPageConfig | null>(null);
   const [designerPageData, setDesignerPageData] = useState<string | null>(null);
+  const [editingStandalonePage, setEditingStandalonePage] = useState<StandalonePageConfig | null>(null);
   const [seoEditingPage, setSeoEditingPage] = useState<PageConfig | null>(null);
   const [submissions, setSubmissions] = useState<FormSubmission[]>([]);
   const [submissionsTotal, setSubmissionsTotal] = useState(0);
@@ -117,6 +122,8 @@ export default function PagesManager() {
         else if (target.type === "designer") {
           setDesignerPageData(getDesignerData(target.slug));
           setEditingDesignerPage(target as DesignerPageConfig);
+        } else if (target.type === "standalone") {
+          setEditingStandalonePage(target as StandalonePageConfig);
         }
       }
     }
@@ -177,7 +184,7 @@ export default function PagesManager() {
 
   const filteredPages = pages.filter((page) => {
     if (filter === "all") return true;
-    if (filter === "feature") return false;
+    if (filter === "feature" || filter === "submissions") return false;
     return page.type === filter;
   });
   const showFeatures = filter === "all" || filter === "feature";
@@ -279,6 +286,20 @@ export default function PagesManager() {
     }
   };
 
+  const handleEditStandalone = (page: PageConfig) => {
+    if (page.type === "standalone") {
+      setEditingStandalonePage(page as StandalonePageConfig);
+      setEditParam(page.slug);
+    }
+  };
+
+  const handleSaveStandalone = async () => {
+    await reloadPages();
+    setEditingStandalonePage(null);
+    setEditParam(null);
+    setSuccessMessage("Standalone page saved successfully");
+  };
+
   const getEditHref = (page: PageConfig) => {
     if (page.type === "full") {
       return `/admin/page-editor/${page.slug}`;
@@ -293,6 +314,7 @@ export default function PagesManager() {
       pdf: pages.filter((p) => p.type === "pdf").length,
       form: pages.filter((p) => p.type === "form").length,
       designer: pages.filter((p) => p.type === "designer").length,
+      standalone: pages.filter((p) => p.type === "standalone").length,
       features: features.length,
     };
   };
@@ -361,6 +383,14 @@ export default function PagesManager() {
           </div>
         </div>
         <div className="col-12 col-sm-6 col-lg-2">
+          <div className="card border-0 shadow-sm" style={{ borderLeft: "3px solid #ca8a04" }}>
+            <div className="card-body p-3">
+              <div className="text-body-secondary small mb-1">Standalone Pages</div>
+              <div className="h4 mb-0 fw-semibold text-warning">{stats.standalone}</div>
+            </div>
+          </div>
+        </div>
+        <div className="col-12 col-sm-6 col-lg-2">
           <div className="card border-0 shadow-sm" style={{ borderLeft: "3px solid #7c3aed" }}>
             <div className="card-body p-3">
               <div className="text-body-secondary small mb-1">Feature Pages</div>
@@ -405,6 +435,16 @@ export default function PagesManager() {
           >
             <i className="bi bi-grid-1x2 me-1"></i>
             Designer ({stats.designer})
+          </button>
+        </li>
+        <li className="nav-item">
+          <button
+            className={`nav-link ${filter === "standalone" ? "active" : ""}`}
+            onClick={() => setFilter("standalone")}
+            style={filter === "standalone" ? {} : { color: "#ca8a04" }}
+          >
+            <i className="bi bi-code-slash me-1"></i>
+            Standalone ({stats.standalone})
           </button>
         </li>
         <li className="nav-item">
@@ -619,9 +659,11 @@ export default function PagesManager() {
                       <div>
                         <div className="fw-semibold mb-1">{page.title}</div>
                         <div className="d-flex align-items-center gap-2">
-                          <code className="text-primary small">/{page.slug}</code>
+                          <code className="text-primary small">
+                            {page.type === "standalone" ? `/standalone/${page.slug}` : `/${page.slug}`}
+                          </code>
                           <a
-                            href={`/${page.slug}`}
+                            href={page.type === "standalone" ? `/standalone/${page.slug}` : `/${page.slug}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="btn btn-link btn-sm p-0"
@@ -696,6 +738,14 @@ export default function PagesManager() {
                             title="Open designer editor"
                           >
                             <i className="bi bi-grid-1x2"></i>
+                          </button>
+                        ) : page.type === "standalone" ? (
+                          <button
+                            onClick={() => handleEditStandalone(page)}
+                            className="btn btn-sm btn-warning"
+                            title="Edit HTML"
+                          >
+                            <i className="bi bi-code-slash"></i>
                           </button>
                         ) : (
                           <button
@@ -802,6 +852,15 @@ export default function PagesManager() {
         />
       )}
 
+      {/* Standalone HTML Editor */}
+      {editingStandalonePage && (
+        <StandalonePageEditorModal
+          page={editingStandalonePage}
+          onSave={handleSaveStandalone}
+          onCancel={() => { setEditingStandalonePage(null); setEditParam(null); }}
+        />
+      )}
+
       {/* SEO Page Editor */}
       {seoEditingPage && (
         <SeoPageEditorModal
@@ -905,7 +964,7 @@ function CreatePageModal({
             <div className="mb-3">
               <label className="form-label">Page Type</label>
               <div className="d-grid gap-2">
-                {(["designer", "pdf", "form"] as PageType[]).map((pageType) => (
+                {(["designer", "standalone", "pdf", "form"] as PageType[]).map((pageType) => (
                   <button
                     key={pageType}
                     onClick={() => setType(pageType)}
@@ -916,6 +975,8 @@ function CreatePageModal({
                     <div className="small mt-1">
                       {pageType === "designer" &&
                         "Visual drag-and-drop page builder — unlimited height, no snap constraints"}
+                      {pageType === "standalone" &&
+                        "Paste raw HTML/CSS from design tools — no CMS constraints, full design freedom"}
                       {pageType === "pdf" &&
                         "Display a PDF document with embed/download options"}
                       {pageType === "form" &&

@@ -10,6 +10,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import type * as THREE from "three";
 
 interface Props {
   title?: string;

@@ -22,6 +22,7 @@ const CLIENT_TO_PRISMA: Record<string, PageType> = {
   full: PageType.FULL_PAGE,
   landing: PageType.LANDING,
   tab: PageType.TAB_PAGE,
+  standalone: PageType.STANDALONE,
 };
 
 const PRISMA_TO_CLIENT: Partial<Record<PageType, string>> = {
@@ -31,6 +32,7 @@ const PRISMA_TO_CLIENT: Partial<Record<PageType, string>> = {
   [PageType.FULL_PAGE]: "full",
   [PageType.LANDING]: "landing",
   [PageType.TAB_PAGE]: "tab",
+  [PageType.STANDALONE]: "standalone",
 };
 
 // ============================================
@@ -72,6 +74,7 @@ export async function GET(
         enabled: page.enabled,
         status: page.status,
         formConfig: page.formConfig ?? null,
+        customHtml: page.customHtml ?? null,
         metaDescription: page.metaDescription,
         metaTitle: page.metaTitle,
         metaKeywords: page.metaKeywords,
@@ -117,6 +120,7 @@ const updatePageSchema = z.object({
   type: z.string().optional(),
   enabled: z.boolean().optional(),
   formConfig: z.any().optional(),
+  customHtml: z.string().nullable().optional(),
   metaDescription: z.string().nullable().optional(),
   metaTitle: z.string().nullable().optional(),
   metaKeywords: z.string().nullable().optional(),
@@ -168,6 +172,7 @@ export async function PUT(
         ...(data.type !== undefined && { type: CLIENT_TO_PRISMA[data.type] ?? existingPage.type }),
         ...(data.enabled !== undefined && { enabled: data.enabled }),
         ...(data.formConfig !== undefined && { formConfig: data.formConfig }),
+        ...(data.customHtml !== undefined && { customHtml: data.customHtml }),
         ...(data.metaDescription !== undefined && { metaDescription: data.metaDescription }),
         ...(data.metaTitle !== undefined && { metaTitle: data.metaTitle }),
         ...(data.metaKeywords !== undefined && { metaKeywords: data.metaKeywords }),
@@ -194,6 +199,7 @@ export async function PUT(
         enabled: updatedPage.enabled,
         status: updatedPage.status,
         formConfig: updatedPage.formConfig ?? null,
+        customHtml: updatedPage.customHtml ?? null,
         metaDescription: updatedPage.metaDescription,
         metaTitle: updatedPage.metaTitle,
         metaKeywords: updatedPage.metaKeywords,

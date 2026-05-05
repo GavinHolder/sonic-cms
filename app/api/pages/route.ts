@@ -22,6 +22,7 @@ const CLIENT_TO_PRISMA: Record<string, PageType> = {
   full: PageType.FULL_PAGE,
   landing: PageType.LANDING,
   tab: PageType.TAB_PAGE,
+  standalone: PageType.STANDALONE,
 };
 
 // Map Prisma PageType to client type strings
@@ -32,6 +33,7 @@ const PRISMA_TO_CLIENT: Partial<Record<PageType, string>> = {
   [PageType.FULL_PAGE]: "full",
   [PageType.LANDING]: "landing",
   [PageType.TAB_PAGE]: "tab",
+  [PageType.STANDALONE]: "standalone",
 };
 
 function formatPage(page: any) {
@@ -43,6 +45,7 @@ function formatPage(page: any) {
     enabled: page.enabled,
     status: page.status,
     formConfig: page.formConfig ?? null,
+    customHtml: page.customHtml ?? null,
     metaDescription: page.metaDescription,
     ogImage: page.ogImage,
     publishedAt: page.publishedAt,

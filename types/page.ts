@@ -6,7 +6,7 @@
  * and excluded from navbar/landing page.
  */
 
-export type PageType = 'full' | 'pdf' | 'form' | 'designer';
+export type PageType = 'full' | 'pdf' | 'form' | 'designer' | 'standalone';
 
 /**
  * Base page configuration
@@ -61,6 +61,15 @@ export interface FormPageConfig extends PageConfig {
  */
 export interface DesignerPageConfig extends PageConfig {
   type: 'designer';
+}
+
+/**
+ * Standalone HTML page — renders raw customHtml at /standalone/[slug]
+ * No CMS nav or section constraints. Used for pasting design-tool output.
+ */
+export interface StandalonePageConfig extends PageConfig {
+  type: 'standalone';
+  customHtml: string;
 }
 
 /**

@@ -5,7 +5,7 @@
  * Designer page content still stored in localStorage (canvas data).
  */
 
-import type { PageConfig, PageType, FullPageConfig, PDFPageConfig, FormPageConfig, DesignerPageConfig } from "@/types/page";
+import type { PageConfig, PageType, FullPageConfig, PDFPageConfig, FormPageConfig, DesignerPageConfig, StandalonePageConfig } from "@/types/page";
 
 /**
  * Reserved slugs that cannot be used for pages
@@ -72,6 +72,10 @@ function mapApiPage(p: any): PageConfig {
       pdfUrl: (p.formConfig as any).pdfUrl ?? "",
       displayMode: (p.formConfig as any).displayMode ?? "embed",
     } : {}),
+    // Standalone-specific
+    ...(p.type === "standalone" ? {
+      customHtml: p.customHtml ?? "",
+    } : {}),
   } as PageConfig;
 }
 
@@ -108,7 +112,7 @@ export async function getPages(): Promise<PageConfig[]> {
     const json = await res.json();
     const pages: any[] = json?.data?.pages ?? [];
     return pages
-      .filter(p => ["form", "pdf", "designer", "full"].includes(p.type))
+      .filter(p => ["form", "pdf", "designer", "full", "standalone"].includes(p.type))
       .map(mapApiPage);
   } catch {
     return [];

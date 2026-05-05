@@ -134,6 +134,87 @@ const FLEXIBLE_CSS = `
   .db-shadow-xl   { box-shadow: 0 16px 60px rgba(0,0,0,0.28); }
   .db-shadow-glow { box-shadow: 0 0 32px var(--db-glow-color, rgba(9,105,218,0.45)); }
 
+  /* ── Mosaic grid layout ─────────────────────────────────────────────── */
+  .flex-mosaic-grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    width: 100%;
+  }
+  @media (max-width: 767px) {
+    .flex-mosaic-grid > * { grid-column: 1 / -1 !important; grid-row: auto !important; }
+  }
+
+  /* ── Section header variants ────────────────────────────────────────── */
+  .flex-section-header-split {
+    display: flex;
+    align-items: flex-end;
+    gap: 40px;
+  }
+  .flex-section-header-split .fsh-heading { flex: 0 0 60%; }
+  .flex-section-header-split .fsh-lead    { flex: 1 1 40%; padding-bottom: 4px; }
+  @media (max-width: 767px) {
+    .flex-section-header-split { flex-direction: column; gap: 16px; }
+    .flex-section-header-split .fsh-heading,
+    .flex-section-header-split .fsh-lead { flex: 1 1 auto; width: 100%; }
+  }
+
+  /* ── Section footer row ─────────────────────────────────────────────── */
+  .flex-section-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding-top: 20px;
+    border-top: 1px solid var(--cms-line, rgba(255,255,255,0.1));
+    margin-top: 20px;
+    font-size: 13px;
+    opacity: 0.65;
+  }
+  .flex-section-footer em { font-style: normal; color: var(--bs-success, #22c55e); }
+  .flex-section-footer-btn {
+    white-space: nowrap;
+    background: none;
+    border: 1px solid currentColor;
+    border-radius: 4px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-decoration: none;
+    color: inherit;
+    transition: opacity 0.2s;
+  }
+  .flex-section-footer-btn:hover { opacity: 0.7; }
+
+  /* ── Numbered steps block ───────────────────────────────────────────── */
+  .flex-steps-block { display: flex; flex-direction: column; }
+  .flex-step-row {
+    display: grid;
+    align-items: start;
+    padding: 20px 0;
+  }
+  .flex-step-number {
+    font-size: clamp(48px, 6vw, 64px);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    color: var(--bs-success, #22c55e);
+  }
+
+  /* ── Photo strip block ──────────────────────────────────────────────── */
+  .flex-photo-strip {
+    display: grid;
+    width: 100%;
+    overflow: hidden;
+  }
+  .flex-photo-strip-cell {
+    background-size: cover;
+    background-position: center;
+    transition: filter 0.3s ease;
+  }
+  .flex-photo-strip-cell.hover-brightness:hover { filter: brightness(1); }
+
   /* ── Photo-card block — full-bleed image card with slide-up hover panel ─ */
   .photo-card-block { cursor: pointer; }
   .photo-card-bg {
@@ -162,6 +243,16 @@ const FLEXIBLE_CSS = `
   .photo-card-block:hover .photo-card-hover { transform: translateY(0); }
 `;
 
+/** Mosaic size preset → [colSpan, rowSpan] */
+const MOSAIC_PRESETS: Record<string, [number, number]> = {
+  "s-lg":   [6, 2],
+  "s-md":   [4, 2],
+  "s-sm":   [4, 1],
+  "s-tall": [4, 2],
+  "s-wide": [8, 1],
+  "s-mid":  [6, 1],
+};
+
 /** Module-level flag so FLEXIBLE_CSS is only injected into <head> once per page load. */
 let styleInjected = false;
 
@@ -184,7 +275,21 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
     elements = [],
     headerGraphic,
     footerGraphic,
-  } = content;
+    sectionHeading,
+    sectionSubheading,
+    sectionEyebrow,
+    sectionLead,
+    sectionHeaderVariant = "centered",
+    sectionFooter,
+  } = content as typeof content & {
+    sectionHeading?: string;
+    sectionSubheading?: string;
+    sectionEyebrow?: string;
+    sectionLead?: string;
+    sectionHeaderVariant?: "centered" | "split";
+    sectionFooter?: { leftText?: string; rightButton?: { label: string; href: string } };
+  };
+  const mosaicMode = (layout as any).layoutMode === "mosaic";
   // Designer data (mockup format) — used when elements array is empty
   const designerData = (content as any).designerData as string | Record<string, unknown> | null | undefined;
 
@@ -282,6 +387,20 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           ...(scrollStageActive ? { paddingTop: 0, paddingBottom: 0, overflow: "visible", height: "auto" } : {}),
         }}
       >
+        {/* Section header — above content when sectionHeading is configured */}
+        {sectionHeading && !scrollStageActive && (
+          <div className="container-fluid">
+            <SectionHeader
+              heading={sectionHeading}
+              subheading={sectionSubheading}
+              eyebrow={sectionEyebrow}
+              lead={sectionLead}
+              variant={sectionHeaderVariant}
+              darkBg={darkBg}
+            />
+          </div>
+        )}
+
         {scrollStageActive ? (
           <ScrollStageWrapper
             config={scrollStage!}
@@ -307,11 +426,32 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
             {designerData
               ? <DesignerBlocksRenderer designerData={designerData} darkBg={darkBg} />
               : <>
-                  {layout.type === "grid"     && <GridLayout    layout={layout} elements={elements} darkBg={darkBg} />}
-                  {layout.type === "absolute" && <AbsoluteLayout elements={elements} darkBg={darkBg} />}
-                  {layout.type === "preset"   && <PresetLayout  preset={layout.preset!} elements={elements} darkBg={darkBg} />}
+                  {mosaicMode
+                    ? <MosaicLayout elements={elements} layout={layout as any} darkBg={darkBg} />
+                    : <>
+                        {layout.type === "grid"     && <GridLayout    layout={layout} elements={elements} darkBg={darkBg} />}
+                        {layout.type === "absolute" && <AbsoluteLayout elements={elements} darkBg={darkBg} />}
+                        {layout.type === "preset"   && <PresetLayout  preset={layout.preset!} elements={elements} darkBg={darkBg} />}
+                      </>
+                  }
                 </>
             }
+          </div>
+        )}
+
+        {/* Section footer row */}
+        {sectionFooter && !scrollStageActive && (
+          <div className="container-fluid">
+            <div className="flex-section-footer">
+              {sectionFooter.leftText && (
+                <SectionFooterText text={sectionFooter.leftText} />
+              )}
+              {sectionFooter.rightButton && (
+                <a href={sectionFooter.rightButton.href} className="flex-section-footer-btn">
+                  {sectionFooter.rightButton.label} →
+                </a>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -322,6 +462,277 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
         </div>
       )}
     </section>
+  );
+}
+
+// ─── Section header / footer components ─────────────────────────────────────
+
+function SectionHeader({ heading, subheading, eyebrow, lead, variant, darkBg }: {
+  heading: string; subheading?: string; eyebrow?: string; lead?: string;
+  variant?: "centered" | "split"; darkBg: boolean;
+}) {
+  const tc = darkBg ? "#fff" : "#212529";
+  const isSplit = variant === "split";
+
+  return (
+    <div className={`flex-section-header${isSplit ? " flex-section-header-split" : " text-center"}`} style={{ marginBottom: "32px" }}>
+      <div className={isSplit ? "fsh-heading" : undefined}>
+        {eyebrow && (
+          <p style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--bs-success, #22c55e)", marginBottom: "12px" }}>
+            {eyebrow}
+          </p>
+        )}
+        <h2 style={{ fontSize: "clamp(28px, 4vw, 52px)", fontWeight: 700, lineHeight: 1.1, color: tc, margin: 0 }}>
+          {heading}
+        </h2>
+        {!isSplit && subheading && (
+          <p style={{ fontSize: "clamp(15px, 2vw, 18px)", color: tc, opacity: 0.7, marginTop: "12px", marginBottom: 0 }}>
+            {subheading}
+          </p>
+        )}
+      </div>
+      {isSplit && (lead || subheading) && (
+        <div className="fsh-lead">
+          <p style={{ fontSize: "clamp(15px, 1.8vw, 17px)", color: tc, opacity: 0.72, lineHeight: 1.6, margin: 0 }}>
+            {lead || subheading}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Renders section footer left-text, converting [em]...[/em] to green-coloured spans */
+function SectionFooterText({ text }: { text: string }) {
+  const parts = text.split(/(\[em\].*?\[\/em\])/g);
+  return (
+    <span>
+      {parts.map((part, i) => {
+        const match = part.match(/^\[em\](.*)\[\/em\]$/);
+        if (match) return <em key={i}>{match[1]}</em>;
+        return <span key={i}>{part}</span>;
+      })}
+    </span>
+  );
+}
+
+// ─── Mosaic grid layout ──────────────────────────────────────────────────────
+
+function MosaicLayout({ elements, layout, darkBg }: {
+  elements: FlexibleElement[];
+  layout: { gridAutoRows?: number; gridGap?: number; };
+  darkBg: boolean;
+}) {
+  const rowH = layout.gridAutoRows ?? 180;
+  const gap  = layout.gridGap ?? 14;
+
+  return (
+    <div
+      className="flex-mosaic-grid"
+      style={{ gridAutoRows: `${rowH}px`, gap: `${gap}px` }}
+    >
+      {elements.map(el => {
+        const preset = el.position.mosaicPreset ? MOSAIC_PRESETS[el.position.mosaicPreset] : null;
+        const colSpan = el.position.colSpan ?? (preset ? preset[0] : 12);
+        const rowSpan = el.position.rowSpan ?? (preset ? preset[1] : 1);
+        const elStyle = (el as any).style || {};
+        return (
+          <div
+            key={el.id}
+            style={{
+              gridColumn: `span ${colSpan}`,
+              gridRow: `span ${rowSpan}`,
+              overflow: "hidden",
+              borderRadius: elStyle.borderRadius ?? 4,
+              position: "relative",
+              ...(elStyle.backgroundColor ? { backgroundColor: elStyle.backgroundColor } : {}),
+              ...(elStyle.backgroundImage ? {
+                backgroundImage: `url(${elStyle.backgroundImage})`,
+                backgroundSize: elStyle.backgroundSize || "cover",
+                backgroundPosition: elStyle.backgroundPosition || "center",
+              } : {}),
+            }}
+          >
+            <FlexibleElementRenderer element={el} darkBg={darkBg} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Thin wrapper used by MosaicLayout to render individual FlexibleElement blocks */
+function FlexibleElementRenderer({ element, darkBg }: { element: FlexibleElement; darkBg: boolean }) {
+  const tc = darkBg ? "#fff" : "#212529";
+  const c = element.content;
+
+  switch (element.type) {
+    case "steps": return <StepsBlock c={c} tc={tc} />;
+    case "photo-strip": return <PhotoStripBlock c={c} />;
+    case "stats": return (
+      <div style={{ padding: "24px", height: "100%", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+        <StatsBlockEnhanced c={c} tc={tc} />
+      </div>
+    );
+    case "image": return c.imageSrc ? (
+      <div style={{ width: "100%", height: "100%", backgroundImage: `url(${c.imageSrc})`, backgroundSize: c.imageFit || "cover", backgroundPosition: "center" }} />
+    ) : null;
+    default: {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cx = c as any;
+      const hasImg = !!(element as any).style?.backgroundImage;
+      return (
+        <div style={{
+          height: "100%", display: "flex", flexDirection: "column", justifyContent: "flex-end",
+          ...(hasImg ? { background: "linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.1) 55%, transparent 100%)" } : { padding: "20px", color: tc }),
+        }}>
+          <div style={{ padding: hasImg ? "16px 20px" : 0 }}>
+            {cx.eyebrow    && <p style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--bs-success, #22c55e)", margin: "0 0 4px" }}>{cx.eyebrow}</p>}
+            {cx.heading    && <h3 style={{ margin: "0 0 4px", fontSize: "clamp(14px, 1.8vw, 18px)", fontWeight: 700, color: hasImg ? "#fff" : tc }}>{cx.heading}</h3>}
+            {cx.subheading && <p style={{ margin: "0 0 2px", opacity: 0.8, fontSize: "13px", color: hasImg ? "rgba(255,255,255,0.85)" : tc }}>{cx.subheading}</p>}
+            {cx.text       && <p style={{ margin: 0, opacity: hasImg ? 0.6 : 0.75, fontSize: "12px", color: hasImg ? "#fff" : tc }}>{cx.text}</p>}
+          </div>
+        </div>
+      );
+    }
+  }
+}
+
+// ─── New block type components ────────────────────────────────────────────────
+
+/** Numbered steps block — 64px green counter + heading + subtext per step */
+function StepsBlock({ c, tc }: { c: FlexibleElement["content"]; tc: string }) {
+  const steps = c.steps || [];
+  const numW  = c.stepsNumberWidth ?? 120;
+  const hasDividers = c.stepsDividers !== false;
+  const hasLastDiv  = c.stepsLastDivider !== false;
+
+  return (
+    <div className="flex-steps-block" style={{ color: tc }}>
+      {steps.map((step, i) => (
+        <div
+          key={i}
+          className="flex-step-row"
+          style={{
+            gridTemplateColumns: `${numW}px 1fr`,
+            borderTop: hasDividers ? `1px solid ${tc}22` : "none",
+            borderBottom: hasLastDiv && i === steps.length - 1 ? `1px solid ${tc}22` : "none",
+          }}
+        >
+          <div className="flex-step-number">{step.number}</div>
+          <div style={{ paddingTop: "8px" }}>
+            <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: "clamp(15px, 2vw, 18px)" }}>{step.heading}</p>
+            {step.subtext && <p style={{ margin: 0, opacity: 0.65, fontSize: "14px", lineHeight: 1.5 }}>{step.subtext}</p>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Photo strip — equal-width columns of background images */
+function PhotoStripBlock({ c }: { c: FlexibleElement["content"] }) {
+  const images = c.photoStripImages || [];
+  const cols   = c.photoStripColumns ?? (images.length || 4);
+  const height = c.photoStripHeight ?? 180;
+  const gap    = c.photoStripGap ?? 4;
+  const hover  = c.photoStripHoverBrightness !== false;
+
+  return (
+    <div
+      className="flex-photo-strip"
+      style={{ gridTemplateColumns: `repeat(${cols}, 1fr)`, height: `${height}px`, gap: `${gap}px` }}
+    >
+      {images.map((img, i) => (
+        <div
+          key={i}
+          className={`flex-photo-strip-cell${hover ? " hover-brightness" : ""}`}
+          role="img"
+          aria-label={img.alt || ""}
+          style={{
+            backgroundImage: `url(${img.src})`,
+            filter: hover ? "brightness(0.85)" : "none",
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/** Enhanced stats block — animated countUp + style variants (stacked / counter / row-dividers) */
+function StatsBlockEnhanced({ c, tc }: { c: FlexibleElement["content"]; tc: string }) {
+  const numRef     = useRef<HTMLSpanElement>(null);
+  const animDone   = useRef(false);
+  const numStr     = c.statsNumber || "0";
+  const prefix     = c.statsPrefix || "";
+  const suffix     = c.statsSuffix || "";
+  const dispSuffix = c.statsDisplaySuffix || c.statsLabel || "";
+  const duration   = c.statsCountDuration ?? 1600;
+  const animate    = c.statsAnimateOnScroll !== false;
+  const variant    = c.statsStyleVariant || "stacked";
+  const accentColor = c.statsAccentColor || "var(--bs-success, #22c55e)";
+
+  useEffect(() => {
+    if (!animate || !numRef.current) return;
+    const match = numStr.match(/^(\d[\d,.]*)(.*)/);
+    if (!match) return;
+    const target = parseFloat(match[1].replace(/,/g, ""));
+    if (isNaN(target)) return;
+    const el = numRef.current;
+    el.textContent = prefix + "0" + suffix;
+    animDone.current = false;
+
+    const obs = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting || animDone.current) return;
+      animDone.current = true;
+      obs.disconnect();
+      const start = performance.now();
+      function step(now: number) {
+        const t = Math.min((now - start) / duration, 1);
+        const eased = 1 - Math.pow(1 - t, 3);
+        el.textContent = prefix + Math.round(eased * target).toLocaleString() + suffix;
+        if (t < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }, { threshold: 0.3 });
+
+    if (numRef.current.parentElement) obs.observe(numRef.current.parentElement);
+    return () => obs.disconnect();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [numStr, duration, animate]);
+
+  if (variant === "stacked") {
+    return (
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: "clamp(48px, 6vw, 72px)", fontWeight: 700, color: accentColor, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
+          <span ref={numRef}>{prefix}{numStr}{suffix}</span>
+        </div>
+        {dispSuffix && <p style={{ margin: "8px 0 0", fontSize: "13px", opacity: 0.65, color: tc, letterSpacing: "0.06em", textTransform: "uppercase" }}>{dispSuffix}</p>}
+      </div>
+    );
+  }
+
+  if (variant === "counter") {
+    return (
+      <div style={{ display: "flex", alignItems: "baseline", gap: "8px" }}>
+        <span ref={numRef} style={{ fontSize: "clamp(36px, 5vw, 56px)", fontWeight: 700, color: tc, fontVariantNumeric: "tabular-nums" }}>
+          {prefix}{numStr}{suffix}
+        </span>
+        {dispSuffix && <span style={{ fontSize: "13px", color: accentColor, fontWeight: 700 }}>{dispSuffix}</span>}
+      </div>
+    );
+  }
+
+  // row-dividers
+  return (
+    <div style={{ borderTop: `1px solid ${tc}22`, borderBottom: `1px solid ${tc}22`, padding: "16px 0" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+        <span ref={numRef} style={{ fontSize: "clamp(32px, 4vw, 48px)", fontWeight: 700, color: accentColor, fontVariantNumeric: "tabular-nums" }}>
+          {prefix}{numStr}{suffix}
+        </span>
+        {dispSuffix && <span style={{ fontSize: "14px", color: tc, opacity: 0.7 }}>{dispSuffix}</span>}
+      </div>
+    </div>
   );
 }
 
@@ -1045,6 +1456,14 @@ function DesignerBlock({ block, darkBg }: {
             customCss:   (p.customCss   as string)  ?? '',
           }} />
         );
+
+      // ── steps: numbered steps with large accent counter ──────────────────────
+      case "steps":
+        return <StepsBlock c={{ steps: p.steps as any, stepsDividers: p.stepsDividers as any, stepsLastDivider: p.stepsLastDivider as any, stepsNumberWidth: p.stepsNumberWidth as any }} tc={tc} />;
+
+      // ── photo-strip: horizontal strip of background images ───────────────────
+      case "photo-strip":
+        return <PhotoStripBlock c={{ photoStripImages: p.images as any, photoStripHeight: p.height as any, photoStripGap: p.gap as any, photoStripHoverBrightness: p.hoverBrightness as any, photoStripColumns: p.columns as any }} />;
 
       // ── default: unknown block type — render the type name as a placeholder ─
       default:

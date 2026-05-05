@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import type { HeroSection, AnimationType } from "@/types/section";
+import type { HeroSection, AnimationType, HeadingRow } from "@/types/section";
 
 interface HeroCarouselProps {
   section: HeroSection;
@@ -11,7 +11,10 @@ interface HeroCarouselProps {
 export default function HeroCarousel({ section }: HeroCarouselProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
-  const { slides = [], autoPlay, autoPlayInterval, showDots, showArrows, transitionDuration } = section.content;
+  const {
+    slides = [], autoPlay, autoPlayInterval, showDots, showArrows, transitionDuration,
+    showSlideCounter, showScrollIndicator, metaLine, controlsPosition = "bottom-left",
+  } = section.content;
 
   // Detect mobile viewport for mobile-specific images/colors
   useEffect(() => {
@@ -267,32 +270,85 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                 style={{ maxWidth: "860px", zIndex: 10, padding: slide.overlay.position?.includes("Left") ? "0 0 60px 60px" : slide.overlay.position?.includes("Right") ? "0 60px 60px 0" : undefined }}
               >
                 <AnimatePresence>
-                  {/* Heading */}
-                  <motion.h1
-                    key={`heading-${currentSlide}`}
-                    {...getAnimationVariants(slide.overlay.heading.animation)}
-                    transition={{
-                      duration: (slide.overlay.heading.animationDuration ?? 800) / 1000,
-                      delay: (slide.overlay.heading.animationDelay ?? 0) / 1000,
-                    }}
-                    className="hero-heading"
-                    style={{
-                      fontSize: `clamp(28px, 7vw, ${slide.overlay.heading.fontSize}px)`,
-                      fontWeight: slide.overlay.heading.fontWeight,
-                      fontFamily: slide.overlay.heading.fontFamily,
-                      color: slide.overlay.heading.color,
-                      marginBottom: `${slide.overlay.spacing.betweenHeadingSubheading}px`,
-                      textShadow: `
-                        0 2px 4px rgba(0, 0, 0, 0.3),
-                        0 4px 8px rgba(0, 0, 0, 0.2),
-                        0 8px 16px rgba(0, 0, 0, 0.1),
-                        2px 2px 0 rgba(0, 0, 0, 0.4)
-                      `,
-                      lineHeight: 1.2,
-                    }}
-                  >
-                    {slide.overlay.heading.text}
-                  </motion.h1>
+                  {/* Eyebrow — slide-level or overlay-level */}
+                  {(slide.eyebrow || slide.overlay.eyebrow) && (
+                    <motion.p
+                      key={`eyebrow-${currentSlide}`}
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.5, delay: 0.05 }}
+                      style={{
+                        fontSize: "clamp(11px, 1.4vw, 13px)",
+                        fontWeight: 600,
+                        letterSpacing: "0.18em",
+                        textTransform: "uppercase",
+                        color: slide.overlay.eyebrowColor || "var(--bs-success, #22c55e)",
+                        marginBottom: "16px",
+                        lineHeight: 1,
+                      }}
+                    >
+                      {slide.eyebrow || slide.overlay.eyebrow}
+                    </motion.p>
+                  )}
+
+                  {/* Multi-row heading (OVB-style stacked display type) */}
+                  {slide.overlay.headingRows && slide.overlay.headingRows.length > 0 ? (
+                    <h1
+                      key={`headingrows-${currentSlide}`}
+                      className="hero-heading"
+                      style={{ margin: 0, padding: 0, marginBottom: `${slide.overlay.spacing.betweenHeadingSubheading}px`, lineHeight: 0.95 }}
+                    >
+                      {slide.overlay.headingRows.map((row: HeadingRow, i: number) => (
+                        <motion.span
+                          key={`row-${i}-${currentSlide}`}
+                          {...getAnimationVariants(row.animation)}
+                          transition={{
+                            duration: (row.animationDuration ?? 800) / 1000,
+                            delay: (row.animationDelay ?? i * 120) / 1000,
+                          }}
+                          style={{
+                            display: "block",
+                            fontSize: `clamp(40px, 9vw, ${row.fontSize}px)`,
+                            fontWeight: row.fontWeight,
+                            fontFamily: row.fontFamily || "inherit",
+                            color: row.color,
+                            lineHeight: 0.95,
+                            letterSpacing: "-0.02em",
+                          }}
+                        >
+                          {row.text}
+                        </motion.span>
+                      ))}
+                    </h1>
+                  ) : (
+                    /* Legacy single heading */
+                    <motion.h1
+                      key={`heading-${currentSlide}`}
+                      {...getAnimationVariants(slide.overlay.heading.animation)}
+                      transition={{
+                        duration: (slide.overlay.heading.animationDuration ?? 800) / 1000,
+                        delay: (slide.overlay.heading.animationDelay ?? 0) / 1000,
+                      }}
+                      className="hero-heading"
+                      style={{
+                        fontSize: `clamp(28px, 7vw, ${slide.overlay.heading.fontSize}px)`,
+                        fontWeight: slide.overlay.heading.fontWeight,
+                        fontFamily: slide.overlay.heading.fontFamily,
+                        color: slide.overlay.heading.color,
+                        marginBottom: `${slide.overlay.spacing.betweenHeadingSubheading}px`,
+                        textShadow: `
+                          0 2px 4px rgba(0, 0, 0, 0.3),
+                          0 4px 8px rgba(0, 0, 0, 0.2),
+                          0 8px 16px rgba(0, 0, 0, 0.1),
+                          2px 2px 0 rgba(0, 0, 0, 0.4)
+                        `,
+                        lineHeight: 1.2,
+                      }}
+                    >
+                      {slide.overlay.heading.text}
+                    </motion.h1>
+                  )}
 
                   {/* Subheading */}
                   {slide.overlay.subheading && (
@@ -373,26 +429,77 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
         </motion.div>
       </AnimatePresence>
 
-      {/* Navigation Dots */}
-      {showDots && slides.length > 1 && (
-        <div
-          className="position-absolute bottom-0 start-50 translate-middle-x mb-4 d-flex gap-2"
-          style={{ zIndex: 20 }}
-        >
-          {slides.map((_, index) => (
-            <button
-              key={index}
-              className={`rounded-circle border-0 ${index === currentSlide ? "bg-white" : "bg-white bg-opacity-50"}`}
-              style={{
-                width: index === currentSlide ? "12px" : "8px",
-                height: index === currentSlide ? "12px" : "8px",
-                transition: "all 0.3s ease",
-              }}
-              onClick={() => goToSlide(index)}
-              aria-label={`Go to slide ${index + 1}`}
-            />
-          ))}
+      {/* Bottom controls — dots, slide counter, meta lines */}
+      <div
+        className="position-absolute bottom-0 w-100 d-flex align-items-end justify-content-between"
+        style={{ zIndex: 20, padding: "0 32px 28px" }}
+      >
+        {/* Left side: dots + slide counter */}
+        <div className="d-flex flex-column align-items-start gap-2">
+          {metaLine && metaLine.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "2px", marginBottom: "6px" }}>
+              {metaLine.map((line, i) => (
+                <span key={i} style={{ fontSize: "10px", fontWeight: 600, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(255,255,255,0.55)", lineHeight: 1.3 }}>
+                  {line}
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="d-flex align-items-center gap-3">
+            {showSlideCounter && slides.length > 1 && (
+              <span style={{ fontSize: "12px", fontWeight: 600, letterSpacing: "0.08em", color: "rgba(255,255,255,0.7)", fontVariantNumeric: "tabular-nums", minWidth: "40px" }}>
+                {String(currentSlide + 1).padStart(2, "0")} / {String(slides.length).padStart(2, "0")}
+              </span>
+            )}
+            {showDots && slides.length > 1 && (
+              <div className="d-flex gap-2 align-items-center">
+                {slides.map((_, index) => (
+                  <button
+                    key={index}
+                    className="border-0 p-0"
+                    style={{
+                      width: index === currentSlide ? "28px" : "6px",
+                      height: "2px",
+                      borderRadius: "2px",
+                      background: index === currentSlide ? "#fff" : "rgba(255,255,255,0.4)",
+                      transition: "all 0.3s ease",
+                      cursor: "pointer",
+                    }}
+                    onClick={() => goToSlide(index)}
+                    aria-label={`Go to slide ${index + 1}`}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* Right side: scroll indicator */}
+        {showScrollIndicator && (
+          <div className="d-flex flex-column align-items-end gap-1" style={{ paddingBottom: "2px" }}>
+            <span style={{ fontSize: "10px", fontWeight: 600, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(255,255,255,0.5)" }}>
+              Scroll
+            </span>
+            <div style={{ width: "60px", height: "2px", background: "rgba(255,255,255,0.15)", overflow: "hidden", borderRadius: "2px" }}>
+              <div style={{
+                width: "40%",
+                height: "100%",
+                background: "var(--bs-success, #22c55e)",
+                animation: "hero-scroll-pulse 2.6s ease-in-out infinite",
+              }} />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Scroll indicator keyframes — injected once */}
+      {showScrollIndicator && (
+        <style>{`
+          @keyframes hero-scroll-pulse {
+            0%   { transform: translateX(-100%); }
+            100% { transform: translateX(350%); }
+          }
+        `}</style>
       )}
     </div>
   );
