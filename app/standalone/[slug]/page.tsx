@@ -25,19 +25,31 @@ export default async function StandalonePage({ params }: Props) {
 
   const page = await prisma.page.findUnique({
     where: { slug, type: "STANDALONE", enabled: true },
-    select: { customHtml: true, title: true },
+    select: { customHtml: true, customCss: true, customCssUrls: true, title: true },
   });
 
   if (!page) notFound();
 
   const html = page.customHtml || "";
+  const css = page.customCss || "";
+  const cssUrls: string[] = (() => {
+    try { return JSON.parse(page.customCssUrls || "[]"); } catch { return []; }
+  })();
 
   return (
     <>
-      {/* SECURITY: customHtml is admin-authored content stored in the DB.
-          Write access is restricted to SUPER_ADMIN and ADMIN roles via the
-          /api/admin/pages route which checks session + role. This is not user
-          input and is equivalent to the existing HTMLElement block renderer. */}
+      <head>
+        {/* External CSS files — admin-configured URLs */}
+        {cssUrls.map((url, i) => (
+          <link key={i} rel="stylesheet" href={url} />
+        ))}
+        {/* Inline custom CSS */}
+        {/* eslint-disable-next-line react/no-danger */}
+        {css && <style dangerouslySetInnerHTML={{ __html: css }} />}
+      </head>
+
+      {/* SECURITY: customHtml/customCss are admin-authored content stored in the DB.
+          Write access is restricted to SUPER_ADMIN and ADMIN roles. Not user input. */}
       {html
         // eslint-disable-next-line react/no-danger
         ? <div dangerouslySetInnerHTML={{ __html: html }} />

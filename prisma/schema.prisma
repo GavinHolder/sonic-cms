@@ -53,6 +53,8 @@ model Page {
   enabled         Boolean          @default(true)
   formConfig      Json?
   customHtml      String?
+  customCss       String?
+  customCssUrls   String?
   navLabel        String?
   navOrder        Int?
   showOnNavbar    Boolean          @default(false)
