@@ -1821,7 +1821,7 @@ These slugs cannot be used (they conflict with existing routes):
 
 ## Standalone Pages
 
-Standalone pages are fully **self-contained HTML pages** served at \`/standalone/{slug}\`. They bypass the CMS layout entirely — no navbar, no footer, no section snap-scroll. You write raw HTML and CSS; the page renders exactly as-is.
+Standalone pages are fully **self-contained HTML pages** served at \`/{slug}\` (clean URL — no prefix). They bypass the CMS layout entirely — no navbar, no footer, no section snap-scroll. You write raw HTML and CSS; the page renders exactly as-is.
 
 **Create via:** Admin → Content → Pages → **Standalone**
 
@@ -1835,7 +1835,7 @@ Standalone pages are fully **self-contained HTML pages** served at \`/standalone
 4. Add custom CSS in the **CSS tab** (optional)
 5. Link external CSS files (CDN URLs, e.g. Bootstrap) in the **CSS Files tab**
 6. Use the **Variables tab** to insert \`{{cms.*}}\` placeholders that are replaced server-side
-7. Click **Save** — your page is live at \`/standalone/{slug}\`
+7. Click **Save** — your page is live at \`/{slug}\`
 
 > The editor uses Monaco (VS Code's editor) with syntax highlighting for HTML and CSS.
 
@@ -1876,6 +1876,12 @@ Standalone pages support **save and load templates**. In the HTML Editor modal:
 - **Load Template** (footer, left side) — opens the Template Picker to apply a saved standalone template
 
 Templates only populate the **editor content** — they never change the page slug, routing, or type.
+
+**To use a template as a live page:**
+1. Admin → Content → Pages → **New Page** → choose Standalone, set a slug (e.g. \`services\`)
+2. Click **Edit** to open the HTML Editor
+3. Click **Load Template** → pick your template → HTML/CSS fills in
+4. Click **Save** — now live at \`/services\`
 
 See **Content → Templates** in the admin sidebar for the full template library.
 
