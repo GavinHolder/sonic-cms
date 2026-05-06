@@ -14,7 +14,7 @@ const getHomePageInfo = unstable_cache(
         where: { id: "singleton" },
         select: { homePage: true },
       });
-      const slug = config?.homePage;
+      const slug = config?.homePage?.trim();
       if (!slug) return null;
 
       const page = await prisma.page.findUnique({
@@ -29,7 +29,7 @@ const getHomePageInfo = unstable_cache(
     }
   },
   ["internal-homepage"],
-  { revalidate: 60 }
+  { revalidate: 30, tags: ["homepage-config"] }
 );
 
 /** Internal endpoint — called by middleware (Edge) to resolve homepage without Prisma */
@@ -40,6 +40,6 @@ export async function GET(req: NextRequest) {
   const info = await getHomePageInfo();
   return NextResponse.json(
     { slug: info?.slug ?? null, type: info?.type ?? null },
-    { headers: { "Cache-Control": "public, max-age=60, s-maxage=60" } }
+    { headers: { "Cache-Control": "no-store" } }
   );
 }

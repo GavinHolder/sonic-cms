@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import prisma from '@/lib/prisma';
 
 const SINGLETON_ID = 'singleton';
@@ -25,6 +26,7 @@ export async function PUT(request: NextRequest) {
       create: { id: SINGLETON_ID, ...body },
       update: body,
     });
+    if ('homePage' in body) revalidateTag('homepage-config', 'max');
     return NextResponse.json({ success: true, data: config });
   } catch (error) {
     console.error('Failed to update site config:', error);
@@ -41,6 +43,7 @@ export async function PATCH(request: NextRequest) {
       create: { id: SINGLETON_ID, ...body },
       update: body,
     });
+    if ('homePage' in body) revalidateTag('homepage-config', 'max');
     return NextResponse.json({ success: true, data: config });
   } catch (error) {
     console.error('Failed to patch site config:', error);

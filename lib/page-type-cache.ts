@@ -32,7 +32,7 @@ export const getHomePage = unstable_cache(
         where: { id: "singleton" },
         select: { homePage: true },
       });
-      const slug = config?.homePage;
+      const slug = config?.homePage?.trim();
       if (!slug) return null;
 
       const page = await prisma.page.findUnique({
@@ -47,5 +47,5 @@ export const getHomePage = unstable_cache(
     }
   },
   ["homepage-config"],
-  { revalidate: 60 }
+  { revalidate: 30, tags: ["homepage-config"] }
 );
