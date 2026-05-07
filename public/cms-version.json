@@ -1,11 +1,11 @@
 {
-  "version": "1.44.3",
+  "version": "1.45.0",
   "date": "2026-05-07",
   "changelog": {
-    "features": [],
-    "bugfixes": [
-      "clear homePage + invalidate cache when homepage page is deleted"
+    "features": [
+      "edit template HTML directly in Standalone Editor — code-slash button on template cards"
     ],
+    "bugfixes": [],
     "breaking": []
   }
 }
