@@ -97,19 +97,23 @@ export default function PageClient({ params }: { params: Promise<{ slug: string 
     case "designer":
       return <DesignerPageRenderer designerData={designerData} title={page.title} />;
     case "standalone":
-      // Middleware should rewrite /{slug} → /standalone/{slug} for standalone pages.
-      // If we reach here the middleware API call failed — redirect to the renderer directly.
-      if (typeof window !== "undefined") {
-        window.location.replace(`/standalone/${slug}`);
-      }
-      return (
-        <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "50vh" }}>
-          <div className="spinner-border text-primary" role="status" />
-        </div>
-      );
+      // Middleware should rewrite /{slug} → /standalone/{slug}.
+      // If we reach here the middleware API call failed — use an effect-based redirect.
+      return <StandaloneRedirect slug={slug} />;
     default:
       notFound();
   }
+}
+
+function StandaloneRedirect({ slug }: { slug: string }) {
+  useEffect(() => {
+    window.location.replace(`/standalone/${slug}`);
+  }, [slug]);
+  return (
+    <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "50vh" }}>
+      <div className="spinner-border text-primary" role="status" />
+    </div>
+  );
 }
 
 /**
