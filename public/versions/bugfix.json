@@ -1,10 +1,10 @@
 {
-  "version": "1.32.2",
-  "date": "2026-05-05",
+  "version": "1.37.2",
+  "date": "2026-05-06",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "safety net migration for cms_templates on drifted client DBs"
+      "homepage cache invalidation — revalidateTag on PATCH/PUT, trim empty string guard, no-store header"
     ],
     "breaking": []
   }
