@@ -1,9 +1,9 @@
 {
-  "version": "1.46.0",
+  "version": "1.47.0",
   "date": "2026-05-07",
   "changelog": {
     "features": [
-      "visual slot configuration in Analyse modal"
+      "interactive fix controls in Import Template modal"
     ],
     "bugfixes": [],
     "breaking": []
