@@ -26,6 +26,13 @@ interface SiteConfig {
   navbarStyle: string;
   copyrightText: string;
   showRegulatory: boolean;
+  homePage: string;
+}
+
+interface PageOption {
+  slug: string;
+  title: string;
+  type: string;
 }
 
 const DEFAULTS: SiteConfig = {
@@ -34,6 +41,7 @@ const DEFAULTS: SiteConfig = {
   facebook: "", instagram: "", twitter: "", linkedin: "", youtube: "", tiktok: "",
   navbarStyle: "standard",
   copyrightText: "", showRegulatory: false,
+  homePage: "",
 };
 
 export default function SiteConfigPage() {
@@ -53,16 +61,28 @@ function SiteConfigForm() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
   const [mediaPicker, setMediaPicker] = useState<"logoUrl" | "faviconUrl" | null>(null);
+  const [pages, setPages] = useState<PageOption[]>([]);
   const logoRef = useRef<HTMLInputElement>(null);
   const faviconRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     async function load() {
-      const [meRes, cfgRes] = await Promise.all([fetch("/api/auth/me"), fetch("/api/site-config")]);
+      const [meRes, cfgRes, pagesRes] = await Promise.all([
+        fetch("/api/auth/me"),
+        fetch("/api/site-config"),
+        fetch("/api/pages?limit=200"),
+      ]);
       if (!meRes.ok) { router.replace("/admin/login"); return; }
       if (cfgRes.ok) {
         const { data } = await cfgRes.json();
-        setConfig({ ...DEFAULTS, ...data });
+        setConfig({ ...DEFAULTS, ...data, homePage: data.homePage ?? "" });
+      }
+      if (pagesRes.ok) {
+        const { data } = await pagesRes.json();
+        const opts: PageOption[] = (Array.isArray(data) ? data : data?.pages ?? [])
+          .filter((p: PageOption) => p.slug && p.slug !== "/")
+          .map((p: PageOption) => ({ slug: p.slug, title: p.title, type: p.type }));
+        setPages(opts);
       }
       setLoading(false);
     }
@@ -359,6 +379,33 @@ function SiteConfigForm() {
                 </label>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Homepage Entry Point */}
+      <div className="card shadow-sm border-primary">
+        <div className="card-header py-2 px-3 fw-semibold" style={{ fontSize: "0.875rem", background: "#eff6ff" }}>
+          <i className="bi bi-house-door me-2 text-primary" />Homepage Entry Point
+        </div>
+        <div className="card-body p-3">
+          <label className="form-label small fw-semibold mb-1">Which page loads at <code>/</code> (your website root)?</label>
+          <select
+            className="form-select form-select-sm"
+            value={config.homePage}
+            onChange={(e) => set("homePage", e.target.value)}
+          >
+            <option value="">— Default: Landing page with sections —</option>
+            {pages.map((p) => (
+              <option key={p.slug} value={p.slug}>
+                {p.title} ({p.type}) — /{p.slug}
+              </option>
+            ))}
+          </select>
+          <div className="text-muted mt-2" style={{ fontSize: "0.75rem" }}>
+            <i className="bi bi-info-circle me-1" />
+            When set, visitors going to <code>/</code> are served this page — the URL stays <code>/</code>, nothing is exposed.
+            Leave blank to use the default section-based landing page.
           </div>
         </div>
       </div>
