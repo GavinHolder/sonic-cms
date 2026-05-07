@@ -1,11 +1,11 @@
 {
-  "version": "1.39.1",
+  "version": "1.40.0",
   "date": "2026-05-07",
   "changelog": {
-    "features": [],
-    "bugfixes": [
-      "middleware uses localhost for internal API calls — avoids hairpin NAT failure in Docker/Traefik"
+    "features": [
+      "standalone template integration — page/feature URLs, media slots, form injection"
     ],
+    "bugfixes": [],
     "breaking": []
   }
 }
