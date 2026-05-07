@@ -1,9 +1,9 @@
 {
-  "version": "1.47.0",
+  "version": "1.48.0",
   "date": "2026-05-07",
   "changelog": {
     "features": [
-      "interactive fix controls in Import Template modal"
+      "proper media handling in import and analyse modals"
     ],
     "bugfixes": [],
     "breaking": []
