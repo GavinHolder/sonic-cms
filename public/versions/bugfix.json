@@ -1,10 +1,10 @@
 {
-  "version": "1.44.2",
+  "version": "1.44.3",
   "date": "2026-05-07",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "ZIP import inlines CSS/JS/JSX — produces self-contained HTML"
+      "clear homePage + invalidate cache when homepage page is deleted"
     ],
     "breaking": []
   }
