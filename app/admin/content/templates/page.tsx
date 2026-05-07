@@ -219,11 +219,74 @@ interface AnalysisItem {
   type: string;
   detail: string;
   suggestion?: string;
+  occurrences?: string[];
 }
 
 interface ImportAnalysis {
   autoHandled: AnalysisItem[];
   needsAttention: AnalysisItem[];
+}
+
+interface MediaFile {
+  name: string;
+  url: string;
+  type: string;
+}
+
+interface FormPage {
+  slug: string;
+  title: string;
+}
+
+function InlineMediaPicker({
+  files, search, onSearch, onPick, mediaType = "image",
+}: {
+  files: MediaFile[];
+  search: string;
+  onSearch: (s: string) => void;
+  onPick: (url: string) => void;
+  mediaType?: "image" | "video";
+}) {
+  const filtered = files.filter(
+    f => f.type.startsWith(mediaType + "/") &&
+         (!search || f.name.toLowerCase().includes(search.toLowerCase()))
+  );
+  return (
+    <div className="border rounded p-2 mt-2" style={{ background: "#fff", maxHeight: 210, overflowY: "auto" }}>
+      <input
+        className="form-control form-control-sm mb-2"
+        placeholder={`Search ${mediaType}s…`}
+        value={search}
+        onChange={e => onSearch(e.target.value)}
+        autoFocus
+      />
+      <div className="d-flex flex-wrap gap-1">
+        {filtered.length === 0 ? (
+          <div className="text-muted small py-1 px-1 w-100 text-center">
+            No {mediaType}s in library —{" "}
+            <a href="/admin/media" target="_blank" rel="noopener noreferrer" className="text-primary">upload via Media Library</a>
+          </div>
+        ) : filtered.slice(0, 50).map(f => (
+          <button
+            key={f.url}
+            type="button"
+            className="btn p-0 border rounded"
+            style={{ width: 60, height: 60, overflow: "hidden", flexShrink: 0 }}
+            onClick={() => onPick(f.url)}
+            title={f.name}
+          >
+            {f.type.startsWith("image") ? (
+              <img src={f.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ) : (
+              <div className="d-flex align-items-center justify-content-center h-100 bg-dark text-white">
+                <i className="bi bi-camera-video" />
+              </div>
+            )}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 const ANALYSIS_ICONS: Record<string, string> = {
@@ -568,192 +631,298 @@ interface AnalyzeModalProps {
 }
 
 function AnalyzeModal({ template, onClose, onUpdated }: AnalyzeModalProps) {
-  const [analysis, setAnalysis]       = useState<ImportAnalysis | null>(null);
-  const [mediaSlots, setMediaSlots]   = useState<Record<string, string>>({});
-  const [loading, setLoading]         = useState(true);
-  const [reimporting, setReimporting] = useState(false);
-  const [reimported, setReimported]   = useState(false);
-  const [error, setError]             = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const originalHtml = ((template.data as Record<string, unknown>).customHtml as string) ?? "";
+  const [workingHtml, setWorkingHtml]       = useState(originalHtml);
+  const [analysis, setAnalysis]             = useState<ImportAnalysis | null>(null);
+  const [formPages, setFormPages]           = useState<FormPage[]>([]);
+  const [mediaFiles, setMediaFiles]         = useState<MediaFile[]>([]);
+  const [pickerFor, setPickerFor]           = useState<{ src: string; mediaType: "image" | "video" } | null>(null);
+  const [pickerSearch, setPickerSearch]     = useState("");
+  const [selectedFormSlug, setSelectedFormSlug] = useState("");
+  const [fixed, setFixed]                   = useState<Set<string>>(new Set());
+  const [loading, setLoading]               = useState(true);
+  const [reimporting, setReimporting]       = useState(false);
+  const [saving, setSaving]                 = useState(false);
+  const [error, setError]                   = useState<string | null>(null);
+  const zipRef = useRef<HTMLInputElement>(null);
+
+  const isDirty = workingHtml !== originalHtml;
+  const fixCount = fixed.size;
 
   useEffect(() => {
-    fetch(`/api/templates/${template.id}/analyze`)
-      .then(r => r.json())
-      .then(json => {
-        if (json.success) {
-          setAnalysis(json.data.analysis);
-          setMediaSlots(json.data.mediaSlots ?? {});
-        } else {
-          setError(json.error ?? "Failed to load analysis");
-        }
-      })
-      .catch(() => setError("Network error"))
-      .finally(() => setLoading(false));
+    Promise.all([
+      fetch(`/api/templates/${template.id}/analyze`).then(r => r.json()),
+      fetch("/api/media/files").then(r => r.json()),
+    ]).then(([aj, mj]) => {
+      if (aj.success) {
+        setAnalysis(aj.data.analysis);
+        setFormPages(aj.data.formPages ?? []);
+      } else {
+        setError(aj.error ?? "Failed to analyse");
+      }
+      setMediaFiles(mj.files ?? []);
+    }).catch(() => setError("Network error")).finally(() => setLoading(false));
   }, [template.id]);
 
-  const handleZipReimport = async (f: File) => {
-    if (!f.name.toLowerCase().endsWith(".zip")) {
-      setError("Only .zip files are supported for re-import");
-      return;
-    }
-    setReimporting(true);
+  const applyFix = (key: string, newHtml: string) => {
+    setWorkingHtml(newHtml);
+    setFixed(prev => new Set([...prev, key]));
+  };
+
+  const fixPhone = () =>
+    applyFix("PHONE", workingHtml.replace(/href=["']tel:[^"']+["']/gi, 'href="tel:{{cms.phone}}"'));
+
+  const fixEmail = () =>
+    applyFix("EMAIL", workingHtml.replace(/href=["']mailto:[^"'?]+[^"']*/gi, 'href="mailto:{{cms.email}}"'));
+
+  const fixForm = () => {
+    if (!selectedFormSlug) return;
+    applyFix("FORM", workingHtml.replace(/<form\b[\s\S]*?<\/form>/gi, `{{cms.form.${selectedFormSlug}}}`));
+  };
+
+  const fixSrc = (localSrc: string, newUrl: string) => {
+    const esc = localSrc.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    applyFix(`SRC:${localSrc}`, workingHtml.replace(new RegExp(esc, "g"), newUrl));
+    setPickerFor(null);
+    setPickerSearch("");
+  };
+
+  const saveChanges = async () => {
+    setSaving(true);
     setError(null);
     try {
-      const fd = new FormData();
-      fd.append("file", f);
+      const res = await fetch(`/api/templates/${template.id}/analyze`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customHtml: workingHtml }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error ?? "Save failed");
+      onUpdated(template.id, { customHtml: workingHtml });
+    } catch (e) { setError(e instanceof Error ? e.message : "Save failed"); }
+    setSaving(false);
+  };
+
+  const handleZipReimport = async (f: File) => {
+    if (!f.name.toLowerCase().endsWith(".zip")) { setError("Only .zip files supported"); return; }
+    setReimporting(true); setError(null);
+    try {
+      const fd = new FormData(); fd.append("file", f);
       const res = await fetch(`/api/templates/${template.id}/analyze`, { method: "POST", body: fd });
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.error ?? "Re-import failed");
       setAnalysis(json.data.analysis);
-      setMediaSlots(json.data.mediaSlots ?? {});
-      setReimported(true);
+      setWorkingHtml(json.data.html);
+      setFixed(new Set());
       onUpdated(template.id, json.data);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Re-import failed");
-    }
+    } catch (e) { setError(e instanceof Error ? e.message : "Re-import failed"); }
     setReimporting(false);
   };
 
+  const isSrcFixed = (src: string) => fixed.has(`SRC:${src}`);
+
+  const renderSrcRows = (occurrences: string[], mediaType: "image" | "video") =>
+    occurrences.map(src => {
+      const thisFixed = isSrcFixed(src);
+      const isPicking = pickerFor?.src === src && pickerFor.mediaType === mediaType;
+      return (
+        <div key={src}>
+          <div className={`border rounded px-2 py-1 mb-1 d-flex align-items-center gap-2 ${thisFixed ? "border-success bg-success bg-opacity-10" : "bg-white"}`}>
+            <i className={`bi ${thisFixed ? "bi-check-circle-fill text-success" : (mediaType === "video" ? "bi-camera-video text-muted" : "bi-image text-muted")}`} style={{ fontSize: "0.8rem", flexShrink: 0 }} />
+            <code className="text-muted flex-grow-1 text-truncate" style={{ fontSize: "0.68rem" }} title={src}>{src}</code>
+            {thisFixed
+              ? <span className="badge bg-success" style={{ fontSize: "0.65rem" }}>✓ Linked</span>
+              : <button
+                  type="button"
+                  className={`btn btn-sm ${isPicking ? "btn-primary" : "btn-outline-primary"} text-nowrap`}
+                  style={{ fontSize: "0.7rem", padding: "2px 10px", flexShrink: 0 }}
+                  onClick={() => { setPickerFor(isPicking ? null : { src, mediaType }); setPickerSearch(""); }}
+                >
+                  <i className={`bi ${isPicking ? "bi-x" : "bi-folder2-open"} me-1`} />
+                  {isPicking ? "Close" : "Browse Library"}
+                </button>
+            }
+          </div>
+          {isPicking && (
+            <InlineMediaPicker
+              files={mediaFiles}
+              search={pickerSearch}
+              onSearch={setPickerSearch}
+              onPick={url => fixSrc(src, url)}
+              mediaType={mediaType}
+            />
+          )}
+        </div>
+      );
+    });
+
+  const renderItem = (item: AnalysisItem, i: number) => {
+    const icon = ANALYSIS_ICONS[item.type] ?? "bi-exclamation-circle";
+    const isFixed = item.type === "LOCAL_IMG" || item.type === "BACKGROUND" || item.type === "VIDEO"
+      ? (item.occurrences ?? []).every(isSrcFixed)
+      : fixed.has(item.type);
+    const cardBorder = item.type === "CDN" ? "secondary" : isFixed ? "success" : "warning";
+    const cardBg = item.type === "CDN" ? "#f8f9fa" : isFixed ? "#f0fdf4" : "#fffbeb";
+
+    return (
+      <div key={i} className={`card mb-2 border-${cardBorder}`} style={{ background: cardBg }}>
+        <div className="card-body py-2 px-3">
+          {/* Header row */}
+          <div className="d-flex align-items-center gap-2 mb-1">
+            <i className={`bi ${icon} text-${item.type === "CDN" ? "muted" : isFixed ? "success" : "warning"} flex-shrink-0`} />
+            <span className="fw-semibold small flex-grow-1">{item.detail}</span>
+            {isFixed && <span className="badge bg-success">✓ Fixed</span>}
+          </div>
+
+          {/* FORM: dropdown → link */}
+          {item.type === "FORM" && !isFixed && (
+            <div className="d-flex gap-2 mt-2">
+              <select className="form-select form-select-sm flex-grow-1" value={selectedFormSlug} onChange={e => setSelectedFormSlug(e.target.value)}>
+                <option value="">— Select a CMS form —</option>
+                {formPages.map(f => <option key={f.slug} value={f.slug}>{f.title} ({f.slug})</option>)}
+              </select>
+              <button className="btn btn-warning btn-sm px-3" onClick={fixForm} disabled={!selectedFormSlug}>
+                <i className="bi bi-link-45deg me-1" />Link
+              </button>
+            </div>
+          )}
+          {item.type === "FORM" && isFixed && (
+            <div className="text-success small mt-1">Replaced with {`{{cms.form.${selectedFormSlug}}}`}</div>
+          )}
+
+          {/* PHONE: one-click */}
+          {item.type === "PHONE" && !isFixed && (
+            <button className="btn btn-warning btn-sm mt-2" onClick={fixPhone}>
+              <i className="bi bi-arrow-repeat me-1" />Replace all with {"{{cms.phone}}"}
+            </button>
+          )}
+
+          {/* EMAIL: one-click */}
+          {item.type === "EMAIL" && !isFixed && (
+            <button className="btn btn-warning btn-sm mt-2" onClick={fixEmail}>
+              <i className="bi bi-arrow-repeat me-1" />Replace all with {"{{cms.email}}"}
+            </button>
+          )}
+
+          {/* LOCAL_IMG / BACKGROUND / VIDEO: per-occurrence picker */}
+          {(item.type === "LOCAL_IMG" || item.type === "BACKGROUND") && (item.occurrences ?? []).length > 0 && (
+            <div className="mt-2">{renderSrcRows(item.occurrences!, "image")}</div>
+          )}
+          {item.type === "VIDEO" && (item.occurrences ?? []).length > 0 && (
+            <div className="mt-2">{renderSrcRows(item.occurrences!, "video")}</div>
+          )}
+
+          {/* CDN / info-only: show suggestion */}
+          {item.type === "CDN" && item.suggestion && (
+            <div className="text-muted small mt-1" style={{ fontSize: "0.75rem" }}>{item.suggestion}</div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const mediaSlots = ((template.data as Record<string, unknown>).mediaSlots as Record<string, string>) ?? {};
   const slotCount = Object.keys(mediaSlots).length;
-  const hasIssues = (analysis?.needsAttention.length ?? 0) > 0;
 
   return (
     <div className="modal show d-block" tabIndex={-1} style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1060 }}>
       <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div className="modal-content">
           <div className="modal-header">
-            <h5 className="modal-title">
-              <i className="bi bi-activity me-2 text-info" />Analyse: {template.name}
-            </h5>
-            <button className="btn-close" onClick={onClose} />
+            <div>
+              <h5 className="modal-title mb-0">
+                <i className="bi bi-activity me-2 text-info" />Analyse: {template.name}
+              </h5>
+              {isDirty && (
+                <div className="text-muted small mt-1">
+                  <i className="bi bi-pencil-square me-1 text-warning" />{fixCount} fix{fixCount !== 1 ? "es" : ""} applied — save to persist
+                </div>
+              )}
+            </div>
+            <div className="d-flex align-items-center gap-2 ms-auto">
+              {isDirty && (
+                <button className="btn btn-success btn-sm" onClick={saveChanges} disabled={saving}>
+                  {saving ? <><span className="spinner-border spinner-border-sm me-1" />Saving…</> : <><i className="bi bi-floppy me-1" />Save {fixCount} fix{fixCount !== 1 ? "es" : ""}</>}
+                </button>
+              )}
+              <button className="btn-close" onClick={onClose} />
+            </div>
           </div>
-          <div className="modal-body">
 
-            {loading && (
-              <div className="text-center py-4 text-muted">
-                <span className="spinner-border spinner-border-sm me-2" />Analysing template…
-              </div>
-            )}
+          <div className="modal-body">
+            {loading && <div className="text-center py-4 text-muted"><span className="spinner-border spinner-border-sm me-2" />Analysing template…</div>}
 
             {!loading && analysis && (
               <>
-                {reimported && (
-                  <div className="alert alert-success py-2 small mb-3">
-                    <i className="bi bi-check-circle-fill me-2" />Template updated successfully — all changes saved.
-                  </div>
-                )}
-
-                {/* Auto-handled */}
-                {analysis.autoHandled.length > 0 && (
-                  <div className="card border-success mb-3">
-                    <div className="card-header py-2 bg-success bg-opacity-10 border-success">
-                      <span className="fw-semibold text-success small">
-                        <i className="bi bi-check-circle-fill me-2" />Already handled ({analysis.autoHandled.length})
-                      </span>
-                    </div>
-                    <ul className="list-group list-group-flush">
-                      {analysis.autoHandled.map((item, i) => (
-                        <li key={i} className="list-group-item py-2 px-3 small">
-                          <i className={`bi ${ANALYSIS_ICONS[item.type] ?? "bi-check"} text-success me-2`} />
-                          {item.detail}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* Needs attention */}
-                {hasIssues && (
-                  <div className="card border-warning mb-3">
-                    <div className="card-header py-2 bg-warning bg-opacity-10 border-warning">
-                      <span className="fw-semibold text-warning small">
-                        <i className="bi bi-exclamation-triangle-fill me-2" />Needs attention ({analysis.needsAttention.length})
-                      </span>
-                    </div>
-                    <ul className="list-group list-group-flush">
-                      {analysis.needsAttention.map((item, i) => (
-                        <li key={i} className="list-group-item py-2 px-3 small">
-                          <div className="d-flex gap-2 align-items-start">
-                            <i className={`bi ${ANALYSIS_ICONS[item.type] ?? "bi-exclamation-circle"} text-warning mt-1 flex-shrink-0`} />
-                            <div>
-                              <div className="fw-semibold">{item.detail}</div>
-                              {item.suggestion && (
-                                <div className="text-muted mt-1" style={{ fontSize: "0.78rem" }}>
-                                  <i className="bi bi-arrow-right me-1" />{item.suggestion}
-                                </div>
-                              )}
-                            </div>
+                {/* Already wired — show media slots */}
+                {(analysis.autoHandled.length > 0 || slotCount > 0) && (
+                  <div className="mb-3">
+                    {analysis.autoHandled.map((item, i) => (
+                      <div key={i} className="card mb-1 border-success" style={{ background: "#f0fdf4" }}>
+                        <div className="card-body py-2 px-3 d-flex align-items-center gap-2">
+                          <i className={`bi ${ANALYSIS_ICONS[item.type] ?? "bi-check"} text-success`} />
+                          <span className="small text-success flex-grow-1">{item.detail}</span>
+                          <span className="badge bg-success">✓</span>
+                        </div>
+                      </div>
+                    ))}
+                    {slotCount > 0 && (
+                      <div className="d-flex flex-wrap gap-2 mt-2">
+                        {Object.entries(mediaSlots).map(([slot, url]) => (
+                          <div key={slot} className="border border-success rounded px-2 py-1 d-flex align-items-center gap-1" style={{ background: "#f0fdf4" }}>
+                            <img src={url} alt={slot} style={{ width: 24, height: 24, objectFit: "cover", borderRadius: 2 }} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                            <code className="text-success" style={{ fontSize: "0.65rem" }}>{`{{cms.media.${slot}}}`}</code>
                           </div>
-                        </li>
-                      ))}
-                    </ul>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
-                {!hasIssues && analysis.autoHandled.length === 0 && (
-                  <div className="alert alert-success py-2 small mb-3">
-                    <i className="bi bi-check-circle-fill me-2" />Template looks clean — no wiring issues detected.
-                  </div>
-                )}
-
-                {/* Media slots */}
-                {slotCount > 0 && (
+                {/* Issues */}
+                {analysis.needsAttention.length > 0 ? (
                   <div className="mb-3">
                     <div className="text-muted small fw-semibold mb-2">
-                      <i className="bi bi-images me-1" />Media slots wired ({slotCount})
+                      <i className="bi bi-exclamation-triangle-fill text-warning me-1" />
+                      {analysis.needsAttention.length} issue{analysis.needsAttention.length > 1 ? "s" : ""} — fix inline below
                     </div>
-                    <div className="d-flex flex-wrap gap-2">
-                      {Object.entries(mediaSlots).map(([slot, url]) => (
-                        <div key={slot} className="border rounded px-2 py-1 small d-flex align-items-center gap-2" style={{ background: "#f8f9fa" }}>
-                          <img src={url} alt={slot} style={{ width: 28, height: 28, objectFit: "cover", borderRadius: 3 }} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                          <code className="text-success" style={{ fontSize: "0.7rem" }}>{`{{cms.media.${slot}}}`}</code>
-                        </div>
-                      ))}
-                    </div>
+                    {analysis.needsAttention.map((item, i) => renderItem(item, i))}
+                  </div>
+                ) : (
+                  <div className="alert alert-success py-2 small mb-3">
+                    <i className="bi bi-check-circle-fill me-2" />Template fully wired — no CMS integration issues.
                   </div>
                 )}
 
-                {/* Re-import from ZIP */}
+                {/* ZIP re-import */}
                 <div className="border rounded p-3" style={{ background: "#f8f9fa" }}>
-                  <div className="fw-semibold small mb-1">
-                    <i className="bi bi-arrow-clockwise me-2 text-primary" />Update from ZIP
-                  </div>
-                  <p className="text-muted small mb-2">
-                    Upload a new ZIP to re-run the full import — images will be uploaded, local paths replaced, and this template updated in place.
-                  </p>
+                  <div className="fw-semibold small mb-1"><i className="bi bi-arrow-clockwise me-2 text-primary" />Re-import from ZIP</div>
+                  <p className="text-muted small mb-2">Have the original design files? Drop a ZIP to auto-upload images, replace all local paths, and update this template in place.</p>
                   <div
-                    className="border rounded p-3 text-center"
+                    className="border rounded p-2 text-center"
                     style={{ borderStyle: "dashed", cursor: reimporting ? "default" : "pointer", background: "#fff" }}
-                    onClick={() => !reimporting && fileRef.current?.click()}
+                    onClick={() => !reimporting && zipRef.current?.click()}
                     onDragOver={e => e.preventDefault()}
                     onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleZipReimport(f); }}
                   >
-                    {reimporting ? (
-                      <><span className="spinner-border spinner-border-sm me-2" />Uploading images & updating template…</>
-                    ) : (
-                      <span className="small text-muted">
-                        <i className="bi bi-cloud-upload me-2" />Drop a <code>.zip</code> here or click to browse
-                      </span>
-                    )}
+                    {reimporting
+                      ? <><span className="spinner-border spinner-border-sm me-2" />Uploading images…</>
+                      : <span className="small text-muted"><i className="bi bi-cloud-upload me-2" />Drop <code>.zip</code> or click to browse</span>}
                   </div>
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    accept=".zip"
-                    className="d-none"
-                    onChange={e => { const f = e.target.files?.[0]; if (f) handleZipReimport(f); e.target.value = ""; }}
-                  />
+                  <input ref={zipRef} type="file" accept=".zip" className="d-none" onChange={e => { const f = e.target.files?.[0]; if (f) handleZipReimport(f); e.target.value = ""; }} />
                 </div>
               </>
             )}
 
-            {error && (
-              <div className="alert alert-danger py-2 small mt-2 mb-0">
-                <i className="bi bi-exclamation-circle me-1" />{error}
-              </div>
-            )}
+            {error && <div className="alert alert-danger py-2 small mt-2 mb-0"><i className="bi bi-exclamation-circle me-1" />{error}</div>}
           </div>
+
           <div className="modal-footer">
+            {isDirty && (
+              <button className="btn btn-success me-auto" onClick={saveChanges} disabled={saving}>
+                {saving ? <><span className="spinner-border spinner-border-sm me-1" />Saving…</> : <><i className="bi bi-floppy me-1" />Save {fixCount} fix{fixCount !== 1 ? "es" : ""}</>}
+              </button>
+            )}
             <button className="btn btn-outline-secondary" onClick={onClose}>Close</button>
           </div>
         </div>

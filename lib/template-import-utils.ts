@@ -1,6 +1,8 @@
 import sharp from "sharp";
 import { mkdir, writeFile } from "fs/promises";
 import { join } from "path";
+import AdmZip from "adm-zip";
+import { NextResponse } from "next/server";
 
 const UPLOAD_DIR = join(process.cwd(), "public", "images", "uploads");
 
@@ -12,6 +14,7 @@ export interface ImportAnalysisItem {
   type: string;
   detail: string;
   suggestion?: string;
+  occurrences?: string[];  // raw values (paths, numbers, etc.) — powers inline fix UI
 }
 
 export interface ImportAnalysis {
@@ -82,59 +85,70 @@ export function analyzeHtml(html: string): { needsAttention: ImportAnalysisItem[
     items.push({
       type: "FORM",
       detail: `${formMatches.length} <form> element${formMatches.length > 1 ? "s" : ""} found`,
-      suggestion: "Replace each <form> with {{cms.form.YOUR-FORM-SLUG}} to wire up a CMS-managed form. Create your form first in Content → Forms.",
+      suggestion: "Select a CMS form from the dropdown to replace the form HTML automatically.",
     });
   }
 
-  const videoSrcs = [...html.matchAll(/<(?:video|source)\b[^>]*\bsrc=["']([^"']+)["']/gi)]
-    .map(m => m[1])
-    .filter(isLocalPath);
-  if (videoSrcs.length > 0) {
+  const uniqueVideoSrcs = [...new Set(
+    [...html.matchAll(/<(?:video|source)\b[^>]*\bsrc=["']([^"']+)["']/gi)]
+      .map(m => m[1]).filter(isLocalPath)
+  )];
+  if (uniqueVideoSrcs.length > 0) {
     items.push({
       type: "VIDEO",
-      detail: `${videoSrcs.length} video source${videoSrcs.length > 1 ? "s" : ""} with local path (${videoSrcs.slice(0, 2).join(", ")}${videoSrcs.length > 2 ? "…" : ""})`,
-      suggestion: "Upload each video via Media Library, then add a named media slot and use {{cms.media.SLOTNAME}} as the src.",
+      detail: `${uniqueVideoSrcs.length} video source${uniqueVideoSrcs.length > 1 ? "s" : ""} with local path`,
+      suggestion: "Pick a video from the Media Library to replace each source.",
+      occurrences: uniqueVideoSrcs,
     });
   }
 
-  const telLinks = [...html.matchAll(/href=["']tel:([^"']+)["']/gi)].map(m => m[1]);
-  if (telLinks.length > 0) {
+  const uniquePhones = [...new Set(
+    [...html.matchAll(/href=["']tel:([^"']+)["']/gi)].map(m => m[1])
+  )];
+  if (uniquePhones.length > 0) {
     items.push({
       type: "PHONE",
-      detail: `Hardcoded phone number${telLinks.length > 1 ? "s" : ""} in tel: link${telLinks.length > 1 ? "s" : ""}: ${telLinks.slice(0, 2).join(", ")}`,
-      suggestion: 'Replace with href="tel:{{cms.phone}}" — value comes from Site Config → Contact Info.',
+      detail: `Hardcoded phone${uniquePhones.length > 1 ? "s" : ""}: ${uniquePhones.join(", ")}`,
+      suggestion: 'One click replaces all tel: links with {{cms.phone}}.',
+      occurrences: uniquePhones,
     });
   }
 
-  const mailLinks = [...html.matchAll(/href=["']mailto:([^"'?]+)/gi)].map(m => m[1]);
-  if (mailLinks.length > 0) {
+  const uniqueEmails = [...new Set(
+    [...html.matchAll(/href=["']mailto:([^"'?]+)/gi)].map(m => m[1])
+  )];
+  if (uniqueEmails.length > 0) {
     items.push({
       type: "EMAIL",
-      detail: `Hardcoded email${mailLinks.length > 1 ? "s" : ""} in mailto: link${mailLinks.length > 1 ? "s" : ""}: ${mailLinks.slice(0, 2).join(", ")}`,
-      suggestion: 'Replace with href="mailto:{{cms.email}}" — value comes from Site Config → Contact Info.',
+      detail: `Hardcoded email${uniqueEmails.length > 1 ? "s" : ""}: ${uniqueEmails.join(", ")}`,
+      suggestion: 'One click replaces all mailto: links with {{cms.email}}.',
+      occurrences: uniqueEmails,
     });
   }
 
-  const bgMatches = [...html.matchAll(/background(?:-image)?:\s*url\(["']?([^"')]+)["']?\)/gi)]
-    .map(m => m[1])
-    .filter(isLocalPath);
-  if (bgMatches.length > 0) {
+  const uniqueBgSrcs = [...new Set(
+    [...html.matchAll(/background(?:-image)?:\s*url\(["']?([^"')]+)["']?\)/gi)]
+      .map(m => m[1]).filter(isLocalPath)
+  )];
+  if (uniqueBgSrcs.length > 0) {
     items.push({
       type: "BACKGROUND",
-      detail: `${bgMatches.length} inline background-image URL${bgMatches.length > 1 ? "s" : ""} with local path`,
-      suggestion: "These should already be wired as {{cms.media.SLOTNAME}} if their image file was in the ZIP. If not, upload via Media Library and add a media slot.",
+      detail: `${uniqueBgSrcs.length} background-image${uniqueBgSrcs.length > 1 ? "s" : ""} with local path`,
+      suggestion: "Pick an image from the Media Library for each background.",
+      occurrences: uniqueBgSrcs,
     });
   }
 
-  // Remaining local <img> src references (not already using {{cms.media.*}})
-  const localImgSrcs = [...html.matchAll(/<img\b[^>]*\bsrc=["']([^"']+)["']/gi)]
-    .map(m => m[1])
-    .filter(src => isLocalPath(src) && !src.includes("{{cms."));
-  if (localImgSrcs.length > 0) {
+  const uniqueLocalImgSrcs = [...new Set(
+    [...html.matchAll(/<img\b[^>]*\bsrc=["']([^"']+)["']/gi)]
+      .map(m => m[1]).filter(src => isLocalPath(src) && !src.includes("{{cms."))
+  )];
+  if (uniqueLocalImgSrcs.length > 0) {
     items.push({
       type: "LOCAL_IMG",
-      detail: `${localImgSrcs.length} <img> src${localImgSrcs.length > 1 ? "s" : ""} still pointing to local path${localImgSrcs.length > 1 ? "s" : ""}: ${localImgSrcs.slice(0, 2).join(", ")}${localImgSrcs.length > 2 ? "…" : ""}`,
-      suggestion: "Re-import with a ZIP containing these image files to auto-upload and wire them. Or upload manually via Media Library and replace src with {{cms.media.SLOTNAME}}.",
+      detail: `${uniqueLocalImgSrcs.length} image src${uniqueLocalImgSrcs.length > 1 ? "s" : ""} with local path`,
+      suggestion: "Pick from the Media Library to replace each image source.",
+      occurrences: uniqueLocalImgSrcs,
     });
   }
 
@@ -143,10 +157,127 @@ export function analyzeHtml(html: string): { needsAttention: ImportAnalysisItem[
   if (cdnLinks.length > 0) {
     items.push({
       type: "CDN",
-      detail: `${cdnLinks.length} external CDN stylesheet${cdnLinks.length > 1 ? "s" : ""} referenced`,
-      suggestion: "CDN links (Bootstrap, FontAwesome, etc.) work fine as-is. Optionally copy the URL into the CSS Files tab in the Standalone Editor for centralized management.",
+      detail: `${cdnLinks.length} external CDN stylesheet${cdnLinks.length > 1 ? "s" : ""} (no action needed)`,
+      suggestion: "CDN links work fine as-is. Optionally move them to the CSS Files tab in the Standalone Editor.",
     });
   }
 
   return { needsAttention: items };
+}
+
+export interface ZipImportResult {
+  html: string;
+  css: string;
+  mediaSlots: Record<string, string>;
+  analysis: { autoHandled: ImportAnalysisItem[]; needsAttention: ImportAnalysisItem[] };
+}
+
+/**
+ * Process a ZIP buffer: extract HTML/CSS/JS, upload images, replace local
+ * refs with {{cms.media.*}}, and return an analysis of what was handled.
+ * Shared by the import route and the analyze re-import route.
+ */
+export async function processZip(arrayBuffer: ArrayBuffer): Promise<NextResponse> {
+  const buffer = Buffer.from(arrayBuffer);
+  let zip: AdmZip;
+  try {
+    zip = new AdmZip(buffer);
+  } catch {
+    return NextResponse.json({ error: "Invalid or corrupt ZIP file" }, { status: 400 });
+  }
+
+  const entries = zip.getEntries().filter(e => !e.isDirectory);
+
+  const htmlEntries = entries.filter(e => {
+    const n = e.entryName.toLowerCase();
+    return n.endsWith(".html") || n.endsWith(".htm");
+  });
+  const cssEntries  = entries.filter(e => e.entryName.toLowerCase().endsWith(".css"));
+  const jsEntries   = entries.filter(e => {
+    const n = e.entryName.toLowerCase();
+    return n.endsWith(".js") && !n.endsWith(".min.js");
+  });
+  const imageEntries = entries.filter(e => IMAGE_EXTS.has("." + (e.entryName.toLowerCase().split(".").pop() ?? "")));
+  const svgEntries   = entries.filter(e => e.entryName.toLowerCase().endsWith(SVG_EXT));
+  const videoEntries = entries.filter(e => VIDEO_EXTS.has("." + (e.entryName.toLowerCase().split(".").pop() ?? "")));
+
+  const indexEntry = htmlEntries.find(e => {
+    const base = e.entryName.split("/").pop()?.toLowerCase() ?? "";
+    return base === "index.html" || base === "index.htm";
+  }) ?? htmlEntries[0];
+
+  if (!indexEntry) {
+    return NextResponse.json({ error: "No HTML file found in ZIP" }, { status: 400 });
+  }
+
+  let html = indexEntry.getData().toString("utf8");
+  const cssParts: string[] = [];
+  for (const e of cssEntries) {
+    cssParts.push(`/* ${e.entryName} */\n${e.getData().toString("utf8")}`);
+  }
+
+  const jsParts: string[] = [];
+  for (const e of jsEntries) {
+    jsParts.push(`/* ${e.entryName} */\n${e.getData().toString("utf8")}`);
+  }
+  if (jsParts.length > 0) {
+    const scriptBlock = `<script>\n${jsParts.join("\n\n")}\n</script>`;
+    html = /<\/body>/i.test(html)
+      ? html.replace(/<\/body>/i, `${scriptBlock}\n</body>`)
+      : html + "\n" + scriptBlock;
+  }
+
+  const mediaSlots: Record<string, string> = {};
+  const uploadedImages: string[] = [];
+  const uploadErrors: string[] = [];
+  const seenSlots = new Map<string, number>();
+  let css = cssParts.join("\n\n");
+
+  for (const e of imageEntries) {
+    try {
+      const slotName = dedupeSlotName(toSlotName(e.entryName), seenSlots);
+      const uploadedUrl = await uploadImageBuffer(e.getData(), e.entryName);
+      mediaSlots[slotName] = uploadedUrl;
+      const imgFilename = e.entryName.split("/").pop()!;
+      const cmsVar = `{{cms.media.${slotName}}}`;
+      html = replaceLocalRef(html, imgFilename, cmsVar);
+      css  = replaceLocalRef(css,  imgFilename, cmsVar);
+      uploadedImages.push(`${imgFilename} → ${slotName}`);
+    } catch (err) {
+      uploadErrors.push(`${e.entryName}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  for (const e of svgEntries) {
+    try {
+      const slotName = dedupeSlotName(toSlotName(e.entryName), seenSlots);
+      const uploadedUrl = await uploadSvgBuffer(e.getData(), e.entryName);
+      mediaSlots[slotName] = uploadedUrl;
+      const svgFilename = e.entryName.split("/").pop()!;
+      const cmsVar = `{{cms.media.${slotName}}}`;
+      html = replaceLocalRef(html, svgFilename, cmsVar);
+      css  = replaceLocalRef(css,  svgFilename, cmsVar);
+      uploadedImages.push(`${svgFilename} → ${slotName}`);
+    } catch (err) {
+      uploadErrors.push(`${e.entryName}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  const autoHandled: ImportAnalysisItem[] = [];
+  if (uploadedImages.length > 0) autoHandled.push({ type: "IMAGES", detail: `${uploadedImages.length} image${uploadedImages.length > 1 ? "s" : ""} uploaded and wired as media slots` });
+  if (uploadErrors.length > 0)   autoHandled.push({ type: "IMAGE_ERRORS", detail: `${uploadErrors.length} image${uploadErrors.length > 1 ? "s" : ""} could not be uploaded: ${uploadErrors.join("; ")}` });
+  if (jsParts.length > 0)        autoHandled.push({ type: "JS",  detail: `${jsParts.length} JS file${jsParts.length > 1 ? "s" : ""} bundled inline before </body>` });
+  if (cssEntries.length > 0)     autoHandled.push({ type: "CSS", detail: `${cssEntries.length} CSS file${cssEntries.length > 1 ? "s" : ""} merged into template CSS field` });
+
+  const { needsAttention } = analyzeHtml(html);
+  if (videoEntries.length > 0) {
+    const vnames = videoEntries.map(e => e.entryName.split("/").pop()).join(", ");
+    needsAttention.push({
+      type: "VIDEO_FILES",
+      detail: `${videoEntries.length} video file${videoEntries.length > 1 ? "s" : ""} in ZIP not auto-uploaded: ${vnames}`,
+      suggestion: "Upload each video via Media Library (up to 200 MB), then add a named media slot.",
+    });
+  }
+
+  return NextResponse.json({ success: true, data: { html, css, mediaSlots, analysis: { autoHandled, needsAttention } } });
 }
