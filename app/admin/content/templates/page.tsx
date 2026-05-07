@@ -415,6 +415,8 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
   const [analysis, setAnalysis]       = useState<ImportAnalysis | null>(null);
   const [formPages, setFormPages]     = useState<FormPage[]>([]);
   const [mediaFiles, setMediaFiles]   = useState<MediaFile[]>([]);
+  const [coverageMaps, setCoverageMaps] = useState<CoverageMap[]>([]);
+  const [mapSelections, setMapSelections] = useState<Record<string, string>>({});
   const [pickerFor, setPickerFor]     = useState<{ src: string; mediaType: "image" | "video" } | null>(null);
   const [pickerSearch, setPickerSearch] = useState("");
   const [selectedFormSlug, setSelectedFormSlug] = useState("");
@@ -436,10 +438,13 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
     Promise.all([
       fetch("/api/media/files").then(r => r.json()),
       fetch("/api/pages?enabled=true").then(r => r.json()),
-    ]).then(([mj, pj]) => {
+      fetch("/api/coverage-maps").then(r => r.json()),
+    ]).then(([mj, pj, cmj]) => {
       setMediaFiles(mj.files ?? []);
       const pages = pj.pages ?? pj.data ?? [];
       setFormPages(pages.filter((p: { type: string }) => p.type === "form").map((p: { slug: string; title: string }) => ({ slug: p.slug, title: p.title })));
+      const maps = Array.isArray(cmj) ? cmj : [];
+      setCoverageMaps(maps.filter((m: { isActive?: boolean }) => m.isActive !== false).map((m: { id: string; slug: string; name: string }) => ({ id: m.id, slug: m.slug, name: m.name })));
     }).catch(() => {});
   }, []);
 
@@ -503,6 +508,13 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
   const fixForm = () => {
     if (!selectedFormSlug) return;
     applyFix("FORM", html.replace(/<form\b[\s\S]*?<\/form>/gi, `{{cms.form.${selectedFormSlug}}}`));
+  };
+
+  const fixCoverageMap = (slot: string) => {
+    const mapSlug = mapSelections[slot];
+    if (!mapSlug) return;
+    const esc = `{{cms.media.${slot}}}`.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    applyFix(`MAP:${slot}`, html.replace(new RegExp(esc, "gi"), `{{cms.coverageMap.${mapSlug}}}`));
   };
 
   const fixSrc = (localSrc: string, newUrl: string) => {
@@ -571,6 +583,50 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
     });
 
   const renderItem = (item: AnalysisItem, i: number) => {
+    if (item.type === "COVERAGE_MAP_SLOT") {
+      const slot = item.occurrences?.[0] ?? "";
+      const isMapFixed = fixed.has(`MAP:${slot}`);
+      return (
+        <div key={i} className={`card mb-2 border-${isMapFixed ? "success" : "warning"}`} style={{ background: isMapFixed ? "#f0fdf4" : "#fffbeb" }}>
+          <div className="card-body py-2 px-3">
+            <div className="d-flex align-items-center gap-2 mb-1">
+              <i className={`bi bi-map text-${isMapFixed ? "success" : "warning"} flex-shrink-0`} />
+              <span className="fw-semibold small flex-grow-1">{item.detail}</span>
+              {isMapFixed && <span className="badge bg-success">✓ Fixed</span>}
+            </div>
+            {!isMapFixed && (
+              <div className="d-flex gap-2 mt-2">
+                {coverageMaps.length === 0 ? (
+                  <span className="text-muted small">No coverage maps — create one first</span>
+                ) : (
+                  <>
+                    <select
+                      className="form-select form-select-sm flex-grow-1"
+                      value={mapSelections[slot] ?? ""}
+                      onChange={e => setMapSelections(prev => ({ ...prev, [slot]: e.target.value }))}
+                    >
+                      <option value="">— Select coverage map —</option>
+                      {coverageMaps.map(m => <option key={m.id} value={m.slug}>{m.name}</option>)}
+                    </select>
+                    <button
+                      className="btn btn-warning btn-sm px-3"
+                      onClick={() => fixCoverageMap(slot)}
+                      disabled={!mapSelections[slot]}
+                    >
+                      <i className="bi bi-link-45deg me-1" />Link
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+            {isMapFixed && (
+              <div className="text-success small mt-1">Replaced with {`{{cms.coverageMap.${mapSelections[slot]}}}`}</div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     const icon = ANALYSIS_ICONS[item.type] ?? "bi-exclamation-circle";
     const isFixed = item.type === "LOCAL_IMG" || item.type === "BACKGROUND" || item.type === "VIDEO"
       ? (item.occurrences ?? []).every(isSrcFixed)

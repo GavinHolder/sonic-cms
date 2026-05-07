@@ -1993,7 +1993,7 @@ Examples:
 {{cms.form.quote}}      →  renders the "quote-request" form page
 \`\`\`
 
-Place the variable anywhere in your HTML. The CMS injects the complete form HTML server-side. \`/cms-forms.js\` is automatically added to the page \`<head>\` when any form is injected.
+Place the variable anywhere in your HTML. The CMS injects the complete form HTML server-side. \`/cms-forms.js\` is automatically injected just before \`</body>\` when any form is detected — no manual script tag needed.
 
 ---
 
@@ -2053,7 +2053,7 @@ To revert: set the dropdown back to "Default: Landing page with sections".
 | CMS-branded pages with editable sections | ❌ Use Full / Designer page |
 | Contact form with CMS field builder | ❌ Use Form page |
 
-> Standalone pages do not inherit the site Bootstrap theme or CMS JavaScript. All CSS frameworks, fonts, and JS libraries must be included in your HTML or linked via the CSS Files tab.
+> Standalone pages are served as a raw HTTP response — they bypass the Next.js layout entirely. No Bootstrap theme, no CMS JS, no global CSS is injected. All CSS frameworks, fonts, and JS libraries must be included in your HTML or linked via the CSS Files tab.
 `;
 
 const NAVIGATION = `
@@ -4604,6 +4604,7 @@ Every **Standalone** template card has an **Analyse** button (pulse icon). Open 
 | Videos (\`<video src>\`, \`<source src>\`) | **Browse Library** per video |
 | Hardcoded phone numbers (\`tel:\` links) | One-click → \`{{cms.phone}}\` |
 | Hardcoded email addresses (\`mailto:\` links) | One-click → \`{{cms.email}}\` |
+| Coverage map slots (\`{{cms.media.*}}\` detected as map placeholder) | Dropdown — pick a coverage map, click **Link** → replaces with \`{{cms.coverageMap.SLUG}}\` |
 | External CDN stylesheets | Informational only — no action needed |
 
 The analyser shows **all** image and video sources — including CDN/external URLs — so you can replace any placeholder with a real image from your Media Library.
