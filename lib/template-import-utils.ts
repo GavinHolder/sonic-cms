@@ -77,12 +77,36 @@ export function isLocalPath(src: string): boolean {
          !src.startsWith("//") && !src.startsWith("data:") && !src.startsWith("/");
 }
 
+/** Humanize a media slot name for display labels. */
+export function humanizeSlot(name: string): string {
+  const map: Record<string, string> = {
+    "hero-bg":            "Hero Background",
+    "hero-bg-2":          "Hero Background (Slide 2)",
+    "hero-bg-3":          "Hero Background (Slide 3)",
+    "about-img":          "About Section Image",
+    "coverage-img":       "Coverage Area Image",
+    "coverage-map-slug":  "Coverage Map",
+    "logo":               "Logo",
+  };
+  if (map[name]) return map[name];
+  const proj = name.match(/^project(\d+)$/);
+  if (proj) return `Project ${proj[1]} Image`;
+  const gal = name.match(/^gallery(\d+)$/);
+  if (gal) return `Gallery Image ${gal[1]}`;
+  return name.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+}
+
 /**
  * Analyse HTML for CMS integration issues.
- * localOnly=true  → only flag paths that are relative (no leading / or http) — used during ZIP import.
- * localOnly=false → flag ALL image/video/background sources so admin can link any of them to Media Library.
+ * localOnly=true        → only flag relative paths (no leading / or http) — used during ZIP import.
+ * localOnly=false       → flag ALL image/video/background sources.
+ * existingSlots         → already-assigned media slots; detected slots not re-surfaced if assigned.
  */
-export function analyzeHtml(html: string, localOnly = true): { needsAttention: ImportAnalysisItem[] } {
+export function analyzeHtml(
+  html: string,
+  localOnly = true,
+  existingSlots: Record<string, string> = {},
+): { needsAttention: ImportAnalysisItem[] } {
   const items: ImportAnalysisItem[] = [];
 
   const validSrc = (src: string) =>
@@ -179,6 +203,50 @@ export function analyzeHtml(html: string, localOnly = true): { needsAttention: I
       detail: `${cdnLinks.length} external CDN stylesheet${cdnLinks.length > 1 ? "s" : ""} (no action needed)`,
       suggestion: "CDN links work fine as-is. Optionally move them to the CSS Files tab in the Standalone Editor.",
     });
+  }
+
+  // ── Hardcoded logo image ──────────────────────────────────────────────────
+  if (!localOnly) {
+    const logoImgs = [...html.matchAll(/<img\b([^>]+)>/gi)].filter(m => {
+      const attrs = m[1];
+      const srcMatch = attrs.match(/\bsrc=["']([^"']+)["']/i);
+      if (!srcMatch || srcMatch[1].includes("{{cms.")) return false;
+      return /logo/i.test(srcMatch[1]) ||
+             /\balt=["'][^"']*logo[^"']*["']/i.test(attrs) ||
+             /\bclass=["'][^"']*logo[^"']*["']/i.test(attrs);
+    });
+    if (logoImgs.length > 0) {
+      items.push({
+        type: "LOGO",
+        detail: `${logoImgs.length} hardcoded logo image${logoImgs.length > 1 ? "s" : ""} — replace with {{cms.logo}}`,
+        suggestion: "One click replaces all logo images with {{cms.logo}}.",
+      });
+    }
+
+    // ── Hardcoded address ─────────────────────────────────────────────────
+    const addrMatch = html.match(/\b\d+\s+\w[\w\s]*\b(?:Street|Road|Ave|Avenue|Drive|Lane|Str|Rd|Blvd|Boulevard|Crescent|Close|Way)\b/i);
+    if (addrMatch) {
+      items.push({
+        type: "ADDRESS",
+        detail: "Possible hardcoded address detected",
+        suggestion: "Replace with {{cms.address}}, {{cms.city}} variables.",
+      });
+    }
+
+    // ── {{cms.media.*}} slots in HTML (only in analyze mode, not ZIP import) ─
+    const detectedSlots = [...new Set(
+      [...html.matchAll(/\{\{cms\.media\.([a-z0-9-]+)\}\}/gi)].map(m => m[1])
+    )].filter(slot => !(slot in existingSlots));
+
+    for (const slot of detectedSlots) {
+      if (slot.includes("coverage-map")) {
+        items.push({ type: "COVERAGE_MAP_SLOT", detail: `Coverage map slot — select which map to display`, occurrences: [slot] });
+      } else if (slot === "logo") {
+        items.push({ type: "LOGO_SLOT", detail: `Logo slot — set in Site Config → Branding`, occurrences: [slot] });
+      } else {
+        items.push({ type: "MEDIA_SLOT", detail: `Assign image for {{cms.media.${slot}}}`, occurrences: [slot] });
+      }
+    }
   }
 
   return { needsAttention: items };

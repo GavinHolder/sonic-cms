@@ -240,6 +240,23 @@ interface FormPage {
   title: string;
 }
 
+interface MediaAsset {
+  id: string;
+  url: string;
+  thumbnailUrl: string | null;
+  filename: string;
+  altText: string | null;
+  mimeType: string;
+  width: number | null;
+  height: number | null;
+}
+
+interface CoverageMap {
+  id: string;
+  slug: string;
+  name: string;
+}
+
 function InlineMediaPicker({
   files, search, onSearch, onPick, mediaType = "image",
 }: {
@@ -292,19 +309,24 @@ function InlineMediaPicker({
 }
 
 const ANALYSIS_ICONS: Record<string, string> = {
-  IMAGES:        "bi-images",
-  IMAGE_ERRORS:  "bi-exclamation-triangle",
-  JS:            "bi-filetype-js",
-  CSS:           "bi-filetype-css",
-  FORM:          "bi-ui-checks",
-  VIDEO:         "bi-camera-video",
-  VIDEO_FILES:   "bi-camera-video",
-  PHONE:         "bi-telephone",
-  EMAIL:         "bi-envelope",
-  BACKGROUND:    "bi-card-image",
-  LOCAL_IMG:     "bi-images",
-  CDN:           "bi-link-45deg",
-  MEDIA_SLOTS:   "bi-check-circle",
+  IMAGES:            "bi-images",
+  IMAGE_ERRORS:      "bi-exclamation-triangle",
+  JS:                "bi-filetype-js",
+  CSS:               "bi-filetype-css",
+  FORM:              "bi-ui-checks",
+  VIDEO:             "bi-camera-video",
+  VIDEO_FILES:       "bi-camera-video",
+  PHONE:             "bi-telephone",
+  EMAIL:             "bi-envelope",
+  BACKGROUND:        "bi-card-image",
+  LOCAL_IMG:         "bi-images",
+  CDN:               "bi-link-45deg",
+  MEDIA_SLOTS:       "bi-check-circle",
+  LOGO:              "bi-person-badge",
+  LOGO_SLOT:         "bi-person-badge",
+  COVERAGE_MAP_SLOT: "bi-map",
+  MEDIA_SLOT:        "bi-image",
+  ADDRESS:           "bi-geo-alt",
 };
 
 interface ImportTemplateModalProps {
@@ -635,23 +657,33 @@ interface AnalyzeModalProps {
 }
 
 function AnalyzeModal({ template, onClose, onUpdated }: AnalyzeModalProps) {
-  const originalHtml = ((template.data as Record<string, unknown>).customHtml as string) ?? "";
-  const [workingHtml, setWorkingHtml]       = useState(originalHtml);
-  const [analysis, setAnalysis]             = useState<ImportAnalysis | null>(null);
-  const [formPages, setFormPages]           = useState<FormPage[]>([]);
-  const [mediaFiles, setMediaFiles]         = useState<MediaFile[]>([]);
-  const [pickerFor, setPickerFor]           = useState<{ src: string; mediaType: "image" | "video" } | null>(null);
-  const [pickerSearch, setPickerSearch]     = useState("");
+  const originalHtml  = ((template.data as Record<string, unknown>).customHtml as string) ?? "";
+  const originalSlots = ((template.data as Record<string, unknown>).mediaSlots as Record<string, string>) ?? {};
+
+  const [workingHtml, setWorkingHtml]         = useState(originalHtml);
+  const [slotAssignments, setSlotAssignments] = useState<Record<string, string>>({ ...originalSlots });
+  const [analysis, setAnalysis]               = useState<ImportAnalysis | null>(null);
+  const [formPages, setFormPages]             = useState<FormPage[]>([]);
+  const [mediaAssets, setMediaAssets]         = useState<MediaAsset[]>([]);
+  const [coverageMaps, setCoverageMaps]       = useState<CoverageMap[]>([]);
+  const [mediaFiles, setMediaFiles]           = useState<MediaFile[]>([]);
+  const [pickerFor, setPickerFor]             = useState<{ src: string; mediaType: "image" | "video" } | null>(null);
+  const [pickerSearch, setPickerSearch]       = useState("");
+  const [pickerSlot, setPickerSlot]           = useState<string | null>(null);
+  const [slotPickerSearch, setSlotPickerSearch] = useState("");
+  const [mapSelections, setMapSelections]     = useState<Record<string, string>>({});
   const [selectedFormSlug, setSelectedFormSlug] = useState("");
-  const [fixed, setFixed]                   = useState<Set<string>>(new Set());
-  const [loading, setLoading]               = useState(true);
-  const [reimporting, setReimporting]       = useState(false);
-  const [saving, setSaving]                 = useState(false);
-  const [error, setError]                   = useState<string | null>(null);
+  const [fixed, setFixed]                     = useState<Set<string>>(new Set());
+  const [loading, setLoading]                 = useState(true);
+  const [reimporting, setReimporting]         = useState(false);
+  const [saving, setSaving]                   = useState(false);
+  const [error, setError]                     = useState<string | null>(null);
   const zipRef = useRef<HTMLInputElement>(null);
 
-  const isDirty = workingHtml !== originalHtml;
-  const fixCount = fixed.size;
+  const isDirty      = workingHtml !== originalHtml;
+  const slotsChanged = JSON.stringify(slotAssignments) !== JSON.stringify(originalSlots);
+  const hasChanges   = isDirty || slotsChanged;
+  const fixCount     = fixed.size;
 
   useEffect(() => {
     Promise.all([
@@ -661,6 +693,8 @@ function AnalyzeModal({ template, onClose, onUpdated }: AnalyzeModalProps) {
       if (aj.success) {
         setAnalysis(aj.data.analysis);
         setFormPages(aj.data.formPages ?? []);
+        setMediaAssets(aj.data.mediaAssets ?? []);
+        setCoverageMaps(aj.data.coverageMaps ?? []);
       } else {
         setError(aj.error ?? "Failed to analyse");
       }
@@ -684,6 +718,16 @@ function AnalyzeModal({ template, onClose, onUpdated }: AnalyzeModalProps) {
     applyFix("FORM", workingHtml.replace(/<form\b[\s\S]*?<\/form>/gi, `{{cms.form.${selectedFormSlug}}}`));
   };
 
+  const fixLogo = () =>
+    applyFix("LOGO", workingHtml.replace(/<img\b([^>]*(?:src=["'][^"']*logo[^"']*["']|alt=["'][^"']*logo[^"']*["']|class=["'][^"']*logo[^"']*["'])[^>]*)>/gi, "{{cms.logo}}"));
+
+  const fixCoverageMap = (slot: string) => {
+    const mapSlug = mapSelections[slot];
+    if (!mapSlug) return;
+    const esc = `{{cms.media.${slot}}}`.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    applyFix(`MAP:${slot}`, workingHtml.replace(new RegExp(esc, "gi"), `{{cms.coverageMap.${mapSlug}}}`));
+  };
+
   const fixSrc = (localSrc: string, newUrl: string) => {
     const esc = localSrc.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     applyFix(`SRC:${localSrc}`, workingHtml.replace(new RegExp(esc, "g"), newUrl));
@@ -691,18 +735,27 @@ function AnalyzeModal({ template, onClose, onUpdated }: AnalyzeModalProps) {
     setPickerSearch("");
   };
 
+  const assignSlotImage = (slot: string, url: string) => {
+    setSlotAssignments(prev => ({ ...prev, [slot]: url }));
+    setPickerSlot(null);
+    setSlotPickerSearch("");
+  };
+
   const saveChanges = async () => {
     setSaving(true);
     setError(null);
     try {
+      const body: Record<string, unknown> = {};
+      if (isDirty) body.customHtml = workingHtml;
+      if (slotsChanged) body.mediaSlots = slotAssignments;
       const res = await fetch(`/api/templates/${template.id}/analyze`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ customHtml: workingHtml }),
+        body: JSON.stringify(body),
       });
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.error ?? "Save failed");
-      onUpdated(template.id, { customHtml: workingHtml });
+      onUpdated(template.id, { customHtml: workingHtml, mediaSlots: slotAssignments });
     } catch (e) { setError(e instanceof Error ? e.message : "Save failed"); }
     setSaving(false);
   };
@@ -717,6 +770,7 @@ function AnalyzeModal({ template, onClose, onUpdated }: AnalyzeModalProps) {
       if (!res.ok || !json.success) throw new Error(json.error ?? "Re-import failed");
       setAnalysis(json.data.analysis);
       setWorkingHtml(json.data.html);
+      setSlotAssignments(json.data.mediaSlots ?? {});
       setFixed(new Set());
       onUpdated(template.id, json.data);
     } catch (e) { setError(e instanceof Error ? e.message : "Re-import failed"); }
@@ -724,6 +778,187 @@ function AnalyzeModal({ template, onClose, onUpdated }: AnalyzeModalProps) {
   };
 
   const isSrcFixed = (src: string) => fixed.has(`SRC:${src}`);
+
+  const SLOT_TYPES = new Set(["MEDIA_SLOT", "COVERAGE_MAP_SLOT", "LOGO_SLOT", "LOGO"]);
+
+  const slotItems     = analysis?.needsAttention.filter(i => SLOT_TYPES.has(i.type)) ?? [];
+  const attentionItems = analysis?.needsAttention.filter(i => !SLOT_TYPES.has(i.type)) ?? [];
+
+  const filteredAssets = (search: string) =>
+    mediaAssets.filter(a =>
+      a.mimeType.startsWith("image/") &&
+      (!search || a.filename.toLowerCase().includes(search.toLowerCase()) ||
+                  (a.altText ?? "").toLowerCase().includes(search.toLowerCase()))
+    );
+
+  const renderSlotItems = () => {
+    if (slotItems.length === 0) return null;
+    return (
+      <div className="mb-3">
+        <div className="fw-semibold small mb-2" style={{ color: "#0d6efd" }}>
+          <i className="bi bi-sliders me-2" />Configure Slots ({slotItems.length})
+        </div>
+        {slotItems.map((item, i) => {
+          const slot = item.occurrences?.[0] ?? "";
+          const isMapFixed = fixed.has(`MAP:${slot}`);
+          const isLogoFixed = fixed.has("LOGO");
+
+          if (item.type === "MEDIA_SLOT") {
+            const assignedUrl = slotAssignments[slot];
+            const isOpen = pickerSlot === slot;
+            const filtered = filteredAssets(isOpen ? slotPickerSearch : "");
+            return (
+              <div key={i} className="card mb-2 border-primary border-opacity-25" style={{ background: "#f0f6ff" }}>
+                <div className="card-body py-2 px-3">
+                  <div className="d-flex align-items-center gap-2">
+                    <i className="bi bi-image text-primary flex-shrink-0" />
+                    <span className="fw-semibold small flex-grow-1">{item.detail}</span>
+                    <code className="text-muted" style={{ fontSize: "0.65rem" }}>{`{{cms.media.${slot}}}`}</code>
+                    {assignedUrl && !isOpen && (
+                      <img src={assignedUrl} alt={slot} style={{ width: 32, height: 32, objectFit: "cover", borderRadius: 3, border: "1px solid #dee2e6" }} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                    )}
+                    <button
+                      type="button"
+                      className={`btn btn-sm ${isOpen ? "btn-primary" : "btn-outline-primary"} text-nowrap`}
+                      style={{ fontSize: "0.7rem" }}
+                      onClick={() => { setPickerSlot(isOpen ? null : slot); setSlotPickerSearch(""); setPickerFor(null); }}
+                    >
+                      <i className={`bi ${isOpen ? "bi-x" : "bi-folder2-open"} me-1`} />
+                      {assignedUrl ? "Change" : "Pick Image"}
+                    </button>
+                  </div>
+                  {isOpen && (
+                    <div className="mt-2">
+                      <input
+                        className="form-control form-control-sm mb-2"
+                        placeholder="Search images…"
+                        value={slotPickerSearch}
+                        onChange={e => setSlotPickerSearch(e.target.value)}
+                        autoFocus
+                      />
+                      {filtered.length === 0 ? (
+                        <div className="text-muted small text-center py-2">
+                          No images — <a href="/admin/media" target="_blank" rel="noopener noreferrer">upload via Media Library</a>
+                        </div>
+                      ) : (
+                        <div className="d-flex flex-wrap gap-1" style={{ maxHeight: 200, overflowY: "auto" }}>
+                          {filtered.slice(0, 60).map(a => (
+                            <button
+                              key={a.id}
+                              type="button"
+                              className="btn p-0 border rounded"
+                              style={{ width: 80, height: 80, overflow: "hidden", flexShrink: 0 }}
+                              onClick={() => assignSlotImage(slot, a.url)}
+                              title={a.filename}
+                            >
+                              <img
+                                src={a.thumbnailUrl ?? a.url}
+                                alt={a.altText ?? a.filename}
+                                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <div className="mt-2 d-flex justify-content-between align-items-center">
+                        <span className="text-muted" style={{ fontSize: "0.7rem" }}>{filtered.length} image{filtered.length !== 1 ? "s" : ""}</span>
+                        <a href="/admin/media" target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-secondary" style={{ fontSize: "0.7rem" }}>
+                          <i className="bi bi-cloud-upload me-1" />Upload new
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                  {assignedUrl && (
+                    <div className="text-success small mt-1" style={{ fontSize: "0.72rem" }}>
+                      <i className="bi bi-check-circle-fill me-1" />Assigned — saves with template
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          }
+
+          if (item.type === "COVERAGE_MAP_SLOT") {
+            return (
+              <div key={i} className="card mb-2 border-primary border-opacity-25" style={{ background: "#f0f6ff" }}>
+                <div className="card-body py-2 px-3">
+                  <div className="d-flex align-items-center gap-2 mb-2">
+                    <i className="bi bi-map text-primary flex-shrink-0" />
+                    <span className="fw-semibold small flex-grow-1">{item.detail}</span>
+                    <code className="text-muted" style={{ fontSize: "0.65rem" }}>{`{{cms.media.${slot}}}`}</code>
+                    {isMapFixed && <span className="badge bg-success">✓ Linked</span>}
+                  </div>
+                  {!isMapFixed && (
+                    <div className="d-flex gap-2">
+                      {coverageMaps.length === 0 ? (
+                        <span className="text-muted small">No coverage maps — create one first</span>
+                      ) : (
+                        <>
+                          <select
+                            className="form-select form-select-sm flex-grow-1"
+                            value={mapSelections[slot] ?? ""}
+                            onChange={e => setMapSelections(prev => ({ ...prev, [slot]: e.target.value }))}
+                          >
+                            <option value="">— Select coverage map —</option>
+                            {coverageMaps.map(m => <option key={m.id} value={m.slug}>{m.name}</option>)}
+                          </select>
+                          <button
+                            className="btn btn-primary btn-sm px-3"
+                            onClick={() => fixCoverageMap(slot)}
+                            disabled={!mapSelections[slot]}
+                          >
+                            <i className="bi bi-link-45deg me-1" />Apply
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  {isMapFixed && (
+                    <div className="text-success small" style={{ fontSize: "0.72rem" }}>
+                      Replaced with <code>{`{{cms.coverageMap.${mapSelections[slot]}}}`}</code> — save to persist
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          }
+
+          if (item.type === "LOGO_SLOT") {
+            return (
+              <div key={i} className="card mb-2 border-primary border-opacity-25" style={{ background: "#f0f6ff" }}>
+                <div className="card-body py-2 px-3 d-flex align-items-center gap-2">
+                  <i className="bi bi-person-badge text-primary flex-shrink-0" />
+                  <span className="small flex-grow-1">{item.detail}</span>
+                  <span className="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">Site Config → Branding</span>
+                </div>
+              </div>
+            );
+          }
+
+          if (item.type === "LOGO") {
+            return (
+              <div key={i} className="card mb-2 border-primary border-opacity-25" style={{ background: "#f0f6ff" }}>
+                <div className="card-body py-2 px-3">
+                  <div className="d-flex align-items-center gap-2">
+                    <i className="bi bi-person-badge text-primary flex-shrink-0" />
+                    <span className="fw-semibold small flex-grow-1">{item.detail}</span>
+                    {isLogoFixed
+                      ? <span className="badge bg-success">✓ Replaced</span>
+                      : <button className="btn btn-outline-primary btn-sm" onClick={fixLogo} style={{ fontSize: "0.7rem" }}>
+                          <i className="bi bi-arrow-repeat me-1" />Replace with {"{{cms.logo}}"}
+                        </button>
+                    }
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          return null;
+        })}
+      </div>
+    );
+  };
 
   const renderSrcRows = (occurrences: string[], mediaType: "image" | "video") =>
     occurrences.map(src => {
@@ -740,7 +975,7 @@ function AnalyzeModal({ template, onClose, onUpdated }: AnalyzeModalProps) {
                   type="button"
                   className={`btn btn-sm ${isPicking ? "btn-primary" : "btn-outline-primary"} text-nowrap`}
                   style={{ fontSize: "0.7rem", padding: "2px 10px", flexShrink: 0 }}
-                  onClick={() => { setPickerFor(isPicking ? null : { src, mediaType }); setPickerSearch(""); }}
+                  onClick={() => { setPickerFor(isPicking ? null : { src, mediaType }); setPickerSearch(""); setPickerSlot(null); }}
                 >
                   <i className={`bi ${isPicking ? "bi-x" : "bi-folder2-open"} me-1`} />
                   {isPicking ? "Close" : "Browse Library"}
@@ -771,14 +1006,12 @@ function AnalyzeModal({ template, onClose, onUpdated }: AnalyzeModalProps) {
     return (
       <div key={i} className={`card mb-2 border-${cardBorder}`} style={{ background: cardBg }}>
         <div className="card-body py-2 px-3">
-          {/* Header row */}
           <div className="d-flex align-items-center gap-2 mb-1">
             <i className={`bi ${icon} text-${item.type === "CDN" ? "muted" : isFixed ? "success" : "warning"} flex-shrink-0`} />
             <span className="fw-semibold small flex-grow-1">{item.detail}</span>
             {isFixed && <span className="badge bg-success">✓ Fixed</span>}
           </div>
 
-          {/* FORM: dropdown → link */}
           {item.type === "FORM" && !isFixed && (
             <div className="d-flex gap-2 mt-2">
               <select className="form-select form-select-sm flex-grow-1" value={selectedFormSlug} onChange={e => setSelectedFormSlug(e.target.value)}>
@@ -794,21 +1027,18 @@ function AnalyzeModal({ template, onClose, onUpdated }: AnalyzeModalProps) {
             <div className="text-success small mt-1">Replaced with {`{{cms.form.${selectedFormSlug}}}`}</div>
           )}
 
-          {/* PHONE: one-click */}
           {item.type === "PHONE" && !isFixed && (
             <button className="btn btn-warning btn-sm mt-2" onClick={fixPhone}>
               <i className="bi bi-arrow-repeat me-1" />Replace all with {"{{cms.phone}}"}
             </button>
           )}
 
-          {/* EMAIL: one-click */}
           {item.type === "EMAIL" && !isFixed && (
             <button className="btn btn-warning btn-sm mt-2" onClick={fixEmail}>
               <i className="bi bi-arrow-repeat me-1" />Replace all with {"{{cms.email}}"}
             </button>
           )}
 
-          {/* LOCAL_IMG / BACKGROUND / VIDEO: per-occurrence picker */}
           {(item.type === "LOCAL_IMG" || item.type === "BACKGROUND") && (item.occurrences ?? []).length > 0 && (
             <div className="mt-2">{renderSrcRows(item.occurrences!, "image")}</div>
           )}
@@ -816,17 +1046,29 @@ function AnalyzeModal({ template, onClose, onUpdated }: AnalyzeModalProps) {
             <div className="mt-2">{renderSrcRows(item.occurrences!, "video")}</div>
           )}
 
-          {/* CDN / info-only: show suggestion */}
           {item.type === "CDN" && item.suggestion && (
             <div className="text-muted small mt-1" style={{ fontSize: "0.75rem" }}>{item.suggestion}</div>
+          )}
+
+          {item.type === "ADDRESS" && item.suggestion && (
+            <div className="text-muted small mt-1" style={{ fontSize: "0.75rem" }}>
+              <i className="bi bi-arrow-right me-1" />{item.suggestion}
+            </div>
           )}
         </div>
       </div>
     );
   };
 
-  const mediaSlots = ((template.data as Record<string, unknown>).mediaSlots as Record<string, string>) ?? {};
-  const slotCount = Object.keys(mediaSlots).length;
+  const savedSlots = ((template.data as Record<string, unknown>).mediaSlots as Record<string, string>) ?? {};
+  const savedSlotCount = Object.keys(savedSlots).length;
+
+  const saveLabel = () => {
+    const parts = [];
+    if (isDirty) parts.push(`${fixCount} fix${fixCount !== 1 ? "es" : ""}`);
+    if (slotsChanged) parts.push("slot changes");
+    return parts.join(" + ") || "changes";
+  };
 
   return (
     <div className="modal show d-block" tabIndex={-1} style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1060 }}>
@@ -837,16 +1079,16 @@ function AnalyzeModal({ template, onClose, onUpdated }: AnalyzeModalProps) {
               <h5 className="modal-title mb-0">
                 <i className="bi bi-activity me-2 text-info" />Analyse: {template.name}
               </h5>
-              {isDirty && (
+              {hasChanges && (
                 <div className="text-muted small mt-1">
-                  <i className="bi bi-pencil-square me-1 text-warning" />{fixCount} fix{fixCount !== 1 ? "es" : ""} applied — save to persist
+                  <i className="bi bi-pencil-square me-1 text-warning" />{saveLabel()} — save to persist
                 </div>
               )}
             </div>
             <div className="d-flex align-items-center gap-2 ms-auto">
-              {isDirty && (
+              {hasChanges && (
                 <button className="btn btn-success btn-sm" onClick={saveChanges} disabled={saving}>
-                  {saving ? <><span className="spinner-border spinner-border-sm me-1" />Saving…</> : <><i className="bi bi-floppy me-1" />Save {fixCount} fix{fixCount !== 1 ? "es" : ""}</>}
+                  {saving ? <><span className="spinner-border spinner-border-sm me-1" />Saving…</> : <><i className="bi bi-floppy me-1" />Save</>}
                 </button>
               )}
               <button className="btn-close" onClick={onClose} />
@@ -858,8 +1100,8 @@ function AnalyzeModal({ template, onClose, onUpdated }: AnalyzeModalProps) {
 
             {!loading && analysis && (
               <>
-                {/* Already wired — show media slots */}
-                {(analysis.autoHandled.length > 0 || slotCount > 0) && (
+                {/* Already wired */}
+                {(analysis.autoHandled.length > 0 || savedSlotCount > 0) && (
                   <div className="mb-3">
                     {analysis.autoHandled.map((item, i) => (
                       <div key={i} className="card mb-1 border-success" style={{ background: "#f0fdf4" }}>
@@ -870,9 +1112,9 @@ function AnalyzeModal({ template, onClose, onUpdated }: AnalyzeModalProps) {
                         </div>
                       </div>
                     ))}
-                    {slotCount > 0 && (
+                    {savedSlotCount > 0 && (
                       <div className="d-flex flex-wrap gap-2 mt-2">
-                        {Object.entries(mediaSlots).map(([slot, url]) => (
+                        {Object.entries(savedSlots).map(([slot, url]) => (
                           <div key={slot} className="border border-success rounded px-2 py-1 d-flex align-items-center gap-1" style={{ background: "#f0fdf4" }}>
                             <img src={url} alt={slot} style={{ width: 24, height: 24, objectFit: "cover", borderRadius: 2 }} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
                             <code className="text-success" style={{ fontSize: "0.65rem" }}>{`{{cms.media.${slot}}}`}</code>
@@ -883,20 +1125,23 @@ function AnalyzeModal({ template, onClose, onUpdated }: AnalyzeModalProps) {
                   </div>
                 )}
 
-                {/* Issues */}
-                {analysis.needsAttention.length > 0 ? (
+                {/* Configure Slots */}
+                {renderSlotItems()}
+
+                {/* Needs attention */}
+                {attentionItems.length > 0 ? (
                   <div className="mb-3">
                     <div className="text-muted small fw-semibold mb-2">
                       <i className="bi bi-exclamation-triangle-fill text-warning me-1" />
-                      {analysis.needsAttention.length} issue{analysis.needsAttention.length > 1 ? "s" : ""} — fix inline below
+                      {attentionItems.length} issue{attentionItems.length > 1 ? "s" : ""} — fix inline below
                     </div>
-                    {analysis.needsAttention.map((item, i) => renderItem(item, i))}
+                    {attentionItems.map((item, i) => renderItem(item, i))}
                   </div>
-                ) : (
+                ) : slotItems.length === 0 ? (
                   <div className="alert alert-success py-2 small mb-3">
                     <i className="bi bi-check-circle-fill me-2" />Template fully wired — no CMS integration issues.
                   </div>
-                )}
+                ) : null}
 
                 {/* ZIP re-import */}
                 <div className="border rounded p-3" style={{ background: "#f8f9fa" }}>
@@ -922,9 +1167,9 @@ function AnalyzeModal({ template, onClose, onUpdated }: AnalyzeModalProps) {
           </div>
 
           <div className="modal-footer">
-            {isDirty && (
+            {hasChanges && (
               <button className="btn btn-success me-auto" onClick={saveChanges} disabled={saving}>
-                {saving ? <><span className="spinner-border spinner-border-sm me-1" />Saving…</> : <><i className="bi bi-floppy me-1" />Save {fixCount} fix{fixCount !== 1 ? "es" : ""}</>}
+                {saving ? <><span className="spinner-border spinner-border-sm me-1" />Saving…</> : <><i className="bi bi-floppy me-1" />Save {saveLabel()}</>}
               </button>
             )}
             <button className="btn btn-outline-secondary" onClick={onClose}>Close</button>
