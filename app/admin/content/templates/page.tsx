@@ -215,20 +215,47 @@ function UseAsPageModal({ template, onClose, onCreated }: UseAsPageModalProps) {
   );
 }
 
+interface AnalysisItem {
+  type: string;
+  detail: string;
+  suggestion?: string;
+}
+
+interface ImportAnalysis {
+  autoHandled: AnalysisItem[];
+  needsAttention: AnalysisItem[];
+}
+
+const ANALYSIS_ICONS: Record<string, string> = {
+  IMAGES:        "bi-images",
+  IMAGE_ERRORS:  "bi-exclamation-triangle",
+  JS:            "bi-filetype-js",
+  CSS:           "bi-filetype-css",
+  FORM:          "bi-ui-checks",
+  VIDEO:         "bi-camera-video",
+  VIDEO_FILES:   "bi-camera-video",
+  PHONE:         "bi-telephone",
+  EMAIL:         "bi-envelope",
+  BACKGROUND:    "bi-image",
+  CDN:           "bi-link-45deg",
+};
+
 interface ImportTemplateModalProps {
   onClose: () => void;
   onImported: (t: CmsTemplate) => void;
 }
 
 function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) {
-  const [file, setFile]           = useState<File | null>(null);
-  const [name, setName]           = useState("");
-  const [desc, setDesc]           = useState("");
-  const [html, setHtml]           = useState("");
-  const [css, setCss]             = useState("");
-  const [extracting, setExtracting] = useState(false);
-  const [saving, setSaving]       = useState(false);
-  const [error, setError]         = useState<string | null>(null);
+  const [file, setFile]               = useState<File | null>(null);
+  const [name, setName]               = useState("");
+  const [desc, setDesc]               = useState("");
+  const [html, setHtml]               = useState("");
+  const [css, setCss]                 = useState("");
+  const [mediaSlots, setMediaSlots]   = useState<Record<string, string>>({});
+  const [analysis, setAnalysis]       = useState<ImportAnalysis | null>(null);
+  const [extracting, setExtracting]   = useState(false);
+  const [saving, setSaving]           = useState(false);
+  const [error, setError]             = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const autoName = (filename: string) =>
@@ -240,14 +267,30 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
   const processFile = useCallback(async (f: File) => {
     setFile(f);
     setError(null);
+    setAnalysis(null);
+    setMediaSlots({});
     setName(prev => prev || autoName(f.name));
 
     const fname = f.name.toLowerCase();
 
     if (fname.endsWith(".html") || fname.endsWith(".htm")) {
-      const text = await f.text();
-      setHtml(text);
-      setCss("");
+      setExtracting(true);
+      try {
+        const fd = new FormData();
+        fd.append("file", f);
+        const res = await fetch("/api/templates/import", { method: "POST", body: fd });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "Extraction failed");
+        setHtml(json.data.html);
+        setCss(json.data.css ?? "");
+        setMediaSlots(json.data.mediaSlots ?? {});
+        setAnalysis(json.data.analysis ?? null);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Extraction failed");
+        setFile(null);
+      } finally {
+        setExtracting(false);
+      }
       return;
     }
 
@@ -260,7 +303,9 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || "Extraction failed");
         setHtml(json.data.html);
-        setCss(json.data.css);
+        setCss(json.data.css ?? "");
+        setMediaSlots(json.data.mediaSlots ?? {});
+        setAnalysis(json.data.analysis ?? null);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Extraction failed");
         setFile(null);
@@ -294,7 +339,12 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
           name: name.trim(),
           description: desc.trim() || null,
           templateType: "standalone",
-          data: { customHtml: html, customCss: css, customCssUrls: [] },
+          data: {
+            customHtml: html,
+            customCss: css,
+            customCssUrls: [],
+            mediaSlots,
+          },
         }),
       });
       const json = await res.json();
@@ -306,12 +356,13 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
     setSaving(false);
   };
 
-  const previewText = html.slice(0, 900);
-  const hasMore = html.length > 900;
+  const previewText = html.slice(0, 600);
+  const hasMore = html.length > 600;
+  const slotCount = Object.keys(mediaSlots).length;
 
   return (
     <div className="modal show d-block" tabIndex={-1} style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1060 }}>
-      <div className="modal-dialog modal-lg modal-dialog-centered">
+      <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div className="modal-content">
           <div className="modal-header">
             <h5 className="modal-title">
@@ -326,8 +377,8 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
               className="border rounded p-4 text-center mb-3"
               style={{
                 borderStyle: "dashed",
-                borderColor: file ? "#198754" : "#dee2e6",
-                background: file ? "#f0fdf4" : "#f8f9fa",
+                borderColor: file && html ? "#198754" : "#dee2e6",
+                background: file && html ? "#f0fdf4" : "#f8f9fa",
                 cursor: "pointer",
                 transition: "all 0.15s",
               }}
@@ -338,7 +389,7 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
               {extracting ? (
                 <>
                   <span className="spinner-border spinner-border-sm me-2" />
-                  Extracting ZIP…
+                  Analysing template — uploading images…
                 </>
               ) : file && html ? (
                 <>
@@ -352,7 +403,7 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
                   <i className="bi bi-cloud-upload fs-2 text-muted d-block mb-2" />
                   <div className="fw-semibold">Drop a file here or click to browse</div>
                   <div className="text-muted small mt-1">
-                    Accepts <code>.html</code> or <code>.zip</code> (ZIP may contain HTML + CSS + JS files)
+                    Accepts <code>.html</code> or <code>.zip</code> (ZIP: images auto-uploaded, CSS/JS bundled)
                   </div>
                 </>
               )}
@@ -364,6 +415,62 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
               className="d-none"
               onChange={e => { const f = e.target.files?.[0]; if (f) processFile(f); e.target.value = ""; }}
             />
+
+            {/* Integration checklist */}
+            {analysis && (
+              <div className="mb-3">
+                {analysis.autoHandled.length > 0 && (
+                  <div className="card border-success mb-2">
+                    <div className="card-header py-2 bg-success bg-opacity-10 border-success">
+                      <span className="fw-semibold text-success small">
+                        <i className="bi bi-check-circle-fill me-2" />Auto-handled ({analysis.autoHandled.length})
+                      </span>
+                    </div>
+                    <ul className="list-group list-group-flush">
+                      {analysis.autoHandled.map((item, i) => (
+                        <li key={i} className="list-group-item py-2 px-3 small">
+                          <i className={`bi ${ANALYSIS_ICONS[item.type] ?? "bi-check"} text-success me-2`} />
+                          {item.detail}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {analysis.needsAttention.length > 0 && (
+                  <div className="card border-warning">
+                    <div className="card-header py-2 bg-warning bg-opacity-10 border-warning">
+                      <span className="fw-semibold text-warning small">
+                        <i className="bi bi-exclamation-triangle-fill me-2" />Needs your attention ({analysis.needsAttention.length})
+                      </span>
+                    </div>
+                    <ul className="list-group list-group-flush">
+                      {analysis.needsAttention.map((item, i) => (
+                        <li key={i} className="list-group-item py-2 px-3 small">
+                          <div className="d-flex gap-2 align-items-start">
+                            <i className={`bi ${ANALYSIS_ICONS[item.type] ?? "bi-exclamation-circle"} text-warning mt-1 flex-shrink-0`} />
+                            <div>
+                              <div className="fw-semibold">{item.detail}</div>
+                              {item.suggestion && (
+                                <div className="text-muted mt-1" style={{ fontSize: "0.78rem" }}>
+                                  <i className="bi bi-arrow-right me-1" />{item.suggestion}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {analysis.autoHandled.length === 0 && analysis.needsAttention.length === 0 && (
+                  <div className="alert alert-success py-2 small mb-0">
+                    <i className="bi bi-check-circle-fill me-2" />Template looks clean — no wiring issues detected.
+                  </div>
+                )}
+              </div>
+            )}
 
             {html && (
               <>
@@ -389,25 +496,40 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
                   </div>
                 </div>
 
-                <div className="mb-2">
+                {slotCount > 0 && (
+                  <div className="mb-3">
+                    <div className="d-flex align-items-center gap-2 mb-2">
+                      <label className="form-label small fw-semibold text-muted mb-0">
+                        <i className="bi bi-images me-1" />Media Slots ({slotCount})
+                      </label>
+                      <span className="badge bg-success-subtle text-success border border-success-subtle">auto-wired</span>
+                    </div>
+                    <div className="d-flex flex-wrap gap-2">
+                      {Object.entries(mediaSlots).map(([slot, url]) => (
+                        <div key={slot} className="border rounded px-2 py-1 small d-flex align-items-center gap-2" style={{ background: "#f8f9fa" }}>
+                          <img src={url} alt={slot} style={{ width: 28, height: 28, objectFit: "cover", borderRadius: 3 }} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                          <code className="text-success" style={{ fontSize: "0.7rem" }}>{`{{cms.media.${slot}}}`}</code>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="mb-0">
                   <div className="d-flex justify-content-between align-items-center mb-1">
                     <label className="form-label small fw-semibold text-muted mb-0">HTML Preview</label>
-                    <span className="badge bg-secondary">{html.length.toLocaleString()} chars</span>
+                    <div className="d-flex gap-2">
+                      {css && <span className="badge bg-info-subtle text-info border border-info-subtle">{css.length.toLocaleString()} CSS chars</span>}
+                      <span className="badge bg-secondary">{html.length.toLocaleString()} HTML chars</span>
+                    </div>
                   </div>
                   <pre
                     className="bg-dark text-light rounded p-3 mb-0"
-                    style={{ maxHeight: 200, overflow: "auto", fontSize: "0.7rem", lineHeight: 1.4 }}
+                    style={{ maxHeight: 160, overflow: "auto", fontSize: "0.7rem", lineHeight: 1.4 }}
                   >
-                    {previewText}{hasMore ? `\n… (+${(html.length - 900).toLocaleString()} more chars)` : ""}
+                    {previewText}{hasMore ? `\n… (+${(html.length - 600).toLocaleString()} more chars)` : ""}
                   </pre>
                 </div>
-
-                {css && (
-                  <div className="alert alert-info py-2 small mt-2 mb-0">
-                    <i className="bi bi-filetype-css me-1" />
-                    <strong>{css.length.toLocaleString()} chars</strong> of CSS extracted from ZIP — saved to the template CSS field (editable later in the Standalone Editor).
-                  </div>
-                )}
               </>
             )}
 
