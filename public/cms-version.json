@@ -1,12 +1,10 @@
 {
-  "version": "1.44.0",
+  "version": "1.44.1",
   "date": "2026-05-07",
   "changelog": {
-    "features": [
-      "interactive analyse modal — inline fix UI, no manual HTML editing"
-    ],
+    "features": [],
     "bugfixes": [
-      "move processZip to shared lib — resolve cross-route import build failure"
+      "analyze modal now surfaces ALL images/videos for media library linking"
     ],
     "breaking": []
   }
