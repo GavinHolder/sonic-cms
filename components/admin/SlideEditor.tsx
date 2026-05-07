@@ -222,19 +222,11 @@ export default function SlideEditor({
                   disabled={!slide.mobileBgColor}
                   style={{ width: "50px" }}
                 />
-                <div className="form-check form-switch mb-0">
-                  <input
-                    className="form-check-input"
-                    type="checkbox"
-                    id={`mobile-bg-enabled-${slide.id}`}
-                    checked={!!slide.mobileBgColor}
-                    onChange={(e) =>
-                      onChange({ mobileBgColor: e.target.checked ? "#1e3a5f" : undefined })
-                    }
-                  />
-                  <label className="form-check-label small" htmlFor={`mobile-bg-enabled-${slide.id}`}>
-                    Use solid color on mobile
-                  </label>
+                <div className="d-flex align-items-center gap-2" style={{ cursor: "pointer" }} onClick={() => onChange({ mobileBgColor: !!slide.mobileBgColor ? undefined : "#1e3a5f" })}>
+                  <div role="switch" aria-checked={!!slide.mobileBgColor} style={{ width: "36px", height: "20px", borderRadius: "10px", flexShrink: 0, backgroundColor: !!slide.mobileBgColor ? "#0d6efd" : "#adb5bd", transition: "background-color 0.15s", position: "relative" }}>
+                    <div style={{ width: "14px", height: "14px", borderRadius: "50%", backgroundColor: "#fff", position: "absolute", top: "3px", left: !!slide.mobileBgColor ? "19px" : "3px", transition: "left 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
+                  </div>
+                  <span className="small">Use solid color on mobile</span>
                 </div>
               </div>
               {slide.mobileBgColor && (
@@ -312,17 +304,11 @@ export default function SlideEditor({
         {/* Gradient Tab */}
         {activeTab === "gradient" && (
           <div>
-            <div className="form-check form-switch mb-3">
-              <input
-                className="form-check-input"
-                type="checkbox"
-                id={`gradient-enabled-${slide.id}`}
-                checked={slide.gradient?.enabled ?? false}
-                onChange={(e) => updateGradient({ enabled: e.target.checked })}
-              />
-              <label className="form-check-label" htmlFor={`gradient-enabled-${slide.id}`}>
-                Enable Gradient Overlay
-              </label>
+            <div className="d-flex align-items-center gap-2 mb-3" style={{ cursor: "pointer" }} onClick={() => updateGradient({ enabled: !(slide.gradient?.enabled ?? false) })}>
+              <div role="switch" aria-checked={slide.gradient?.enabled ?? false} style={{ width: "42px", height: "22px", borderRadius: "11px", flexShrink: 0, backgroundColor: (slide.gradient?.enabled ?? false) ? "#0d6efd" : "#adb5bd", transition: "background-color 0.15s", position: "relative" }}>
+                <div style={{ width: "16px", height: "16px", borderRadius: "50%", backgroundColor: "#fff", position: "absolute", top: "3px", left: (slide.gradient?.enabled ?? false) ? "23px" : "3px", transition: "left 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
+              </div>
+              <span className="fw-semibold small">Enable Gradient Overlay</span>
             </div>
 
             {slide.gradient?.enabled && (

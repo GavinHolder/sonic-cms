@@ -16,9 +16,24 @@ export default function HeroCarouselEditor({
   onSave,
   onCancel,
 }: HeroCarouselEditorProps) {
-  const [slides, setSlides] = useState<HeroCarouselSlide[]>(
-    section.content.slides || []
-  );
+  const defaultSlide: HeroCarouselSlide = {
+    id: `slide-${Date.now()}`,
+    type: "image",
+    src: "",
+    gradient: { enabled: false, type: "preset" },
+    overlay: {
+      heading: { text: "Your Headline Here", fontSize: 56, fontWeight: 700, fontFamily: "inherit", color: "#ffffff", animation: "slideUp", animationDuration: 800, animationDelay: 200 },
+      buttons: [{ text: "Get Started", href: "#contact", backgroundColor: "#2563eb", textColor: "#ffffff", variant: "filled", animation: "slideUp", animationDuration: 800, animationDelay: 600 }],
+      position: "center",
+      spacing: { betweenHeadingSubheading: 16, betweenSubheadingButtons: 32, betweenButtons: 16 },
+    },
+  };
+
+  const initialSlides = section.content.slides?.length
+    ? section.content.slides
+    : [defaultSlide];
+
+  const [slides, setSlides] = useState<HeroCarouselSlide[]>(initialSlides);
   const [displayName, setDisplayName] = useState(
     section.displayName || "Hero Section"
   );
@@ -33,7 +48,8 @@ export default function HeroCarouselEditor({
   );
   const [deleteConfirmSlideIndex, setDeleteConfirmSlideIndex] = useState<number | null>(null);
   const [showLastSlideError, setShowLastSlideError] = useState(false);
-  const [expandedSlides, setExpandedSlides] = useState<Set<number>>(new Set());
+  // Auto-expand first slide so controls are visible immediately
+  const [expandedSlides, setExpandedSlides] = useState<Set<number>>(new Set([0]));
 
   const toggleSlide = (index: number) => {
     setExpandedSlides((prev) => {
@@ -186,53 +202,35 @@ export default function HeroCarouselEditor({
 
             {/* Switches Row */}
             <div className="row g-3 mb-4">
-              <div className="col-md-6">
-                <div className="form-check form-switch">
-                  <input
-                    className="form-check-input"
-                    type="checkbox"
-                    role="switch"
-                    id="autoPlay"
-                    checked={autoPlay}
-                    onChange={(e) => setAutoPlay(e.target.checked)}
-                  />
-                  <label className="form-check-label fw-semibold" htmlFor="autoPlay">
-                    Auto Play
-                  </label>
+              {([
+                { label: "Auto Play", value: autoPlay, onChange: setAutoPlay, id: "autoPlay" },
+                { label: "Show Navigation Dots", value: showDots, onChange: setShowDots, id: "showDots" },
+                { label: "Show Navigation Arrows", value: showArrows, onChange: setShowArrows, id: "showArrows" },
+              ] as const).map(({ label, value, onChange, id }) => (
+                <div key={id} className="col-md-6">
+                  <div className="d-flex align-items-center gap-2" style={{ cursor: "pointer" }} onClick={() => onChange(!value)}>
+                    <div
+                      role="switch"
+                      aria-checked={value}
+                      style={{
+                        width: "42px", height: "22px", borderRadius: "11px", flexShrink: 0,
+                        backgroundColor: value ? "#0d6efd" : "#adb5bd",
+                        transition: "background-color 0.15s",
+                        position: "relative",
+                      }}
+                    >
+                      <div style={{
+                        width: "16px", height: "16px", borderRadius: "50%", backgroundColor: "#fff",
+                        position: "absolute", top: "3px",
+                        left: value ? "23px" : "3px",
+                        transition: "left 0.15s",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+                      }} />
+                    </div>
+                    <span className="fw-semibold small">{label}</span>
+                  </div>
                 </div>
-              </div>
-
-              <div className="col-md-6">
-                <div className="form-check form-switch">
-                  <input
-                    className="form-check-input"
-                    type="checkbox"
-                    role="switch"
-                    id="showDots"
-                    checked={showDots}
-                    onChange={(e) => setShowDots(e.target.checked)}
-                  />
-                  <label className="form-check-label fw-semibold" htmlFor="showDots">
-                    Show Navigation Dots
-                  </label>
-                </div>
-              </div>
-
-              <div className="col-md-6">
-                <div className="form-check form-switch">
-                  <input
-                    className="form-check-input"
-                    type="checkbox"
-                    role="switch"
-                    id="showArrows"
-                    checked={showArrows}
-                    onChange={(e) => setShowArrows(e.target.checked)}
-                  />
-                  <label className="form-check-label fw-semibold" htmlFor="showArrows">
-                    Show Navigation Arrows
-                  </label>
-                </div>
-              </div>
+              ))}
             </div>
 
             {/* Number Inputs Row */}
