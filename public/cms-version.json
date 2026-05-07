@@ -1,9 +1,9 @@
 {
-  "version": "1.45.0",
+  "version": "1.46.0",
   "date": "2026-05-07",
   "changelog": {
     "features": [
-      "edit template HTML directly in Standalone Editor — code-slash button on template cards"
+      "visual slot configuration in Analyse modal"
     ],
     "bugfixes": [],
     "breaking": []
