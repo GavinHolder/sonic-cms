@@ -342,6 +342,12 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
   const [css, setCss]                 = useState("");
   const [mediaSlots, setMediaSlots]   = useState<Record<string, string>>({});
   const [analysis, setAnalysis]       = useState<ImportAnalysis | null>(null);
+  const [formPages, setFormPages]     = useState<FormPage[]>([]);
+  const [mediaFiles, setMediaFiles]   = useState<MediaFile[]>([]);
+  const [pickerFor, setPickerFor]     = useState<{ src: string; mediaType: "image" | "video" } | null>(null);
+  const [pickerSearch, setPickerSearch] = useState("");
+  const [selectedFormSlug, setSelectedFormSlug] = useState("");
+  const [fixed, setFixed]             = useState<Set<string>>(new Set());
   const [extracting, setExtracting]   = useState(false);
   const [saving, setSaving]           = useState(false);
   const [error, setError]             = useState<string | null>(null);
@@ -353,67 +359,178 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
       .replace(/[-_]/g, " ")
       .replace(/\b\w/g, c => c.toUpperCase());
 
+  const loadSidebar = useCallback(() => {
+    Promise.all([
+      fetch("/api/media/files").then(r => r.json()),
+      fetch("/api/pages?enabled=true").then(r => r.json()),
+    ]).then(([mj, pj]) => {
+      setMediaFiles(mj.files ?? []);
+      const pages = pj.pages ?? pj.data ?? [];
+      setFormPages(pages.filter((p: { type: string }) => p.type === "form").map((p: { slug: string; title: string }) => ({ slug: p.slug, title: p.title })));
+    }).catch(() => {});
+  }, []);
+
   const processFile = useCallback(async (f: File) => {
     setFile(f);
     setError(null);
     setAnalysis(null);
     setMediaSlots({});
+    setFixed(new Set());
+    setPickerFor(null);
     setName(prev => prev || autoName(f.name));
 
     const fname = f.name.toLowerCase();
-
-    if (fname.endsWith(".html") || fname.endsWith(".htm")) {
-      setExtracting(true);
-      try {
-        const fd = new FormData();
-        fd.append("file", f);
-        const res = await fetch("/api/templates/import", { method: "POST", body: fd });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error || "Extraction failed");
-        setHtml(json.data.html);
-        setCss(json.data.css ?? "");
-        setMediaSlots(json.data.mediaSlots ?? {});
-        setAnalysis(json.data.analysis ?? null);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Extraction failed");
-        setFile(null);
-      } finally {
-        setExtracting(false);
-      }
+    if (!fname.endsWith(".html") && !fname.endsWith(".htm") && !fname.endsWith(".zip")) {
+      setError("Only .html and .zip files are supported");
+      setFile(null);
       return;
     }
 
-    if (fname.endsWith(".zip")) {
-      setExtracting(true);
-      try {
-        const fd = new FormData();
-        fd.append("file", f);
-        const res = await fetch("/api/templates/import", { method: "POST", body: fd });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error || "Extraction failed");
-        setHtml(json.data.html);
-        setCss(json.data.css ?? "");
-        setMediaSlots(json.data.mediaSlots ?? {});
-        setAnalysis(json.data.analysis ?? null);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Extraction failed");
-        setFile(null);
-        setHtml("");
-        setCss("");
-      } finally {
-        setExtracting(false);
-      }
-      return;
+    setExtracting(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", f);
+      const res = await fetch("/api/templates/import", { method: "POST", body: fd });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Extraction failed");
+      setHtml(json.data.html);
+      setCss(json.data.css ?? "");
+      setMediaSlots(json.data.mediaSlots ?? {});
+      setAnalysis(json.data.analysis ?? null);
+      loadSidebar();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Extraction failed");
+      setFile(null);
+      setHtml("");
+      setCss("");
+    } finally {
+      setExtracting(false);
     }
-
-    setError("Only .html and .zip files are supported");
-    setFile(null);
-  }, []);
+  }, [loadSidebar]);
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     const f = e.dataTransfer.files[0];
     if (f) processFile(f);
+  };
+
+  const applyFix = (key: string, newHtml: string) => {
+    setHtml(newHtml);
+    setFixed(prev => new Set([...prev, key]));
+  };
+
+  const fixPhone = () =>
+    applyFix("PHONE", html.replace(/href=["']tel:[^"']+["']/gi, 'href="tel:{{cms.phone}}"'));
+
+  const fixEmail = () =>
+    applyFix("EMAIL", html.replace(/href=["']mailto:[^"'?]+[^"']*/gi, 'href="mailto:{{cms.email}}"'));
+
+  const fixForm = () => {
+    if (!selectedFormSlug) return;
+    applyFix("FORM", html.replace(/<form\b[\s\S]*?<\/form>/gi, `{{cms.form.${selectedFormSlug}}}`));
+  };
+
+  const fixSrc = (localSrc: string, newUrl: string) => {
+    const esc = localSrc.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    applyFix(`SRC:${localSrc}`, html.replace(new RegExp(esc, "g"), newUrl));
+    setPickerFor(null);
+    setPickerSearch("");
+  };
+
+  const isSrcFixed = (src: string) => fixed.has(`SRC:${src}`);
+
+  const renderSrcRows = (occurrences: string[], mediaType: "image" | "video") =>
+    occurrences.map(src => {
+      const thisFixed = isSrcFixed(src);
+      const isPicking = pickerFor?.src === src && pickerFor.mediaType === mediaType;
+      return (
+        <div key={src}>
+          <div className={`border rounded px-2 py-1 mb-1 d-flex align-items-center gap-2 ${thisFixed ? "border-success bg-success bg-opacity-10" : "bg-white"}`}>
+            <i className={`bi ${thisFixed ? "bi-check-circle-fill text-success" : (mediaType === "video" ? "bi-camera-video text-muted" : "bi-image text-muted")}`} style={{ fontSize: "0.8rem", flexShrink: 0 }} />
+            <code className="text-muted flex-grow-1 text-truncate" style={{ fontSize: "0.68rem" }} title={src}>{src}</code>
+            {thisFixed
+              ? <span className="badge bg-success" style={{ fontSize: "0.65rem" }}>✓ Linked</span>
+              : <button
+                  type="button"
+                  className={`btn btn-sm ${isPicking ? "btn-primary" : "btn-outline-primary"} text-nowrap`}
+                  style={{ fontSize: "0.7rem", padding: "2px 10px", flexShrink: 0 }}
+                  onClick={() => { setPickerFor(isPicking ? null : { src, mediaType }); setPickerSearch(""); }}
+                >
+                  <i className={`bi ${isPicking ? "bi-x" : "bi-folder2-open"} me-1`} />
+                  {isPicking ? "Close" : "Browse Library"}
+                </button>
+            }
+          </div>
+          {isPicking && (
+            <InlineMediaPicker
+              files={mediaFiles}
+              search={pickerSearch}
+              onSearch={setPickerSearch}
+              onPick={url => fixSrc(src, url)}
+              mediaType={mediaType}
+            />
+          )}
+        </div>
+      );
+    });
+
+  const renderItem = (item: AnalysisItem, i: number) => {
+    const icon = ANALYSIS_ICONS[item.type] ?? "bi-exclamation-circle";
+    const isFixed = item.type === "LOCAL_IMG" || item.type === "BACKGROUND" || item.type === "VIDEO"
+      ? (item.occurrences ?? []).every(isSrcFixed)
+      : fixed.has(item.type);
+    const cardBorder = item.type === "CDN" ? "secondary" : isFixed ? "success" : "warning";
+    const cardBg = item.type === "CDN" ? "#f8f9fa" : isFixed ? "#f0fdf4" : "#fffbeb";
+
+    return (
+      <div key={i} className={`card mb-2 border-${cardBorder}`} style={{ background: cardBg }}>
+        <div className="card-body py-2 px-3">
+          <div className="d-flex align-items-center gap-2 mb-1">
+            <i className={`bi ${icon} text-${item.type === "CDN" ? "muted" : isFixed ? "success" : "warning"} flex-shrink-0`} />
+            <span className="fw-semibold small flex-grow-1">{item.detail}</span>
+            {isFixed && <span className="badge bg-success">✓ Fixed</span>}
+          </div>
+
+          {item.type === "FORM" && !isFixed && (
+            <div className="d-flex gap-2 mt-2">
+              <select className="form-select form-select-sm flex-grow-1" value={selectedFormSlug} onChange={e => setSelectedFormSlug(e.target.value)}>
+                <option value="">— Select a CMS form —</option>
+                {formPages.map(f => <option key={f.slug} value={f.slug}>{f.title} ({f.slug})</option>)}
+              </select>
+              <button className="btn btn-warning btn-sm px-3" onClick={fixForm} disabled={!selectedFormSlug}>
+                <i className="bi bi-link-45deg me-1" />Link
+              </button>
+            </div>
+          )}
+          {item.type === "FORM" && isFixed && (
+            <div className="text-success small mt-1">Replaced with {`{{cms.form.${selectedFormSlug}}}`}</div>
+          )}
+
+          {item.type === "PHONE" && !isFixed && (
+            <button className="btn btn-warning btn-sm mt-2" onClick={fixPhone}>
+              <i className="bi bi-arrow-repeat me-1" />Replace all with {"{{cms.phone}}"}
+            </button>
+          )}
+
+          {item.type === "EMAIL" && !isFixed && (
+            <button className="btn btn-warning btn-sm mt-2" onClick={fixEmail}>
+              <i className="bi bi-arrow-repeat me-1" />Replace all with {"{{cms.email}}"}
+            </button>
+          )}
+
+          {(item.type === "LOCAL_IMG" || item.type === "BACKGROUND") && (item.occurrences ?? []).length > 0 && (
+            <div className="mt-2">{renderSrcRows(item.occurrences!, "image")}</div>
+          )}
+          {item.type === "VIDEO" && (item.occurrences ?? []).length > 0 && (
+            <div className="mt-2">{renderSrcRows(item.occurrences!, "video")}</div>
+          )}
+
+          {item.type === "CDN" && item.suggestion && (
+            <div className="text-muted small mt-1" style={{ fontSize: "0.75rem" }}>{item.suggestion}</div>
+          )}
+        </div>
+      </div>
+    );
   };
 
   const save = async () => {
@@ -448,15 +565,23 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
   const previewText = html.slice(0, 600);
   const hasMore = html.length > 600;
   const slotCount = Object.keys(mediaSlots).length;
+  const fixCount = fixed.size;
 
   return (
     <div className="modal show d-block" tabIndex={-1} style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1060 }}>
       <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div className="modal-content">
           <div className="modal-header">
-            <h5 className="modal-title">
-              <i className="bi bi-upload me-2 text-primary" />Import Template
-            </h5>
+            <div>
+              <h5 className="modal-title mb-0">
+                <i className="bi bi-upload me-2 text-primary" />Import Template
+              </h5>
+              {fixCount > 0 && (
+                <div className="text-muted small mt-1">
+                  <i className="bi bi-pencil-square me-1 text-warning" />{fixCount} fix{fixCount !== 1 ? "es" : ""} applied — will be saved with template
+                </div>
+              )}
+            </div>
             <button className="btn-close" onClick={onClose} disabled={saving} />
           </div>
           <div className="modal-body">
@@ -505,7 +630,7 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
               onChange={e => { const f = e.target.files?.[0]; if (f) processFile(f); e.target.value = ""; }}
             />
 
-            {/* Integration checklist */}
+            {/* Integration checklist — now interactive */}
             {analysis && (
               <div className="mb-3">
                 {analysis.autoHandled.length > 0 && (
@@ -527,29 +652,12 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
                 )}
 
                 {analysis.needsAttention.length > 0 && (
-                  <div className="card border-warning">
-                    <div className="card-header py-2 bg-warning bg-opacity-10 border-warning">
-                      <span className="fw-semibold text-warning small">
-                        <i className="bi bi-exclamation-triangle-fill me-2" />Needs your attention ({analysis.needsAttention.length})
-                      </span>
+                  <div className="mb-0">
+                    <div className="text-muted small fw-semibold mb-2">
+                      <i className="bi bi-exclamation-triangle-fill text-warning me-1" />
+                      Fix before saving ({analysis.needsAttention.length} item{analysis.needsAttention.length > 1 ? "s" : ""})
                     </div>
-                    <ul className="list-group list-group-flush">
-                      {analysis.needsAttention.map((item, i) => (
-                        <li key={i} className="list-group-item py-2 px-3 small">
-                          <div className="d-flex gap-2 align-items-start">
-                            <i className={`bi ${ANALYSIS_ICONS[item.type] ?? "bi-exclamation-circle"} text-warning mt-1 flex-shrink-0`} />
-                            <div>
-                              <div className="fw-semibold">{item.detail}</div>
-                              {item.suggestion && (
-                                <div className="text-muted mt-1" style={{ fontSize: "0.78rem" }}>
-                                  <i className="bi bi-arrow-right me-1" />{item.suggestion}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
+                    {analysis.needsAttention.map((item, i) => renderItem(item, i))}
                   </div>
                 )}
 
