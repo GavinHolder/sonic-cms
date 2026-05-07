@@ -1,9 +1,9 @@
 {
-  "version": "1.48.0",
+  "version": "1.49.0",
   "date": "2026-05-07",
   "changelog": {
     "features": [
-      "proper media handling in import and analyse modals"
+      "hero carousel editor — starter slide, auto-expand, fix toggle switches"
     ],
     "bugfixes": [],
     "breaking": []
