@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 
 interface CmsTemplate {
@@ -215,6 +215,230 @@ function UseAsPageModal({ template, onClose, onCreated }: UseAsPageModalProps) {
   );
 }
 
+interface ImportTemplateModalProps {
+  onClose: () => void;
+  onImported: (t: CmsTemplate) => void;
+}
+
+function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) {
+  const [file, setFile]           = useState<File | null>(null);
+  const [name, setName]           = useState("");
+  const [desc, setDesc]           = useState("");
+  const [html, setHtml]           = useState("");
+  const [css, setCss]             = useState("");
+  const [extracting, setExtracting] = useState(false);
+  const [saving, setSaving]       = useState(false);
+  const [error, setError]         = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const autoName = (filename: string) =>
+    filename
+      .replace(/\.(html?|zip)$/i, "")
+      .replace(/[-_]/g, " ")
+      .replace(/\b\w/g, c => c.toUpperCase());
+
+  const processFile = useCallback(async (f: File) => {
+    setFile(f);
+    setError(null);
+    setName(prev => prev || autoName(f.name));
+
+    const fname = f.name.toLowerCase();
+
+    if (fname.endsWith(".html") || fname.endsWith(".htm")) {
+      const text = await f.text();
+      setHtml(text);
+      setCss("");
+      return;
+    }
+
+    if (fname.endsWith(".zip")) {
+      setExtracting(true);
+      try {
+        const fd = new FormData();
+        fd.append("file", f);
+        const res = await fetch("/api/templates/import", { method: "POST", body: fd });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "Extraction failed");
+        setHtml(json.data.html);
+        setCss(json.data.css);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Extraction failed");
+        setFile(null);
+        setHtml("");
+        setCss("");
+      } finally {
+        setExtracting(false);
+      }
+      return;
+    }
+
+    setError("Only .html and .zip files are supported");
+    setFile(null);
+  }, []);
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const f = e.dataTransfer.files[0];
+    if (f) processFile(f);
+  };
+
+  const save = async () => {
+    if (!html || !name.trim()) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          description: desc.trim() || null,
+          templateType: "standalone",
+          data: { customHtml: html, customCss: css, customCssUrls: [] },
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Save failed");
+      onImported({ ...json.data, tags: [] });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Save failed");
+    }
+    setSaving(false);
+  };
+
+  const previewText = html.slice(0, 900);
+  const hasMore = html.length > 900;
+
+  return (
+    <div className="modal show d-block" tabIndex={-1} style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1060 }}>
+      <div className="modal-dialog modal-lg modal-dialog-centered">
+        <div className="modal-content">
+          <div className="modal-header">
+            <h5 className="modal-title">
+              <i className="bi bi-upload me-2 text-primary" />Import Template
+            </h5>
+            <button className="btn-close" onClick={onClose} disabled={saving} />
+          </div>
+          <div className="modal-body">
+
+            {/* Drop zone */}
+            <div
+              className="border rounded p-4 text-center mb-3"
+              style={{
+                borderStyle: "dashed",
+                borderColor: file ? "#198754" : "#dee2e6",
+                background: file ? "#f0fdf4" : "#f8f9fa",
+                cursor: "pointer",
+                transition: "all 0.15s",
+              }}
+              onClick={() => fileRef.current?.click()}
+              onDragOver={e => e.preventDefault()}
+              onDrop={handleDrop}
+            >
+              {extracting ? (
+                <>
+                  <span className="spinner-border spinner-border-sm me-2" />
+                  Extracting ZIP…
+                </>
+              ) : file && html ? (
+                <>
+                  <i className="bi bi-check-circle-fill text-success me-2" />
+                  <strong>{file.name}</strong>
+                  <span className="text-muted small ms-2">({(file.size / 1024).toFixed(1)} KB)</span>
+                  <div className="text-muted small mt-1">Click to change file</div>
+                </>
+              ) : (
+                <>
+                  <i className="bi bi-cloud-upload fs-2 text-muted d-block mb-2" />
+                  <div className="fw-semibold">Drop a file here or click to browse</div>
+                  <div className="text-muted small mt-1">
+                    Accepts <code>.html</code> or <code>.zip</code> (ZIP may contain HTML + CSS + JS files)
+                  </div>
+                </>
+              )}
+            </div>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".html,.htm,.zip"
+              className="d-none"
+              onChange={e => { const f = e.target.files?.[0]; if (f) processFile(f); e.target.value = ""; }}
+            />
+
+            {html && (
+              <>
+                <div className="row g-3 mb-3">
+                  <div className="col-12 col-md-7">
+                    <label className="form-label fw-semibold">Template Name <span className="text-danger">*</span></label>
+                    <input
+                      className="form-control"
+                      value={name}
+                      onChange={e => setName(e.target.value)}
+                      placeholder="e.g. OVB Landing Page"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="col-12 col-md-5">
+                    <label className="form-label fw-semibold">Description <span className="text-muted fw-normal small">(optional)</span></label>
+                    <input
+                      className="form-control"
+                      value={desc}
+                      onChange={e => setDesc(e.target.value)}
+                      placeholder="Short description…"
+                    />
+                  </div>
+                </div>
+
+                <div className="mb-2">
+                  <div className="d-flex justify-content-between align-items-center mb-1">
+                    <label className="form-label small fw-semibold text-muted mb-0">HTML Preview</label>
+                    <span className="badge bg-secondary">{html.length.toLocaleString()} chars</span>
+                  </div>
+                  <pre
+                    className="bg-dark text-light rounded p-3 mb-0"
+                    style={{ maxHeight: 200, overflow: "auto", fontSize: "0.7rem", lineHeight: 1.4 }}
+                  >
+                    {previewText}{hasMore ? `\n… (+${(html.length - 900).toLocaleString()} more chars)` : ""}
+                  </pre>
+                </div>
+
+                {css && (
+                  <div className="alert alert-info py-2 small mt-2 mb-0">
+                    <i className="bi bi-filetype-css me-1" />
+                    <strong>{css.length.toLocaleString()} chars</strong> of CSS extracted from ZIP — saved to the template CSS field (editable later in the Standalone Editor).
+                  </div>
+                )}
+              </>
+            )}
+
+            {error && (
+              <div className="alert alert-danger py-2 small mt-2 mb-0">
+                <i className="bi bi-exclamation-circle me-1" />{error}
+              </div>
+            )}
+          </div>
+          <div className="modal-footer">
+            <div className="me-auto text-muted small">
+              <i className="bi bi-info-circle me-1" />
+              Saved as a <strong>Standalone</strong> template. Use <em>Use as Page</em> to publish it.
+            </div>
+            <button className="btn btn-outline-secondary" onClick={onClose} disabled={saving}>Cancel</button>
+            <button
+              className="btn btn-primary"
+              onClick={save}
+              disabled={saving || !html || !name.trim()}
+            >
+              {saving
+                ? <><span className="spinner-border spinner-border-sm me-2" />Saving…</>
+                : <><i className="bi bi-bookmark-plus me-2" />Save to Library</>}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function TemplatesLibraryPage() {
   const [templates, setTemplates]       = useState<CmsTemplate[]>([]);
   const [loading, setLoading]           = useState(true);
@@ -228,6 +452,7 @@ export default function TemplatesLibraryPage() {
   const [editSaving, setEditSaving]     = useState(false);
   const [toast, setToast]               = useState<{ msg: string; ok: boolean; slug?: string } | null>(null);
   const [useAsPageFor, setUseAsPageFor] = useState<CmsTemplate | null>(null);
+  const [showImport, setShowImport]     = useState(false);
 
   const showToast = (msg: string, ok = true, slug?: string) => {
     setToast({ msg, ok, slug });
@@ -315,6 +540,18 @@ export default function TemplatesLibraryPage() {
           </div>
         )}
 
+        {/* Import Template modal */}
+        {showImport && (
+          <ImportTemplateModal
+            onClose={() => setShowImport(false)}
+            onImported={(t) => {
+              setTemplates(prev => [t, ...prev]);
+              setShowImport(false);
+              showToast(`Template "${t.name}" imported`);
+            }}
+          />
+        )}
+
         {/* Use as Page modal */}
         {useAsPageFor && (
           <UseAsPageModal
@@ -338,6 +575,12 @@ export default function TemplatesLibraryPage() {
               Save any page or section as a template to reuse across your site.
             </p>
           </div>
+          <button
+            className="btn btn-primary btn-sm d-flex align-items-center gap-2"
+            onClick={() => setShowImport(true)}
+          >
+            <i className="bi bi-upload" />Import Template
+          </button>
         </div>
 
         {/* Stats row */}

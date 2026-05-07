@@ -1821,104 +1821,185 @@ These slugs cannot be used (they conflict with existing routes):
 
 ## Standalone Pages
 
-Standalone pages are fully **self-contained HTML pages** served at \`/{slug}\` (clean URL — no prefix). They bypass the CMS layout entirely — no navbar, no footer, no section snap-scroll. You write raw HTML and CSS; the page renders exactly as-is.
+Standalone pages are fully **self-contained HTML pages** served at a clean URL. They bypass the CMS layout entirely — no navbar, no footer, no section snap-scroll. An external graphic designer can deliver raw HTML/CSS and you wire it into the CMS in minutes.
 
 **Create via:** Admin → Content → Pages → **Standalone**
 
 ---
 
-### How It Works
+### The Designer-to-Live Workflow
 
-1. Create a Standalone page in Admin → Content → Pages
-2. Click the **Edit (pencil) button** — this opens the **Standalone HTML Editor** modal
-3. Write or paste your HTML in the **HTML tab**
-4. Add custom CSS in the **CSS tab** (optional)
-5. Link external CSS files (CDN URLs, e.g. Bootstrap) in the **CSS Files tab**
-6. Use the **Variables tab** to insert \`{{cms.*}}\` placeholders that are replaced server-side
-7. Click **Save** — your page is live at \`/{slug}\`
+This is the standard process when a designer hands off a completed HTML page:
 
-> The editor uses Monaco (VS Code's editor) with syntax highlighting for HTML and CSS.
+**Step 1 — Create the page**
+1. Go to **Admin → Content → Pages → New Page → Standalone**
+2. Set a slug (e.g. \`home\`, \`services\`, \`landing\`)
+3. Click **Save** — the page shell now exists
 
----
+**Step 2 — Paste the designer's HTML**
+1. Click the **Edit (pencil)** button on the new page
+2. Paste the full HTML in the **HTML tab**
+3. Paste CSS in the **CSS tab** (or leave CSS inside \`<style>\` tags in the HTML)
+4. Add any CDN libraries (Bootstrap, fonts, etc.) in the **CSS Files tab**
 
-### Setting a Standalone Page as Your Website Homepage
+**Step 3 — Wire up company information (Variables)**
+Open the **Variables tab** and replace every hardcoded value with a CMS variable:
 
-To serve a Standalone page at \`/\` (your root URL) without exposing the internal \`/{slug}\` URL:
+| Designer wrote | Replace with |
+|----------------|-------------|
+| \`"Acme Corp"\` | \`{{cms.company}}\` |
+| \`"021 123 4567"\` | \`{{cms.phone}}\` |
+| \`"info@acme.co.za"\` | \`{{cms.email}}\` |
+| \`"123 Main Road"\` | \`{{cms.address}}\` |
+| \`<img src="logo.png">\` | \`<img src="{{cms.logo}}">\` |
+| \`"© 2026 Acme"\` | \`{{cms.copyright}}\` |
+| \`href="https://facebook.com/..."\` | \`href="{{cms.facebook}}"\` |
 
-1. Build and save your Standalone page as normal
-2. Go to **Settings → Site Config**
-3. Scroll to **Homepage Entry Point**
-4. Select your Standalone page from the dropdown
-5. Click **Save Configuration**
+**Step 4 — Wire up images (Media tab)**
+For every image the designer hardcoded:
+1. Open the **Media tab**
+2. Click **Add Slot** → enter a descriptive name (e.g. \`hero-bg\`, \`about-photo\`, \`team-1\`)
+3. Click **Pick Image** → select or upload from the media library
+4. In the HTML, replace \`<img src="designer-image.jpg">\` with \`<img src="{{cms.media.hero-bg}}">\`
 
-Visitors going to \`/\` are transparently served the Standalone page — the browser URL stays \`/\`, the internal slug is never visible.
+Now the image is managed from the Media tab — swap it anytime without touching the HTML.
 
-> 💡 To revert to the default section-based landing page, set the dropdown back to "Default: Landing page with sections" and save.
+**Step 5 — Wire up links to features and pages (Variables)**
+The Variables tab shows all live CMS pages and enabled features. Replace hardcoded links:
 
----
+| Designer wrote | Replace with |
+|----------------|-------------|
+| \`href="/calculator"\` | \`href="{{cms.pages.calculator}}"\` |
+| \`href="/projects"\` | \`href="{{cms.pages.projects}}"\` |
+| \`href="/contact"\` | \`href="{{cms.pages.contact}}"\` |
 
-### CMS Variable Substitution
+If the linked feature is disabled, \`{{cms.pages.calculator}}\` returns \`#\` — the link becomes a no-op, nothing breaks.
 
-Inside your standalone HTML, you can use \`{{cms.*}}\` placeholders. These are replaced **server-side** at render time with live values from your Site Configuration.
+**Step 6 — Wire up forms (Variables → Form Injection)**
+Replace any hardcoded \`<form>\` with a CMS-managed form that has OTP verification and lead capture:
+1. Find the form slug in the **Variables tab → Form Injection** section
+2. Delete the designer's \`<form>...</form>\` block entirely
+3. Paste \`{{cms.form.contact}}\` where the form was
 
-| Variable | Replaced with |
-|----------|--------------|
-| \`{{cms.logo}}\` | Logo image URL |
-| \`{{cms.company}}\` | Company name |
-| \`{{cms.tagline}}\` | Tagline / slogan |
-| \`{{cms.phone}}\` | Phone number |
-| \`{{cms.email}}\` | Email address |
-| \`{{cms.address}}\` | Street address |
-| \`{{cms.city}}\` | City |
-| \`{{cms.postal}}\` | Postal / zip code |
-| \`{{cms.country}}\` | Country |
-| \`{{cms.copyright}}\` | Copyright text |
-| \`{{cms.facebook}}\` | Facebook URL |
-| \`{{cms.instagram}}\` | Instagram URL |
-| \`{{cms.twitter}}\` | Twitter / X URL |
-| \`{{cms.linkedin}}\` | LinkedIn URL |
-| \`{{cms.youtube}}\` | YouTube URL |
-| \`{{cms.tiktok}}\` | TikTok URL |
+The CMS renders the full form at page load — OTP verification, email notifications, leads DB — all automatic.
 
-Example: \`<p>Call us on {{cms.phone}}</p>\` renders as \`<p>Call us on 021 123 4567</p>\`
+**Step 7 — Set as homepage (optional)**
+If this is the main website page:
+1. Go to **Settings → Site Config → Homepage Entry Point**
+2. Select this page from the dropdown
+3. Click **Save** — visitors see this page at \`/\`, internal URL never exposed
 
----
-
-### Template Library
-
-Standalone pages support **save and load templates**. In the HTML Editor modal:
-
-- **Save as Template** (footer, left side) — saves the current HTML/CSS/CSS files as a reusable template
-- **Load Template** (footer, left side) — opens the Template Picker to apply a saved standalone template
-
-Templates only populate the **editor content** — they never change the page slug, routing, or type.
-
-**To use a template as a live page:**
-1. Admin → Content → Pages → **New Page** → choose Standalone, set a slug (e.g. \`services\`)
-2. Click **Edit** to open the HTML Editor
-3. Click **Load Template** → pick your template → HTML/CSS fills in
-4. Click **Save** — now live at \`/services\`
-
-See **Content → Templates** in the admin sidebar for the full template library.
+**Step 8 — Save and preview**
+Click **Save All** in the editor, then **Preview** to verify everything is wired correctly.
 
 ---
 
-### What Standalone Is For
+### The HTML Editor — 5 Tabs
 
-| Use case | Recommended type |
-|----------|-----------------|
-| Fully custom landing pages | **Standalone** |
-| Self-contained micro-sites | **Standalone** |
-| Third-party HTML drops (React, Vue, vanilla) | **Standalone** |
-| CMS-branded pages with sections | Full / PDF / Form |
+#### HTML Tab
+Full Monaco editor (VS Code) with syntax highlighting. Paste or write raw HTML here. Supports \`{{cms.*}}\` variables anywhere.
 
-> Standalone pages do not inherit Bootstrap, the site theme, or any CMS JavaScript. All dependencies must be included in your HTML or linked via CSS Files.
+#### CSS Tab
+Custom styles injected as a \`<style>\` block in the page \`<head>\`. Supports \`{{cms.*}}\` variables in values (e.g. \`background: url({{cms.media.hero-bg}})\`).
+
+#### CSS Files Tab
+External stylesheets loaded before your HTML renders — linked as \`<link rel="stylesheet">\` tags. Use for CDN libraries: Bootstrap, Font Awesome, Google Fonts, Animate.css.
+
+Quick-add buttons for common libraries are provided.
+
+#### Media Tab
+Manage **named image slots** for this page. Each slot is a named reference to a media library item.
+
+| Action | How |
+|--------|-----|
+| Add a slot | Click **Add Slot** → enter name → **Pick Image** |
+| Change an image | Click **Pick Image** next to the slot → select new image |
+| Delete a slot | Click the trash icon |
+| Use in HTML | Copy \`{{cms.media.SLOTNAME}}\` and paste into HTML |
+
+Slot names must be lowercase letters, numbers, hyphens, or underscores. Example: \`hero-bg\`, \`team_photo_1\`, \`carousel-slide-2\`.
+
+#### Variables Tab
+Live reference of every \`{{cms.*}}\` variable available for this page. Click any variable to copy it to the clipboard.
+
+Sections:
+- **Company Info** — site config values (company, phone, email, address, logo, social links)
+- **Page Links** — \`{{cms.pages.SLUG}}\` for every enabled published page (auto-populated)
+- **Feature Flags** — \`{{cms.features.SLUG}}\` for every CMS feature (shows whether enabled)
+- **Media Slots** — \`{{cms.media.SLOTNAME}}\` for every slot you've defined in the Media tab
+- **Form Injection** — \`{{cms.form.SLUG}}\` for every enabled form page (auto-populated)
+- **JS Access** — how to read site data via \`window.__CMS_SITE\` in JavaScript
 
 ---
 
-### CMS Forms — Leads Pipeline Integration
+### Complete Variable Reference
 
-To connect a form in your standalone page to the CMS leads pipeline (admin email notification + leads DB), include the CMS Forms script:
+#### Company Info
+\`\`\`
+{{cms.logo}}        Logo image URL
+{{cms.company}}     Company name
+{{cms.tagline}}     Tagline / slogan
+{{cms.phone}}       Phone number
+{{cms.email}}       Email address
+{{cms.address}}     Street address
+{{cms.city}}        City
+{{cms.postal}}      Postal / zip code
+{{cms.country}}     Country
+{{cms.copyright}}   Copyright text
+{{cms.facebook}}    Facebook URL
+{{cms.instagram}}   Instagram URL
+{{cms.twitter}}     Twitter / X URL
+{{cms.linkedin}}    LinkedIn URL
+{{cms.youtube}}     YouTube URL
+{{cms.tiktok}}      TikTok URL
+\`\`\`
+
+#### Page Links
+\`\`\`
+{{cms.pages.SLUG}}  URL of the page at /SLUG (returns # if page not found)
+
+Examples:
+{{cms.pages.calculator}}   →  /calculator
+{{cms.pages.projects}}     →  /projects
+{{cms.pages.contact}}      →  /contact
+\`\`\`
+
+#### Feature Flags
+\`\`\`
+{{cms.features.SLUG}}  "true" or "false" — whether the feature is enabled
+
+Examples:
+{{cms.features.concrete-calculator}}   →  "true"
+{{cms.features.project-gallery}}       →  "false"
+\`\`\`
+Use in JavaScript: \`if ("{{cms.features.concrete-calculator}}" === "true") { ... }\`
+
+#### Media Slots
+\`\`\`
+{{cms.media.SLOTNAME}}  URL of the image assigned to this slot in the Media tab
+
+Examples:
+{{cms.media.hero-bg}}        →  /uploads/2026/hero-landscape.jpg
+{{cms.media.about-photo}}    →  /uploads/2026/team-photo.jpg
+{{cms.media.carousel-1}}     →  /uploads/2026/slide1.jpg
+\`\`\`
+
+#### Form Injection
+\`\`\`
+{{cms.form.SLUG}}  Renders a full CMS form (OTP verified, email notification, leads DB)
+
+Examples:
+{{cms.form.contact}}    →  renders the "contact" form page
+{{cms.form.quote}}      →  renders the "quote-request" form page
+\`\`\`
+
+Place the variable anywhere in your HTML. The CMS injects the complete form HTML server-side. \`/cms-forms.js\` is automatically added to the page \`<head>\` when any form is injected.
+
+---
+
+### Manual Form Integration (alternative to injection)
+
+If you need full control over the form markup and styling, use the \`data-cms-form\` approach directly:
 
 \`\`\`html
 <script src="/cms-forms.js"></script>
@@ -1940,22 +2021,39 @@ To connect a form in your standalone page to the CMS leads pipeline (admin email
 3. An overlay prompt appears asking for the code
 4. On success, the form data is sent to **Admin → Leads** and the admin email is notified
 
-**Form attributes:**
-
 | Attribute | Effect |
 |-----------|--------|
-| \`data-source\` | Label shown in admin email subject (default: page title) |
+| \`data-source\` | Label in admin email subject (default: page title) |
 | \`data-email-to\` | Override the admin notification email |
-| \`data-success\` | Message shown to the user after successful submission |
+| \`data-success\` | Success message shown after submission |
+| \`data-label\` (on field) | Friendly field name in the admin email |
 
-**Field attributes:**
+---
 
-| Attribute | Effect |
-|-----------|--------|
-| \`data-label\` | Friendly label in the admin email (default: capitalised field name) |
-| \`required\` | Native HTML required — blocks submission if empty |
+### Setting as Homepage
 
-If the form has **no email field**, OTP is skipped and the data is submitted directly (suitable for newsletter sign-ups where you already trust the input).
+When a standalone page is the entire website (not just one route):
+
+1. **Settings → Site Config → Homepage Entry Point**
+2. Select this page from the dropdown — shows all enabled pages
+3. **Save Configuration**
+
+Visitors hitting \`/\` are served this page transparently. The slug URL is never visible.
+
+To revert: set the dropdown back to "Default: Landing page with sections".
+
+---
+
+### What Standalone Is For
+
+| Use case | Use Standalone |
+|----------|---------------|
+| External designer delivered a custom HTML page | ✅ Yes |
+| Full website from a single HTML file | ✅ Yes |
+| CMS-branded pages with editable sections | ❌ Use Full / Designer page |
+| Contact form with CMS field builder | ❌ Use Form page |
+
+> Standalone pages do not inherit the site Bootstrap theme or CMS JavaScript. All CSS frameworks, fonts, and JS libraries must be included in your HTML or linked via the CSS Files tab.
 `;
 
 const NAVIGATION = `
@@ -4509,16 +4607,29 @@ Current built-ins:
 **Standalone**, **Section**, and **Page** templates all have a **Use as Page** button (yellow rocket button on the card). This creates a live page in one step — no limitations on template type.
 
 1. Go to **Admin → Content → Templates**
-2. Click **Use as Page** on any template (standalone, section, or page)
+2. Click **Use as Page** on any template
 3. Enter a **title** and **URL slug** (auto-generated from title, editable)
-4. Click **Create Page** — the page is created and published immediately at \`/{slug}\`
+4. Choose whether to **Set as website homepage** (checkbox, on by default) — when checked, visitors hitting \`/\` are immediately served this page, URL stays \`/\`
+5. Click **Create Page** — the page is created and published immediately
 
 **What gets created by template type:**
-- **Standalone template** → A Standalone HTML page at \`/{slug}\` with the template's HTML/CSS pre-loaded. Edit in Admin → Pages.
-- **Section template** → A full landing-style page with the template's section pre-added. Edit sections in Admin → Content → (the new page).
-- **Page template** → A full page (add your own sections via the section editor).
+- **Standalone template** → A Standalone HTML page with the template's HTML/CSS pre-loaded. Edit in Admin → Pages to wire up variables, media slots, and form injection.
+- **Section template** → A full landing-style page with the template's section pre-added.
+- **Page template** → A full page, ready to add sections.
 
-The new page appears in **Admin → Content → Pages** and is live immediately. A **View** link in the success toast opens the new page.
+The new page appears in **Admin → Content → Pages** and is live immediately.
+
+### After "Use as Page" — Wiring the Template
+
+When using a Standalone template, the HTML/CSS is pre-filled but variables still need to be connected. After creating the page:
+
+1. Click **Edit** on the new page → opens the HTML Editor
+2. Go to **Media tab** → add image slots and pick images from the media library
+3. Go to **HTML tab** → replace hardcoded image paths with \`{{cms.media.SLOTNAME}}\`
+4. Go to **Variables tab** → copy page links and form injection variables, paste into HTML
+5. Click **Save All**
+
+The **Variables tab** shows all available connections live — page URLs, enabled features, your media slots, and form slugs — all click-to-copy.
 
 ---
 
@@ -4547,15 +4658,19 @@ Visit **Admin → Content → Templates** to:
 const CMS_VARIABLES_DOCS = `
 # CMS Variables
 
-CMS variables let you embed live site data into your content without hardcoding it. Update your company details once in **Admin → Settings → Site Configuration** and every reference updates automatically.
+CMS variables are placeholders in the form \`{{cms.something}}\` that the CMS replaces with live data at render time. Use them in standalone page HTML, CSS, and flexible section HTML blocks.
+
+Update a value once in the admin — every page that references it updates automatically.
 
 ---
 
-## Variable Reference
+## 1. Company Info Variables
+
+Set values at **Admin → Settings → Site Configuration**.
 
 | Variable | Description | Example value |
 |----------|-------------|--------------|
-| \`{{cms.logo}}\` | Logo image URL | \`/images/logo.png\` |
+| \`{{cms.logo}}\` | Logo image URL | \`/uploads/logo.png\` |
 | \`{{cms.company}}\` | Company name | \`OVB Readymix\` |
 | \`{{cms.tagline}}\` | Tagline / slogan | \`Built for the Overberg\` |
 | \`{{cms.phone}}\` | Phone number | \`021 123 4567\` |
@@ -4574,62 +4689,327 @@ CMS variables let you embed live site data into your content without hardcoding 
 
 ---
 
-## Where Variables Work
+## 2. Page Link Variables
 
-### Standalone Pages (server-side substitution)
+Automatically generated from all enabled, published CMS pages.
 
-In the HTML Editor for a Standalone page, place any \`{{cms.*}}\` variable anywhere in your HTML. Substitution happens **server-side** at render time — the browser receives already-replaced HTML, so variables work even in plain HTML with no JavaScript.
-
-\`\`\`html
-<footer>
-  <p>{{cms.copyright}} · <a href="tel:{{cms.phone}}">{{cms.phone}}</a></p>
-  <img src="{{cms.logo}}" alt="{{cms.company}}" height="40" />
-</footer>
+\`\`\`
+{{cms.pages.SLUG}}
 \`\`\`
 
-### FLEXIBLE Section HTML Blocks (client-side)
+Returns the URL path for that page (\`/slug\`), or \`#\` if the page doesn't exist or is disabled.
 
-In the Flexible Designer, **HTML blocks** also support \`{{cms.*}}\` variables. These are substituted client-side via the \`window.__CMS_SITE\` object that the CMS injects on every non-isolated page.
+**Examples:**
+\`\`\`html
+<a href="{{cms.pages.calculator}}">Get a Quote</a>
+<a href="{{cms.pages.projects}}">Our Projects</a>
+<a href="{{cms.pages.contact}}">Contact Us</a>
+\`\`\`
+
+> The **Variables tab** in the Standalone Editor lists every available page slug — all click-to-copy.
+
+---
+
+## 3. Feature Flag Variables
+
+Automatically generated from all CMS feature flags (**Settings → Client Features**).
+
+\`\`\`
+{{cms.features.SLUG}}
+\`\`\`
+
+Returns \`"true"\` if the feature is enabled, \`"false"\` if disabled.
+
+**Examples:**
+\`\`\`html
+<!-- Conditionally show a feature link in JavaScript -->
+<script>
+  if ("{{cms.features.concrete-calculator}}" === "true") {
+    document.getElementById('calc-btn').style.display = 'block';
+  }
+</script>
+\`\`\`
+
+---
+
+## 4. Media Slot Variables
+
+Per-page named image slots. Managed in the **Media tab** of the Standalone HTML Editor.
+
+\`\`\`
+{{cms.media.SLOTNAME}}
+\`\`\`
+
+Returns the URL of the image assigned to that slot, or an empty string if no image is assigned.
+
+**How to use:**
+1. Open the Standalone Editor → **Media tab**
+2. Click **Add Slot** → enter a name (e.g. \`hero-bg\`, \`team-photo\`)
+3. Click **Pick Image** → select from the media library
+4. Use \`{{cms.media.hero-bg}}\` anywhere in the HTML or CSS
+
+**Examples:**
+\`\`\`html
+<!-- Background image -->
+<div style="background-image: url({{cms.media.hero-bg}})">...</div>
+
+<!-- Image tag -->
+<img src="{{cms.media.about-photo}}" alt="About us">
+
+<!-- CSS background -->
+<style>
+  .hero { background: url({{cms.media.hero-bg}}) center/cover no-repeat; }
+</style>
+\`\`\`
+
+Swap the image anytime from the Media tab — the HTML never needs to change.
+
+---
+
+## 5. Form Injection Variables
+
+Inject a complete CMS-managed form (with OTP verification, email notification, and leads DB) anywhere in your HTML.
+
+\`\`\`
+{{cms.form.SLUG}}
+\`\`\`
+
+The SLUG refers to the slug of a **Form page** (Admin → Content → Pages, type: Contact Form).
+
+**Examples:**
+\`\`\`html
+<!-- Basic injection — form appears here -->
+<section class="contact-section">
+  <h2>Get in Touch</h2>
+  {{cms.form.contact}}
+</section>
+
+<!-- Multiple forms on one page -->
+{{cms.form.contact}}
+{{cms.form.quote-request}}
+\`\`\`
+
+When any \`{{cms.form.*}}\` variable is used, \`/cms-forms.js\` is automatically added to the page \`<head>\`. No manual script tag needed.
+
+> The **Variables tab** in the Standalone Editor lists every available form slug.
+
+---
+
+## Where Variables Work
+
+| Location | Variables supported | When replaced |
+|----------|-------------------|--------------|
+| Standalone page HTML | All 5 types | Server-side at page load |
+| Standalone page CSS | Company info + Media slots | Server-side at page load |
+| FLEXIBLE section HTML blocks | Company info only | Client-side via \`window.__CMS_SITE\` |
 
 ---
 
 ## Developer: \`window.__CMS_SITE\`
 
-On all standard (non-isolated) public pages, the CMS injects a global JavaScript object:
+On all standard (non-standalone) public pages, the CMS injects a JavaScript object you can read from inline scripts:
 
 \`\`\`javascript
-window.__CMS_SITE = {
-  logo:       "/images/logo.png",
-  company:    "OVB Readymix",
-  tagline:    "Built for the Overberg",
-  phone:      "021 123 4567",
-  email:      "info@ovbreadymix.co.za",
-  address:    "12 Industrial Rd",
-  city:       "Caledon",
-  postal:     "7230",
-  country:    "South Africa",
-  copyright:  "© 2026 OVB Readymix",
-  facebook:   "https://facebook.com/…",
-  instagram:  "https://instagram.com/…",
-  twitter:    "",
-  linkedin:   "",
-  youtube:    "",
-  tiktok:     "",
-}
+const site = window.__CMS_SITE;
+
+site.companyName   // "OVB Readymix"
+site.phone         // "021 123 4567"
+site.navLinks      // [{ type, label, href, navOrder }]
+site.pages         // { calculator: "/calculator", projects: "/projects", ... }
+site.features      // { "concrete-calculator": true, "project-gallery": false }
+
+// Example: build a dynamic nav
+site.navLinks.forEach(link => {
+  const a = document.createElement('a');
+  a.href = link.href || '#';
+  a.textContent = link.label;
+  nav.appendChild(a);
+});
 \`\`\`
 
-You can read this in any inline script on public pages:
-\`\`\`javascript
-document.getElementById('phone').textContent = window.__CMS_SITE.phone;
-\`\`\`
+> Standalone pages are isolated and do **not** receive \`window.__CMS_SITE\`. Use \`{{cms.*}}\` server-side variables instead — they require no JavaScript.
+`;
 
-> **Note:** Standalone pages are isolated routes and do **not** receive the layout script that injects \`window.__CMS_SITE\`. Use \`{{cms.*}}\` template syntax instead — it's substituted server-side and requires no JavaScript.
+// ─────────────────────────────────────────────
+// DESIGNER HANDOFF GUIDE
+// ─────────────────────────────────────────────
+
+const DESIGNER_HANDOFF_DOCS = `
+# Designer Handoff — Wiring a Custom HTML Page into the CMS
+
+When a graphic designer delivers a completed HTML/CSS page, use this guide to wire it into the CMS fully — images managed, forms working, feature links connected, and the page live at \`/\`.
 
 ---
 
-## Where to Set Variable Values
+## What the Designer Delivers
 
-**Admin → Settings → Site Configuration** — all fields map directly to \`{{cms.*}}\` variables.
+A typical handoff includes:
+- \`index.html\` — the full page markup
+- \`style.css\` — custom styles (or styles are inside \`<style>\` tags)
+- Assets: images, fonts, icons (usually hosted on their server or CDN)
+
+The designer **does not know** about your CMS pages, features, forms, or media library. That's your job to wire in.
+
+---
+
+## Step-by-Step Wiring Process
+
+### 1. Create the Standalone Page
+
+**Admin → Content → Pages → New Page → Standalone**
+
+Set a slug:
+- For the main website: \`home\` or \`landing\`
+- For a specific route: \`services\`, \`about\`, etc.
+
+### 2. Paste the HTML
+
+Click **Edit** (pencil) on the new page → **HTML tab** → paste the full HTML.
+
+If the designer used a separate CSS file, paste it into the **CSS tab**. If CSS is inside \`<style>\` tags in the HTML, leave it there — both work.
+
+### 3. Add External Libraries
+
+If the design uses Bootstrap, Google Fonts, or other CDN libraries, add them in the **CSS Files tab**. Common ones have quick-add buttons.
+
+### 4. Replace Hardcoded Text with Company Variables
+
+Open the **Variables tab** → click any variable to copy it → paste into the HTML to replace hardcoded text.
+
+| Find in HTML | Replace with |
+|--------------|-------------|
+| Company name in header/footer | \`{{cms.company}}\` |
+| Phone number | \`{{cms.phone}}\` |
+| Email address | \`{{cms.email}}\` |
+| Street address | \`{{cms.address}}\` |
+| Copyright line | \`{{cms.copyright}}\` |
+| Logo \`<img src="...">\` | \`<img src="{{cms.logo}}">\` |
+| Social media href values | \`{{cms.facebook}}\`, \`{{cms.instagram}}\`, etc. |
+
+### 5. Replace Hardcoded Images with Media Slots
+
+For every image the designer hardcoded (hero backgrounds, team photos, gallery slides, etc.):
+
+1. Open **Media tab → Add Slot**
+2. Name the slot descriptively: \`hero-background\`, \`team-photo\`, \`carousel-slide-1\`
+3. Click **Pick Image** → upload or select from the media library
+4. In the HTML, replace:
+   \`\`\`html
+   <!-- Before -->
+   <img src="https://designers-cdn.com/hero.jpg" alt="Hero">
+   <div style="background: url(https://designers-cdn.com/bg.jpg)">
+
+   <!-- After -->
+   <img src="{{cms.media.hero-background}}" alt="Hero">
+   <div style="background: url({{cms.media.hero-background}})">
+   \`\`\`
+
+Now the image lives in **your media library** and can be changed from the Media tab at any time.
+
+### 6. Replace Hardcoded Links with Page/Feature Variables
+
+For every internal link the designer hardcoded:
+
+1. Open the **Variables tab → Page Links** section
+2. Find the page you want to link to, copy its variable
+3. Replace the hardcoded href:
+
+\`\`\`html
+<!-- Before -->
+<a href="/calculator">Get a Quote</a>
+<a href="/our-projects">View Projects</a>
+<a href="/contact">Contact Us</a>
+
+<!-- After -->
+<a href="{{cms.pages.calculator}}">Get a Quote</a>
+<a href="{{cms.pages.projects}}">View Projects</a>
+<a href="{{cms.pages.contact}}">Contact Us</a>
+\`\`\`
+
+If a page doesn't exist or is disabled, the variable returns \`#\` — the link becomes inert, nothing breaks.
+
+**For feature-gated links** (only show when feature is enabled), use \`{{cms.features.SLUG}}\`:
+\`\`\`html
+<script>
+  // Hide the calculator button if the feature is disabled
+  if ("{{cms.features.concrete-calculator}}" !== "true") {
+    document.querySelector('.calc-btn').style.display = 'none';
+  }
+</script>
+\`\`\`
+
+### 7. Replace Hardcoded Forms with CMS Form Injection
+
+If the designer included a contact form or quote form:
+
+1. Open **Variables tab → Form Injection** section
+2. Find the form page slug you want to inject (e.g. \`contact\`, \`quote-request\`)
+3. In the HTML, **delete** the designer's \`<form>...</form>\` block entirely
+4. Place the injection variable where the form was:
+
+\`\`\`html
+<!-- Before: designer's hardcoded form -->
+<form action="mailto:info@example.com" method="post">
+  <input type="text" name="name" placeholder="Your Name">
+  <input type="email" name="email" placeholder="Email">
+  <button type="submit">Send</button>
+</form>
+
+<!-- After: CMS-managed form with OTP verification -->
+{{cms.form.contact}}
+\`\`\`
+
+The CMS renders the full form with all configured fields, OTP email verification, and admin notification.
+
+If you need a **custom-styled form** that matches the design exactly, use the manual approach instead — see **CMS Variables → Form Injection Variables** for the \`data-cms-form\` method.
+
+### 8. Save and Preview
+
+Click **Save All** → click **Preview** to verify everything renders correctly.
+
+Check:
+- ✅ All text replaced (no hardcoded company names, phone numbers, emails)
+- ✅ All images loading (no broken image icons)
+- ✅ All links working (click each internal link)
+- ✅ Form submits (fill in and submit the form — check admin email)
+- ✅ Features accessible (check calculator, projects, etc.)
+
+### 9. Set as Homepage (if this is the main website page)
+
+1. **Settings → Site Config → Homepage Entry Point**
+2. Select this page from the dropdown
+3. Click **Save Configuration**
+
+Visitors hitting your domain root (\`/\`) are transparently served this page. The slug URL is never shown.
+
+---
+
+## Common Issues & Fixes
+
+| Problem | Cause | Fix |
+|---------|-------|-----|
+| Image shows broken icon | Media slot has no image assigned | Go to Media tab → pick image for that slot |
+| Link goes to \`#\` | Page doesn't exist or is disabled | Create the page in Admin → Pages, or enable it |
+| Form doesn't submit | Form page not enabled | Admin → Pages → enable the form page |
+| Feature link broken | Feature not enabled | Settings → Client Features → enable it |
+| Styles look wrong | Designer's CSS conflicts | Add the designer's CSS framework via CSS Files tab, or paste CSS into CSS tab |
+
+---
+
+## Maintaining the Page Over Time
+
+Once wired up, the designer's HTML rarely needs to change:
+
+| What changes | Where to change it |
+|-------------|-------------------|
+| Company phone, email, address | Settings → Site Config |
+| Logo | Settings → Site Config → Branding |
+| Hero background image | Standalone Editor → Media tab |
+| Gallery images | Standalone Editor → Media tab → update each slot |
+| Form fields | Admin → Pages → edit the form page |
+| Links to new pages | Automatically updated when you create pages with matching slugs |
+
+The template variable system means **the designer's HTML is the shell — the CMS fills in all the content.**
 `;
 
 // ─────────────────────────────────────────────
@@ -5487,6 +5867,7 @@ export const DOC_TOPICS: DocTopic[] = [
     icon: "bi-bookmark-star",
     children: [
       { id: "section-templates", label: "Using Templates", icon: "bi-grid-3x3-gap", content: SECTION_TEMPLATES_DOCS },
+      { id: "designer-handoff", label: "Designer Handoff Guide", icon: "bi-palette2", content: DESIGNER_HANDOFF_DOCS },
       { id: "cms-variables", label: "CMS Variables ({{cms.*}})", icon: "bi-braces", content: CMS_VARIABLES_DOCS },
     ],
   },
