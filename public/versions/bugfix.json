@@ -1,10 +1,10 @@
 {
-  "version": "1.44.1",
+  "version": "1.44.2",
   "date": "2026-05-07",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "analyze modal now surfaces ALL images/videos for media library linking"
+      "ZIP import inlines CSS/JS/JSX — produces self-contained HTML"
     ],
     "breaking": []
   }
