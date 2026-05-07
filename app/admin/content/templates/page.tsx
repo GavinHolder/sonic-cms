@@ -48,6 +48,7 @@ function UseAsPageModal({ template, onClose, onCreated }: UseAsPageModalProps) {
   const [title, setTitle]   = useState(template.name);
   const [slug, setSlug]     = useState(toSlug(template.name));
   const [slugEdited, setSlugEdited] = useState(false);
+  const [setAsHome, setSetAsHome]   = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState<string | null>(null);
 
@@ -112,9 +113,19 @@ function UseAsPageModal({ template, onClose, onCreated }: UseAsPageModalProps) {
       const json = await pageRes.json();
       if (!pageRes.ok) {
         setError(json?.error || "Failed to create page");
-      } else {
-        onCreated(slug);
+        setSaving(false);
+        return;
       }
+
+      if (setAsHome) {
+        await fetch("/api/site-config", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ homePage: slug }),
+        });
+      }
+
+      onCreated(slug);
     } catch {
       setError("Network error");
     }
@@ -164,6 +175,21 @@ function UseAsPageModal({ template, onClose, onCreated }: UseAsPageModalProps) {
                   Live at: <code className="text-warning">/{slug}</code>
                 </div>
               )}
+            </div>
+            <div className="form-check border rounded p-3 mb-2" style={{ background: setAsHome ? "#eff6ff" : "#f8f9fa", borderColor: setAsHome ? "#0d6efd" : "#dee2e6" }}>
+              <input
+                className="form-check-input"
+                type="checkbox"
+                id="setAsHome"
+                checked={setAsHome}
+                onChange={e => setSetAsHome(e.target.checked)}
+              />
+              <label className="form-check-label fw-semibold small" htmlFor="setAsHome">
+                <i className="bi bi-house-door me-1 text-primary" />Set as website homepage
+              </label>
+              <div className="text-muted mt-1" style={{ fontSize: "0.75rem" }}>
+                Visitors going to <code>/</code> will see this page. The URL stays <code>/</code> — nothing internal is exposed.
+              </div>
             </div>
             {error && (
               <div className="alert alert-danger py-2 small">

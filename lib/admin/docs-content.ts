@@ -1841,6 +1841,22 @@ Standalone pages are fully **self-contained HTML pages** served at \`/{slug}\` (
 
 ---
 
+### Setting a Standalone Page as Your Website Homepage
+
+To serve a Standalone page at \`/\` (your root URL) without exposing the internal \`/{slug}\` URL:
+
+1. Build and save your Standalone page as normal
+2. Go to **Settings → Site Config**
+3. Scroll to **Homepage Entry Point**
+4. Select your Standalone page from the dropdown
+5. Click **Save Configuration**
+
+Visitors going to \`/\` are transparently served the Standalone page — the browser URL stays \`/\`, the internal slug is never visible.
+
+> 💡 To revert to the default section-based landing page, set the dropdown back to "Default: Landing page with sections" and save.
+
+---
+
 ### CMS Variable Substitution
 
 Inside your standalone HTML, you can use \`{{cms.*}}\` placeholders. These are replaced **server-side** at render time with live values from your Site Configuration.
@@ -4938,6 +4954,15 @@ Go to **Settings → Site Config** in the admin sidebar.
 - **Navbar Style** — choose the navigation layout
 - **Copyright Text** — footer copyright line
 - **Show Regulatory Links** — toggle compliance/regulatory section in footer
+
+### Homepage Entry Point
+- **Which page loads at `/`** — select any enabled page from the dropdown to serve it at your website root
+- Leave on **"Default: Landing page with sections"** to use the standard section-based landing page
+- When a page is selected, visitors going to `/` are transparently served that page — the URL stays `/`, nothing internal is ever exposed
+- Works with **any page type**: Standalone (custom HTML), Full Page, Designer, Form, PDF
+- To revert to the default landing page, set the dropdown back to "Default" and save
+
+> 💡 This is how you set a **Standalone** or **custom HTML page** as your actual website — no redirects, no exposed internal URLs. The visitor only ever sees `/`.
 `;
 
 // ─────────────────────────────────────────────
