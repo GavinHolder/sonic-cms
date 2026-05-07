@@ -6,6 +6,7 @@
 
 import { NextRequest } from "next/server";
 import { z } from "zod";
+import { revalidateTag } from "next/cache";
 import prisma from "@/lib/prisma";
 import {
   requireRole,
@@ -253,6 +254,20 @@ export async function DELETE(
     }
 
     await prisma.page.delete({ where: { slug } });
+
+    // If the deleted page was the active homepage, clear that setting so the
+    // middleware falls back to the section-based landing page immediately.
+    const config = await prisma.siteConfig.findUnique({
+      where: { id: "singleton" },
+      select: { homePage: true },
+    });
+    if (config?.homePage?.trim() === slug) {
+      await prisma.siteConfig.update({
+        where: { id: "singleton" },
+        data: { homePage: "" },
+      });
+      revalidateTag("homepage-config", "max");
+    }
 
     return successResponse({
       message: "Page deleted successfully",
