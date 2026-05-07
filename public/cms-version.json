@@ -1,10 +1,10 @@
 {
-  "version": "1.37.3",
+  "version": "1.37.4",
   "date": "2026-05-07",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "Use as Page modal visibility + extend to all template types"
+      "move standalone redirect to useEffect — no side effects in render"
     ],
     "breaking": []
   }
