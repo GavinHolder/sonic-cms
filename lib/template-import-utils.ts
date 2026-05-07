@@ -77,9 +77,21 @@ export function isLocalPath(src: string): boolean {
          !src.startsWith("//") && !src.startsWith("data:") && !src.startsWith("/");
 }
 
-export function analyzeHtml(html: string): { needsAttention: ImportAnalysisItem[] } {
+/**
+ * Analyse HTML for CMS integration issues.
+ * localOnly=true  → only flag paths that are relative (no leading / or http) — used during ZIP import.
+ * localOnly=false → flag ALL image/video/background sources so admin can link any of them to Media Library.
+ */
+export function analyzeHtml(html: string, localOnly = true): { needsAttention: ImportAnalysisItem[] } {
   const items: ImportAnalysisItem[] = [];
 
+  const validSrc = (src: string) =>
+    !!src && !src.startsWith("data:") && !src.includes("{{cms.");
+
+  const includeSrc = (src: string) =>
+    localOnly ? isLocalPath(src) : validSrc(src);
+
+  // ── Forms ─────────────────────────────────────────────────────────────────
   const formMatches = html.match(/<form\b/gi);
   if (formMatches) {
     items.push({
@@ -89,19 +101,21 @@ export function analyzeHtml(html: string): { needsAttention: ImportAnalysisItem[
     });
   }
 
+  // ── Videos (src on <video> / <source>) ───────────────────────────────────
   const uniqueVideoSrcs = [...new Set(
     [...html.matchAll(/<(?:video|source)\b[^>]*\bsrc=["']([^"']+)["']/gi)]
-      .map(m => m[1]).filter(isLocalPath)
+      .map(m => m[1]).filter(includeSrc)
   )];
   if (uniqueVideoSrcs.length > 0) {
     items.push({
       type: "VIDEO",
-      detail: `${uniqueVideoSrcs.length} video source${uniqueVideoSrcs.length > 1 ? "s" : ""} with local path`,
+      detail: `${uniqueVideoSrcs.length} video source${uniqueVideoSrcs.length > 1 ? "s" : ""}`,
       suggestion: "Pick a video from the Media Library to replace each source.",
       occurrences: uniqueVideoSrcs,
     });
   }
 
+  // ── Phone ─────────────────────────────────────────────────────────────────
   const uniquePhones = [...new Set(
     [...html.matchAll(/href=["']tel:([^"']+)["']/gi)].map(m => m[1])
   )];
@@ -114,6 +128,7 @@ export function analyzeHtml(html: string): { needsAttention: ImportAnalysisItem[
     });
   }
 
+  // ── Email ─────────────────────────────────────────────────────────────────
   const uniqueEmails = [...new Set(
     [...html.matchAll(/href=["']mailto:([^"'?]+)/gi)].map(m => m[1])
   )];
@@ -126,32 +141,36 @@ export function analyzeHtml(html: string): { needsAttention: ImportAnalysisItem[
     });
   }
 
-  const uniqueBgSrcs = [...new Set(
-    [...html.matchAll(/background(?:-image)?:\s*url\(["']?([^"')]+)["']?\)/gi)]
-      .map(m => m[1]).filter(isLocalPath)
-  )];
+  // ── Background images (CSS url() + data-background attr) ─────────────────
+  const cssBgSrcs  = [...html.matchAll(/background(?:-image)?:\s*url\(["']?([^"')]+)["']?\)/gi)].map(m => m[1]);
+  const dataBgSrcs = [...html.matchAll(/data-background=["']([^"']+)["']/gi)].map(m => m[1]);
+  const uniqueBgSrcs = [...new Set([...cssBgSrcs, ...dataBgSrcs].filter(includeSrc))];
   if (uniqueBgSrcs.length > 0) {
     items.push({
       type: "BACKGROUND",
-      detail: `${uniqueBgSrcs.length} background-image${uniqueBgSrcs.length > 1 ? "s" : ""} with local path`,
+      detail: `${uniqueBgSrcs.length} background image${uniqueBgSrcs.length > 1 ? "s" : ""}`,
       suggestion: "Pick an image from the Media Library for each background.",
       occurrences: uniqueBgSrcs,
     });
   }
 
-  const uniqueLocalImgSrcs = [...new Set(
-    [...html.matchAll(/<img\b[^>]*\bsrc=["']([^"']+)["']/gi)]
-      .map(m => m[1]).filter(src => isLocalPath(src) && !src.includes("{{cms."))
+  // ── Image sources (src + data-src + poster) ───────────────────────────────
+  const imgSrcs    = [...html.matchAll(/<img\b[^>]*\bsrc=["']([^"']+)["']/gi)].map(m => m[1]);
+  const dataSrcs   = [...html.matchAll(/<img\b[^>]*\bdata-src=["']([^"']+)["']/gi)].map(m => m[1]);
+  const posterSrcs = [...html.matchAll(/\bposter=["']([^"']+)["']/gi)].map(m => m[1]);
+  const uniqueImgSrcs = [...new Set(
+    [...imgSrcs, ...dataSrcs, ...posterSrcs].filter(includeSrc)
   )];
-  if (uniqueLocalImgSrcs.length > 0) {
+  if (uniqueImgSrcs.length > 0) {
     items.push({
       type: "LOCAL_IMG",
-      detail: `${uniqueLocalImgSrcs.length} image src${uniqueLocalImgSrcs.length > 1 ? "s" : ""} with local path`,
-      suggestion: "Pick from the Media Library to replace each image source.",
-      occurrences: uniqueLocalImgSrcs,
+      detail: `${uniqueImgSrcs.length} image${uniqueImgSrcs.length > 1 ? "s" : ""}`,
+      suggestion: "Pick from the Media Library to replace each image.",
+      occurrences: uniqueImgSrcs,
     });
   }
 
+  // ── CDN stylesheets ───────────────────────────────────────────────────────
   const cdnLinks = [...html.matchAll(/<link\b[^>]*rel=["']stylesheet["'][^>]*href=["'](https?:\/\/[^"']+)["']/gi)]
     .map(m => m[1]);
   if (cdnLinks.length > 0) {

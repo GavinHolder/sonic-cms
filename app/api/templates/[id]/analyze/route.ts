@@ -16,7 +16,7 @@ export async function GET(req: NextRequest, { params }: Ctx) {
 
   const data = template.data as Record<string, unknown>;
   const html = (data.customHtml as string) ?? "";
-  const { needsAttention } = analyzeHtml(html);
+  const { needsAttention } = analyzeHtml(html, false);
 
   const mediaSlots = (data.mediaSlots as Record<string, string>) ?? {};
   const slotCount = Object.keys(mediaSlots).length;

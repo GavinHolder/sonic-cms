@@ -299,8 +299,10 @@ const ANALYSIS_ICONS: Record<string, string> = {
   VIDEO_FILES:   "bi-camera-video",
   PHONE:         "bi-telephone",
   EMAIL:         "bi-envelope",
-  BACKGROUND:    "bi-image",
+  BACKGROUND:    "bi-card-image",
+  LOCAL_IMG:     "bi-images",
   CDN:           "bi-link-45deg",
+  MEDIA_SLOTS:   "bi-check-circle",
 };
 
 interface ImportTemplateModalProps {
