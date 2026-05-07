@@ -1,9 +1,9 @@
 {
-  "version": "1.38.0",
+  "version": "1.39.0",
   "date": "2026-05-07",
   "changelog": {
     "features": [
-      "homepage entry point dropdown in Site Config — pick any page as root without entering slugs"
+      "Use as Page modal — auto-set as homepage checkbox (on by default)"
     ],
     "bugfixes": [],
     "breaking": []
