@@ -65,24 +65,52 @@ function UseAsPageModal({ template, onClose, onCreated }: UseAsPageModalProps) {
     if (!slug || !title.trim()) return;
     setSaving(true);
     setError(null);
-    const data = template.data as { customHtml?: string; customCss?: string; customCssUrls?: string[] };
     try {
-      const res = await fetch("/api/pages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          slug,
-          title: title.trim(),
-          type: "standalone",
-          enabled: true,
-          status: "PUBLISHED",
-          customHtml:    data.customHtml    ?? "",
-          customCss:     data.customCss     ?? "",
-          customCssUrls: data.customCssUrls ? JSON.stringify(data.customCssUrls) : "[]",
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
+      let pageRes: Response;
+
+      if (template.templateType === "standalone") {
+        const data = template.data as { customHtml?: string; customCss?: string; customCssUrls?: string[] };
+        pageRes = await fetch("/api/pages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            slug,
+            title: title.trim(),
+            type: "standalone",
+            enabled: true,
+            status: "PUBLISHED",
+            customHtml:    data.customHtml    ?? "",
+            customCss:     data.customCss     ?? "",
+            customCssUrls: data.customCssUrls ? JSON.stringify(data.customCssUrls) : "[]",
+          }),
+        });
+      } else {
+        // section / page templates → create a full landing-style page
+        pageRes = await fetch("/api/pages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            slug,
+            title: title.trim(),
+            type: "full",
+            enabled: true,
+            status: "PUBLISHED",
+          }),
+        });
+
+        // For section templates: add the template's section to the new page
+        if (pageRes.ok && template.templateType === "section") {
+          const sectionData = template.data as Record<string, unknown>;
+          await fetch("/api/sections", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ pageSlug: slug, ...sectionData }),
+          });
+        }
+      }
+
+      const json = await pageRes.json();
+      if (!pageRes.ok) {
         setError(json?.error || "Failed to create page");
       } else {
         onCreated(slug);
@@ -94,7 +122,7 @@ function UseAsPageModal({ template, onClose, onCreated }: UseAsPageModalProps) {
   };
 
   return (
-    <div className="modal d-block" tabIndex={-1} style={{ background: "rgba(0,0,0,0.5)" }}>
+    <div className="modal show d-block" tabIndex={-1} style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1060 }}>
       <div className="modal-dialog modal-dialog-centered">
         <div className="modal-content">
           <div className="modal-header">
@@ -105,8 +133,10 @@ function UseAsPageModal({ template, onClose, onCreated }: UseAsPageModalProps) {
           </div>
           <div className="modal-body">
             <p className="text-muted small mb-3">
-              Creates a new <strong>Standalone page</strong> pre-filled with <em>{template.name}</em>.
-              The page will be live immediately at the URL below.
+              {template.templateType === "standalone"
+                ? <>Creates a new <strong>Standalone page</strong> pre-filled with <em>{template.name}</em>. Live immediately at the URL below.</>
+                : <>Creates a new <strong>page</strong> with the <em>{template.name}</em> {template.templateType}. Live immediately at the URL below.</>
+              }
             </p>
             <div className="mb-3">
               <label className="form-label fw-semibold">Page Title</label>
@@ -449,11 +479,15 @@ export default function TemplatesLibraryPage() {
 
                     {editingId !== t.id && (
                       <div className="card-footer bg-transparent border-0 pt-0 d-flex gap-2 flex-wrap">
-                        {isStandalone && (
+                        {(isStandalone || t.templateType === "section" || t.templateType === "page") && (
                           <button
                             className="btn btn-sm btn-warning flex-grow-1"
                             onClick={() => setUseAsPageFor(t)}
-                            title="Create a live page from this template"
+                            title={
+                              isStandalone
+                                ? "Create a standalone page from this template"
+                                : "Create a page with this section/layout"
+                            }
                           >
                             <i className="bi bi-rocket-takeoff me-1"></i>Use as Page
                           </button>

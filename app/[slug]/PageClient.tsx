@@ -96,6 +96,17 @@ export default function PageClient({ params }: { params: Promise<{ slug: string 
       return <FormPageRenderer page={page as FormPageConfig} />;
     case "designer":
       return <DesignerPageRenderer designerData={designerData} title={page.title} />;
+    case "standalone":
+      // Middleware should rewrite /{slug} → /standalone/{slug} for standalone pages.
+      // If we reach here the middleware API call failed — redirect to the renderer directly.
+      if (typeof window !== "undefined") {
+        window.location.replace(`/standalone/${slug}`);
+      }
+      return (
+        <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "50vh" }}>
+          <div className="spinner-border text-primary" role="status" />
+        </div>
+      );
     default:
       notFound();
   }

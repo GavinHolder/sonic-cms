@@ -1,5 +1,4 @@
-import { notFound, permanentRedirect } from "next/navigation";
-import { headers } from "next/headers";
+import { notFound } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { getCmsSiteData, replaceCmsVars } from "@/lib/cms-site-data";
 
@@ -24,13 +23,6 @@ export async function generateMetadata({ params }: Props) {
 
 export default async function StandalonePage({ params }: Props) {
   const { slug } = await params;
-
-  // If reached via the direct /standalone/{slug} URL (not via middleware rewrite from /{slug}),
-  // permanently redirect to the clean URL so bookmarks and search engines update.
-  const reqHeaders = await headers();
-  if (!reqHeaders.get("x-standalone-rewrite")) {
-    permanentRedirect(`/${slug}`);
-  }
 
   const page = await prisma.page.findUnique({
     where: { slug, type: "STANDALONE", enabled: true },

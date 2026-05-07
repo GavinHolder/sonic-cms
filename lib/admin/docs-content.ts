@@ -4488,16 +4488,21 @@ Current built-ins:
 
 ---
 
-## Use as Page — Launch a Template Directly
+## Use as Page — Launch Any Template as a Live Page
 
-Standalone templates have a **Use as Page** button (yellow rocket button on the card). This creates a live page in one step:
+**Standalone**, **Section**, and **Page** templates all have a **Use as Page** button (yellow rocket button on the card). This creates a live page in one step — no limitations on template type.
 
 1. Go to **Admin → Content → Templates**
-2. Find a Standalone template → click **Use as Page**
-3. Enter a **title** and **URL slug** (slug is auto-generated from title, editable)
+2. Click **Use as Page** on any template (standalone, section, or page)
+3. Enter a **title** and **URL slug** (auto-generated from title, editable)
 4. Click **Create Page** — the page is created and published immediately at \`/{slug}\`
 
-The new page appears in **Admin → Content → Pages** and is live at \`/{slug}\` straight away. You can still open it in the editor to fine-tune the HTML/CSS.
+**What gets created by template type:**
+- **Standalone template** → A Standalone HTML page at \`/{slug}\` with the template's HTML/CSS pre-loaded. Edit in Admin → Pages.
+- **Section template** → A full landing-style page with the template's section pre-added. Edit sections in Admin → Content → (the new page).
+- **Page template** → A full page (add your own sections via the section editor).
+
+The new page appears in **Admin → Content → Pages** and is live immediately. A **View** link in the success toast opens the new page.
 
 ---
 
@@ -4506,7 +4511,7 @@ The new page appears in **Admin → Content → Pages** and is live at \`/{slug}
 Visit **Admin → Content → Templates** to:
 - Browse all templates (filter by type, section type, search by name)
 - See usage counts
-- **Use as Page** — launch a standalone template as a live page instantly
+- **Use as Page** — launch any template as a live page instantly
 - Rename or delete user-created templates (built-ins cannot be deleted)
 
 ---

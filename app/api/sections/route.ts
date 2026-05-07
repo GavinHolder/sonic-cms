@@ -137,11 +137,32 @@ export async function POST(request: NextRequest) {
         content: content || {},
         order: newOrder,
         enabled: true,
-        paddingTop: rest.paddingTop ?? 100,
+        paddingTop: rest.paddingTop ?? 80,
         paddingBottom: rest.paddingBottom ?? 80,
+        paddingTopMobile: rest.paddingTopMobile ?? undefined,
+        paddingBottomMobile: rest.paddingBottomMobile ?? undefined,
         background: rest.background ?? 'white',
-        banner: rest.banner,
-        createdBy: page.createdBy, // Use page creator as section creator
+        banner: rest.banner ?? undefined,
+        // Background image fields
+        bgImageUrl: rest.bgImageUrl ?? undefined,
+        bgImageSize: rest.bgImageSize ?? undefined,
+        bgImagePosition: rest.bgImagePosition ?? undefined,
+        bgImageRepeat: rest.bgImageRepeat ?? undefined,
+        bgImageOpacity: rest.bgImageOpacity ?? undefined,
+        bgParallax: rest.bgParallax ?? undefined,
+        // Triangle / section-intro fields
+        triangleEnabled: rest.triangleEnabled ?? undefined,
+        triangleShape: rest.triangleShape ?? undefined,
+        triangleHeight: rest.triangleHeight ?? undefined,
+        triangleColor1: rest.triangleColor1 ?? undefined,
+        triangleColor2: rest.triangleColor2 ?? undefined,
+        // Hover text fields
+        hoverTextEnabled: rest.hoverTextEnabled ?? undefined,
+        hoverText: rest.hoverText ?? undefined,
+        // Lower third & motion elements
+        lowerThird: rest.lowerThird ?? undefined,
+        motionElements: rest.motionElements ?? undefined,
+        createdBy: page.createdBy,
       },
     });
 
