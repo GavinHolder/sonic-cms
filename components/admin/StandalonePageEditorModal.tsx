@@ -7,10 +7,19 @@ import SaveTemplateModal from "@/components/admin/SaveTemplateModal";
 import TemplatePickerModal, { type CmsTemplate } from "@/components/admin/TemplatePickerModal";
 import MediaPickerModal from "@/components/admin/MediaPickerModal";
 
+export interface StandaloneEditorSaveData {
+  html: string;
+  css: string;
+  cssUrls: string[];
+  mediaSlots: Record<string, string>;
+}
+
 interface Props {
   page: StandalonePageConfig;
   onSave: () => void;
   onCancel: () => void;
+  /** When provided, called instead of the default PUT /api/pages/[slug] save. */
+  saveOverride?: (data: StandaloneEditorSaveData) => Promise<void>;
 }
 
 type Tab = "html" | "css" | "files" | "media" | "vars";
@@ -34,7 +43,7 @@ const CMS_VARS = [
   { var: "{{cms.tiktok}}",    desc: "TikTok URL" },
 ];
 
-export default function StandalonePageEditorModal({ page, onSave, onCancel }: Props) {
+export default function StandalonePageEditorModal({ page, onSave, onCancel, saveOverride }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>("html");
   const [html, setHtml] = useState(page.customHtml ?? "");
   const [css, setCss] = useState(page.customCss ?? "");
@@ -71,25 +80,29 @@ export default function StandalonePageEditorModal({ page, onSave, onCancel }: Pr
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`/api/pages/${encodeURIComponent(page.slug)}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customHtml: html,
-          customCss: css,
-          customCssUrls: JSON.stringify(cssUrls),
-          mediaSlots: Object.keys(mediaSlots).length > 0 ? mediaSlots : null,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error?.message ?? "Failed to save");
+      if (saveOverride) {
+        await saveOverride({ html, css, cssUrls, mediaSlots });
+      } else {
+        const res = await fetch(`/api/pages/${encodeURIComponent(page.slug)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            customHtml: html,
+            customCss: css,
+            customCssUrls: JSON.stringify(cssUrls),
+            mediaSlots: Object.keys(mediaSlots).length > 0 ? mediaSlots : null,
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.error?.message ?? "Failed to save");
+      }
       onSave();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
     } finally {
       setSaving(false);
     }
-  }, [html, css, cssUrls, mediaSlots, page.slug, onSave]);
+  }, [html, css, cssUrls, mediaSlots, page.slug, onSave, saveOverride]);
 
   const addUrl = () => {
     const trimmed = newUrl.trim();

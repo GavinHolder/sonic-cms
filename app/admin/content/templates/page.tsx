@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
+import StandalonePageEditorModal from "@/components/admin/StandalonePageEditorModal";
+import type { StandaloneEditorSaveData } from "@/components/admin/StandalonePageEditorModal";
 
 interface CmsTemplate {
   id: string;
@@ -948,6 +950,7 @@ export default function TemplatesLibraryPage() {
   const [useAsPageFor, setUseAsPageFor] = useState<CmsTemplate | null>(null);
   const [showImport, setShowImport]     = useState(false);
   const [analyzeFor, setAnalyzeFor]     = useState<CmsTemplate | null>(null);
+  const [editHtmlFor, setEditHtmlFor]   = useState<CmsTemplate | null>(null);
 
   const showToast = (msg: string, ok = true, slug?: string) => {
     setToast({ msg, ok, slug });
@@ -1058,6 +1061,55 @@ export default function TemplatesLibraryPage() {
             }}
           />
         )}
+
+        {/* Standalone HTML editor — edit template directly */}
+        {editHtmlFor && (() => {
+          const d = editHtmlFor.data as Record<string, unknown>;
+          const fakePage = {
+            id:            editHtmlFor.id,
+            slug:          editHtmlFor.id,
+            title:         editHtmlFor.name,
+            type:          "standalone" as const,
+            enabled:       true,
+            status:        "PUBLISHED" as const,
+            createdAt:     editHtmlFor.createdAt,
+            updatedAt:     editHtmlFor.updatedAt,
+            customHtml:    (d.customHtml as string)      ?? "",
+            customCss:     (d.customCss  as string)      ?? "",
+            customCssUrls: (d.customCssUrls as string[]) ?? [],
+            mediaSlots:    (d.mediaSlots as Record<string, string>) ?? {},
+          };
+          const handleTemplateSave = async (data: StandaloneEditorSaveData) => {
+            const res = await fetch(`/api/templates/${editHtmlFor.id}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                data: {
+                  ...editHtmlFor.data,
+                  customHtml:    data.html,
+                  customCss:     data.css,
+                  customCssUrls: data.cssUrls,
+                  mediaSlots:    data.mediaSlots,
+                },
+              }),
+            });
+            const json = await res.json();
+            if (!res.ok || !json.success) throw new Error(json?.error ?? "Save failed");
+            setTemplates(prev => prev.map(t =>
+              t.id === editHtmlFor.id
+                ? { ...t, data: { ...t.data, customHtml: data.html, customCss: data.css, customCssUrls: data.cssUrls, mediaSlots: data.mediaSlots } }
+                : t
+            ));
+          };
+          return (
+            <StandalonePageEditorModal
+              page={fakePage}
+              onSave={() => { setEditHtmlFor(null); showToast("Template saved"); }}
+              onCancel={() => setEditHtmlFor(null)}
+              saveOverride={handleTemplateSave}
+            />
+          );
+        })()}
 
         {/* Analyze modal */}
         {analyzeFor && (
@@ -1268,6 +1320,15 @@ export default function TemplatesLibraryPage() {
                             }
                           >
                             <i className="bi bi-rocket-takeoff me-1"></i>Use as Page
+                          </button>
+                        )}
+                        {isStandalone && (
+                          <button
+                            className="btn btn-sm btn-outline-primary"
+                            onClick={() => setEditHtmlFor(t)}
+                            title="Edit HTML, CSS, media slots"
+                          >
+                            <i className="bi bi-code-slash"></i>
                           </button>
                         )}
                         {isStandalone && (
