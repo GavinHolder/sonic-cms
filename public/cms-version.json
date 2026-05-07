@@ -1,10 +1,10 @@
 {
-  "version": "1.37.2",
-  "date": "2026-05-06",
+  "version": "1.37.3",
+  "date": "2026-05-07",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "homepage cache invalidation — revalidateTag on PATCH/PUT, trim empty string guard, no-store header"
+      "Use as Page modal visibility + extend to all template types"
     ],
     "breaking": []
   }
