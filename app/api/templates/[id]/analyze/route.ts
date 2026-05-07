@@ -16,24 +16,34 @@ export async function GET(req: NextRequest, { params }: Ctx) {
 
   const data = template.data as Record<string, unknown>;
   const html = (data.customHtml as string) ?? "";
-  const { needsAttention } = analyzeHtml(html, false);
-
   const mediaSlots = (data.mediaSlots as Record<string, string>) ?? {};
+  const { needsAttention } = analyzeHtml(html, false, mediaSlots);
   const slotCount = Object.keys(mediaSlots).length;
   const autoHandled = slotCount > 0
     ? [{ type: "MEDIA_SLOTS", detail: `${slotCount} media slot${slotCount > 1 ? "s" : ""} already wired ({{cms.media.*}} in place)` }]
     : [];
 
-  // Fetch FORM-type pages for the dropdown
-  const formPages = await prisma.page.findMany({
-    where: { type: "FORM", enabled: true },
-    select: { slug: true, title: true },
-    orderBy: { title: "asc" },
-  });
+  const [formPages, mediaAssets, coverageMaps] = await Promise.all([
+    prisma.page.findMany({
+      where: { type: "FORM", enabled: true },
+      select: { slug: true, title: true },
+      orderBy: { title: "asc" },
+    }),
+    prisma.mediaAsset.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 120,
+      select: { id: true, url: true, thumbnailUrl: true, filename: true, altText: true, mimeType: true, width: true, height: true },
+    }),
+    prisma.coverageMap.findMany({
+      where: { isActive: true },
+      select: { id: true, slug: true, name: true },
+      orderBy: { createdAt: "asc" },
+    }),
+  ]);
 
   return NextResponse.json({
     success: true,
-    data: { analysis: { autoHandled, needsAttention }, mediaSlots, formPages, htmlLength: html.length },
+    data: { analysis: { autoHandled, needsAttention }, mediaSlots, formPages, mediaAssets, coverageMaps, htmlLength: html.length },
   });
 }
 
@@ -84,18 +94,23 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   const template = await prisma.cmsTemplate.findUnique({ where: { id } });
   if (!template) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  let body: { customHtml?: string };
+  let body: { customHtml?: string; mediaSlots?: Record<string, string> };
   try { body = await req.json(); } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  if (typeof body.customHtml !== "string")
-    return NextResponse.json({ error: "customHtml required" }, { status: 400 });
+  if (typeof body.customHtml !== "string" && body.mediaSlots === undefined)
+    return NextResponse.json({ error: "customHtml or mediaSlots required" }, { status: 400 });
 
   const existingData = template.data as Record<string, unknown>;
+  const updatePayload: Record<string, unknown> = { ...existingData };
+  if (typeof body.customHtml === "string") updatePayload.customHtml = body.customHtml;
+  if (body.mediaSlots !== undefined) updatePayload.mediaSlots = body.mediaSlots;
+
   await prisma.cmsTemplate.update({
     where: { id },
-    data: { data: { ...existingData, customHtml: body.customHtml } },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    data: { data: updatePayload as any },
   });
 
   return NextResponse.json({ success: true });
