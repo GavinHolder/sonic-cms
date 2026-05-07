@@ -257,40 +257,111 @@ interface CoverageMap {
   name: string;
 }
 
+// ── Client-safe slot name utilities (mirrors lib/template-import-utils.ts) ──
+function localSrcToSlotName(src: string): string {
+  const base = (src.split("/").pop() ?? src).split(".").slice(0, -1).join(".") || src;
+  return base.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "media";
+}
+
+function labelForPath(src: string): string {
+  const filename = src.split("/").pop() ?? src;
+  const base = filename.replace(/\.[^.]+$/, "").replace(/[-_]/g, " ").trim();
+  const slideNum = base.match(/slide[-_\s]?(\d+)|(\d+)[-_\s]?slide/i);
+  if (slideNum) return `Slide ${slideNum[1] ?? slideNum[2]}`;
+  if (/^hero\b/i.test(base)) return "Hero Background";
+  if (/banner/i.test(base)) return "Banner";
+  if (/about/i.test(base)) return "About Section";
+  if (/bg\b|background/i.test(base)) return "Background";
+  if (/team/i.test(base)) return "Team Photo";
+  if (/logo/i.test(base)) return "Logo";
+  if (/thumb/i.test(base)) return "Thumbnail";
+  if (/gallery/i.test(base)) return "Gallery Image";
+  if (/feature/i.test(base)) return "Feature Image";
+  return base.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ") || src;
+}
+
 function InlineMediaPicker({
-  files, search, onSearch, onPick, mediaType = "image",
+  files, search, onSearch, onPick, onUploaded, mediaType = "image",
 }: {
   files: MediaFile[];
   search: string;
   onSearch: (s: string) => void;
   onPick: (url: string) => void;
+  onUploaded?: (url: string, name: string) => void;
   mediaType?: "image" | "video";
 }) {
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const uploadRef = useRef<HTMLInputElement>(null);
+
+  const handleUpload = async (f: File) => {
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", f);
+      const res = await fetch("/api/media/upload-simple", { method: "POST", body: fd });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error ?? "Upload failed");
+      if (onUploaded) onUploaded(json.url, f.name);
+      onPick(json.url);
+    } catch (e) {
+      setUploadError(e instanceof Error ? e.message : "Upload failed");
+    }
+    setUploading(false);
+  };
+
   const filtered = files.filter(
     f => f.type.startsWith(mediaType + "/") &&
          (!search || f.name.toLowerCase().includes(search.toLowerCase()))
   );
+
   return (
-    <div className="border rounded p-2 mt-2" style={{ background: "#fff", maxHeight: 210, overflowY: "auto" }}>
-      <input
-        className="form-control form-control-sm mb-2"
-        placeholder={`Search ${mediaType}s…`}
-        value={search}
-        onChange={e => onSearch(e.target.value)}
-        autoFocus
-      />
+    <div className="border rounded p-2 mt-2" style={{ background: "#fff", maxHeight: 240, overflowY: "auto" }}>
+      <div className="d-flex gap-2 mb-2">
+        <input
+          className="form-control form-control-sm flex-grow-1"
+          placeholder={`Search ${mediaType}s…`}
+          value={search}
+          onChange={e => onSearch(e.target.value)}
+          autoFocus
+        />
+        <button
+          type="button"
+          className="btn btn-sm btn-outline-primary text-nowrap"
+          style={{ fontSize: "0.75rem" }}
+          onClick={() => uploadRef.current?.click()}
+          disabled={uploading}
+          title="Upload a new image directly"
+        >
+          {uploading
+            ? <span className="spinner-border spinner-border-sm" />
+            : <><i className="bi bi-cloud-upload me-1" />Upload</>}
+        </button>
+        <input
+          ref={uploadRef}
+          type="file"
+          accept={mediaType === "image" ? "image/*" : "video/*"}
+          className="d-none"
+          onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); e.target.value = ""; }}
+        />
+      </div>
+      {uploadError && (
+        <div className="alert alert-danger py-1 px-2 small mb-2" style={{ fontSize: "0.72rem" }}>
+          <i className="bi bi-exclamation-circle me-1" />{uploadError}
+        </div>
+      )}
       <div className="d-flex flex-wrap gap-1">
         {filtered.length === 0 ? (
           <div className="text-muted small py-1 px-1 w-100 text-center">
-            No {mediaType}s in library —{" "}
-            <a href="/admin/media" target="_blank" rel="noopener noreferrer" className="text-primary">upload via Media Library</a>
+            No {mediaType}s in library — upload one above
           </div>
-        ) : filtered.slice(0, 50).map(f => (
+        ) : filtered.slice(0, 60).map(f => (
           <button
             key={f.url}
             type="button"
             className="btn p-0 border rounded"
-            style={{ width: 60, height: 60, overflow: "hidden", flexShrink: 0 }}
+            style={{ width: 64, height: 64, overflow: "hidden", flexShrink: 0 }}
             onClick={() => onPick(f.url)}
             title={f.name}
           >
@@ -352,6 +423,8 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
   const [saving, setSaving]           = useState(false);
   const [error, setError]             = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const seenSlotNamesRef = useRef(new Map<string, number>());
+  const srcToSlotRef     = useRef(new Map<string, string>());
 
   const autoName = (filename: string) =>
     filename
@@ -377,6 +450,8 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
     setMediaSlots({});
     setFixed(new Set());
     setPickerFor(null);
+    seenSlotNamesRef.current = new Map();
+    srcToSlotRef.current     = new Map();
     setName(prev => prev || autoName(f.name));
 
     const fname = f.name.toLowerCase();
@@ -431,11 +506,23 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
   };
 
   const fixSrc = (localSrc: string, newUrl: string) => {
+    let slotName = srcToSlotRef.current.get(localSrc);
+    if (!slotName) {
+      const base = localSrcToSlotName(localSrc);
+      const count = seenSlotNamesRef.current.get(base) ?? 0;
+      seenSlotNamesRef.current.set(base, count + 1);
+      slotName = count === 0 ? base : `${base}-${count}`;
+      srcToSlotRef.current.set(localSrc, slotName);
+    }
     const esc = localSrc.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    applyFix(`SRC:${localSrc}`, html.replace(new RegExp(esc, "g"), newUrl));
+    applyFix(`SRC:${localSrc}`, html.replace(new RegExp(esc, "g"), `{{cms.media.${slotName}}}`));
+    setMediaSlots(prev => ({ ...prev, [slotName!]: newUrl }));
     setPickerFor(null);
     setPickerSearch("");
   };
+
+  const addToMediaFiles = (url: string, name: string) =>
+    setMediaFiles(prev => [{ name, url, type: "image/webp" }, ...prev]);
 
   const isSrcFixed = (src: string) => fixed.has(`SRC:${src}`);
 
@@ -443,13 +530,21 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
     occurrences.map(src => {
       const thisFixed = isSrcFixed(src);
       const isPicking = pickerFor?.src === src && pickerFor.mediaType === mediaType;
+      const assignedSlot = srcToSlotRef.current.get(src);
+      const assignedUrl  = assignedSlot ? mediaSlots[assignedSlot] : undefined;
+      const label = labelForPath(src);
       return (
         <div key={src}>
           <div className={`border rounded px-2 py-1 mb-1 d-flex align-items-center gap-2 ${thisFixed ? "border-success bg-success bg-opacity-10" : "bg-white"}`}>
-            <i className={`bi ${thisFixed ? "bi-check-circle-fill text-success" : (mediaType === "video" ? "bi-camera-video text-muted" : "bi-image text-muted")}`} style={{ fontSize: "0.8rem", flexShrink: 0 }} />
-            <code className="text-muted flex-grow-1 text-truncate" style={{ fontSize: "0.68rem" }} title={src}>{src}</code>
+            {assignedUrl
+              ? <img src={assignedUrl} alt={label} style={{ width: 32, height: 32, objectFit: "cover", borderRadius: 3, flexShrink: 0 }} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+              : <i className={`bi ${mediaType === "video" ? "bi-camera-video" : "bi-image"} text-muted`} style={{ fontSize: "0.8rem", flexShrink: 0 }} />}
+            <div className="flex-grow-1 overflow-hidden">
+              <div className="fw-semibold" style={{ fontSize: "0.78rem" }}>{label}</div>
+              <code className="text-muted d-block text-truncate" style={{ fontSize: "0.63rem" }} title={src}>{src}</code>
+            </div>
             {thisFixed
-              ? <span className="badge bg-success" style={{ fontSize: "0.65rem" }}>✓ Linked</span>
+              ? <span className="badge bg-success" style={{ fontSize: "0.65rem" }}>✓ Slotted</span>
               : <button
                   type="button"
                   className={`btn btn-sm ${isPicking ? "btn-primary" : "btn-outline-primary"} text-nowrap`}
@@ -457,7 +552,7 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
                   onClick={() => { setPickerFor(isPicking ? null : { src, mediaType }); setPickerSearch(""); }}
                 >
                   <i className={`bi ${isPicking ? "bi-x" : "bi-folder2-open"} me-1`} />
-                  {isPicking ? "Close" : "Browse Library"}
+                  {isPicking ? "Close" : "Pick / Upload"}
                 </button>
             }
           </div>
@@ -467,6 +562,7 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
               search={pickerSearch}
               onSearch={setPickerSearch}
               onPick={url => fixSrc(src, url)}
+              onUploaded={addToMediaFiles}
               mediaType={mediaType}
             />
           )}
@@ -758,6 +854,32 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
   );
 }
 
+function SlotUploadButton({ onUploaded }: { onUploaded: (url: string, filename: string) => void }) {
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const ref = useRef<HTMLInputElement>(null);
+  const handle = async (f: File) => {
+    setUploading(true); setErr(null);
+    try {
+      const fd = new FormData(); fd.append("file", f);
+      const res = await fetch("/api/media/upload-simple", { method: "POST", body: fd });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error ?? "Upload failed");
+      onUploaded(json.url, f.name);
+    } catch (e) { setErr(e instanceof Error ? e.message : "Upload failed"); }
+    setUploading(false);
+  };
+  return (
+    <>
+      <button type="button" className="btn btn-sm btn-outline-primary" style={{ fontSize: "0.7rem" }} onClick={() => ref.current?.click()} disabled={uploading}>
+        {uploading ? <span className="spinner-border spinner-border-sm" /> : <><i className="bi bi-cloud-upload me-1" />Upload new</>}
+      </button>
+      <input ref={ref} type="file" accept="image/*" className="d-none" onChange={e => { const f = e.target.files?.[0]; if (f) handle(f); e.target.value = ""; }} />
+      {err && <div className="text-danger small ms-2">{err}</div>}
+    </>
+  );
+}
+
 interface AnalyzeModalProps {
   template: CmsTemplate;
   onClose: () => void;
@@ -786,7 +908,9 @@ function AnalyzeModal({ template, onClose, onUpdated }: AnalyzeModalProps) {
   const [reimporting, setReimporting]         = useState(false);
   const [saving, setSaving]                   = useState(false);
   const [error, setError]                     = useState<string | null>(null);
-  const zipRef = useRef<HTMLInputElement>(null);
+  const zipRef           = useRef<HTMLInputElement>(null);
+  const seenSlotNamesRef = useRef(new Map<string, number>());
+  const srcToSlotRef     = useRef(new Map<string, string>());
 
   const isDirty      = workingHtml !== originalHtml;
   const slotsChanged = JSON.stringify(slotAssignments) !== JSON.stringify(originalSlots);
@@ -837,11 +961,23 @@ function AnalyzeModal({ template, onClose, onUpdated }: AnalyzeModalProps) {
   };
 
   const fixSrc = (localSrc: string, newUrl: string) => {
+    let slotName = srcToSlotRef.current.get(localSrc);
+    if (!slotName) {
+      const base = localSrcToSlotName(localSrc);
+      const count = seenSlotNamesRef.current.get(base) ?? 0;
+      seenSlotNamesRef.current.set(base, count + 1);
+      slotName = count === 0 ? base : `${base}-${count}`;
+      srcToSlotRef.current.set(localSrc, slotName);
+    }
     const esc = localSrc.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    applyFix(`SRC:${localSrc}`, workingHtml.replace(new RegExp(esc, "g"), newUrl));
+    applyFix(`SRC:${localSrc}`, workingHtml.replace(new RegExp(esc, "g"), `{{cms.media.${slotName}}}`));
+    setSlotAssignments(prev => ({ ...prev, [slotName!]: newUrl }));
     setPickerFor(null);
     setPickerSearch("");
   };
+
+  const addToMediaFiles = (url: string, name: string) =>
+    setMediaFiles(prev => [{ name, url, type: "image/webp" }, ...prev]);
 
   const assignSlotImage = (slot: string, url: string) => {
     setSlotAssignments(prev => ({ ...prev, [slot]: url }));
@@ -946,7 +1082,7 @@ function AnalyzeModal({ template, onClose, onUpdated }: AnalyzeModalProps) {
                       />
                       {filtered.length === 0 ? (
                         <div className="text-muted small text-center py-2">
-                          No images — <a href="/admin/media" target="_blank" rel="noopener noreferrer">upload via Media Library</a>
+                          No images — upload one below
                         </div>
                       ) : (
                         <div className="d-flex flex-wrap gap-1" style={{ maxHeight: 200, overflowY: "auto" }}>
@@ -969,10 +1105,11 @@ function AnalyzeModal({ template, onClose, onUpdated }: AnalyzeModalProps) {
                         </div>
                       )}
                       <div className="mt-2 d-flex justify-content-between align-items-center">
-                        <span className="text-muted" style={{ fontSize: "0.7rem" }}>{filtered.length} image{filtered.length !== 1 ? "s" : ""}</span>
-                        <a href="/admin/media" target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-secondary" style={{ fontSize: "0.7rem" }}>
-                          <i className="bi bi-cloud-upload me-1" />Upload new
-                        </a>
+                        <span className="text-muted" style={{ fontSize: "0.7rem" }}>{filtered.length} image{filtered.length !== 1 ? "s" : ""} in library</span>
+                        <SlotUploadButton onUploaded={(url, filename) => {
+                          setMediaAssets(prev => [{ id: url, url, thumbnailUrl: url, filename, altText: null, mimeType: "image/webp", width: null, height: null }, ...prev]);
+                          assignSlotImage(slot, url);
+                        }} />
                       </div>
                     </div>
                   )}
@@ -1072,13 +1209,21 @@ function AnalyzeModal({ template, onClose, onUpdated }: AnalyzeModalProps) {
     occurrences.map(src => {
       const thisFixed = isSrcFixed(src);
       const isPicking = pickerFor?.src === src && pickerFor.mediaType === mediaType;
+      const assignedSlot = srcToSlotRef.current.get(src);
+      const assignedUrl  = assignedSlot ? slotAssignments[assignedSlot] : undefined;
+      const label = labelForPath(src);
       return (
         <div key={src}>
           <div className={`border rounded px-2 py-1 mb-1 d-flex align-items-center gap-2 ${thisFixed ? "border-success bg-success bg-opacity-10" : "bg-white"}`}>
-            <i className={`bi ${thisFixed ? "bi-check-circle-fill text-success" : (mediaType === "video" ? "bi-camera-video text-muted" : "bi-image text-muted")}`} style={{ fontSize: "0.8rem", flexShrink: 0 }} />
-            <code className="text-muted flex-grow-1 text-truncate" style={{ fontSize: "0.68rem" }} title={src}>{src}</code>
+            {assignedUrl
+              ? <img src={assignedUrl} alt={label} style={{ width: 32, height: 32, objectFit: "cover", borderRadius: 3, flexShrink: 0 }} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+              : <i className={`bi ${mediaType === "video" ? "bi-camera-video" : "bi-image"} text-muted`} style={{ fontSize: "0.8rem", flexShrink: 0 }} />}
+            <div className="flex-grow-1 overflow-hidden">
+              <div className="fw-semibold" style={{ fontSize: "0.78rem" }}>{label}</div>
+              <code className="text-muted d-block text-truncate" style={{ fontSize: "0.63rem" }} title={src}>{src}</code>
+            </div>
             {thisFixed
-              ? <span className="badge bg-success" style={{ fontSize: "0.65rem" }}>✓ Linked</span>
+              ? <span className="badge bg-success" style={{ fontSize: "0.65rem" }}>✓ Slotted</span>
               : <button
                   type="button"
                   className={`btn btn-sm ${isPicking ? "btn-primary" : "btn-outline-primary"} text-nowrap`}
@@ -1086,7 +1231,7 @@ function AnalyzeModal({ template, onClose, onUpdated }: AnalyzeModalProps) {
                   onClick={() => { setPickerFor(isPicking ? null : { src, mediaType }); setPickerSearch(""); setPickerSlot(null); }}
                 >
                   <i className={`bi ${isPicking ? "bi-x" : "bi-folder2-open"} me-1`} />
-                  {isPicking ? "Close" : "Browse Library"}
+                  {isPicking ? "Close" : "Pick / Upload"}
                 </button>
             }
           </div>
@@ -1096,6 +1241,7 @@ function AnalyzeModal({ template, onClose, onUpdated }: AnalyzeModalProps) {
               search={pickerSearch}
               onSearch={setPickerSearch}
               onPick={url => fixSrc(src, url)}
+              onUploaded={addToMediaFiles}
               mediaType={mediaType}
             />
           )}
