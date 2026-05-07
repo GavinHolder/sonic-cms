@@ -1,9 +1,9 @@
 {
-  "version": "1.40.0",
+  "version": "1.41.0",
   "date": "2026-05-07",
   "changelog": {
     "features": [
-      "standalone template integration — page/feature URLs, media slots, form injection"
+      "template import — upload .html or .zip directly into template library"
     ],
     "bugfixes": [],
     "breaking": []
