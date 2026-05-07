@@ -55,6 +55,7 @@ model Page {
   customHtml      String?
   customCss       String?
   customCssUrls   String?
+  mediaSlots      Json?
   navLabel        String?
   navOrder        Int?
   showOnNavbar    Boolean          @default(false)

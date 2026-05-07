@@ -77,6 +77,9 @@ function mapApiPage(p: any): PageConfig {
       customHtml: p.customHtml ?? "",
       customCss: p.customCss ?? "",
       customCssUrls: (() => { try { return JSON.parse(p.customCssUrls || "[]"); } catch { return []; } })(),
+      mediaSlots: (p.mediaSlots && typeof p.mediaSlots === "object" && !Array.isArray(p.mediaSlots))
+        ? (p.mediaSlots as Record<string, string>)
+        : {},
     } : {}),
   } as PageConfig;
 }

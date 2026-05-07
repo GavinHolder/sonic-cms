@@ -13,7 +13,7 @@ import {
   errorResponse,
   handleApiError,
 } from "@/lib/api-middleware";
-import { PageType, PageStatus } from "@prisma/client";
+import { PageType, PageStatus, Prisma } from "@prisma/client";
 
 const CLIENT_TO_PRISMA: Record<string, PageType> = {
   form: PageType.FORM,
@@ -77,6 +77,7 @@ export async function GET(
         customHtml: page.customHtml ?? null,
         customCss: page.customCss ?? null,
         customCssUrls: page.customCssUrls ?? null,
+        mediaSlots: page.mediaSlots ?? null,
         metaDescription: page.metaDescription,
         metaTitle: page.metaTitle,
         metaKeywords: page.metaKeywords,
@@ -135,6 +136,7 @@ const updatePageSchema = z.object({
   noindex: z.boolean().optional(),
   nofollow: z.boolean().optional(),
   status: z.nativeEnum(PageStatus).optional(),
+  mediaSlots: z.record(z.string(), z.string()).nullable().optional(),
 });
 
 export async function PUT(
@@ -189,6 +191,7 @@ export async function PUT(
         ...(data.noindex !== undefined && { noindex: data.noindex }),
         ...(data.nofollow !== undefined && { nofollow: data.nofollow }),
         ...(data.status !== undefined && { status: data.status }),
+        ...(data.mediaSlots !== undefined && { mediaSlots: data.mediaSlots ?? Prisma.DbNull }),
         ...(data.status === PageStatus.PUBLISHED && !existingPage.publishedAt
           ? { publishedAt: new Date(), publishedBy: user.userId }
           : {}),
@@ -208,6 +211,7 @@ export async function PUT(
         customHtml: updatedPage.customHtml ?? null,
         customCss: updatedPage.customCss ?? null,
         customCssUrls: updatedPage.customCssUrls ?? null,
+        mediaSlots: updatedPage.mediaSlots ?? null,
         metaDescription: updatedPage.metaDescription,
         metaTitle: updatedPage.metaTitle,
         metaKeywords: updatedPage.metaKeywords,

@@ -72,6 +72,7 @@ export interface StandalonePageConfig extends PageConfig {
   customHtml: string;
   customCss: string;
   customCssUrls: string[];
+  mediaSlots?: Record<string, string>;
 }
 
 /**

@@ -48,6 +48,7 @@ function formatPage(page: any) {
     customHtml: page.customHtml ?? null,
     customCss: page.customCss ?? null,
     customCssUrls: page.customCssUrls ?? null,
+    mediaSlots: page.mediaSlots ?? null,
     metaDescription: page.metaDescription,
     ogImage: page.ogImage,
     publishedAt: page.publishedAt,

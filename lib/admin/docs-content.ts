@@ -4956,13 +4956,13 @@ Go to **Settings → Site Config** in the admin sidebar.
 - **Show Regulatory Links** — toggle compliance/regulatory section in footer
 
 ### Homepage Entry Point
-- **Which page loads at `/`** — select any enabled page from the dropdown to serve it at your website root
+- **Which page loads at \`/\`** — select any enabled page from the dropdown to serve it at your website root
 - Leave on **"Default: Landing page with sections"** to use the standard section-based landing page
-- When a page is selected, visitors going to `/` are transparently served that page — the URL stays `/`, nothing internal is ever exposed
+- When a page is selected, visitors going to \`/\` are transparently served that page — the URL stays \`/\`, nothing internal is ever exposed
 - Works with **any page type**: Standalone (custom HTML), Full Page, Designer, Form, PDF
 - To revert to the default landing page, set the dropdown back to "Default" and save
 
-> 💡 This is how you set a **Standalone** or **custom HTML page** as your actual website — no redirects, no exposed internal URLs. The visitor only ever sees `/`.
+> 💡 This is how you set a **Standalone** or **custom HTML page** as your actual website — no redirects, no exposed internal URLs. The visitor only ever sees \`/\`.
 `;
 
 // ─────────────────────────────────────────────

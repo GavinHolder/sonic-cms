@@ -2,26 +2,32 @@
  * Universal CMS site data — available server-side and as window.__CMS_SITE on all public pages.
  *
  * Template variables (replaced server-side in standalone pages, client-side in HTML blocks):
- *   {{cms.logo}}       logoUrl
- *   {{cms.company}}    companyName
- *   {{cms.tagline}}    tagline
- *   {{cms.phone}}      phone
- *   {{cms.email}}      email
- *   {{cms.address}}    address
- *   {{cms.city}}       city
- *   {{cms.postal}}     postalCode
- *   {{cms.country}}    country
- *   {{cms.copyright}}  copyrightText
- *   {{cms.facebook}}   facebook
- *   {{cms.instagram}}  instagram
- *   {{cms.twitter}}    twitter
- *   {{cms.linkedin}}   linkedin
- *   {{cms.youtube}}    youtube
- *   {{cms.tiktok}}     tiktok
+ *   {{cms.logo}}              logoUrl
+ *   {{cms.company}}           companyName
+ *   {{cms.tagline}}           tagline
+ *   {{cms.phone}}             phone
+ *   {{cms.email}}             email
+ *   {{cms.address}}           address
+ *   {{cms.city}}              city
+ *   {{cms.postal}}            postalCode
+ *   {{cms.country}}           country
+ *   {{cms.copyright}}         copyrightText
+ *   {{cms.facebook}}          facebook
+ *   {{cms.instagram}}         instagram
+ *   {{cms.twitter}}           twitter
+ *   {{cms.linkedin}}          linkedin
+ *   {{cms.youtube}}           youtube
+ *   {{cms.tiktok}}            tiktok
+ *   {{cms.pages.SLUG}}        URL of any enabled+published page (e.g. "/about"), or "#" if not found
+ *   {{cms.features.SLUG}}     "true"/"false" — whether a client feature is enabled
+ *   {{cms.media.SLOTNAME}}    URL from a page-level media slot (replaced in standalone renderer)
+ *   {{cms.form.SLUG}}         Injected CMS form HTML (replaced in standalone renderer)
  *
  * JS access (any page):
  *   window.__CMS_SITE.logoUrl
  *   window.__CMS_SITE.navLinks  → [{ type, id, label, href?, navOrder }]
+ *   window.__CMS_SITE.pages     → { slug: "/slug", ... }
+ *   window.__CMS_SITE.features  → { slug: true/false, ... }
  */
 
 import prisma from "@/lib/prisma";
@@ -52,6 +58,8 @@ export interface CmsSiteData {
   youtube: string;
   tiktok: string;
   navLinks: CmsSiteNavLink[];
+  pages: Record<string, string>;
+  features: Record<string, boolean>;
 }
 
 const EMPTY: CmsSiteData = {
@@ -59,11 +67,13 @@ const EMPTY: CmsSiteData = {
   address: "", city: "", postalCode: "", country: "", copyrightText: "",
   facebook: "", instagram: "", twitter: "", linkedin: "", youtube: "", tiktok: "",
   navLinks: [],
+  pages: {},
+  features: {},
 };
 
 export async function getCmsSiteData(): Promise<CmsSiteData> {
   try {
-    const [config, sections, pages] = await Promise.all([
+    const [config, sections, navPages, allPages, allFeatures] = await Promise.all([
       prisma.siteConfig.findUnique({ where: { id: "singleton" } }),
       prisma.section.findMany({
         where: { showOnNavbar: true, enabled: true },
@@ -72,6 +82,13 @@ export async function getCmsSiteData(): Promise<CmsSiteData> {
       prisma.page.findMany({
         where: { showOnNavbar: true, enabled: true },
         select: { id: true, slug: true, title: true, navLabel: true, navOrder: true },
+      }),
+      prisma.page.findMany({
+        where: { enabled: true, status: "PUBLISHED" },
+        select: { slug: true },
+      }),
+      prisma.clientFeature.findMany({
+        select: { slug: true, enabled: true },
       }),
     ]);
 
@@ -82,7 +99,7 @@ export async function getCmsSiteData(): Promise<CmsSiteData> {
         label: s.navLabel || s.displayName || "",
         navOrder: s.navOrder ?? 999,
       })),
-      ...pages.map(p => ({
+      ...navPages.map(p => ({
         type: "page" as const,
         id: p.id,
         label: p.navLabel || p.title,
@@ -90,6 +107,16 @@ export async function getCmsSiteData(): Promise<CmsSiteData> {
         navOrder: p.navOrder ?? 999,
       })),
     ].sort((a, b) => a.navOrder - b.navOrder);
+
+    const pages: Record<string, string> = {};
+    for (const p of allPages) {
+      pages[p.slug] = `/${p.slug}`;
+    }
+
+    const features: Record<string, boolean> = {};
+    for (const f of allFeatures) {
+      features[f.slug] = f.enabled;
+    }
 
     return {
       logoUrl:       config?.logoUrl       ?? "",
@@ -109,6 +136,8 @@ export async function getCmsSiteData(): Promise<CmsSiteData> {
       youtube:       config?.youtube       ?? "",
       tiktok:        config?.tiktok        ?? "",
       navLinks,
+      pages,
+      features,
     };
   } catch {
     return EMPTY;
@@ -117,7 +146,13 @@ export async function getCmsSiteData(): Promise<CmsSiteData> {
 
 // ── Template variable replacement ──────────────────────────────────────────
 
-const VAR_MAP: Array<[RegExp, keyof Omit<CmsSiteData, "navLinks">]> = [
+type StringKey = keyof Pick<CmsSiteData,
+  "logoUrl" | "companyName" | "tagline" | "phone" | "email" | "address" |
+  "city" | "postalCode" | "country" | "copyrightText" | "facebook" |
+  "instagram" | "twitter" | "linkedin" | "youtube" | "tiktok"
+>;
+
+const VAR_MAP: Array<[RegExp, StringKey]> = [
   [/\{\{cms\.logo\}\}/g,      "logoUrl"],
   [/\{\{cms\.company\}\}/g,   "companyName"],
   [/\{\{cms\.tagline\}\}/g,   "tagline"],
@@ -140,15 +175,19 @@ const VAR_MAP: Array<[RegExp, keyof Omit<CmsSiteData, "navLinks">]> = [
 export function replaceCmsVars(html: string, data: CmsSiteData): string {
   let result = html;
   for (const [regex, key] of VAR_MAP) {
-    result = result.replace(regex, (data[key] as string) ?? "");
+    result = result.replace(regex, data[key] ?? "");
   }
+  // Dynamic page URLs: {{cms.pages.slug}}
+  result = result.replace(/\{\{cms\.pages\.([a-z0-9-]+)\}\}/g, (_, s) => data.pages[s] ?? "#");
+  // Feature flags: {{cms.features.slug}}
+  result = result.replace(/\{\{cms\.features\.([a-z0-9_-]+)\}\}/g, (_, s) => String(data.features[s] ?? false));
   return result;
 }
 
 /** Client-side replacement — reads window.__CMS_SITE automatically */
 export function replaceCmsVarsClient(html: string): string {
   if (typeof window === "undefined") return html;
-  const d = (window as any).__CMS_SITE as CmsSiteData | undefined;
+  const d = (window as Window & { __CMS_SITE?: CmsSiteData }).__CMS_SITE;
   if (!d) return html;
   return replaceCmsVars(html, d);
 }

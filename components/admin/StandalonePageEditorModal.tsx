@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import Editor from "@monaco-editor/react";
 import type { StandalonePageConfig } from "@/types/page";
 import SaveTemplateModal from "@/components/admin/SaveTemplateModal";
 import TemplatePickerModal, { type CmsTemplate } from "@/components/admin/TemplatePickerModal";
+import MediaPickerModal from "@/components/admin/MediaPickerModal";
 
 interface Props {
   page: StandalonePageConfig;
@@ -12,7 +13,7 @@ interface Props {
   onCancel: () => void;
 }
 
-type Tab = "html" | "css" | "files" | "vars";
+type Tab = "html" | "css" | "files" | "media" | "vars";
 
 const CMS_VARS = [
   { var: "{{cms.logo}}",      desc: "Logo image URL" },
@@ -44,6 +45,27 @@ export default function StandalonePageEditorModal({ page, onSave, onCancel }: Pr
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
   const [showPickTemplate, setShowPickTemplate] = useState(false);
   const [templateSavedMsg, setTemplateSavedMsg] = useState<string | null>(null);
+  const [mediaSlots, setMediaSlots] = useState<Record<string, string>>(page.mediaSlots ?? {});
+  const [newSlotName, setNewSlotName] = useState("");
+  const [mediaPickerFor, setMediaPickerFor] = useState<string | null>(null);
+  const [dynPages, setDynPages] = useState<Array<{ slug: string; title: string }>>([]);
+  const [dynForms, setDynForms] = useState<Array<{ slug: string; title: string }>>([]);
+  const [dynFeatures, setDynFeatures] = useState<Array<{ slug: string; enabled: boolean }>>([]);
+  const varsFetched = useRef(false);
+
+  useEffect(() => {
+    if (activeTab !== "vars" || varsFetched.current) return;
+    varsFetched.current = true;
+    Promise.all([
+      fetch("/api/pages?limit=200").then(r => r.json()),
+      fetch("/api/features").then(r => r.json()),
+    ]).then(([pagesJson, featJson]) => {
+      const all = (pagesJson?.data?.pages ?? []) as Array<{ slug: string; title: string; type: string; enabled: boolean }>;
+      setDynPages(all.filter(p => p.enabled));
+      setDynForms(all.filter(p => p.type === "form" && p.enabled));
+      setDynFeatures((featJson?.data ?? []) as Array<{ slug: string; enabled: boolean }>);
+    }).catch(() => {});
+  }, [activeTab]);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -56,6 +78,7 @@ export default function StandalonePageEditorModal({ page, onSave, onCancel }: Pr
           customHtml: html,
           customCss: css,
           customCssUrls: JSON.stringify(cssUrls),
+          mediaSlots: Object.keys(mediaSlots).length > 0 ? mediaSlots : null,
         }),
       });
       const json = await res.json();
@@ -66,7 +89,7 @@ export default function StandalonePageEditorModal({ page, onSave, onCancel }: Pr
     } finally {
       setSaving(false);
     }
-  }, [html, css, cssUrls, page.slug, onSave]);
+  }, [html, css, cssUrls, mediaSlots, page.slug, onSave]);
 
   const addUrl = () => {
     const trimmed = newUrl.trim();
@@ -83,6 +106,17 @@ export default function StandalonePageEditorModal({ page, onSave, onCancel }: Pr
     if (j < 0 || j >= next.length) return;
     [next[i], next[j]] = [next[j], next[i]];
     setCssUrls(next);
+  };
+
+  const addMediaSlot = () => {
+    const name = newSlotName.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
+    if (!name || name in mediaSlots) return;
+    setMediaSlots(prev => ({ ...prev, [name]: "" }));
+    setNewSlotName("");
+  };
+
+  const removeMediaSlot = (name: string) => {
+    setMediaSlots(prev => { const n = { ...prev }; delete n[name]; return n; });
   };
 
   const copyVar = (v: string) => navigator.clipboard?.writeText(v).catch(() => {});
@@ -139,10 +173,11 @@ export default function StandalonePageEditorModal({ page, onSave, onCancel }: Pr
           <div className="border-bottom px-3 pt-2" style={{ flexShrink: 0 }}>
             <ul className="nav nav-tabs border-0">
               {([
-                { id: "html", icon: "bi-filetype-html", label: "HTML" },
-                { id: "css",  icon: "bi-filetype-css",  label: "CSS" },
-                { id: "files", icon: "bi-link-45deg",   label: `CSS Files${cssUrls.length ? ` (${cssUrls.length})` : ""}` },
-                { id: "vars", icon: "bi-braces",        label: "Variables" },
+                { id: "html",  icon: "bi-filetype-html", label: "HTML" },
+                { id: "css",   icon: "bi-filetype-css",  label: "CSS" },
+                { id: "files", icon: "bi-link-45deg",    label: `CSS Files${cssUrls.length ? ` (${cssUrls.length})` : ""}` },
+                { id: "media", icon: "bi-images",        label: `Media${Object.keys(mediaSlots).length ? ` (${Object.keys(mediaSlots).length})` : ""}` },
+                { id: "vars",  icon: "bi-braces",        label: "Variables" },
               ] as { id: Tab; icon: string; label: string }[]).map(t => (
                 <li className="nav-item" key={t.id}>
                   <button
@@ -262,6 +297,74 @@ export default function StandalonePageEditorModal({ page, onSave, onCancel }: Pr
               </div>
             )}
 
+            {/* Media slots */}
+            {activeTab === "media" && (
+              <div style={{ height: "100%", overflowY: "auto", padding: 24 }}>
+                <div className="alert alert-info py-2 small mb-4">
+                  <i className="bi bi-images me-1"></i>
+                  Named image slots for this page. Use <code>{"{{cms.media.SLOTNAME}}"}</code> in your HTML/CSS.
+                  Upload images via the Media Library, then assign them to a slot name here.
+                </div>
+
+                <div className="d-flex gap-2 mb-4">
+                  <input
+                    type="text"
+                    className="form-control form-control-sm"
+                    placeholder="Slot name (e.g. hero-bg, logo-dark)"
+                    value={newSlotName}
+                    onChange={e => setNewSlotName(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
+                    onKeyDown={e => e.key === "Enter" && addMediaSlot()}
+                    style={{ maxWidth: 280 }}
+                  />
+                  <button className="btn btn-sm btn-warning" onClick={addMediaSlot} disabled={!newSlotName.trim()}>
+                    <i className="bi bi-plus-lg me-1"></i>Add Slot
+                  </button>
+                </div>
+
+                {Object.keys(mediaSlots).length === 0 ? (
+                  <div className="text-center text-muted py-5">
+                    <i className="bi bi-images fs-1 d-block mb-2 opacity-25"></i>
+                    No media slots yet — add one above
+                  </div>
+                ) : (
+                  <div className="d-flex flex-column gap-3">
+                    {Object.entries(mediaSlots).map(([name, url]) => (
+                      <div key={name} className="border rounded p-3 bg-light">
+                        <div className="d-flex align-items-center justify-content-between mb-2">
+                          <div>
+                            <code className="text-warning fw-semibold">{`{{cms.media.${name}}}`}</code>
+                          </div>
+                          <div className="d-flex gap-2">
+                            <button className="btn btn-sm btn-outline-secondary" onClick={() => copyVar(`{{cms.media.${name}}}`)} title="Copy variable">
+                              <i className="bi bi-clipboard" style={{ fontSize: 11 }}></i>
+                            </button>
+                            <button className="btn btn-sm btn-outline-danger" onClick={() => removeMediaSlot(name)} title="Remove slot">
+                              <i className="bi bi-trash" style={{ fontSize: 11 }}></i>
+                            </button>
+                          </div>
+                        </div>
+                        <div className="d-flex gap-2 align-items-center">
+                          {url && (
+                            <img src={url} alt={name} style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 4, border: "1px solid #dee2e6", flexShrink: 0 }} />
+                          )}
+                          <input
+                            type="text"
+                            className="form-control form-control-sm"
+                            placeholder="Image URL (or pick from library)"
+                            value={url}
+                            onChange={e => setMediaSlots(prev => ({ ...prev, [name]: e.target.value }))}
+                          />
+                          <button className="btn btn-sm btn-outline-secondary text-nowrap" onClick={() => setMediaPickerFor(name)}>
+                            <i className="bi bi-folder2-open me-1"></i>Pick
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Variables reference */}
             {activeTab === "vars" && (
               <div style={{ height: "100%", overflowY: "auto", padding: 24 }}>
@@ -289,6 +392,118 @@ export default function StandalonePageEditorModal({ page, onSave, onCancel }: Pr
                       </div>
                     </div>
                   ))}
+                </div>
+
+                {/* Dynamic: Page Links */}
+                <div className="border-top pt-3 mb-4">
+                  <div className="fw-semibold small mb-2">
+                    <i className="bi bi-link-45deg me-1 text-primary"></i>
+                    Page Links
+                  </div>
+                  <p className="text-muted" style={{ fontSize: "0.75rem" }}>
+                    Replaced with the page URL (e.g. <code>/about</code>) or <code>#</code> if the page is not published/enabled.
+                  </p>
+                  {dynPages.length === 0 ? (
+                    <div className="text-muted small fst-italic">No pages found</div>
+                  ) : (
+                    <div className="row g-2">
+                      {dynPages.map(p => (
+                        <div className="col-12 col-md-6" key={p.slug}>
+                          <div className="d-flex align-items-center justify-content-between border rounded p-2 bg-light" style={{ cursor: "pointer" }} onClick={() => copyVar(`{{cms.pages.${p.slug}}}`)} title="Click to copy">
+                            <div>
+                              <code className="text-primary fw-semibold">{`{{cms.pages.${p.slug}}}`}</code>
+                              <div className="text-muted small">{p.title}</div>
+                            </div>
+                            <i className="bi bi-clipboard text-muted ms-2" style={{ fontSize: 12 }}></i>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Dynamic: Feature Flags */}
+                <div className="border-top pt-3 mb-4">
+                  <div className="fw-semibold small mb-2">
+                    <i className="bi bi-toggles me-1 text-success"></i>
+                    Feature Flags
+                  </div>
+                  <p className="text-muted" style={{ fontSize: "0.75rem" }}>
+                    Replaced with <code>"true"</code> or <code>"false"</code> based on the feature flag state.
+                  </p>
+                  {dynFeatures.length === 0 ? (
+                    <div className="text-muted small fst-italic">No feature flags found</div>
+                  ) : (
+                    <div className="row g-2">
+                      {dynFeatures.map(f => (
+                        <div className="col-12 col-md-6" key={f.slug}>
+                          <div className="d-flex align-items-center justify-content-between border rounded p-2 bg-light" style={{ cursor: "pointer" }} onClick={() => copyVar(`{{cms.features.${f.slug}}}`)} title="Click to copy">
+                            <div>
+                              <code className="text-success fw-semibold">{`{{cms.features.${f.slug}}}`}</code>
+                              <div className="text-muted small">Currently: <strong>{f.enabled ? "true" : "false"}</strong></div>
+                            </div>
+                            <i className="bi bi-clipboard text-muted ms-2" style={{ fontSize: 12 }}></i>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Media Slots (from current page) */}
+                <div className="border-top pt-3 mb-4">
+                  <div className="fw-semibold small mb-2">
+                    <i className="bi bi-images me-1 text-warning"></i>
+                    Media Slots
+                  </div>
+                  <p className="text-muted" style={{ fontSize: "0.75rem" }}>
+                    Replaced with the image URL assigned in the Media tab. Use the Media tab to manage slots.
+                  </p>
+                  {Object.keys(mediaSlots).length === 0 ? (
+                    <div className="text-muted small fst-italic">No media slots defined — add them in the Media tab</div>
+                  ) : (
+                    <div className="row g-2">
+                      {Object.keys(mediaSlots).map(name => (
+                        <div className="col-12 col-md-6" key={name}>
+                          <div className="d-flex align-items-center justify-content-between border rounded p-2 bg-light" style={{ cursor: "pointer" }} onClick={() => copyVar(`{{cms.media.${name}}}`)} title="Click to copy">
+                            <div>
+                              <code className="text-warning fw-semibold">{`{{cms.media.${name}}}`}</code>
+                              <div className="text-muted small text-truncate" style={{ maxWidth: 200 }}>{mediaSlots[name] || "— no image set —"}</div>
+                            </div>
+                            <i className="bi bi-clipboard text-muted ms-2" style={{ fontSize: 12 }}></i>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Form Injection */}
+                <div className="border-top pt-3 mb-4">
+                  <div className="fw-semibold small mb-2">
+                    <i className="bi bi-ui-checks me-1 text-info"></i>
+                    Form Injection
+                  </div>
+                  <p className="text-muted" style={{ fontSize: "0.75rem" }}>
+                    Replaced with a complete CMS form (with OTP verification). <code>/cms-forms.js</code> is auto-included when any form is injected.
+                  </p>
+                  {dynForms.length === 0 ? (
+                    <div className="text-muted small fst-italic">No form pages found</div>
+                  ) : (
+                    <div className="row g-2">
+                      {dynForms.map(f => (
+                        <div className="col-12 col-md-6" key={f.slug}>
+                          <div className="d-flex align-items-center justify-content-between border rounded p-2 bg-light" style={{ cursor: "pointer" }} onClick={() => copyVar(`{{cms.form.${f.slug}}}`)} title="Click to copy">
+                            <div>
+                              <code className="text-info fw-semibold">{`{{cms.form.${f.slug}}}`}</code>
+                              <div className="text-muted small">{f.title}</div>
+                            </div>
+                            <i className="bi bi-clipboard text-muted ms-2" style={{ fontSize: 12 }}></i>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="border-top pt-3">
@@ -405,6 +620,18 @@ site.navLinks.forEach(link => {
         title="Load Standalone Template"
         onSelect={handleTemplateApplied}
         onCancel={() => setShowPickTemplate(false)}
+      />
+    )}
+
+    {mediaPickerFor && (
+      <MediaPickerModal
+        isOpen={!!mediaPickerFor}
+        onClose={() => setMediaPickerFor(null)}
+        onSelect={(url) => {
+          setMediaSlots(prev => ({ ...prev, [mediaPickerFor!]: url }));
+          setMediaPickerFor(null);
+        }}
+        filterType="image"
       />
     )}
     </>
