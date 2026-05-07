@@ -1,27 +1,10 @@
-import { notFound } from "next/navigation";
+import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCmsSiteData, replaceCmsVars } from "@/lib/cms-site-data";
 import type { FormField } from "@/types/page";
 import { PageType } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
-
-interface Props {
-  params: Promise<{ slug: string }>;
-}
-
-export async function generateMetadata({ params }: Props) {
-  const { slug } = await params;
-  const page = await prisma.page.findUnique({
-    where: { slug, type: "STANDALONE", enabled: true },
-    select: { title: true, metaTitle: true, metaDescription: true },
-  });
-  if (!page) return {};
-  return {
-    title: page.metaTitle || page.title,
-    description: page.metaDescription || undefined,
-  };
-}
 
 function escHtml(str: string): string {
   return str
@@ -58,7 +41,10 @@ function buildFormHtml(slug: string, title: string, fields: FormField[]): string
   return `<form data-cms-form data-source="${escHtml(title)}" style="display:flex;flex-direction:column;gap:1rem">\n${fieldHtml}\n<div><button type="submit">Submit</button></div>\n</form>`;
 }
 
-export default async function StandalonePage({ params }: Props) {
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ slug: string }> }
+) {
   const { slug } = await params;
 
   const page = await prisma.page.findUnique({
@@ -66,7 +52,9 @@ export default async function StandalonePage({ params }: Props) {
     select: { customHtml: true, customCss: true, customCssUrls: true, title: true, mediaSlots: true },
   });
 
-  if (!page) notFound();
+  if (!page) {
+    return new NextResponse("Not Found", { status: 404, headers: { "Content-Type": "text/plain" } });
+  }
 
   const siteData = await getCmsSiteData();
   let html = replaceCmsVars(page.customHtml || "", siteData);
@@ -101,35 +89,38 @@ export default async function StandalonePage({ params }: Props) {
     try { return JSON.parse(page.customCssUrls || "[]"); } catch { return []; }
   })();
 
-  /* eslint-disable react/no-danger */
-  /* SECURITY: customHtml/customCss are admin-authored content stored in the DB.
-     Write access is restricted to SUPER_ADMIN and ADMIN roles. Not user input. */
-  return (
-    <>
-      <head>
-        {formsInjected && <script src="/cms-forms.js" />}
-        {cssUrls.map((url, i) => (
-          <link key={i} rel="stylesheet" href={url} />
-        ))}
-        {css && <style dangerouslySetInnerHTML={{ __html: css }} />}
-      </head>
+  // Inject external CSS + inline styles before </head>
+  const headParts = [
+    ...cssUrls.map((url: string) => `<link rel="stylesheet" href="${url}">`),
+    css ? `<style>${css}</style>` : "",
+  ].filter(Boolean).join("\n");
 
-      {html
-        ? <div dangerouslySetInnerHTML={{ __html: html }} />
-        : (
-          <div style={{
-            minHeight: "100vh", display: "flex", alignItems: "center",
-            justifyContent: "center", fontFamily: "system-ui, sans-serif",
-            color: "#6b7280", textAlign: "center",
-          }}>
-            <div>
-              <h2 style={{ fontSize: 24, marginBottom: 8 }}>{page.title}</h2>
-              <p>No HTML content yet. Edit this page in Admin &rarr; Pages.</p>
-            </div>
-          </div>
-        )
-      }
-    </>
-  );
-  /* eslint-enable react/no-danger */
+  if (headParts) {
+    if (/<\/head>/i.test(html)) {
+      html = html.replace(/<\/head>/i, `${headParts}\n</head>`);
+    } else {
+      html = headParts + "\n" + html;
+    }
+  }
+
+  // Inject forms script before </body>
+  if (formsInjected) {
+    const script = `<script src="/cms-forms.js"></script>`;
+    if (/<\/body>/i.test(html)) {
+      html = html.replace(/<\/body>/i, `${script}\n</body>`);
+    } else {
+      html = html + "\n" + script;
+    }
+  }
+
+  if (!html.trim()) {
+    html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>${escHtml(page.title)}</title></head><body style="min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;color:#6b7280;text-align:center"><div><h2 style="font-size:24px;margin-bottom:8px">${escHtml(page.title)}</h2><p>No HTML content yet. Edit this page in Admin &rarr; Pages.</p></div></body></html>`;
+  }
+
+  return new NextResponse(html, {
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store",
+    },
+  });
 }
