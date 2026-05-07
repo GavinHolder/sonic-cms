@@ -1,9 +1,9 @@
 {
-  "version": "1.42.0",
+  "version": "1.43.0",
   "date": "2026-05-07",
   "changelog": {
     "features": [
-      "intelligent template import — auto-upload images, integration checklist"
+      "template analyze button — integration checklist + ZIP re-import"
     ],
     "bugfixes": [],
     "breaking": []
