@@ -14,12 +14,16 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const origin = request.nextUrl.origin;
+  // Use localhost for internal API calls to avoid hairpin NAT failures in Docker/Traefik.
+  // The public origin can't be reached from inside the container when the router doesn't
+  // support NAT loopback — localhost always resolves correctly within the container.
+  const internalBase = `http://localhost:${process.env.PORT || 3000}`;
   const isPublicPath = !pathname.startsWith("/admin") && !pathname.startsWith("/api") && !pathname.startsWith("/_next");
 
   // ── 301 Redirect check (public routes only) ─────────────────────────────
   if (isPublicPath) {
     try {
-      const redirectRes = await fetch(`${origin}/api/redirects/check?path=${encodeURIComponent(pathname)}`, { headers: { "x-internal": "1" } });
+      const redirectRes = await fetch(`${internalBase}/api/redirects/check?path=${encodeURIComponent(pathname)}`, { headers: { "x-internal": "1" } });
       if (redirectRes.ok) {
         const data = await redirectRes.json();
         if (data.redirect) {
@@ -41,7 +45,7 @@ export async function middleware(request: NextRequest) {
   // Falls through silently if homePage is unset → app/page.tsx handles it normally.
   if (pathname === "/" && isPublicPath) {
     try {
-      const homeRes = await fetch(`${origin}/api/internal/homepage`, { headers: { "x-internal": "1" } });
+      const homeRes = await fetch(`${internalBase}/api/internal/homepage`, { headers: { "x-internal": "1" } });
       if (homeRes.ok) {
         const data = await homeRes.json();
         if (data.slug && data.type) {
@@ -71,7 +75,7 @@ export async function middleware(request: NextRequest) {
     const parts = pathname.slice(1).split("/");
     if (parts.length === 1 && parts[0]) {
       try {
-        const typeRes = await fetch(`${origin}/api/internal/page-type?slug=${encodeURIComponent(parts[0])}`, { headers: { "x-internal": "1" } });
+        const typeRes = await fetch(`${internalBase}/api/internal/page-type?slug=${encodeURIComponent(parts[0])}`, { headers: { "x-internal": "1" } });
         if (typeRes.ok) {
           const data = await typeRes.json();
           if (data.type === "STANDALONE") {
