@@ -561,6 +561,207 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
   );
 }
 
+interface AnalyzeModalProps {
+  template: CmsTemplate;
+  onClose: () => void;
+  onUpdated: (id: string, newData: Record<string, unknown>) => void;
+}
+
+function AnalyzeModal({ template, onClose, onUpdated }: AnalyzeModalProps) {
+  const [analysis, setAnalysis]       = useState<ImportAnalysis | null>(null);
+  const [mediaSlots, setMediaSlots]   = useState<Record<string, string>>({});
+  const [loading, setLoading]         = useState(true);
+  const [reimporting, setReimporting] = useState(false);
+  const [reimported, setReimported]   = useState(false);
+  const [error, setError]             = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetch(`/api/templates/${template.id}/analyze`)
+      .then(r => r.json())
+      .then(json => {
+        if (json.success) {
+          setAnalysis(json.data.analysis);
+          setMediaSlots(json.data.mediaSlots ?? {});
+        } else {
+          setError(json.error ?? "Failed to load analysis");
+        }
+      })
+      .catch(() => setError("Network error"))
+      .finally(() => setLoading(false));
+  }, [template.id]);
+
+  const handleZipReimport = async (f: File) => {
+    if (!f.name.toLowerCase().endsWith(".zip")) {
+      setError("Only .zip files are supported for re-import");
+      return;
+    }
+    setReimporting(true);
+    setError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", f);
+      const res = await fetch(`/api/templates/${template.id}/analyze`, { method: "POST", body: fd });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error ?? "Re-import failed");
+      setAnalysis(json.data.analysis);
+      setMediaSlots(json.data.mediaSlots ?? {});
+      setReimported(true);
+      onUpdated(template.id, json.data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Re-import failed");
+    }
+    setReimporting(false);
+  };
+
+  const slotCount = Object.keys(mediaSlots).length;
+  const hasIssues = (analysis?.needsAttention.length ?? 0) > 0;
+
+  return (
+    <div className="modal show d-block" tabIndex={-1} style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1060 }}>
+      <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div className="modal-content">
+          <div className="modal-header">
+            <h5 className="modal-title">
+              <i className="bi bi-activity me-2 text-info" />Analyse: {template.name}
+            </h5>
+            <button className="btn-close" onClick={onClose} />
+          </div>
+          <div className="modal-body">
+
+            {loading && (
+              <div className="text-center py-4 text-muted">
+                <span className="spinner-border spinner-border-sm me-2" />Analysing template…
+              </div>
+            )}
+
+            {!loading && analysis && (
+              <>
+                {reimported && (
+                  <div className="alert alert-success py-2 small mb-3">
+                    <i className="bi bi-check-circle-fill me-2" />Template updated successfully — all changes saved.
+                  </div>
+                )}
+
+                {/* Auto-handled */}
+                {analysis.autoHandled.length > 0 && (
+                  <div className="card border-success mb-3">
+                    <div className="card-header py-2 bg-success bg-opacity-10 border-success">
+                      <span className="fw-semibold text-success small">
+                        <i className="bi bi-check-circle-fill me-2" />Already handled ({analysis.autoHandled.length})
+                      </span>
+                    </div>
+                    <ul className="list-group list-group-flush">
+                      {analysis.autoHandled.map((item, i) => (
+                        <li key={i} className="list-group-item py-2 px-3 small">
+                          <i className={`bi ${ANALYSIS_ICONS[item.type] ?? "bi-check"} text-success me-2`} />
+                          {item.detail}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Needs attention */}
+                {hasIssues && (
+                  <div className="card border-warning mb-3">
+                    <div className="card-header py-2 bg-warning bg-opacity-10 border-warning">
+                      <span className="fw-semibold text-warning small">
+                        <i className="bi bi-exclamation-triangle-fill me-2" />Needs attention ({analysis.needsAttention.length})
+                      </span>
+                    </div>
+                    <ul className="list-group list-group-flush">
+                      {analysis.needsAttention.map((item, i) => (
+                        <li key={i} className="list-group-item py-2 px-3 small">
+                          <div className="d-flex gap-2 align-items-start">
+                            <i className={`bi ${ANALYSIS_ICONS[item.type] ?? "bi-exclamation-circle"} text-warning mt-1 flex-shrink-0`} />
+                            <div>
+                              <div className="fw-semibold">{item.detail}</div>
+                              {item.suggestion && (
+                                <div className="text-muted mt-1" style={{ fontSize: "0.78rem" }}>
+                                  <i className="bi bi-arrow-right me-1" />{item.suggestion}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {!hasIssues && analysis.autoHandled.length === 0 && (
+                  <div className="alert alert-success py-2 small mb-3">
+                    <i className="bi bi-check-circle-fill me-2" />Template looks clean — no wiring issues detected.
+                  </div>
+                )}
+
+                {/* Media slots */}
+                {slotCount > 0 && (
+                  <div className="mb-3">
+                    <div className="text-muted small fw-semibold mb-2">
+                      <i className="bi bi-images me-1" />Media slots wired ({slotCount})
+                    </div>
+                    <div className="d-flex flex-wrap gap-2">
+                      {Object.entries(mediaSlots).map(([slot, url]) => (
+                        <div key={slot} className="border rounded px-2 py-1 small d-flex align-items-center gap-2" style={{ background: "#f8f9fa" }}>
+                          <img src={url} alt={slot} style={{ width: 28, height: 28, objectFit: "cover", borderRadius: 3 }} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                          <code className="text-success" style={{ fontSize: "0.7rem" }}>{`{{cms.media.${slot}}}`}</code>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Re-import from ZIP */}
+                <div className="border rounded p-3" style={{ background: "#f8f9fa" }}>
+                  <div className="fw-semibold small mb-1">
+                    <i className="bi bi-arrow-clockwise me-2 text-primary" />Update from ZIP
+                  </div>
+                  <p className="text-muted small mb-2">
+                    Upload a new ZIP to re-run the full import — images will be uploaded, local paths replaced, and this template updated in place.
+                  </p>
+                  <div
+                    className="border rounded p-3 text-center"
+                    style={{ borderStyle: "dashed", cursor: reimporting ? "default" : "pointer", background: "#fff" }}
+                    onClick={() => !reimporting && fileRef.current?.click()}
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleZipReimport(f); }}
+                  >
+                    {reimporting ? (
+                      <><span className="spinner-border spinner-border-sm me-2" />Uploading images & updating template…</>
+                    ) : (
+                      <span className="small text-muted">
+                        <i className="bi bi-cloud-upload me-2" />Drop a <code>.zip</code> here or click to browse
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept=".zip"
+                    className="d-none"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleZipReimport(f); e.target.value = ""; }}
+                  />
+                </div>
+              </>
+            )}
+
+            {error && (
+              <div className="alert alert-danger py-2 small mt-2 mb-0">
+                <i className="bi bi-exclamation-circle me-1" />{error}
+              </div>
+            )}
+          </div>
+          <div className="modal-footer">
+            <button className="btn btn-outline-secondary" onClick={onClose}>Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function TemplatesLibraryPage() {
   const [templates, setTemplates]       = useState<CmsTemplate[]>([]);
   const [loading, setLoading]           = useState(true);
@@ -575,6 +776,7 @@ export default function TemplatesLibraryPage() {
   const [toast, setToast]               = useState<{ msg: string; ok: boolean; slug?: string } | null>(null);
   const [useAsPageFor, setUseAsPageFor] = useState<CmsTemplate | null>(null);
   const [showImport, setShowImport]     = useState(false);
+  const [analyzeFor, setAnalyzeFor]     = useState<CmsTemplate | null>(null);
 
   const showToast = (msg: string, ok = true, slug?: string) => {
     setToast({ msg, ok, slug });
@@ -682,6 +884,20 @@ export default function TemplatesLibraryPage() {
             onCreated={(slug) => {
               setUseAsPageFor(null);
               showToast(`Page created at /${slug}`, true, slug);
+            }}
+          />
+        )}
+
+        {/* Analyze modal */}
+        {analyzeFor && (
+          <AnalyzeModal
+            template={analyzeFor}
+            onClose={() => setAnalyzeFor(null)}
+            onUpdated={(id, newData) => {
+              setTemplates(prev => prev.map(t =>
+                t.id === id ? { ...t, data: { ...t.data, ...newData } } : t
+              ));
+              showToast("Template updated from ZIP");
             }}
           />
         )}
@@ -881,6 +1097,15 @@ export default function TemplatesLibraryPage() {
                             }
                           >
                             <i className="bi bi-rocket-takeoff me-1"></i>Use as Page
+                          </button>
+                        )}
+                        {isStandalone && (
+                          <button
+                            className="btn btn-sm btn-outline-info"
+                            onClick={() => setAnalyzeFor(t)}
+                            title="Analyse CMS integration — check forms, images, contact links"
+                          >
+                            <i className="bi bi-activity"></i>
                           </button>
                         )}
                         <button className="btn btn-sm btn-outline-secondary" onClick={() => startEdit(t)} disabled={t.isBuiltIn} title="Rename">
