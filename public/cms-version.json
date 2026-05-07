@@ -1,9 +1,9 @@
 {
-  "version": "1.41.0",
+  "version": "1.42.0",
   "date": "2026-05-07",
   "changelog": {
     "features": [
-      "template import — upload .html or .zip directly into template library"
+      "intelligent template import — auto-upload images, integration checklist"
     ],
     "bugfixes": [],
     "breaking": []
