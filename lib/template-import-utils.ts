@@ -214,7 +214,7 @@ export async function processZip(arrayBuffer: ArrayBuffer): Promise<NextResponse
   const cssEntries  = entries.filter(e => e.entryName.toLowerCase().endsWith(".css"));
   const jsEntries   = entries.filter(e => {
     const n = e.entryName.toLowerCase();
-    return n.endsWith(".js") && !n.endsWith(".min.js");
+    return (n.endsWith(".js") || n.endsWith(".jsx")) && !n.endsWith(".min.js");
   });
   const imageEntries = entries.filter(e => IMAGE_EXTS.has("." + (e.entryName.toLowerCase().split(".").pop() ?? "")));
   const svgEntries   = entries.filter(e => e.entryName.toLowerCase().endsWith(SVG_EXT));
@@ -230,17 +230,63 @@ export async function processZip(arrayBuffer: ArrayBuffer): Promise<NextResponse
   }
 
   let html = indexEntry.getData().toString("utf8");
-  const cssParts: string[] = [];
+
+  // Build filename→content lookup maps for CSS and JS/JSX files
+  const cssMap = new Map<string, string>();
   for (const e of cssEntries) {
-    cssParts.push(`/* ${e.entryName} */\n${e.getData().toString("utf8")}`);
+    const base = (e.entryName.split("/").pop() ?? "").toLowerCase();
+    cssMap.set(base, e.getData().toString("utf8"));
+  }
+  const jsMap = new Map<string, { content: string; entryName: string }>();
+  for (const e of jsEntries) {
+    const base = (e.entryName.split("/").pop() ?? "").toLowerCase();
+    jsMap.set(base, { content: e.getData().toString("utf8"), entryName: e.entryName });
   }
 
-  const jsParts: string[] = [];
-  for (const e of jsEntries) {
-    jsParts.push(`/* ${e.entryName} */\n${e.getData().toString("utf8")}`);
+  // ── Inline CSS: replace <link rel="stylesheet" href="local.css"> → <style>…</style>
+  const inlinedCss = new Set<string>();
+  html = html.replace(/<link\b([^>]*)\bhref=["']([^"']+\.css)["'][^>]*\/?>/gi, (match, _attrs, href) => {
+    if (href.startsWith("http") || href.startsWith("//") || href.startsWith("data:")) return match;
+    const base = (href.split("/").pop() ?? "").toLowerCase();
+    const content = cssMap.get(base);
+    if (!content) return match;
+    inlinedCss.add(base);
+    return `<style>/* ${base} */\n${content}\n</style>`;
+  });
+
+  // ── Inline JS/JSX: replace <script src="local.js"></script> → <script>…</script>
+  //    Preserves type attribute (e.g. type="text/babel" for JSX)
+  const inlinedJs = new Set<string>();
+  html = html.replace(/<script\b([^>]*)\bsrc=["']([^"']+)["'][^>]*><\/script>/gi, (match, attrs, src) => {
+    if (src.startsWith("http") || src.startsWith("//") || src.startsWith("data:")) return match;
+    const base = (src.split("/").pop() ?? "").toLowerCase();
+    const entry = jsMap.get(base);
+    if (!entry) return match;
+    inlinedJs.add(base);
+    const typeMatch = (attrs as string).match(/\btype=["']([^"']+)["']/i);
+    const typeAttr = typeMatch ? ` type="${typeMatch[1]}"` : "";
+    return `<script${typeAttr}>/* ${base} */\n${entry.content}\n</script>`;
+  });
+
+  // ── Any CSS not referenced in HTML → store in the separate css field
+  const remainingCssParts: string[] = [];
+  for (const e of cssEntries) {
+    const base = (e.entryName.split("/").pop() ?? "").toLowerCase();
+    if (!inlinedCss.has(base)) {
+      remainingCssParts.push(`/* ${e.entryName} */\n${e.getData().toString("utf8")}`);
+    }
   }
-  if (jsParts.length > 0) {
-    const scriptBlock = `<script>\n${jsParts.join("\n\n")}\n</script>`;
+
+  // ── Any JS not referenced in HTML → append before </body>
+  const remainingJsParts: string[] = [];
+  for (const e of jsEntries) {
+    const base = (e.entryName.split("/").pop() ?? "").toLowerCase();
+    if (!inlinedJs.has(base)) {
+      remainingJsParts.push(`/* ${e.entryName} */\n${e.getData().toString("utf8")}`);
+    }
+  }
+  if (remainingJsParts.length > 0) {
+    const scriptBlock = `<script>\n${remainingJsParts.join("\n\n")}\n</script>`;
     html = /<\/body>/i.test(html)
       ? html.replace(/<\/body>/i, `${scriptBlock}\n</body>`)
       : html + "\n" + scriptBlock;
@@ -250,7 +296,7 @@ export async function processZip(arrayBuffer: ArrayBuffer): Promise<NextResponse
   const uploadedImages: string[] = [];
   const uploadErrors: string[] = [];
   const seenSlots = new Map<string, number>();
-  let css = cssParts.join("\n\n");
+  let css = remainingCssParts.join("\n\n");
 
   for (const e of imageEntries) {
     try {
@@ -283,10 +329,12 @@ export async function processZip(arrayBuffer: ArrayBuffer): Promise<NextResponse
   }
 
   const autoHandled: ImportAnalysisItem[] = [];
-  if (uploadedImages.length > 0) autoHandled.push({ type: "IMAGES", detail: `${uploadedImages.length} image${uploadedImages.length > 1 ? "s" : ""} uploaded and wired as media slots` });
-  if (uploadErrors.length > 0)   autoHandled.push({ type: "IMAGE_ERRORS", detail: `${uploadErrors.length} image${uploadErrors.length > 1 ? "s" : ""} could not be uploaded: ${uploadErrors.join("; ")}` });
-  if (jsParts.length > 0)        autoHandled.push({ type: "JS",  detail: `${jsParts.length} JS file${jsParts.length > 1 ? "s" : ""} bundled inline before </body>` });
-  if (cssEntries.length > 0)     autoHandled.push({ type: "CSS", detail: `${cssEntries.length} CSS file${cssEntries.length > 1 ? "s" : ""} merged into template CSS field` });
+  if (uploadedImages.length > 0)  autoHandled.push({ type: "IMAGES", detail: `${uploadedImages.length} image${uploadedImages.length > 1 ? "s" : ""} uploaded and wired as media slots` });
+  if (uploadErrors.length > 0)    autoHandled.push({ type: "IMAGE_ERRORS", detail: `${uploadErrors.length} image${uploadErrors.length > 1 ? "s" : ""} could not be uploaded: ${uploadErrors.join("; ")}` });
+  if (inlinedCss.size > 0)        autoHandled.push({ type: "CSS", detail: `${inlinedCss.size} CSS file${inlinedCss.size > 1 ? "s" : ""} inlined into HTML (removed <link> tags)` });
+  if (remainingCssParts.length > 0) autoHandled.push({ type: "CSS", detail: `${remainingCssParts.length} unreferenced CSS file${remainingCssParts.length > 1 ? "s" : ""} merged into template CSS field` });
+  if (inlinedJs.size > 0)         autoHandled.push({ type: "JS", detail: `${inlinedJs.size} JS/JSX file${inlinedJs.size > 1 ? "s" : ""} inlined into HTML (removed <script src> tags)` });
+  if (remainingJsParts.length > 0) autoHandled.push({ type: "JS", detail: `${remainingJsParts.length} unreferenced JS file${remainingJsParts.length > 1 ? "s" : ""} appended before </body>` });
 
   const { needsAttention } = analyzeHtml(html);
   if (videoEntries.length > 0) {

@@ -4552,6 +4552,8 @@ const SECTION_TEMPLATES_DOCS = `
 
 The Template Library (**Admin → Content → Templates**) stores reusable templates that you build and save over time. Templates are not pre-built — you create them from your own pages and sections, then reuse them across the site.
 
+You can also **import** an external HTML or ZIP file directly into the library — the CMS auto-uploads images, bundles JS/CSS, and guides you through wiring up forms, phone numbers, emails, and media.
+
 ---
 
 ## Template Types
@@ -4564,18 +4566,82 @@ The Template Library (**Admin → Content → Templates**) stores reusable templ
 
 ---
 
+## Importing a Template (HTML or ZIP)
+
+Click **Import Template** on the Templates page to bring in a design from outside the CMS.
+
+### HTML file import
+
+Drop or browse to a \`.html\` / \`.htm\` file. The CMS analyses the HTML and returns a checklist of integration points — forms, images, phone numbers, emails. You can fix them inline in the import modal, or use the **Analyse** button later. Name the template and click **Save to Library**.
+
+### ZIP file import
+
+Drop a \`.zip\` containing the HTML plus its asset folder. The CMS automatically:
+
+| Asset | What happens |
+|-------|-------------|
+| Images (JPG, PNG, GIF, WebP, AVIF) | Converted to WebP, uploaded to Media Library, replaced with \`{{cms.media.SLOTNAME}}\` |
+| SVGs | Uploaded as-is, replaced with \`{{cms.media.SLOTNAME}}\` |
+| CSS files | Concatenated and stored in the template CSS field |
+| JS files (non-minified) | Bundled inline just before \`</body>\` |
+| Videos | Listed as "needs attention" — upload via Media Library manually (up to 200 MB) |
+
+After import, a checklist shows what was auto-handled (green) and what still needs your attention (yellow).
+
+---
+
+## CMS Integration Analyser
+
+Every **Standalone** template card has an **Analyse** button (pulse icon). Open it any time to scan the template HTML and fix integration issues inline.
+
+### What the analyser detects
+
+| Issue | Fix available |
+|-------|--------------|
+| \`<form>\` elements | Dropdown — pick a CMS Form page to replace the form block |
+| Images (\`src\`, \`data-src\`, \`poster\`) | **Browse Library** per image — pick from your uploaded media |
+| Background images (CSS \`background-image\`, \`data-background\`) | **Browse Library** per background |
+| Videos (\`<video src>\`, \`<source src>\`) | **Browse Library** per video |
+| Hardcoded phone numbers (\`tel:\` links) | One-click → \`{{cms.phone}}\` |
+| Hardcoded email addresses (\`mailto:\` links) | One-click → \`{{cms.email}}\` |
+| External CDN stylesheets | Informational only — no action needed |
+
+The analyser shows **all** image and video sources — including CDN/external URLs — so you can replace any placeholder with a real image from your Media Library.
+
+### Fixing issues inline
+
+**Forms** — Select a CMS form from the dropdown, click **Link**. The \`<form>…</form>\` block is replaced with \`{{cms.form.SLUG}}\`.
+
+**Images / Backgrounds / Videos** — Each detected source gets its own **Browse Library** button. Click it to open a thumbnail grid of your uploaded media files, then click any thumbnail to swap that specific URL. The button turns green (✓ Linked) once replaced.
+
+**Phone / Email** — A single button replaces every matching link across the whole template at once.
+
+### Saving fixes
+
+A **Save N fixes** button appears as soon as you make any change. Fixes are applied live in memory — click Save to persist them to the database. The modal stays open so you can keep working.
+
+### Re-linking later
+
+The **Analyse** button is always available. Any image you skipped — or any image you want to swap for a different one — will appear again the next time you open the modal. You can relink any image as many times as you like.
+
+### ZIP re-import
+
+The bottom of the Analyse modal has a **Re-import from ZIP** drop zone. Drop a new ZIP to re-upload images, re-bundle JS/CSS, and update the template HTML in-place without losing its name, description, or other metadata.
+
+---
+
 ## Saving a Template
 
 ### From a Standalone Page
 
-1. Go to **Admin → Content → Pages**, click the **Edit (pencil)** on a Standalone page
-2. In the HTML Editor modal, click **Save as Template** (bottom-left of the modal footer)
+1. Go to **Admin → Content → Pages**, click **Edit** on a Standalone page
+2. In the HTML Editor modal, click **Save as Template** (bottom of the modal footer)
 3. Enter a name and optional description, then click **Save Template**
 
 ### From a Landing Page Section
 
 1. Go to **Admin → Content → Landing Page**
-2. Click the **bookmark icon** (bi-bookmark-plus) in the action column of any section row
+2. Click the **bookmark icon** in the action column of any section row
 3. Enter a name and optional description — the full section config is captured automatically
 
 ---
@@ -4588,7 +4654,7 @@ Click **Load Template** in the HTML Editor modal footer. The picker shows only s
 
 ### On the Landing Page
 
-Click the **bookmark icon** again on a section that already has content (or use the picker from any section's bookmark action) to load a saved section template into that section.
+Click the **bookmark icon** on a section to load a saved section template into it.
 
 ---
 
@@ -4604,32 +4670,20 @@ Current built-ins:
 
 ## Use as Page — Launch Any Template as a Live Page
 
-**Standalone**, **Section**, and **Page** templates all have a **Use as Page** button (yellow rocket button on the card). This creates a live page in one step — no limitations on template type.
+**Standalone**, **Section**, and **Page** templates all have a **Use as Page** button (yellow rocket button on the card). This creates a live page in one step.
 
 1. Go to **Admin → Content → Templates**
 2. Click **Use as Page** on any template
 3. Enter a **title** and **URL slug** (auto-generated from title, editable)
-4. Choose whether to **Set as website homepage** (checkbox, on by default) — when checked, visitors hitting \`/\` are immediately served this page, URL stays \`/\`
+4. Choose whether to **Set as website homepage** (checkbox, on by default)
 5. Click **Create Page** — the page is created and published immediately
 
 **What gets created by template type:**
-- **Standalone template** → A Standalone HTML page with the template's HTML/CSS pre-loaded. Edit in Admin → Pages to wire up variables, media slots, and form injection.
+- **Standalone template** → A Standalone HTML page with the template's HTML/CSS pre-loaded.
 - **Section template** → A full landing-style page with the template's section pre-added.
 - **Page template** → A full page, ready to add sections.
 
 The new page appears in **Admin → Content → Pages** and is live immediately.
-
-### After "Use as Page" — Wiring the Template
-
-When using a Standalone template, the HTML/CSS is pre-filled but variables still need to be connected. After creating the page:
-
-1. Click **Edit** on the new page → opens the HTML Editor
-2. Go to **Media tab** → add image slots and pick images from the media library
-3. Go to **HTML tab** → replace hardcoded image paths with \`{{cms.media.SLOTNAME}}\`
-4. Go to **Variables tab** → copy page links and form injection variables, paste into HTML
-5. Click **Save All**
-
-The **Variables tab** shows all available connections live — page URLs, enabled features, your media slots, and form slugs — all click-to-copy.
 
 ---
 
@@ -4638,17 +4692,10 @@ The **Variables tab** shows all available connections live — page URLs, enable
 Visit **Admin → Content → Templates** to:
 - Browse all templates (filter by type, section type, search by name)
 - See usage counts
+- **Import** — bring in an external HTML or ZIP file
+- **Analyse** — wire up CMS integration for any standalone template
 - **Use as Page** — launch any template as a live page instantly
 - Rename or delete user-created templates (built-ins cannot be deleted)
-
----
-
-## What Templates Do NOT Do
-
-- Templates are **editor-only** when loaded via Load Template — applying one never changes routing, slug, or page type
-- **Use as Page** is the exception: it creates a brand new page pre-filled with the template content
-- Templates do not replace sections — for sections, you choose a target section first, then load
-- Templates are not versioned — saving a new version just creates a new template
 `;
 
 // ─────────────────────────────────────────────
