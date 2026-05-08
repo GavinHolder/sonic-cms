@@ -344,7 +344,7 @@ export default function StandalonePageEditorModal({ page, onSave, onCancel, save
                   Upload images via the Media Library, then assign them to a slot name here.
                 </div>
                 {showSlotWarning && (
-                  <div className="alert alert-warning py-2 small mb-3">
+                  <div className="alert alert-warning py-2 small mb-4">
                     <i className="bi bi-exclamation-triangle me-1"></i>
                     <strong>{unsetSlots.length} slot{unsetSlots.length !== 1 ? "s" : ""}</strong>{" "}
                     used in your HTML {unsetSlots.length !== 1 ? "have" : "has"} no image assigned:{" "}
@@ -381,7 +381,7 @@ export default function StandalonePageEditorModal({ page, onSave, onCancel, save
                           <div className="d-flex align-items-center gap-2">
                             <code className="text-warning fw-semibold">{`{{cms.media.${name}}}`}</code>
                             {detectedSlots.includes(name) && (
-                              <span className="badge bg-secondary" style={{ fontSize: "0.62rem", fontWeight: 400 }}>
+                              <span className="badge bg-secondary fw-normal" style={{ fontSize: "0.62rem" }}>
                                 from HTML
                               </span>
                             )}
