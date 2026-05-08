@@ -1187,15 +1187,18 @@
               <div class="d-flex align-items-center gap-2 mb-2">
                 <label class="form-label mb-0 small" style="min-width:72px;">Row height</label>
                 <input type="range" class="form-range" id="mosaicRowH" min="80" max="500" value="200"
-                  oninput="document.getElementById('mosaicRowHVal').textContent=this.value+'px'; autoSave();">
+                  onmousedown="pushHistory()"
+                  oninput="document.getElementById('mosaicRowHVal').textContent=this.value+'px'; renderCanvas(); autoSave();">
                 <span class="slider-value" id="mosaicRowHVal">200px</span>
               </div>
               <div class="d-flex align-items-center gap-2">
                 <label class="form-label mb-0 small" style="min-width:72px;">Gap</label>
                 <input type="range" class="form-range" id="mosaicGap" min="0" max="32" value="10"
-                  oninput="document.getElementById('mosaicGapVal').textContent=this.value+'px'; autoSave();">
+                  onmousedown="pushHistory()"
+                  oninput="document.getElementById('mosaicGapVal').textContent=this.value+'px'; renderCanvas(); autoSave();">
                 <span class="slider-value" id="mosaicGapVal">10px</span>
               </div>
+              <div style="font-size:10px;color:#dc3545;margin-top:4px;">&#9888; Mobile preview not supported for mosaic — use the live preview to check mobile rendering.</div>
             </div>
 
             <!-- Preset Config -->
@@ -1687,15 +1690,13 @@ function applySnapshot(snap, addToHistory) {
   document.getElementById('edgePadVal').textContent = state.edgePad + 'px';
   document.getElementById('multiLimit').value   = s.multiLimit;
   document.getElementById('multiLimitVal').textContent = s.multiLimit;
-  // Restore mosaic config if present
-  if (s.mosaicRowH !== undefined) {
-    document.getElementById('mosaicRowH').value = s.mosaicRowH;
-    document.getElementById('mosaicRowHVal').textContent = s.mosaicRowH + 'px';
-  }
-  if (s.mosaicGap !== undefined) {
-    document.getElementById('mosaicGap').value = s.mosaicGap;
-    document.getElementById('mosaicGapVal').textContent = s.mosaicGap + 'px';
-  }
+  // Restore mosaic config — always apply with fallback defaults
+  const rowH = s.mosaicRowH ?? 200;
+  const rowHEl = document.getElementById('mosaicRowH');
+  if (rowHEl) { rowHEl.value = rowH; document.getElementById('mosaicRowHVal').textContent = rowH + 'px'; }
+  const g = s.mosaicGap ?? 10;
+  const gEl = document.getElementById('mosaicGap');
+  if (gEl) { gEl.value = g; document.getElementById('mosaicGapVal').textContent = g + 'px'; }
   updatePositionModeBadge();
   // Restore active preset button highlight based on the saved preset key
   document.querySelectorAll('#preset-config .preset-btn').forEach(b => b.classList.remove('active'));
@@ -2114,22 +2115,32 @@ function renderMosaicBlocks() {
   var gap  = parseInt(document.getElementById('mosaicGap').value)  || 10;
   var colW = (canvasW - gap * 11) / 12;
 
-  var curCol = 0, curRow = 0;
+  // Per-column "next free row" — tracks which row each of 12 columns is free from
+  var nextFree = new Array(12).fill(0);
+  var maxRow = 0; // track max row for canvas height
 
   state.blocks.forEach(function(block) {
     var preset = block.mosaicPreset || 's-sm';
     var dims   = MOSAIC_PRESETS[preset] || [4, 1];
-    var cols   = dims[0], rows = dims[1];
+    var cols   = Math.min(dims[0], 12), rows = dims[1];
 
-    if (curCol + cols > 12) { curRow++; curCol = 0; }
+    // Find earliest (row, col) where cols consecutive columns are all free
+    var placed = false, placeRow = 0, placeCol = 0;
+    outer: for (var r = 0; !placed; r++) {
+      for (var c = 0; c + cols <= 12; c++) {
+        var maxFree = 0;
+        for (var ci = c; ci < c + cols; ci++) maxFree = Math.max(maxFree, nextFree[ci]);
+        if (maxFree <= r) { placeRow = r; placeCol = c; placed = true; break outer; }
+      }
+    }
+    // Mark columns as occupied
+    for (var ci = placeCol; ci < placeCol + cols; ci++) nextFree[ci] = placeRow + rows;
+    if (placeRow + rows > maxRow) maxRow = placeRow + rows;
 
-    var x = curCol * (colW + gap);
-    var y = curRow * (rowH + gap);
+    var x = placeCol * (colW + gap);
+    var y = placeRow * (rowH + gap);
     var w = cols * colW + (cols - 1) * gap;
     var h = rows * rowH + (rows - 1) * gap;
-
-    curCol += cols;
-    if (curCol >= 12) { curRow++; curCol = 0; }
 
     block.x = x; block.y = y; block.w = w; block.h = h;
 
@@ -2149,26 +2160,6 @@ function renderMosaicBlocks() {
     el.style.background   = '#f8f9fa';
     el.style.border    = '2px solid ' + (isSelected ? '#0d6efd' : '#dee2e6');
 
-    // Drag handle bar
-    var handle = document.createElement('div');
-    handle.style.position   = 'absolute';
-    handle.style.top        = '0';
-    handle.style.left       = '0';
-    handle.style.right      = '0';
-    handle.style.height     = '24px';
-    handle.style.cursor     = 'grab';
-    handle.style.background = 'rgba(0,0,0,0.06)';
-    handle.style.display    = 'flex';
-    handle.style.alignItems = 'center';
-    handle.style.justifyContent = 'center';
-    handle.style.zIndex     = '2';
-    var grip = document.createElement('i');
-    grip.className   = 'bi bi-grip-horizontal';
-    grip.style.fontSize = '12px';
-    grip.style.color    = '#6c757d';
-    handle.appendChild(grip);
-    el.appendChild(handle);
-
     // Centre: icon + type label
     var centre = document.createElement('div');
     centre.style.position       = 'absolute';
@@ -2178,7 +2169,7 @@ function renderMosaicBlocks() {
     centre.style.alignItems     = 'center';
     centre.style.justifyContent = 'center';
     centre.style.gap            = '4px';
-    centre.style.paddingTop     = '24px';
+    centre.style.paddingTop     = '0';
     centre.style.pointerEvents  = 'none';
     var iconEl = document.createElement('div');
     iconEl.style.fontSize   = '28px';
@@ -2235,8 +2226,7 @@ function renderMosaicBlocks() {
   });
 
   // Expand canvas to fit all mosaic tiles
-  var finalRows = curRow + (curCol > 0 ? 1 : 0);
-  var totalH = Math.max(finalRows * (rowH + gap) - gap, 0);
+  var totalH = Math.max(maxRow * (rowH + gap) - gap, 0);
   canvas.style.height    = Math.max(totalH + 40, 300) + 'px';
   canvas.style.minHeight = Math.max(totalH + 40, 300) + 'px';
 }
@@ -4906,7 +4896,10 @@ function setBlockGrid(bId,k,v) { const b=state.blocks.find(b=>b.id==bId); if(b) 
  */
 function setMosaicPreset(bId, preset) {
   const b = state.blocks.find(b => b.id === bId);
-  if (b) { b.mosaicPreset = preset; renderBlocks(); renderPropsPanel(); autoSave(); }
+  if (!b || b.mosaicPreset === preset) return;
+  pushHistory();
+  b.mosaicPreset = preset;
+  renderBlocks(); renderPropsPanel(); autoSave();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -5546,11 +5539,18 @@ function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'
 function onModeChange()   { renderCanvas(); autoSave(); }
 /** Called when the layout type radio changes (grid/preset/mosaic/free). Re-renders and saves. */
 function onLayoutChange() {
+  pushHistory();
   const v = document.getElementById('layoutType').value;
   state.layoutType = v;
   document.getElementById('grid-config').style.display   = (v === 'grid')   ? '' : 'none';
   document.getElementById('preset-config').style.display = (v === 'preset') ? '' : 'none';
   document.getElementById('mosaic-config').style.display = (v === 'mosaic') ? '' : 'none';
+  if (v === 'mosaic') {
+    // Mosaic doesn't support multi-section
+    document.getElementById('contentMode').value = 'single';
+    state.contentMode = 'single';
+    document.getElementById('multi-limit-row').style.display = 'none';
+  }
   renderCanvas(); autoSave();
 }
 
@@ -6516,15 +6516,15 @@ window.addEventListener('message', function(e) {
       const resolvedLayoutType = isFreeMode ? 'grid' : (isMosaicMode ? 'mosaic' : (layout.layoutType || 'grid'));
       applySnapshot(JSON.stringify({
         contentMode:  layout.contentMode  || 'single',
-        positionMode: isFreeMode ? 'free' : (layout.positionMode || (layout.layoutType === 'grid' || layout.layoutType === 'preset' || layout.layoutType === 'mosaic' ? 'grid' : 'free')),
+        positionMode: isFreeMode ? 'free' : (isMosaicMode ? 'grid' : (layout.positionMode || (layout.layoutType === 'grid' || layout.layoutType === 'preset' || layout.layoutType === 'mosaic' ? 'grid' : 'free'))),
         layoutType:   resolvedLayoutType,
         gridRows:     layout.grid ? layout.grid.rows : (layout.gridRows || 2),
         gridCols:     layout.grid ? layout.grid.cols : (layout.gridCols || 3),
         gridGap:      layout.grid ? layout.grid.gap  : (layout.gridGap  || 16),
         multiLimit:   layout.multiLimit || 3,
         preset:       layout.preset     || 'full-width',
-        mosaicRowH:   layout.layout?.gridAutoRows || 200,
-        mosaicGap:    layout.layout?.gridGap      || 10,
+        mosaicRowH:   layout.layout?.gridAutoRows ?? 200,
+        mosaicGap:    layout.layout?.gridGap      ?? 10,
         nextId:       layout.nextId || (layout.blocks.length > 0 ? layout.blocks.length + 100 : 1),
         blocks:       layout.blocks.map(b => {
           const pp = b.pixelPos || {};
