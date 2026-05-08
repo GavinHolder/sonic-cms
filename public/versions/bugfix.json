@@ -1,11 +1,10 @@
 {
-  "version": "1.51.1",
+  "version": "1.51.2",
   "date": "2026-05-08",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "protect client config from demo seed wipes",
-      "SMTP test uses form values directly — no save required before testing"
+      "seed brand_tokens default; complete client config audit"
     ],
     "breaking": []
   }
