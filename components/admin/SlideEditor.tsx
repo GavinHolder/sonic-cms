@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { HeroCarouselSlide, AnimationType } from "@/types/section";
+import type { HeroCarouselSlide, AnimationType, HeadingRow } from "@/types/section";
 import MediaUploader from "./MediaUploader";
 
 interface SlideEditorProps {
@@ -24,6 +24,59 @@ export default function SlideEditor({
   onMoveDown,
 }: SlideEditorProps) {
   const [activeTab, setActiveTab] = useState<"media" | "gradient" | "overlay" | "position">("media");
+
+  const isStackedMode = !!(slide.overlay?.headingRows && slide.overlay.headingRows.length > 0);
+
+  const switchToStacked = () => {
+    const existing = slide.overlay?.heading;
+    const firstRow: HeadingRow = {
+      text: existing?.text ?? "",
+      fontSize: existing?.fontSize ?? 56,
+      fontWeight: existing?.fontWeight ?? 700,
+      fontFamily: existing?.fontFamily ?? "inherit",
+      color: existing?.color ?? "#ffffff",
+      animation: existing?.animation ?? "slideUp",
+      animationDuration: existing?.animationDuration ?? 800,
+      animationDelay: existing?.animationDelay ?? 200,
+    };
+    updateOverlay({ headingRows: [firstRow] });
+  };
+
+  const switchToClassic = () => {
+    updateOverlay({ headingRows: undefined });
+  };
+
+  const updateHeadingRow = (index: number, updates: Partial<HeadingRow>) => {
+    const rows = [...(slide.overlay?.headingRows ?? [])];
+    rows[index] = { ...rows[index], ...updates };
+    updateOverlay({ headingRows: rows });
+  };
+
+  const addHeadingRow = () => {
+    const rows = slide.overlay?.headingRows ?? [];
+    if (rows.length >= 5) return;
+    updateOverlay({
+      headingRows: [
+        ...rows,
+        {
+          text: "",
+          fontSize: 56,
+          fontWeight: 700,
+          fontFamily: "inherit",
+          color: "#ffffff",
+          animation: "slideUp" as AnimationType,
+          animationDuration: 800,
+          animationDelay: 200,
+        },
+      ],
+    });
+  };
+
+  const removeHeadingRow = (index: number) => {
+    const rows = slide.overlay?.headingRows ?? [];
+    if (rows.length <= 1) return;
+    updateOverlay({ headingRows: rows.filter((_, i) => i !== index) });
+  };
 
   const updateGradient = (updates: Partial<NonNullable<HeroCarouselSlide["gradient"]>>) => {
     onChange({
@@ -465,226 +518,368 @@ export default function SlideEditor({
         {/* Text Overlay Tab */}
         {activeTab === "overlay" && (
           <div>
-            <h6 className="mb-3">Heading</h6>
+            {/* Heading Mode Toggle */}
             <div className="mb-3">
-              <label className="form-label fw-semibold">Text</label>
-              <input
-                type="text"
-                className="form-control"
-                value={slide.overlay?.heading.text ?? ""}
-                onChange={(e) =>
-                  updateOverlay({
-                    heading: {
-                      ...slide.overlay?.heading,
-                      text: e.target.value,
-                      fontSize: slide.overlay?.heading.fontSize ?? 56,
-                      fontWeight: slide.overlay?.heading.fontWeight ?? 700,
-                      fontFamily: slide.overlay?.heading.fontFamily ?? "inherit",
-                      color: slide.overlay?.heading.color ?? "#ffffff",
-                      animation: slide.overlay?.heading.animation ?? "slideUp",
-                      animationDuration: slide.overlay?.heading.animationDuration ?? 800,
-                      animationDelay: slide.overlay?.heading.animationDelay ?? 200,
-                    },
-                  })
-                }
-                placeholder="Welcome to Your Company"
-              />
-            </div>
-
-            <div className="row mb-3">
-              <div className="col-md-6">
-                <label className="form-label fw-semibold">Font Size (px)</label>
-                <input
-                  type="number"
-                  className="form-control"
-                  value={slide.overlay?.heading.fontSize ?? 56}
-                  onChange={(e) =>
-                    updateOverlay({
-                      heading: {
-                        ...slide.overlay?.heading,
-                        text: slide.overlay?.heading.text ?? "",
-                        fontSize: parseInt(e.target.value),
-                        fontWeight: slide.overlay?.heading.fontWeight ?? 700,
-                        fontFamily: slide.overlay?.heading.fontFamily ?? "inherit",
-                        color: slide.overlay?.heading.color ?? "#ffffff",
-                        animation: slide.overlay?.heading.animation ?? "slideUp",
-                        animationDuration: slide.overlay?.heading.animationDuration ?? 800,
-                        animationDelay: slide.overlay?.heading.animationDelay ?? 200,
-                      },
-                    })
-                  }
-                  min="12"
-                  max="120"
-                />
-              </div>
-              <div className="col-md-6">
-                <label className="form-label fw-semibold">Font Weight</label>
-                <select
-                  className="form-select"
-                  value={slide.overlay?.heading.fontWeight ?? 700}
-                  onChange={(e) =>
-                    updateOverlay({
-                      heading: {
-                        ...slide.overlay?.heading,
-                        text: slide.overlay?.heading.text ?? "",
-                        fontSize: slide.overlay?.heading.fontSize ?? 56,
-                        fontWeight: parseInt(e.target.value),
-                        fontFamily: slide.overlay?.heading.fontFamily ?? "inherit",
-                        color: slide.overlay?.heading.color ?? "#ffffff",
-                        animation: slide.overlay?.heading.animation ?? "slideUp",
-                        animationDuration: slide.overlay?.heading.animationDuration ?? 800,
-                        animationDelay: slide.overlay?.heading.animationDelay ?? 200,
-                      },
-                    })
-                  }
+              <label className="form-label fw-semibold">Heading Mode</label>
+              <div className="btn-group w-100" role="group">
+                <button
+                  type="button"
+                  className={`btn btn-sm ${!isStackedMode ? "btn-primary" : "btn-outline-secondary"}`}
+                  onClick={switchToClassic}
                 >
-                  <option value="100">Thin (100)</option>
-                  <option value="200">Extra Light (200)</option>
-                  <option value="300">Light (300)</option>
-                  <option value="400">Normal (400)</option>
-                  <option value="500">Medium (500)</option>
-                  <option value="600">Semi Bold (600)</option>
-                  <option value="700">Bold (700)</option>
-                  <option value="800">Extra Bold (800)</option>
-                  <option value="900">Black (900)</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="row mb-3">
-              <div className="col-md-6">
-                <label className="form-label fw-semibold">Font Family</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  value={slide.overlay?.heading.fontFamily ?? "inherit"}
-                  onChange={(e) =>
-                    updateOverlay({
-                      heading: {
-                        ...slide.overlay?.heading,
-                        text: slide.overlay?.heading.text ?? "",
-                        fontSize: slide.overlay?.heading.fontSize ?? 56,
-                        fontWeight: slide.overlay?.heading.fontWeight ?? 700,
-                        fontFamily: e.target.value,
-                        color: slide.overlay?.heading.color ?? "#ffffff",
-                        animation: slide.overlay?.heading.animation ?? "slideUp",
-                        animationDuration: slide.overlay?.heading.animationDuration ?? 800,
-                        animationDelay: slide.overlay?.heading.animationDelay ?? 200,
-                      },
-                    })
-                  }
-                  placeholder="inherit"
-                />
-              </div>
-              <div className="col-md-6">
-                <label className="form-label fw-semibold">Color</label>
-                <input
-                  type="color"
-                  className="form-control form-control-color w-100"
-                  value={slide.overlay?.heading.color ?? "#ffffff"}
-                  onChange={(e) =>
-                    updateOverlay({
-                      heading: {
-                        ...slide.overlay?.heading,
-                        text: slide.overlay?.heading.text ?? "",
-                        fontSize: slide.overlay?.heading.fontSize ?? 56,
-                        fontWeight: slide.overlay?.heading.fontWeight ?? 700,
-                        fontFamily: slide.overlay?.heading.fontFamily ?? "inherit",
-                        color: e.target.value,
-                        animation: slide.overlay?.heading.animation ?? "slideUp",
-                        animationDuration: slide.overlay?.heading.animationDuration ?? 800,
-                        animationDelay: slide.overlay?.heading.animationDelay ?? 200,
-                      },
-                    })
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="row mb-4">
-              <div className="col-md-4">
-                <label className="form-label fw-semibold">Animation</label>
-                <select
-                  className="form-select"
-                  value={slide.overlay?.heading.animation ?? "slideUp"}
-                  onChange={(e) =>
-                    updateOverlay({
-                      heading: {
-                        ...slide.overlay?.heading,
-                        text: slide.overlay?.heading.text ?? "",
-                        fontSize: slide.overlay?.heading.fontSize ?? 56,
-                        fontWeight: slide.overlay?.heading.fontWeight ?? 700,
-                        fontFamily: slide.overlay?.heading.fontFamily ?? "inherit",
-                        color: slide.overlay?.heading.color ?? "#ffffff",
-                        animation: e.target.value as AnimationType,
-                        animationDuration: slide.overlay?.heading.animationDuration ?? 800,
-                        animationDelay: slide.overlay?.heading.animationDelay ?? 200,
-                      },
-                    })
-                  }
+                  Classic
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${isStackedMode ? "btn-success" : "btn-outline-secondary"}`}
+                  onClick={switchToStacked}
                 >
-                  <option value="none">None</option>
-                  <option value="fade">Fade</option>
-                  <option value="slideUp">Slide Up</option>
-                  <option value="slideDown">Slide Down</option>
-                  <option value="slideLeft">Slide Left</option>
-                  <option value="slideRight">Slide Right</option>
-                  <option value="zoom">Zoom</option>
-                </select>
-              </div>
-              <div className="col-md-4">
-                <label className="form-label fw-semibold">Duration (ms)</label>
-                <input
-                  type="number"
-                  className="form-control"
-                  value={slide.overlay?.heading.animationDuration ?? 800}
-                  onChange={(e) =>
-                    updateOverlay({
-                      heading: {
-                        ...slide.overlay?.heading,
-                        text: slide.overlay?.heading.text ?? "",
-                        fontSize: slide.overlay?.heading.fontSize ?? 56,
-                        fontWeight: slide.overlay?.heading.fontWeight ?? 700,
-                        fontFamily: slide.overlay?.heading.fontFamily ?? "inherit",
-                        color: slide.overlay?.heading.color ?? "#ffffff",
-                        animation: slide.overlay?.heading.animation ?? "slideUp",
-                        animationDuration: parseInt(e.target.value),
-                        animationDelay: slide.overlay?.heading.animationDelay ?? 200,
-                      },
-                    })
-                  }
-                  min="100"
-                  max="3000"
-                  step="100"
-                />
-              </div>
-              <div className="col-md-4">
-                <label className="form-label fw-semibold">Delay (ms)</label>
-                <input
-                  type="number"
-                  className="form-control"
-                  value={slide.overlay?.heading.animationDelay ?? 200}
-                  onChange={(e) =>
-                    updateOverlay({
-                      heading: {
-                        ...slide.overlay?.heading,
-                        text: slide.overlay?.heading.text ?? "",
-                        fontSize: slide.overlay?.heading.fontSize ?? 56,
-                        fontWeight: slide.overlay?.heading.fontWeight ?? 700,
-                        fontFamily: slide.overlay?.heading.fontFamily ?? "inherit",
-                        color: slide.overlay?.heading.color ?? "#ffffff",
-                        animation: slide.overlay?.heading.animation ?? "slideUp",
-                        animationDuration: slide.overlay?.heading.animationDuration ?? 800,
-                        animationDelay: parseInt(e.target.value),
-                      },
-                    })
-                  }
-                  min="0"
-                  max="3000"
-                  step="100"
-                />
+                  Stacked
+                </button>
               </div>
             </div>
+
+            {/* Classic mode: single heading */}
+            {!isStackedMode && (
+              <>
+                <div className="mb-3">
+                  <label className="form-label fw-semibold">Text</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={slide.overlay?.heading.text ?? ""}
+                    onChange={(e) =>
+                      updateOverlay({
+                        heading: {
+                          ...slide.overlay?.heading,
+                          text: e.target.value,
+                          fontSize: slide.overlay?.heading.fontSize ?? 56,
+                          fontWeight: slide.overlay?.heading.fontWeight ?? 700,
+                          fontFamily: slide.overlay?.heading.fontFamily ?? "inherit",
+                          color: slide.overlay?.heading.color ?? "#ffffff",
+                          animation: slide.overlay?.heading.animation ?? "slideUp",
+                          animationDuration: slide.overlay?.heading.animationDuration ?? 800,
+                          animationDelay: slide.overlay?.heading.animationDelay ?? 200,
+                        },
+                      })
+                    }
+                    placeholder="Welcome to Your Company"
+                  />
+                </div>
+
+                <div className="row mb-3">
+                  <div className="col-md-6">
+                    <label className="form-label fw-semibold">Font Size (px)</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      value={slide.overlay?.heading.fontSize ?? 56}
+                      onChange={(e) =>
+                        updateOverlay({
+                          heading: {
+                            ...slide.overlay?.heading,
+                            text: slide.overlay?.heading.text ?? "",
+                            fontSize: parseInt(e.target.value),
+                            fontWeight: slide.overlay?.heading.fontWeight ?? 700,
+                            fontFamily: slide.overlay?.heading.fontFamily ?? "inherit",
+                            color: slide.overlay?.heading.color ?? "#ffffff",
+                            animation: slide.overlay?.heading.animation ?? "slideUp",
+                            animationDuration: slide.overlay?.heading.animationDuration ?? 800,
+                            animationDelay: slide.overlay?.heading.animationDelay ?? 200,
+                          },
+                        })
+                      }
+                      min="12"
+                      max="120"
+                    />
+                  </div>
+                  <div className="col-md-6">
+                    <label className="form-label fw-semibold">Font Weight</label>
+                    <select
+                      className="form-select"
+                      value={slide.overlay?.heading.fontWeight ?? 700}
+                      onChange={(e) =>
+                        updateOverlay({
+                          heading: {
+                            ...slide.overlay?.heading,
+                            text: slide.overlay?.heading.text ?? "",
+                            fontSize: slide.overlay?.heading.fontSize ?? 56,
+                            fontWeight: parseInt(e.target.value),
+                            fontFamily: slide.overlay?.heading.fontFamily ?? "inherit",
+                            color: slide.overlay?.heading.color ?? "#ffffff",
+                            animation: slide.overlay?.heading.animation ?? "slideUp",
+                            animationDuration: slide.overlay?.heading.animationDuration ?? 800,
+                            animationDelay: slide.overlay?.heading.animationDelay ?? 200,
+                          },
+                        })
+                      }
+                    >
+                      <option value="100">Thin (100)</option>
+                      <option value="200">Extra Light (200)</option>
+                      <option value="300">Light (300)</option>
+                      <option value="400">Normal (400)</option>
+                      <option value="500">Medium (500)</option>
+                      <option value="600">Semi Bold (600)</option>
+                      <option value="700">Bold (700)</option>
+                      <option value="800">Extra Bold (800)</option>
+                      <option value="900">Black (900)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="row mb-3">
+                  <div className="col-md-6">
+                    <label className="form-label fw-semibold">Font Family</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={slide.overlay?.heading.fontFamily ?? "inherit"}
+                      onChange={(e) =>
+                        updateOverlay({
+                          heading: {
+                            ...slide.overlay?.heading,
+                            text: slide.overlay?.heading.text ?? "",
+                            fontSize: slide.overlay?.heading.fontSize ?? 56,
+                            fontWeight: slide.overlay?.heading.fontWeight ?? 700,
+                            fontFamily: e.target.value,
+                            color: slide.overlay?.heading.color ?? "#ffffff",
+                            animation: slide.overlay?.heading.animation ?? "slideUp",
+                            animationDuration: slide.overlay?.heading.animationDuration ?? 800,
+                            animationDelay: slide.overlay?.heading.animationDelay ?? 200,
+                          },
+                        })
+                      }
+                      placeholder="inherit"
+                    />
+                  </div>
+                  <div className="col-md-6">
+                    <label className="form-label fw-semibold">Color</label>
+                    <input
+                      type="color"
+                      className="form-control form-control-color w-100"
+                      value={slide.overlay?.heading.color ?? "#ffffff"}
+                      onChange={(e) =>
+                        updateOverlay({
+                          heading: {
+                            ...slide.overlay?.heading,
+                            text: slide.overlay?.heading.text ?? "",
+                            fontSize: slide.overlay?.heading.fontSize ?? 56,
+                            fontWeight: slide.overlay?.heading.fontWeight ?? 700,
+                            fontFamily: slide.overlay?.heading.fontFamily ?? "inherit",
+                            color: e.target.value,
+                            animation: slide.overlay?.heading.animation ?? "slideUp",
+                            animationDuration: slide.overlay?.heading.animationDuration ?? 800,
+                            animationDelay: slide.overlay?.heading.animationDelay ?? 200,
+                          },
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div className="row mb-4">
+                  <div className="col-md-4">
+                    <label className="form-label fw-semibold">Animation</label>
+                    <select
+                      className="form-select"
+                      value={slide.overlay?.heading.animation ?? "slideUp"}
+                      onChange={(e) =>
+                        updateOverlay({
+                          heading: {
+                            ...slide.overlay?.heading,
+                            text: slide.overlay?.heading.text ?? "",
+                            fontSize: slide.overlay?.heading.fontSize ?? 56,
+                            fontWeight: slide.overlay?.heading.fontWeight ?? 700,
+                            fontFamily: slide.overlay?.heading.fontFamily ?? "inherit",
+                            color: slide.overlay?.heading.color ?? "#ffffff",
+                            animation: e.target.value as AnimationType,
+                            animationDuration: slide.overlay?.heading.animationDuration ?? 800,
+                            animationDelay: slide.overlay?.heading.animationDelay ?? 200,
+                          },
+                        })
+                      }
+                    >
+                      <option value="none">None</option>
+                      <option value="fade">Fade</option>
+                      <option value="slideUp">Slide Up</option>
+                      <option value="slideDown">Slide Down</option>
+                      <option value="slideLeft">Slide Left</option>
+                      <option value="slideRight">Slide Right</option>
+                      <option value="zoom">Zoom</option>
+                    </select>
+                  </div>
+                  <div className="col-md-4">
+                    <label className="form-label fw-semibold">Duration (ms)</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      value={slide.overlay?.heading.animationDuration ?? 800}
+                      onChange={(e) =>
+                        updateOverlay({
+                          heading: {
+                            ...slide.overlay?.heading,
+                            text: slide.overlay?.heading.text ?? "",
+                            fontSize: slide.overlay?.heading.fontSize ?? 56,
+                            fontWeight: slide.overlay?.heading.fontWeight ?? 700,
+                            fontFamily: slide.overlay?.heading.fontFamily ?? "inherit",
+                            color: slide.overlay?.heading.color ?? "#ffffff",
+                            animation: slide.overlay?.heading.animation ?? "slideUp",
+                            animationDuration: parseInt(e.target.value),
+                            animationDelay: slide.overlay?.heading.animationDelay ?? 200,
+                          },
+                        })
+                      }
+                      min="100"
+                      max="3000"
+                      step="100"
+                    />
+                  </div>
+                  <div className="col-md-4">
+                    <label className="form-label fw-semibold">Delay (ms)</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      value={slide.overlay?.heading.animationDelay ?? 200}
+                      onChange={(e) =>
+                        updateOverlay({
+                          heading: {
+                            ...slide.overlay?.heading,
+                            text: slide.overlay?.heading.text ?? "",
+                            fontSize: slide.overlay?.heading.fontSize ?? 56,
+                            fontWeight: slide.overlay?.heading.fontWeight ?? 700,
+                            fontFamily: slide.overlay?.heading.fontFamily ?? "inherit",
+                            color: slide.overlay?.heading.color ?? "#ffffff",
+                            animation: slide.overlay?.heading.animation ?? "slideUp",
+                            animationDuration: slide.overlay?.heading.animationDuration ?? 800,
+                            animationDelay: parseInt(e.target.value),
+                          },
+                        })
+                      }
+                      min="0"
+                      max="3000"
+                      step="100"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Stacked mode: eyebrow + heading rows */}
+            {isStackedMode && (
+              <>
+                <div className="mb-3">
+                  <label className="form-label fw-semibold">Eyebrow</label>
+                  <div className="input-group">
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={slide.overlay?.eyebrow ?? ""}
+                      onChange={(e) => updateOverlay({ eyebrow: e.target.value || undefined })}
+                      placeholder="OVERBERG · SINCE 2001"
+                    />
+                    <input
+                      type="color"
+                      className="form-control form-control-color"
+                      style={{ maxWidth: 48 }}
+                      value={slide.overlay?.eyebrowColor ?? "#4caf50"}
+                      onChange={(e) => updateOverlay({ eyebrowColor: e.target.value })}
+                      title="Eyebrow color"
+                    />
+                  </div>
+                </div>
+
+                <div className="mb-3">
+                  <div className="d-flex justify-content-between align-items-center mb-2">
+                    <label className="form-label fw-semibold mb-0">Heading Rows</label>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-success"
+                      disabled={(slide.overlay?.headingRows?.length ?? 0) >= 5}
+                      onClick={addHeadingRow}
+                    >
+                      <i className="bi bi-plus-lg me-1"></i>Add Row
+                    </button>
+                  </div>
+                  {(slide.overlay?.headingRows ?? []).map((row, idx) => (
+                    <div key={idx} className="card mb-2">
+                      <div className="card-body p-2">
+                        <div className="d-flex align-items-center gap-2 mb-2">
+                          <div
+                            style={{ width: 12, height: 12, borderRadius: "50%", background: row.color, border: "1px solid rgba(0,0,0,0.2)", flexShrink: 0 }}
+                          />
+                          <input
+                            type="text"
+                            className="form-control form-control-sm flex-grow-1"
+                            value={row.text}
+                            onChange={(e) => updateHeadingRow(idx, { text: e.target.value })}
+                            placeholder={`Row ${idx + 1} text`}
+                          />
+                          <input
+                            type="color"
+                            className="form-control form-control-color form-control-sm"
+                            style={{ maxWidth: 40 }}
+                            value={row.color}
+                            onChange={(e) => updateHeadingRow(idx, { color: e.target.value })}
+                            title="Row color"
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-danger"
+                            disabled={(slide.overlay?.headingRows?.length ?? 1) <= 1}
+                            onClick={() => removeHeadingRow(idx)}
+                          >
+                            <i className="bi bi-x-lg"></i>
+                          </button>
+                        </div>
+                        <div className="row g-2">
+                          <div className="col-4">
+                            <label className="form-label form-label-sm mb-1">Size (px)</label>
+                            <input
+                              type="number"
+                              className="form-control form-control-sm"
+                              value={row.fontSize}
+                              onChange={(e) => updateHeadingRow(idx, { fontSize: parseInt(e.target.value) || 56 })}
+                              min="12"
+                              max="200"
+                            />
+                          </div>
+                          <div className="col-4">
+                            <label className="form-label form-label-sm mb-1">Weight</label>
+                            <select
+                              className="form-select form-select-sm"
+                              value={row.fontWeight}
+                              onChange={(e) => updateHeadingRow(idx, { fontWeight: parseInt(e.target.value) })}
+                            >
+                              <option value="400">400</option>
+                              <option value="600">600</option>
+                              <option value="700">700</option>
+                              <option value="800">800</option>
+                              <option value="900">900</option>
+                            </select>
+                          </div>
+                          <div className="col-4">
+                            <label className="form-label form-label-sm mb-1">Animation</label>
+                            <select
+                              className="form-select form-select-sm"
+                              value={row.animation}
+                              onChange={(e) => updateHeadingRow(idx, { animation: e.target.value as AnimationType })}
+                            >
+                              <option value="none">None</option>
+                              <option value="fade">Fade</option>
+                              <option value="slideUp">Slide Up</option>
+                              <option value="slideDown">Slide Down</option>
+                              <option value="slideLeft">Slide Left</option>
+                              <option value="slideRight">Slide Right</option>
+                              <option value="zoom">Zoom</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
 
             <hr />
 
