@@ -111,6 +111,19 @@ function lowerThird(preset: string, color: string, height = 180): object {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+// SystemSettings keys that contain client configuration — never wiped by demo seeds.
+// These persist across CMS updates, demo reseeds, and showcase runs.
+const CLIENT_CONFIG_KEYS = [
+  'brand_tokens',
+  'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from', 'smtp_secure',
+  'admin_email',
+  'cms_upstream_version_url', 'cms_update_channel', 'cms_update_status',
+  'cms_update_run_triggered_at', 'cms_update_error', 'cms_update_scheduled',
+  'cms_update_target_version',
+  'github_pat', 'github_repo_owner', 'github_repo_name', 'github_workflow_id',
+  'maintenance_mode',
+];
+
 async function main() {
   console.log('🌱 Starting SHOWCASE seed...');
 
@@ -122,7 +135,8 @@ async function main() {
   await prisma.page.deleteMany();
   await prisma.mediaAsset.deleteMany();
   await prisma.otpToken.deleteMany();
-  await prisma.systemSettings.deleteMany();
+  // Preserve client config — only delete non-client settings
+  await prisma.systemSettings.deleteMany({ where: { key: { notIn: CLIENT_CONFIG_KEYS } } });
   await prisma.clientFeature.deleteMany();
   await prisma.coverageRegion.deleteMany();
   await prisma.coverageLabel.deleteMany();

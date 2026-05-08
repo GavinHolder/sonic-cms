@@ -360,20 +360,23 @@ export default function SettingsPage() {
     }
   };
 
-  /** Send a test OTP to the admin email to verify SMTP connection works */
+  /** Test SMTP connection using the current form values — no save required first */
   const handleTestEmail = async () => {
+    if (!emailSettings.smtp_host || !emailSettings.smtp_user) {
+      setEmailError("Enter SMTP host and username before testing.");
+      return;
+    }
     if (!emailSettings.admin_email) {
-      setEmailError("Enter an admin notification email to test.");
+      setEmailError("Enter an admin notification email to receive the test.");
       return;
     }
     setEmailTesting(true);
     setEmailError(null);
     try {
-      // Send a test OTP to the admin email to verify SMTP works
-      const res = await fetch("/api/otp/send", {
+      const res = await fetch("/api/settings/email/test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: emailSettings.admin_email, purpose: "smtp-test" }),
+        body: JSON.stringify(emailSettings),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Test failed");

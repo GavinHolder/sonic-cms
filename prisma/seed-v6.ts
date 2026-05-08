@@ -209,7 +209,18 @@ async function main() {
   await prisma.page.deleteMany();
   await prisma.mediaAsset.deleteMany();
   await prisma.otpToken.deleteMany();
-  await prisma.systemSettings.deleteMany();
+  // Preserve client config — only delete non-client settings
+  const CLIENT_CONFIG_KEYS = [
+    'brand_tokens',
+    'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from', 'smtp_secure',
+    'admin_email',
+    'cms_upstream_version_url', 'cms_update_channel', 'cms_update_status',
+    'cms_update_run_triggered_at', 'cms_update_error', 'cms_update_scheduled',
+    'cms_update_target_version',
+    'github_pat', 'github_repo_owner', 'github_repo_name', 'github_workflow_id',
+    'maintenance_mode',
+  ];
+  await prisma.systemSettings.deleteMany({ where: { key: { notIn: CLIENT_CONFIG_KEYS } } });
   await prisma.clientFeature.deleteMany();
   await prisma.coverageRegion.deleteMany();
   await prisma.coverageLabel.deleteMany();
@@ -220,7 +231,7 @@ async function main() {
   await prisma.voltElement.deleteMany();
   await prisma.voltAsset.deleteMany();
   await prisma.apiKey.deleteMany();
-  await prisma.siteConfig.deleteMany().catch(() => {});
+  // SiteConfig is not deleted — client company/contact data is preserved
   await prisma.user.deleteMany();
   console.log('✅  Wipe complete');
 
@@ -237,18 +248,19 @@ async function main() {
     },
   });
 
-  // ── System settings ───────────────────────────────────────────────────────
-  await prisma.systemSettings.createMany({
-    data: [
-      { key: 'companyName',  value: 'BuildPro Concrete' },
-      { key: 'tagline',      value: 'Quality concrete delivered to your site' },
-      { key: 'email',        value: 'info@buildpro.co.za' },
-      { key: 'phone',        value: '+27 21 000 0000' },
-      { key: 'address',      value: '12 Industrial Road, Cape Town, 7700' },
-      { key: 'facebook',     value: 'https://facebook.com/buildproconcrete' },
-      { key: 'instagram',    value: 'https://instagram.com/buildproconcrete' },
-    ],
-  });
+  // ── System settings — upsert so existing client values aren't overwritten ────
+  const demoSettings: Array<{ key: string; value: string }> = [
+    { key: 'companyName',  value: 'BuildPro Concrete' },
+    { key: 'tagline',      value: 'Quality concrete delivered to your site' },
+    { key: 'email',        value: 'info@buildpro.co.za' },
+    { key: 'phone',        value: '+27 21 000 0000' },
+    { key: 'address',      value: '12 Industrial Road, Cape Town, 7700' },
+    { key: 'facebook',     value: 'https://facebook.com/buildproconcrete' },
+    { key: 'instagram',    value: 'https://instagram.com/buildproconcrete' },
+  ];
+  for (const s of demoSettings) {
+    await prisma.systemSettings.upsert({ where: { key: s.key }, update: {}, create: s });
+  }
 
   // ── Client features ────────────────────────────────────────────────────────
   await prisma.clientFeature.createMany({
