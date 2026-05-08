@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createReadStream, existsSync, statSync } from "fs";
-import { join, extname } from "path";
+import { join, extname, resolve, sep } from "path";
 import { Readable } from "stream";
 
-/**
- * Serve user-uploaded files from public/images/uploads/.
- * Next.js standalone mode does not serve runtime-added files from public/ —
- * only files present at build time are available as static assets.
- * This route handler reads the file from disk at request time.
- */
+const UPLOAD_DIR = resolve(process.cwd(), "public", "images", "uploads");
 
 const MIME: Record<string, string> = {
   ".webp": "image/webp",
@@ -27,7 +22,12 @@ export async function GET(
   { params }: { params: Promise<{ path: string[] }> }
 ) {
   const { path: segments } = await params;
-  const filePath = join(process.cwd(), "public", "images", "uploads", ...segments);
+
+  // Resolve to absolute path and verify it stays within UPLOAD_DIR
+  const filePath = resolve(join(UPLOAD_DIR, ...segments));
+  if (!filePath.startsWith(UPLOAD_DIR + sep) && filePath !== UPLOAD_DIR) {
+    return new NextResponse(null, { status: 404 });
+  }
 
   if (!existsSync(filePath)) {
     return new NextResponse(null, { status: 404 });
