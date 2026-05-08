@@ -57,6 +57,22 @@ async function main() {
   }
   console.log('✅ CMS update defaults set (upstream URL, channel, workflow)');
 
+  // ── Brand tokens — create default if not yet configured ──────────────────────
+  // Inline defaults to avoid importing lib/brand-tokens (which pulls in @/lib/prisma).
+  // update: {} ensures an existing client-configured palette is NEVER overwritten.
+  const defaultBrandTokens = {
+    colors: { primary: '#2563eb', secondary: '#7c3aed', accent: '#f59e0b', neutral: '#64748b', background: '#ffffff', surface: '#f8fafc', text: '#0f172a', textMuted: '#64748b' },
+    typography: { headingFont: 'Inter', bodyFont: 'Inter', baseSize: 16, scaleRatio: 1.25 },
+    spacing: { sectionPadding: 80, containerMax: 1320 },
+    borders: { radius: 8, radiusLarge: 16 },
+  };
+  await prisma.systemSettings.upsert({
+    where: { key: 'brand_tokens' },
+    update: {},  // never overwrite client-configured brand colours
+    create: { key: 'brand_tokens', value: JSON.stringify(defaultBrandTokens) },
+  });
+  console.log('✅ Brand tokens default ensured (skipped if already configured)');
+
   // ── Built-in templates ────────────────────────────────────────────────────────
   console.log('🌱 Seeding built-in templates...');
 
