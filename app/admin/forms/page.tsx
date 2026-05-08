@@ -86,6 +86,7 @@ export default function FormsInboxPage() {
     });
     setSubmissions(prev => prev.map(s => s.id === id ? { ...s, status: "read" } : s));
     setSelected(prev => prev?.id === id ? { ...prev, status: "read" } : prev);
+    window.dispatchEvent(new CustomEvent("cms:forms:read-updated"));
   }
 
   async function handleSelect(sub: Submission) {

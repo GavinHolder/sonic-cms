@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import type { CTASection, BackgroundColor, ButtonConfig } from "@/types/section";
 import type { FormField } from "@/types/page";
-import ShuffledKeypadModal from "@/components/ui/ShuffledKeypadModal";
+import VerificationModal from "@/components/VerificationModal";
 
 /**
  * CTAFooter Props
@@ -95,7 +95,7 @@ export default function CTAFooter({
   const [formValues, setFormValues] = useState<Record<string, string>>({});
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
-  const [showKeypad, setShowKeypad] = useState(false);
+  const [showVerification, setShowVerification] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
   /** Update a single form field value */
@@ -124,15 +124,15 @@ export default function CTAFooter({
       return;
     }
 
-    setShowKeypad(true);
+    setShowVerification(true);
   };
 
   /**
    * Called when OTP is verified — submits the collected form data to the API.
    * Shows the success state regardless of API response to avoid confusing the user.
    */
-  const handleOtpVerified = async () => {
-    setShowKeypad(false);
+  const handleOtpVerified = async (_method?: "email" | "keypad") => {
+    setShowVerification(false);
     setSubmitting(true);
     try {
       const fields = (formFields || []).map((f) => ({
@@ -471,13 +471,21 @@ export default function CTAFooter({
         </div>
       </div>
 
-      {/* Shuffled keypad verification — shown when user submits the contact form */}
-      {showKeypad && (
-        <ShuffledKeypadModal
-          onVerified={handleOtpVerified}
-          onCancel={() => setShowKeypad(false)}
-        />
-      )}
+      {/* Verification modal — email OTP on desktop, keypad on mobile */}
+      {(() => {
+        const emailField = formFields?.find((f) => f.type === "email");
+        const verifyEmail = emailField ? formValues[emailField.id] : undefined;
+        return (
+          <VerificationModal
+            isOpen={showVerification}
+            onClose={() => setShowVerification(false)}
+            onVerified={handleOtpVerified}
+            email={verifyEmail}
+            purpose="cta-form"
+            context="submit your enquiry"
+          />
+        );
+      })()}
     </section>
   );
 }

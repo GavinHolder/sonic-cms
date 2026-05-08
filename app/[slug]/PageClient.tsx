@@ -8,7 +8,7 @@ import { getSections } from "@/lib/section-manager";
 import DynamicSection from "@/components/sections/DynamicSection";
 import type { PageConfig, PDFPageConfig, FormPageConfig } from "@/types/page";
 import type { SectionConfig } from "@/types/section";
-import OtpVerificationModal from "@/components/ui/OtpVerificationModal";
+import VerificationModal from "@/components/VerificationModal";
 
 const FlexibleSectionRenderer = dynamic(
   () => import("@/components/sections/FlexibleSectionRenderer"),
@@ -298,7 +298,7 @@ function FormPageRenderer({ page }: { page: FormPageConfig }) {
    * Called by OtpVerificationModal when the user enters the correct OTP.
    * Posts the pending form data to /api/forms/submit.
    */
-  const handleOtpVerified = async () => {
+  const handleOtpVerified = async (_method?: "email" | "keypad") => {
     setOtpEmail(null);
     setIsSubmitting(true);
     try {
@@ -452,15 +452,15 @@ function FormPageRenderer({ page }: { page: FormPageConfig }) {
         </div>
       </div>
 
-      {/* OTP verification modal — shown when user submits a valid form */}
-      {otpEmail && (
-        <OtpVerificationModal
-          email={otpEmail}
-          purpose="form-page"
-          onVerified={handleOtpVerified}
-          onCancel={() => setOtpEmail(null)}
-        />
-      )}
+      {/* Verification modal — email OTP on desktop, keypad on mobile */}
+      <VerificationModal
+        isOpen={!!otpEmail}
+        onClose={() => setOtpEmail(null)}
+        onVerified={handleOtpVerified}
+        email={otpEmail ?? undefined}
+        purpose="form-page"
+        context="submit your form"
+      />
     </div>
   );
 }

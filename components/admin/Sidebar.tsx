@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import UpdateBadge from "@/components/admin/UpdateBadge";
@@ -215,12 +215,20 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       .catch(() => {});
   }, [pathname]);
 
-  useEffect(() => {
+  const fetchUnreadLeads = useCallback(() => {
     fetch("/api/admin/form-submissions?status=received&limit=100")
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d?.success) setUnreadLeads(d.data?.submissions?.length ?? 0); })
       .catch(() => {});
-  }, [pathname]);
+  }, []);
+
+  useEffect(() => { fetchUnreadLeads(); }, [fetchUnreadLeads, pathname]);
+
+  // Re-fetch immediately when a lead is marked read from the forms page
+  useEffect(() => {
+    window.addEventListener("cms:forms:read-updated", fetchUnreadLeads);
+    return () => window.removeEventListener("cms:forms:read-updated", fetchUnreadLeads);
+  }, [fetchUnreadLeads]);
 
   // Close sidebar when route changes on mobile
   useEffect(() => {
