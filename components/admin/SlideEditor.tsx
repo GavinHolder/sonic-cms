@@ -24,6 +24,7 @@ export default function SlideEditor({
   onMoveDown,
 }: SlideEditorProps) {
   const [activeTab, setActiveTab] = useState<"media" | "gradient" | "overlay" | "position">("media");
+  const [dragRow, setDragRow] = useState<number | null>(null);
 
   const isStackedMode = !!(slide.overlay?.headingRows && slide.overlay.headingRows.length > 0);
 
@@ -76,6 +77,13 @@ export default function SlideEditor({
     const rows = slide.overlay?.headingRows ?? [];
     if (rows.length <= 1) return;
     updateOverlay({ headingRows: rows.filter((_, i) => i !== index) });
+  };
+
+  const reorderHeadingRow = (from: number, to: number) => {
+    const rows = [...(slide.overlay?.headingRows ?? [])];
+    const [moved] = rows.splice(from, 1);
+    rows.splice(to, 0, moved);
+    updateOverlay({ headingRows: rows });
   };
 
   const updateGradient = (updates: Partial<NonNullable<HeroCarouselSlide["gradient"]>>) => {
@@ -801,8 +809,23 @@ export default function SlideEditor({
                     </button>
                   </div>
                   {(slide.overlay?.headingRows ?? []).map((row, idx) => (
-                    <div key={idx} className="card mb-2">
+                    <div
+                      key={idx}
+                      className="card mb-2"
+                      draggable
+                      onDragStart={() => setDragRow(idx)}
+                      onDragEnd={() => setDragRow(null)}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={() => {
+                        if (dragRow !== null && dragRow !== idx) reorderHeadingRow(dragRow, idx);
+                        setDragRow(null);
+                      }}
+                      style={{ opacity: dragRow === idx ? 0.4 : 1, cursor: 'grab' }}
+                    >
                       <div className="card-body p-2">
+                        <div style={{ cursor: 'grab', paddingRight: 6, color: '#aaa' }}>
+                          <i className="bi bi-grip-vertical"></i>
+                        </div>
                         <div className="d-flex align-items-center gap-2 mb-2">
                           <div
                             style={{ width: 12, height: 12, borderRadius: "50%", background: row.color, border: "1px solid rgba(0,0,0,0.2)", flexShrink: 0 }}
