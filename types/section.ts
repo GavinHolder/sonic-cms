@@ -405,6 +405,11 @@ export interface HeroSection extends BaseSectionConfig {
     metaLine?: string[];
     /** Position for nav controls (dots + counter) — default: bottom-left */
     controlsPosition?: "bottom-left" | "bottom-right";
+    /** Frosted glass bar pinned to bottom of hero — same config on all slides */
+    statsStrip?: {
+      enabled: boolean;
+      items: Array<{ icon: string; text: string }>;
+    };
   };
 }
 
@@ -810,6 +815,36 @@ export interface GraphicConfig {
   blendMode?: "normal" | "multiply" | "overlay" | "screen" | "darken" | "lighten";
   opacity?: number; // 0-100
   position: "top" | "bottom";
+}
+
+/**
+ * Props for the contact-form block type in Flexible Designer.
+ * Submits to existing /api/contact route.
+ */
+export interface ContactFormBlockProps {
+  formTitle?: string;
+  fields?: {
+    name?: boolean;
+    email?: boolean;
+    phone?: boolean;
+    message?: boolean;
+    subject?: boolean;
+  };
+  submitLabel?: string;
+  successMessage?: string;
+  emailTo?: string;
+}
+
+/**
+ * Props for the how-steps block type in Flexible Designer.
+ * Renders a numbered step card with an optional connecting line to the right.
+ */
+export interface HowStepsBlockProps {
+  stepNumber?: string;
+  title?: string;
+  description?: string;
+  isLast?: boolean;
+  accentColor?: string;
 }
 
 /**

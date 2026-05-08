@@ -8,6 +8,8 @@ import FooterSectionEditor from "@/components/admin/FooterSectionEditor";
 import CTASectionEditor from "@/components/admin/CTASectionEditor";
 import NormalSectionEditor from "@/components/admin/NormalSectionEditor";
 import FlexibleSectionEditorModal from "@/components/admin/FlexibleSectionEditorModal";
+import PresetsGalleryModal from "@/components/admin/PresetsGalleryModal";
+import { SECTION_PRESETS, type SectionPreset } from "@/lib/designer-presets";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import type { SectionConfig, SectionType, HeroSection, FooterSection, CTASection, NormalSection, FlexibleSection } from "@/types/section";
 import SaveTemplateModal from "@/components/admin/SaveTemplateModal";
@@ -99,6 +101,7 @@ export default function LandingPageManager() {
   const [pluginSectionTypes, setPluginSectionTypes] = useState<{ pluginId: string; pluginName: string; id: string; label: string; icon: string; description: string }[]>([]);
   const [templateSection, setTemplateSection] = useState<SectionConfig | null>(null);
   const [showTemplatePickerFor, setShowTemplatePickerFor] = useState<SectionConfig | null>(null);
+  const [showPresetsGallery, setShowPresetsGallery] = useState(false);
 
   // Drag-and-drop sensors
   const sensors = useSensors(
@@ -208,6 +211,13 @@ export default function LandingPageManager() {
     const pluginInfo = pluginTypeId ? pluginSectionTypes.find(p => p.id === pluginTypeId) : undefined;
     const displayName = pluginInfo ? pluginInfo.label : `New ${getSectionTypeLabel(actualType)}`;
 
+    // For non-plugin FLEXIBLE sections, show preset gallery before creating
+    if (actualType === "FLEXIBLE" && !pluginTypeId) {
+      setShowCreateModal(false);
+      setShowPresetsGallery(true);
+      return;
+    }
+
     const newSection = await createSection("/", actualType, {
       displayName,
       content: pluginTypeId ? { pluginType: pluginTypeId, pluginId: pluginInfo?.pluginId } as Record<string, unknown> : {},
@@ -215,6 +225,20 @@ export default function LandingPageManager() {
     if (newSection) {
       await reloadSections();
       setShowCreateModal(false);
+      setSuccessMessage(`${displayName} created successfully!`);
+    }
+  };
+
+  const handlePresetsGallerySelect = async (presetId: string | null) => {
+    setShowPresetsGallery(false);
+    const preset = presetId ? SECTION_PRESETS.find(p => p.id === presetId) : null;
+    const content: Record<string, unknown> = preset
+      ? { designerData: JSON.stringify(preset.designerData) }
+      : {};
+    const displayName = preset ? preset.name : "New Flexible Section";
+    const newSection = await createSection("/", "FLEXIBLE", { displayName, content });
+    if (newSection) {
+      await reloadSections();
       setSuccessMessage(`${displayName} created successfully!`);
     }
   };
@@ -805,6 +829,14 @@ export default function LandingPageManager() {
           }}
           onSaved={() => { setTemplateSection(null); setSuccessMessage("Template saved to library!"); }}
           onCancel={() => setTemplateSection(null)}
+        />
+      )}
+
+      {/* Presets gallery — shown when creating a new FLEXIBLE section */}
+      {showPresetsGallery && (
+        <PresetsGalleryModal
+          onSelect={handlePresetsGallerySelect}
+          onClose={() => setShowPresetsGallery(false)}
         />
       )}
 

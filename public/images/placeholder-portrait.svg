@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="500" height="500" viewBox="0 0 500 500">
+  <rect width="500" height="500" fill="#d0d5dd"/>
+  <rect x="190" y="190" width="120" height="90" rx="8" fill="#9aa5b4"/>
+  <circle cx="250" cy="226" r="22" fill="#d0d5dd"/>
+  <text x="250" y="320" font-family="system-ui,sans-serif" font-size="18" fill="#9aa5b4" text-anchor="middle">Add your photo</text>
+</svg>

@@ -14,6 +14,7 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
   const {
     slides = [], autoPlay, autoPlayInterval, showDots, showArrows, transitionDuration,
     showSlideCounter, showScrollIndicator, metaLine, controlsPosition = "bottom-left",
+    statsStrip,
   } = section.content;
 
   // Detect mobile viewport for mobile-specific images/colors
@@ -432,7 +433,7 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
       {/* Bottom controls — dots, slide counter, meta lines */}
       <div
         className="position-absolute bottom-0 w-100 d-flex align-items-end justify-content-between"
-        style={{ zIndex: 20, padding: "0 32px 28px" }}
+        style={{ zIndex: 20, padding: `0 32px ${statsStrip?.enabled && statsStrip.items.length > 0 ? "68px" : "28px"}` }}
       >
         {/* Left side: dots + slide counter */}
         <div className="d-flex flex-column align-items-start gap-2">
@@ -500,6 +501,36 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
             100% { transform: translateX(350%); }
           }
         `}</style>
+      )}
+
+      {/* Stats strip — frosted bar at bottom of every slide */}
+      {statsStrip?.enabled && statsStrip.items.length > 0 && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            zIndex: 25,
+            background: "rgba(0,0,0,0.55)",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+            borderTop: "1px solid rgba(255,255,255,0.15)",
+            padding: "8px 24px",
+            display: "flex",
+            justifyContent: "space-around",
+            alignItems: "center",
+          }}
+        >
+          {statsStrip.items.map((item, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <i className={item.icon} style={{ color: "var(--bs-success, #22c55e)", fontSize: "14px" }} />
+              <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.85)", fontWeight: 500, whiteSpace: "nowrap" }}>
+                {item.text}
+              </span>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

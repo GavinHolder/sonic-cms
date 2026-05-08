@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { useEffect, useRef, useState, useCallback, useId } from "react";
 import dynamic from "next/dynamic";
 import type { FlexibleSection, FlexibleElement, FlexibleAnimationType } from "@/types/section";
@@ -656,6 +657,151 @@ function PhotoStripBlock({ c }: { c: FlexibleElement["content"] }) {
         />
       ))}
     </div>
+  );
+}
+
+/** Numbered step card with optional horizontal connector line on the right edge */
+function HowStepsBlock({ p, darkBg }: { p: Record<string, unknown>; darkBg: boolean }) {
+  const accent = (p.accentColor as string) || "var(--bs-success, #22c55e)";
+  const textColor = darkBg ? "#fff" : "#212529";
+  return (
+    <div style={{ position: "relative", height: "100%", padding: "24px 20px", display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ fontSize: "clamp(2rem, 4vw, 3rem)", fontWeight: 800, lineHeight: 1, color: accent, letterSpacing: "-0.04em" }}>
+        {(p.stepNumber as string) || "01"}
+      </div>
+      <div style={{ fontSize: "18px", fontWeight: 700, color: textColor, lineHeight: 1.2 }}>
+        {(p.title as string) || "Step Title"}
+      </div>
+      <div style={{ fontSize: "14px", color: darkBg ? "rgba(255,255,255,0.7)" : "#6c757d", lineHeight: 1.55 }}>
+        {(p.description as string) || ""}
+      </div>
+      {!p.isLast && (
+        <div style={{
+          position: "absolute", right: -1, top: "50%", transform: "translateY(-50%)",
+          width: 0, height: 0,
+          borderTop: "8px solid transparent",
+          borderBottom: "8px solid transparent",
+          borderLeft: `10px solid ${accent}`,
+        }} />
+      )}
+    </div>
+  );
+}
+
+/** Contact form block — submits to /api/contact, fields configurable via props */
+function ContactFormBlock({ p, darkBg }: { p: Record<string, unknown>; darkBg: boolean }) {
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError]         = useState("");
+  const [loading, setLoading]     = useState(false);
+  const [formValues, setFormValues] = useState<Record<string, string>>({});
+
+  const fields = (p.fields as Record<string, boolean>) || { name: true, email: true, message: true };
+  const successMsg = (p.successMessage as string) || "Thank you! We'll be in touch shortly.";
+  const submitLabel = (p.submitLabel as string) || "Send Message";
+  const formTitle = p.formTitle as string | undefined;
+  const emailTo = p.emailTo as string | undefined;
+
+  const inputStyle: React.CSSProperties = {
+    width: "100%", padding: "8px 12px", fontSize: "14px",
+    borderRadius: 6, border: `1px solid ${darkBg ? "rgba(255,255,255,0.2)" : "#ced4da"}`,
+    background: darkBg ? "rgba(255,255,255,0.07)" : "#fff",
+    color: darkBg ? "#fff" : "#212529",
+    outline: "none",
+  };
+
+  const handleChange = (field: string, value: string) =>
+    setFormValues(prev => ({ ...prev, [field]: value }));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...formValues, emailTo }),
+      });
+      if (res.ok) { setSubmitted(true); }
+      else { setError("Something went wrong. Please try again."); }
+    } catch {
+      setError("Connection error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (submitted) {
+    return (
+      <div style={{ padding: "32px 24px", textAlign: "center" }}>
+        <i className="bi bi-check-circle-fill" style={{ fontSize: "2.5rem", color: "var(--bs-success, #22c55e)" }} />
+        <p style={{ marginTop: 12, fontSize: "16px", color: darkBg ? "#fff" : "#212529" }}>{successMsg}</p>
+      </div>
+    );
+  }
+
+  const labelStyle: React.CSSProperties = {
+    display: "block", fontSize: "12px", fontWeight: 600, marginBottom: 4,
+    color: darkBg ? "rgba(255,255,255,0.75)" : "#495057",
+  };
+
+  return (
+    <form onSubmit={handleSubmit} style={{ padding: "24px", display: "flex", flexDirection: "column", gap: 14, height: "100%" }}>
+      {formTitle && (
+        <div style={{ fontSize: "20px", fontWeight: 700, marginBottom: 4, color: darkBg ? "#fff" : "#212529" }}>
+          {formTitle}
+        </div>
+      )}
+      {fields.name && (
+        <div>
+          <label style={labelStyle}>Name</label>
+          <input required style={inputStyle} value={formValues.name || ""} onChange={e => handleChange("name", e.target.value)} placeholder="Your name" />
+        </div>
+      )}
+      {fields.email && (
+        <div>
+          <label style={labelStyle}>Email</label>
+          <input required type="email" style={inputStyle} value={formValues.email || ""} onChange={e => handleChange("email", e.target.value)} placeholder="you@email.com" />
+        </div>
+      )}
+      {fields.phone && (
+        <div>
+          <label style={labelStyle}>Phone</label>
+          <input style={inputStyle} value={formValues.phone || ""} onChange={e => handleChange("phone", e.target.value)} placeholder="+27 000 000 0000" />
+        </div>
+      )}
+      {fields.subject && (
+        <div>
+          <label style={labelStyle}>Subject</label>
+          <input style={inputStyle} value={formValues.subject || ""} onChange={e => handleChange("subject", e.target.value)} placeholder="Subject" />
+        </div>
+      )}
+      {fields.message && (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+          <label style={labelStyle}>Message</label>
+          <textarea
+            required
+            rows={4}
+            style={{ ...inputStyle, resize: "vertical", flex: 1 }}
+            value={formValues.message || ""}
+            onChange={e => handleChange("message", e.target.value)}
+            placeholder="Your message…"
+          />
+        </div>
+      )}
+      {error && <div style={{ fontSize: "13px", color: "#dc3545" }}>{error}</div>}
+      <button
+        type="submit"
+        disabled={loading}
+        style={{
+          padding: "10px 24px", background: "var(--bs-success, #22c55e)", color: "#fff",
+          border: "none", borderRadius: 6, fontWeight: 600, fontSize: "14px", cursor: loading ? "not-allowed" : "pointer",
+          opacity: loading ? 0.7 : 1,
+        }}
+      >
+        {loading ? "Sending…" : submitLabel}
+      </button>
+    </form>
   );
 }
 
@@ -1464,6 +1610,42 @@ function DesignerBlock({ block, darkBg }: {
       // ── photo-strip: horizontal strip of background images ───────────────────
       case "photo-strip":
         return <PhotoStripBlock c={{ photoStripImages: p.images as any, photoStripHeight: p.height as any, photoStripGap: p.gap as any, photoStripHoverBrightness: p.hoverBrightness as any, photoStripColumns: p.columns as any }} />;
+
+      case "contact-form":
+        return <ContactFormBlock p={p} darkBg={darkBg} />;
+
+      case "how-steps": {
+        const accent = (p.accentColor as string) || "var(--cms-accent, #4caf50)";
+        const isLast = !!(p.isLast);
+        const textColor = darkBg ? "#fff" : "#1a1a1a";
+        return (
+          <div style={{ position: "relative", padding: "24px 16px", height: "100%", display: "flex", flexDirection: "column" }}>
+            {!isLast && (
+              <div style={{
+                position: "absolute", top: "36px", right: "-1px",
+                width: "50%", height: "2px",
+                background: `repeating-linear-gradient(90deg, ${accent} 0, ${accent} 6px, transparent 6px, transparent 12px)`,
+                zIndex: 1,
+              }} />
+            )}
+            <div style={{
+              width: "44px", height: "44px", borderRadius: "50%",
+              background: accent, color: "#fff",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontWeight: 700, fontSize: "16px", marginBottom: "12px",
+              flexShrink: 0,
+            }}>
+              {(p.stepNumber as string) || "01"}
+            </div>
+            <div style={{ fontWeight: 700, fontSize: "17px", color: textColor, marginBottom: "8px" }}>
+              {(p.title as string) || "Step Title"}
+            </div>
+            <div style={{ fontSize: "14px", color: darkBg ? "rgba(255,255,255,0.75)" : "#666", lineHeight: 1.55 }}>
+              {(p.description as string) || "Step description goes here."}
+            </div>
+          </div>
+        );
+      }
 
       // ── default: unknown block type — render the type name as a placeholder ─
       default:

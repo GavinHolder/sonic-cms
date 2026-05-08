@@ -46,6 +46,9 @@ export default function HeroCarouselEditor({
   const [transitionDuration, setTransitionDuration] = useState(
     section.content.transitionDuration ?? 800
   );
+  const [statsStrip, setStatsStrip] = useState<NonNullable<HeroSection["content"]["statsStrip"]>>(
+    section.content.statsStrip ?? { enabled: false, items: [] }
+  );
   const [deleteConfirmSlideIndex, setDeleteConfirmSlideIndex] = useState<number | null>(null);
   const [showLastSlideError, setShowLastSlideError] = useState(false);
   // Auto-expand first slide so controls are visible immediately
@@ -154,6 +157,7 @@ export default function HeroCarouselEditor({
         showDots,
         showArrows,
         transitionDuration,
+        statsStrip,
       },
     };
     onSave(updates);
@@ -274,6 +278,96 @@ export default function HeroCarouselEditor({
                   Animation speed for slide transitions (default: 800ms)
                 </div>
               </div>
+            </div>
+
+            <hr />
+
+            {/* Stats Strip */}
+            <h6 className="mb-3">
+              <i className="bi bi-bar-chart-steps me-2"></i>
+              Stats Strip
+            </h6>
+            <div className="mb-4">
+              <div
+                className="d-flex justify-content-between align-items-center mb-2"
+                style={{ cursor: "pointer" }}
+                onClick={() => setStatsStrip({ ...statsStrip, enabled: !statsStrip.enabled })}
+              >
+                <div>
+                  <div className="fw-semibold">Enable Stats Strip</div>
+                  <div className="form-text mt-0">Frosted bar at the bottom of the hero. Same on all slides.</div>
+                </div>
+                <div
+                  role="switch"
+                  aria-checked={statsStrip.enabled}
+                  style={{
+                    width: "42px", height: "22px", borderRadius: "11px", flexShrink: 0,
+                    backgroundColor: statsStrip.enabled ? "#0d6efd" : "#adb5bd",
+                    transition: "background-color 0.15s", position: "relative",
+                  }}
+                >
+                  <div style={{
+                    width: "16px", height: "16px", borderRadius: "50%", backgroundColor: "#fff",
+                    position: "absolute", top: "3px",
+                    left: statsStrip.enabled ? "23px" : "3px",
+                    transition: "left 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+                  }} />
+                </div>
+              </div>
+
+              {statsStrip.enabled && (
+                <div className="mt-3">
+                  <div className="d-flex justify-content-between align-items-center mb-2">
+                    <label className="form-label fw-semibold mb-0">Items (max 6)</label>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-success"
+                      disabled={statsStrip.items.length >= 6}
+                      onClick={() => setStatsStrip({ ...statsStrip, items: [...statsStrip.items, { icon: "bi-circle-fill", text: "" }] })}
+                    >
+                      <i className="bi bi-plus-lg me-1"></i>Add item
+                    </button>
+                  </div>
+                  {statsStrip.items.map((item, idx) => (
+                    <div key={idx} className="d-flex align-items-center gap-2 mb-2">
+                      <input
+                        type="text"
+                        className="form-control form-control-sm"
+                        style={{ maxWidth: 160 }}
+                        value={item.icon}
+                        placeholder="bi-geo-alt-fill"
+                        title="Bootstrap icon class"
+                        onChange={(e) => {
+                          const items = [...statsStrip.items];
+                          items[idx] = { ...items[idx], icon: e.target.value };
+                          setStatsStrip({ ...statsStrip, items });
+                        }}
+                      />
+                      <input
+                        type="text"
+                        className="form-control form-control-sm flex-grow-1"
+                        value={item.text}
+                        placeholder="Label text"
+                        onChange={(e) => {
+                          const items = [...statsStrip.items];
+                          items[idx] = { ...items[idx], text: e.target.value };
+                          setStatsStrip({ ...statsStrip, items });
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-danger"
+                        onClick={() => setStatsStrip({ ...statsStrip, items: statsStrip.items.filter((_, i) => i !== idx) })}
+                      >
+                        <i className="bi bi-x-lg"></i>
+                      </button>
+                    </div>
+                  ))}
+                  {statsStrip.items.length === 0 && (
+                    <div className="text-muted small">No items yet. Click "Add item" to create strip items.</div>
+                  )}
+                </div>
+              )}
             </div>
 
             <hr />

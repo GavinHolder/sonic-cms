@@ -952,7 +952,14 @@ Each zone boundary is a CSS scroll-snap point — scrolling snaps cleanly to eac
 const FLEXIBLE_ELEMENTS = `
 # Flexible Sections — Element Types
 
-The block panel on the left contains **14 element types**. **Card, Banner, and Stats** now use the same free-positioning sub-element system as Text Block — all content is draggable, dblclick editable, and the block auto-resizes in all directions.
+The block panel on the left contains **16 element types**. **Card, Banner, and Stats** now use the same free-positioning sub-element system as Text Block — all content is draggable, dblclick editable, and the block auto-resizes in all directions.
+
+**Layout Presets** — When creating a new Flexible section, a gallery of 7 pre-built layouts opens automatically. Choose a preset to start with a complete grid + block configuration, or click "Start Blank" to build from an empty grid. You can also apply a preset to an existing section via the Layouts tab in the Designer sidebar (replaces current content).
+
+**Quick reference — recently added block types:**
+
+- **contact-form** — A contact form block that submits to the site's contact email via \`/api/contact\`. Configure which fields are visible (name, email, phone, message, subject), the submit button label, and the success message shown after submission. Styled to work on both light and dark backgrounds.
+- **how-steps** — A numbered process step card. Displays a large step number (e.g. "01") in a coloured circle, a bold title, and a description. Includes a dashed connector line extending to the right — set \`isLast: true\` on the final step to hide the connector. Use 3–4 of these in a row grid for a "How It Works" section.
 
 ---
 
@@ -1370,7 +1377,60 @@ Any **Google Font** works. The font is loaded automatically before layout runs. 
 
 ---
 
+## 15. How Steps
+
+Numbered step card with a large accent-colored step number, title, and description. Connect multiple steps horizontally using the **connector line** that renders on the right edge of all but the last step.
+
+| Property | Description |
+|----------|-------------|
+| **Step Number** | Display label — typically \`"01"\`, \`"02"\`, etc. |
+| **Title** | Bold step name |
+| **Description** | Supporting paragraph |
+| **Accent Color** | Color for the step number and connector arrow |
+| **Is Last Step** | Toggle off the right-edge connector arrow for the final step |
+
+**Typical use:** Place 3–4 How Steps blocks in a single grid row with the *How It Works* preset (creates this layout automatically).
+
+---
+
+## 16. Contact Form
+
+An embedded contact form that submits to the site's \`/api/contact\` endpoint. Configurable fields, labels, and success message — no separate page needed.
+
+| Property | Description |
+|----------|-------------|
+| **Form Title** | Optional heading displayed above the fields |
+| **Fields** | Toggle name / email / phone / subject / message on or off |
+| **Submit Label** | Button text (default: "Send Message") |
+| **Success Message** | Text shown after submission |
+| **Email To** | Override the recipient address for this form |
+
+On submission the form shows a success checkmark or an inline error message. The same SMTP settings used for CTA contact forms apply here.
+
+**Typical use:** Pair with a Text Block in the *Contact Split* preset — contact details on the left, Contact Form on the right.
+
+---
+
+## Preset Layouts
+
+When you **create a new Flexible Section**, the Preset Gallery opens automatically — pick one of 7 curated starter layouts or choose **Start Blank** for an empty canvas.
+
+| Preset | Description |
+|--------|-------------|
+| **About Grid** | Tall photo left, story text + 4 stats right |
+| **Services Grid** | Centred heading + 3 service cards |
+| **How It Works** | Heading + 4 numbered How Steps in a row |
+| **Contact Split** | Contact details left, Contact Form right |
+| **Stats Banner** | 4 bold stats in a full-width band |
+| **Features Alternating** | Heading + alternating text/image rows |
+| **Team Grid** | Heading + 4 team member cards |
+
+You can also apply any preset from the **Layouts tab** in the left panel of the Flexible Designer — selecting a preset replaces the current layout (with a confirmation prompt).
+
+---
+
 `;
+
 
 
 const FLEXIBLE_STYLING = `
@@ -1631,6 +1691,23 @@ The Hero Carousel is the first section on the landing page — a full-screen sli
 
 ---
 
+## Stats Strip
+
+A frosted-glass bar pinned to the bottom of **every slide** — ideal for social-proof items like certifications, uptime, or key stats.
+
+Configured at the **carousel level** (not per slide) in the Hero Carousel editor.
+
+| Setting | Description |
+|---------|-------------|
+| **Enable Stats Strip** | Toggle the bar on/off |
+| **Items** | List of up to 6 icon+text pairs |
+| **Icon** | Bootstrap icon class (e.g. \`bi-shield-check-fill\`) |
+| **Text** | Short stat label (e.g. "ISO 9001 Certified") |
+
+The strip sits at **z-index 25**, above the slide controls, with a \`blur(8px)\` glass backdrop.
+
+---
+
 ## Slide Settings
 
 | Setting | Description |
@@ -1648,6 +1725,10 @@ The Hero Carousel is the first section on the landing page — a full-screen sli
 | **Text Alignment** | left / center / right |
 | **Overlay Opacity** | Dark overlay on background for text contrast |
 | **Animation** | Entry animation for text elements |
+
+**Stacked Heading Mode** — In the Slide Editor → Text Overlay tab, toggle "Heading Mode" from Classic to Stacked. Stacked mode lets you define 2–5 heading rows, each with its own color, font size, weight, and animation. An optional Eyebrow field (text + color) adds a small uppercase label above the rows. Switching back to Classic preserves your content.
+
+**Stats Strip** — In the Hero editor → Stats Strip section, enable the frosted glass bar that appears at the bottom of every hero slide. Add up to 6 items, each with a Bootstrap icon class (e.g. \`bi-geo-alt-fill\`) and a short text label. The icon color inherits the brand accent colour.
 
 ---
 
@@ -1688,6 +1769,18 @@ Instead of a single \`heading\` string, use \`headingRows\` for per-line styling
 Each row supports: \`text\`, \`color\`, \`fontSize\`, \`fontWeight\`, \`fontFamily\`, \`animation\`, \`animationDuration\`, \`animationDelay\`.
 
 > **Backward compatible:** Slides with a plain \`heading\` string continue to work unchanged.
+
+### Using the Stacked Heading Editor
+
+In the **Slide Editor → Overlay tab**:
+
+1. Click **"Switch to Stacked"** to enter stacked mode — the current heading becomes the first row
+2. Edit each row's **text**, **color** (hex or color picker), **size**, **weight**, and **animation**
+3. Click **"+ Add Row"** to add up to 5 rows
+4. Drag rows to reorder, or click the trash icon to remove
+5. The optional **Eyebrow** field (above all rows) supports its own color
+
+Click **"Switch to Classic"** to return to a single heading string (all row data is discarded).
 `;
 
 const PAGES_SYSTEM = `

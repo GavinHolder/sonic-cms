@@ -1209,6 +1209,7 @@
               <div class="lib-tab active" id="tab-containers" onclick="switchLibTab('containers')">Blocks</div>
               <div class="lib-tab" id="tab-sub" onclick="switchLibTab('sub')">Sub-Els</div>
               <div class="lib-tab" id="tab-volt" onclick="switchLibTab('volt')">⚡ Volt</div>
+              <div class="lib-tab" id="tab-layouts" onclick="switchLibTab('layouts')">Layouts</div>
             </div>
 
             <!-- Container blocks -->
@@ -1319,6 +1320,14 @@
                 <i class="bi bi-plus-lg me-1"></i>Create New Volt
               </button>
               <div id="volt-lib-items"></div>
+            </div>
+
+            <!-- Layout Presets -->
+            <div id="lib-layouts" style="display:none;padding:8px 0;">
+              <div style="padding:0 12px 8px;font-size:11px;color:#6c757d;line-height:1.4;">
+                Apply a preset to replace the current section layout.
+              </div>
+              <div id="layouts-list"></div>
             </div>
           </div>
         </div>
@@ -5772,10 +5781,69 @@ function switchLibTab(tab) {
   document.getElementById('lib-containers').style.display = tab==='containers'?'block':'none';
   document.getElementById('lib-sub').style.display        = tab==='sub'?'block':'none';
   document.getElementById('lib-volt').style.display       = tab==='volt'?'block':'none';
+  document.getElementById('lib-layouts').style.display    = tab==='layouts'?'block':'none';
   document.getElementById('tab-containers').className = 'lib-tab'+(tab==='containers'?' active':'');
   document.getElementById('tab-sub').className        = 'lib-tab'+(tab==='sub'?' active':'');
   document.getElementById('tab-volt').className       = 'lib-tab'+(tab==='volt'?' active':'');
+  document.getElementById('tab-layouts').className    = 'lib-tab'+(tab==='layouts'?' active':'');
   if (tab === 'volt') loadVoltLibIfNeeded();
+  if (tab === 'layouts') renderLayoutsTab();
+}
+
+// ─── Layout Presets ──────────────────────────────────────────────────────────
+const SECTION_PRESETS = [
+  { id:'about-grid',          name:'About Grid',            description:'Tall photo + company story and four stats.', grid:{rows:4,cols:4,gap:32}, blocks:[{id:'b1',type:'image',position:{row:1,col:1,colSpan:2,rowSpan:4,section:0},props:{src:'',alt:'About us'},subElements:[]},{id:'b2',type:'text',position:{row:1,col:3,colSpan:2,rowSpan:1,section:0},props:{},subElements:[{id:'e1',type:'heading',props:{text:'OUR STORY',fontSize:11,fontWeight:'700',color:'#22c55e',textTransform:'uppercase',letterSpacing:2}},{id:'e2',type:'heading',props:{text:'Built for the Region.',fontSize:40,fontWeight:'800',lineHeight:1.1}}]},{id:'b3',type:'text',position:{row:2,col:3,colSpan:2,rowSpan:1,section:0},props:{},subElements:[{id:'e3',type:'paragraph',props:{text:"We've been delivering quality products to our community for over two decades.",fontSize:15}},{id:'e4',type:'paragraph',props:{text:'Every project is an opportunity to make a difference — on time, on spec, built to last.',fontSize:15}}]},{id:'b4',type:'stats',position:{row:3,col:3,colSpan:1,rowSpan:1,section:0},props:{number:'23',statLabel:'Years Experience'},subElements:[]},{id:'b5',type:'stats',position:{row:3,col:4,colSpan:1,rowSpan:1,section:0},props:{number:'500+',statLabel:'Projects Completed'},subElements:[]},{id:'b6',type:'stats',position:{row:4,col:3,colSpan:1,rowSpan:1,section:0},props:{number:'4',statLabel:'Regional Plants'},subElements:[]},{id:'b7',type:'stats',position:{row:4,col:4,colSpan:1,rowSpan:1,section:0},props:{number:'24hr',statLabel:'Quote Turnaround'},subElements:[]}] },
+  { id:'services-grid',       name:'Services Grid',         description:'Centred heading + three service cards.', grid:{rows:2,cols:3,gap:24}, blocks:[{id:'b1',type:'text',position:{row:1,col:1,colSpan:3,rowSpan:1,section:0},props:{textAlign:'center'},subElements:[{id:'e1',type:'heading',props:{text:'WHAT WE OFFER',fontSize:11,fontWeight:'700',color:'#22c55e',textTransform:'uppercase',letterSpacing:2,textAlign:'center'}},{id:'e2',type:'heading',props:{text:'Our Services',fontSize:36,fontWeight:'800',textAlign:'center'}},{id:'e3',type:'paragraph',props:{text:'Everything you need, all in one place.',fontSize:16,textAlign:'center'}}]},{id:'b2',type:'card',position:{row:2,col:1,colSpan:1,rowSpan:1,section:0},props:{},subElements:[{id:'e4',type:'icon',props:{iconName:'bi-lightning-charge-fill',size:40,color:'#22c55e'}},{id:'e5',type:'heading',props:{text:'Fast Delivery',fontSize:18,fontWeight:'700'}},{id:'e6',type:'paragraph',props:{text:'Quickly and reliably to keep your project on schedule.',fontSize:14}}]},{id:'b3',type:'card',position:{row:2,col:2,colSpan:1,rowSpan:1,section:0},props:{},subElements:[{id:'e7',type:'icon',props:{iconName:'bi-shield-check-fill',size:40,color:'#22c55e'}},{id:'e8',type:'heading',props:{text:'Quality Guaranteed',fontSize:18,fontWeight:'700'}},{id:'e9',type:'paragraph',props:{text:'Our products meet the highest industry standards.',fontSize:14}}]},{id:'b4',type:'card',position:{row:2,col:3,colSpan:1,rowSpan:1,section:0},props:{},subElements:[{id:'e10',type:'icon',props:{iconName:'bi-headset',size:40,color:'#22c55e'}},{id:'e11',type:'heading',props:{text:'Expert Support',fontSize:18,fontWeight:'700'}},{id:'e12',type:'paragraph',props:{text:'Our team is on hand to solve problems fast.',fontSize:14}}]}] },
+  { id:'how-it-works',        name:'How It Works',          description:'Numbered step cards in a horizontal row.', grid:{rows:2,cols:4,gap:24}, blocks:[{id:'b1',type:'text',position:{row:1,col:1,colSpan:4,rowSpan:1,section:0},props:{textAlign:'center'},subElements:[{id:'e1',type:'heading',props:{text:'THE PROCESS',fontSize:11,fontWeight:'700',color:'#22c55e',textTransform:'uppercase',letterSpacing:2,textAlign:'center'}},{id:'e2',type:'heading',props:{text:'How It Works',fontSize:36,fontWeight:'800',textAlign:'center'}},{id:'e3',type:'paragraph',props:{text:'Simple steps, outstanding results.',fontSize:16,textAlign:'center'}}]},{id:'b2',type:'how-steps',position:{row:2,col:1,colSpan:1,rowSpan:1,section:0},props:{stepNumber:'01',title:'Get in Touch',description:'Reach out to discuss your requirements.',isLast:false},subElements:[]},{id:'b3',type:'how-steps',position:{row:2,col:2,colSpan:1,rowSpan:1,section:0},props:{stepNumber:'02',title:'Receive a Quote',description:'We provide a detailed quote within 24 hours.',isLast:false},subElements:[]},{id:'b4',type:'how-steps',position:{row:2,col:3,colSpan:1,rowSpan:1,section:0},props:{stepNumber:'03',title:'Confirm & Schedule',description:'Approve and we lock in your delivery date.',isLast:false},subElements:[]},{id:'b5',type:'how-steps',position:{row:2,col:4,colSpan:1,rowSpan:1,section:0},props:{stepNumber:'04',title:'Delivery & Done',description:'We deliver on time and follow up.',isLast:true},subElements:[]}] },
+  { id:'contact-split',       name:'Contact Split',         description:'Contact details left, form right.', grid:{rows:1,cols:2,gap:48}, blocks:[{id:'b1',type:'text',position:{row:1,col:1,colSpan:1,rowSpan:1,section:0},props:{},subElements:[{id:'e1',type:'heading',props:{text:'GET IN TOUCH',fontSize:11,fontWeight:'700',color:'#22c55e',textTransform:'uppercase',letterSpacing:2}},{id:'e2',type:'heading',props:{text:"Let's Talk",fontSize:36,fontWeight:'800'}},{id:'e3',type:'paragraph',props:{text:"Have a question? We'd love to hear from you.",fontSize:15}},{id:'e4',type:'paragraph',props:{text:'📞  +27 (0)00 000 0000',fontSize:14,fontWeight:'600'}},{id:'e5',type:'paragraph',props:{text:'✉  info@yourcompany.co.za',fontSize:14,fontWeight:'600'}},{id:'e6',type:'paragraph',props:{text:'📍  123 Main Street, Your Town, 0000',fontSize:14}}]},{id:'b2',type:'contact-form',position:{row:1,col:2,colSpan:1,rowSpan:1,section:0},props:{formTitle:'Send Us a Message',fields:{name:true,email:true,phone:false,message:true,subject:false},submitLabel:'Send Message',successMessage:"Thank you! We'll be in touch shortly."},subElements:[]}] },
+  { id:'stats-banner',        name:'Stats Banner',          description:'Four bold stats side by side.', grid:{rows:1,cols:4,gap:1}, blocks:[{id:'b1',type:'stats',position:{row:1,col:1,colSpan:1,rowSpan:1,section:0},props:{number:'500+',statLabel:'Projects Delivered'},subElements:[]},{id:'b2',type:'stats',position:{row:1,col:2,colSpan:1,rowSpan:1,section:0},props:{number:'23',statLabel:'Years in Business'},subElements:[]},{id:'b3',type:'stats',position:{row:1,col:3,colSpan:1,rowSpan:1,section:0},props:{number:'98%',statLabel:'Client Satisfaction'},subElements:[]},{id:'b4',type:'stats',position:{row:1,col:4,colSpan:1,rowSpan:1,section:0},props:{number:'24hr',statLabel:'Quote Turnaround'},subElements:[]}] },
+  { id:'features-alternating',name:'Features Alternating',  description:'Heading + alternating text/image rows.', grid:{rows:3,cols:2,gap:48}, blocks:[{id:'b1',type:'text',position:{row:1,col:1,colSpan:2,rowSpan:1,section:0},props:{textAlign:'center'},subElements:[{id:'e1',type:'heading',props:{text:'WHAT SETS US APART',fontSize:11,fontWeight:'700',color:'#22c55e',textTransform:'uppercase',letterSpacing:2,textAlign:'center'}},{id:'e2',type:'heading',props:{text:'Why Choose Us',fontSize:36,fontWeight:'800',textAlign:'center'}}]},{id:'b2',type:'text',position:{row:2,col:1,colSpan:1,rowSpan:1,section:0},props:{},subElements:[{id:'e3',type:'heading',props:{text:'FEATURE ONE',fontSize:11,fontWeight:'700',color:'#22c55e',textTransform:'uppercase',letterSpacing:2}},{id:'e4',type:'heading',props:{text:'Precision & Reliability',fontSize:28,fontWeight:'800'}},{id:'e5',type:'paragraph',props:{text:'Every product tested and verified before it leaves our facility.',fontSize:15}},{id:'e6',type:'button',props:{text:'Learn More',navTarget:'#contact',bgColor:'#22c55e',textColor:'#fff'}}]},{id:'b3',type:'image',position:{row:2,col:2,colSpan:1,rowSpan:1,section:0},props:{src:'',alt:'Feature one'},subElements:[]},{id:'b4',type:'image',position:{row:3,col:1,colSpan:1,rowSpan:1,section:0},props:{src:'',alt:'Feature two'},subElements:[]},{id:'b5',type:'text',position:{row:3,col:2,colSpan:1,rowSpan:1,section:0},props:{},subElements:[{id:'e7',type:'heading',props:{text:'FEATURE TWO',fontSize:11,fontWeight:'700',color:'#22c55e',textTransform:'uppercase',letterSpacing:2}},{id:'e8',type:'heading',props:{text:'Speed You Can Count On',fontSize:28,fontWeight:'800'}},{id:'e9',type:'paragraph',props:{text:'Fast turnaround without compromising quality.',fontSize:15}},{id:'e10',type:'button',props:{text:'Get a Quote',navTarget:'#contact',bgColor:'#22c55e',textColor:'#fff'}}]}] },
+  { id:'team-grid',           name:'Team Grid',             description:'Heading + four team member cards.', grid:{rows:2,cols:4,gap:16}, blocks:[{id:'b1',type:'text',position:{row:1,col:1,colSpan:4,rowSpan:1,section:0},props:{textAlign:'center'},subElements:[{id:'e1',type:'heading',props:{text:'OUR TEAM',fontSize:11,fontWeight:'700',color:'#22c55e',textTransform:'uppercase',letterSpacing:2,textAlign:'center'}},{id:'e2',type:'heading',props:{text:'Meet the People Behind the Work',fontSize:32,fontWeight:'800',textAlign:'center'}},{id:'e3',type:'paragraph',props:{text:'Experienced, dedicated, and ready to help.',fontSize:15,textAlign:'center'}}]},{id:'b2',type:'card',position:{row:2,col:1,colSpan:1,rowSpan:1,section:0},props:{},subElements:[{id:'e4',type:'image',props:{src:'',alt:'Team member',elRadius:8}},{id:'e5',type:'heading',props:{text:'Jane Smith',fontSize:16,fontWeight:'700'}},{id:'e6',type:'paragraph',props:{text:'Operations Manager',fontSize:13,color:'#6c757d'}}]},{id:'b3',type:'card',position:{row:2,col:2,colSpan:1,rowSpan:1,section:0},props:{},subElements:[{id:'e7',type:'image',props:{src:'',alt:'Team member',elRadius:8}},{id:'e8',type:'heading',props:{text:'John Doe',fontSize:16,fontWeight:'700'}},{id:'e9',type:'paragraph',props:{text:'Lead Engineer',fontSize:13,color:'#6c757d'}}]},{id:'b4',type:'card',position:{row:2,col:3,colSpan:1,rowSpan:1,section:0},props:{},subElements:[{id:'e10',type:'image',props:{src:'',alt:'Team member',elRadius:8}},{id:'e11',type:'heading',props:{text:'Sarah Lee',fontSize:16,fontWeight:'700'}},{id:'e12',type:'paragraph',props:{text:'Client Relations',fontSize:13,color:'#6c757d'}}]},{id:'b5',type:'card',position:{row:2,col:4,colSpan:1,rowSpan:1,section:0},props:{},subElements:[{id:'e13',type:'image',props:{src:'',alt:'Team member',elRadius:8}},{id:'e14',type:'heading',props:{text:'Mike Brown',fontSize:16,fontWeight:'700'}},{id:'e15',type:'paragraph',props:{text:'Site Supervisor',fontSize:13,color:'#6c757d'}}]}] },
+];
+
+let _layoutsRendered = false;
+function renderLayoutsTab() {
+  if (_layoutsRendered) return;
+  _layoutsRendered = true;
+  const container = document.getElementById('layouts-list');
+  if (!container) return;
+  SECTION_PRESETS.forEach(function(preset) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid #f0f0f0;';
+    const info = document.createElement('div');
+    info.style.cssText = 'flex:1;min-width:0;';
+    const name = document.createElement('div');
+    name.style.cssText = 'font-size:13px;font-weight:600;';
+    name.textContent = preset.name;
+    const desc = document.createElement('div');
+    desc.style.cssText = 'font-size:11px;color:#6c757d;margin-top:1px;';
+    desc.textContent = preset.description;
+    info.appendChild(name);
+    info.appendChild(desc);
+    const btn = document.createElement('button');
+    btn.style.cssText = 'padding:4px 10px;font-size:12px;white-space:nowrap;background:#0d6efd;color:#fff;border:none;border-radius:4px;cursor:pointer;flex-shrink:0;';
+    btn.textContent = 'Apply';
+    btn.onclick = (function(p) { return function() { applyPresetById(p.id); }; })(preset);
+    row.appendChild(info);
+    row.appendChild(btn);
+    container.appendChild(row);
+  });
+}
+
+function applyPresetById(presetId) {
+  const preset = SECTION_PRESETS.find(function(p) { return p.id === presetId; });
+  if (!preset) return;
+  if (!confirm('Apply "' + preset.name + '"? This will replace the current section layout.')) return;
+  state.layoutType = 'grid';
+  state.gridRows   = preset.grid.rows;
+  state.gridCols   = preset.grid.cols;
+  state.gridGap    = preset.grid.gap;
+  state.blocks     = JSON.parse(JSON.stringify(preset.blocks));
+  state.selectedBlockId = null;
+  state.selectedSubId   = null;
+  renderCanvas();
+  renderProps();
+  autoSaveDraft();
 }
 
 // ─── Volt Library ────────────────────────────────────────────────────────────
