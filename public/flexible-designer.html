@@ -1147,6 +1147,7 @@
               <select class="form-select form-select-sm" id="layoutType" onchange="onLayoutChange()">
                 <option value="grid">Grid Layout</option>
                 <option value="preset">Preset Layout</option>
+                <option value="mosaic">Mosaic / Bento Gallery</option>
               </select>
             </div>
 
@@ -1179,6 +1180,27 @@
               </div>
             </div>
 
+            <!-- Mosaic Config -->
+            <div class="config-box" id="mosaic-config" style="display:none;">
+              <div class="config-box-label">Mosaic Configuration</div>
+              <div style="font-size:11px;color:#6c757d;margin-bottom:8px;">12-column auto-flow bento grid. Each block gets a size preset.</div>
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <label class="form-label mb-0 small" style="min-width:72px;">Row height</label>
+                <input type="range" class="form-range" id="mosaicRowH" min="80" max="500" value="200"
+                  onmousedown="pushHistory()"
+                  oninput="document.getElementById('mosaicRowHVal').textContent=this.value+'px'; renderCanvas(); autoSave();">
+                <span class="slider-value" id="mosaicRowHVal">200px</span>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <label class="form-label mb-0 small" style="min-width:72px;">Gap</label>
+                <input type="range" class="form-range" id="mosaicGap" min="0" max="32" value="10"
+                  onmousedown="pushHistory()"
+                  oninput="document.getElementById('mosaicGapVal').textContent=this.value+'px'; renderCanvas(); autoSave();">
+                <span class="slider-value" id="mosaicGapVal">10px</span>
+              </div>
+              <div style="font-size:10px;color:#dc3545;margin-top:4px;">&#9888; Mobile preview not supported for mosaic — use the live preview to check mobile rendering.</div>
+            </div>
+
             <!-- Preset Config -->
             <div class="config-box" id="preset-config" style="display:none;">
               <div class="config-box-label">Preset Layout</div>
@@ -1194,6 +1216,61 @@
               <button class="preset-btn" onclick="selectPreset('4-col-grid',this)">⬛⬛⬛⬛ Four Column (25/25/25/25)</button>
               <button class="preset-btn" onclick="selectPreset('banner-content',this)">▬ Banner + Content</button>
               <button class="preset-btn" onclick="selectPreset('2-col-text',this)">⬛⬛ Two Column Text</button>
+            </div>
+
+            <!-- Section Header Config -->
+            <div class="config-box">
+              <div class="config-box-label">Section Header</div>
+              <div class="mb-2">
+                <label class="form-label small mb-1">Eyebrow</label>
+                <input type="text" class="form-control form-control-sm" id="sectionEyebrow" placeholder='e.g. "OUR SERVICES"' oninput="autoSave()">
+              </div>
+              <div class="mb-2">
+                <label class="form-label small mb-1">Heading</label>
+                <textarea class="form-control form-control-sm" id="sectionHeading" rows="2" placeholder='e.g. "Three services.\nOne promise."' oninput="autoSave()"></textarea>
+              </div>
+              <div class="mb-2">
+                <label class="form-label small mb-1">Subheading <span style="color:#6c757d;font-weight:400;">(optional)</span></label>
+                <input type="text" class="form-control form-control-sm" id="sectionSubheading" placeholder="Small text below heading" oninput="autoSave()">
+              </div>
+              <div class="mb-2">
+                <label class="form-label small mb-1">Header Style</label>
+                <div style="display:flex;gap:4px;margin-bottom:6px;">
+                  <button class="preset-btn active" id="hv-centered" onclick="setHeaderVariant('centered')">&#9632; Centered</button>
+                  <button class="preset-btn" id="hv-split" onclick="setHeaderVariant('split')">&#9632;&#9632; Split</button>
+                </div>
+                <select id="sectionHeaderVariant" style="display:none;">
+                  <option value="centered">centered</option>
+                  <option value="split">split</option>
+                </select>
+              </div>
+              <div id="sectionLeadRow" style="display:none;">
+                <label class="form-label small mb-1">Lead Text</label>
+                <textarea class="form-control form-control-sm" id="sectionLead" rows="3" placeholder="Body copy shown beside the heading..." oninput="autoSave()"></textarea>
+              </div>
+            </div>
+
+            <!-- Section Footer Config -->
+            <div class="config-box">
+              <div class="config-box-label">Section Footer</div>
+              <div class="form-check form-switch mb-2" style="font-size:13px;">
+                <input class="form-check-input" type="checkbox" role="switch" id="sectionFooterEnabled" onchange="toggleSectionFooter()">
+                <label class="form-check-label" for="sectionFooterEnabled">Enable section footer</label>
+              </div>
+              <div id="sectionFooterFields" style="display:none;">
+                <div class="mb-2">
+                  <label class="form-label small mb-1">Footer left text</label>
+                  <input type="text" class="form-control form-control-sm" id="sectionFooterLeft" placeholder="Supports [em]accent[/em] syntax" oninput="autoSave()">
+                </div>
+                <div class="mb-2">
+                  <label class="form-label small mb-1">Button label</label>
+                  <input type="text" class="form-control form-control-sm" id="sectionFooterBtnLabel" placeholder='e.g. "See All"' oninput="autoSave()">
+                </div>
+                <div>
+                  <label class="form-label small mb-1">Button href</label>
+                  <input type="text" class="form-control form-control-sm" id="sectionFooterBtnHref" placeholder='e.g. "#services"' oninput="autoSave()">
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1262,6 +1339,16 @@
               <div class="element-card" draggable="true" ondragstart="onLibDragStart(event,'editorial')">
                 <div class="ec-icon">📰</div>
                 <div class="ec-name">Editorial</div>
+                <span class="ec-badge container">Block</span>
+              </div>
+              <div class="element-card" draggable="true" ondragstart="onLibDragStart(event,'steps')">
+                <div class="ec-icon">🔢</div>
+                <div class="ec-name">Steps</div>
+                <span class="ec-badge container">Block</span>
+              </div>
+              <div class="element-card" draggable="true" ondragstart="onLibDragStart(event,'photo-strip')">
+                <div class="ec-icon">🖼️</div>
+                <div class="ec-name">Photo Strip</div>
                 <span class="ec-badge container">Block</span>
               </div>
             </div>
@@ -1529,6 +1616,8 @@ const BLOCK_DEFAULTS = {
   divider:     { label:'Divider', thickness:2, dividerColor:'#dee2e6', customCss:'' },
   volt:        { label:'Volt', bgColor:'transparent', voltId:'', voltName:'', voltThumbnail:null, voltLayerOverrides:{}, customCss:'' },
   editorial:   { label:'Editorial', text:'Start typing your editorial content here. This text will flow around any obstacle images you place in the block. You can use multiple obstacles — each with its own position, size, and alpha hull tracing for precise text wrapping.', fontFamily:'Merriweather', fontSize:18, lineHeight:1.6, textColor:'#212529', bgColor:'transparent', obstacles:[], customCss:'' },
+  steps:       { label:'Steps', steps:[{number:'01',heading:'Discovery',subtext:'We analyse your requirements and technical constraints.'},{number:'02',heading:'Design',subtext:'We prototype and validate the solution with stakeholders.'},{number:'03',heading:'Build',subtext:'We implement, test, and deploy the solution.'}], stepsNumberWidth:100, stepsDividers:true, stepsLastDivider:false, customCss:'' },
+  'photo-strip':{ label:'Photo Strip', images:[{src:'',alt:''},{src:'',alt:''},{src:'',alt:''}], columns:3, height:220, gap:4, hoverBrightness:true, customCss:'' },
 };
 
 const SUB_DEFAULTS = {
@@ -1565,6 +1654,18 @@ function snapshotState() {
     preset:       state.preset,
     positionMode: state.positionMode,
     nextId:       state.nextId,
+    mosaicRowH:   parseInt(document.getElementById('mosaicRowH')?.value||'200'),
+    mosaicGap:    parseInt(document.getElementById('mosaicGap')?.value||'10'),
+    // Section header / footer fields
+    sectionEyebrow:        document.getElementById('sectionEyebrow')?.value  || '',
+    sectionHeading:        document.getElementById('sectionHeading')?.value  || '',
+    sectionSubheading:     document.getElementById('sectionSubheading')?.value || '',
+    sectionHeaderVariant:  document.getElementById('sectionHeaderVariant')?.value || 'centered',
+    sectionLead:           document.getElementById('sectionLead')?.value    || '',
+    sectionFooterEnabled:  !!document.getElementById('sectionFooterEnabled')?.checked,
+    sectionFooterLeft:     document.getElementById('sectionFooterLeft')?.value || '',
+    sectionFooterBtnLabel: document.getElementById('sectionFooterBtnLabel')?.value || '',
+    sectionFooterBtnHref:  document.getElementById('sectionFooterBtnHref')?.value || '',
     // Deep clone blocks so history entries are independent from live state
     blocks:       JSON.parse(JSON.stringify(state.blocks))
   });
@@ -1666,12 +1767,39 @@ function applySnapshot(snap, addToHistory) {
   document.getElementById('edgePadVal').textContent = state.edgePad + 'px';
   document.getElementById('multiLimit').value   = s.multiLimit;
   document.getElementById('multiLimitVal').textContent = s.multiLimit;
+  // Restore mosaic config — always apply with fallback defaults
+  const rowH = s.mosaicRowH ?? 200;
+  const rowHEl = document.getElementById('mosaicRowH');
+  if (rowHEl) { rowHEl.value = rowH; document.getElementById('mosaicRowHVal').textContent = rowH + 'px'; }
+  const g = s.mosaicGap ?? 10;
+  const gEl = document.getElementById('mosaicGap');
+  if (gEl) { gEl.value = g; document.getElementById('mosaicGapVal').textContent = g + 'px'; }
   updatePositionModeBadge();
   // Restore active preset button highlight based on the saved preset key
   document.querySelectorAll('#preset-config .preset-btn').forEach(b => b.classList.remove('active'));
   const activePresetBtn = [...document.querySelectorAll('#preset-config .preset-btn')]
     .find(b => b.getAttribute('onclick')?.includes(`'${state.preset}'`));
   if (activePresetBtn) activePresetBtn.classList.add('active');
+  // Restore section header/footer fields
+  const eid = document.getElementById('sectionEyebrow');    if (eid) eid.value = s.sectionEyebrow || '';
+  const hid = document.getElementById('sectionHeading');    if (hid) hid.value = s.sectionHeading || '';
+  const sid = document.getElementById('sectionSubheading'); if (sid) sid.value = s.sectionSubheading || '';
+  const vid = document.getElementById('sectionHeaderVariant'); if (vid) { vid.value = s.sectionHeaderVariant || 'centered'; }
+  const hvCentered = document.getElementById('hv-centered');
+  const hvSplit    = document.getElementById('hv-split');
+  const leadRow    = document.getElementById('sectionLeadRow');
+  const isSplit    = (s.sectionHeaderVariant === 'split');
+  if (hvCentered) hvCentered.classList.toggle('active', !isSplit);
+  if (hvSplit)    hvSplit.classList.toggle('active', isSplit);
+  if (leadRow)    leadRow.style.display = isSplit ? '' : 'none';
+  const lid = document.getElementById('sectionLead');       if (lid) lid.value = s.sectionLead || '';
+  const fEnabled = document.getElementById('sectionFooterEnabled');
+  const fFields  = document.getElementById('sectionFooterFields');
+  if (fEnabled) fEnabled.checked = !!s.sectionFooterEnabled;
+  if (fFields)  fFields.style.display = s.sectionFooterEnabled ? '' : 'none';
+  const flid = document.getElementById('sectionFooterLeft');     if (flid) flid.value = s.sectionFooterLeft || '';
+  const fblid = document.getElementById('sectionFooterBtnLabel'); if (fblid) fblid.value = s.sectionFooterBtnLabel || '';
+  const fbhid = document.getElementById('sectionFooterBtnHref');  if (fbhid) fbhid.value = s.sectionFooterBtnHref || '';
   // Clear selection — the previously selected block may not exist in the snapshot
   state.selectedBlockId = null;
   state.selectedSubId   = null;
@@ -1874,13 +2002,15 @@ function renderCanvas() {
     badge.textContent = `Multi Section — ${state.multiLimit}×100vh`;
   }
 
-  // Show the appropriate config panel (grid sliders vs preset buttons)
+  // Show the appropriate config panel (grid sliders vs preset buttons vs mosaic)
   document.getElementById('grid-config').style.display   = state.layoutType === 'grid'   ? 'block' : 'none';
   document.getElementById('preset-config').style.display = state.layoutType === 'preset' ? 'block' : 'none';
+  document.getElementById('mosaic-config').style.display = state.layoutType === 'mosaic' ? 'block' : 'none';
 
   // In grid mode: re-snap blocks to grid metrics (clamp positions/spans to new bounds).
-  // In free mode: blocks keep their stored x/y/w/h — no grid snap applied here.
-  if (state.positionMode !== 'free') {
+  // In free mode or mosaic mode: blocks keep their stored x/y/w/h — no grid snap applied here.
+  // Mosaic positioning is handled entirely in renderMosaicBlocks().
+  if (state.positionMode !== 'free' && state.layoutType !== 'mosaic') {
     const maxSection = state.contentMode === 'multi' ? state.multiLimit - 1 : 0;
     state.blocks.forEach(b => {
       // Clamp all grid coordinates to valid bounds after grid dimension changes
@@ -1990,6 +2120,8 @@ function renderGridOverlay() {
   if (!state.showGuides) return;
   // In free mode the grid doesn't apply — hide grid cells entirely
   if (state.positionMode === 'free') return;
+  // In mosaic mode the 12-col auto-flow grid is handled by renderMosaicBlocks
+  if (state.layoutType === 'mosaic') return;
   // In mobile preview the blocks are stacked full-width — grid overlay is meaningless
   if (state.devicePreview === 'mobile') return;
 
@@ -2037,10 +2169,21 @@ function renderGridOverlay() {
  * Replaces all .container-block DOM elements with freshly created ones
  * from state.blocks. Called as part of renderCanvas() and after any
  * structural block mutation (add, remove, move).
+ * In mosaic mode, delegates to renderMosaicBlocks() for bento-grid preview.
  */
 function renderBlocks() {
   // Remove stale block elements before rebuilding from state
   document.querySelectorAll('.container-block').forEach(el => el.remove());
+
+  // Mosaic mode: render bento-grid tiles instead of the absolute-positioned canvas
+  if (state.positionMode !== 'free' && state.layoutType === 'mosaic') {
+    renderMosaicBlocks();
+    const hint = document.getElementById('canvas-empty-hint');
+    if (hint) hint.style.display = state.blocks.length === 0 ? 'flex' : 'none';
+    updateMiniToolbar();
+    return;
+  }
+
   state.blocks.forEach(block => {
     document.getElementById('canvas').appendChild(createBlockElement(block));
   });
@@ -2049,6 +2192,140 @@ function renderBlocks() {
   if (hint) hint.style.display = state.blocks.length === 0 ? 'flex' : 'none';
   // Reposition mini-toolbar for selected block
   updateMiniToolbar();
+}
+
+/**
+ * Renders the mosaic canvas as a bento-grid preview.
+ * Simulates CSS auto-flow placement (row-major, 12 columns) using the
+ * block's mosaicPreset to determine colSpan and rowSpan.
+ * Each tile shows the block type icon, label, and an inline preset select.
+ * Uses safe DOM construction — no dynamic innerHTML.
+ */
+function renderMosaicBlocks() {
+  var MOSAIC_PRESETS = { 's-lg':[6,2], 's-md':[4,2], 's-sm':[4,1], 's-tall':[4,2], 's-wide':[8,1], 's-mid':[6,1] };
+  var PRESET_LABELS  = { 's-lg':'Large 6×2', 's-md':'Medium 4×2', 's-sm':'Small 4×1', 's-tall':'Tall 4×2', 's-wide':'Wide 8×1', 's-mid':'Mid 6×1' };
+  var TYPE_ICONS     = { hero:'🎬', card:'🃏', 'text-block':'📝', banner:'📢', stats:'📊', image:'🖼️', video:'🎥', divider:'—', volt:'⚡', editorial:'✍️' };
+
+  var canvas = document.getElementById('canvas');
+  var canvasW = canvas.offsetWidth || 1200;
+  var rowH = parseInt(document.getElementById('mosaicRowH').value) || 200;
+  var gap  = parseInt(document.getElementById('mosaicGap').value)  || 10;
+  var colW = (canvasW - gap * 11) / 12;
+
+  // Per-column "next free row" — tracks which row each of 12 columns is free from
+  var nextFree = new Array(12).fill(0);
+  var maxRow = 0; // track max row for canvas height
+
+  state.blocks.forEach(function(block) {
+    var preset = block.mosaicPreset || 's-sm';
+    var dims   = MOSAIC_PRESETS[preset] || [4, 1];
+    var cols   = Math.min(dims[0], 12), rows = dims[1];
+
+    // Find earliest (row, col) where cols consecutive columns are all free
+    var placed = false, placeRow = 0, placeCol = 0;
+    outer: for (var r = 0; !placed; r++) {
+      for (var c = 0; c + cols <= 12; c++) {
+        var maxFree = 0;
+        for (var ci = c; ci < c + cols; ci++) maxFree = Math.max(maxFree, nextFree[ci]);
+        if (maxFree <= r) { placeRow = r; placeCol = c; placed = true; break outer; }
+      }
+    }
+    // Mark columns as occupied
+    for (var ci = placeCol; ci < placeCol + cols; ci++) nextFree[ci] = placeRow + rows;
+    if (placeRow + rows > maxRow) maxRow = placeRow + rows;
+
+    var x = placeCol * (colW + gap);
+    var y = placeRow * (rowH + gap);
+    var w = cols * colW + (cols - 1) * gap;
+    var h = rows * rowH + (rows - 1) * gap;
+
+    block.x = x; block.y = y; block.w = w; block.h = h;
+
+    var isSelected = state.selectedBlockId === block.id;
+
+    var el = document.createElement('div');
+    el.className = 'container-block mosaic-tile' + (isSelected ? ' selected cb-selected' : '');
+    el.dataset.blockId = block.id;
+    el.style.position  = 'absolute';
+    el.style.left      = x + 'px';
+    el.style.top       = y + 'px';
+    el.style.width     = w + 'px';
+    el.style.height    = h + 'px';
+    el.style.boxSizing = 'border-box';
+    el.style.overflow  = 'hidden';
+    el.style.borderRadius = '6px';
+    el.style.background   = '#f8f9fa';
+    el.style.border    = '2px solid ' + (isSelected ? '#0d6efd' : '#dee2e6');
+
+    // Centre: icon + type label
+    var centre = document.createElement('div');
+    centre.style.position       = 'absolute';
+    centre.style.inset          = '0';
+    centre.style.display        = 'flex';
+    centre.style.flexDirection  = 'column';
+    centre.style.alignItems     = 'center';
+    centre.style.justifyContent = 'center';
+    centre.style.gap            = '4px';
+    centre.style.paddingTop     = '0';
+    centre.style.pointerEvents  = 'none';
+    var iconEl = document.createElement('div');
+    iconEl.style.fontSize   = '28px';
+    iconEl.style.lineHeight = '1';
+    iconEl.textContent = TYPE_ICONS[block.type] || '📦';
+    var labelEl = document.createElement('div');
+    labelEl.style.fontSize  = '11px';
+    labelEl.style.fontWeight = '600';
+    labelEl.style.color     = '#495057';
+    labelEl.style.textAlign = 'center';
+    labelEl.style.padding   = '0 8px';
+    labelEl.textContent = block.type;
+    centre.appendChild(iconEl);
+    centre.appendChild(labelEl);
+    el.appendChild(centre);
+
+    // Preset selector at bottom
+    var selectWrap = document.createElement('div');
+    selectWrap.style.position = 'absolute';
+    selectWrap.style.bottom   = '6px';
+    selectWrap.style.left     = '6px';
+    selectWrap.style.right    = '6px';
+    selectWrap.style.zIndex   = '3';
+    var sel = document.createElement('select');
+    sel.className = 'form-select form-select-sm';
+    sel.style.fontSize = '10px';
+    sel.style.padding  = '1px 4px';
+    sel.style.height   = 'auto';
+    Object.keys(MOSAIC_PRESETS).forEach(function(k) {
+      var opt = document.createElement('option');
+      opt.value = k;
+      opt.textContent = PRESET_LABELS[k];
+      if (k === preset) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    sel.addEventListener('change', function(ev) {
+      ev.stopPropagation();
+      setMosaicPreset(block.id, sel.value);
+    });
+    sel.addEventListener('click', function(ev) { ev.stopPropagation(); });
+    selectWrap.appendChild(sel);
+    el.appendChild(selectWrap);
+
+    // Click tile to select block
+    el.addEventListener('click', function(ev) {
+      if (ev.target === sel || ev.target.tagName === 'OPTION') return;
+      state.selectedBlockId = block.id;
+      state.selectedSubId   = null;
+      renderBlocks();
+      renderPropsPanel();
+    });
+
+    canvas.appendChild(el);
+  });
+
+  // Expand canvas to fit all mosaic tiles
+  var totalH = Math.max(maxRow * (rowH + gap) - gap, 0);
+  canvas.style.height    = Math.max(totalH + 40, 300) + 'px';
+  canvas.style.minHeight = Math.max(totalH + 40, 300) + 'px';
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -2397,6 +2674,39 @@ function createBlockPreview(block) {
         });
         wrap.appendChild(edObsEl);
       });
+      break;
+    }
+    case 'steps': {
+      var stepsArr = p.steps || [];
+      var stepsHtml = '';
+      stepsArr.slice(0,3).forEach(function(st) {
+        stepsHtml += '<div style="display:grid;grid-template-columns:56px 1fr;align-items:start;padding:6px 0;border-top:1px solid rgba(255,255,255,0.1);">'
+          + '<div style="font-size:18px;font-weight:700;color:#22c55e;line-height:1;">' + escHtml(st.number||'01') + '</div>'
+          + '<div><div style="font-size:11px;font-weight:700;color:inherit;">' + escHtml(st.heading||'') + '</div>'
+          + (st.subtext ? '<div style="font-size:10px;opacity:0.55;">' + escHtml(st.subtext) + '</div>' : '')
+          + '</div></div>';
+      });
+      wrap.innerHTML = '<div style="padding:10px 12px;height:100%;overflow:hidden;">' + stepsHtml + '</div>';
+      break;
+    }
+    case 'photo-strip': {
+      var psImgs = p.images || [];
+      var psCols = p.columns || psImgs.length || 3;
+      var psHtml = '<div style="display:grid;grid-template-columns:repeat(' + psCols + ',1fr);gap:' + (p.gap||4) + 'px;height:100%;overflow:hidden;">';
+      psImgs.forEach(function(img) {
+        if (img.src) {
+          psHtml += '<div style="background:url(\'' + escHtml(img.src) + '\') center/cover;height:100%;border-radius:2px;filter:brightness(0.85);"></div>';
+        } else {
+          psHtml += '<div style="background:#374151;height:100%;border-radius:2px;display:flex;align-items:center;justify-content:center;"><i class="bi bi-image" style="color:#6b7280;font-size:18px;"></i></div>';
+        }
+      });
+      if (psImgs.length === 0) {
+        for (var ci=0;ci<psCols;ci++) {
+          psHtml += '<div style="background:#374151;height:100%;border-radius:2px;display:flex;align-items:center;justify-content:center;"><i class="bi bi-image" style="color:#6b7280;font-size:18px;"></i></div>';
+        }
+      }
+      psHtml += '</div>';
+      wrap.innerHTML = psHtml;
       break;
     }
     default:
@@ -3270,6 +3580,7 @@ function onCanvasDrop(e) {
       id: `block-${state.nextId++}`,
       type: 'volt',
       section: 0, gridRow: 1, gridCol: 1, colSpan: 1, rowSpan: 1,
+      mosaicPreset: state.layoutType === 'mosaic' ? 's-sm' : undefined,
       x: blockX, y: blockY, w: blockW, h: blockH,
       zIndex: 1,
       props: { ...BLOCK_DEFAULTS['volt'], voltId: src.voltId, voltName: src.voltName, voltThumbnail: src.voltThumbnail },
@@ -3301,6 +3612,10 @@ function onCanvasDrop(e) {
       blockX = Math.max(0, Math.min(canvas.offsetWidth  - blockW, x - blockW/2));
       blockY = Math.max(0, Math.min(canvas.offsetHeight - blockH, y - blockH/2));
       row = 1; col = 1; section = 0;
+    } else if (state.layoutType === 'mosaic') {
+      // Mosaic mode: block position is computed by renderMosaicBlocks; use placeholder
+      blockX = 0; blockY = 0; blockW = 300; blockH = 200;
+      row = 1; col = 1; section = 0;
     } else {
       const cell = findCell(x, y);
       row = cell.row; col = cell.col; section = cell.section;
@@ -3312,6 +3627,7 @@ function onCanvasDrop(e) {
       id: `block-${state.nextId++}`,
       type: bType,
       section, gridRow: row, gridCol: col, colSpan: 1, rowSpan: 1,
+      mosaicPreset: state.layoutType === 'mosaic' ? 's-sm' : undefined,
       x: blockX, y: blockY, w: blockW, h: blockH,
       zIndex: 1,
       props: { ...BLOCK_DEFAULTS[bType] },
@@ -3341,8 +3657,8 @@ function onCanvasDrop(e) {
       ];
     }
     // text-block starts empty — user chooses heading levels and content
-    // Conflict check only in grid mode (free mode allows overlapping)
-    if (state.positionMode !== 'free' && wouldOverlapExisting(row, col, 1, 1, section)) {
+    // Conflict check only in grid mode (free mode and mosaic mode allow overlapping / auto-placement)
+    if (state.positionMode !== 'free' && state.layoutType !== 'mosaic' && wouldOverlapExisting(row, col, 1, 1, section)) {
       showDropConflictPopup(e.clientX, e.clientY, { block, isMove: false });
       return;
     }
@@ -3936,6 +4252,26 @@ function renderBlockProps(block) {
       </div>
       <button class="action-btn reset mt-2" onclick="setBlockPosFull('${block.id}','center')">⊕ Center on Canvas</button>
     </div>`;
+  } else if (state.layoutType === 'mosaic') {
+    // ── Mosaic mode: size preset picker ───────────────────────────────────
+    const mPreset = block.mosaicPreset || 's-sm';
+    const mOpts = [
+      ['s-lg',   'Large (6 cols × 2 rows) — Feature'],
+      ['s-md',   'Medium (4 cols × 2 rows) — Portrait'],
+      ['s-sm',   'Small (4 cols × 1 row) — Landscape'],
+      ['s-tall', 'Tall (4 cols × 2 rows)'],
+      ['s-wide', 'Wide (8 cols × 1 row) — Banner'],
+      ['s-mid',  'Mid (6 cols × 1 row)'],
+    ];
+    h+=`<div class="props-section">
+      <div class="props-label"><i class="bi bi-grid-3x3-gap"></i> Block Size (Mosaic Preset)</div>
+      <div style="font-size:11px;color:#6c757d;margin-bottom:6px;">12-column auto-flow grid. Select how many columns and rows this block spans.</div>
+      <div class="props-row"><label>Preset</label>
+        <select class="props-input" onchange="setMosaicPreset('${block.id}',this.value)">
+          ${mOpts.map(([v,lbl])=>`<option value="${v}"${mPreset===v?' selected':''}>${lbl}</option>`).join('')}
+        </select>
+      </div>
+    </div>`;
   } else {
     // ── Grid mode: row/col/span controls ──────────────────────────────────
     h+=`<div class="props-section">
@@ -4260,6 +4596,54 @@ function renderTypeProps(block) {
         h += `<div style="text-align:center;font-size:11px;color:#adb5bd;font-style:italic;padding:8px 0;">No obstacles yet — click Add to place an image obstacle</div>`;
       }
       h += `</div>`;
+      break;
+    }
+    case 'steps': {
+      var stps = p.steps || [];
+      h+=`<div style="margin-bottom:6px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <label style="font-size:11px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;">Steps (${stps.length})</label>
+          <button style="padding:3px 10px;border:1px solid #0d6efd;border-radius:6px;background:none;color:#0d6efd;font-size:11px;cursor:pointer;" onclick="addStep('${block.id}')"><i class="bi bi-plus-circle me-1"></i>Add</button>
+        </div>`;
+      stps.forEach(function(st, idx) {
+        h+=`<div style="background:#f8f9fa;border-radius:6px;padding:8px;margin-bottom:6px;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+            <span style="font-size:10px;font-weight:700;color:#6c757d;">STEP ${idx+1}</span>
+            <button class="btn-icon-sm btn-danger-sm" title="Remove" onclick="removeStep('${block.id}',${idx})"><i class="bi bi-trash3"></i></button>
+          </div>
+          <input class="props-input" type="text" placeholder="Number (e.g. 01)" value="${escHtml(st.number||'')}" style="margin-bottom:4px;" oninput="updateStep('${block.id}',${idx},'number',this.value)">
+          <input class="props-input" type="text" placeholder="Heading" value="${escHtml(st.heading||'')}" style="margin-bottom:4px;" oninput="updateStep('${block.id}',${idx},'heading',this.value)">
+          <input class="props-input" type="text" placeholder="Subtext (optional)" value="${escHtml(st.subtext||'')}" oninput="updateStep('${block.id}',${idx},'subtext',this.value)">
+        </div>`;
+      });
+      h+=`</div>`;
+      h+=`<div class="props-row"><label>Number column width</label><input class="props-input" type="range" min="48" max="200" step="4" value="${p.stepsNumberWidth||100}" oninput="updateBlockProp('${block.id}','stepsNumberWidth',parseInt(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.stepsNumberWidth||100}px</span></div>`;
+      h+=`<div class="props-row" style="align-items:center;"><label style="flex:1;">Row dividers</label><input type="checkbox" style="width:18px;height:18px;cursor:pointer;" ${p.stepsDividers!==false?'checked':''} onchange="updateBlockProp('${block.id}','stepsDividers',this.checked);renderCanvas()"></div>`;
+      h+=`<div class="props-row" style="align-items:center;"><label style="flex:1;">Last row divider</label><input type="checkbox" style="width:18px;height:18px;cursor:pointer;" ${p.stepsLastDivider===true?'checked':''} onchange="updateBlockProp('${block.id}','stepsLastDivider',this.checked)"></div>`;
+      break;
+    }
+    case 'photo-strip': {
+      var psImages = p.images || [];
+      h+=`<div class="props-row"><label>Columns</label><input class="props-input" type="range" min="1" max="8" step="1" value="${p.columns||psImages.length||3}" oninput="updateBlockProp('${block.id}','columns',parseInt(this.value));renderCanvas();this.nextElementSibling.textContent=this.value"><span class="val">${p.columns||psImages.length||3}</span></div>`;
+      h+=`<div class="props-row"><label>Height</label><input class="props-input" type="range" min="80" max="600" step="10" value="${p.height||220}" oninput="updateBlockProp('${block.id}','height',parseInt(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.height||220}px</span></div>`;
+      h+=`<div class="props-row"><label>Gap</label><input class="props-input" type="range" min="0" max="32" step="1" value="${p.gap??4}" oninput="updateBlockProp('${block.id}','gap',parseInt(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.gap??4}px</span></div>`;
+      h+=`<div class="props-row" style="align-items:center;"><label style="flex:1;">Hover brightness effect</label><input type="checkbox" style="width:18px;height:18px;cursor:pointer;" ${p.hoverBrightness!==false?'checked':''} onchange="updateBlockProp('${block.id}','hoverBrightness',this.checked)"></div>`;
+      h+=`<div style="margin-top:6px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <label style="font-size:11px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;">Images (${psImages.length})</label>
+          <button style="padding:3px 10px;border:1px solid #0d6efd;border-radius:6px;background:none;color:#0d6efd;font-size:11px;cursor:pointer;" onclick="addStripImage('${block.id}')"><i class="bi bi-plus-circle me-1"></i>Add</button>
+        </div>`;
+      psImages.forEach(function(img, idx) {
+        h+=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;background:#f8f9fa;border-radius:6px;padding:6px;">
+          <div style="width:44px;height:36px;border-radius:4px;overflow:hidden;flex-shrink:0;background:#e9ecef;display:flex;align-items:center;justify-content:center;">
+            ${img.src ? `<img src="${escHtml(img.src)}" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'">` : '<i class="bi bi-image" style="font-size:14px;color:#adb5bd;"></i>'}
+          </div>
+          <input class="props-input" type="text" placeholder="Image URL…" value="${escHtml(img.src||'')}" style="flex:1;font-size:11px;" oninput="updateStripImage('${block.id}',${idx},'src',this.value)">
+          <button class="btn-icon-sm" title="Pick file" onclick="pickStripImage('${block.id}',${idx})"><i class="bi bi-folder2-open"></i></button>
+          <button class="btn-icon-sm btn-danger-sm" title="Remove" onclick="removeStripImage('${block.id}',${idx})"><i class="bi bi-trash3"></i></button>
+        </div>`;
+      });
+      h+=`</div>`;
       break;
     }
   }
@@ -4663,6 +5047,77 @@ function pickCarouselImage(bId, idx) {
   input.click();
 }
 
+// ── Steps helpers ────────────────────────────────────────────────────────────
+function addStep(bId) {
+  var b = state.blocks.find(function(x){return x.id==bId;});
+  if (!b) return;
+  if (!Array.isArray(b.props.steps)) b.props.steps = [];
+  var n = b.props.steps.length + 1;
+  b.props.steps = b.props.steps.concat([{number: (n<10?'0':'')+n, heading:'Step '+n, subtext:''}]);
+  autoSave(); renderCanvas(); renderPropsPanel();
+}
+
+function removeStep(bId, idx) {
+  var b = state.blocks.find(function(x){return x.id==bId;});
+  if (!b || !Array.isArray(b.props.steps)) return;
+  if (b.props.steps.length <= 1) return;
+  b.props.steps = b.props.steps.filter(function(_,i){return i!==idx;});
+  autoSave(); renderCanvas(); renderPropsPanel();
+}
+
+function updateStep(bId, idx, key, val) {
+  var b = state.blocks.find(function(x){return x.id==bId;});
+  if (!b || !Array.isArray(b.props.steps) || !b.props.steps[idx]) return;
+  var updated = Object.assign({}, b.props.steps[idx]);
+  updated[key] = val;
+  b.props.steps = b.props.steps.map(function(st, i){ return i===idx ? updated : st; });
+  autoSave();
+  if (key === 'number' || key === 'heading') renderCanvas();
+}
+
+// ── Photo Strip helpers ───────────────────────────────────────────────────────
+function addStripImage(bId) {
+  var b = state.blocks.find(function(x){return x.id==bId;});
+  if (!b) return;
+  if (!Array.isArray(b.props.images)) b.props.images = [];
+  b.props.images = b.props.images.concat([{src:'', alt:''}]);
+  autoSave(); renderCanvas(); renderPropsPanel();
+}
+
+function removeStripImage(bId, idx) {
+  var b = state.blocks.find(function(x){return x.id==bId;});
+  if (!b || !Array.isArray(b.props.images)) return;
+  b.props.images = b.props.images.filter(function(_,i){return i!==idx;});
+  autoSave(); renderCanvas(); renderPropsPanel();
+}
+
+function updateStripImage(bId, idx, key, val) {
+  var b = state.blocks.find(function(x){return x.id==bId;});
+  if (!b || !Array.isArray(b.props.images) || !b.props.images[idx]) return;
+  var updated = Object.assign({}, b.props.images[idx]);
+  updated[key] = val;
+  b.props.images = b.props.images.map(function(img, i){ return i===idx ? updated : img; });
+  autoSave();
+  if (key === 'src') renderCanvas();
+}
+
+function pickStripImage(bId, idx) {
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = function() {
+    var file = input.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      updateStripImage(bId, idx, 'src', ev.target.result);
+      renderPropsPanel();
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
+}
+
 /**
  * Updates a single property on a sub-element's props object and triggers autoSave.
  * Used by inline oninput/onchange handlers generated in renderSubTypeProps().
@@ -4681,6 +5136,20 @@ function updateSubProp(bId,sId,k,v) { const b=state.blocks.find(b=>b.id===bId); 
  * @param {*} v - New value to assign.
  */
 function setBlockGrid(bId,k,v) { const b=state.blocks.find(b=>b.id==bId); if(b) { b[k]=v; autoSave(); } } // eslint-disable-line eqeqeq
+
+/**
+ * Sets the mosaicPreset for a block in mosaic layout mode,
+ * then re-renders the canvas and auto-saves.
+ * @param {string} bId - Block ID.
+ * @param {string} preset - Mosaic preset key (e.g. 's-lg', 's-sm').
+ */
+function setMosaicPreset(bId, preset) {
+  const b = state.blocks.find(b => b.id === bId);
+  if (!b || b.mosaicPreset === preset) return;
+  pushHistory();
+  b.mosaicPreset = preset;
+  renderBlocks(); renderPropsPanel(); autoSave();
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  CELL OCCUPANCY & OVERLAP DETECTION
@@ -5317,8 +5786,22 @@ function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'
 // ═══════════════════════════════════════════════════════════
 /** Called when the content mode radio changes (single/multi). Re-renders and saves. */
 function onModeChange()   { renderCanvas(); autoSave(); }
-/** Called when the layout type radio changes (grid/preset/free). Re-renders and saves. */
-function onLayoutChange() { renderCanvas(); autoSave(); }
+/** Called when the layout type radio changes (grid/preset/mosaic/free). Re-renders and saves. */
+function onLayoutChange() {
+  pushHistory();
+  const v = document.getElementById('layoutType').value;
+  state.layoutType = v;
+  document.getElementById('grid-config').style.display   = (v === 'grid')   ? '' : 'none';
+  document.getElementById('preset-config').style.display = (v === 'preset') ? '' : 'none';
+  document.getElementById('mosaic-config').style.display = (v === 'mosaic') ? '' : 'none';
+  if (v === 'mosaic') {
+    // Mosaic doesn't support multi-section
+    document.getElementById('contentMode').value = 'single';
+    state.contentMode = 'single';
+    document.getElementById('multi-limit-row').style.display = 'none';
+  }
+  renderCanvas(); autoSave();
+}
 
 // ═══════════════════════════════════════════════════════════
 //  FREE-MODE HELPERS
@@ -5841,9 +6324,20 @@ function applyPresetById(presetId) {
   state.blocks     = JSON.parse(JSON.stringify(preset.blocks));
   state.selectedBlockId = null;
   state.selectedSubId   = null;
+  // Clear section header/footer when applying a preset (stale copy would be confusing)
+  ['sectionEyebrow','sectionHeading','sectionSubheading','sectionLead',
+   'sectionFooterLeft','sectionFooterBtnLabel','sectionFooterBtnHref'].forEach(function(id) {
+    var el = document.getElementById(id); if (el) el.value = '';
+  });
+  var fv = document.getElementById('sectionHeaderVariant'); if (fv) fv.value = 'centered';
+  var hvc = document.getElementById('hv-centered'); if (hvc) hvc.classList.add('active');
+  var hvs = document.getElementById('hv-split');    if (hvs) hvs.classList.remove('active');
+  var lr  = document.getElementById('sectionLeadRow'); if (lr) lr.style.display = 'none';
+  var fe  = document.getElementById('sectionFooterEnabled'); if (fe) fe.checked = false;
+  var ff  = document.getElementById('sectionFooterFields'); if (ff) ff.style.display = 'none';
   renderCanvas();
-  renderProps();
-  autoSaveDraft();
+  renderPropsPanel();
+  autoSave();
 }
 
 // ─── Volt Library ────────────────────────────────────────────────────────────
@@ -6166,11 +6660,31 @@ function buildJson() {
     layoutType:    state.positionMode==='free' ? 'free' : state.layoutType,
     grid:          state.positionMode!=='free' && state.layoutType==='grid' ? {rows:state.gridRows,cols:state.gridCols,gap:state.gridGap} : undefined,
     preset:        state.positionMode!=='free' && state.layoutType==='preset' ? state.preset : undefined,
+    layout:        state.positionMode!=='free' && state.layoutType==='mosaic'
+      ? { layoutMode:'mosaic', gridAutoRows: parseInt(document.getElementById('mosaicRowH')?.value||'200'), gridGap: parseInt(document.getElementById('mosaicGap')?.value||'10') }
+      : undefined,
+    sectionEyebrow:       document.getElementById('sectionEyebrow')?.value.trim() || undefined,
+    sectionHeading:       document.getElementById('sectionHeading')?.value.trim() || undefined,
+    sectionSubheading:    document.getElementById('sectionSubheading')?.value.trim() || undefined,
+    sectionHeaderVariant: (document.getElementById('sectionHeaderVariant')?.value === 'split') ? 'split' : undefined,
+    sectionLead: (document.getElementById('sectionHeaderVariant')?.value === 'split')
+      ? (document.getElementById('sectionLead')?.value.trim() || undefined)
+      : undefined,
+    sectionFooter: (function() {
+      if (!document.getElementById('sectionFooterEnabled')?.checked) return undefined;
+      const left  = document.getElementById('sectionFooterLeft')?.value.trim();
+      const label = document.getElementById('sectionFooterBtnLabel')?.value.trim();
+      const href  = document.getElementById('sectionFooterBtnHref')?.value.trim();
+      const obj = {};
+      if (left)  obj.leftText = left;
+      if (label && href) obj.rightButton = { label, href };
+      return Object.keys(obj).length ? obj : undefined;
+    })(),
     blocks:        state.blocks.map(b => ({
       id:          b.id,
       type:        b.type,
       // Grid position (used for CSS Grid renderer in grid mode)
-      position:    { row:b.gridRow, col:b.gridCol, colSpan:b.colSpan||1, rowSpan:b.rowSpan||1, section:b.section||0 },
+      position:    { row:b.gridRow, col:b.gridCol, colSpan:b.colSpan||1, rowSpan:b.rowSpan||1, section:b.section||0, mosaicPreset: b.mosaicPreset || undefined },
       // Vertical alignment within the grid cell: "top" | "center" | "bottom"
       verticalAlign: b.verticalAlign || undefined,
       // Pixel position (used for absolute renderer in free mode)
@@ -6275,15 +6789,19 @@ window.addEventListener('message', function(e) {
     const layout = typeof e.data.payload === 'string' ? JSON.parse(e.data.payload) : e.data.payload;
     if (layout && layout.blocks) {
       const isFreeMode = layout.positionMode === 'free' || layout.layoutType === 'free';
+      const isMosaicMode = layout.layout?.layoutMode === 'mosaic' || layout.layoutType === 'mosaic';
+      const resolvedLayoutType = isFreeMode ? 'grid' : (isMosaicMode ? 'mosaic' : (layout.layoutType || 'grid'));
       applySnapshot(JSON.stringify({
         contentMode:  layout.contentMode  || 'single',
-        positionMode: isFreeMode ? 'free' : (layout.positionMode || (layout.layoutType === 'grid' || layout.layoutType === 'preset' ? 'grid' : 'free')),
-        layoutType:   isFreeMode ? 'grid' : (layout.layoutType   || 'grid'),
+        positionMode: isFreeMode ? 'free' : (isMosaicMode ? 'grid' : (layout.positionMode || (layout.layoutType === 'grid' || layout.layoutType === 'preset' || layout.layoutType === 'mosaic' ? 'grid' : 'free'))),
+        layoutType:   resolvedLayoutType,
         gridRows:     layout.grid ? layout.grid.rows : (layout.gridRows || 2),
         gridCols:     layout.grid ? layout.grid.cols : (layout.gridCols || 3),
         gridGap:      layout.grid ? layout.grid.gap  : (layout.gridGap  || 16),
         multiLimit:   layout.multiLimit || 3,
         preset:       layout.preset     || 'full-width',
+        mosaicRowH:   layout.layout?.gridAutoRows ?? 200,
+        mosaicGap:    layout.layout?.gridGap      ?? 10,
         nextId:       layout.nextId || (layout.blocks.length > 0 ? layout.blocks.length + 100 : 1),
         blocks:       layout.blocks.map(b => {
           const pp = b.pixelPos || {};
@@ -6295,6 +6813,7 @@ window.addEventListener('message', function(e) {
             gridCol:  b.position ? b.position.col : (b.gridCol||1),
             colSpan:  b.position ? (b.position.colSpan||1) : (b.colSpan||1),
             rowSpan:  b.position ? (b.position.rowSpan||1) : (b.rowSpan||1),
+            mosaicPreset: b.position?.mosaicPreset || b.mosaicPreset || undefined,
             // Restore pixel positions from pixelPos or existing x/y/w/h
             x: pp.x !== undefined ? pp.x : (b.x || 0),
             y: pp.y !== undefined ? pp.y : (b.y || 0),
@@ -6311,6 +6830,32 @@ window.addEventListener('message', function(e) {
       }), false);
       // Cache desktop canvas width for responsive auto-scaling
       state._desktopCanvasW = layout.designerCanvasW || null;
+      // Restore section header/footer fields
+      if (layout.sectionEyebrow)    { const el = document.getElementById('sectionEyebrow');    if (el) el.value = layout.sectionEyebrow; }
+      if (layout.sectionHeading)    { const el = document.getElementById('sectionHeading');    if (el) el.value = layout.sectionHeading; }
+      if (layout.sectionSubheading) { const el = document.getElementById('sectionSubheading'); if (el) el.value = layout.sectionSubheading; }
+      if (layout.sectionHeaderVariant) {
+        const el = document.getElementById('sectionHeaderVariant');
+        if (el) el.value = layout.sectionHeaderVariant;
+        const leadRow = document.getElementById('sectionLeadRow');
+        if (leadRow) leadRow.style.display = layout.sectionHeaderVariant === 'split' ? '' : 'none';
+        const btnC = document.getElementById('hv-centered');
+        const btnS = document.getElementById('hv-split');
+        if (btnC) btnC.classList.toggle('active', layout.sectionHeaderVariant !== 'split');
+        if (btnS) btnS.classList.toggle('active', layout.sectionHeaderVariant === 'split');
+      }
+      if (layout.sectionLead) { const el = document.getElementById('sectionLead'); if (el) el.value = layout.sectionLead; }
+      if (layout.sectionFooter) {
+        const chk = document.getElementById('sectionFooterEnabled');
+        if (chk) chk.checked = true;
+        const fields = document.getElementById('sectionFooterFields');
+        if (fields) fields.style.display = '';
+        if (layout.sectionFooter.leftText) { const el = document.getElementById('sectionFooterLeft'); if (el) el.value = layout.sectionFooter.leftText; }
+        if (layout.sectionFooter.rightButton) {
+          const lbl = document.getElementById('sectionFooterBtnLabel'); if (lbl) lbl.value = layout.sectionFooter.rightButton.label || '';
+          const href = document.getElementById('sectionFooterBtnHref'); if (href) href.value = layout.sectionFooter.rightButton.href  || '';
+        }
+      }
       // Re-render after a paint frame so canvas has settled dimensions.
       // Without this, getCellRect reads offsetHeight=0 on the first render
       // (message fires before the browser paints the iframe layout), causing
@@ -6336,6 +6881,33 @@ function toggleSectionConfig() {
   if (!hdr || !body) return;
   hdr.classList.toggle('sc-collapsed');
   body.classList.toggle('sc-hidden');
+}
+
+// ───────────────────────────────────────────────────────────
+//  SECTION HEADER VARIANT
+// ───────────────────────────────────────────────────────────
+function setHeaderVariant(v) {
+  pushHistory();
+  const sel = document.getElementById('sectionHeaderVariant');
+  if (sel) sel.value = v;
+  const btnC = document.getElementById('hv-centered');
+  const btnS = document.getElementById('hv-split');
+  if (btnC) btnC.classList.toggle('active', v === 'centered');
+  if (btnS) btnS.classList.toggle('active', v === 'split');
+  const leadRow = document.getElementById('sectionLeadRow');
+  if (leadRow) leadRow.style.display = v === 'split' ? '' : 'none';
+  autoSave();
+}
+
+// ───────────────────────────────────────────────────────────
+//  SECTION FOOTER TOGGLE
+// ───────────────────────────────────────────────────────────
+function toggleSectionFooter() {
+  pushHistory();
+  const enabled = document.getElementById('sectionFooterEnabled')?.checked;
+  const fields  = document.getElementById('sectionFooterFields');
+  if (fields) fields.style.display = enabled ? '' : 'none';
+  autoSave();
 }
 
 // ═══════════════════════════════════════════════════════════
