@@ -1,11 +1,19 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import Editor from "@monaco-editor/react";
 import type { StandalonePageConfig } from "@/types/page";
 import SaveTemplateModal from "@/components/admin/SaveTemplateModal";
 import TemplatePickerModal, { type CmsTemplate } from "@/components/admin/TemplatePickerModal";
 import MediaPickerModal from "@/components/admin/MediaPickerModal";
+
+function extractSlotNames(html: string): string[] {
+  const seen = new Set<string>();
+  for (const m of html.matchAll(/\{\{cms\.media\.([a-z0-9_-]+)\}\}/g)) {
+    seen.add(m[1]);
+  }
+  return [...seen];
+}
 
 export interface StandaloneEditorSaveData {
   html: string;
@@ -75,6 +83,23 @@ export default function StandalonePageEditorModal({ page, onSave, onCancel, save
       setDynFeatures((featJson?.data ?? []) as Array<{ slug: string; enabled: boolean }>);
     }).catch(() => {});
   }, [activeTab]);
+
+  const detectedSlots = useMemo(() => extractSlotNames(html), [html]);
+
+  useEffect(() => {
+    if (detectedSlots.length === 0) return;
+    setMediaSlots(prev => {
+      const next = { ...prev };
+      let changed = false;
+      for (const name of detectedSlots) {
+        if (!(name in next)) { next[name] = ""; changed = true; }
+      }
+      return changed ? next : prev;
+    });
+  }, [detectedSlots]);
+
+  const unsetSlots = detectedSlots.filter(name => !mediaSlots[name]);
+  const showSlotWarning = page.enabled && unsetSlots.length > 0;
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -189,7 +214,7 @@ export default function StandalonePageEditorModal({ page, onSave, onCancel, save
                 { id: "html",  icon: "bi-filetype-html", label: "HTML" },
                 { id: "css",   icon: "bi-filetype-css",  label: "CSS" },
                 { id: "files", icon: "bi-link-45deg",    label: `CSS Files${cssUrls.length ? ` (${cssUrls.length})` : ""}` },
-                { id: "media", icon: "bi-images",        label: `Media${Object.keys(mediaSlots).length ? ` (${Object.keys(mediaSlots).length})` : ""}` },
+                { id: "media", icon: "bi-images",        label: `Media${Object.keys(mediaSlots).length ? ` (${Object.keys(mediaSlots).length})` : ""}${showSlotWarning ? " ⚠" : ""}` },
                 { id: "vars",  icon: "bi-braces",        label: "Variables" },
               ] as { id: Tab; icon: string; label: string }[]).map(t => (
                 <li className="nav-item" key={t.id}>
@@ -318,6 +343,15 @@ export default function StandalonePageEditorModal({ page, onSave, onCancel, save
                   Named image slots for this page. Use <code>{"{{cms.media.SLOTNAME}}"}</code> in your HTML/CSS.
                   Upload images via the Media Library, then assign them to a slot name here.
                 </div>
+                {showSlotWarning && (
+                  <div className="alert alert-warning py-2 small mb-4">
+                    <i className="bi bi-exclamation-triangle me-1"></i>
+                    <strong>{unsetSlots.length} slot{unsetSlots.length !== 1 ? "s" : ""}</strong>{" "}
+                    used in your HTML {unsetSlots.length !== 1 ? "have" : "has"} no image assigned:{" "}
+                    <code>{unsetSlots.join(", ")}</code>. This page is enabled —{" "}
+                    {unsetSlots.length !== 1 ? "they" : "it"} will render as blank.
+                  </div>
+                )}
 
                 <div className="d-flex gap-2 mb-4">
                   <input
@@ -344,8 +378,13 @@ export default function StandalonePageEditorModal({ page, onSave, onCancel, save
                     {Object.entries(mediaSlots).map(([name, url]) => (
                       <div key={name} className="border rounded p-3 bg-light">
                         <div className="d-flex align-items-center justify-content-between mb-2">
-                          <div>
+                          <div className="d-flex align-items-center gap-2">
                             <code className="text-warning fw-semibold">{`{{cms.media.${name}}}`}</code>
+                            {detectedSlots.includes(name) && (
+                              <span className="badge bg-secondary fw-normal" style={{ fontSize: "0.62rem" }}>
+                                from HTML
+                              </span>
+                            )}
                           </div>
                           <div className="d-flex gap-2">
                             <button className="btn btn-sm btn-outline-secondary" onClick={() => copyVar(`{{cms.media.${name}}}`)} title="Copy variable">
