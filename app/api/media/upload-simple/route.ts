@@ -25,7 +25,6 @@ const UPLOAD_DIR = join(process.cwd(), "public", "images", "uploads");
 const MAX_IMAGE_WIDTH = 1920;
 const MAX_IMAGE_HEIGHT = 1080;
 const WEBP_QUALITY = 85;
-const JPEG_QUALITY = 85;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;   // 10 MB
 const MAX_VIDEO_BYTES = 200 * 1024 * 1024;  // 200 MB
 
@@ -129,21 +128,13 @@ export async function POST(request: NextRequest) {
     const base = filename.split("-" + timestamp)[0];
 
     if (isImage) {
-      // Optimize with Sharp (the file is already on disk from streaming)
       const webpFilename = `${base}-${timestamp}.webp`;
-      const jpegFilename = `${base}-${timestamp}.jpg`;
       const webpPath = join(UPLOAD_DIR, webpFilename);
-      const jpegPath = join(UPLOAD_DIR, jpegFilename);
 
       await sharp(filePath)
         .resize(MAX_IMAGE_WIDTH, MAX_IMAGE_HEIGHT, { fit: "inside", withoutEnlargement: true })
         .webp({ quality: WEBP_QUALITY })
         .toFile(webpPath);
-
-      await sharp(filePath)
-        .resize(MAX_IMAGE_WIDTH, MAX_IMAGE_HEIGHT, { fit: "inside", withoutEnlargement: true })
-        .jpeg({ quality: JPEG_QUALITY })
-        .toFile(jpegPath);
 
       // Remove the original temp file
       await unlink(filePath).catch(() => {});
@@ -151,7 +142,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         url: `/images/uploads/${webpFilename}`,
-        fallbackUrl: `/images/uploads/${jpegFilename}`,
         type: "image",
       });
     }
