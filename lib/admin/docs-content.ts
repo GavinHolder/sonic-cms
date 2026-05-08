@@ -2003,14 +2003,21 @@ Quick-add buttons for common libraries are provided.
 #### Media Tab
 Manage **named image slots** for this page. Each slot is a named reference to a media library item.
 
+**Slots are auto-detected from your HTML.** Any \`{{cms.media.SLOTNAME}}\` token you write in the HTML editor automatically appears as a slot row in this tab — no manual "Add Slot" needed. Slots are additive: auto-detected slots are never removed automatically; delete them manually if no longer needed.
+
+Slots detected from the current HTML show a **from HTML** badge. Manually-added slots (via the "Add Slot" input) work identically.
+
 | Action | How |
 |--------|-----|
-| Add a slot | Click **Add Slot** → enter name → **Pick Image** |
+| Auto-add a slot | Write \`{{cms.media.SLOTNAME}}\` in the HTML editor — it appears here automatically |
+| Add a slot manually | Click **Add Slot** → enter name → **Pick Image** |
 | Change an image | Click **Pick Image** next to the slot → select new image |
 | Delete a slot | Click the trash icon |
 | Use in HTML | Copy \`{{cms.media.SLOTNAME}}\` and paste into HTML |
 
 Slot names must be lowercase letters, numbers, hyphens, or underscores. Example: \`hero-bg\`, \`team_photo_1\`, \`carousel-slide-2\`.
+
+> **Warning banner:** If this page is **enabled** (live) and any HTML-detected slot has no image assigned, a yellow warning appears listing the unset slots. The page will render those tokens as blank until images are assigned.
 
 #### Variables Tab
 Live reference of every \`{{cms.*}}\` variable available for this page. Click any variable to copy it to the clipboard.
