@@ -171,6 +171,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const [contentTypes, setContentTypes] = useState<{ slug: string; pluralName: string; icon: string }[]>([]);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [updateModalInfo, setUpdateModalInfo] = useState<Parameters<typeof UpdateModal>[0]["info"]>(null);
+  const [unreadLeads, setUnreadLeads] = useState(0);
 
   useEffect(() => {
     fetch("/api/site-config")
@@ -211,6 +212,13 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           })));
         }
       })
+      .catch(() => {});
+  }, [pathname]);
+
+  useEffect(() => {
+    fetch("/api/admin/form-submissions?status=received&limit=100")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.success) setUnreadLeads(d.data?.submissions?.length ?? 0); })
       .catch(() => {});
   }, [pathname]);
 
@@ -399,7 +407,12 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                 }}
               >
                 <i className={`bi ${item2.icon} me-2`} style={{ width: "20px" }}></i>
-                {item2.label}
+                <span className="flex-grow-1">{item2.label}</span>
+                {item2.id === "forms" && unreadLeads > 0 && (
+                  <span className="badge bg-danger rounded-pill ms-1" style={{ fontSize: 10 }}>
+                    {unreadLeads > 99 ? "99+" : unreadLeads}
+                  </span>
+                )}
               </Link>
             )}
           </li>
