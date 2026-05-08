@@ -343,6 +343,15 @@ export default function StandalonePageEditorModal({ page, onSave, onCancel, save
                   Named image slots for this page. Use <code>{"{{cms.media.SLOTNAME}}"}</code> in your HTML/CSS.
                   Upload images via the Media Library, then assign them to a slot name here.
                 </div>
+                {showSlotWarning && (
+                  <div className="alert alert-warning py-2 small mb-3">
+                    <i className="bi bi-exclamation-triangle me-1"></i>
+                    <strong>{unsetSlots.length} slot{unsetSlots.length !== 1 ? "s" : ""}</strong>{" "}
+                    used in your HTML {unsetSlots.length !== 1 ? "have" : "has"} no image assigned:{" "}
+                    <code>{unsetSlots.join(", ")}</code>. This page is enabled —{" "}
+                    {unsetSlots.length !== 1 ? "they" : "it"} will render as blank.
+                  </div>
+                )}
 
                 <div className="d-flex gap-2 mb-4">
                   <input
@@ -369,8 +378,13 @@ export default function StandalonePageEditorModal({ page, onSave, onCancel, save
                     {Object.entries(mediaSlots).map(([name, url]) => (
                       <div key={name} className="border rounded p-3 bg-light">
                         <div className="d-flex align-items-center justify-content-between mb-2">
-                          <div>
+                          <div className="d-flex align-items-center gap-2">
                             <code className="text-warning fw-semibold">{`{{cms.media.${name}}}`}</code>
+                            {detectedSlots.includes(name) && (
+                              <span className="badge bg-secondary" style={{ fontSize: "0.62rem", fontWeight: 400 }}>
+                                from HTML
+                              </span>
+                            )}
                           </div>
                           <div className="d-flex gap-2">
                             <button className="btn btn-sm btn-outline-secondary" onClick={() => copyVar(`{{cms.media.${name}}}`)} title="Copy variable">
