@@ -954,6 +954,13 @@ const FLEXIBLE_ELEMENTS = `
 
 The block panel on the left contains **16 element types**. **Card, Banner, and Stats** now use the same free-positioning sub-element system as Text Block — all content is draggable, dblclick editable, and the block auto-resizes in all directions.
 
+**Layout Presets** — When creating a new Flexible section, a gallery of 7 pre-built layouts opens automatically. Choose a preset to start with a complete grid + block configuration, or click "Start Blank" to build from an empty grid. You can also apply a preset to an existing section via the Layouts tab in the Designer sidebar (replaces current content).
+
+**Quick reference — recently added block types:**
+
+- **contact-form** — A contact form block that submits to the site's contact email via \`/api/contact\`. Configure which fields are visible (name, email, phone, message, subject), the submit button label, and the success message shown after submission. Styled to work on both light and dark backgrounds.
+- **how-steps** — A numbered process step card. Displays a large step number (e.g. "01") in a coloured circle, a bold title, and a description. Includes a dashed connector line extending to the right — set \`isLast: true\` on the final step to hide the connector. Use 3–4 of these in a row grid for a "How It Works" section.
+
 ---
 
 ## 1. Text Block
@@ -1718,6 +1725,10 @@ The strip sits at **z-index 25**, above the slide controls, with a \`blur(8px)\`
 | **Text Alignment** | left / center / right |
 | **Overlay Opacity** | Dark overlay on background for text contrast |
 | **Animation** | Entry animation for text elements |
+
+**Stacked Heading Mode** — In the Slide Editor → Text Overlay tab, toggle "Heading Mode" from Classic to Stacked. Stacked mode lets you define 2–5 heading rows, each with its own color, font size, weight, and animation. An optional Eyebrow field (text + color) adds a small uppercase label above the rows. Switching back to Classic preserves your content.
+
+**Stats Strip** — In the Hero editor → Stats Strip section, enable the frosted glass bar that appears at the bottom of every hero slide. Add up to 6 items, each with a Bootstrap icon class (e.g. \`bi-geo-alt-fill\`) and a short text label. The icon color inherits the brand accent colour.
 
 ---
 
