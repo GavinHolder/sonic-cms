@@ -1,6 +1,7 @@
 /**
- * GET  /api/admin/form-submissions  - List all form submissions (admin)
- * DELETE /api/admin/form-submissions?id=<id>  - Delete a submission
+ * GET    /api/admin/form-submissions           - List form submissions (admin)
+ * PUT    /api/admin/form-submissions            - Update submission status { id, status }
+ * DELETE /api/admin/form-submissions?id=<id>   - Delete a submission
  */
 
 import { NextRequest } from "next/server";
@@ -17,8 +18,11 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") ?? "50", 10);
     const offset = parseInt(searchParams.get("offset") ?? "0", 10);
 
+    const status = searchParams.get("status");
+
     const where: any = {};
     if (pageSlug) where.pageSlug = pageSlug;
+    if (status) where.status = status;
 
     const [submissions, total] = await Promise.all([
       prisma.formSubmission.findMany({
@@ -44,6 +48,28 @@ export async function GET(request: NextRequest) {
       200,
       { total, limit, offset }
     );
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    const user = requireRole(request, "EDITOR");
+    if (user instanceof Response) return user;
+
+    const body = await request.json();
+    const { id, status } = body as { id: string; status: string };
+    if (!id || !status) return errorResponse("MISSING_FIELDS", "id and status are required", 400);
+
+    const sub = await prisma.formSubmission.findUnique({ where: { id } });
+    if (!sub) return errorResponse("NOT_FOUND", "Submission not found", 404);
+
+    const updated = await prisma.formSubmission.update({
+      where: { id },
+      data: { status },
+    });
+    return successResponse({ id: updated.id, status: updated.status });
   } catch (error) {
     return handleApiError(error);
   }
