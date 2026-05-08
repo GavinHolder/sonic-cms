@@ -783,7 +783,7 @@ export default function SlideEditor({
                       className="form-control"
                       value={slide.overlay?.eyebrow ?? ""}
                       onChange={(e) => updateOverlay({ eyebrow: e.target.value || undefined })}
-                      placeholder="OVERBERG · SINCE 2001"
+                      placeholder="YOUR COMPANY · SINCE 2001"
                     />
                     <input
                       type="color"
@@ -812,18 +812,25 @@ export default function SlideEditor({
                     <div
                       key={idx}
                       className="card mb-2"
-                      draggable
-                      onDragStart={() => setDragRow(idx)}
-                      onDragEnd={() => setDragRow(null)}
-                      onDragOver={(e) => e.preventDefault()}
+                      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+                      onDragEnter={(e) => e.preventDefault()}
                       onDrop={() => {
                         if (dragRow !== null && dragRow !== idx) reorderHeadingRow(dragRow, idx);
                         setDragRow(null);
                       }}
-                      style={{ opacity: dragRow === idx ? 0.4 : 1, cursor: 'grab' }}
+                      style={{ opacity: dragRow === idx ? 0.4 : 1 }}
                     >
                       <div className="card-body p-2">
-                        <div style={{ cursor: 'grab', paddingRight: 6, color: '#aaa' }}>
+                        <div
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.effectAllowed = 'move';
+                            e.dataTransfer.setData('text/plain', String(idx));
+                            setDragRow(idx);
+                          }}
+                          onDragEnd={() => setDragRow(null)}
+                          style={{ cursor: 'grab', paddingRight: 6, color: '#aaa' }}
+                        >
                           <i className="bi bi-grip-vertical"></i>
                         </div>
                         <div className="d-flex align-items-center gap-2 mb-2">
