@@ -1,10 +1,22 @@
 {
-  "version": "1.49.1",
-  "date": "2026-05-07",
+  "version": "1.50.0",
+  "date": "2026-05-08",
   "changelog": {
-    "features": [],
+    "features": [
+      "designer preset definitions — 7 section layout presets with complete grid + block data",
+      "contact-form + how-steps block renderers in FlexibleSectionRenderer",
+      "layouts tab in flexible designer — preset list with apply + confirm in left sidebar",
+      "intercept FLEXIBLE section create — show preset gallery before creating section",
+      "presets gallery modal — 7 preset cards + start blank with CSS wireframe thumbnails",
+      "flexible designer preset definitions — 7 layout presets with complete designerData",
+      "add drag reorder to heading rows in slide editor",
+      "hero stats strip — frosted glass bar at hero bottom with icon+text items",
+      "hero stacked heading editor — mode toggle + eyebrow + multi-row editor in SlideEditor",
+      "add statsStrip to HeroSection + ContactFormBlockProps + HowStepsBlockProps types"
+    ],
     "bugfixes": [
-      "standalone page hydration crash + coverage map in import modal"
+      "use --cms-accent CSS var (matches brand token system) + add placeholder SVG images",
+      "drag-reorder to grip-handle only + generic eyebrow placeholder"
     ],
     "breaking": []
   }
