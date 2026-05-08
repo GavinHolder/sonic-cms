@@ -214,7 +214,7 @@ export default function StandalonePageEditorModal({ page, onSave, onCancel, save
                 { id: "html",  icon: "bi-filetype-html", label: "HTML" },
                 { id: "css",   icon: "bi-filetype-css",  label: "CSS" },
                 { id: "files", icon: "bi-link-45deg",    label: `CSS Files${cssUrls.length ? ` (${cssUrls.length})` : ""}` },
-                { id: "media", icon: "bi-images",        label: `Media${Object.keys(mediaSlots).length ? ` (${Object.keys(mediaSlots).length})` : ""}` },
+                { id: "media", icon: "bi-images",        label: `Media${Object.keys(mediaSlots).length ? ` (${Object.keys(mediaSlots).length})` : ""}${showSlotWarning ? " ⚠" : ""}` },
                 { id: "vars",  icon: "bi-braces",        label: "Variables" },
               ] as { id: Tab; icon: string; label: string }[]).map(t => (
                 <li className="nav-item" key={t.id}>
