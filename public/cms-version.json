@@ -1,12 +1,10 @@
 {
-  "version": "1.55.0",
+  "version": "1.55.1",
   "date": "2026-05-09",
   "changelog": {
-    "features": [
-      "gallery feature — categories, lightbox, CTA block, multi-select media picker"
-    ],
+    "features": [],
     "bugfixes": [
-      "standalone pages now respect maintenance mode"
+      "media library uses DB-backed upload so gallery picker finds images"
     ],
     "breaking": []
   }

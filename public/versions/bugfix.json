@@ -1,10 +1,10 @@
 {
-  "version": "1.52.3",
-  "date": "2026-05-08",
+  "version": "1.55.1",
+  "date": "2026-05-09",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "add path traversal protection to uploads file-serving route"
+      "media library uses DB-backed upload so gallery picker finds images"
     ],
     "breaking": []
   }
