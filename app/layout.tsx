@@ -89,8 +89,8 @@ export default async function RootLayout({
   }
   const isEffectivelyIsolated = isIsolatedRoute || isStandaloneSlug;
 
-  // Maintenance mode — check DB only for public routes (skip admin, api, volt-preview, standalone)
-  const isPublicRoute = !isAdminRoute && !isEffectivelyIsolated && !pathname.startsWith("/api");
+  // Maintenance mode — check DB for all public routes including standalone (skip admin, api, volt-preview, maintenance-preview)
+  const isPublicRoute = !isAdminRoute && !pathname.startsWith("/api") && !pathname.startsWith("/volt-preview") && !pathname.startsWith("/maintenance-preview");
   let maintenanceMode = false;
   let maintenanceTheme: import("@/components/MaintenancePage").MaintenanceTheme = {};
   if (isPublicRoute) {
