@@ -1,10 +1,10 @@
 {
-  "version": "1.58.2",
+  "version": "1.61.1",
   "date": "2026-05-09",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "use env: vars for Portainer secrets and improve auth debug output in deploy"
+      "media drag-to-folder now moves all selected items"
     ],
     "breaking": []
   }

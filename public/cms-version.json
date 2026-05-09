@@ -1,11 +1,11 @@
 {
-  "version": "1.61.0",
+  "version": "1.61.1",
   "date": "2026-05-09",
   "changelog": {
-    "features": [
-      "backup system — schedule selector, missing tables, correct uploads path"
+    "features": [],
+    "bugfixes": [
+      "media drag-to-folder now moves all selected items"
     ],
-    "bugfixes": [],
     "breaking": []
   }
 }
