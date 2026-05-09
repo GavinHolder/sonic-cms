@@ -1,11 +1,11 @@
 {
-  "version": "1.56.1",
+  "version": "1.57.0",
   "date": "2026-05-09",
   "changelog": {
-    "features": [],
-    "bugfixes": [
-      "gallery — hide CMS navbar, use full img url, add height:auto to masonry images"
+    "features": [
+      "gallery — bento collage layout with dark theme, desaturated images, +N overflow badge"
     ],
+    "bugfixes": [],
     "breaking": []
   }
 }
