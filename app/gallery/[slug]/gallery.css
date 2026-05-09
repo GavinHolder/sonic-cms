@@ -235,42 +235,49 @@
   gap: 8px;
   padding: 7px 16px 7px 12px;
   border-radius: 100px;
-  background: rgba(255,255,255,0.9);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(0,0,0,0.08);
+  background: rgba(0,0,0,0.28);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,0.12);
   cursor: pointer;
   font-family: var(--gal-hd);
   font-weight: 700;
   font-size: 11px;
-  color: #3d3f44;
+  color: #fff;
   white-space: nowrap;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
   text-align: left;
-  max-width: 160px;
+  max-width: 32px;
   overflow: hidden;
-  text-overflow: ellipsis;
+  opacity: 0.55;
+  transition: max-width 0.3s ease, background 0.2s, opacity 0.2s, box-shadow 0.2s, border-color 0.2s;
 }
 .gal-toc-pill:hover {
-  background: #fff;
+  max-width: 240px;
+  background: rgba(255,255,255,0.95);
+  color: #3d3f44;
+  border-color: rgba(0,0,0,0.08);
   box-shadow: 0 4px 18px rgba(0,0,0,0.3);
+  opacity: 1;
 }
 .gal-toc-pill.active {
+  max-width: 240px;
   background: var(--gal-accent);
   color: #fff;
   border-color: transparent;
   box-shadow: 0 4px 18px rgba(141,182,60,0.4);
+  opacity: 1;
 }
 .gal-toc-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--gal-accent);
+  background: var(--gal-accent-l);
   flex-shrink: 0;
   transition: background 0.2s;
 }
-.gal-toc-pill.active .gal-toc-dot { background: rgba(255,255,255,0.75); }
+.gal-toc-pill:hover .gal-toc-dot { background: var(--gal-accent); }
+.gal-toc-pill.active .gal-toc-dot { background: rgba(255,255,255,0.85); }
 
 .gal-lightbox {
   position: fixed;
