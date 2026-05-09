@@ -27,7 +27,13 @@
       "mcp__plugin_playwright_playwright__browser_network_requests",
       "mcp__plugin_playwright_playwright__browser_handle_dialog",
       "mcp__ide__getDiagnostics",
-      "mcp__plugin_playwright_playwright__browser_hover"
+      "mcp__plugin_playwright_playwright__browser_hover",
+      "PowerShell(Start-Process npm -ArgumentList \"run\",\"dev\" -NoNewWindow -PassThru | Select-Object Id; Start-Sleep -Seconds 8; Write-Output \"done\")",
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(Select-String *)",
+      "Skill(update-config)",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://localhost:3000/api/auth/me\" -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop; $r.StatusCode } catch { $_.Exception.Message })",
+      "PowerShell($body = '{\"username\":\"admin\",\"password\":\"admin2026\"}'; $r = Invoke-WebRequest -Uri \"http://localhost:3000/api/auth/login\" -Method POST -Body $body -ContentType \"application/json\" -UseBasicParsing -ErrorAction SilentlyContinue; Write-Output \"Status: $\\($r.StatusCode\\)\"; Write-Output \"Body: $\\($r.Content\\)\")"
     ]
   }
 }
