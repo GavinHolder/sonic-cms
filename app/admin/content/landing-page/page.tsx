@@ -352,6 +352,16 @@ export default function LandingPageManager() {
       subtitle="Manage sections on the homepage"
       actions={
         <div className="d-flex gap-2">
+          <a
+            href="/preview/landing-page"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-outline-secondary btn-sm"
+            title="Preview how this landing page looks (does not affect live homepage setting)"
+          >
+            <i className="bi bi-eye me-1"></i>
+            Preview
+          </a>
           <button
             className="btn btn-outline-danger btn-sm"
             onClick={handleClearAll}
