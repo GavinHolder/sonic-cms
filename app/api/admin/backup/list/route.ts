@@ -5,15 +5,17 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { requireRole, successResponse, handleApiError } from "@/lib/api-middleware"
-import { listBackups } from "@/lib/backup"
+import { listBackups, getBackupSchedule, maybeAutoBackup } from "@/lib/backup"
 
 export async function GET(req: NextRequest) {
   const auth = requireRole(req, "SUPER_ADMIN" as any)
   if (auth instanceof NextResponse) return auth
 
   try {
+    const auto = await maybeAutoBackup()
     const backups = listBackups()
-    return successResponse(backups)
+    const scheduleInfo = await getBackupSchedule()
+    return successResponse({ backups, schedule: scheduleInfo, autoTriggered: auto.triggered })
   } catch (error) {
     return handleApiError(error)
   }
