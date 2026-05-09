@@ -10,6 +10,8 @@ interface MediaFile {
   type: string;
   modifiedAt: string;
   altText?: string;
+  /** true = no DB record yet; will be registered via /api/media/register on confirm */
+  needsRegistration?: boolean;
 }
 
 interface MediaPickerModalProps {
@@ -36,6 +38,7 @@ export default function MediaPickerModal({
 }: MediaPickerModalProps) {
   const [files, setFiles] = useState<MediaFile[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -43,16 +46,22 @@ export default function MediaPickerModal({
   const fetchMedia = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch("/api/media?perPage=200");
-      if (response.ok) {
-        const data = await response.json();
+      const [dbRes, fsRes] = await Promise.all([
+        fetch("/api/media?perPage=500"),
+        fetch("/api/media/files"),
+      ]);
+
+      // Build URL → DB-backed file map
+      const dbByUrl = new Map<string, MediaFile>();
+      if (dbRes.ok) {
+        const data = await dbRes.json();
         if (data.success && Array.isArray(data.data?.media)) {
-          setFiles(
-            data.data.media.map((m: {
-              id: string; filename: string; originalName?: string;
-              mimeType: string; fileSize: number; url: string;
-              altText?: string; createdAt?: string;
-            }) => ({
+          for (const m of data.data.media as {
+            id: string; filename: string; originalName?: string;
+            mimeType: string; fileSize: number; url: string;
+            altText?: string; createdAt?: string;
+          }[]) {
+            dbByUrl.set(m.url, {
               id: m.id,
               name: m.filename || m.originalName || m.url,
               url: m.url,
@@ -60,27 +69,38 @@ export default function MediaPickerModal({
               type: m.mimeType,
               modifiedAt: m.createdAt || "",
               altText: m.altText || "",
-            }))
-          );
-          return;
+              needsRegistration: false,
+            });
+          }
         }
       }
-      // Fallback: /api/media/files (no IDs — single-select only)
-      const r2 = await fetch("/api/media/files");
-      if (r2.ok) {
-        const d2 = await r2.json();
-        setFiles(
-          (d2.files ?? []).map((f: Omit<MediaFile, "id">) => ({
-            id: f.url,
-            name: f.name,
-            url: f.url,
-            size: f.size,
-            type: f.type,
-            modifiedAt: f.modifiedAt,
-            altText: "",
-          }))
-        );
+
+      // Merge: add filesystem files that have no DB record yet
+      const merged: MediaFile[] = [...dbByUrl.values()];
+      if (fsRes.ok) {
+        const fsData = await fsRes.json();
+        for (const f of (fsData.files ?? []) as Omit<MediaFile, "id" | "needsRegistration">[]) {
+          if (!dbByUrl.has(f.url)) {
+            merged.push({
+              id: f.url, // temp ID — replaced with real DB id on confirm
+              name: f.name,
+              url: f.url,
+              size: f.size,
+              type: f.type,
+              modifiedAt: f.modifiedAt,
+              altText: "",
+              needsRegistration: true,
+            });
+          }
+        }
       }
+
+      // Sort newest first (DB files have ISO dates; FS files have mtime ISO)
+      merged.sort((a, b) =>
+        new Date(b.modifiedAt || 0).getTime() - new Date(a.modifiedAt || 0).getTime()
+      );
+
+      setFiles(merged);
     } catch {
       setFiles([]);
     } finally {
@@ -133,10 +153,30 @@ export default function MediaPickerModal({
     });
   };
 
-  const confirmMultiSelect = () => {
+  const confirmMultiSelect = async () => {
     const selected = files.filter((f) => selectedIds.has(f.id));
-    onSelectAssets?.(selected.map((f) => ({ id: f.id, url: f.url, altText: f.altText || "" })));
-    onClose();
+    setConfirming(true);
+    try {
+      const assets = await Promise.all(
+        selected.map(async (f) => {
+          if (!f.needsRegistration) return { id: f.id, url: f.url, altText: f.altText || "" };
+          // Register filesystem-only file to get a real DB asset ID
+          const res = await fetch("/api/media/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: f.url, filename: f.name, mimeType: f.type, fileSize: f.size }),
+          });
+          if (!res.ok) return null;
+          const data = await res.json();
+          return { id: data.data.asset.id, url: f.url, altText: f.altText || "" };
+        })
+      );
+      const valid = assets.filter(Boolean) as { id: string; url: string; altText: string }[];
+      onSelectAssets?.(valid);
+    } finally {
+      setConfirming(false);
+      onClose();
+    }
   };
 
   if (!isOpen) return null;
@@ -340,11 +380,12 @@ export default function MediaPickerModal({
               {multi && (
                 <button
                   type="button"
-                  className="btn btn-primary"
+                  className="btn btn-primary d-flex align-items-center gap-2"
                   onClick={confirmMultiSelect}
-                  disabled={selectedIds.size === 0}
+                  disabled={selectedIds.size === 0 || confirming}
                 >
-                  Add {selectedIds.size > 0 ? `${selectedIds.size} ` : ""}Image{selectedIds.size !== 1 ? "s" : ""}
+                  {confirming && <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true" />}
+                  {confirming ? "Adding..." : `Add ${selectedIds.size > 0 ? `${selectedIds.size} ` : ""}Image${selectedIds.size !== 1 ? "s" : ""}`}
                 </button>
               )}
             </div>
