@@ -1,11 +1,11 @@
 {
-  "version": "1.58.0",
+  "version": "1.58.1",
   "date": "2026-05-09",
   "changelog": {
-    "features": [
-      "SEO page overhaul — responsibility panel, bootstrap SEO, propagation monitor, scorecard + gallery bottom padding"
+    "features": [],
+    "bugfixes": [
+      "SEO scorecard Fix button — add ?seo=<slug> param support and correct links"
     ],
-    "bugfixes": [],
     "breaking": []
   }
 }

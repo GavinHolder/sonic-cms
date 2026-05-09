@@ -1,10 +1,10 @@
 {
-  "version": "1.56.1",
+  "version": "1.58.1",
   "date": "2026-05-09",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "gallery — hide CMS navbar, use full img url, add height:auto to masonry images"
+      "SEO scorecard Fix button — add ?seo=<slug> param support and correct links"
     ],
     "breaking": []
   }
