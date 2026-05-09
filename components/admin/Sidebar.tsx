@@ -58,6 +58,12 @@ const menuItems: MenuItem[] = [
         href: "/admin/content/seo",
       },
       {
+        id: "gallery",
+        label: "Gallery",
+        icon: "bi-images",
+        href: "/admin/content/gallery",
+      },
+      {
         id: "templates",
         label: "Templates",
         icon: "bi-bookmark-star",

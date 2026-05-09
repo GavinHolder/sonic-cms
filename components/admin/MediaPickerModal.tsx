@@ -3,18 +3,25 @@
 import { useState, useEffect } from "react";
 
 interface MediaFile {
+  id: string;
   name: string;
   url: string;
   size: number;
   type: string;
   modifiedAt: string;
+  altText?: string;
 }
 
 interface MediaPickerModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Called with the URL of the selected file (single-select mode). */
   onSelect: (url: string) => void;
+  /** Called with full asset objects (multi-select mode). Requires multi=true. */
+  onSelectAssets?: (assets: { id: string; url: string; altText: string }[]) => void;
   filterType?: "image" | "video" | "all";
+  /** Enable multi-select mode. Confirm button appears at bottom. */
+  multi?: boolean;
 }
 
 const PER_PAGE = 12;
@@ -23,26 +30,58 @@ export default function MediaPickerModal({
   isOpen,
   onClose,
   onSelect,
+  onSelectAssets,
   filterType = "all",
+  multi = false,
 }: MediaPickerModalProps) {
   const [files, setFiles] = useState<MediaFile[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const fetchMedia = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch("/api/media/files");
-      if (!response.ok) {
-        console.error("Media fetch failed:", response.status);
-        setFiles([]);
-        return;
+      const response = await fetch("/api/media?perPage=200");
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && Array.isArray(data.data?.media)) {
+          setFiles(
+            data.data.media.map((m: {
+              id: string; filename: string; originalName?: string;
+              mimeType: string; fileSize: number; url: string;
+              altText?: string; createdAt?: string;
+            }) => ({
+              id: m.id,
+              name: m.filename || m.originalName || m.url,
+              url: m.url,
+              size: m.fileSize,
+              type: m.mimeType,
+              modifiedAt: m.createdAt || "",
+              altText: m.altText || "",
+            }))
+          );
+          return;
+        }
       }
-      const data = await response.json();
-      setFiles(data.files ?? []);
-    } catch (error) {
-      console.error("Failed to fetch media:", error);
+      // Fallback: /api/media/files (no IDs — single-select only)
+      const r2 = await fetch("/api/media/files");
+      if (r2.ok) {
+        const d2 = await r2.json();
+        setFiles(
+          (d2.files ?? []).map((f: Omit<MediaFile, "id">) => ({
+            id: f.url,
+            name: f.name,
+            url: f.url,
+            size: f.size,
+            type: f.type,
+            modifiedAt: f.modifiedAt,
+            altText: "",
+          }))
+        );
+      }
+    } catch {
       setFiles([]);
     } finally {
       setIsLoading(false);
@@ -54,6 +93,7 @@ export default function MediaPickerModal({
       fetchMedia();
       setCurrentPage(1);
       setSearchQuery("");
+      setSelectedIds(new Set());
     }
   }, [isOpen]);
 
@@ -79,8 +119,23 @@ export default function MediaPickerModal({
     currentPage * PER_PAGE
   );
 
-  const handleSelect = (url: string) => {
-    onSelect(url);
+  const handleSingleSelect = (file: MediaFile) => {
+    onSelect(file.url);
+    onClose();
+  };
+
+  const toggleSelection = (file: MediaFile) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(file.id)) next.delete(file.id);
+      else next.add(file.id);
+      return next;
+    });
+  };
+
+  const confirmMultiSelect = () => {
+    const selected = files.filter((f) => selectedIds.has(f.id));
+    onSelectAssets?.(selected.map((f) => ({ id: f.id, url: f.url, altText: f.altText || "" })));
     onClose();
   };
 
@@ -105,7 +160,12 @@ export default function MediaPickerModal({
           <div className="modal-content">
             {/* Header */}
             <div className="modal-header">
-              <h5 className="modal-title">Select Media</h5>
+              <h5 className="modal-title">
+                {multi ? "Select Images" : "Select Media"}
+                {multi && selectedIds.size > 0 && (
+                  <span className="badge bg-primary ms-2">{selectedIds.size} selected</span>
+                )}
+              </h5>
               <button
                 type="button"
                 className="btn-close"
@@ -128,11 +188,19 @@ export default function MediaPickerModal({
                       onChange={(e) => setSearchQuery(e.target.value)}
                     />
                   </div>
-                  <div className="col-12 col-md-4 d-flex align-items-center">
+                  <div className="col-12 col-md-4 d-flex align-items-center gap-3">
                     <div className="text-muted small">
                       {filtered.length} file{filtered.length !== 1 ? "s" : ""}
                       {filterType !== "all" ? ` (${filterType}s)` : ""}
                     </div>
+                    {multi && selectedIds.size > 0 && (
+                      <button
+                        className="btn btn-link btn-sm p-0 text-muted"
+                        onClick={() => setSelectedIds(new Set())}
+                      >
+                        Clear
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -160,58 +228,79 @@ export default function MediaPickerModal({
                 <>
                   {/* Media Grid */}
                   <div className="row g-3">
-                    {paginatedFiles.map((file) => (
-                      <div key={file.url} className="col-6 col-md-4 col-lg-3">
-                        <div
-                          className="card h-100"
-                          onClick={() => handleSelect(file.url)}
-                          style={{ cursor: "pointer" }}
-                        >
-                          {/* Thumbnail */}
+                    {paginatedFiles.map((file) => {
+                      const isSelected = multi && selectedIds.has(file.id);
+                      return (
+                        <div key={file.url} className="col-6 col-md-4 col-lg-3">
                           <div
-                            className="position-relative bg-light d-flex align-items-center justify-content-center"
-                            style={{ paddingTop: "75%", overflow: "hidden" }}
+                            className="card h-100"
+                            onClick={() => multi ? toggleSelection(file) : handleSingleSelect(file)}
+                            style={{
+                              cursor: "pointer",
+                              outline: isSelected ? "3px solid #0d6efd" : "none",
+                              outlineOffset: "2px",
+                            }}
                           >
-                            {file.type.startsWith("image/") ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={file.url}
-                                alt={file.name}
-                                className="position-absolute top-0 start-0 w-100 h-100"
-                                style={{ objectFit: "cover" }}
-                              />
-                            ) : file.type === "application/pdf" ? (
-                              <div className="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center">
-                                <i className="bi bi-file-earmark-pdf text-danger" style={{ fontSize: "3rem" }} />
-                              </div>
-                            ) : (
-                              <div className="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center">
-                                <i className="bi bi-play-circle-fill text-info" style={{ fontSize: "3rem" }} />
+                            {/* Selection indicator */}
+                            {multi && (
+                              <div
+                                style={{
+                                  position: "absolute", top: "8px", right: "8px", zIndex: 2,
+                                  width: "22px", height: "22px", borderRadius: "50%",
+                                  background: isSelected ? "#0d6efd" : "rgba(255,255,255,0.8)",
+                                  border: isSelected ? "none" : "2px solid rgba(0,0,0,0.3)",
+                                  display: "flex", alignItems: "center", justifyContent: "center",
+                                  transition: "all 0.15s",
+                                }}
+                              >
+                                {isSelected && <i className="bi bi-check text-white" style={{ fontSize: "12px" }} />}
                               </div>
                             )}
-                          </div>
 
-                          {/* Metadata */}
-                          <div className="card-body p-2">
-                            <div className="small text-truncate" title={file.name}>
-                              {file.name}
+                            {/* Thumbnail */}
+                            <div
+                              className="position-relative bg-light d-flex align-items-center justify-content-center"
+                              style={{ paddingTop: "75%", overflow: "hidden" }}
+                            >
+                              {file.type.startsWith("image/") ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={file.url}
+                                  alt={file.name}
+                                  className="position-absolute top-0 start-0 w-100 h-100"
+                                  style={{ objectFit: "cover" }}
+                                />
+                              ) : file.type === "application/pdf" ? (
+                                <div className="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center">
+                                  <i className="bi bi-file-earmark-pdf text-danger" style={{ fontSize: "3rem" }} />
+                                </div>
+                              ) : (
+                                <div className="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center">
+                                  <i className="bi bi-play-circle-fill text-info" style={{ fontSize: "3rem" }} />
+                                </div>
+                              )}
                             </div>
-                            <div className="small text-muted">
-                              {(file.size / 1024).toFixed(0)} KB
+
+                            {/* Metadata */}
+                            <div className="card-body p-2">
+                              <div className="small text-truncate" title={file.name}>
+                                {file.name}
+                              </div>
+                              <div className="small text-muted">
+                                {(file.size / 1024).toFixed(0)} KB
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   {/* Pagination */}
                   {totalPages > 1 && (
                     <nav className="mt-4" aria-label="Media pagination">
                       <ul className="pagination justify-content-center">
-                        <li
-                          className={`page-item ${currentPage === 1 ? "disabled" : ""}`}
-                        >
+                        <li className={`page-item ${currentPage === 1 ? "disabled" : ""}`}>
                           <button
                             className="page-link"
                             onClick={() => setCurrentPage((p) => p - 1)}
@@ -220,24 +309,14 @@ export default function MediaPickerModal({
                             Previous
                           </button>
                         </li>
-                        {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                          (page) => (
-                            <li
-                              key={page}
-                              className={`page-item ${currentPage === page ? "active" : ""}`}
-                            >
-                              <button
-                                className="page-link"
-                                onClick={() => setCurrentPage(page)}
-                              >
-                                {page}
-                              </button>
-                            </li>
-                          )
-                        )}
-                        <li
-                          className={`page-item ${currentPage === totalPages ? "disabled" : ""}`}
-                        >
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                          <li key={page} className={`page-item ${currentPage === page ? "active" : ""}`}>
+                            <button className="page-link" onClick={() => setCurrentPage(page)}>
+                              {page}
+                            </button>
+                          </li>
+                        ))}
+                        <li className={`page-item ${currentPage === totalPages ? "disabled" : ""}`}>
                           <button
                             className="page-link"
                             onClick={() => setCurrentPage((p) => p + 1)}
@@ -255,13 +334,19 @@ export default function MediaPickerModal({
 
             {/* Footer */}
             <div className="modal-footer">
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={onClose}
-              >
+              <button type="button" className="btn btn-secondary" onClick={onClose}>
                 Cancel
               </button>
+              {multi && (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={confirmMultiSelect}
+                  disabled={selectedIds.size === 0}
+                >
+                  Add {selectedIds.size > 0 ? `${selectedIds.size} ` : ""}Image{selectedIds.size !== 1 ? "s" : ""}
+                </button>
+              )}
             </div>
           </div>
         </div>

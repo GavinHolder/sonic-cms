@@ -16,6 +16,7 @@ const VoltBlock                = dynamic(() => import("@/components/sections/Vol
 const InteractiveProductCard   = dynamic(() => import("@/components/sections/blocks/InteractiveProductCard"), { ssr: false });
 const ScrollStoryBlock         = dynamic(() => import("@/components/sections/blocks/ScrollStoryBlock"), { ssr: false });
 const EditorialBlock           = dynamic(() => import("@/components/sections/blocks/EditorialBlock"), { ssr: false });
+const GalleryCtaBlock          = dynamic(() => import("@/components/sections/blocks/GalleryCtaBlock"), { ssr: false });
 
 interface FlexibleSectionRendererProps {
   section: FlexibleSection;
@@ -1063,7 +1064,7 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
         // Visual block types that benefit from filling available space (have aspect ratios
         // or are designed to scale). All other types (text, card, button, etc.) are
         // content-driven and should collapse to their natural height.
-        const FILL_TYPES = new Set(["volt", "image", "3d-object", "video", "canvas", "photo-card", "coverage-map", "projects-gallery"]);
+        const FILL_TYPES = new Set(["volt", "image", "3d-object", "video", "canvas", "photo-card", "coverage-map", "projects-gallery", "gallery-cta"]);
         return Array.from({ length: totalRows }, (_, i) => {
           const types = rowTypes[i + 1];
           // A row gets '1fr' only if it contains a visual/fill block type.
@@ -1646,6 +1647,26 @@ function DesignerBlock({ block, darkBg }: {
           </div>
         );
       }
+
+      // ── gallery-cta: parallax image collage with CTA button ─────────────────
+      case "gallery-cta":
+        return (
+          <GalleryCtaBlock
+            heading={(p.heading as string) || "Explore Our Gallery"}
+            subtext={(p.subtext as string) || ""}
+            accentWord={(p.accentWord as string) || ""}
+            buttonText={(p.buttonText as string) || "View Gallery"}
+            buttonUrl={(p.buttonUrl as string) || "/gallery"}
+            categorySlug={(p.categorySlug as string) || ""}
+            stat1Value={(p.stat1Value as string) || ""}
+            stat1Label={(p.stat1Label as string) || "Photos"}
+            stat2Value={(p.stat2Value as string) || ""}
+            stat2Label={(p.stat2Label as string) || "Categories"}
+            accentColor={(p.accentColor as string) || "#f59e0b"}
+            overlayOpacity={typeof p.overlayOpacity === "number" ? p.overlayOpacity : 55}
+            textColor={(p.textColor as string) || "#ffffff"}
+          />
+        );
 
       // ── default: unknown block type — render the type name as a placeholder ─
       default:

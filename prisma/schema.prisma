@@ -189,11 +189,46 @@ model MediaAsset {
   usageCount     Int      @default(0)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
-  uploadedByUser User     @relation(fields: [uploadedBy], references: [id])
+  uploadedByUser User              @relation(fields: [uploadedBy], references: [id])
+  galleryCover   GalleryCategory[] @relation("GalleryCover")
+  galleryImages  GalleryImage[]    @relation("GalleryImages")
 
   @@index([mimeType])
   @@index([tags])
   @@map("media_assets")
+}
+
+model GalleryCategory {
+  id           String         @id @default(uuid())
+  name         String
+  slug         String         @unique
+  description  String?
+  coverImageId String?
+  isActive     Boolean        @default(true)
+  order        Int            @default(0)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  coverImage   MediaAsset?    @relation("GalleryCover", fields: [coverImageId], references: [id])
+  images       GalleryImage[]
+
+  @@index([isActive])
+  @@map("gallery_categories")
+}
+
+model GalleryImage {
+  id         String          @id @default(uuid())
+  categoryId String
+  assetId    String
+  caption    String?
+  altText    String?
+  order      Int             @default(0)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  category   GalleryCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  asset      MediaAsset      @relation("GalleryImages", fields: [assetId], references: [id])
+
+  @@index([categoryId, order])
+  @@map("gallery_images")
 }
 
 model CmsTemplate {
@@ -470,6 +505,7 @@ enum PageType {
   PDF
   DESIGNER
   STANDALONE
+  GALLERY
 }
 
 enum PageStatus {
