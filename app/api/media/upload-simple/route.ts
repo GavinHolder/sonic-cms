@@ -12,6 +12,7 @@ const Busboy = require("busboy") as (opts: { headers: Record<string, string> }) 
 import { Readable } from "stream";
 import prisma from "@/lib/prisma";
 import { authenticate } from "@/lib/api-middleware";
+import { auditLog } from "@/lib/audit-log";
 
 /**
  * Simple Media Upload API
@@ -182,6 +183,12 @@ export async function POST(request: NextRequest) {
           },
         });
         mediaId = record.id;
+        await auditLog(request, user, {
+          action: "upload",
+          resource: "media",
+          resourceId: record.id,
+          details: { filename: finalFilename, mimeType: finalMimeType, size, folderId },
+        });
       } catch { /* non-fatal */ }
     }
 

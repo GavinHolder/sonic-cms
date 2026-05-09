@@ -39,6 +39,9 @@ export async function auditLog(
         ipAddress: getClientIp(request),
       },
     })
+    // Prune entries older than 30 days — keeps the log bounded ("monthly" window)
+    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    prisma.auditLog.deleteMany({ where: { createdAt: { lt: cutoff } } }).catch(() => {})
   } catch {
     // Audit logging should never block the request
     console.error('[AuditLog] Failed to write audit entry:', entry)
