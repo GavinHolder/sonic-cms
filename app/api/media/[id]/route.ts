@@ -16,6 +16,7 @@ import {
   errorResponse,
   handleApiError,
 } from "@/lib/api-middleware";
+import { auditLog } from "@/lib/audit-log";
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || "./public/uploads";
 
@@ -134,6 +135,15 @@ export async function PUT(
       },
     });
 
+    if (data.folderId !== undefined) {
+      await auditLog(request, user, {
+        action: "move",
+        resource: "media",
+        resourceId: id,
+        details: { filename: media.filename, folderId: data.folderId },
+      });
+    }
+
     return successResponse({
       media: {
         id: media.id,
@@ -200,6 +210,13 @@ export async function DELETE(
     // Delete database record
     await prisma.mediaAsset.delete({
       where: { id },
+    });
+
+    await auditLog(request, user, {
+      action: "delete",
+      resource: "media",
+      resourceId: id,
+      details: { filename: media.filename },
     });
 
     return successResponse({

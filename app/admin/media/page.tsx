@@ -78,6 +78,11 @@ function MediaLibraryContent() {
   // Drag-and-drop
   const [draggingAsset, setDraggingAsset] = useState<MediaAsset | null>(null);
 
+  // Multi-select
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkMoveActive, setBulkMoveActive] = useState(false);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+
   // Modals
   const [confirmDeleteAsset, setConfirmDeleteAsset] = useState<MediaAsset | null>(null);
   const [previewAsset, setPreviewAsset] = useState<MediaAsset | null>(null);
@@ -126,7 +131,7 @@ function MediaLibraryContent() {
 
   useEffect(() => { loadFolders(); }, [loadFolders]);
   useEffect(() => { loadAssets(); }, [loadAssets]);
-  useEffect(() => { setPage(1); }, [folderView, search, mimeFilter, perPage]);
+  useEffect(() => { setPage(1); setSelectedIds(new Set()); }, [folderView, search, mimeFilter, perPage]);
 
   // ── Upload ───────────────────────────────────────────────────
 
@@ -202,6 +207,31 @@ function MediaLibraryContent() {
       toast.success("URL copied");
       setTimeout(() => setCopiedId(null), 2000);
     } catch { toast.error("Failed to copy"); }
+  };
+
+  // ── Bulk operations ─────────────────────────────────────────
+
+  const handleBulkMove = async (folderId: string | null) => {
+    setBulkMoveActive(false);
+    const ids = Array.from(selectedIds);
+    for (const id of ids) await handleMove(id, folderId);
+    setSelectedIds(new Set());
+  };
+
+  const handleBulkDelete = async () => {
+    setConfirmBulkDelete(false);
+    const ids = Array.from(selectedIds);
+    let ok = 0, fail = 0;
+    for (const id of ids) {
+      try {
+        const res = await fetch(`/api/media/${id}`, { method: "DELETE" });
+        if (res.ok) { ok++; } else { fail++; }
+      } catch { fail++; }
+    }
+    setSelectedIds(new Set());
+    if (ok > 0) toast.success(ok === 1 ? "File deleted" : `${ok} files deleted`);
+    if (fail > 0) toast.error(`${fail} file${fail !== 1 ? "s" : ""} could not be deleted (in use)`);
+    await Promise.all([loadFolders(), loadAssets()]);
   };
 
   // ── Folder CRUD ─────────────────────────────────────────────
@@ -353,6 +383,23 @@ function MediaLibraryContent() {
             </div>
           </div>
 
+          {/* Bulk action bar */}
+          {selectedIds.size > 0 && (
+            <div className="d-flex align-items-center gap-2 px-3 py-2 border-bottom bg-primary bg-opacity-10 flex-shrink-0">
+              <i className="bi bi-check2-square text-primary" />
+              <span className="small fw-semibold text-primary">{selectedIds.size} selected</span>
+              <button className="btn btn-sm btn-outline-primary" onClick={() => setBulkMoveActive(true)}>
+                <i className="bi bi-folder-symlink me-1" />Move
+              </button>
+              <button className="btn btn-sm btn-outline-danger" onClick={() => setConfirmBulkDelete(true)}>
+                <i className="bi bi-trash me-1" />Delete
+              </button>
+              <button className="btn btn-sm btn-link text-muted ms-auto p-0 text-decoration-none" onClick={() => setSelectedIds(new Set())}>
+                <i className="bi bi-x me-1" />Clear
+              </button>
+            </div>
+          )}
+
           {/* Drag hint bar */}
           {draggingAsset && (
             <div className="bg-primary bg-opacity-10 border-bottom border-primary px-3 py-1 flex-shrink-0 d-flex align-items-center gap-2">
@@ -384,6 +431,13 @@ function MediaLibraryContent() {
                       <AssetCard
                         asset={asset}
                         isCopied={copiedId === asset.id}
+                        isSelected={selectedIds.has(asset.id)}
+                        hasSelection={selectedIds.size > 0}
+                        onSelect={() => setSelectedIds(prev => {
+                          const next = new Set(prev);
+                          next.has(asset.id) ? next.delete(asset.id) : next.add(asset.id);
+                          return next;
+                        })}
                         onCopy={() => handleCopyUrl(asset)}
                         onPreview={() => setPreviewAsset(asset)}
                         onMove={() => setMoveModal(asset)}
@@ -427,6 +481,28 @@ function MediaLibraryContent() {
       </div>
 
       {/* ── Modals ── */}
+
+      {bulkMoveActive && (
+        <MediaMoveModal
+          assetName={`${selectedIds.size} file${selectedIds.size !== 1 ? "s" : ""}`}
+          folders={folders}
+          currentFolderId={null}
+          onMove={handleBulkMove}
+          onClose={() => setBulkMoveActive(false)}
+        />
+      )}
+
+      {confirmBulkDelete && (
+        <ConfirmDialog
+          isOpen
+          title="Delete Selected Files"
+          message={`Delete ${selectedIds.size} file${selectedIds.size !== 1 ? "s" : ""}? Files in use will be skipped. This cannot be undone.`}
+          confirmText="Delete"
+          variant="danger"
+          onConfirm={handleBulkDelete}
+          onCancel={() => setConfirmBulkDelete(false)}
+        />
+      )}
 
       {moveModal && (
         <MediaMoveModal
@@ -502,6 +578,9 @@ function MediaLibraryContent() {
 interface AssetCardProps {
   asset: MediaAsset;
   isCopied: boolean;
+  isSelected: boolean;
+  hasSelection: boolean;
+  onSelect: () => void;
   onCopy: () => void;
   onPreview: () => void;
   onMove: () => void;
@@ -510,15 +589,18 @@ interface AssetCardProps {
   onDragEnd: () => void;
 }
 
-function AssetCard({ asset, isCopied, onCopy, onPreview, onMove, onDelete, onDragStart, onDragEnd }: AssetCardProps) {
+function AssetCard({ asset, isCopied, isSelected, hasSelection, onSelect, onCopy, onPreview, onMove, onDelete, onDragStart, onDragEnd }: AssetCardProps) {
   const cat = mimeCategory(asset.mimeType);
   const inUse = asset.usageCount > 0;
   const thumb = asset.thumbnailUrl ?? (cat === "image" ? asset.url : null);
 
   return (
     <div
-      className="card border-0 shadow-sm h-100"
-      style={{ cursor: "grab", overflow: "hidden", userSelect: "none" }}
+      className="card shadow-sm h-100"
+      style={{
+        cursor: "grab", overflow: "hidden", userSelect: "none",
+        border: isSelected ? "2px solid #0d6efd" : "1px solid rgba(0,0,0,0.125)",
+      }}
       draggable
       onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; onDragStart(); }}
       onDragEnd={onDragEnd}
@@ -529,6 +611,24 @@ function AssetCard({ asset, isCopied, onCopy, onPreview, onMove, onDelete, onDra
         style={{ height: 110, cursor: "pointer" }}
         onClick={onPreview}
       >
+        {/* Selection checkbox */}
+        <div
+          className="position-absolute"
+          style={{ top: 4, left: 4, zIndex: 2 }}
+          onClick={(e) => { e.stopPropagation(); onSelect(); }}
+        >
+          <input
+            type="checkbox"
+            className="form-check-input shadow-sm"
+            checked={isSelected}
+            readOnly
+            style={{
+              cursor: "pointer",
+              width: 15, height: 15,
+              opacity: isSelected || hasSelection ? 1 : 0.35,
+            }}
+          />
+        </div>
         {thumb ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img

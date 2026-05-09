@@ -98,13 +98,9 @@ function formatDate(iso: string): string {
 export default async function ChangelogPage() {
   let content = "";
 
-  // Try docs/CHANGELOG.md first, then root CHANGELOG.md
-  const paths = [
-    path.join(process.cwd(), "docs", "CHANGELOG.md"),
-    path.join(process.cwd(), "CHANGELOG.md"),
-  ];
-  for (const p of paths) {
-    if (existsSync(p)) { content = await readFile(p, "utf-8"); break; }
+  const changelogPath = path.join(process.cwd(), "CHANGELOG.md");
+  if (existsSync(changelogPath)) {
+    content = await readFile(changelogPath, "utf-8");
   }
 
   // Fallback: generate from cms-version.json
@@ -134,7 +130,7 @@ export default async function ChangelogPage() {
 
         {entries.length === 0 && (
           <div className="text-center py-5 text-muted">
-            <p style={{ fontSize: 13 }}>No changelog found. Add entries to <code>docs/CHANGELOG.md</code>.</p>
+            <p style={{ fontSize: 13 }}>No changelog found. Add entries to <code>CHANGELOG.md</code>.</p>
           </div>
         )}
 
