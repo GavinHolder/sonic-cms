@@ -1,10 +1,10 @@
 {
-  "version": "1.58.1",
+  "version": "1.58.2",
   "date": "2026-05-09",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "SEO scorecard Fix button — add ?seo=<slug> param support and correct links"
+      "use env: vars for Portainer secrets and improve auth debug output in deploy"
     ],
     "breaking": []
   }
