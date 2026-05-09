@@ -154,7 +154,11 @@ export async function POST(request: NextRequest) {
         ...(data.customHtml !== undefined && { customHtml: data.customHtml }),
         ...(data.customCss  !== undefined && { customCss:  data.customCss }),
         ...(data.customCssUrls !== undefined && { customCssUrls: data.customCssUrls }),
-        ...(data.mediaSlots   !== undefined && { mediaSlots:   data.mediaSlots }),
+        ...(data.mediaSlots !== undefined && {
+          mediaSlots: data.mediaSlots
+            ? (() => { try { return JSON.parse(data.mediaSlots); } catch { return {}; } })()
+            : undefined,
+        }),
       },
       include: { createdByUser: { select: { username: true } } },
     });

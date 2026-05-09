@@ -23,8 +23,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function GallerySlugPage({ params }: Props) {
   const { slug } = await params;
 
-  const category = await prisma.galleryCategory.findUnique({
-    where: { slug, isActive: true },
+  const allCategories = await prisma.galleryCategory.findMany({
+    where: { isActive: true },
+    orderBy: { order: "asc" },
     include: {
       images: {
         orderBy: { order: "asc" },
@@ -35,7 +36,7 @@ export default async function GallerySlugPage({ params }: Props) {
     },
   });
 
-  if (!category) {
+  if (allCategories.length === 0) {
     return (
       <div className="container-fluid py-5" style={{ maxWidth: "1400px", margin: "0 auto" }}>
         <div className="text-center py-5">
@@ -52,20 +53,14 @@ export default async function GallerySlugPage({ params }: Props) {
     );
   }
 
-  const allCategories = await prisma.galleryCategory.findMany({
-    where: { isActive: true },
-    orderBy: { order: "asc" },
-    select: { id: true, name: true, slug: true, _count: { select: { images: true } } },
-  });
-
   return (
     <GalleryPageClient
-      category={{
-        id: category.id,
-        name: category.name,
-        slug: category.slug,
-        description: category.description,
-        images: category.images.map((img) => ({
+      allCategories={allCategories.map((cat) => ({
+        id: cat.id,
+        name: cat.name,
+        slug: cat.slug,
+        description: cat.description,
+        images: cat.images.map((img) => ({
           id: img.id,
           caption: img.caption,
           altText: img.altText || img.asset.altText || "",
@@ -74,13 +69,8 @@ export default async function GallerySlugPage({ params }: Props) {
           width: img.asset.width,
           height: img.asset.height,
         })),
-      }}
-      allCategories={allCategories.map((c) => ({
-        id: c.id,
-        name: c.name,
-        slug: c.slug,
-        imageCount: c._count.images,
       }))}
+      activeSlug={slug}
     />
   );
 }
