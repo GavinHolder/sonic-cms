@@ -125,6 +125,7 @@
 .gal-item img {
   width: 100%;
   display: block;
+  height: auto;
   transition: transform 0.35s ease;
 }
 .gal-item-overlay {

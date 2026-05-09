@@ -162,7 +162,7 @@ export default function GalleryPageClient({ allCategories, activeSlug }: Props) 
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={img.thumbnailUrl || img.url}
+                        src={img.url}
                         alt={img.altText}
                         loading="lazy"
                       />
