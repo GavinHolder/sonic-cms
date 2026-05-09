@@ -1,9 +1,9 @@
 {
-  "version": "1.57.0",
+  "version": "1.58.0",
   "date": "2026-05-09",
   "changelog": {
     "features": [
-      "gallery — bento collage layout with dark theme, desaturated images, +N overflow badge"
+      "SEO page overhaul — responsibility panel, bootstrap SEO, propagation monitor, scorecard + gallery bottom padding"
     ],
     "bugfixes": [],
     "breaking": []
