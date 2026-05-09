@@ -10,6 +10,7 @@ import { useToast } from "@/components/admin/ToastProvider";
 // ============================================
 
 interface MediaFile {
+  id: string;
   name: string;
   url: string;
   size: number;
@@ -67,19 +68,25 @@ function MediaLibraryContent() {
   const loadFiles = useCallback(async () => {
     setLoading(true);
     try {
-      const [filesRes, usageRes] = await Promise.all([
-        fetch("/api/media/files"),
-        fetch("/api/media/usage"),
-      ]);
-      if (!filesRes.ok) throw new Error("Failed to load files");
-      const filesData = await filesRes.json();
-      const usageData = usageRes.ok ? await usageRes.json() : { usages: {} };
-      const usages: Record<string, number> = usageData.usages ?? {};
-      const filesWithUsage = (filesData.files ?? []).map((f: MediaFile) => ({
-        ...f,
-        usageCount: usages[f.name] ?? 0,
-      }));
-      setFiles(filesWithUsage);
+      const res = await fetch("/api/media?perPage=500");
+      if (!res.ok) throw new Error("Failed to load files");
+      const data = await res.json();
+      const media: Array<{
+        id: string; filename: string; originalName?: string;
+        mimeType: string; fileSize: number; url: string;
+        usageCount: number; updatedAt: string;
+      }> = data.data?.media ?? [];
+      setFiles(
+        media.map((m) => ({
+          id: m.id,
+          name: m.filename || m.originalName || m.url,
+          url: m.url,
+          size: m.fileSize,
+          type: m.mimeType,
+          modifiedAt: m.updatedAt,
+          usageCount: m.usageCount,
+        }))
+      );
     } catch {
       toast.error("Failed to load media files");
     } finally {
@@ -108,7 +115,7 @@ function MediaLibraryContent() {
       formData.append("file", file);
 
       try {
-        const res = await fetch("/api/media/upload-simple", {
+        const res = await fetch("/api/media/upload", {
           method: "POST",
           body: formData,
         });
@@ -118,7 +125,7 @@ function MediaLibraryContent() {
         } else {
           const data = await res.json();
           failCount++;
-          toast.error(`Failed to upload "${file.name}": ${data.error ?? "Unknown error"}`);
+          toast.error(`Failed to upload "${file.name}": ${data.error?.message ?? data.error ?? "Unknown error"}`);
         }
       } catch {
         failCount++;
@@ -148,18 +155,16 @@ function MediaLibraryContent() {
 
   const handleDelete = async (file: MediaFile) => {
     if ((file.usageCount ?? 0) > 0) {
-      toast.warning(`"${file.name}" is used in ${file.usageCount} section(s) and cannot be deleted.`);
+      toast.warning(`"${file.name}" is used in ${file.usageCount} place(s) and cannot be deleted.`);
       setConfirmDelete(null);
       return;
     }
     try {
-      const res = await fetch(`/api/media/files?name=${encodeURIComponent(file.name)}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(`/api/media/${file.id}`, { method: "DELETE" });
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error ?? "Delete failed");
+        throw new Error(data.error?.message ?? data.error ?? "Delete failed");
       }
 
       toast.success(`"${file.name}" deleted`);
