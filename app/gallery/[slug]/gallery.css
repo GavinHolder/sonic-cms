@@ -15,6 +15,7 @@
   background: var(--gal-page-bg);
   color: rgba(255,255,255,0.82);
   min-height: 100vh;
+  padding-bottom: 80px;
 }
 
 .gal-topbar {
@@ -355,4 +356,5 @@
   .gal-cell:nth-child(4) { grid-column: 1 / 3; }
   .gal-lb-prev { left: 8px; }
   .gal-lb-next { right: 8px; }
+  .gal-wrap { padding-bottom: 48px; }
 }

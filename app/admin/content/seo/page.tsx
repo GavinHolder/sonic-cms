@@ -8,6 +8,8 @@ import SeoWizardModal from "@/components/admin/SeoWizardModal";
 import MediaPickerModal from "@/components/admin/MediaPickerModal";
 import MediaUploadModal from "@/components/admin/MediaUploadModal";
 import GoogleSetupTab from "@/components/admin/GoogleSetupTab";
+import PropagationTab from "./PropagationTab";
+import ScorecardTab from "./ScorecardTab";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,7 +36,10 @@ export default function SeoSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [runningAudit, setRunningAudit] = useState(false);
-  const [activeTab, setActiveTab] = useState<"site" | "social" | "robots" | "schema" | "google" | "audit">("site");
+  const [activeTab, setActiveTab] = useState<"site" | "social" | "robots" | "schema" | "google" | "audit" | "propagation" | "scorecard">("site");
+  const [showBootstrapConfirm, setShowBootstrapConfirm] = useState(false);
+  const [bootstrapping, setBootstrapping] = useState(false);
+  const [bootstrapSummary, setBootstrapSummary] = useState<string | null>(null);
   const [alert, setAlert] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [audit, setAudit] = useState<AuditResult | null>(null);
   const [showWizard, setShowWizard] = useState(false);
@@ -155,6 +160,87 @@ export default function SeoSettingsPage() {
     }
   };
 
+  // ── Bootstrap SEO ───────────────────────────────────────────────────────────
+  const handleBootstrapSeo = async () => {
+    setBootstrapping(true);
+    setBootstrapSummary(null);
+    try {
+      // Fetch published pages and site config in parallel
+      const [pagesRes, scRes] = await Promise.all([
+        fetch("/api/pages"),
+        fetch("/api/site-config"),
+      ]);
+      const pagesData = pagesRes.ok ? await pagesRes.json() : null;
+      const scData = scRes.ok ? await scRes.json() : null;
+
+      const pages: Array<{ slug: string; title: string; metaTitle: string | null; metaDescription: string | null }> =
+        pagesData?.data?.pages ?? [];
+      const sc = scData?.data ?? {};
+
+      let filledTitles = 0;
+      let filledDescriptions = 0;
+
+      for (const page of pages) {
+        const patch: Record<string, string> = {};
+        if (!page.metaTitle?.trim()) {
+          patch.metaTitle = `${page.title}${config.siteName ? ` ${config.titleSeparator || "|"} ${config.siteName}` : ""}`.slice(0, 60);
+          filledTitles++;
+        }
+        if (!page.metaDescription?.trim()) {
+          const base = `${page.title}${sc.companyName ? ` — ${sc.companyName}` : ""}`;
+          patch.metaDescription = base.slice(0, 155);
+          filledDescriptions++;
+        }
+        if (Object.keys(patch).length > 0) {
+          await fetch(`/api/pages/${page.slug}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(patch),
+          });
+        }
+      }
+
+      // Update structured data from SiteConfig
+      let sdUpdated = false;
+      const sd = { ...config.structuredData };
+      if (!sd.name && sc.companyName) { sd.name = sc.companyName; sdUpdated = true; }
+      if (!sd.telephone && sc.phone)  { sd.telephone = sc.phone;  sdUpdated = true; }
+      if (!sd.addressLocality && sc.city) { sd.addressLocality = sc.city; sdUpdated = true; }
+      if (sd.name && !sd.enabled) { sd.enabled = true; sdUpdated = true; }
+
+      if (sdUpdated) {
+        const updatedConfig = { ...config, structuredData: sd };
+        const saveRes = await fetch("/api/seo", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updatedConfig),
+        });
+        if (saveRes.ok) {
+          const j = await saveRes.json();
+          if (j.success) setConfig(j.data);
+        }
+      }
+
+      // Run audit to refresh results
+      await handleRunAudit();
+
+      const parts: string[] = [];
+      if (filledTitles > 0) parts.push(`filled ${filledTitles} title${filledTitles !== 1 ? "s" : ""}`);
+      if (filledDescriptions > 0) parts.push(`${filledDescriptions} description${filledDescriptions !== 1 ? "s" : ""}`);
+      if (sdUpdated) parts.push("enabled structured data");
+      setBootstrapSummary(
+        parts.length
+          ? `Done: ${parts.join(", ")}.`
+          : "All SEO fields already populated — nothing to fill."
+      );
+    } catch {
+      setBootstrapSummary("Something went wrong during bootstrap. Check the console.");
+    } finally {
+      setBootstrapping(false);
+      setShowBootstrapConfirm(false);
+    }
+  };
+
   // ── Preview helpers ─────────────────────────────────────────────────────────
   const previewTitle = config.siteName
     ? `Page Title ${config.titleSeparator} ${config.siteName}`
@@ -268,9 +354,87 @@ export default function SeoSettingsPage() {
         </div>
       )}
 
+      {/* System vs You responsibility panel */}
+      <div className="row g-3 mb-4">
+        <div className="col-md-6">
+          <div className="card border-0 border-start border-success border-4 shadow-sm h-100">
+            <div className="card-body p-4">
+              <div className="fw-semibold mb-3 text-success">
+                <i className="bi bi-check-circle-fill me-2" />Done automatically by the system
+              </div>
+              <ul className="list-unstyled mb-0 small">
+                {[
+                  "Sitemap generation (/sitemap.xml)",
+                  "Canonical URL tag per page",
+                  "OG tags from page data",
+                  "robots.txt",
+                  "Structured data JSON-LD from config",
+                  "Gallery & standalone page metadata",
+                  "Twitter cards",
+                  "GA4 tracking (if ID is set)",
+                ].map((item) => (
+                  <li key={item} className="d-flex align-items-start gap-2 mb-2">
+                    <i className="bi bi-check2 text-success mt-1 flex-shrink-0" />
+                    <span className="text-body">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+        <div className="col-md-6">
+          <div className="card border-0 border-start border-warning border-4 shadow-sm h-100">
+            <div className="card-body p-4">
+              <div className="fw-semibold mb-3 text-warning">
+                <i className="bi bi-person-fill me-2" />You need to do this
+              </div>
+              <ul className="list-unstyled mb-0 small">
+                {[
+                  { text: "GSC domain verification", tab: "google" },
+                  { text: "Submit sitemap to Google", tab: "propagation" },
+                  { text: "Google Business Profile (external)", url: "https://business.google.com" },
+                  { text: "Write quality meta descriptions", tab: "scorecard" },
+                  { text: "Choose target keywords", tab: "scorecard" },
+                  { text: "Add fresh content regularly", tab: null },
+                  { text: "Get backlinks from other sites", tab: null },
+                  { text: "Request indexing in GSC", tab: "propagation" },
+                ].map((item) => (
+                  <li key={item.text} className="d-flex align-items-start gap-2 mb-2">
+                    <i className="bi bi-arrow-right-circle text-warning mt-1 flex-shrink-0" />
+                    {item.tab ? (
+                      <button
+                        className="btn btn-link btn-sm p-0 text-start text-body text-decoration-none"
+                        style={{ lineHeight: "inherit" }}
+                        onClick={() => setActiveTab(item.tab as typeof activeTab)}
+                      >
+                        {item.text} <i className="bi bi-arrow-right ms-1 small" />
+                      </button>
+                    ) : item.url ? (
+                      <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-body text-decoration-none">
+                        {item.text} <i className="bi bi-box-arrow-up-right ms-1 small" />
+                      </a>
+                    ) : (
+                      <span className="text-body">{item.text}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Bootstrap SEO summary */}
+      {bootstrapSummary && (
+        <div className="alert alert-success alert-dismissible mb-4">
+          <i className="bi bi-rocket-takeoff me-2" />{bootstrapSummary}
+          <button type="button" className="btn-close" onClick={() => setBootstrapSummary(null)} />
+        </div>
+      )}
+
       {/* Tabs */}
       <ul className="nav nav-pills mb-4 flex-wrap gap-1">
-        {(["site", "social", "robots", "schema", "google", "audit"] as const).map((tab) => (
+        {(["site", "social", "robots", "schema", "google", "audit", "propagation", "scorecard"] as const).map((tab) => (
           <li key={tab} className="nav-item">
             <button
               className={`nav-link ${activeTab === tab ? "active" : ""}`}
@@ -281,6 +445,8 @@ export default function SeoSettingsPage() {
               {tab === "robots" && <><i className="bi bi-robot me-1" />Robots &amp; Sitemap</>}
               {tab === "schema" && <><i className="bi bi-code-slash me-1" />Structured Data</>}
               {tab === "google" && <><i className="bi bi-google me-1" />Google</>}
+              {tab === "propagation" && <><i className="bi bi-diagram-3 me-1" />Propagation</>}
+              {tab === "scorecard" && <><i className="bi bi-bar-chart-line me-1" />Scorecard</>}
               {tab === "audit" && (
                 <>
                   <i className="bi bi-clipboard-check me-1" />
@@ -303,8 +469,15 @@ export default function SeoSettingsPage() {
         <div className="row g-4">
           <div className="col-lg-7">
             <div className="card border-0 shadow-sm">
-              <div className="card-header border-bottom bg-transparent py-3">
+              <div className="card-header border-bottom bg-transparent py-3 d-flex align-items-center justify-content-between">
                 <h6 className="mb-0 fw-semibold"><i className="bi bi-globe me-2 text-primary" />Site Identity</h6>
+                <button
+                  className="btn btn-outline-success btn-sm"
+                  onClick={() => setShowBootstrapConfirm(true)}
+                  title="Auto-fill blank SEO fields from your site configuration"
+                >
+                  <i className="bi bi-rocket-takeoff me-1" />Bootstrap SEO
+                </button>
               </div>
               <div className="card-body p-4">
                 <div className="mb-4">
@@ -709,6 +882,12 @@ export default function SeoSettingsPage() {
       {/* ── Tab: Google Setup ──────────────────────────────────────────────── */}
       {activeTab === "google" && <GoogleSetupTab />}
 
+      {/* ── Tab: Propagation Monitor ──────────────────────────────────────── */}
+      {activeTab === "propagation" && <PropagationTab canonicalBase={config.canonicalBase} />}
+
+      {/* ── Tab: SEO Scorecard ────────────────────────────────────────────── */}
+      {activeTab === "scorecard" && <ScorecardTab config={config} />}
+
       {/* ── Tab: SEO Audit ────────────────────────────────────────────────── */}
       {activeTab === "audit" && (
         <div>
@@ -895,6 +1074,51 @@ export default function SeoSettingsPage() {
           )}
         </div>
       )}
+      {/* Bootstrap SEO confirm modal */}
+      {showBootstrapConfirm && (
+        <>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1110 }} onClick={() => setShowBootstrapConfirm(false)} />
+          <div className="modal fade show d-block" style={{ zIndex: 1115 }} role="dialog" aria-modal>
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">
+                    <i className="bi bi-rocket-takeoff me-2 text-success" />Bootstrap SEO
+                  </h5>
+                  <button type="button" className="btn-close" onClick={() => setShowBootstrapConfirm(false)} />
+                </div>
+                <div className="modal-body">
+                  <p>This will automatically fill in <strong>blank</strong> SEO fields:</p>
+                  <ul className="small mb-3">
+                    <li>Page meta titles from each page&apos;s title + site name</li>
+                    <li>Page meta descriptions from page title + company name</li>
+                    <li>Structured data name, phone, city from your Site Configuration</li>
+                    <li>Enables structured data if business name is populated</li>
+                  </ul>
+                  <div className="alert alert-info py-2 small mb-0">
+                    <i className="bi bi-info-circle me-1" />
+                    <strong>Existing values will not be overwritten.</strong> Only blank fields will be filled.
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button className="btn btn-secondary" onClick={() => setShowBootstrapConfirm(false)}>
+                    Cancel
+                  </button>
+                  <button
+                    className="btn btn-success d-flex align-items-center gap-2"
+                    onClick={handleBootstrapSeo}
+                    disabled={bootstrapping}
+                  >
+                    {bootstrapping && <span className="spinner-border spinner-border-sm" />}
+                    {bootstrapping ? "Running…" : "Run Bootstrap SEO"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
       <SeoWizardModal
         show={showWizard}
         onClose={() => setShowWizard(false)}
