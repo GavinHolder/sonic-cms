@@ -1,10 +1,10 @@
 {
-  "version": "1.55.4",
+  "version": "1.55.5",
   "date": "2026-05-09",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "gallery empty state — friendly page instead of 404 when no categories or unknown slug"
+      "forward mediaSlots when creating page from standalone template"
     ],
     "breaking": []
   }
