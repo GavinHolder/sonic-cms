@@ -76,9 +76,10 @@ export async function GET(
 // ============================================
 
 const updateMediaSchema = z.object({
-  altText: z.string().optional(),
-  caption: z.string().optional(),
-  tags: z.array(z.string()).optional(),
+  altText:  z.string().optional(),
+  caption:  z.string().optional(),
+  tags:     z.array(z.string()).optional(),
+  folderId: z.string().nullable().optional(),
 });
 
 export async function PUT(
@@ -119,9 +120,10 @@ export async function PUT(
     const media = await prisma.mediaAsset.update({
       where: { id },
       data: {
-        ...(data.altText !== undefined && { altText: data.altText }),
-        ...(data.caption !== undefined && { caption: data.caption }),
-        ...(data.tags !== undefined && { tags: data.tags }),
+        ...(data.altText  !== undefined && { altText:  data.altText }),
+        ...(data.caption  !== undefined && { caption:  data.caption }),
+        ...(data.tags     !== undefined && { tags:     data.tags }),
+        ...(data.folderId !== undefined && { folderId: data.folderId }),
       },
       include: {
         uploadedByUser: {

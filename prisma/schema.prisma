@@ -19,10 +19,11 @@ model User {
   lastLoginAt  DateTime?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
-  apiKeys      ApiKey[]
-  mediaAssets  MediaAsset[]
-  pages        Page[]
-  sections     Section[]
+  apiKeys       ApiKey[]
+  mediaAssets   MediaAsset[]
+  mediaFolders  MediaFolder[]
+  pages         Page[]
+  sections      Section[]
   volt3DAssets    Volt3DAsset[]
   voltElements   VoltElement[]
   contentEntries ContentEntry[]
@@ -172,8 +173,24 @@ model CustomElement {
   @@map("custom_elements")
 }
 
+model MediaFolder {
+  id            String        @id @default(uuid())
+  name          String
+  parentId      String?
+  parent        MediaFolder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children      MediaFolder[] @relation("FolderTree")
+  assets        MediaAsset[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  createdBy     String
+  createdByUser User          @relation(fields: [createdBy], references: [id])
+
+  @@index([parentId])
+  @@map("media_folders")
+}
+
 model MediaAsset {
-  id             String   @id @default(uuid())
+  id             String       @id @default(uuid())
   filename       String
   originalName   String
   mimeType       String
@@ -186,15 +203,18 @@ model MediaAsset {
   caption        String?
   tags           String[]
   uploadedBy     String
-  usageCount     Int      @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  usageCount     Int          @default(0)
+  folderId       String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
   uploadedByUser User              @relation(fields: [uploadedBy], references: [id])
+  folder         MediaFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
   galleryCover   GalleryCategory[] @relation("GalleryCover")
   galleryImages  GalleryImage[]    @relation("GalleryImages")
 
   @@index([mimeType])
   @@index([tags])
+  @@index([folderId])
   @@map("media_assets")
 }
 

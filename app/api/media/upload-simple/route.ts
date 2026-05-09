@@ -162,25 +162,32 @@ export async function POST(request: NextRequest) {
     }
 
     // Create a MediaAsset DB record when the request is authenticated so
-    // DB-backed features (gallery picker, etc.) can find this file.
+    // DB-backed features (gallery picker, media library, etc.) can find the file.
     const user = authenticate(request);
+    const folderId = request.nextUrl.searchParams.get("folderId") || null;
+    let mediaId: string | null = null;
     if (user) {
-      prisma.mediaAsset.create({
-        data: {
-          filename:     finalFilename,
-          originalName: originalName || finalFilename,
-          mimeType:     finalMimeType,
-          fileSize:     size,
-          width,
-          height,
-          url:          finalUrl,
-          uploadedBy:   user.userId,
-        },
-      }).catch(() => {/* non-fatal */});
+      try {
+        const record = await prisma.mediaAsset.create({
+          data: {
+            filename:     finalFilename,
+            originalName: originalName || finalFilename,
+            mimeType:     finalMimeType,
+            fileSize:     size,
+            width,
+            height,
+            url:          finalUrl,
+            uploadedBy:   user.userId,
+            folderId,
+          },
+        });
+        mediaId = record.id;
+      } catch { /* non-fatal */ }
     }
 
     return NextResponse.json({
       success: true,
+      mediaId,
       url:  finalUrl,
       type: isImage ? "image" : isPdf ? "pdf" : "video",
       ...(isImage ? {} : { size }),

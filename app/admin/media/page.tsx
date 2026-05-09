@@ -4,525 +4,594 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/components/admin/ToastProvider";
+import MediaFolderTree, { type FolderNode, type FolderView } from "./MediaFolderTree";
+import MediaMoveModal from "./MediaMoveModal";
 
-// ============================================
-// Types
-// ============================================
+// ── Types ────────────────────────────────────────────────────────────────────
 
-interface MediaFile {
-  name: string;
+interface MediaAsset {
+  id: string;
+  filename: string;
+  originalName: string;
+  mimeType: string;
+  fileSize: number;
+  width: number | null;
+  height: number | null;
   url: string;
-  size: number;
-  type: string;
-  modifiedAt: string;
-  usageCount?: number;
+  thumbnailUrl: string | null;
+  folderId: string | null;
+  usageCount: number;
+  createdAt: string;
 }
 
-type FilterType = "all" | "images" | "videos" | "documents";
+type MimeFilter = "" | "image" | "video" | "document";
 
-function formatFileSize(bytes: number): string {
+// ── Utilities ────────────────────────────────────────────────────────────────
+
+function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes < 1_048_576) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1_048_576).toFixed(1)} MB`;
 }
 
-function getFileType(name: string): "image" | "video" | "document" | "other" {
-  const ext = name.split(".").pop()?.toLowerCase() ?? "";
-  if (["jpg", "jpeg", "png", "gif", "webp", "svg", "avif"].includes(ext)) return "image";
-  if (["mp4", "webm", "mov", "avi", "mkv"].includes(ext)) return "video";
-  if (ext === "pdf") return "document";
+function mimeCategory(mimeType: string): "image" | "video" | "document" | "other" {
+  if (mimeType.startsWith("image/")) return "image";
+  if (mimeType.startsWith("video/")) return "video";
+  if (mimeType === "application/pdf") return "document";
   return "other";
 }
 
-// ============================================
-// Page shell — wraps in AdminLayout (which provides ToastProvider)
-// ============================================
+// ── Page shell ───────────────────────────────────────────────────────────────
 
 export default function MediaLibrary() {
   return (
-    <AdminLayout title="Media Library" subtitle="Upload and manage images, videos, and PDFs">
+    <AdminLayout title="Media Library" subtitle="Organise and manage your uploaded files">
       <MediaLibraryContent />
     </AdminLayout>
   );
 }
 
-// ============================================
-// Inner content — renders inside ToastProvider
-// ============================================
+// ── Inner content ────────────────────────────────────────────────────────────
 
 function MediaLibraryContent() {
   const toast = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [files, setFiles] = useState<MediaFile[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [filter, setFilter] = useState<FilterType>("all");
+  // Folder sidebar
+  const [folderView, setFolderView] = useState<FolderView>("all");
+  const [folders, setFolders] = useState<FolderNode[]>([]);
+  const [totalAssets, setTotalAssets] = useState(0);
+  const [uncategorisedCount, setUncategorisedCount] = useState(0);
+
+  // Asset grid
+  const [assets, setAssets] = useState<MediaAsset[]>([]);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [loadingAssets, setLoadingAssets] = useState(true);
+
+  // Filters / pagination
   const [search, setSearch] = useState("");
-  const [confirmDelete, setConfirmDelete] = useState<MediaFile | null>(null);
-  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
-  const [dragOver, setDragOver] = useState(false);
-  const [previewFile, setPreviewFile] = useState<MediaFile | null>(null);
+  const [mimeFilter, setMimeFilter] = useState<MimeFilter>("");
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState<10 | 20>(20);
 
-  const loadFiles = useCallback(async () => {
-    setLoading(true);
+  // Drag-and-drop
+  const [draggingAsset, setDraggingAsset] = useState<MediaAsset | null>(null);
+
+  // Modals
+  const [confirmDeleteAsset, setConfirmDeleteAsset] = useState<MediaAsset | null>(null);
+  const [previewAsset, setPreviewAsset] = useState<MediaAsset | null>(null);
+  const [moveModal, setMoveModal] = useState<MediaAsset | null>(null);
+  const [renameFolderTarget, setRenameFolderTarget] = useState<FolderNode | null>(null);
+  const [renameName, setRenameName] = useState("");
+  const [showCreateFolder, setShowCreateFolder] = useState(false);
+  const [createFolderParentId, setCreateFolderParentId] = useState<string | null>(null);
+  const [createFolderName, setCreateFolderName] = useState("");
+  const [deleteFolderTarget, setDeleteFolderTarget] = useState<FolderNode | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  // ── Data loaders ────────────────────────────────────────────
+
+  const loadFolders = useCallback(async () => {
     try {
-      const [filesRes, usageRes] = await Promise.all([
-        fetch("/api/media/files"),
-        fetch("/api/media/usage"),
-      ]);
-      if (!filesRes.ok) throw new Error("Failed to load files");
-      const filesData = await filesRes.json();
-      const usageData = usageRes.ok ? await usageRes.json() : { usages: {} };
-      const usages: Record<string, number> = usageData.usages ?? {};
-      const filesWithUsage = (filesData.files ?? []).map((f: MediaFile) => ({
-        ...f,
-        usageCount: usages[f.name] ?? 0,
-      }));
-      setFiles(filesWithUsage);
+      const res = await fetch("/api/media/folders");
+      if (!res.ok) return;
+      const json = await res.json();
+      setFolders(json.data.folders);
+      setTotalAssets(json.data.totalAssets);
+      setUncategorisedCount(json.data.uncategorisedCount);
+    } catch { /* silent */ }
+  }, []);
+
+  const loadAssets = useCallback(async () => {
+    setLoadingAssets(true);
+    try {
+      const params = new URLSearchParams({ page: String(page), perPage: String(perPage) });
+      if (folderView !== "all") params.set("folderId", folderView);
+      if (search) params.set("search", search);
+      if (mimeFilter) params.set("mimeType", mimeFilter);
+      const res = await fetch(`/api/media?${params}`);
+      if (!res.ok) throw new Error();
+      const json = await res.json();
+      setAssets(json.data.media);
+      setTotal(json.meta.total);
+      setTotalPages(json.meta.totalPages);
     } catch {
-      toast.error("Failed to load media files");
+      toast.error("Failed to load media");
     } finally {
-      setLoading(false);
+      setLoadingAssets(false);
     }
-  }, [toast]);
+  }, [folderView, search, mimeFilter, page, perPage, toast]);
 
-  useEffect(() => {
-    loadFiles();
-  }, [loadFiles]);
+  useEffect(() => { loadFolders(); }, [loadFolders]);
+  useEffect(() => { loadAssets(); }, [loadAssets]);
+  useEffect(() => { setPage(1); }, [folderView, search, mimeFilter, perPage]);
 
-  // ============================================
-  // Upload
-  // ============================================
+  // ── Upload ───────────────────────────────────────────────────
 
   const handleUpload = async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
-
     setUploading(true);
-    let successCount = 0;
-    let failCount = 0;
-
+    const targetFolderId =
+      typeof folderView === "string" && folderView !== "all" && folderView !== "uncategorised"
+        ? folderView : null;
+    const baseUrl = targetFolderId
+      ? `/api/media/upload-simple?folderId=${targetFolderId}`
+      : "/api/media/upload-simple";
+    let ok = 0, fail = 0;
     for (let i = 0; i < fileList.length; i++) {
-      const file = fileList[i];
-      const formData = new FormData();
-      formData.append("file", file);
-
+      const fd = new FormData();
+      fd.append("file", fileList[i]);
       try {
-        const res = await fetch("/api/media/upload-simple", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (res.ok) {
-          successCount++;
-        } else {
-          const data = await res.json();
-          failCount++;
-          toast.error(`Failed to upload "${file.name}": ${data.error ?? "Unknown error"}`);
+        const res = await fetch(baseUrl, { method: "POST", body: fd });
+        if (res.ok) { ok++; } else {
+          fail++;
+          const d = await res.json();
+          toast.error(`"${fileList[i].name}": ${d.error ?? "Upload failed"}`);
         }
-      } catch {
-        failCount++;
-        toast.error(`Failed to upload "${file.name}"`);
-      }
+      } catch { fail++; toast.error(`"${fileList[i].name}": Upload failed`); }
     }
-
     setUploading(false);
-
-    if (successCount > 0) {
-      toast.success(
-        successCount === 1
-          ? "File uploaded successfully"
-          : `${successCount} files uploaded successfully`
-      );
-    }
-
-    // Reset file input
     if (fileInputRef.current) fileInputRef.current.value = "";
-
-    await loadFiles();
+    if (ok > 0) toast.success(ok === 1 ? "File uploaded" : `${ok} files uploaded`);
+    await Promise.all([loadFolders(), loadAssets()]);
   };
 
-  // ============================================
-  // Delete
-  // ============================================
+  // ── Move asset ──────────────────────────────────────────────
 
-  const handleDelete = async (file: MediaFile) => {
-    if ((file.usageCount ?? 0) > 0) {
-      toast.warning(`"${file.name}" is used in ${file.usageCount} section(s) and cannot be deleted.`);
-      setConfirmDelete(null);
-      return;
-    }
+  const handleMove = useCallback(async (assetId: string, folderId: string | null) => {
     try {
-      const res = await fetch(`/api/media/files?name=${encodeURIComponent(file.name)}`, {
-        method: "DELETE",
+      const res = await fetch(`/api/media/${assetId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folderId }),
       });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error ?? "Delete failed");
-      }
-
-      toast.success(`"${file.name}" deleted`);
-      setConfirmDelete(null);
-      if (previewFile?.name === file.name) setPreviewFile(null);
-      await loadFiles();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete file");
-    }
-  };
-
-  // ============================================
-  // Copy URL
-  // ============================================
-
-  const handleCopyUrl = async (url: string) => {
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopiedUrl(url);
-      toast.success("URL copied to clipboard");
-      setTimeout(() => setCopiedUrl(null), 2000);
+      if (!res.ok) throw new Error();
+      toast.success("Moved");
+      await Promise.all([loadFolders(), loadAssets()]);
     } catch {
-      toast.error("Failed to copy URL");
+      toast.error("Failed to move file");
+    }
+  }, [toast, loadFolders, loadAssets]);
+
+  // ── Delete asset ────────────────────────────────────────────
+
+  const handleDeleteAsset = async (asset: MediaAsset) => {
+    try {
+      const res = await fetch(`/api/media/${asset.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.error?.message ?? "Delete failed");
+      }
+      toast.success(`"${asset.originalName}" deleted`);
+      setConfirmDeleteAsset(null);
+      if (previewAsset?.id === asset.id) setPreviewAsset(null);
+      await Promise.all([loadFolders(), loadAssets()]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Delete failed");
     }
   };
 
-  // ============================================
-  // Drag & Drop
-  // ============================================
+  // ── Copy URL ────────────────────────────────────────────────
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(true);
+  const handleCopyUrl = async (asset: MediaAsset) => {
+    try {
+      await navigator.clipboard.writeText(window.location.origin + asset.url);
+      setCopiedId(asset.id);
+      toast.success("URL copied");
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch { toast.error("Failed to copy"); }
   };
 
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
+  // ── Folder CRUD ─────────────────────────────────────────────
+
+  const submitCreateFolder = async () => {
+    const name = createFolderName.trim();
+    if (!name) return;
+    try {
+      const res = await fetch("/api/media/folders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, parentId: createFolderParentId }),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.error?.message ?? "Failed to create folder");
+      }
+      setShowCreateFolder(false);
+      setCreateFolderName("");
+      toast.success(`Folder "${name}" created`);
+      await loadFolders();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create folder");
+    }
   };
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
-    handleUpload(e.dataTransfer.files);
+  const submitRenameFolder = async () => {
+    if (!renameFolderTarget) return;
+    const name = renameName.trim();
+    if (!name) return;
+    try {
+      const res = await fetch(`/api/media/folders/${renameFolderTarget.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) throw new Error();
+      setRenameFolderTarget(null);
+      toast.success(`Renamed to "${name}"`);
+      await loadFolders();
+    } catch { toast.error("Failed to rename folder"); }
   };
 
-  // ============================================
-  // Filtered list
-  // ============================================
-
-  const filteredFiles = files.filter((f) => {
-    const matchesFilter =
-      filter === "all" ||
-      (filter === "images" && getFileType(f.name) === "image") ||
-      (filter === "videos" && getFileType(f.name) === "video") ||
-      (filter === "documents" && getFileType(f.name) === "document");
-    const matchesSearch =
-      !search || f.name.toLowerCase().includes(search.toLowerCase());
-    return matchesFilter && matchesSearch;
-  });
-
-  const stats = {
-    total: files.length,
-    images: files.filter((f) => getFileType(f.name) === "image").length,
-    videos: files.filter((f) => getFileType(f.name) === "video").length,
-    documents: files.filter((f) => getFileType(f.name) === "document").length,
+  const submitDeleteFolder = async () => {
+    if (!deleteFolderTarget) return;
+    try {
+      const res = await fetch(`/api/media/folders/${deleteFolderTarget.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      setDeleteFolderTarget(null);
+      if (folderView === deleteFolderTarget.id) setFolderView("all");
+      toast.success("Folder deleted");
+      await Promise.all([loadFolders(), loadAssets()]);
+    } catch { toast.error("Failed to delete folder"); }
   };
+
+  // ── Render ───────────────────────────────────────────────────
 
   return (
     <>
-      {/* Upload button row */}
-      <div className="d-flex justify-content-end mb-4">
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept="image/*,video/*,application/pdf"
-          style={{ display: "none" }}
-          onChange={(e) => handleUpload(e.target.files)}
-        />
-        <button
-          className="btn btn-primary d-flex align-items-center gap-2"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-        >
-          {uploading ? (
-            <>
-              <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true" />
-              Uploading...
-            </>
-          ) : (
-            <>
-              <i className="bi bi-cloud-arrow-up"></i>
-              Upload Media
-            </>
-          )}
-        </button>
-      </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        accept="image/*,video/*,application/pdf"
+        style={{ display: "none" }}
+        onChange={(e) => handleUpload(e.target.files)}
+      />
 
-      {/* Stats */}
-      <div className="row g-3 mb-4">
-        <div className="col-6 col-md-3">
-          <div className="card border-0 shadow-sm">
-            <div className="card-body p-3">
-              <div className="text-body-secondary small mb-1">Total Files</div>
-              <div className="h4 mb-0 fw-semibold">{stats.total}</div>
-            </div>
-          </div>
-        </div>
-        <div className="col-6 col-md-3">
-          <div className="card border-0 shadow-sm">
-            <div className="card-body p-3">
-              <div className="text-body-secondary small mb-1">Images</div>
-              <div className="h4 mb-0 fw-semibold text-primary">{stats.images}</div>
-            </div>
-          </div>
-        </div>
-        <div className="col-6 col-md-3">
-          <div className="card border-0 shadow-sm">
-            <div className="card-body p-3">
-              <div className="text-body-secondary small mb-1">Videos</div>
-              <div className="h4 mb-0 fw-semibold text-info">{stats.videos}</div>
-            </div>
-          </div>
-        </div>
-        <div className="col-6 col-md-3">
-          <div className="card border-0 shadow-sm">
-            <div className="card-body p-3">
-              <div className="text-body-secondary small mb-1">Documents</div>
-              <div className="h4 mb-0 fw-semibold text-danger">{stats.documents}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Drag & Drop Zone */}
       <div
-        className={`border rounded-3 mb-4 text-center py-4 ${
-          dragOver ? "border-primary bg-primary bg-opacity-10" : "border-dashed"
-        }`}
-        style={{
-          borderStyle: "dashed",
-          cursor: "pointer",
-          transition: "all 0.2s",
-        }}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
+        className="d-flex overflow-hidden rounded border bg-white"
+        style={{ height: "calc(100vh - 130px)", minHeight: 400 }}
       >
-        <i
-          className={`bi bi-cloud-arrow-up-fill fs-2 ${dragOver ? "text-primary" : "text-muted"}`}
+        {/* ── Folder sidebar ── */}
+        <MediaFolderTree
+          folders={folders}
+          selected={folderView}
+          totalAssets={totalAssets}
+          uncategorisedCount={uncategorisedCount}
+          onSelect={setFolderView}
+          onCreateFolder={(parentId) => {
+            setCreateFolderParentId(parentId);
+            setCreateFolderName("");
+            setShowCreateFolder(true);
+          }}
+          onRenameFolder={(f) => { setRenameFolderTarget(f); setRenameName(f.name); }}
+          onDeleteFolder={setDeleteFolderTarget}
+          onFolderDrop={async (folderId) => {
+            if (!draggingAsset || draggingAsset.folderId === folderId) return;
+            await handleMove(draggingAsset.id, folderId);
+          }}
         />
-        <p className="mb-0 mt-2 text-muted small">
-          {dragOver ? "Drop files here" : "Drag & drop files here, or click to browse"}
-        </p>
-        <p className="mb-0 text-muted" style={{ fontSize: "0.75rem" }}>
-          Images, videos, and PDFs supported
-        </p>
-      </div>
 
-      {/* Filters + Search */}
-      <div className="d-flex flex-wrap align-items-center gap-3 mb-4">
-        <ul className="nav nav-pills flex-shrink-0 mb-0">
-          {(["all", "images", "videos", "documents"] as FilterType[]).map((f) => (
-            <li className="nav-item" key={f}>
-              <button
-                className={`nav-link ${filter === f ? "active" : ""}`}
-                onClick={() => setFilter(f)}
-              >
-                {f === "all"
-                  ? `All (${stats.total})`
-                  : f === "images"
-                  ? `Images (${stats.images})`
-                  : f === "videos"
-                  ? `Videos (${stats.videos})`
-                  : `Documents (${stats.documents})`}
-              </button>
-            </li>
-          ))}
-        </ul>
-        <div className="flex-grow-1" style={{ minWidth: "200px" }}>
-          <div className="input-group">
-            <span className="input-group-text">
-              <i className="bi bi-search" />
-            </span>
-            <input
-              type="text"
-              className="form-control"
-              placeholder="Search files..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            {search && (
-              <button className="btn btn-outline-secondary" onClick={() => setSearch("")}>
-                <i className="bi bi-x" />
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
+        {/* ── Main panel ── */}
+        <div className="flex-grow-1 d-flex flex-column overflow-hidden">
 
-      {/* File Grid */}
-      {loading ? (
-        <div className="text-center py-5">
-          <div className="spinner-border text-primary" role="status" />
-          <p className="mt-3 text-muted">Loading media files...</p>
-        </div>
-      ) : filteredFiles.length === 0 ? (
-        <div className="card border-0 shadow-sm">
-          <div className="card-body text-center py-5">
-            <i className="bi bi-images text-muted" style={{ fontSize: "4rem", opacity: 0.3 }} />
-            <h5 className="mt-3 text-body-secondary">
-              {search || filter !== "all" ? "No files match your filters" : "No files uploaded yet"}
-            </h5>
-            {!search && filter === "all" && (
-              <p className="text-body-secondary mb-4">
-                Upload images and videos using the button above or drag and drop here.
-              </p>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="row g-3">
-          {filteredFiles.map((file) => (
-            <div key={file.name} className="col-6 col-sm-4 col-md-3 col-lg-2">
-              <MediaCard
-                file={file}
-                isCopied={copiedUrl === file.url}
-                onCopy={() => handleCopyUrl(window.location.origin + file.url)}
-                onDelete={() => setConfirmDelete(file)}
-                onPreview={() => setPreviewFile(file)}
+          {/* Toolbar */}
+          <div className="d-flex align-items-center gap-2 px-3 py-2 border-bottom flex-shrink-0 flex-wrap">
+            <div className="input-group input-group-sm" style={{ maxWidth: 240 }}>
+              <span className="input-group-text"><i className="bi bi-search" /></span>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Search files…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
               />
+              {search && (
+                <button className="btn btn-outline-secondary" onClick={() => setSearch("")}>
+                  <i className="bi bi-x" />
+                </button>
+              )}
             </div>
-          ))}
+
+            <select
+              className="form-select form-select-sm"
+              style={{ width: "auto" }}
+              value={mimeFilter}
+              onChange={(e) => setMimeFilter(e.target.value as MimeFilter)}
+            >
+              <option value="">All types</option>
+              <option value="image">Images</option>
+              <option value="video">Videos</option>
+              <option value="document">Documents</option>
+            </select>
+
+            <select
+              className="form-select form-select-sm"
+              style={{ width: "auto" }}
+              value={perPage}
+              onChange={(e) => setPerPage(Number(e.target.value) as 10 | 20)}
+            >
+              <option value={10}>10 / page</option>
+              <option value={20}>20 / page</option>
+            </select>
+
+            <div className="ms-auto d-flex align-items-center gap-2">
+              {total > 0 && (
+                <span className="text-muted small">{total} file{total !== 1 ? "s" : ""}</span>
+              )}
+              <button
+                className="btn btn-primary btn-sm d-flex align-items-center gap-1"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+              >
+                {uploading
+                  ? <><span className="spinner-border spinner-border-sm me-1" />Uploading…</>
+                  : <><i className="bi bi-cloud-arrow-up me-1" />Upload</>}
+              </button>
+            </div>
+          </div>
+
+          {/* Drag hint bar */}
+          {draggingAsset && (
+            <div className="bg-primary bg-opacity-10 border-bottom border-primary px-3 py-1 flex-shrink-0 d-flex align-items-center gap-2">
+              <i className="bi bi-arrow-left-short text-primary fs-5" />
+              <span className="small text-primary">
+                Drop <strong>{draggingAsset.originalName}</strong> onto a folder to move it
+              </span>
+            </div>
+          )}
+
+          {/* Asset grid */}
+          <div className="flex-grow-1 overflow-auto p-3">
+            {loadingAssets ? (
+              <div className="d-flex justify-content-center align-items-center h-100">
+                <div className="spinner-border text-primary" role="status" />
+              </div>
+            ) : assets.length === 0 ? (
+              <div className="d-flex flex-column align-items-center justify-content-center h-100 text-muted">
+                <i className="bi bi-images" style={{ fontSize: "3rem", opacity: 0.25 }} />
+                <p className="mt-2 mb-0 small">
+                  {search || mimeFilter ? "No files match your filters" : "No files here yet"}
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="row g-2">
+                  {assets.map((asset) => (
+                    <div key={asset.id} className="col-6 col-sm-4 col-md-3 col-xl-2">
+                      <AssetCard
+                        asset={asset}
+                        isCopied={copiedId === asset.id}
+                        onCopy={() => handleCopyUrl(asset)}
+                        onPreview={() => setPreviewAsset(asset)}
+                        onMove={() => setMoveModal(asset)}
+                        onDelete={() => setConfirmDeleteAsset(asset)}
+                        onDragStart={() => setDraggingAsset(asset)}
+                        onDragEnd={() => setDraggingAsset(null)}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
+                    <span className="text-muted small">
+                      {(page - 1) * perPage + 1}–{Math.min(page * perPage, total)} of {total}
+                    </span>
+                    <div className="d-flex align-items-center gap-2">
+                      <button
+                        className="btn btn-sm btn-outline-secondary"
+                        disabled={page === 1}
+                        onClick={() => setPage((p) => p - 1)}
+                      >
+                        <i className="bi bi-chevron-left" />
+                      </button>
+                      <span className="small px-1">Page {page} of {totalPages}</span>
+                      <button
+                        className="btn btn-sm btn-outline-secondary"
+                        disabled={page === totalPages}
+                        onClick={() => setPage((p) => p + 1)}
+                      >
+                        <i className="bi bi-chevron-right" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
+      </div>
+
+      {/* ── Modals ── */}
+
+      {moveModal && (
+        <MediaMoveModal
+          assetName={moveModal.originalName}
+          folders={folders}
+          currentFolderId={moveModal.folderId}
+          onMove={async (folderId) => {
+            await handleMove(moveModal.id, folderId);
+            setMoveModal(null);
+          }}
+          onClose={() => setMoveModal(null)}
+        />
       )}
 
-      {/* Delete Confirmation */}
-      {confirmDelete && (
+      {confirmDeleteAsset && (
         <ConfirmDialog
-          isOpen={true}
+          isOpen
           title="Delete File"
           message={
-            (confirmDelete.usageCount ?? 0) > 0
-              ? `"${confirmDelete.name}" is currently used in ${confirmDelete.usageCount} section(s). Remove it from all sections before deleting.`
-              : `Are you sure you want to delete "${confirmDelete.name}"? This action cannot be undone.`
+            confirmDeleteAsset.usageCount > 0
+              ? `"${confirmDeleteAsset.originalName}" is referenced ${confirmDeleteAsset.usageCount} time${confirmDeleteAsset.usageCount !== 1 ? "s" : ""} and cannot be deleted.`
+              : `Delete "${confirmDeleteAsset.originalName}"? This cannot be undone.`
           }
-          confirmText={(confirmDelete.usageCount ?? 0) > 0 ? "Cannot Delete" : "Delete"}
+          confirmText={confirmDeleteAsset.usageCount > 0 ? "Close" : "Delete"}
           variant="danger"
-          onConfirm={() => handleDelete(confirmDelete)}
-          onCancel={() => setConfirmDelete(null)}
+          onConfirm={() =>
+            confirmDeleteAsset.usageCount > 0
+              ? setConfirmDeleteAsset(null)
+              : handleDeleteAsset(confirmDeleteAsset)
+          }
+          onCancel={() => setConfirmDeleteAsset(null)}
         />
       )}
 
-      {/* Preview Modal */}
-      {previewFile && (
-        <FilePreviewModal
-          file={previewFile}
-          onClose={() => setPreviewFile(null)}
-          onCopy={() => handleCopyUrl(window.location.origin + previewFile.url)}
-          onDelete={() => {
-            setPreviewFile(null);
-            setConfirmDelete(previewFile);
-          }}
-          isCopied={copiedUrl === previewFile.url}
+      {deleteFolderTarget && (
+        <ConfirmDialog
+          isOpen
+          title="Delete Folder"
+          message={`Delete "${deleteFolderTarget.name}"? Files inside become uncategorised, subfolders are promoted.`}
+          confirmText="Delete"
+          variant="danger"
+          onConfirm={submitDeleteFolder}
+          onCancel={() => setDeleteFolderTarget(null)}
+        />
+      )}
+
+      {(showCreateFolder || !!renameFolderTarget) && (
+        <FolderModal
+          title={showCreateFolder ? "New Folder" : "Rename Folder"}
+          value={showCreateFolder ? createFolderName : renameName}
+          onChange={showCreateFolder ? setCreateFolderName : setRenameName}
+          onConfirm={showCreateFolder ? submitCreateFolder : submitRenameFolder}
+          onClose={() => { setShowCreateFolder(false); setRenameFolderTarget(null); }}
+        />
+      )}
+
+      {previewAsset && (
+        <AssetPreviewModal
+          asset={previewAsset}
+          isCopied={copiedId === previewAsset.id}
+          onCopy={() => handleCopyUrl(previewAsset)}
+          onMove={() => { setPreviewAsset(null); setMoveModal(previewAsset); }}
+          onDelete={() => { setPreviewAsset(null); setConfirmDeleteAsset(previewAsset); }}
+          onClose={() => setPreviewAsset(null)}
         />
       )}
     </>
   );
 }
 
-// ============================================
-// Media Card
-// ============================================
+// ── Asset Card ────────────────────────────────────────────────────────────────
 
-interface MediaCardProps {
-  file: MediaFile;
+interface AssetCardProps {
+  asset: MediaAsset;
   isCopied: boolean;
   onCopy: () => void;
-  onDelete: () => void;
   onPreview: () => void;
+  onMove: () => void;
+  onDelete: () => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
 }
 
-function MediaCard({ file, isCopied, onCopy, onDelete, onPreview }: MediaCardProps) {
-  const type = getFileType(file.name);
-  const inUse = (file.usageCount ?? 0) > 0;
+function AssetCard({ asset, isCopied, onCopy, onPreview, onMove, onDelete, onDragStart, onDragEnd }: AssetCardProps) {
+  const cat = mimeCategory(asset.mimeType);
+  const inUse = asset.usageCount > 0;
+  const thumb = asset.thumbnailUrl ?? (cat === "image" ? asset.url : null);
 
   return (
     <div
       className="card border-0 shadow-sm h-100"
-      style={{ cursor: "pointer", overflow: "hidden" }}
+      style={{ cursor: "grab", overflow: "hidden", userSelect: "none" }}
+      draggable
+      onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; onDragStart(); }}
+      onDragEnd={onDragEnd}
     >
       {/* Thumbnail */}
       <div
         className="position-relative bg-light d-flex align-items-center justify-content-center"
-        style={{ height: "120px" }}
+        style={{ height: 110, cursor: "pointer" }}
         onClick={onPreview}
       >
-        {type === "image" ? (
+        {thumb ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={file.url}
-            alt={file.name}
+            src={thumb}
+            alt={asset.originalName}
             style={{ width: "100%", height: "100%", objectFit: "cover" }}
-            onError={(e) => {
-              e.currentTarget.style.display = "none";
-            }}
+            onError={(e) => { e.currentTarget.style.display = "none"; }}
           />
-        ) : type === "video" ? (
-          <i className="bi bi-play-circle-fill text-info" style={{ fontSize: "2.5rem" }} />
-        ) : type === "document" ? (
-          <i className="bi bi-file-earmark-pdf text-danger" style={{ fontSize: "2.5rem" }} />
+        ) : cat === "video" ? (
+          <i className="bi bi-play-circle-fill text-info" style={{ fontSize: "2.2rem" }} />
+        ) : cat === "document" ? (
+          <i className="bi bi-file-earmark-pdf text-danger" style={{ fontSize: "2.2rem" }} />
         ) : (
-          <i className="bi bi-file-earmark text-muted" style={{ fontSize: "2.5rem" }} />
+          <i className="bi bi-file-earmark text-muted" style={{ fontSize: "2.2rem" }} />
         )}
-
-        {/* In-use badge */}
         {inUse && (
           <span
             className="position-absolute top-0 start-0 m-1 badge bg-success"
-            style={{ fontSize: "0.6rem" }}
-            title={`Used in ${file.usageCount} section(s)`}
+            style={{ fontSize: "0.58rem" }}
+            title={`Used ${asset.usageCount}×`}
           >
-            <i className="bi bi-link me-1" />
-            In use
+            <i className="bi bi-link me-1" />{asset.usageCount}
           </span>
         )}
+        <span
+          className="position-absolute bottom-0 end-0 m-1 badge bg-dark bg-opacity-50"
+          style={{ fontSize: "0.55rem" }}
+        >
+          {formatBytes(asset.fileSize)}
+        </span>
       </div>
 
-      {/* Info */}
+      {/* Info + actions */}
       <div className="card-body p-2">
         <p
-          className="mb-1 small fw-semibold text-truncate"
-          style={{ fontSize: "0.7rem" }}
-          title={file.name}
+          className="mb-2 text-truncate"
+          style={{ fontSize: "0.68rem", fontWeight: 500, lineHeight: 1.3 }}
+          title={asset.originalName}
         >
-          {file.name}
+          {asset.originalName}
         </p>
-        <p className="mb-0 text-muted" style={{ fontSize: "0.65rem" }}>
-          {formatFileSize(file.size)}
-        </p>
-        {inUse && (
-          <p className="mb-1 text-success" style={{ fontSize: "0.6rem" }}>
-            Used in {file.usageCount} section{file.usageCount !== 1 ? "s" : ""}
-          </p>
-        )}
-        {/* Actions */}
-        <div className="d-flex gap-1 mt-1">
+        <div className="d-flex gap-1">
           <button
             className={`btn btn-sm flex-fill ${isCopied ? "btn-success" : "btn-outline-secondary"}`}
             onClick={onCopy}
             title="Copy URL"
-            style={{ fontSize: "0.65rem", padding: "2px 6px" }}
+            style={{ fontSize: "0.6rem", padding: "2px 4px" }}
           >
             <i className={`bi ${isCopied ? "bi-check-lg" : "bi-link-45deg"}`} />
           </button>
           <button
-            className={`btn btn-sm ${inUse ? "btn-outline-secondary" : "btn-outline-danger"}`}
+            className="btn btn-sm btn-outline-secondary flex-fill"
+            onClick={onMove}
+            title="Move to folder"
+            style={{ fontSize: "0.6rem", padding: "2px 4px" }}
+          >
+            <i className="bi bi-folder-symlink" />
+          </button>
+          <button
+            className={`btn btn-sm ${inUse ? "btn-outline-secondary" : "btn-outline-danger"} flex-fill`}
             onClick={onDelete}
-            title={inUse ? "Cannot delete — file is in use" : "Delete"}
-            disabled={inUse}
-            style={{ fontSize: "0.65rem", padding: "2px 6px" }}
+            title={inUse ? "In use — cannot delete" : "Delete"}
+            style={{ fontSize: "0.6rem", padding: "2px 4px" }}
           >
             <i className={`bi ${inUse ? "bi-lock" : "bi-trash"}`} />
           </button>
@@ -532,20 +601,17 @@ function MediaCard({ file, isCopied, onCopy, onDelete, onPreview }: MediaCardPro
   );
 }
 
-// ============================================
-// File Preview Modal
-// ============================================
+// ── Asset Preview Modal ───────────────────────────────────────────────────────
 
-interface FilePreviewModalProps {
-  file: MediaFile;
-  onClose: () => void;
-  onCopy: () => void;
-  onDelete: () => void;
+function AssetPreviewModal({ asset, isCopied, onCopy, onMove, onDelete, onClose }: {
+  asset: MediaAsset;
   isCopied: boolean;
-}
-
-function FilePreviewModal({ file, onClose, onCopy, onDelete, isCopied }: FilePreviewModalProps) {
-  const type = getFileType(file.name);
+  onCopy: () => void;
+  onMove: () => void;
+  onDelete: () => void;
+  onClose: () => void;
+}) {
+  const cat = mimeCategory(asset.mimeType);
 
   return (
     <div
@@ -554,53 +620,37 @@ function FilePreviewModal({ file, onClose, onCopy, onDelete, isCopied }: FilePre
       style={{ backgroundColor: "rgba(0,0,0,0.7)" }}
       onClick={onClose}
     >
-      <div
-        className="modal-dialog modal-lg modal-dialog-centered"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="modal-dialog modal-lg modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
         <div className="modal-content">
           <div className="modal-header">
-            <h5 className="modal-title text-truncate" title={file.name}>
-              {file.name}
-            </h5>
-            <button type="button" className="btn-close" onClick={onClose} />
+            <h6 className="modal-title text-truncate fw-semibold" title={asset.originalName}>
+              {asset.originalName}
+            </h6>
+            <button className="btn-close" onClick={onClose} />
           </div>
-          <div className="modal-body text-center p-3">
-            {type === "image" ? (
+          <div className="modal-body text-center p-3 bg-light">
+            {cat === "image" ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={file.url}
-                alt={file.name}
-                style={{ maxWidth: "100%", maxHeight: "60vh", borderRadius: "4px" }}
+                src={asset.url}
+                alt={asset.originalName}
+                style={{ maxWidth: "100%", maxHeight: "60vh", borderRadius: 4 }}
               />
-            ) : type === "video" ? (
-              <video
-                src={file.url}
-                controls
-                style={{ maxWidth: "100%", maxHeight: "60vh", borderRadius: "4px" }}
-              />
-            ) : type === "document" ? (
-              <iframe
-                src={file.url}
-                style={{ width: "100%", height: "60vh", border: "none", borderRadius: "4px" }}
-                title={file.name}
-              />
+            ) : cat === "video" ? (
+              <video src={asset.url} controls style={{ maxWidth: "100%", maxHeight: "60vh", borderRadius: 4 }} />
+            ) : cat === "document" ? (
+              <iframe src={asset.url} style={{ width: "100%", height: "60vh", border: "none", borderRadius: 4 }} title={asset.originalName} />
             ) : (
-              <div className="py-5">
-                <i className="bi bi-file-earmark text-muted" style={{ fontSize: "5rem" }} />
-              </div>
+              <div className="py-5"><i className="bi bi-file-earmark text-muted" style={{ fontSize: "5rem" }} /></div>
             )}
           </div>
           <div className="modal-footer flex-wrap gap-2">
-            <div className="me-auto text-muted small">
-              <span className="me-3">
-                <i className="bi bi-hdd me-1" />
-                {formatFileSize(file.size)}
-              </span>
-              <span>
-                <i className="bi bi-calendar me-1" />
-                {new Date(file.modifiedAt).toLocaleDateString()}
-              </span>
+            <div className="me-auto text-muted small d-flex gap-3">
+              <span><i className="bi bi-hdd me-1" />{formatBytes(asset.fileSize)}</span>
+              {asset.width && asset.height && (
+                <span><i className="bi bi-aspect-ratio me-1" />{asset.width}×{asset.height}</span>
+              )}
+              <span><i className="bi bi-calendar me-1" />{new Date(asset.createdAt).toLocaleDateString()}</span>
             </div>
             <button
               className={`btn btn-sm ${isCopied ? "btn-success" : "btn-outline-secondary"}`}
@@ -609,17 +659,56 @@ function FilePreviewModal({ file, onClose, onCopy, onDelete, isCopied }: FilePre
               <i className={`bi ${isCopied ? "bi-check-lg" : "bi-link-45deg"} me-1`} />
               {isCopied ? "Copied!" : "Copy URL"}
             </button>
-            <a
-              href={file.url}
-              download={file.name}
-              className="btn btn-sm btn-outline-primary"
-            >
-              <i className="bi bi-download me-1" />
-              Download
+            <button className="btn btn-sm btn-outline-secondary" onClick={onMove}>
+              <i className="bi bi-folder-symlink me-1" />Move
+            </button>
+            <a href={asset.url} download={asset.originalName} className="btn btn-sm btn-outline-primary">
+              <i className="bi bi-download me-1" />Download
             </a>
             <button className="btn btn-sm btn-outline-danger" onClick={onDelete}>
-              <i className="bi bi-trash me-1" />
-              Delete
+              <i className="bi bi-trash me-1" />Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Folder Name Modal (create / rename) ───────────────────────────────────────
+
+function FolderModal({ title, value, onChange, onConfirm, onClose }: {
+  title: string;
+  value: string;
+  onChange: (v: string) => void;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="modal show d-block" tabIndex={-1} style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
+      <div className="modal-dialog modal-dialog-centered modal-sm">
+        <div className="modal-content">
+          <div className="modal-header">
+            <h6 className="modal-title fw-semibold">
+              <i className="bi bi-folder-plus me-2 text-warning" />{title}
+            </h6>
+            <button className="btn-close" onClick={onClose} />
+          </div>
+          <div className="modal-body">
+            <input
+              type="text"
+              className="form-control form-control-sm"
+              placeholder="Folder name"
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && onConfirm()}
+              autoFocus
+            />
+          </div>
+          <div className="modal-footer">
+            <button className="btn btn-outline-secondary btn-sm" onClick={onClose}>Cancel</button>
+            <button className="btn btn-primary btn-sm" onClick={onConfirm} disabled={!value.trim()}>
+              <i className="bi bi-check2 me-1" />Save
             </button>
           </div>
         </div>
