@@ -29,7 +29,7 @@ import { Readable } from "stream"
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 const BACKUPS_DIR = path.join(process.cwd(), "data", "backups")
-const UPLOADS_DIR = path.join(process.cwd(), "public", "uploads")
+const UPLOADS_DIR = path.join(process.cwd(), "public", "images", "uploads")
 const DATA_DIR = path.join(process.cwd(), "data")
 
 const CMS_VERSION = "0.1.0"
@@ -40,12 +40,12 @@ const CONFIG_FILES = ["seo-config.json", "navbar-config.json"]
 const CATEGORY_TABLES: Record<string, string[]> = {
   settings: ["SystemSettings", "SiteConfig"],
   users: ["User", "ApiKey"],
-  pages: ["Page", "Section", "SectionVersion"],
+  pages: ["Page", "Section", "SectionVersion", "CmsTemplate", "Redirect"],
   content: ["ContentType", "ContentField", "ContentEntry", "ContentEntryVersion"],
-  media: ["MediaAsset"],
+  media: ["MediaFolder", "MediaAsset", "GalleryCategory", "GalleryImage"],
   volt: ["VoltElement", "VoltAsset", "Volt3DAsset", "Volt3DVersion"],
   plugins: ["Plugin", "ClientFeature"],
-  forms: ["FormSubmission", "AuditLog", "Redirect", "OtpToken"],
+  forms: ["FormSubmission", "AuditLog", "OtpToken"],
   features: ["CoverageMap", "CoverageRegion", "CoverageLabel", "Project", "CustomElement"],
 }
 
@@ -58,11 +58,15 @@ const ALL_TABLES_INSERT_ORDER = [
   "ApiKey",
   "SystemSettings",
   "SiteConfig",
+  "MediaFolder",       // before MediaAsset (folderId FK)
+  "MediaAsset",
+  "GalleryCategory",
+  "GalleryImage",
   "Page",
   "Section",
   "SectionVersion",
+  "CmsTemplate",
   "CustomElement",
-  "MediaAsset",
   "ContentType",
   "ContentField",
   "ContentEntry",
@@ -163,7 +167,11 @@ function getPrismaModel(tableName: string): any {
     Section: prisma.section,
     SectionVersion: prisma.sectionVersion,
     CustomElement: prisma.customElement,
+    MediaFolder: prisma.mediaFolder,
     MediaAsset: prisma.mediaAsset,
+    GalleryCategory: prisma.galleryCategory,
+    GalleryImage: prisma.galleryImage,
+    CmsTemplate: prisma.cmsTemplate,
     ContentType: prisma.contentType,
     ContentField: prisma.contentField,
     ContentEntry: prisma.contentEntry,
@@ -176,8 +184,8 @@ function getPrismaModel(tableName: string): any {
     ClientFeature: prisma.clientFeature,
     FormSubmission: prisma.formSubmission,
     AuditLog: prisma.auditLog,
-    Redirect: prisma.redirect,
     OtpToken: prisma.otpToken,
+    Redirect: prisma.redirect,
     CoverageMap: prisma.coverageMap,
     CoverageRegion: prisma.coverageRegion,
     CoverageLabel: prisma.coverageLabel,
@@ -506,4 +514,64 @@ export async function restoreFromZip(
     tablesRestored: tablesToRestore.length,
     recordsRestored,
   }
+}
+
+// ── Schedule helpers ───────────────────────────────────────────────────────────
+
+export type BackupSchedule = "none" | "daily" | "weekly" | "monthly"
+
+const SCHEDULE_KEY = "backup_schedule"
+const NEXT_RUN_KEY = "backup_next_run"
+
+function addInterval(from: Date, schedule: BackupSchedule): Date {
+  const d = new Date(from)
+  if (schedule === "daily")   d.setDate(d.getDate() + 1)
+  if (schedule === "weekly")  d.setDate(d.getDate() + 7)
+  if (schedule === "monthly") d.setMonth(d.getMonth() + 1)
+  return d
+}
+
+export async function getBackupSchedule(): Promise<{ schedule: BackupSchedule; nextRun: string | null }> {
+  const rows = await prisma.systemSettings.findMany({
+    where: { key: { in: [SCHEDULE_KEY, NEXT_RUN_KEY] } },
+  })
+  const map = Object.fromEntries(rows.map((r) => [r.key, r.value]))
+  return {
+    schedule: (map[SCHEDULE_KEY] as BackupSchedule) ?? "none",
+    nextRun: map[NEXT_RUN_KEY] ?? null,
+  }
+}
+
+export async function setBackupSchedule(schedule: BackupSchedule): Promise<void> {
+  await prisma.systemSettings.upsert({
+    where: { key: SCHEDULE_KEY },
+    update: { value: schedule },
+    create: { key: SCHEDULE_KEY, value: schedule },
+  })
+  if (schedule === "none") {
+    await prisma.systemSettings.deleteMany({ where: { key: NEXT_RUN_KEY } })
+  } else {
+    const nextRun = addInterval(new Date(), schedule).toISOString()
+    await prisma.systemSettings.upsert({
+      where: { key: NEXT_RUN_KEY },
+      update: { value: nextRun },
+      create: { key: NEXT_RUN_KEY, value: nextRun },
+    })
+  }
+}
+
+/** Called on backup list load — creates auto-backup if schedule is due. */
+export async function maybeAutoBackup(): Promise<{ triggered: boolean; filename?: string }> {
+  const { schedule, nextRun } = await getBackupSchedule()
+  if (schedule === "none" || !nextRun) return { triggered: false }
+  if (new Date(nextRun) > new Date()) return { triggered: false }
+
+  const result = await createBackup()
+  const newNextRun = addInterval(new Date(), schedule).toISOString()
+  await prisma.systemSettings.upsert({
+    where: { key: NEXT_RUN_KEY },
+    update: { value: newNextRun },
+    create: { key: NEXT_RUN_KEY, value: newNextRun },
+  })
+  return { triggered: true, filename: result.filename }
 }

@@ -10,6 +10,8 @@ interface BackupInfo {
   size: string
 }
 
+type BackupSchedule = "none" | "daily" | "weekly" | "monthly"
+
 type RestoreCategory =
   | "everything"
   | "settings"
@@ -43,6 +45,9 @@ export default function BackupRestore() {
   const [restoring, setRestoring] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [message, setMessage] = useState<{ type: "success" | "danger" | "warning"; text: string } | null>(null)
+  const [schedule, setSchedule] = useState<BackupSchedule>("none")
+  const [nextRun, setNextRun] = useState<string | null>(null)
+  const [savingSchedule, setSavingSchedule] = useState(false)
 
   // Restore modal state
   const [showRestoreModal, setShowRestoreModal] = useState(false)
@@ -60,7 +65,14 @@ export default function BackupRestore() {
       const res = await fetch("/api/admin/backup/list")
       const json = await res.json()
       if (json.success) {
-        setBackups(json.data)
+        setBackups(json.data.backups ?? json.data)
+        if (json.data.schedule) {
+          setSchedule(json.data.schedule.schedule ?? "none")
+          setNextRun(json.data.schedule.nextRun ?? null)
+        }
+        if (json.data.autoTriggered) {
+          setMessage({ type: "success", text: "Auto-backup completed (schedule triggered)" })
+        }
       }
     } catch {
       setMessage({ type: "danger", text: "Failed to load backup list" })
@@ -94,6 +106,28 @@ export default function BackupRestore() {
       setMessage({ type: "danger", text: "Failed to create backup" })
     } finally {
       setCreating(false)
+    }
+  }
+
+  const handleSaveSchedule = async (newSchedule: BackupSchedule) => {
+    setSavingSchedule(true)
+    try {
+      const res = await fetch("/api/admin/backup/schedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ schedule: newSchedule }),
+      })
+      const json = await res.json()
+      if (json.success) {
+        setSchedule(newSchedule)
+        await loadBackups()
+        const labels: Record<BackupSchedule, string> = { none: "disabled", daily: "daily", weekly: "weekly", monthly: "monthly" }
+        setMessage({ type: "success", text: `Auto-backup schedule set to: ${labels[newSchedule]}` })
+      }
+    } catch {
+      setMessage({ type: "danger", text: "Failed to save schedule" })
+    } finally {
+      setSavingSchedule(false)
     }
   }
 
@@ -290,6 +324,44 @@ export default function BackupRestore() {
           <i className="bi bi-upload me-2"></i>
           Upload & Restore
         </button>
+      </div>
+
+      {/* Auto-backup schedule */}
+      <div className="card shadow-sm mb-4">
+        <div className="card-header">
+          <span className="fw-semibold">
+            <i className="bi bi-calendar-check me-2"></i>
+            Auto-Backup Schedule
+          </span>
+        </div>
+        <div className="card-body">
+          <div className="d-flex align-items-center gap-3 flex-wrap">
+            <div className="d-flex gap-2">
+              {(["none", "daily", "weekly", "monthly"] as BackupSchedule[]).map((opt) => (
+                <button
+                  key={opt}
+                  className={`btn btn-sm ${schedule === opt ? "btn-primary" : "btn-outline-secondary"}`}
+                  onClick={() => handleSaveSchedule(opt)}
+                  disabled={savingSchedule || creating}
+                >
+                  {savingSchedule && schedule === opt ? (
+                    <span className="spinner-border spinner-border-sm me-1" />
+                  ) : null}
+                  {opt === "none" ? "Off" : opt.charAt(0).toUpperCase() + opt.slice(1)}
+                </button>
+              ))}
+            </div>
+            {schedule !== "none" && nextRun && (
+              <span className="text-muted small">
+                <i className="bi bi-clock me-1"></i>
+                Next backup: {new Date(nextRun).toLocaleString()}
+              </span>
+            )}
+          </div>
+          <p className="text-muted small mb-0 mt-2">
+            Auto-backup runs when you open this page — if the scheduled time has passed a backup is created automatically.
+          </p>
+        </div>
       </div>
 
       {/* Backup list */}
