@@ -116,7 +116,11 @@ export default function PagesManager() {
     setPages(loaded);
     // Re-open editor if URL has ?edit=<slug> (e.g. after page refresh)
     const editSlug = searchParams.get("edit");
-    if (editSlug) {
+    const seoSlug = searchParams.get("seo");
+    if (seoSlug) {
+      const target = loaded.find((p) => p.slug === seoSlug);
+      if (target) setSeoEditingPage(target);
+    } else if (editSlug) {
       const target = loaded.find((p) => p.slug === editSlug);
       if (target) {
         if (target.type === "pdf") setEditingPDFPage(target as PDFPageConfig);

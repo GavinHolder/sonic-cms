@@ -193,7 +193,7 @@ export default function ScorecardTab({ config }: Props) {
                   <div className="d-flex align-items-center gap-3">
                     {scoreBadge(p.score)}
                     <a
-                      href={`/admin/content/pages?edit=${p.slug}&tab=seo`}
+                      href={`/admin/content/pages?seo=${p.slug}`}
                       className="btn btn-outline-primary btn-sm"
                     >
                       Fix
@@ -280,7 +280,7 @@ export default function ScorecardTab({ config }: Props) {
                   </div>
                   <div className="mt-2">
                     <a
-                      href={`/admin/content/pages?edit=${p.slug}&tab=seo`}
+                      href={`/admin/content/pages?seo=${p.slug}`}
                       className="btn btn-outline-primary btn-sm"
                     >
                       <i className="bi bi-pencil me-1" />Edit SEO for this page
