@@ -319,8 +319,12 @@ function MediaLibraryContent() {
           onRenameFolder={(f) => { setRenameFolderTarget(f); setRenameName(f.name); }}
           onDeleteFolder={setDeleteFolderTarget}
           onFolderDrop={async (folderId) => {
-            if (!draggingAsset || draggingAsset.folderId === folderId) return;
-            await handleMove(draggingAsset.id, folderId);
+            if (!draggingAsset) return;
+            if (selectedIds.size > 1 && selectedIds.has(draggingAsset.id)) {
+              await handleBulkMove(folderId);
+            } else if (draggingAsset.folderId !== folderId) {
+              await handleMove(draggingAsset.id, folderId);
+            }
           }}
         />
 
@@ -405,7 +409,10 @@ function MediaLibraryContent() {
             <div className="bg-primary bg-opacity-10 border-bottom border-primary px-3 py-1 flex-shrink-0 d-flex align-items-center gap-2">
               <i className="bi bi-arrow-left-short text-primary fs-5" />
               <span className="small text-primary">
-                Drop <strong>{draggingAsset.originalName}</strong> onto a folder to move it
+                {selectedIds.size > 1 && selectedIds.has(draggingAsset.id)
+                  ? <>Drop <strong>{selectedIds.size} files</strong> onto a folder to move them</>
+                  : <>Drop <strong>{draggingAsset.originalName}</strong> onto a folder to move it</>
+                }
               </span>
             </div>
           )}
