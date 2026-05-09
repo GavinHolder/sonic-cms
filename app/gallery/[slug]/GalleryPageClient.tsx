@@ -32,12 +32,13 @@ interface Props {
   activeSlug: string;
 }
 
+const BENTO_VISIBLE = 4;
+
 export default function GalleryPageClient({ allCategories, activeSlug }: Props) {
   const [activeCatSlug, setActiveCatSlug] = useState(activeSlug);
   const [lightbox, setLightbox] = useState<LightboxState | null>(null);
   const sectionRefs = useRef<(HTMLElement | null)[]>([]);
 
-  // Scroll to active category on mount
   useEffect(() => {
     const idx = allCategories.findIndex((c) => c.slug === activeSlug);
     if (idx < 0) return;
@@ -47,7 +48,6 @@ export default function GalleryPageClient({ allCategories, activeSlug }: Props) 
     return () => clearTimeout(timer);
   }, [activeSlug, allCategories]);
 
-  // Scroll-spy: update active slug + URL as each section enters the top 30% of viewport
   useEffect(() => {
     const obs = new IntersectionObserver(
       (entries) => {
@@ -61,13 +61,12 @@ export default function GalleryPageClient({ allCategories, activeSlug }: Props) 
           }
         }
       },
-      { rootMargin: "0px 0px -70% 0px", threshold: 0 }
+      { rootMargin: "0px 0px -60% 0px", threshold: 0 }
     );
     sectionRefs.current.forEach((el) => el && obs.observe(el));
     return () => obs.disconnect();
   }, [allCategories]);
 
-  // Lightbox navigation
   const closeLightbox = useCallback(() => setLightbox(null), []);
 
   const prevImage = useCallback(() => {
@@ -103,7 +102,6 @@ export default function GalleryPageClient({ allCategories, activeSlug }: Props) 
   return (
     <>
       <div className="gal-wrap">
-        {/* Sticky topbar */}
         <div className="gal-topbar">
           <span className="gal-topbar-brand">
             Gallery — <span>Our Work</span>
@@ -113,77 +111,87 @@ export default function GalleryPageClient({ allCategories, activeSlug }: Props) 
           </Link>
         </div>
 
-        {/* One section per category */}
-        {allCategories.map((cat, catIdx) => (
-          <section
-            key={cat.id}
-            ref={(el) => { sectionRefs.current[catIdx] = el; }}
-            data-slug={cat.slug}
-          >
-            {/* Dark heading block */}
-            <div className="gal-cat-head">
-              <div className="gal-eyebrow">Our Portfolio</div>
-              <h2 className="gal-cat-name">{cat.name}</h2>
-              {cat.description && (
-                <p className="gal-cat-desc">{cat.description}</p>
-              )}
-              <span className="gal-count-badge">
-                {cat.images.length} Photo{cat.images.length !== 1 ? "s" : ""}
-              </span>
-            </div>
+        {allCategories.map((cat, catIdx) => {
+          const bentoImgs = cat.images.slice(0, BENTO_VISIBLE);
+          const extra = cat.images.length - BENTO_VISIBLE;
 
-            {/* Masonry grid — alternating bg */}
+          return (
             <div
-              className="gal-grid-wrap"
-              style={{ background: catIdx % 2 === 0 ? "var(--gal-bg-0)" : "var(--gal-bg-1)" }}
+              key={cat.id}
+              className="gal-cat"
+              ref={(el) => { sectionRefs.current[catIdx] = el; }}
+              data-slug={cat.slug}
             >
-              {cat.images.length === 0 ? (
-                <div className="gal-empty">
-                  <svg
-                    width="44" height="44" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" strokeWidth="1.5"
-                    style={{ display: "block", margin: "0 auto 12px" }}
-                  >
-                    <rect x="3" y="3" width="18" height="18" rx="2" />
-                    <circle cx="8.5" cy="8.5" r="1.5" />
-                    <polyline points="21 15 16 10 5 21" />
-                  </svg>
-                  No images yet — check back soon.
-                </div>
-              ) : (
-                <div className="gal-masonry">
-                  {cat.images.map((img, imgIdx) => (
-                    <div
-                      key={img.id}
-                      className="gal-item"
-                      onClick={() => setLightbox({ catIndex: catIdx, imgIndex: imgIdx })}
-                      role="button"
-                      aria-label={`View ${img.altText || img.caption || "image"}`}
+              <div className="gal-cat-head">
+                <div className="gal-cat-head-bg" />
+                <span className="gal-eyebrow">Our Portfolio</span>
+                <h2 className="gal-cat-name">{cat.name}</h2>
+                {cat.description && (
+                  <p className="gal-cat-desc">{cat.description}</p>
+                )}
+                <span className="gal-count-badge">
+                  {cat.images.length} Photo{cat.images.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+
+              <div className="gal-collage-wrap">
+                {cat.images.length === 0 ? (
+                  <div className="gal-empty">
+                    <svg
+                      width="44" height="44" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" strokeWidth="1.5"
+                      style={{ display: "block", margin: "0 auto 12px" }}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={img.url}
-                        alt={img.altText}
-                        loading="lazy"
-                      />
-                      <div className="gal-item-overlay" aria-hidden>
-                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <circle cx="11" cy="11" r="8" />
-                          <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                          <line x1="11" y1="8" x2="11" y2="14" />
-                          <line x1="8" y1="11" x2="14" y2="11" />
-                        </svg>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                      <rect x="3" y="3" width="18" height="18" rx="2" />
+                      <circle cx="8.5" cy="8.5" r="1.5" />
+                      <polyline points="21 15 16 10 5 21" />
+                    </svg>
+                    No images yet — check back soon.
+                  </div>
+                ) : (
+                  <div className="gal-collage">
+                    {bentoImgs.map((img, imgIdx) => {
+                      const isLast = imgIdx === BENTO_VISIBLE - 1 && extra > 0;
+                      return (
+                        <div
+                          key={img.id}
+                          className="gal-cell"
+                          onClick={() => setLightbox({ catIndex: catIdx, imgIndex: imgIdx })}
+                          role="button"
+                          aria-label={`View ${img.altText || img.caption || "image"}`}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={img.url} alt={img.altText} />
+                          {isLast ? (
+                            <div className="gal-cell-cap">
+                              <span className="gal-cell-cap-count">+{extra}</span>
+                              <span className="gal-cell-cap-label">View all photos</span>
+                            </div>
+                          ) : (
+                            <div className="gal-cell-overlay" aria-hidden>
+                              <svg
+                                className="gal-zoom-icon"
+                                width="28" height="28" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" strokeWidth="2"
+                              >
+                                <circle cx="11" cy="11" r="8" />
+                                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                                <line x1="11" y1="8" x2="11" y2="14" />
+                                <line x1="8" y1="11" x2="14" y2="11" />
+                              </svg>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
-          </section>
-        ))}
+          );
+        })}
       </div>
 
-      {/* Fixed TOC pills */}
       {allCategories.length > 1 && (
         <nav className="gal-toc" aria-label="Jump to category">
           {allCategories.map((cat, catIdx) => (
@@ -201,7 +209,6 @@ export default function GalleryPageClient({ allCategories, activeSlug }: Props) 
         </nav>
       )}
 
-      {/* Lightbox */}
       {lightbox !== null && lbImg && lbCat && (
         <div
           className="gal-lightbox"
