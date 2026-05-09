@@ -115,6 +115,7 @@ const createPageSchema = z.object({
   customHtml: z.string().nullable().optional(),
   customCss: z.string().nullable().optional(),
   customCssUrls: z.string().nullable().optional(),
+  mediaSlots: z.string().nullable().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -153,6 +154,7 @@ export async function POST(request: NextRequest) {
         ...(data.customHtml !== undefined && { customHtml: data.customHtml }),
         ...(data.customCss  !== undefined && { customCss:  data.customCss }),
         ...(data.customCssUrls !== undefined && { customCssUrls: data.customCssUrls }),
+        ...(data.mediaSlots   !== undefined && { mediaSlots:   data.mediaSlots }),
       },
       include: { createdByUser: { select: { username: true } } },
     });

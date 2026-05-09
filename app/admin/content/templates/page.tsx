@@ -72,7 +72,7 @@ function UseAsPageModal({ template, onClose, onCreated }: UseAsPageModalProps) {
       let pageRes: Response;
 
       if (template.templateType === "standalone") {
-        const data = template.data as { customHtml?: string; customCss?: string; customCssUrls?: string[] };
+        const data = template.data as { customHtml?: string; customCss?: string; customCssUrls?: string[]; mediaSlots?: Record<string, string> };
         pageRes = await fetch("/api/pages", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -85,6 +85,7 @@ function UseAsPageModal({ template, onClose, onCreated }: UseAsPageModalProps) {
             customHtml:    data.customHtml    ?? "",
             customCss:     data.customCss     ?? "",
             customCssUrls: data.customCssUrls ? JSON.stringify(data.customCssUrls) : "[]",
+            mediaSlots:    JSON.stringify(data.mediaSlots ?? {}),
           }),
         });
       } else {
