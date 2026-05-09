@@ -34,6 +34,52 @@ export function dedupeSlotName(base: string, seen: Map<string, number>): string 
   return count === 0 ? base : `${base}-${count}`;
 }
 
+/** Extract {{cms.media.SLOTNAME}} tokens from HTML in order of first appearance. */
+export function extractMediaTokens(html: string): string[] {
+  const seen = new Set<string>();
+  const ordered: string[] = [];
+  for (const m of html.matchAll(/\{\{cms\.media\.([a-z0-9-]+)\}\}/gi)) {
+    const name = m[1].toLowerCase();
+    if (!seen.has(name)) { seen.add(name); ordered.push(name); }
+  }
+  return ordered;
+}
+
+/**
+ * Resolve the mediaSlots key for an uploaded image.
+ * Priority:
+ *   1. Exact match between filename-derived name and an available token.
+ *   2. Normalised similarity (strip dashes/underscores and compare).
+ *   3. Next unused token in order of appearance.
+ *   4. Fallback: filename-derived name (deduplicated).
+ */
+export function resolveSlotName(
+  entryName: string,
+  tokens: string[],
+  usedTokens: Set<string>,
+  seenSlots: Map<string, number>,
+): string {
+  const fileBase = toSlotName(entryName);
+
+  const available = (t: string) => !usedTokens.has(t);
+
+  // 1. Exact match
+  const exact = tokens.find(t => t === fileBase && available(t));
+  if (exact) { usedTokens.add(exact); return exact; }
+
+  // 2. Normalised similarity (ignore separators)
+  const norm = (s: string) => s.replace(/[-_]/g, "");
+  const similar = tokens.find(t => available(t) && norm(t) === norm(fileBase));
+  if (similar) { usedTokens.add(similar); return similar; }
+
+  // 3. Order-based: next unused token
+  const next = tokens.find(available);
+  if (next) { usedTokens.add(next); return next; }
+
+  // 4. Fallback: filename-derived with dedup
+  return dedupeSlotName(fileBase, seenSlots);
+}
+
 export async function uploadImageBuffer(buffer: Buffer, entryName: string): Promise<string> {
   await mkdir(UPLOAD_DIR, { recursive: true });
   const rawFilename = (entryName.split("/").pop() ?? "upload").replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -366,9 +412,14 @@ export async function processZip(arrayBuffer: ArrayBuffer): Promise<NextResponse
   const seenSlots = new Map<string, number>();
   let css = remainingCssParts.join("\n\n");
 
+  // Scan HTML for pre-existing {{cms.media.*}} tokens so uploaded images can be
+  // keyed to the names the template already expects, not raw filenames.
+  const existingTokens = extractMediaTokens(html);
+  const usedTokens = new Set<string>();
+
   for (const e of imageEntries) {
     try {
-      const slotName = dedupeSlotName(toSlotName(e.entryName), seenSlots);
+      const slotName = resolveSlotName(e.entryName, existingTokens, usedTokens, seenSlots);
       const uploadedUrl = await uploadImageBuffer(e.getData(), e.entryName);
       mediaSlots[slotName] = uploadedUrl;
       const imgFilename = e.entryName.split("/").pop()!;
@@ -383,7 +434,7 @@ export async function processZip(arrayBuffer: ArrayBuffer): Promise<NextResponse
 
   for (const e of svgEntries) {
     try {
-      const slotName = dedupeSlotName(toSlotName(e.entryName), seenSlots);
+      const slotName = resolveSlotName(e.entryName, existingTokens, usedTokens, seenSlots);
       const uploadedUrl = await uploadSvgBuffer(e.getData(), e.entryName);
       mediaSlots[slotName] = uploadedUrl;
       const svgFilename = e.entryName.split("/").pop()!;
