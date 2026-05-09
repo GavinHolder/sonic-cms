@@ -10,15 +10,19 @@ const Busboy = require("busboy") as (opts: { headers: Record<string, string> }) 
   on(event: string, listener: (...args: unknown[]) => void): void;
 };
 import { Readable } from "stream";
+import prisma from "@/lib/prisma";
+import { authenticate } from "@/lib/api-middleware";
 
 /**
- * Simple Media Upload API (No Database)
+ * Simple Media Upload API
  *
  * Handles image/video uploads with automatic optimization.
  * Uses busboy streaming to bypass Next.js body size limits — supports
  * videos up to 200 MB without buffering the entire request into memory.
  *
  * Saves to public/images/uploads/
+ * Also creates a MediaAsset DB record when the request is authenticated,
+ * so the gallery picker and other DB-backed features can find the file.
  */
 
 const UPLOAD_DIR = join(process.cwd(), "public", "images", "uploads");
@@ -37,6 +41,7 @@ async function ensureUploadDir() {
 /** Parse a multipart request with busboy, streaming the first "file" field to disk. */
 function parseMultipart(request: NextRequest): Promise<{
   filename: string;
+  originalName: string;
   mimeType: string;
   filePath: string;
   size: number;
@@ -94,7 +99,7 @@ function parseMultipart(request: NextRequest): Promise<{
       fileStream.pipe(writer);
 
       writer.on("finish", () => {
-        if (!oversized) finish({ filename: outName, mimeType, filePath, size });
+        if (!oversized) finish({ filename: outName, originalName: filename, mimeType, filePath, size });
       });
 
       writer.on("error", (err: Error) => finish(err));
@@ -120,38 +125,65 @@ export async function POST(request: NextRequest) {
   try {
     await ensureUploadDir();
 
-    const { filename, mimeType, filePath, size } = await parseMultipart(request);
+    const { filename, originalName, mimeType, filePath, size } = await parseMultipart(request);
 
     const isImage = mimeType.startsWith("image/");
     const isPdf   = mimeType === "application/pdf";
     const timestamp = filename.match(/-(\d+)\./)?.[1] ?? Date.now().toString();
     const base = filename.split("-" + timestamp)[0];
 
+    let finalFilename: string;
+    let finalUrl: string;
+    let finalMimeType: string;
+    let width: number | null = null;
+    let height: number | null = null;
+
     if (isImage) {
       const webpFilename = `${base}-${timestamp}.webp`;
       const webpPath = join(UPLOAD_DIR, webpFilename);
 
-      await sharp(filePath)
+      const info = await sharp(filePath)
         .resize(MAX_IMAGE_WIDTH, MAX_IMAGE_HEIGHT, { fit: "inside", withoutEnlargement: true })
         .webp({ quality: WEBP_QUALITY })
         .toFile(webpPath);
 
-      // Remove the original temp file
+      width  = info.width  ?? null;
+      height = info.height ?? null;
+
       await unlink(filePath).catch(() => {});
 
-      return NextResponse.json({
-        success: true,
-        url: `/images/uploads/${webpFilename}`,
-        type: "image",
-      });
+      finalFilename = webpFilename;
+      finalUrl      = `/images/uploads/${webpFilename}`;
+      finalMimeType = "image/webp";
+    } else {
+      finalFilename = filename;
+      finalUrl      = `/images/uploads/${filename}`;
+      finalMimeType = mimeType;
     }
 
-    // Video or PDF — already streamed to disk, serve as-is
+    // Create a MediaAsset DB record when the request is authenticated so
+    // DB-backed features (gallery picker, etc.) can find this file.
+    const user = authenticate(request);
+    if (user) {
+      prisma.mediaAsset.create({
+        data: {
+          filename:     finalFilename,
+          originalName: originalName || finalFilename,
+          mimeType:     finalMimeType,
+          fileSize:     size,
+          width,
+          height,
+          url:          finalUrl,
+          uploadedBy:   user.userId,
+        },
+      }).catch(() => {/* non-fatal */});
+    }
+
     return NextResponse.json({
       success: true,
-      url: `/images/uploads/${filename}`,
-      type: isPdf ? "pdf" : "video",
-      size,
+      url:  finalUrl,
+      type: isImage ? "image" : isPdf ? "pdf" : "video",
+      ...(isImage ? {} : { size }),
     });
 
   } catch (error) {
