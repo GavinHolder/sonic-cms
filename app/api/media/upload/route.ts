@@ -20,7 +20,7 @@ import {
 const UPLOAD_DIR = process.env.UPLOAD_DIR || "./public/uploads";
 const MAX_IMAGE_SIZE = parseInt(process.env.MAX_IMAGE_SIZE || "10485760");   // 10MB images
 const MAX_VIDEO_SIZE = parseInt(process.env.MAX_VIDEO_SIZE || "209715200");  // 200MB videos
-const MEDIA_URL = process.env.MEDIA_URL || "http://localhost:3000/uploads";
+const MEDIA_URL = process.env.MEDIA_URL || "/uploads";
 
 // Allowed mime types
 const ALLOWED_TYPES = [
