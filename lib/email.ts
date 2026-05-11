@@ -229,24 +229,23 @@ export async function sendOtpEmail(
   otp: string,
   cfg: Record<string, string>
 ) {
-  const transporter = await createTransporter();
+  const [tokens, emailSettings, siteRow] = await Promise.all([
+    getBrandTokens(),
+    getEmailSettings(),
+    prisma.siteConfig.findFirst(),
+  ])
+  const site: SiteInfo = {
+    companyName: siteRow?.companyName ?? 'Your Company',
+    logoUrl: siteRow?.logoUrl ?? '',
+    copyrightText: siteRow?.copyrightText ?? '',
+  }
+  const transporter = await createTransporter()
   await transporter.sendMail({
     from: cfg.smtp_from || cfg.smtp_user,
     to: toEmail,
-    subject: "Your verification code",
-    html: `
-      <div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:24px;border:1px solid #e5e7eb;border-radius:8px">
-        <h2 style="color:#1e40af;margin-top:0">Verify your email</h2>
-        <p style="color:#374151">Use this code to complete your submission:</p>
-        <div style="font-size:36px;font-weight:bold;letter-spacing:8px;color:#1e40af;padding:16px;background:#eff6ff;border-radius:8px;text-align:center;margin:16px 0">
-          ${otp}
-        </div>
-        <p style="color:#6b7280;font-size:14px;margin-bottom:0">
-          This code expires in <strong>10 minutes</strong>. Do not share it with anyone.
-        </p>
-      </div>
-    `,
-  });
+    subject: `Verify your email — ${site.companyName}`,
+    html: buildOtpEmailHtml(otp, tokens, emailSettings, site),
+  })
 }
 
 /**
@@ -260,35 +259,25 @@ export async function sendSubmissionEmail(
   source: string,
   emailTo?: string
 ) {
-  const recipient = emailTo || cfg.admin_email;
-  if (!recipient) return; // No destination configured — skip silently
-  const transporter = await createTransporter();
-  const rows = fields
-    .map(
-      (f) =>
-        `<tr>
-          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#374151;white-space:nowrap">${f.label}</td>
-          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#111827">${f.value}</td>
-        </tr>`
-    )
-    .join("");
+  const recipient = emailTo || cfg.admin_email
+  if (!recipient) return
 
+  const [tokens, emailSettings, siteRow] = await Promise.all([
+    getBrandTokens(),
+    getEmailSettings(),
+    prisma.siteConfig.findFirst(),
+  ])
+  const site: SiteInfo = {
+    companyName: siteRow?.companyName ?? 'Your Company',
+    logoUrl: siteRow?.logoUrl ?? '',
+    copyrightText: siteRow?.copyrightText ?? '',
+  }
+  const transporter = await createTransporter()
   await transporter.sendMail({
     from: cfg.smtp_from || cfg.smtp_user,
     to: recipient,
     replyTo: userEmail,
-    subject: `New enquiry from ${userEmail} — ${source}`,
-    html: `
-      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;border:1px solid #e5e7eb;border-radius:8px">
-        <h2 style="color:#1e40af;margin-top:0">New Website Enquiry</h2>
-        <p style="color:#6b7280;margin-top:0">Source: <strong style="color:#374151">${source}</strong></p>
-        <table style="width:100%;border-collapse:collapse;margin-top:16px">
-          ${rows}
-        </table>
-        <p style="margin-top:24px;font-size:12px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:16px">
-          Reply directly to this email to respond to ${userEmail}
-        </p>
-      </div>
-    `,
-  });
+    subject: `${emailSettings.subjectPrefix} ${source}`,
+    html: buildSubmissionEmailHtml(fields, userEmail, source, tokens, emailSettings, site),
+  })
 }
