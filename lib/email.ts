@@ -14,6 +14,24 @@ interface SiteInfo {
   copyrightText: string
 }
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function safeLogoUrl(url: string): string {
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? url : ''
+  } catch {
+    return ''
+  }
+}
+
 export function buildSubmissionEmailHtml(
   fields: Array<{ label: string; value: string }>,
   userEmail: string,
@@ -28,15 +46,15 @@ export function buildSubmissionEmailHtml(
 
   const logoHtml =
     showLogo && logoUrl
-      ? `<img src="${logoUrl}" alt="${companyName}" style="max-width:120px;max-height:48px;display:block;margin:0 auto 10px;">`
+      ? `<img src="${safeLogoUrl(logoUrl)}" alt="${escapeHtml(companyName)}" style="max-width:120px;max-height:48px;display:block;margin:0 auto 10px;">`
       : ''
 
   const nameHtml = showCompanyName
-    ? `<div style="color:#ffffff;font-size:16px;font-weight:600;${headerTagline ? 'margin-bottom:4px;' : ''}">${companyName}</div>`
+    ? `<div style="color:#ffffff;font-size:16px;font-weight:600;${headerTagline ? 'margin-bottom:4px;' : ''}">${escapeHtml(companyName)}</div>`
     : ''
 
   const taglineHtml = headerTagline
-    ? `<div style="color:#94a3b8;font-size:12px;">${headerTagline}</div>`
+    ? `<div style="color:#94a3b8;font-size:12px;">${escapeHtml(headerTagline)}</div>`
     : ''
 
   const now = new Date()
@@ -49,17 +67,17 @@ export function buildSubmissionEmailHtml(
     .map(
       (f) => `<tr>
         <td style="padding-bottom:12px;vertical-align:top;">
-          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:${textMuted};margin-bottom:2px;">${f.label}</div>
-          <div style="font-size:14px;color:${text};font-weight:500;">${f.value}</div>
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:${textMuted};margin-bottom:2px;">${escapeHtml(f.label)}</div>
+          <div style="font-size:14px;color:${text};font-weight:500;">${escapeHtml(f.value)}</div>
         </td>
       </tr>`
     )
     .join('')
 
-  const copyright = copyrightText || `© ${companyName}`
+  const copyright = escapeHtml(copyrightText || `© ${companyName}`)
 
   const footerHtml = footerText
-    ? `<div style="font-size:12px;color:${textMuted};text-align:center;padding:14px 0 4px;">${footerText}</div>`
+    ? `<div style="font-size:12px;color:${textMuted};text-align:center;padding:14px 0 4px;">${escapeHtml(footerText)}</div>`
     : ''
 
   return `<!DOCTYPE html>
@@ -89,7 +107,7 @@ export function buildSubmissionEmailHtml(
               <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;">
                 <tr>
                   <td style="text-align:center;">
-                    <a href="mailto:${userEmail}" style="display:inline-block;background:${primary};color:#ffffff;padding:10px 28px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;">Reply to Enquirer</a>
+                    <a href="mailto:${escapeHtml(userEmail)}" style="display:inline-block;background:${primary};color:#ffffff;padding:10px 28px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;">Reply to Enquirer</a>
                   </td>
                 </tr>
               </table>
@@ -119,14 +137,14 @@ export function buildOtpEmailHtml(
 
   const logoHtml =
     showLogo && logoUrl
-      ? `<img src="${logoUrl}" alt="${companyName}" style="max-width:120px;max-height:48px;display:block;margin:0 auto 10px;">`
+      ? `<img src="${safeLogoUrl(logoUrl)}" alt="${escapeHtml(companyName)}" style="max-width:120px;max-height:48px;display:block;margin:0 auto 10px;">`
       : ''
 
   const nameHtml = showCompanyName
-    ? `<div style="color:#ffffff;font-size:16px;font-weight:600;">${companyName}</div>`
+    ? `<div style="color:#ffffff;font-size:16px;font-weight:600;">${escapeHtml(companyName)}</div>`
     : ''
 
-  const copyright = copyrightText || `© ${companyName}`
+  const copyright = escapeHtml(copyrightText || `© ${companyName}`)
 
   return `<!DOCTYPE html>
 <html>
@@ -148,9 +166,9 @@ export function buildOtpEmailHtml(
           <tr>
             <td style="padding:28px 24px;text-align:center;">
               <div style="font-size:18px;font-weight:700;color:${text};margin-bottom:8px;">Verify Your Email</div>
-              <div style="font-size:13px;color:${textMuted};margin-bottom:20px;">Use this code to complete your submission to ${companyName}:</div>
+              <div style="font-size:13px;color:${textMuted};margin-bottom:20px;">Use this code to complete your submission to ${escapeHtml(companyName)}:</div>
               <div style="display:inline-block;background:#f8fafc;border:2px solid ${primary};border-radius:8px;padding:16px 32px;margin-bottom:16px;">
-                <span style="font-size:32px;font-weight:800;letter-spacing:8px;color:${text};font-family:'Courier New',Courier,monospace;">${otp}</span>
+                <span style="font-size:32px;font-weight:800;letter-spacing:8px;color:${text};font-family:'Courier New',Courier,monospace;">${escapeHtml(otp)}</span>
               </div>
               <div style="font-size:12px;color:${textMuted};margin-top:4px;">This code expires in <strong>10 minutes</strong>. Do not share it with anyone.</div>
             </td>
