@@ -1,16 +1,10 @@
 {
-  "version": "1.62.0",
+  "version": "1.62.1",
   "date": "2026-05-12",
   "changelog": {
-    "features": [
-      "Email Appearance settings card and preview modal",
-      "email API returns and saves emailAppearance; add preview endpoint",
-      "wire branded email builders into sendOtpEmail and sendSubmissionEmail",
-      "branded HTML builder functions for submission and OTP emails",
-      "email settings module — getEmailSettings/saveEmailSettings"
-    ],
+    "features": [],
     "bugfixes": [
-      "escape HTML in email template builders to prevent XSS"
+      "resolve relative logo URL to absolute in email templates"
     ],
     "breaking": []
   }
