@@ -24,6 +24,12 @@ function escapeHtml(s: string): string {
 }
 
 function safeLogoUrl(url: string): string {
+  if (!url) return ''
+  // Resolve relative paths to absolute using the site base URL
+  if (url.startsWith('/')) {
+    const base = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ?? ''
+    url = base + url
+  }
   try {
     const parsed = new URL(url)
     return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? url : ''
