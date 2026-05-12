@@ -84,6 +84,16 @@ export default function SettingsPage() {
   const [emailSuccess, setEmailSuccess] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [emailTesting, setEmailTesting] = useState(false);
+  const [emailAppearance, setEmailAppearance] = useState({
+    subjectPrefix: 'New enquiry —',
+    headerTagline: 'You have a new website enquiry',
+    footerText: 'Reply directly to this email to respond to the enquirer.',
+    showLogo: true,
+    showCompanyName: true,
+  })
+  const [showEmailPreview, setShowEmailPreview] = useState(false)
+  const [previewHtml, setPreviewHtml] = useState('')
+  const [previewLoading, setPreviewLoading] = useState(false)
 
   // Maintenance mode
   const [maintenanceEnabled, setMaintenanceEnabled] = useState(false);
@@ -222,15 +232,18 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/settings/email")
+    fetch('/api/settings/email')
       .then((r) => r.json())
       .then((data) => {
         if (data.settings) {
-          setEmailSettings((prev) => ({ ...prev, ...data.settings }));
+          setEmailSettings((prev) => ({ ...prev, ...data.settings }))
+        }
+        if (data.emailAppearance) {
+          setEmailAppearance((prev) => ({ ...prev, ...data.emailAppearance }))
         }
       })
-      .catch(() => {}); // Silently ignore if not configured
-  }, []);
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (successMessage) {
@@ -349,7 +362,7 @@ export default function SettingsPage() {
       const res = await fetch("/api/settings/email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(emailSettings),
+        body: JSON.stringify({ ...emailSettings, emailAppearance }),
       });
       if (!res.ok) throw new Error("Failed to save");
       setEmailSuccess("Email settings saved!");
@@ -387,6 +400,24 @@ export default function SettingsPage() {
       setEmailTesting(false);
     }
   };
+
+  const handlePreviewEmail = async () => {
+    setPreviewLoading(true)
+    try {
+      const res = await fetch('/api/settings/email/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(emailAppearance),
+      })
+      const data = await res.json()
+      setPreviewHtml(data.html)
+      setShowEmailPreview(true)
+    } catch {
+      // Silently ignore preview failure
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
 
   if (!settings || !userRoleLoaded) {
     return (
@@ -1215,6 +1246,94 @@ export default function SettingsPage() {
                 </div>
               </div>
 
+              {/* Email Appearance */}
+              <div className="card mb-4">
+                <div className="card-header d-flex align-items-center justify-content-between fw-semibold">
+                  <span>Email Appearance</span>
+                  <span className="badge bg-primary-subtle text-primary fw-normal" style={{ fontSize: '11px' }}>
+                    Auto-branded from theme
+                  </span>
+                </div>
+                <div className="card-body">
+                  <p className="text-muted small mb-3">
+                    Brand colors and logo are applied automatically from your theme settings. Customise the text content below.
+                  </p>
+                  <div className="row g-3 mb-3">
+                    <div className="col-6">
+                      <div className="form-check form-switch">
+                        <input
+                          className="form-check-input"
+                          type="checkbox"
+                          id="email-show-logo"
+                          checked={emailAppearance.showLogo}
+                          onChange={(e) => setEmailAppearance({ ...emailAppearance, showLogo: e.target.checked })}
+                        />
+                        <label className="form-check-label small" htmlFor="email-show-logo">
+                          Show logo in emails
+                        </label>
+                      </div>
+                    </div>
+                    <div className="col-6">
+                      <div className="form-check form-switch">
+                        <input
+                          className="form-check-input"
+                          type="checkbox"
+                          id="email-show-name"
+                          checked={emailAppearance.showCompanyName}
+                          onChange={(e) => setEmailAppearance({ ...emailAppearance, showCompanyName: e.target.checked })}
+                        />
+                        <label className="form-check-label small" htmlFor="email-show-name">
+                          Show company name in header
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="row g-3 mb-3">
+                    <div className="col-md-5">
+                      <label className="form-label small fw-medium">Email subject prefix</label>
+                      <input
+                        type="text"
+                        className="form-control form-control-sm"
+                        value={emailAppearance.subjectPrefix}
+                        onChange={(e) => setEmailAppearance({ ...emailAppearance, subjectPrefix: e.target.value })}
+                      />
+                      <div className="form-text">e.g. &quot;New enquiry — Contact Us&quot;</div>
+                    </div>
+                    <div className="col-md-7">
+                      <label className="form-label small fw-medium">Header tagline</label>
+                      <input
+                        type="text"
+                        className="form-control form-control-sm"
+                        value={emailAppearance.headerTagline}
+                        onChange={(e) => setEmailAppearance({ ...emailAppearance, headerTagline: e.target.value })}
+                      />
+                      <div className="form-text">Shown below company name in the email header</div>
+                    </div>
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label small fw-medium">Footer text</label>
+                    <input
+                      type="text"
+                      className="form-control form-control-sm"
+                      value={emailAppearance.footerText}
+                      onChange={(e) => setEmailAppearance({ ...emailAppearance, footerText: e.target.value })}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-secondary"
+                    onClick={handlePreviewEmail}
+                    disabled={previewLoading}
+                  >
+                    {previewLoading ? (
+                      <><span className="spinner-border spinner-border-sm me-1" />Generating…</>
+                    ) : (
+                      <><i className="bi bi-eye me-1" />Preview Email</>
+                    )}
+                  </button>
+                </div>
+              </div>
+
               <div className="d-flex gap-2">
                 <button
                   type="button"
@@ -1530,6 +1649,56 @@ export default function SettingsPage() {
           setShowMediaUpload(null);
         }}
       />
+
+      {/* Email Preview Modal */}
+      {showEmailPreview && (
+        <>
+          <div
+            className="modal-backdrop fade show"
+            style={{ zIndex: 1110 }}
+            onClick={() => setShowEmailPreview(false)}
+          />
+          <div
+            className="modal fade show d-block"
+            style={{ zIndex: 1115 }}
+            role="dialog"
+            aria-modal
+          >
+            <div className="modal-dialog modal-dialog-centered modal-lg">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">
+                    <i className="bi bi-envelope me-2" />Email Preview
+                  </h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setShowEmailPreview(false)}
+                  />
+                </div>
+                <div className="modal-body p-0" style={{ height: '600px' }}>
+                  <iframe
+                    srcDoc={previewHtml}
+                    style={{ width: '100%', height: '100%', border: 'none', borderRadius: '0 0 8px 8px' }}
+                    title="Email preview"
+                    sandbox="allow-same-origin"
+                  />
+                </div>
+                <div className="modal-footer">
+                  <span className="text-muted small me-auto">Sample data — colors pulled from your current theme</span>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setShowEmailPreview(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </AdminLayout>
   );
 }

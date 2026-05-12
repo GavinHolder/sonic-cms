@@ -2373,6 +2373,26 @@ After saving, click **Test Connection** — this sends a test email to the Admin
 | **Test email** | When admin clicks Test Connection in settings |
 
 > ⚠️ Email settings must be configured before contact forms or form pages can send emails. Without SMTP, OTP verification will fail with an error.
+
+---
+
+## Email Appearance
+
+Controls how branded emails look when sent to visitors and admins.
+
+Access via **Admin → Settings → Email & SMTP** — scroll to the **Email Appearance** card.
+
+| Setting | Description |
+|---------|-------------|
+| **Show Logo** | Displays the site logo at the top of every email |
+| **Show Company Name** | Displays the company name below the logo |
+| **Subject Prefix** | Optional text prepended to every email subject (e.g. \`[Acme]\`) |
+| **Header Tagline** | Short tagline shown beneath the logo/company name in the email header |
+| **Footer Text** | Small-print text at the bottom of every email (e.g. reply instructions, unsubscribe note) |
+
+Click **Preview Email** to open a live preview modal showing exactly how a branded submission notification will look with the current appearance settings applied. The preview is generated server-side and reflects your saved appearance values.
+
+> The logo shown in emails is the site logo configured in **General Settings**. Make sure it is a publicly accessible URL (not a local file path) so email clients can load it.
 `;
 
 const MEDIA_LIBRARY = `
