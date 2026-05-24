@@ -1,10 +1,9 @@
 {
-  "version": "1.63.0",
+  "version": "1.64.0",
   "date": "2026-05-24",
   "changelog": {
     "features": [
-      "upgrade SeoPageEditorModal — two-column layout, live Google/Facebook/Twitter previews",
-      "add seo-preview utilities with pixel-width truncation and status helpers"
+      "SEO setup wizard, banner, and canonical URL verifier"
     ],
     "bugfixes": [],
     "breaking": []
