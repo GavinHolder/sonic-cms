@@ -688,3 +688,20 @@ model Plugin {
 
   @@map("plugins")
 }
+
+// ── SEO — Google Search Console ──────────────────────────────────────────────
+
+model SeoGscToken {
+  id           String   @id @default(cuid())
+  /// AES-256-GCM encrypted: iv:authTag:ciphertext (hex)
+  accessToken  String   @db.Text
+  /// AES-256-GCM encrypted: iv:authTag:ciphertext (hex)
+  refreshToken String   @db.Text
+  expiresAt    DateTime
+  siteUrl      String   @default("")
+  accountEmail String   @default("")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("seo_gsc_tokens")
+}

@@ -11,6 +11,7 @@ import MediaUploadModal from "@/components/admin/MediaUploadModal";
 import GoogleSetupTab from "@/components/admin/GoogleSetupTab";
 import PropagationTab from "./PropagationTab";
 import ScorecardTab from "./ScorecardTab";
+import SearchConsoleTab from "@/components/admin/SearchConsoleTab";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -37,7 +38,7 @@ export default function SeoSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [runningAudit, setRunningAudit] = useState(false);
-  const [activeTab, setActiveTab] = useState<"site" | "social" | "robots" | "schema" | "google" | "audit" | "propagation" | "scorecard">("site");
+  const [activeTab, setActiveTab] = useState<"site" | "social" | "robots" | "schema" | "google" | "console" | "audit" | "propagation" | "scorecard">("site");
   const [showBootstrapConfirm, setShowBootstrapConfirm] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(false);
   const [bootstrapSummary, setBootstrapSummary] = useState<string | null>(null);
@@ -424,7 +425,7 @@ export default function SeoSettingsPage() {
 
       {/* Tabs */}
       <ul className="nav nav-pills mb-4 flex-wrap gap-1">
-        {(["site", "social", "robots", "schema", "google", "audit", "propagation", "scorecard"] as const).map((tab) => (
+        {(["site", "social", "robots", "schema", "google", "console", "audit", "propagation", "scorecard"] as const).map((tab) => (
           <li key={tab} className="nav-item">
             <button
               className={`nav-link ${activeTab === tab ? "active" : ""}`}
@@ -435,6 +436,7 @@ export default function SeoSettingsPage() {
               {tab === "robots" && <><i className="bi bi-robot me-1" />Robots &amp; Sitemap</>}
               {tab === "schema" && <><i className="bi bi-code-slash me-1" />Structured Data</>}
               {tab === "google" && <><i className="bi bi-google me-1" />Google</>}
+              {tab === "console" && <><i className="bi bi-search me-1" />Search Console</>}
               {tab === "propagation" && <><i className="bi bi-diagram-3 me-1" />Propagation</>}
               {tab === "scorecard" && <><i className="bi bi-bar-chart-line me-1" />Scorecard</>}
               {tab === "audit" && (
@@ -871,6 +873,9 @@ export default function SeoSettingsPage() {
 
       {/* ── Tab: Google Setup ──────────────────────────────────────────────── */}
       {activeTab === "google" && <GoogleSetupTab />}
+
+      {/* ── Tab: Search Console ───────────────────────────────────────────── */}
+      {activeTab === "console" && <SearchConsoleTab />}
 
       {/* ── Tab: Propagation Monitor ──────────────────────────────────────── */}
       {activeTab === "propagation" && <PropagationTab canonicalBase={config.canonicalBase} />}
