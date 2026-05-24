@@ -16,6 +16,7 @@ export default defineConfig({
       include: [
         'lib/auth.ts',
         'lib/api-middleware.ts',
+        'lib/seo-preview.ts',
         'app/api/auth/**/*.ts',
         'app/api/pages/**/publish/route.ts',
       ],
