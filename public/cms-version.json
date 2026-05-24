@@ -1,11 +1,12 @@
 {
-  "version": "1.62.1",
-  "date": "2026-05-12",
+  "version": "1.63.0",
+  "date": "2026-05-24",
   "changelog": {
-    "features": [],
-    "bugfixes": [
-      "resolve relative logo URL to absolute in email templates"
+    "features": [
+      "upgrade SeoPageEditorModal — two-column layout, live Google/Facebook/Twitter previews",
+      "add seo-preview utilities with pixel-width truncation and status helpers"
     ],
+    "bugfixes": [],
     "breaking": []
   }
 }
