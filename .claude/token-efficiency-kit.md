@@ -62,33 +62,31 @@ Optimize before, during, and after. This overrides verbosity defaults.
 
 ## 3. Headroom — install & wire into Claude Code
 
-Headroom is a local proxy (default **port 8787**) plus a Python/Node library and an
-MCP server. It supports Anthropic + 100+ models via LiteLLM.
+Headroom is a local proxy (default **port 8787**) plus a Python/Node library.
+It supports Anthropic + OpenAI + Bedrock and 100+ models. `headroom wrap claude`
+(Claude Code) is officially supported. Source of truth: github.com/chopratejas/headroom
 
-> ⚠️ Verify the exact package name against the repo README before installing — the
-> plain `headroom` name on PyPI is an *unrelated* package. Secondary sources report
-> the real ones as below, but the repo is the source of truth:
-> github.com/chopratejas/headroom
+> ⚠️ The package is **`headroom-ai`** — NOT the plain `headroom` on PyPI, which is an
+> unrelated project.
 
 ```bash
-# Python
-pip install headroom-llm
+# Python (Requires Python 3.10+)
+pip install "headroom-ai[all]"
 # or Node
-npm install -g headroom-cli
+npm install headroom-ai
 
-# start the compression proxy (listens on :8787)
-headroom start
+# start the compression proxy (dashboard at http://localhost:8787/dashboard)
+headroom proxy --port 8787
 ```
 
 Use it with Claude Code, two ways:
 
 ```bash
-# A) wrap the CLI
+# A) wrap the CLI (preferred — adds --memory / --code-graph)
 headroom wrap claude
 
 # B) point Claude Code at the proxy manually
-export ANTHROPIC_BASE_URL=http://localhost:8787
-claude
+ANTHROPIC_BASE_URL=http://localhost:8787 claude
 ```
 
 Best wins on: server logs (~90% removable), MCP/tool JSON (~70% redundant), DB rows
