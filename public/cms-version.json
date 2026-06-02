@@ -1,20 +1,11 @@
 {
-  "version": "1.66.0",
+  "version": "1.67.0",
   "date": "2026-06-02",
   "changelog": {
     "features": [
-      "SEO Overview tab, Business Profile tab, dashboard SEO widget",
-      "GBP OAuth routes + data API (locations, info, reviews, posts, insights)",
-      "Google Business Profile API client",
-      "track user-edited SEO fields to protect from engine auto-fill",
-      "daily SEO engine cron endpoint + engine-runs history API",
-      "seo-engine — classify, auto-fill, canonical checks, full runSeoEngine()",
-      "Google credentials in Settings; DB-first credential resolution for GSC + GBP",
-      "SeoEngineRun + GbpToken models; seo + google fields on Page + SiteConfig"
+      "Google wizard, About overhaul, Brand Pantone + auto-detect, rename Backup & Restore"
     ],
-    "bugfixes": [
-      "use status PUBLISHED instead of non-existent isPublished in GSC status route"
-    ],
+    "bugfixes": [],
     "breaking": []
   }
 }
