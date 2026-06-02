@@ -38,11 +38,15 @@ export interface BrandBorders {
   radiusLarge: number
 }
 
+/** Optional Pantone reference codes stored alongside hex values (documentation only — not used for CSS). */
+export type BrandPantone = Partial<Record<keyof BrandColors, string>>
+
 export interface BrandTokens {
   colors: BrandColors
   typography: BrandTypography
   spacing: BrandSpacing
   borders: BrandBorders
+  pantone?: BrandPantone
 }
 
 // ── Defaults ─────────────────────────────────────────────────────────────────

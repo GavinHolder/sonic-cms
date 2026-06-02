@@ -42,7 +42,7 @@ const BASE_CATEGORIES: Array<{
   { id: "editor", label: "Editor", icon: "bi-pencil-square" },
   { id: "preview", label: "Preview", icon: "bi-eye" },
   { id: "scroll", label: "Scroll Behavior", icon: "bi-arrows-vertical" },
-  { id: "data", label: "Data Management", icon: "bi-database" },
+  { id: "data", label: "Backup & Restore", icon: "bi-archive" },
   { id: "email", label: "Email & SMTP", icon: "bi-envelope-at" },
   { id: "google" as SettingsCategory, label: "Google Integration", icon: "bi-google" },
   { id: "about", label: "About", icon: "bi-info-circle" },
@@ -51,6 +51,70 @@ const BASE_CATEGORIES: Array<{
 /** Inline helper text — only renders when showHelpTips is enabled */
 function HelpTip({ children }: { children: React.ReactNode }) {
   return <div className="form-text mt-1">{children}</div>;
+}
+
+function AboutSection() {
+  const [version, setVersion] = useState<string>("…");
+  const [releaseDate, setReleaseDate] = useState<string>("");
+  useEffect(() => {
+    fetch("/cms-version.json")
+      .then(r => r.json())
+      .then((d: { version?: string; date?: string }) => {
+        if (d.version) setVersion(d.version);
+        if (d.date) setReleaseDate(d.date);
+      })
+      .catch(() => {});
+  }, []);
+
+  return (
+    <div>
+      <h5 className="fw-semibold mb-4">
+        <i className="bi bi-info-circle me-2 text-secondary"></i>
+        About
+      </h5>
+
+      {/* Product card */}
+      <div className="card shadow-sm mb-3">
+        <div className="card-body">
+          <div className="d-flex align-items-center gap-3">
+            <div
+              className="d-flex align-items-center justify-content-center rounded-circle bg-primary flex-shrink-0"
+              style={{ width: "48px", height: "48px" }}
+            >
+              <i className="bi bi-speedometer2 text-white fs-5"></i>
+            </div>
+            <div>
+              <h6 className="mb-1 fw-bold">BLANK CMS</h6>
+              <p className="mb-0 small text-muted">
+                Version {version}{releaseDate ? ` · Released ${releaseDate}` : ""} · Content Management System
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Developer contact card */}
+      <div className="card shadow-sm">
+        <div className="card-header bg-transparent fw-semibold small">Developer</div>
+        <div className="card-body py-3">
+          <div className="d-flex align-items-center gap-3">
+            <div
+              className="d-flex align-items-center justify-content-center rounded-circle bg-secondary bg-opacity-10 flex-shrink-0"
+              style={{ width: "48px", height: "48px" }}
+            >
+              <i className="bi bi-person-circle text-secondary fs-4"></i>
+            </div>
+            <div>
+              <div className="fw-semibold">Gavin</div>
+              <a href="mailto:mangleholder@gmail.com" className="small text-muted text-decoration-none">
+                mangleholder@gmail.com
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function SettingsPage() {
@@ -1118,7 +1182,7 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* Data Management */}
+          {/* Backup & Restore */}
           {activeCategory === "data" && <BackupRestore />}
 
           {/* ── Email & SMTP ──────────────────────────────────────────────── */}
@@ -1383,31 +1447,7 @@ export default function SettingsPage() {
 
           {/* About */}
           {activeCategory === "about" && (
-            <div>
-              <h5 className="fw-semibold mb-4">
-                <i className="bi bi-info-circle me-2 text-secondary"></i>
-                About
-              </h5>
-
-              <div className="card shadow-sm">
-                <div className="card-body">
-                  <div className="d-flex align-items-center gap-3">
-                    <div
-                      className="d-flex align-items-center justify-content-center rounded-circle bg-primary flex-shrink-0"
-                      style={{ width: "48px", height: "48px" }}
-                    >
-                      <i className="bi bi-speedometer2 text-white fs-5"></i>
-                    </div>
-                    <div>
-                      <h6 className="mb-1">Your Company CMS</h6>
-                      <p className="mb-0 small text-muted">
-                        Version 1.0.0 | Content Management System
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <AboutSection />
           )}
 
           {/* CMS Updates (SUPER_ADMIN only) */}

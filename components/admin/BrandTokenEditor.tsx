@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { BrandTokens } from "@/lib/brand-tokens";
+import type { BrandTokens, BrandPantone } from "@/lib/brand-tokens";
 
 const DEFAULT_TOKENS: BrandTokens = {
   colors: {
@@ -45,40 +45,49 @@ interface ColorFieldProps {
   label: string;
   value: string;
   onChange: (val: string) => void;
+  pantone?: string;
+  onPantoneChange?: (val: string) => void;
 }
 
-function ColorField({ label, value, onChange }: ColorFieldProps) {
+function ColorField({ label, value, onChange, pantone, onPantoneChange }: ColorFieldProps) {
   return (
-    <div className="d-flex align-items-center gap-2 mb-2">
+    <div className="d-flex align-items-start gap-2 mb-2">
       <input
         type="color"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        style={{ width: 36, height: 36, padding: 2, cursor: "pointer", border: "1px solid #dee2e6", borderRadius: 6 }}
+        style={{ width: 36, height: 36, padding: 2, cursor: "pointer", border: "1px solid #dee2e6", borderRadius: 6, flexShrink: 0, marginTop: 2 }}
       />
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5 }}>
           {label}
         </div>
-        <input
-          type="text"
-          className="form-control form-control-sm"
-          value={value}
-          onChange={(e) => {
-            const v = e.target.value;
-            if (/^#[0-9A-Fa-f]{0,6}$/.test(v)) onChange(v);
-          }}
-          style={{ fontSize: 12, fontFamily: "monospace", width: 90 }}
-        />
+        <div className="d-flex gap-1 align-items-center">
+          <input
+            type="text"
+            className="form-control form-control-sm"
+            value={value}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (/^#[0-9A-Fa-f]{0,6}$/.test(v)) onChange(v);
+            }}
+            style={{ fontSize: 12, fontFamily: "monospace", width: 90, flexShrink: 0 }}
+          />
+          {onPantoneChange !== undefined && (
+            <input
+              type="text"
+              className="form-control form-control-sm"
+              value={pantone ?? ""}
+              onChange={(e) => onPantoneChange(e.target.value)}
+              placeholder="Pantone (e.g. 286 C)"
+              style={{ fontSize: 11, width: 130 }}
+              title="Optional Pantone reference code"
+            />
+          )}
+        </div>
       </div>
       <div
-        style={{
-          width: 48,
-          height: 36,
-          borderRadius: 6,
-          background: value,
-          border: "1px solid #dee2e6",
-        }}
+        style={{ width: 40, height: 36, borderRadius: 6, background: value, border: "1px solid #dee2e6", flexShrink: 0 }}
       />
     </div>
   );
@@ -86,15 +95,22 @@ function ColorField({ label, value, onChange }: ColorFieldProps) {
 
 export default function BrandTokenEditor() {
   const [tokens, setTokens] = useState<BrandTokens>(DEFAULT_TOKENS);
+  const [pantone, setPantone] = useState<BrandPantone>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [detecting, setDetecting] = useState(false);
+  const [detectedColors, setDetectedColors] = useState<string[] | null>(null);
+  const [showPantone, setShowPantone] = useState(false);
 
   useEffect(() => {
     fetch("/api/admin/brand-tokens")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (d?.data) setTokens(d.data);
+        if (d?.data) {
+          setTokens(d.data);
+          if (d.data.pantone) setPantone(d.data.pantone);
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -116,6 +132,20 @@ export default function BrandTokenEditor() {
     setTokens((prev) => ({ ...prev, borders: { ...prev.borders, [key]: val } }));
   }, []);
 
+  const updatePantone = useCallback((key: keyof BrandPantone, val: string) => {
+    setPantone(prev => ({ ...prev, [key]: val || undefined }));
+  }, []);
+
+  async function handleDetect() {
+    setDetecting(true); setDetectedColors(null);
+    try {
+      const r = await fetch("/api/admin/brand-tokens/detect");
+      const j = await r.json() as { colors?: string[] };
+      setDetectedColors(j.colors ?? []);
+    } catch { setDetectedColors([]); }
+    finally { setDetecting(false); }
+  }
+
   async function handleSave() {
     setSaving(true);
     setMessage(null);
@@ -123,7 +153,7 @@ export default function BrandTokenEditor() {
       const res = await fetch("/api/admin/brand-tokens", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(tokens),
+        body: JSON.stringify({ ...tokens, pantone }),
       });
       const data = await res.json();
       if (data.success) {
@@ -164,27 +194,87 @@ export default function BrandTokenEditor() {
 
       {/* Colors */}
       <div className="card shadow-sm mb-3">
-        <div className="card-header bg-white py-2">
+        <div className="card-header bg-white py-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
           <h6 className="mb-0 d-flex align-items-center gap-2">
             <i className="bi bi-palette-fill text-primary" />
             Brand Colors
           </h6>
+          <div className="d-flex align-items-center gap-2">
+            <span className="badge bg-success bg-opacity-10 text-success small">
+              <i className="bi bi-database-fill me-1" />Saved in database
+            </span>
+            <button
+              type="button"
+              className={`btn btn-outline-secondary btn-sm ${showPantone ? "active" : ""}`}
+              onClick={() => setShowPantone(p => !p)}
+              title="Toggle Pantone reference fields"
+            >
+              <i className="bi bi-p-circle me-1" />Pantone
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline-primary btn-sm"
+              onClick={handleDetect}
+              disabled={detecting}
+              title="Scan your pages and sections to suggest brand colours"
+            >
+              {detecting
+                ? <><span className="spinner-border spinner-border-sm me-1" />Scanning…</>
+                : <><i className="bi bi-eyedropper me-1" />Auto-Detect</>}
+            </button>
+          </div>
         </div>
         <div className="card-body">
+          {/* Auto-detect results */}
+          {detectedColors !== null && (
+            <div className="mb-3 p-3 bg-light rounded">
+              <div className="d-flex align-items-center justify-content-between mb-2">
+                <span className="small fw-semibold">Colors found in your pages ({detectedColors.length})</span>
+                <button type="button" className="btn-close btn-sm" onClick={() => setDetectedColors(null)} />
+              </div>
+              {detectedColors.length === 0
+                ? <p className="small text-muted mb-0">No hex colors found in section content.</p>
+                : <div className="d-flex flex-wrap gap-2">
+                    {detectedColors.map(c => (
+                      <button
+                        key={c}
+                        type="button"
+                        className="btn btn-sm d-flex align-items-center gap-1 border"
+                        style={{ background: "#fff", fontSize: 11 }}
+                        title={`Click to copy ${c}`}
+                        onClick={() => { navigator.clipboard.writeText(c); }}
+                      >
+                        <span style={{ width: 20, height: 20, borderRadius: 4, background: c, display: "inline-block", border: "1px solid #dee2e6" }} />
+                        <code>{c}</code>
+                      </button>
+                    ))}
+                  </div>
+              }
+              <p className="small text-muted mt-2 mb-0">Click a colour to copy its hex code, then paste it into any field below.</p>
+            </div>
+          )}
+
           <div className="row g-3">
             <div className="col-md-6">
-              <ColorField label="Primary" value={tokens.colors.primary} onChange={(v) => updateColor("primary", v)} />
-              <ColorField label="Secondary" value={tokens.colors.secondary} onChange={(v) => updateColor("secondary", v)} />
-              <ColorField label="Accent" value={tokens.colors.accent} onChange={(v) => updateColor("accent", v)} />
-              <ColorField label="Neutral" value={tokens.colors.neutral} onChange={(v) => updateColor("neutral", v)} />
+              <ColorField label="Primary" value={tokens.colors.primary} onChange={(v) => updateColor("primary", v)} pantone={pantone.primary} onPantoneChange={showPantone ? (v) => updatePantone("primary", v) : undefined} />
+              <ColorField label="Secondary" value={tokens.colors.secondary} onChange={(v) => updateColor("secondary", v)} pantone={pantone.secondary} onPantoneChange={showPantone ? (v) => updatePantone("secondary", v) : undefined} />
+              <ColorField label="Accent" value={tokens.colors.accent} onChange={(v) => updateColor("accent", v)} pantone={pantone.accent} onPantoneChange={showPantone ? (v) => updatePantone("accent", v) : undefined} />
+              <ColorField label="Neutral" value={tokens.colors.neutral} onChange={(v) => updateColor("neutral", v)} pantone={pantone.neutral} onPantoneChange={showPantone ? (v) => updatePantone("neutral", v) : undefined} />
             </div>
             <div className="col-md-6">
-              <ColorField label="Background" value={tokens.colors.background} onChange={(v) => updateColor("background", v)} />
-              <ColorField label="Surface" value={tokens.colors.surface} onChange={(v) => updateColor("surface", v)} />
-              <ColorField label="Text" value={tokens.colors.text} onChange={(v) => updateColor("text", v)} />
-              <ColorField label="Text Muted" value={tokens.colors.textMuted} onChange={(v) => updateColor("textMuted", v)} />
+              <ColorField label="Background" value={tokens.colors.background} onChange={(v) => updateColor("background", v)} pantone={pantone.background} onPantoneChange={showPantone ? (v) => updatePantone("background", v) : undefined} />
+              <ColorField label="Surface" value={tokens.colors.surface} onChange={(v) => updateColor("surface", v)} pantone={pantone.surface} onPantoneChange={showPantone ? (v) => updatePantone("surface", v) : undefined} />
+              <ColorField label="Text" value={tokens.colors.text} onChange={(v) => updateColor("text", v)} pantone={pantone.text} onPantoneChange={showPantone ? (v) => updatePantone("text", v) : undefined} />
+              <ColorField label="Text Muted" value={tokens.colors.textMuted} onChange={(v) => updateColor("textMuted", v)} pantone={pantone.textMuted} onPantoneChange={showPantone ? (v) => updatePantone("textMuted", v) : undefined} />
             </div>
           </div>
+          {showPantone && (
+            <div className="mt-2 small text-muted">
+              <i className="bi bi-info-circle me-1" />
+              Pantone codes are stored as reference labels only — they do not affect CSS output. Look up codes at{" "}
+              <a href="https://www.pantone.com/color-finder" target="_blank" rel="noreferrer">pantone.com/color-finder</a>.
+            </div>
+          )}
           {/* Preview strip */}
           <div className="mt-3 d-flex rounded overflow-hidden" style={{ height: 32 }}>
             {Object.entries(tokens.colors).map(([key, color]) => (
