@@ -59,7 +59,10 @@ model Page {
   mediaSlots      Json?
   navLabel        String?
   navOrder        Int?
-  showOnNavbar    Boolean          @default(false)
+  showOnNavbar        Boolean          @default(false)
+  seoUserEditedFields String?
+  seoProtectedReason  String?
+  seoLastAutoFilled   DateTime?
   submissions     FormSubmission[]
   createdByUser   User             @relation(fields: [createdBy], references: [id])
   sections        Section[]
@@ -505,7 +508,10 @@ model SiteConfig {
   navbarStyle    String   @default("standard")
   tiktok         String   @default("")
   defaultTheme   String   @default("dark")
-  homePage       String?
+  homePage          String?
+  googleClientId    String?
+  googleClientSecret String?
+  googleRedirectUri String?
 
   @@map("site_config")
 }
@@ -704,4 +710,30 @@ model SeoGscToken {
   updatedAt    DateTime @updatedAt
 
   @@map("seo_gsc_tokens")
+}
+
+model SeoEngineRun {
+  id              Int      @id @default(autoincrement())
+  runAt           DateTime @default(now())
+  durationMs      Int
+  status          String
+  pagesAudited    Int
+  pagesAutoFilled Int
+  pagesProtected  Int
+  pagesAlerted    Int
+  issues          Json
+
+  @@map("seo_engine_runs")
+}
+
+model GbpToken {
+  id           Int      @id @default(autoincrement())
+  accessToken  String
+  refreshToken String
+  expiresAt    DateTime
+  accountEmail String
+  locationId   String?
+  locationName String?
+
+  @@map("gbp_tokens")
 }

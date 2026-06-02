@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/api-middleware";
 import { UserRole } from "@prisma/client";
 import { randomBytes, createHash } from "crypto";
+import { getGoogleCredentials } from "@/lib/google-credentials";
 
 export const dynamic = "force-dynamic";
 
@@ -19,12 +20,11 @@ export async function GET(req: NextRequest) {
   const authError = await requireRole(req, UserRole.SUPER_ADMIN);
   if (authError) return authError;
 
-  const clientId    = process.env.GOOGLE_CLIENT_ID    ?? "";
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI ?? "";
+  const { clientId, redirectUri } = await getGoogleCredentials();
 
   if (!clientId || !redirectUri) {
     return NextResponse.json(
-      { success: false, error: "GOOGLE_CLIENT_ID and GOOGLE_REDIRECT_URI must be set in environment." },
+      { success: false, error: "Google Client ID and Redirect URI must be configured in Settings → Google Integration." },
       { status: 500 },
     );
   }

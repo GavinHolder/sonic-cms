@@ -2,6 +2,7 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import InfoCard from "@/components/admin/InfoCard";
 import HelpText from "@/components/admin/HelpText";
 import SeoSetupBanner from "@/components/admin/SeoSetupBanner";
+import SeoWidget from "@/components/admin/SeoWidget";
 import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -46,6 +47,7 @@ export default async function AdminDashboard() {
         )}
 
         <SeoSetupBanner />
+        <SeoWidget />
 
         {/* Welcome Message */}
         <HelpText variant="info" collapsible={false}>

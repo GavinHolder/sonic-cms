@@ -15,6 +15,7 @@ import {
 } from "@/lib/cms-settings";
 import BrandTokenEditor from "@/components/admin/BrandTokenEditor";
 import BackupRestore from "@/components/admin/BackupRestore";
+import GoogleSettingsTab from "@/components/admin/GoogleSettingsTab";
 
 type SettingsCategory =
   | "cms-updates"
@@ -27,7 +28,8 @@ type SettingsCategory =
   | "data"
   | "about"
   | "email"
-  | "features";
+  | "features"
+  | "google";
 
 const BASE_CATEGORIES: Array<{
   id: SettingsCategory;
@@ -42,6 +44,7 @@ const BASE_CATEGORIES: Array<{
   { id: "scroll", label: "Scroll Behavior", icon: "bi-arrows-vertical" },
   { id: "data", label: "Data Management", icon: "bi-database" },
   { id: "email", label: "Email & SMTP", icon: "bi-envelope-at" },
+  { id: "google" as SettingsCategory, label: "Google Integration", icon: "bi-google" },
   { id: "about", label: "About", icon: "bi-info-circle" },
 ];
 
@@ -58,7 +61,7 @@ export default function SettingsPage() {
   const [activeCategory, setActiveCategoryState] = useState<SettingsCategory>(() => {
     if (typeof window !== "undefined") {
       const hash = window.location.hash.replace("#", "");
-      const valid = ["site", "brand", "ui", "editor", "preview", "scroll", "data", "email", "about", "cms-updates", "features"];
+      const valid = ["site", "brand", "ui", "editor", "preview", "scroll", "data", "email", "about", "cms-updates", "features", "google"];
       if (valid.includes(hash)) return hash as SettingsCategory;
     }
     return "site";
@@ -1374,6 +1377,9 @@ export default function SettingsPage() {
               </div>
             </div>
           )}
+
+          {/* Google Integration */}
+          {activeCategory === "google" && <GoogleSettingsTab />}
 
           {/* About */}
           {activeCategory === "about" && (

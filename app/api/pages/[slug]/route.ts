@@ -171,6 +171,13 @@ export async function PUT(
       }
     }
 
+    // Track which SEO fields the user explicitly saved so the engine never overwrites them
+    const SEO_FIELDS = ["metaTitle", "metaDescription", "ogTitle", "ogDescription", "canonicalUrl", "metaKeywords", "ogImage", "noindex", "nofollow"] as const;
+    const existingEditedRaw = existingPage.seoUserEditedFields ?? "[]";
+    const existingEdited: string[] = (() => { try { const p = JSON.parse(existingEditedRaw); return Array.isArray(p) ? p : []; } catch { return []; } })();
+    const newlyEdited = (SEO_FIELDS as readonly string[]).filter((f) => (data as Record<string, unknown>)[f] !== undefined);
+    const mergedEdited = Array.from(new Set([...existingEdited, ...newlyEdited]));
+
     const updatedPage = await prisma.page.update({
       where: { slug },
       data: {
@@ -193,6 +200,7 @@ export async function PUT(
         ...(data.nofollow !== undefined && { nofollow: data.nofollow }),
         ...(data.status !== undefined && { status: data.status }),
         ...(data.mediaSlots !== undefined && { mediaSlots: data.mediaSlots ?? Prisma.DbNull }),
+        ...(newlyEdited.length > 0 && { seoUserEditedFields: JSON.stringify(mergedEdited) }),
         ...(data.status === PageStatus.PUBLISHED && !existingPage.publishedAt
           ? { publishedAt: new Date(), publishedBy: user.userId }
           : {}),

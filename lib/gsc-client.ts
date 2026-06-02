@@ -16,6 +16,7 @@
 
 import prisma from "@/lib/prisma";
 import { encrypt, decrypt } from "@/lib/crypto";
+import { getGoogleCredentials } from "@/lib/google-credentials";
 
 // ── Error types ────────────────────────────────────────────────────────────────
 
@@ -152,9 +153,7 @@ export async function exchangeCodeForTokens(
   code: string,
   codeVerifier: string,
 ): Promise<{ accountEmail: string }> {
-  const clientId     = process.env.GOOGLE_CLIENT_ID     ?? "";
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET ?? "";
-  const redirectUri  = process.env.GOOGLE_REDIRECT_URI  ?? "";
+  const { clientId, clientSecret, redirectUri } = await getGoogleCredentials();
 
   const res = await fetch(GOOGLE_TOKEN_URL, {
     method: "POST",
@@ -216,8 +215,7 @@ export async function exchangeCodeForTokens(
 // ── Token refresh ──────────────────────────────────────────────────────────────
 
 async function refreshAccessToken(refreshTokenPlain: string): Promise<string> {
-  const clientId     = process.env.GOOGLE_CLIENT_ID     ?? "";
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET ?? "";
+  const { clientId, clientSecret } = await getGoogleCredentials();
 
   const res = await fetch(GOOGLE_TOKEN_URL, {
     method: "POST",

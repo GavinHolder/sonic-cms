@@ -56,14 +56,14 @@ export async function GET(req: NextRequest) {
 
   // Fetch published pages
   const pages = await prisma.page.findMany({
-    where:   { isPublished: true },
+    where:   { status: "PUBLISHED" },
     select:  { slug: true, title: true },
     orderBy: { title: "asc" },
     take:    limit,
     skip:    offset,
   });
 
-  const total = await prisma.page.count({ where: { isPublished: true } });
+  const total = await prisma.page.count({ where: { status: "PUBLISHED" } });
 
   if (pages.length === 0) {
     return NextResponse.json({
