@@ -2316,6 +2316,67 @@ Access via **Admin → Settings → Email & SMTP** tab.
 
 ---
 
+## Google Integration (Settings → Google Integration)
+
+A guided 5-step wizard for setting up Google OAuth credentials. Required before using Search Console or Google Business Profile features.
+
+### Why this is needed
+
+The CMS integrates directly with Google's APIs (Search Console, Business Profile). Google requires you to register an OAuth 2.0 "app" in Google Cloud Console and provide credentials to your CMS instance. Credentials are encrypted with AES-256-GCM before being stored.
+
+### Prerequisites
+
+Before starting, ensure:
+- ✅ A Google account that manages your Search Console property / Business Profile
+- ✅ Access to [Google Cloud Console](https://console.cloud.google.com) (free)
+- ✅ The \`GSC_ENCRYPTION_KEY\` environment variable is set on your server (64 hex chars)
+
+Generate a key with: \`node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"\`
+
+### The 5-Step Wizard
+
+**Step 1 — Overview**
+Displays requirements and checks whether \`GSC_ENCRYPTION_KEY\` is configured on the server. A green alert confirms encryption is ready; an amber alert means you must set the env var before proceeding.
+
+**Step 2 — Google Cloud Setup**
+Guided links to:
+1. Create or select a Google Cloud project at [console.cloud.google.com](https://console.cloud.google.com/projectcreate)
+2. Enable the required APIs: **Google Search Console API** and **Google My Business API**
+3. Configure the OAuth consent screen (app name, email, add your account as a test user)
+
+**Step 3 — Create OAuth 2.0 Credentials**
+Exact redirect URIs to copy into Google Cloud Console:
+- \`https://yourdomain.com/api/seo/gsc/callback\` — for Search Console
+- \`https://yourdomain.com/api/gbp/callback\` — for Business Profile
+
+Steps: Credentials page → Create Credentials → OAuth client ID → Web application → paste both URIs.
+
+**Step 4 — Enter Details**
+- **Client ID**: validated against the format \`digits-alphanumeric.apps.googleusercontent.com\`
+- **Client Secret**: stored encrypted; leave blank to keep an existing saved value
+- **Site Domain**: auto-filled from the current URL; only change if your domain differs from where you're running the CMS
+
+**Step 5 — Verify & Save**
+Review table shows Client ID, masked secret, redirect base, and encryption status. Save button is disabled if encryption is not configured or credentials are incomplete.
+
+After saving, next steps are displayed: go to **SEO → Search Console** to connect your property.
+
+---
+
+## Backup & Restore (Settings → Backup & Restore)
+
+Export and import a full backup of your CMS data including sections, pages, templates, media metadata, site config, and brand tokens. The backup is a downloadable JSON file.
+
+> Database backups (PostgreSQL dumps) must be managed separately at the infrastructure level.
+
+---
+
+## About (Settings → About)
+
+Shows the CMS product name (**BLANK CMS**), current version loaded from \`/public/cms-version.json\`, and developer contact information.
+
+---
+
 ### Common Provider Settings
 
 **Gmail (Google Workspace):**
@@ -2679,23 +2740,49 @@ The audit checks:
 
 ---
 
+## Search Console (Tab: Search Console)
+
+Live index status for every published page, powered by the Google Search Console API.
+
+> ⚠️ **Requires Google OAuth credentials** — configure them first at **Settings → Google Integration** (see below).
+
+### Connecting Search Console
+
+1. Go to **Settings → Google Integration** and complete the 5-step wizard
+2. Return to **SEO → Search Console** and click **Connect Search Console**
+3. Sign in with the Google account that manages your Search Console property
+4. Grant permissions — you are redirected back to the CMS
+5. Select your **Search Console property** from the dropdown
+
+### What you can do after connecting
+
+| Feature | Description |
+|---------|-------------|
+| **Page index table** | All published pages with index status, last crawl date, clicks, impressions |
+| **Inspect URL** | Run a live Google index inspection on any individual page |
+| **Sitemaps panel** | List submitted sitemaps and their processing status |
+| **Disconnect** | Remove stored OAuth tokens at any time |
+
+### Index Status Meanings
+
+| Badge | Meaning |
+|-------|---------|
+| 🟢 Indexed | Page is in Google's index and ranking |
+| 🟡 Submitted, not indexed | Google knows the URL but hasn't fully indexed it yet |
+| 🔴 Not indexed | Page is blocked or hasn't been crawled |
+| ⚪ Unknown | Inspection not yet run |
+
+---
+
+## Business Profile (Tab: Business Profile)
+
+Manage your Google Business Profile listing directly — read reviews, publish posts, and view insights. Requires the same Google OAuth credentials as Search Console.
+
+---
+
 ## Google Integration (Tab: Google)
 
-A step-by-step checklist that guides you through connecting your site to Google's services.
-
-### Steps
-
-| # | Step | Type | What it does |
-|---|------|------|-------------|
-| 1 | **Set canonical base URL** | Auto-detected | Your site's public URL — required for sitemap and robots.txt |
-| 2 | **Verify site in Google Search Console** | Manual | Prove domain ownership so Google will index your site |
-| 3 | **Submit sitemap** | Manual | Tell Google where to find your pages |
-| 4 | **Connect Google Analytics (GA4)** | Auto-detected | Track visitor behaviour — paste your Measurement ID (G-XXXXXXXXXX) |
-| 5 | **Claim Google Business Profile** | Manual | Appear on Google Maps and in local search results |
-| 6 | **Request indexing** | Manual | Ask Google to crawl your pages (speeds up discovery) |
-
-**Auto-detected** steps check automatically whether the config value is set.
-**Manual** steps have a toggle you mark as done after completing the action in Google's tools.
+A checklist guiding you through manual Google setup steps (Analytics, Search Console verification, sitemap submission, etc.).
 
 ### Google Analytics (GA4)
 
@@ -2708,7 +2795,17 @@ When you enter a GA4 Measurement ID, the CMS automatically injects the Google An
 
 ### Timeline
 
-After completing all steps, Google typically takes **1–4 weeks** to fully index a new site. Monitor progress in Google Search Console → Coverage → Pages.
+After completing all setup steps, Google typically takes **1–4 weeks** to fully index a new site. Monitor progress in Google Search Console → Coverage → Pages.
+
+---
+
+## SEO Overview Tab
+
+The **Overview** tab shows your SEO Engine status:
+- Last run timestamp and overall health score
+- Page classification breakdown (Protected / Monitored / New)
+- Issue groups with severity counts (errors, warnings, info)
+- **Run SEO Engine Now** button for an immediate analysis pass
 
 ---
 
@@ -4554,6 +4651,142 @@ export const CMS_UPDATES_DOCS = `
 `;
 
 // ─────────────────────────────────────────────
+// GOOGLE INTEGRATION DOCS
+// ─────────────────────────────────────────────
+
+export const GOOGLE_INTEGRATION_DOCS = `
+# Google Integration Setup
+
+Access via **Settings → Google Integration**.
+
+This 5-step wizard registers your Google OAuth credentials so the CMS can connect to **Search Console** and **Google Business Profile** on your behalf.
+
+---
+
+## Before You Begin
+
+You need three things ready before starting:
+
+1. **A Google account** that already manages your Search Console property and/or Business Profile listing
+2. **Access to Google Cloud Console** — it is free, no billing required for these APIs
+3. **\`GSC_ENCRYPTION_KEY\` environment variable** set on your server — this 64-character hex key encrypts stored credentials using AES-256-GCM
+
+   Generate the key with this command (run once, copy the output to your server environment):
+   \`\`\`
+   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+   \`\`\`
+
+   > ⚠️ The Save button is disabled until this env var is detected on the server.
+
+---
+
+## Step 1 — Overview
+
+The wizard checks whether your server is ready. Look for:
+- 🟢 **Encryption configured** — you can proceed
+- 🟡 **GSC_ENCRYPTION_KEY not set** — add the env var to your server and restart before continuing
+
+Click **Get Started** to move to Step 2.
+
+---
+
+## Step 2 — Google Cloud Setup
+
+Open [console.cloud.google.com](https://console.cloud.google.com) in another tab and complete these three actions (links provided in the wizard):
+
+**a) Create or select a project**
+If you don't have a Google Cloud project, click "Create Project". Name it anything (e.g. "My Company CMS"). Free tier is sufficient.
+
+**b) Enable required APIs**
+In the API Library, enable both:
+- **Google Search Console API**
+- **Google My Business API** (also called "My Business Business Information API")
+
+Search for each by name, click it, and click **Enable**.
+
+**c) Configure the OAuth consent screen**
+- Go to APIs & Services → OAuth consent screen
+- Choose **External** (or Internal if using Google Workspace)
+- Fill in App name and User support email
+- Under Scopes, add: \`openid\`, \`email\`, \`profile\`
+- Add your Google account email as a **Test user**
+- Set publishing status — keep as "Testing" if personal use, or publish for production
+
+Click **Next: Create Credentials** in the wizard.
+
+---
+
+## Step 3 — Create OAuth 2.0 Credentials
+
+In Google Cloud Console:
+
+1. Go to **APIs & Services → Credentials**
+2. Click **+ Create Credentials → OAuth client ID**
+3. Application type: **Web application**
+4. Under **Authorised redirect URIs**, add both URIs shown in the wizard (use the Copy buttons):
+   - \`https://yourdomain.com/api/seo/gsc/callback\` — Search Console OAuth return URL
+   - \`https://yourdomain.com/api/gbp/callback\` — Business Profile OAuth return URL
+5. Click **Create**
+6. A modal appears — copy both the **Client ID** and **Client Secret** (they are only shown once)
+
+> ⚠️ The redirect URIs must match exactly — including the protocol (\`https://\`). If your domain differs from where you opened the wizard, update the domain in Step 4.
+
+Click **Next: Enter Details** in the wizard.
+
+---
+
+## Step 4 — Enter Credentials
+
+Paste the values from Google Cloud:
+
+| Field | What to paste |
+|-------|--------------|
+| **Google Client ID** | Ends in \`.apps.googleusercontent.com\` — validated in real-time |
+| **Google Client Secret** | The long string shown after creating the credential. Leave blank to keep an already-saved value |
+| **Site Domain** | Auto-filled from your current URL. Only change this if your production domain is different |
+
+The Client ID field turns green when the format is valid. The Client Secret field turns green when non-empty.
+
+Click **Next: Verify & Save** to review.
+
+---
+
+## Step 5 — Verify & Save
+
+Review the summary table:
+- **Client ID** — shown with a validation checkmark
+- **Client Secret** — masked as ●●●●●●●● with a checkmark when set
+- **Redirect Base** — the domain used in the redirect URIs
+- **Encryption** — should show **AES-256-GCM** in green
+
+Click **Save Credentials**. The credentials are encrypted and stored in your database.
+
+---
+
+## After Saving
+
+Go to **Content → SEO → Search Console** to connect your Google account:
+1. Click **Connect Search Console**
+2. Sign in with the same Google account that manages your Search Console property
+3. Grant permissions (read access to Search Console data)
+4. You are redirected back to the CMS — select your property from the dropdown
+
+Go to **Content → SEO → Business Profile** to connect your listing similarly.
+
+---
+
+## Troubleshooting
+
+| Problem | Solution |
+|---------|---------|
+| Save button stays grey | \`GSC_ENCRYPTION_KEY\` not set on server — add it and restart |
+| "redirect_uri_mismatch" error from Google | Redirect URI in Google Cloud Console doesn't match exactly — re-check Step 3 |
+| Client ID validation fails | Must end in \`.apps.googleusercontent.com\` — copy directly from Google Cloud |
+| "Failed to exchange code" error | Client Secret may be wrong — re-enter it in Step 4 |
+| Properties list is empty after connecting | Your Google account doesn't manage any Search Console properties — verify in [search.google.com/search-console](https://search.google.com/search-console) |
+`;
+
+// ─────────────────────────────────────────────
 // SEO WIZARD DOCS
 // ─────────────────────────────────────────────
 
@@ -4747,11 +4980,43 @@ Each token has a swatch picker for quick selection plus a full colour picker for
 4. All sections, Volt designs, and components inherit the tokens automatically
 5. Volt Designer colour pickers show brand swatches for easy consistency
 
+## Pantone Reference Fields
+
+Click the **Pantone** button in the Brand Colors header to reveal Pantone code fields alongside each hex color.
+
+- Pantone codes are **reference-only** — they are stored in the database but do not affect CSS output
+- Use them to document your brand's official Pantone color standards for design consistency
+- Look up Pantone ↔ hex conversions at [pantone.com/color-finder](https://www.pantone.com/color-finder)
+- Example: enter \`286 C\` next to Primary to record that your brand blue is Pantone 286 C
+
+---
+
+## Auto-Detect Colors
+
+Click **Auto-Detect** in the Brand Colors header to scan all section content in your pages for hex color codes.
+
+- The CMS reads up to 200 sections and extracts all \`#rrggbb\` hex values found in content JSON
+- A color swatch panel appears showing detected colors
+- Click any swatch to copy its hex code, then paste it into a color field
+- Common noise colors (pure black \`#000000\` and white \`#ffffff\`) are filtered out automatically
+- Useful when onboarding an existing site — find all colors used and set them as brand tokens
+
+---
+
+## Persistence
+
+Brand tokens are stored in the **database** (SystemSettings table, key: \`brand_tokens\`). They survive redeploys and container restarts because they live in your persistent PostgreSQL database, not in environment variables or the filesystem.
+
+The green **"Saved in database"** badge in the Brand Colors header confirms the current values came from the database.
+
+---
+
 ## Technical Details
 
-- Tokens stored in \`BrandToken\` Prisma model
-- CSS custom properties injected server-side in root layout
-- Google Fonts loaded dynamically based on selected families
+- Tokens stored in \`SystemSettings\` Prisma model (key: \`brand_tokens\`, JSON blob)
+- CSS custom properties injected server-side in root layout on every page load
+- Google Fonts loaded dynamically based on selected font families
+- Bootstrap CSS variables (\`--bs-primary\`, \`--bs-body-font-family\`, etc.) are overridden to match brand tokens
 - All brand values accessible in Volt Designer for design consistency
 `;
 
@@ -6146,6 +6411,7 @@ export const DOC_TOPICS: DocTopic[] = [
     children: [
       { id: "seo-overview", label: "Site Settings & Per-Page SEO", icon: "bi-search", content: SEO_MANAGEMENT },
       { id: "seo-wizard", label: "SEO Wizard", icon: "bi-magic", content: SEO_WIZARD_DOCS },
+      { id: "google-integration", label: "Google Integration Setup", icon: "bi-google", content: GOOGLE_INTEGRATION_DOCS },
     ],
   },
   {
