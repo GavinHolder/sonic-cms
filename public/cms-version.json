@@ -1,11 +1,11 @@
 {
-  "version": "1.68.0",
+  "version": "1.68.1",
   "date": "2026-06-04",
   "changelog": {
-    "features": [
-      "contact-form lead capture endpoint + booking extensions (secure port from sleepwise-cms)"
+    "features": [],
+    "bugfixes": [
+      "add migration for volt_elements missing slots/flipCard columns"
     ],
-    "bugfixes": [],
     "breaking": []
   }
 }
