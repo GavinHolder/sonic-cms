@@ -700,7 +700,12 @@ function ContactFormBlock({ p, darkBg }: { p: Record<string, unknown>; darkBg: b
   const successMsg = (p.successMessage as string) || "Thank you! We'll be in touch shortly.";
   const submitLabel = (p.submitLabel as string) || "Send Message";
   const formTitle = p.formTitle as string | undefined;
-  const emailTo = p.emailTo as string | undefined;
+  // NOTE: p.emailTo is intentionally NOT sent to the API — the recipient is
+  // resolved server-side from the block config to prevent open-relay abuse.
+  // Booking-form extensions: preferred-date + location selector.
+  const locationOptions = (Array.isArray(p.locationOptions) ? (p.locationOptions as string[]) : []).filter(Boolean);
+  const locationLabel = (p.locationLabel as string) || "Preferred location";
+  const dateLabel = (p.dateLabel as string) || "Preferred date";
 
   const inputStyle: React.CSSProperties = {
     width: "100%", padding: "8px 12px", fontSize: "14px",
@@ -708,10 +713,20 @@ function ContactFormBlock({ p, darkBg }: { p: Record<string, unknown>; darkBg: b
     background: darkBg ? "rgba(255,255,255,0.07)" : "#fff",
     color: darkBg ? "#fff" : "#212529",
     outline: "none",
+    // Keep native controls (e.g. type="date" text + calendar icon) legible on dark backgrounds
+    colorScheme: darkBg ? "dark" : "light",
   };
 
   const handleChange = (field: string, value: string) =>
     setFormValues(prev => ({ ...prev, [field]: value }));
+
+  // Default-select the first location so a value is always submitted even if the
+  // visitor never clicks the pre-highlighted option (single-clinic case).
+  useEffect(() => {
+    if (fields.location && !formValues.location && locationOptions.length > 0) {
+      setFormValues(prev => ({ ...prev, location: locationOptions[0] }));
+    }
+  }, [fields.location, formValues.location, locationOptions]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -721,7 +736,9 @@ function ContactFormBlock({ p, darkBg }: { p: Record<string, unknown>; darkBg: b
       const res = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...formValues, emailTo }),
+        // pageSlug lets the API log the lead against (and resolve the recipient
+        // from) the page this form lives on. emailTo is never sent — see above.
+        body: JSON.stringify({ ...formValues, pageSlug: window.location.pathname }),
       });
       if (res.ok) { setSubmitted(true); }
       else { setError("Something went wrong. Please try again."); }
@@ -775,6 +792,38 @@ function ContactFormBlock({ p, darkBg }: { p: Record<string, unknown>; darkBg: b
         <div>
           <label style={labelStyle}>Subject</label>
           <input style={inputStyle} value={formValues.subject || ""} onChange={e => handleChange("subject", e.target.value)} placeholder="Subject" />
+        </div>
+      )}
+      {fields.location && locationOptions.length > 0 && (
+        <div>
+          <label style={labelStyle}>{locationLabel}</label>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {locationOptions.map((opt) => {
+              const active = (formValues.location || locationOptions[0]) === opt;
+              return (
+                <label
+                  key={opt}
+                  style={{
+                    flex: locationOptions.length <= 3 ? 1 : undefined,
+                    display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
+                    padding: "10px 14px", borderRadius: 8, fontSize: 14,
+                    border: `1px solid ${active ? "var(--bs-success, #2BB3CC)" : darkBg ? "rgba(255,255,255,0.2)" : "#ced4da"}`,
+                    background: active ? (darkBg ? "rgba(43,179,204,0.18)" : "#D6F1F7") : (darkBg ? "rgba(255,255,255,0.07)" : "#fff"),
+                    color: darkBg ? "#fff" : "#212529",
+                  }}
+                >
+                  <input type="radio" name="location" value={opt} checked={active} onChange={() => handleChange("location", opt)} style={{ accentColor: "var(--bs-success, #2BB3CC)" }} />
+                  <span>{opt}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {fields.date && (
+        <div>
+          <label style={labelStyle}>{dateLabel}</label>
+          <input type="date" style={inputStyle} value={formValues.date || ""} onChange={e => handleChange("date", e.target.value)} />
         </div>
       )}
       {fields.message && (
