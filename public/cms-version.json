@@ -1,11 +1,11 @@
 {
-  "version": "1.67.0",
-  "date": "2026-06-02",
+  "version": "1.67.1",
+  "date": "2026-06-04",
   "changelog": {
-    "features": [
-      "Google wizard, About overhaul, Brand Pantone + auto-detect, rename Backup & Restore"
+    "features": [],
+    "bugfixes": [
+      "flexible preview - centered device frame, browser chrome, dimension ruler"
     ],
-    "bugfixes": [],
     "breaking": []
   }
 }

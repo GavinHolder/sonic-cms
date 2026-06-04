@@ -1,10 +1,10 @@
 {
-  "version": "1.62.1",
-  "date": "2026-05-12",
+  "version": "1.67.1",
+  "date": "2026-06-04",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "resolve relative logo URL to absolute in email templates"
+      "flexible preview - centered device frame, browser chrome, dimension ruler"
     ],
     "breaking": []
   }
