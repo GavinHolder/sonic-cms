@@ -1,11 +1,19 @@
 {
-  "version": "1.9.0",
-  "date": "2026-03-25",
+  "version": "1.67.0",
+  "date": "2026-06-04",
   "changelog": {
     "features": [
-      "upstream merge support in deploy pipeline"
+      "SEO Intelligence System with Search Console integration",
+      "Google Business Profile OAuth integration",
+      "Guided Google wizard (Search Console, Analytics, GBP)",
+      "Brand Pantone color + auto-detect from favicon",
+      "SEO Overview, Scorecard, and Propagation tabs",
+      "In-app Google Integration documentation"
     ],
-    "bugfixes": [],
+    "bugfixes": [
+      "GSC status uses PUBLISHED instead of non-existent isPublished",
+      "SEO Wizard crash from hooks rules violation"
+    ],
     "breaking": []
   }
 }
