@@ -112,15 +112,17 @@ jobs:
           if [ -n "$UPSTREAM_VER" ]; then
             CURRENT_VER=$(python3 -c "import json; d=json.load(open('public/cms-version.json')); print(d['version'])" 2>/dev/null || echo "")
             if [ "$UPSTREAM_VER" != "$CURRENT_VER" ]; then
-              TODAY=$(date -u +%Y-%m-%d)
-              python3 -c "
+              python3 - "$CURRENT_VER" "$UPSTREAM_VER" <<'PY'
 import json, sys
-with open('public/cms-version.json') as f: d = json.load(f)
-d['version'] = sys.argv[1]
-d['date'] = sys.argv[2]
-with open('public/cms-version.json', 'w') as f: json.dump(d, f, indent=2)
-print(f'Bumped cms-version.json: $CURRENT_VER -> $UPSTREAM_VER')
-" "$UPSTREAM_VER" "$TODAY"
+old, new = sys.argv[1], sys.argv[2]
+with open('public/cms-version.json') as f:
+    d = json.load(f)
+d['version'] = new
+d['date'] = __import__('datetime').datetime.utcnow().strftime('%Y-%m-%d')
+with open('public/cms-version.json', 'w') as f:
+    json.dump(d, f, indent=2)
+print(f'Bumped cms-version.json: {old} -> {new}')
+PY
               git add public/cms-version.json
               git commit -m "chore: sync cms version to v$UPSTREAM_VER from upstream"
             else
