@@ -2624,7 +2624,11 @@ function PreviewTabPane({
   // Mobile sections stack vertically and can be much taller than one viewport height.
   // Use 1500px for mobile so all stacked blocks are visible without scrolling inside the iframe.
   const viewportH = viewport === "mobile" ? 1500 : 812;
+  const scaledW = Math.round(scale * vw);
   const scaledH = Math.round(scale * viewportH);
+  const maxVisibleH = scale >= 1 ? Math.min(scaledH, 700) : scaledH;
+  const deviceRadius = viewport === "desktop" ? 4 : viewport === "tablet" ? 12 : 20;
+  const chromeH = viewport === "desktop" ? 26 : 18;
 
   return (
     <div>
@@ -2645,38 +2649,103 @@ function PreviewTabPane({
             </span>
           </button>
         ))}
-        <span className="ms-auto text-muted small">
-          CSS @media queries are accurate — this is a true {vw}px viewport
-        </span>
       </div>
 
-      {/* Iframe container — at scale=1 (mobile) allow scrolling; at scale<1 clip to fit */}
-      <div
-        className="border rounded"
-        style={{
-          overflow: scale >= 1 ? "auto" : "hidden",
-          height: scale >= 1 ? Math.min(scaledH, 700) : scaledH,
-          position: "relative",
-          background: "#f8f9fa",
-        }}
-      >
+      {/* Preview stage — neutral background, device centered */}
+      <div style={{
+        background: "#dee2e6",
+        borderRadius: 12,
+        padding: "16px 16px 14px",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+      }}>
+        {/* Device frame */}
         <div style={{
-          width: vw,
-          height: viewportH,
-          transformOrigin: "top left",
-          transform: `scale(${scale})`,
+          width: scaledW,
+          borderRadius: deviceRadius + 2,
+          boxShadow: "0 6px 24px rgba(0,0,0,0.15), 0 1px 4px rgba(0,0,0,0.08)",
+          border: "2px solid #adb5bd",
+          overflow: "hidden",
+          background: "#fff",
+          flexShrink: 0,
         }}>
-          <iframe
-            key={viewport}              /* remount on viewport change so media queries re-evaluate */
-            ref={iframeRef}
-            src="/admin/section-preview"
-            style={{ width: vw, height: viewportH, border: "none", display: "block" }}
-            title={`Section preview at ${vw}px`}
-            onLoad={() => {
-              // iframe loaded — if PREVIEW_READY already came, send now
-              if (iframeReady.current) sendSection();
-            }}
-          />
+          {/* Device chrome */}
+          {viewport === "desktop" ? (
+            <div style={{
+              background: "#f1f3f5",
+              borderBottom: "1px solid #ced4da",
+              height: chromeH,
+              display: "flex",
+              alignItems: "center",
+              padding: "0 8px",
+              gap: 5,
+              flexShrink: 0,
+            }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#ff5f57", flexShrink: 0 }} />
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#febc2e", flexShrink: 0 }} />
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#28c840", flexShrink: 0 }} />
+              <div style={{ flex: 1, margin: "0 6px", height: 13, background: "#dee2e6", borderRadius: 3 }} />
+            </div>
+          ) : (
+            <div style={{
+              background: "#f1f3f5",
+              borderBottom: "1px solid #ced4da",
+              height: chromeH,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}>
+              <div style={{
+                width: viewport === "mobile" ? 56 : 72,
+                height: 4,
+                borderRadius: 2,
+                background: "#adb5bd",
+              }} />
+            </div>
+          )}
+
+          {/* Scaled iframe content */}
+          <div style={{
+            width: scaledW,
+            height: maxVisibleH,
+            overflow: scale >= 1 ? "auto" : "hidden",
+            position: "relative",
+          }}>
+            <div style={{
+              width: vw,
+              height: viewportH,
+              transformOrigin: "top left",
+              transform: `scale(${scale})`,
+            }}>
+              <iframe
+                key={viewport}              /* remount on viewport change so media queries re-evaluate */
+                ref={iframeRef}
+                src="/admin/section-preview"
+                style={{ width: vw, height: viewportH, border: "none", display: "block" }}
+                title={`Section preview at ${vw}px`}
+                onLoad={() => {
+                  if (iframeReady.current) sendSection();
+                }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Dimension ruler */}
+        <div style={{
+          marginTop: 10,
+          display: "flex",
+          alignItems: "center",
+          width: scaledW,
+          gap: 6,
+        }}>
+          <div style={{ flex: 1, height: 1, background: "#adb5bd" }} />
+          <span style={{ fontSize: 11, fontFamily: "monospace", whiteSpace: "nowrap", color: "#495057" }}>
+            {vw}px viewport (true @media)
+          </span>
+          <div style={{ flex: 1, height: 1, background: "#adb5bd" }} />
         </div>
       </div>
     </div>
