@@ -716,29 +716,41 @@ The \`.section-content-wrapper\` reads these variables. On mobile (≤ 767px) it
 const TAB_PREVIEW = `
 # Section Editor — Preview Tab
 
-The Preview tab shows a **live render** of the section inside the modal, allowing you to see changes without leaving the editor.
+The Preview tab shows a **live render** of the section at a true device viewport, so CSS @media queries fire exactly as they do on the real site.
 
 ---
 
-## Features
+## Device Selector
 
-- Renders the section at approximately desktop width
-- Shows background color, image, and animation (if AnimBg enabled)
-- Shows content layout, text, and buttons
-- Triangle overlays are shown (scaled to fit)
-- Useful to check contrast and layout before saving
+Three buttons let you switch the simulated viewport:
+
+| Button | Viewport | What it simulates |
+|--------|----------|-------------------|
+| **Desktop** | 1440px | Standard widescreen monitor |
+| **Tablet** | 768px | iPad / tablet portrait |
+| **Mobile** | 375px | iPhone / small phone |
+
+Each device is rendered inside a **device frame chrome** — a bordered screen outline with a browser bar (desktop) or status notch (tablet/mobile) — so the boundaries of the simulated screen are always clear.
+
+---
+
+## How it works
+
+- The section is rendered in a sandboxed iframe sized to the exact device width
+- Because the iframe is a true 1440px / 768px / 375px viewport, Bootstrap breakpoints and all CSS \`@media\` rules are fully accurate
+- The frame is scaled down to fit the modal — the scale factor is shown in the dimension ruler below the device
 
 ---
 
 ## Limitations
 
-- Preview is constrained to the modal width (~900px)
-- Some canvas animations may behave slightly differently in preview mode
-- Mobile-specific layouts are not shown in preview
+- Some entrance animations may be slightly different from the live site (they re-trigger on preview load)
+- Scroll-snap and section-to-section transitions are not shown — only the single section is rendered
+- Very tall mobile layouts scroll inside the device frame
 
 ---
 
-> 💡 Always save and check the live site at \`localhost:3000\` for the final result — especially for animations and scroll snap behavior.
+> 💡 Always verify on the live site at \`localhost:3000\` for the final result — especially for scroll snap, section transitions, and animations.
 `;
 
 const FLEXIBLE_OVERVIEW = `
