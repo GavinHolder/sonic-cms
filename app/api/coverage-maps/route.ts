@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
   if (auth instanceof NextResponse) return auth;
 
   const maps = await prisma.coverageMap.findMany({
-    include: { regions: { orderBy: { order: "asc" } }, labels: true },
+    include: { regions: { orderBy: { order: "asc" } }, labels: true, towers: true },
     orderBy: { createdAt: "desc" },
   });
   return NextResponse.json(maps);

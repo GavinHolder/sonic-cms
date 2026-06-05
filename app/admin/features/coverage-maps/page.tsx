@@ -19,6 +19,16 @@ interface CoverageRegion {
   name: string; polygon: LatLng[]; color: string; opacity: number;
   strokeColor: string; strokeWidth: number; description: string | null;
   isActive: boolean; order: number;
+  regionType: "GENERAL" | "FIBRE" | "WIRELESS";
+  fnoProvider: string | null;
+  serviceSlug: string | null;
+  towerRef: string | null;
+}
+
+interface CoverageTower {
+  id: string; mapId: string;
+  name: string; lat: number; lng: number;
+  description: string | null; isActive: boolean;
 }
 
 interface CoverageLabel {
@@ -31,7 +41,7 @@ interface CoverageLabel {
 interface CoverageMap {
   id: string; name: string; slug: string; description: string | null;
   centerLat: number; centerLng: number; defaultZoom: number; isActive: boolean;
-  regions: CoverageRegion[]; labels: CoverageLabel[];
+  regions: CoverageRegion[]; labels: CoverageLabel[]; towers: CoverageTower[];
 }
 
 // ─── Outer page ───────────────────────────────────────────────────────────────
@@ -51,7 +61,7 @@ function CoverageMapsInner() {
   const [maps, setMaps] = useState<CoverageMap[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMapId, setSelectedMapId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"regions" | "labels">("regions");
+  const [activeTab, setActiveTab] = useState<"regions" | "labels" | "towers">("regions");
 
   // Map form
   const [showMapForm, setShowMapForm] = useState(false);
@@ -66,6 +76,11 @@ function CoverageMapsInner() {
   // Polygon editor
   const [polyEditorOpen, setPolyEditorOpen] = useState(false);
   const [polyEditorRegion, setPolyEditorRegion] = useState<CoverageRegion | null>(null);
+
+  // Tower management
+  const [towers, setTowers] = useState<CoverageTower[]>([]);
+  const [newTower, setNewTower] = useState({ name: "", lat: "", lng: "", description: "" });
+  const [addingTower, setAddingTower] = useState(false);
 
   // Label form
   const [showLabelForm, setShowLabelForm] = useState(false);
@@ -90,6 +105,17 @@ function CoverageMapsInner() {
   };
 
   useEffect(() => { loadMaps(); }, []);
+
+  useEffect(() => {
+    if (selectedMapId) {
+      fetch(`/api/coverage-maps/${selectedMapId}/towers`)
+        .then((r) => r.json())
+        .then(setTowers)
+        .catch(() => setTowers([]));
+    } else {
+      setTowers([]);
+    }
+  }, [selectedMapId]);
 
   // ── Map CRUD ───────────────────────────────────────────────────────────────
   const openNewMap = () => {
@@ -148,12 +174,19 @@ function CoverageMapsInner() {
       mapId: selectedMapId ?? "",
       name: "", polygon: [], color: "#22c55e", opacity: 0.4,
       strokeColor: "#16a34a", strokeWidth: 2, description: "", isActive: true, order: 0,
+      regionType: "GENERAL", fnoProvider: "", serviceSlug: "", towerRef: "",
     });
     setShowRegionForm(true);
   };
 
   const openEditRegion = (region: CoverageRegion) => {
-    setEditingRegion({ ...region });
+    setEditingRegion({
+      ...region,
+      regionType: region.regionType ?? "GENERAL",
+      fnoProvider: region.fnoProvider ?? "",
+      serviceSlug: region.serviceSlug ?? "",
+      towerRef: region.towerRef ?? "",
+    });
     setShowRegionForm(true);
   };
 
@@ -169,7 +202,13 @@ function CoverageMapsInner() {
         {
           method: isNew ? "POST" : "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(editingRegion),
+          body: JSON.stringify({
+          ...editingRegion,
+          regionType: editingRegion.regionType ?? "GENERAL",
+          fnoProvider: editingRegion.regionType === "FIBRE" ? (editingRegion.fnoProvider || null) : null,
+          serviceSlug: editingRegion.regionType === "WIRELESS" ? (editingRegion.serviceSlug || null) : null,
+          towerRef: editingRegion.regionType === "WIRELESS" ? (editingRegion.towerRef || null) : null,
+        }),
         }
       );
       if (!res.ok) throw new Error();
@@ -212,6 +251,43 @@ function CoverageMapsInner() {
       await loadMaps();
     } catch {
       toast.error("Failed to save polygon");
+    }
+  };
+
+  // ── Tower CRUD ─────────────────────────────────────────────────────────────
+  const handleAddTower = async () => {
+    if (!newTower.name || !newTower.lat || !newTower.lng) return;
+    setAddingTower(true);
+    try {
+      await fetch(`/api/coverage-maps/${selectedMapId}/towers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newTower.name,
+          lat: parseFloat(newTower.lat),
+          lng: parseFloat(newTower.lng),
+          description: newTower.description || null,
+        }),
+      });
+      setNewTower({ name: "", lat: "", lng: "", description: "" });
+      const res = await fetch(`/api/coverage-maps/${selectedMapId}/towers`);
+      setTowers(await res.json());
+      toast.success("Tower added");
+    } catch {
+      toast.error("Failed to add tower");
+    } finally {
+      setAddingTower(false);
+    }
+  };
+
+  const handleDeleteTower = async (towerId: string) => {
+    if (!confirm("Delete this tower?")) return;
+    try {
+      await fetch(`/api/coverage-maps/${selectedMapId}/towers/${towerId}`, { method: "DELETE" });
+      setTowers((t) => t.filter((x) => x.id !== towerId));
+      toast.success("Tower deleted");
+    } catch {
+      toast.error("Failed to delete tower");
     }
   };
 
@@ -313,7 +389,7 @@ function CoverageMapsInner() {
                   <div style={{ fontSize: 13, fontWeight: 600, color: "#1f2937", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {m.name}
                   </div>
-                  <div style={{ fontSize: 11, color: "#9ca3af" }}>{m.regions.length} regions</div>
+                  <div style={{ fontSize: 11, color: "#9ca3af" }}>{m.regions.length} regions · {m.towers?.length ?? 0} towers</div>
                 </div>
                 {!m.isActive && (
                   <span style={{ fontSize: 10, background: "#f3f4f6", color: "#9ca3af", borderRadius: 10, padding: "2px 6px" }}>off</span>
@@ -357,29 +433,33 @@ function CoverageMapsInner() {
 
           {/* Tabs */}
           <div style={{ borderBottom: "1px solid #e5e7eb", padding: "0 20px", background: "#f9fafb" }}>
-            {(["regions", "labels"] as const).map((tab) => (
+            {([
+              { key: "regions", icon: "bi-pentagon", count: selectedMap.regions.length },
+              { key: "labels", icon: "bi-fonts", count: selectedMap.labels.length },
+              { key: "towers", icon: "bi-broadcast-pin", count: towers.length },
+            ] as const).map(({ key, icon, count }) => (
               <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
+                key={key}
+                onClick={() => setActiveTab(key)}
                 style={{
                   padding: "12px 18px", border: "none", background: "transparent",
-                  borderBottom: activeTab === tab ? "2px solid #4a7c59" : "2px solid transparent",
-                  color: activeTab === tab ? "#4a7c59" : "#6b7280",
-                  fontWeight: activeTab === tab ? 700 : 500,
+                  borderBottom: activeTab === key ? "2px solid #4a7c59" : "2px solid transparent",
+                  color: activeTab === key ? "#4a7c59" : "#6b7280",
+                  fontWeight: activeTab === key ? 700 : 500,
                   fontSize: 14, cursor: "pointer",
                   marginBottom: -1,
                 }}
               >
-                <i className={`bi ${tab === "regions" ? "bi-pentagon" : "bi-fonts"} me-2`} style={{ fontSize: 12 }} />
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                <i className={`bi ${icon} me-2`} style={{ fontSize: 12 }} />
+                {key.charAt(0).toUpperCase() + key.slice(1)}
                 <span
                   style={{
-                    marginLeft: 6, background: activeTab === tab ? "#dcfce7" : "#f3f4f6",
-                    color: activeTab === tab ? "#16a34a" : "#9ca3af",
+                    marginLeft: 6, background: activeTab === key ? "#dcfce7" : "#f3f4f6",
+                    color: activeTab === key ? "#16a34a" : "#9ca3af",
                     fontSize: 11, fontWeight: 600, borderRadius: 10, padding: "1px 7px",
                   }}
                 >
-                  {tab === "regions" ? selectedMap.regions.length : selectedMap.labels.length}
+                  {count}
                 </span>
               </button>
             ))}
@@ -469,6 +549,69 @@ function CoverageMapsInner() {
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* ── Towers tab ────────────────────────────────────────────── */}
+            {activeTab === "towers" && (
+              <div>
+                <div className="d-flex align-items-center justify-content-between mb-3">
+                  <p style={{ margin: 0, fontSize: 13, color: "#6b7280" }}>
+                    Tower markers shown on the wireless coverage map
+                  </p>
+                </div>
+
+                {towers.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "30px 20px", border: "2px dashed #e5e7eb", borderRadius: 10, color: "#9ca3af", marginBottom: 16 }}>
+                    <i className="bi bi-broadcast-pin" style={{ fontSize: 28, display: "block", marginBottom: 8 }} />
+                    No towers yet
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+                    {towers.map((tower) => (
+                      <div key={tower.id} className="d-flex align-items-center gap-3"
+                        style={{ padding: "10px 14px", background: "#f9fafb", borderRadius: 8, border: "1px solid #e5e7eb" }}>
+                        <i className="bi bi-broadcast-pin" style={{ color: "#dc2626", fontSize: 18, flexShrink: 0 }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: "#1f2937" }}>{tower.name}</div>
+                          <div style={{ fontSize: 12, color: "#9ca3af" }}>
+                            {tower.lat.toFixed(5)}, {tower.lng.toFixed(5)}
+                            {tower.description && ` · ${tower.description}`}
+                          </div>
+                        </div>
+                        <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteTower(tower.id)}>
+                          <i className="bi bi-trash" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Add tower form */}
+                <div style={{ padding: 16, background: "#f9fafb", borderRadius: 8, border: "1px solid #e5e7eb" }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 12 }}>Add Tower</p>
+                  <div className="row g-2 mb-2">
+                    <div className="col-6">
+                      <input className="form-control form-control-sm" placeholder="Tower name *"
+                        value={newTower.name} onChange={(e) => setNewTower((t) => ({ ...t, name: e.target.value }))} />
+                    </div>
+                    <div className="col-3">
+                      <input className="form-control form-control-sm" placeholder="Lat *"
+                        value={newTower.lat} onChange={(e) => setNewTower((t) => ({ ...t, lat: e.target.value }))} />
+                    </div>
+                    <div className="col-3">
+                      <input className="form-control form-control-sm" placeholder="Lng *"
+                        value={newTower.lng} onChange={(e) => setNewTower((t) => ({ ...t, lng: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div className="mb-2">
+                    <input className="form-control form-control-sm" placeholder="Description (optional)"
+                      value={newTower.description} onChange={(e) => setNewTower((t) => ({ ...t, description: e.target.value }))} />
+                  </div>
+                  <button className="btn btn-sm btn-success" onClick={handleAddTower} disabled={addingTower || !newTower.name || !newTower.lat || !newTower.lng}>
+                    {addingTower ? <><span className="spinner-border spinner-border-sm me-1" />Adding…</> : <><i className="bi bi-plus me-1" />Add Tower</>}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -658,6 +801,52 @@ function CoverageMapsInner() {
                       onChange={(e) => setEditingRegion((prev) => ({ ...prev!, description: e.target.value }))}
                     />
                   </div>
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold small">Region Type</label>
+                    <select
+                      className="form-select form-select-sm"
+                      value={editingRegion.regionType ?? "GENERAL"}
+                      onChange={(e) => setEditingRegion((prev) => ({ ...prev!, regionType: e.target.value as "GENERAL" | "FIBRE" | "WIRELESS" }))}
+                    >
+                      <option value="GENERAL">General</option>
+                      <option value="FIBRE">Fibre</option>
+                      <option value="WIRELESS">Wireless</option>
+                    </select>
+                  </div>
+                  {editingRegion.regionType === "FIBRE" && (
+                    <div className="mb-3">
+                      <label className="form-label fw-semibold small">FNO Provider</label>
+                      <input
+                        type="text" className="form-control form-control-sm"
+                        placeholder="e.g. sonic_infraco or openserve"
+                        value={editingRegion.fnoProvider ?? ""}
+                        onChange={(e) => setEditingRegion((prev) => ({ ...prev!, fnoProvider: e.target.value }))}
+                      />
+                      <div className="form-text">Slug used to display FNO name in coverage results.</div>
+                    </div>
+                  )}
+                  {editingRegion.regionType === "WIRELESS" && (
+                    <>
+                      <div className="mb-3">
+                        <label className="form-label fw-semibold small">Service Slug</label>
+                        <input
+                          type="text" className="form-control form-control-sm"
+                          placeholder="e.g. airfibre or standard-wifi"
+                          value={editingRegion.serviceSlug ?? ""}
+                          onChange={(e) => setEditingRegion((prev) => ({ ...prev!, serviceSlug: e.target.value }))}
+                        />
+                      </div>
+                      <div className="mb-3">
+                        <label className="form-label fw-semibold small">Tower Reference</label>
+                        <input
+                          type="text" className="form-control form-control-sm"
+                          placeholder="Tower name or ID"
+                          value={editingRegion.towerRef ?? ""}
+                          onChange={(e) => setEditingRegion((prev) => ({ ...prev!, towerRef: e.target.value }))}
+                        />
+                      </div>
+                    </>
+                  )}
                   <div className="row g-3 mb-3">
                     <div className="col-4">
                       <label className="form-label fw-semibold small">Fill Color</label>

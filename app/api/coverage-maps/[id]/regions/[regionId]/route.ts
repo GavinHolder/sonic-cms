@@ -24,6 +24,10 @@ export async function PUT(
       ...(body.description !== undefined && { description: body.description }),
       ...(body.order !== undefined && { order: body.order }),
       ...(body.isActive !== undefined && { isActive: body.isActive }),
+      ...(body.regionType !== undefined && { regionType: body.regionType }),
+      ...(body.fnoProvider !== undefined && { fnoProvider: body.fnoProvider }),
+      ...(body.serviceSlug !== undefined && { serviceSlug: body.serviceSlug }),
+      ...(body.towerRef !== undefined && { towerRef: body.towerRef }),
     },
   });
   return NextResponse.json(region);
