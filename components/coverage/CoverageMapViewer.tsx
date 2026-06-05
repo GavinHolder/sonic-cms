@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { isPointInPolygon, type CoverageCheckResult } from "@/lib/coverage-utils";
 
-interface LatLng { lat: number; lng: number; }
+export interface LatLng { lat: number; lng: number }
 
-interface CoverageRegion {
+export interface CoverageRegion {
   id: string;
   name: string;
   polygon: LatLng[];
@@ -12,6 +13,18 @@ interface CoverageRegion {
   opacity: number;
   strokeColor: string;
   strokeWidth: number;
+  description?: string | null;
+  regionType?: "GENERAL" | "FIBRE" | "WIRELESS";
+  fnoProvider?: string | null;
+  serviceSlug?: string | null;
+  towerRef?: string | null;
+}
+
+export interface CoverageTowerData {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
   description?: string | null;
 }
 
@@ -27,7 +40,7 @@ interface CoverageLabel {
   bold: boolean;
 }
 
-interface CoverageMapData {
+export interface CoverageMapData {
   id: string;
   name: string;
   slug: string;
@@ -36,6 +49,7 @@ interface CoverageMapData {
   defaultZoom: number;
   regions: CoverageRegion[];
   labels: CoverageLabel[];
+  towers?: CoverageTowerData[];
 }
 
 interface Props {
@@ -45,6 +59,7 @@ interface Props {
   showGeolocation?: boolean;
   activeRegion?: string | null;
   onRegionClick?: (region: CoverageRegion) => void;
+  onCoverageResult?: (result: CoverageCheckResult) => void;
 }
 
 export default function CoverageMapViewer({
@@ -54,6 +69,7 @@ export default function CoverageMapViewer({
   showGeolocation = true,
   activeRegion,
   onRegionClick,
+  onCoverageResult,
 }: Props) {
   const mapRef = useRef<HTMLDivElement>(null);
   const leafletMapRef = useRef<any>(null);
@@ -145,6 +161,24 @@ export default function CoverageMapViewer({
         L.marker([label.lat, label.lng], { icon, interactive: false }).addTo(map);
       });
 
+      // Tower markers — pulsing red pin
+      (mapData.towers ?? []).forEach((tower) => {
+        if (!tower.lat || !tower.lng) return;
+        const icon = L.divIcon({
+          className: "",
+          html: `<div style="position:relative;width:20px;height:20px">
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:10px;height:10px;background:#dc2626;border-radius:50%;border:2px solid #fff;z-index:2"></div>
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:20px;height:20px;background:rgba(220,38,38,0.25);border-radius:50%;animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite"></div>
+          </div>`,
+          iconSize: [20, 20],
+          iconAnchor: [10, 10],
+        });
+        const marker = L.marker([tower.lat, tower.lng], { icon });
+        if (tower.name) marker.bindTooltip(tower.name, { direction: "top" });
+        if (tower.description) marker.bindPopup(`<strong>${tower.name}</strong><br/><span style="color:#6b7280;font-size:13px">${tower.description}</span>`);
+        marker.addTo(map);
+      });
+
       leafletMapRef.current = map;
 
       // Auto-geolocation
@@ -195,20 +229,34 @@ export default function CoverageMapViewer({
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchQuery.trim() || !leafletMapRef.current) return;
-
     setSearching(true);
     setSearchError("");
     try {
-      const res = await fetch(
+      const geoRes = await fetch(
         `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&limit=1&countrycodes=za`,
         { headers: { "Accept-Language": "en" } }
       );
-      const results = await res.json();
-      if (results.length === 0) {
+      const geoResults = await geoRes.json();
+      if (geoResults.length === 0) {
         setSearchError("Location not found. Try a different search term.");
-      } else {
-        const { lat, lon, display_name } = results[0];
-        leafletMapRef.current.setView([parseFloat(lat), parseFloat(lon)], 12);
+        return;
+      }
+      const { lat: rawLat, lon: rawLon } = geoResults[0];
+      const lat = parseFloat(rawLat);
+      const lng = parseFloat(rawLon);
+      leafletMapRef.current.setView([lat, lng], 13);
+      // Coverage check
+      if (onCoverageResult) {
+        const checkRes = await fetch(
+          `/api/coverage-maps/public/${mapData.slug}/check`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ lat, lng }),
+          }
+        );
+        const result: CoverageCheckResult = await checkRes.json();
+        onCoverageResult(result);
       }
     } catch {
       setSearchError("Search failed. Please try again.");
@@ -320,17 +368,4 @@ export default function CoverageMapViewer({
       )}
     </div>
   );
-}
-
-// Ray-casting algorithm for point-in-polygon
-function isPointInPolygon(point: LatLng, polygon: LatLng[]): boolean {
-  let inside = false;
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const xi = polygon[i].lat, yi = polygon[i].lng;
-    const xj = polygon[j].lat, yj = polygon[j].lng;
-    const intersect = yi > point.lng !== yj > point.lng &&
-      point.lat < ((xj - xi) * (point.lng - yi)) / (yj - yi) + xi;
-    if (intersect) inside = !inside;
-  }
-  return inside;
 }

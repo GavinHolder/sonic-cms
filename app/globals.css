@@ -565,3 +565,8 @@ input[type="checkbox"] {
 .adaptive-cursor-dark [role="button"] {
   cursor: url('/cursors/cursor-black.svg') 0 0, pointer;
 }
+
+/* Tower marker ping animation */
+@keyframes ping {
+  75%, 100% { transform: translate(-50%, -50%) scale(2); opacity: 0; }
+}
