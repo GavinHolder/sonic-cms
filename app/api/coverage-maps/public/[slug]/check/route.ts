@@ -4,15 +4,24 @@ import { isPointInPolygon } from "@/lib/coverage-utils";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { slug: string } }
+  { params }: { params: Promise<{ slug: string }> }
 ) {
-  const { lat, lng } = await request.json();
+  const { slug } = await params;
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+  const { lat, lng } = body as { lat?: unknown; lng?: unknown };
+
   if (typeof lat !== "number" || typeof lng !== "number") {
     return NextResponse.json({ error: "lat and lng required" }, { status: 400 });
   }
 
   const map = await prisma.coverageMap.findUnique({
-    where: { slug: params.slug, isActive: true },
+    where: { slug, isActive: true },
     include: {
       regions: { where: { isActive: true } },
     },
