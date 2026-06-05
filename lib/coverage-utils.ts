@@ -2,12 +2,13 @@ export interface LatLng { lat: number; lng: number }
 
 export function isPointInPolygon(point: LatLng, polygon: LatLng[]): boolean {
   let inside = false;
+  if (polygon.length < 3) return false;
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const xi = polygon[i].lat, yi = polygon[i].lng;
-    const xj = polygon[j].lat, yj = polygon[j].lng;
+    const latI = polygon[i].lat, lngI = polygon[i].lng;
+    const latJ = polygon[j].lat, lngJ = polygon[j].lng;
     const intersect =
-      yi > point.lng !== yj > point.lng &&
-      point.lat < ((xj - xi) * (point.lng - yi)) / (yj - yi) + xi;
+      lngI > point.lng !== lngJ > point.lng &&
+      point.lat < ((latJ - latI) * (point.lng - lngI)) / (lngJ - lngI) + latI;
     if (intersect) inside = !inside;
   }
   return inside;
