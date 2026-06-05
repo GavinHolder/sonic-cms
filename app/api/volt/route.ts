@@ -3,7 +3,7 @@
  * POST /api/volt  — create a new VoltElement
  */
 
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest } from "next/server"
 import { prisma } from "@/lib/prisma"
 import {
   requireRole,
@@ -94,6 +94,7 @@ export async function POST(request: NextRequest) {
         layers: layers ?? [],
         slots: slots ?? [],
         states: states ?? [],
+        tags: [],
         flipCard: flipCard ?? null,
         canvasWidth: canvasWidth ?? 800,
         canvasHeight: canvasHeight ?? 500,
@@ -102,14 +103,6 @@ export async function POST(request: NextRequest) {
 
     return successResponse({ volt }, 201)
   } catch (error) {
-    console.error("VOLT CREATE ERROR:", JSON.stringify(error, Object.getOwnPropertyNames(error)))
-    return NextResponse.json({
-      success: false,
-      debug: {
-        message: error instanceof Error ? error.message : String(error),
-        code: (error as any)?.code,
-        meta: (error as any)?.meta,
-      }
-    }, { status: 500 })
+    return handleApiError(error)
   }
 }

@@ -333,7 +333,7 @@ model VoltElement {
   canvasWidth  Int         @default(800)
   canvasHeight Int         @default(500)
   has3D        Boolean     @default(false)
-  tags         String[]
+  tags         String[]    @default([])
   isPaid       Boolean     @default(false)
   price        Float?
   downloads    Int         @default(0)
