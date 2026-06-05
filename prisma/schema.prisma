@@ -425,6 +425,7 @@ model CoverageMap {
   updatedAt   DateTime         @updatedAt
   labels      CoverageLabel[]
   regions     CoverageRegion[]
+  towers      CoverageTower[]
 
   @@map("coverage_maps")
 }
@@ -441,6 +442,10 @@ model CoverageRegion {
   description String?
   isActive    Boolean     @default(true)
   order       Int         @default(0)
+  regionType  RegionType  @default(GENERAL)
+  fnoProvider String?
+  serviceSlug String?
+  towerRef    String?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   map         CoverageMap @relation(fields: [mapId], references: [id], onDelete: Cascade)
@@ -466,6 +471,28 @@ model CoverageLabel {
 
   @@index([mapId])
   @@map("coverage_labels")
+}
+
+enum RegionType {
+  GENERAL
+  FIBRE
+  WIRELESS
+}
+
+model CoverageTower {
+  id          String      @id @default(cuid())
+  mapId       String
+  name        String
+  lat         Float
+  lng         Float
+  description String?
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  map         CoverageMap @relation(fields: [mapId], references: [id], onDelete: Cascade)
+
+  @@index([mapId])
+  @@map("coverage_towers")
 }
 
 model Project {
