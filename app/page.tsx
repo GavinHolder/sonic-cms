@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { fetchSeoConfig, buildMetadata } from "@/lib/metadata-generator";
-import HomepageClient from "./HomepageClient";
+import WispLandingPage from "@/components/landing/WispLandingPage";
 
 export async function generateMetadata(): Promise<Metadata> {
   const seoConfig = await fetchSeoConfig();
@@ -8,5 +8,5 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function Home() {
-  return <HomepageClient />;
+  return <WispLandingPage />;
 }
