@@ -598,3 +598,107 @@ input[type="checkbox"] {
 @keyframes ping {
   75%, 100% { transform: translate(-50%, -50%) scale(2); opacity: 0; }
 }
+
+/* ===== WISP LANDING PAGE ===== */
+
+.wisp-section {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* Ghost section number — top-right editorial number (01–07) */
+.wisp-ghost-num {
+  position: absolute;
+  top: -0.15em;
+  right: -0.05em;
+  font-size: clamp(120px, 20vw, 220px);
+  font-weight: 900;
+  line-height: 1;
+  color: currentColor;
+  opacity: 0.04;
+  pointer-events: none;
+  user-select: none;
+  letter-spacing: -0.05em;
+}
+
+/* Section tag — "RESIDENTIAL FIBRE" style labels */
+.wisp-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--theme-muted);
+  margin-bottom: 16px;
+}
+.wisp-tag::before {
+  content: "";
+  display: block;
+  width: 24px;
+  height: 1px;
+  background: var(--theme-red);
+}
+
+/* Diagonal slab — applied to Business section container */
+.wisp-diagonal {
+  clip-path: polygon(0 5%, 100% 0, 100% 95%, 0 100%);
+  padding-top: 8vh;
+  padding-bottom: 8vh;
+}
+
+/* Red accent word — inline span */
+.wisp-red {
+  color: var(--theme-red);
+}
+
+/* Badge pill */
+.wisp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--theme-border);
+  color: var(--theme-muted);
+  background: var(--theme-card-bg);
+}
+
+/* Service card */
+.wisp-card {
+  background: var(--theme-card-bg);
+  border: 1px solid var(--theme-card-border);
+  border-radius: 12px;
+  padding: 24px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.wisp-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 32px rgba(10,22,40,0.12);
+}
+
+/* Coverage result bar */
+.wisp-result-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 12px;
+}
+.wisp-result-bar.fibre {
+  background: rgba(220,38,38,0.08);
+  border: 1px solid rgba(220,38,38,0.2);
+  color: var(--theme-text);
+}
+.wisp-result-bar.miss {
+  background: rgba(100,116,139,0.08);
+  border: 1px solid rgba(100,116,139,0.2);
+  color: var(--theme-muted);
+}
