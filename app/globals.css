@@ -40,6 +40,34 @@
   }
 }
 
+/* ===== WISP LANDING PAGE THEME TOKENS ===== */
+/* Light is default; dark overrides in [data-theme="dark"] */
+
+:root,
+[data-theme="light"] {
+  --theme-bg:           #ffffff;
+  --theme-surface:      #f8faff;
+  --theme-text:         #0a1628;
+  --theme-muted:        #64748b;
+  --theme-border:       #e2e8f0;
+  --theme-navy:         #0a1628;
+  --theme-red:          #dc2626;
+  --theme-card-bg:      #ffffff;
+  --theme-card-border:  #e2e8f0;
+}
+
+[data-theme="dark"] {
+  --theme-bg:           #0a1628;
+  --theme-surface:      #0d1f3a;
+  --theme-text:         #ffffff;
+  --theme-muted:        rgba(255,255,255,0.45);
+  --theme-border:       rgba(255,255,255,0.08);
+  --theme-navy:         #0a1628;
+  --theme-red:          #dc2626;
+  --theme-card-bg:      rgba(255,255,255,0.05);
+  --theme-card-border:  rgba(255,255,255,0.1);
+}
+
 /* ===== SCROLL CONTAINER SETUP ===== */
 
 /*

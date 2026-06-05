@@ -2,8 +2,8 @@ const THEME_KEY = "cms-theme";
 export type Theme = "dark" | "light";
 
 export function getTheme(): Theme {
-  if (typeof window === "undefined") return "dark";
-  return (localStorage.getItem(THEME_KEY) as Theme) || "dark";
+  if (typeof window === "undefined") return "light";
+  return (localStorage.getItem(THEME_KEY) as Theme) || "light";
 }
 
 export function setTheme(theme: Theme) {
@@ -21,7 +21,7 @@ export function toggleTheme(): Theme {
 export const THEME_FLASH_PREVENTION_SCRIPT = `
 (function(){
   try{
-    var t=localStorage.getItem('cms-theme')||'dark';
+    var t=localStorage.getItem('cms-theme')||'light';
     document.documentElement.setAttribute('data-theme',t);
   }catch(e){}
 })();

@@ -149,7 +149,7 @@ export default async function RootLayout({
         {/* Theme flash prevention — reads localStorage before first paint to set data-theme.
             Uses next/script beforeInteractive so it runs before hydration. */}
         <Script id="cms-theme-init" strategy="beforeInteractive">{`
-          (function(){try{var t=localStorage.getItem('cms-theme')||'dark';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();
+          (function(){try{var t=localStorage.getItem('cms-theme')||'light';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();
         `}</Script>
         {/* Universal CMS site data — window.__CMS_SITE available on all public pages.
             Provides logo, contact info, social links, nav links to any HTML/JS on the page.
