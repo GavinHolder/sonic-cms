@@ -270,7 +270,18 @@ export async function GET(
   // rewrite ("/" for homepage, "/{slug}" for direct slug access). Direct hits
   // to /standalone/{slug} (no rewrite) normalise to "/{slug}".
   const xPathname = request.headers.get("x-pathname") || "";
-  const publicPath = xPathname && !xPathname.startsWith("/standalone") ? xPathname : `/${slug}`;
+  let publicPath = xPathname && !xPathname.startsWith("/standalone") ? xPathname : `/${slug}`;
+
+  // If this page IS the configured homepage, canonicalise to "/" even when
+  // reached via its slug — otherwise "/" and "/{slug}" would carry two
+  // different canonicals for identical content (duplicate-content signal).
+  if (publicPath !== "/") {
+    const homeSlug = await prisma.siteConfig.findUnique({
+      where: { id: "singleton" },
+      select: { homePage: true },
+    }).then(c => c?.homePage?.trim() || "").catch(() => "");
+    if (homeSlug === slug) publicPath = "/";
+  }
 
   const seo = await buildSeoInjections(html, page, publicPath);
   html = seo.html;
