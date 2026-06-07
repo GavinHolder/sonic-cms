@@ -39,6 +39,9 @@ export async function middleware(request: NextRequest) {
   // Set custom headers (x-pathname always reflects the ORIGINAL path so layout.tsx can detect type)
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-pathname", pathname);
+  // x-original-path — used by standalone renderer to build canonical URLs.
+  // Always the browser-visible path, regardless of internal rewrites.
+  requestHeaders.set("x-original-path", pathname);
 
   // ── Homepage rewrite: / → internal renderer based on SiteConfig.homePage ──
   // Never redirect — always NextResponse.rewrite() so browser URL stays /

@@ -18,14 +18,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   if (!base) return [];
 
   // All published, indexable pages — including homepage slug "/"
-  const pages = await prisma.page.findMany({
-    where: { status: "PUBLISHED", noindex: false },
-    select: { slug: true, updatedAt: true },
-    orderBy: { updatedAt: "desc" },
-  });
+  const [pages, siteConfig] = await Promise.all([
+    prisma.page.findMany({
+      where: { status: "PUBLISHED", noindex: false },
+      select: { slug: true, updatedAt: true },
+      orderBy: { updatedAt: "desc" },
+    }),
+    prisma.siteConfig.findUnique({
+      where: { id: "singleton" },
+      select: { homePage: true },
+    }).catch(() => null),
+  ]);
+
+  // The page configured as homepage is served at "/" (middleware rewrite).
+  // Emit it as the base URL only — listing both "/" and "/{slug}" would give
+  // Google two URLs with identical content and no canonical hint.
+  const homeSlug = siteConfig?.homePage?.trim() || "";
 
   const dbEntries: MetadataRoute.Sitemap = pages.map((p) => {
-    const isHome = p.slug === "/" || p.slug === "";
+    const isHome = p.slug === "/" || p.slug === "" || (homeSlug !== "" && p.slug === homeSlug);
     return {
       url: isHome ? base : `${base}/${p.slug.replace(/^\//, "")}`,
       lastModified: p.updatedAt,
@@ -34,5 +45,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     };
   });
 
-  return dbEntries;
+  // Defensive dedupe — keeps the first (highest-priority) entry per URL
+  const seen = new Set<string>();
+  return dbEntries.filter((e) => {
+    if (seen.has(e.url)) return false;
+    seen.add(e.url);
+    return true;
+  });
 }

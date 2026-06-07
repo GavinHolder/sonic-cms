@@ -2166,6 +2166,23 @@ To revert: set the dropdown back to "Default: Landing page with sections".
 | Contact form with CMS field builder | ❌ Use Form page |
 
 > Standalone pages are served as a raw HTTP response — they bypass the Next.js layout entirely. No Bootstrap theme, no CMS JS, no global CSS is injected. All CSS frameworks, fonts, and JS libraries must be included in your HTML or linked via the CSS Files tab.
+
+### SEO on Standalone Pages
+
+Even though standalone pages bypass the CMS layout, the **full site SEO pipeline is injected automatically** into the served HTML:
+
+| Injected | Source |
+|----------|--------|
+| \`<title>\` + meta description | Page SEO fields (Pages → Edit → SEO) — replaces the template's tags when set |
+| Canonical link | SEO Settings → Canonical Base URL. The configured homepage canonicalises to \`/\` — even when reached via its slug |
+| og: / twitter: meta | Page SEO fields, falling back to site SEO defaults |
+| JSON-LD structured data | SEO Settings → Structured Data (when enabled) |
+| Head Tags / Body Scripts | Settings → Site Config (GSC verification, pixels, chat widgets) |
+| Google Analytics (GA4) | Settings → GA4 Measurement ID |
+
+**No double-injection:** if your template already contains a given tag (e.g. its own \`og:title\` or canonical), the template's version wins and the CMS skips that tag.
+
+**Sitemap:** when a standalone page is set as the homepage, the sitemap lists it only as \`/\` — the duplicate \`/{slug}\` entry is excluded automatically.
 `;
 
 const NAVIGATION = `

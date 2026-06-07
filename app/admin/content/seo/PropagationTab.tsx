@@ -14,18 +14,18 @@ interface Props {
   canonicalBase: string;
 }
 
+// Neutral wording only — this is derived purely from updatedAt and says nothing
+// about whether Google has actually indexed the page. Real index status comes
+// from the Search Console tab (GSC URL inspection).
 function indexStatus(updatedAt: string): { label: string; color: string } {
   const daysSince = (Date.now() - new Date(updatedAt).getTime()) / 86_400_000;
-  if (daysSince < 4)  return { label: "Propagating",      color: "warning" };
-  if (daysSince < 14) return { label: "Likely Indexed",   color: "success" };
-  return               { label: "Check GSC",              color: "secondary" };
+  if (daysSince < 14) return { label: "Recently updated — verify in Search Console", color: "info" };
+  return               { label: "Verify in Search Console",                          color: "secondary" };
 }
 
 export default function PropagationTab({ canonicalBase }: Props) {
   const [pages, setPages] = useState<PropPage[] | null>(null);
   const [loading, setLoading] = useState(true);
-  const [pinging, setPinging] = useState(false);
-  const [pingResult, setPingResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   useEffect(() => {
     fetch("/api/pages?status=PUBLISHED")
@@ -34,26 +34,6 @@ export default function PropagationTab({ canonicalBase }: Props) {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
-
-  const handlePingGoogle = async () => {
-    if (!canonicalBase) return;
-    setPinging(true);
-    setPingResult(null);
-    try {
-      const sitemapUrl = `${canonicalBase}/sitemap.xml`;
-      const res = await fetch("/api/seo/ping-google", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sitemapUrl }),
-      });
-      const data = await res.json();
-      setPingResult({ ok: data.success, message: data.message });
-    } catch {
-      setPingResult({ ok: false, message: "Network error" });
-    } finally {
-      setPinging(false);
-    }
-  };
 
   const sitemapUrl = canonicalBase ? `${canonicalBase}/sitemap.xml` : null;
 
@@ -81,28 +61,14 @@ export default function PropagationTab({ canonicalBase }: Props) {
             <i className="bi bi-file-earmark-code me-1" />View Sitemap
           </a>
         )}
-        <button
-          className="btn btn-outline-primary btn-sm"
-          onClick={handlePingGoogle}
-          disabled={pinging || !canonicalBase}
-          title={!canonicalBase ? "Set Canonical Base URL first" : undefined}
-        >
-          {pinging
-            ? <><span className="spinner-border spinner-border-sm me-1" />Pinging…</>
-            : <><i className="bi bi-bell me-1" />Ping Google</>}
-        </button>
-        {pingResult && (
-          <span className={`align-self-center small ${pingResult.ok ? "text-success" : "text-danger"}`}>
-            <i className={`bi ${pingResult.ok ? "bi-check-circle-fill" : "bi-x-circle-fill"} me-1`} />
-            {pingResult.message}
-          </span>
-        )}
       </div>
 
       {/* Note */}
       <p className="text-muted small mb-3">
+        Submit your sitemap in <strong>Google Search Console</strong> — automatic sitemap
+        pinging is no longer supported by Google (the ping endpoint was retired in June 2023).
         New pages typically appear in Google within 4–14 days of sitemap submission.
-        Use <strong>Request Indexing</strong> in Google Search Console to speed up discovery.
+        Use <strong>Request Indexing</strong> in Search Console to speed up discovery.
       </p>
 
       {/* Table */}
@@ -121,7 +87,7 @@ export default function PropagationTab({ canonicalBase }: Props) {
                   <th className="ps-4">Page</th>
                   <th>In Sitemap</th>
                   <th>Last Modified</th>
-                  <th>Est. Index Status</th>
+                  <th>Status</th>
                   <th>Action</th>
                 </tr>
               </thead>
@@ -145,7 +111,7 @@ export default function PropagationTab({ canonicalBase }: Props) {
                         {new Date(page.updatedAt).toLocaleDateString()}
                       </td>
                       <td>
-                        <span className={`badge bg-${color} ${color === "warning" ? "text-dark" : ""}`}>
+                        <span className={`badge bg-${color} ${color === "info" ? "text-dark" : ""}`}>
                           {label}
                         </span>
                       </td>
