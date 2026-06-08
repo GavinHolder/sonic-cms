@@ -33,7 +33,15 @@
       "PowerShell(Select-String *)",
       "Skill(update-config)",
       "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://localhost:3000/api/auth/me\" -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop; $r.StatusCode } catch { $_.Exception.Message })",
-      "PowerShell($body = '{\"username\":\"admin\",\"password\":\"admin2026\"}'; $r = Invoke-WebRequest -Uri \"http://localhost:3000/api/auth/login\" -Method POST -Body $body -ContentType \"application/json\" -UseBasicParsing -ErrorAction SilentlyContinue; Write-Output \"Status: $\\($r.StatusCode\\)\"; Write-Output \"Body: $\\($r.Content\\)\")"
+      "PowerShell($body = '{\"username\":\"admin\",\"password\":\"admin2026\"}'; $r = Invoke-WebRequest -Uri \"http://localhost:3000/api/auth/login\" -Method POST -Body $body -ContentType \"application/json\" -UseBasicParsing -ErrorAction SilentlyContinue; Write-Output \"Status: $\\($r.StatusCode\\)\"; Write-Output \"Body: $\\($r.Content\\)\")",
+      "Bash(gh run *)",
+      "PowerShell($env:DATABASE_URL=\"postgresql://postgres:admin@localhost:5432/white_label_cms\"; cd \"D:\\\\Projects\\\\2026\\\\sonic-cms\"; npx prisma db push)",
+      "PowerShell($r = Invoke-WebRequest -Uri \"https://web.sonicdns.co.za/cms-version.json\" -SkipCertificateCheck -UseBasicParsing -TimeoutSec 10; $r.Content)",
+      "PowerShell($r = Invoke-WebRequest -Uri \"https://web.sonicdns.co.za/cms-version.json\" -UseBasicParsing -TimeoutSec 10; $r.Content)",
+      "PowerShell(curl.exe -sk \"https://web.sonicdns.co.za/cms-version.json\" --max-time 10 2>&1)",
+      "PowerShell(curl.exe -sk \"http://web.sonicdns.co.za/cms-version.json\" --max-time 10 2>&1)",
+      "PowerShell(Start-Sleep -Seconds 10; curl.exe -sk \"https://web.sonicdns.co.za/cms-version.json\" --max-time 15 2>&1)",
+      "PowerShell(curl.exe -sk \"https://sonicweb.dedicated.co.za/cms-version.json\" --max-time 10 2>&1)"
     ]
   }
 }
