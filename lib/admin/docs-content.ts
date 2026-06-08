@@ -2370,8 +2370,8 @@ Displays requirements and checks whether \`GSC_ENCRYPTION_KEY\` is configured on
 **Step 2 — Google Cloud Setup**
 Guided links to:
 1. Create or select a Google Cloud project at [console.cloud.google.com](https://console.cloud.google.com/projectcreate)
-2. Enable the required APIs: **Google Search Console API** and **Google My Business API**
-3. Configure the OAuth consent screen (app name, email, add your account as a test user)
+2. Enable all five required APIs: **Google Search Console API**, **My Business Account Management API**, **My Business Business Information API**, **Business Profile Performance API**, and **Google My Business API** (legacy v4 — access-gated; request access via Google's form)
+3. Configure the OAuth consent screen (app name, email, add your account as a **Test user**, keep publishing status on **Testing**)
 
 **Step 3 — Create OAuth 2.0 Credentials**
 Exact redirect URIs to copy into Google Cloud Console:
@@ -4727,9 +4727,12 @@ Open [console.cloud.google.com](https://console.cloud.google.com) in another tab
 If you don't have a Google Cloud project, click "Create Project". Name it anything (e.g. "My Company CMS"). Free tier is sufficient.
 
 **b) Enable required APIs**
-In the API Library, enable both:
+In the API Library, enable all five:
 - **Google Search Console API**
-- **Google My Business API** (also called "My Business Business Information API")
+- **My Business Account Management API**
+- **My Business Business Information API**
+- **Business Profile Performance API**
+- **Google My Business API** (legacy v4 — access-gated: a new project has zero quota until you request access via Google's form, so enable the other four first; it's used for reviews & creating posts)
 
 Search for each by name, click it, and click **Enable**.
 
@@ -4737,9 +4740,8 @@ Search for each by name, click it, and click **Enable**.
 - Go to APIs & Services → OAuth consent screen
 - Choose **External** (or Internal if using Google Workspace)
 - Fill in App name and User support email
-- Under Scopes, add: \`openid\`, \`email\`, \`profile\`
-- Add your Google account email as a **Test user**
-- Set publishing status — keep as "Testing" if personal use, or publish for production
+- Add your own Google account email as a **Test user**
+- Keep publishing status on **Testing**. This app requests sensitive scopes (\`webmasters.readonly\`, \`business.manage\`), so setting it to "In production" without Google verification triggers an unverified-app warning
 
 Click **Next: Create Credentials** in the wizard.
 

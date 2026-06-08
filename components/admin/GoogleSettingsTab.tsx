@@ -186,13 +186,13 @@ export default function GoogleSettingsTab() {
                 },
                 {
                   title: "Enable the required APIs",
-                  detail: "Enable: Google Search Console API and Google My Business API.",
+                  detail: "Enable all five: Google Search Console API; My Business Account Management API; My Business Business Information API; Business Profile Performance API; and Google My Business API (legacy v4 — access-gated, so a new project has zero quota until you request access via Google's form. Enable the other four first; v4 is used for reviews and creating posts).",
                   link: "https://console.cloud.google.com/apis/library",
                   linkLabel: "Browse APIs",
                 },
                 {
                   title: "Configure the OAuth consent screen",
-                  detail: 'Set app name, user support email. Under "Scopes" add: openid, email, profile. Set publishing status to "In production" or add your email as a test user.',
+                  detail: 'Set app name and user support email, then add your own Google account as a test user and keep the publishing status on "Testing". This app requests sensitive scopes (webmasters.readonly, business.manage), so setting it to "In production" without Google verification triggers an unverified-app warning.',
                   link: "https://console.cloud.google.com/apis/credentials/consent",
                   linkLabel: "Open consent screen",
                 },
