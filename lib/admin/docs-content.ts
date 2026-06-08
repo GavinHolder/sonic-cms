@@ -278,6 +278,10 @@ linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%)
 radial-gradient(circle at 30% 50%, #7c3aed, #0f172a)
 linear-gradient(to bottom right, #ff6b6b, #feca57, #48dbfb)
 \`\`\`
+
+### Theme-aware backgrounds (light / dark)
+
+Below the solid-colour picker, the **Theme-aware** swatches (BG · Surface · Navy · Card) set the background to a theme token instead of a fixed colour. A section using one of these **flips automatically** when the visitor toggles light/dark, and its default text colour follows the theme. The site default is set in **Settings → Site Configuration → Default Theme**.
 `;
 
 const TAB_ANIMATION = `
@@ -1441,6 +1445,18 @@ You can also apply any preset from the **Layouts tab** in the left panel of the 
 
 ---
 
+## Accent words in headings
+
+Highlight one or more words in any **heading** with the theme accent colour, straight from the text field — wrap them in double asterisks:
+
+\`\`\`
+Your region. **Connected.**
+\`\`\`
+
+→ "Connected." renders in the accent colour (\`--theme-red\`). Works in the section header heading, heading elements, hero headings and block titles. Headings without \`**\` are unchanged. The accent colour is theme-aware, so it stays correct in both light and dark mode.
+
+---
+
 `;
 
 
@@ -1647,6 +1663,35 @@ The \`stats\` block type now supports scroll-triggered counting animation:
 | **displaySuffix** | — | Override suffix shown during animation |
 
 The animation uses cubic ease-out via \`requestAnimationFrame\`.
+
+---
+
+## Theme-aware colours (light / dark)
+
+Every colour picker in the Flexible Designer has a **Theme** dropdown alongside the hex picker. Choosing a theme token stores a CSS variable (e.g. \`var(--theme-surface)\`) instead of a fixed hex, so the colour **flips automatically** when the visitor toggles light/dark:
+
+| Token | Typical use |
+|-------|-------------|
+| **BG / Surface** | Section or card backgrounds |
+| **Text / Muted** | Body and secondary text |
+| **Navy / Accent** | Strong blocks, CTAs, highlights |
+| **Card BG / Card Border** | Card surfaces and outlines |
+
+The **section background** also offers a "Theme-aware" swatch row (Styling tab). When a section background is a theme token, its default text colour follows \`--theme-text\` automatically. Hex colours are unchanged and stay fixed in both themes. The site-wide default (light or dark) is set in **Settings → Site Configuration → Default Theme**.
+
+---
+
+## Decorative watermark (ghost number/word)
+
+In the **Styling tab**, the **Decorative Watermark** field places an oversized, faded number or word (e.g. \`01\`) behind the section content, top-right — an editorial accent. Leave blank for none.
+
+---
+
+## Diagonal slab
+
+The **Diagonal slab** switch (Styling tab) clips the whole section at an angle along the top and bottom edges for a dynamic, magazine-style cut. Keep section padding generous so content isn't clipped. Works with theme-aware backgrounds.
+
+---
 `;
 
 const FLEXIBLE_ANIMATIONS = `
