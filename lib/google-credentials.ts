@@ -8,21 +8,39 @@ export interface GoogleCredentials {
 }
 
 /**
- * Derive the exact Search Console OAuth callback URI from the stored backend base.
+ * Reduce a stored redirect value (bare origin or full callback URL) to scheme://host.
  *
- * The Google setup wizard stores the CMS backend ORIGIN (e.g. https://backend.example.com).
- * Google's OAuth flow requires the full registered callback path. This helper appends
- * `/api/seo/gsc/callback` so the auth request and the token exchange send an IDENTICAL
- * redirect_uri — mismatched values trigger Error 400: redirect_uri_mismatch.
- *
- * Idempotent: if the stored value already ends in the callback path (a user pasted the
- * full URL), it is returned unchanged — no double-append. Trailing slashes are trimmed.
+ * The configured CMS Backend Domain is the single source of truth for OAuth redirects.
+ * Behind a reverse proxy (Traefik + Docker standalone Next.js), `req.nextUrl.origin`
+ * resolves to the container's internal bind address (e.g. https://0.0.0.0:3000), which
+ * breaks the final browser redirect and the redirect_uri sent to Google. Deriving the
+ * origin from config instead avoids that entirely.
+ */
+export function backendOrigin(base: string): string {
+  if (!base) return base;
+  try {
+    return new URL(base.includes("://") ? base : `https://${base}`).origin;
+  } catch {
+    return base.replace(/\/+$/, "");
+  }
+}
+
+/**
+ * Exact Search Console OAuth callback URI, derived from the configured backend origin.
+ * The auth request and token exchange both call this, so their redirect_uri values
+ * always byte-match each other and the URI registered in Google Cloud.
  */
 export function gscRedirectUri(base: string): string {
-  const path = "/api/seo/gsc/callback";
-  if (!base) return base;
-  const trimmed = base.replace(/\/+$/, "");
-  return trimmed.endsWith(path) ? trimmed : `${trimmed}${path}`;
+  const origin = backendOrigin(base);
+  return origin ? `${origin}/api/seo/gsc/callback` : origin;
+}
+
+/**
+ * Exact Business Profile OAuth callback URI, derived from the configured backend origin.
+ */
+export function gbpRedirectUri(base: string): string {
+  const origin = backendOrigin(base);
+  return origin ? `${origin}/api/gbp/callback` : origin;
 }
 
 export async function getGoogleCredentials(): Promise<GoogleCredentials> {

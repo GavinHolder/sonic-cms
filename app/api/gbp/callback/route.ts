@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { exchangeGbpCodeForTokens } from "@/lib/gbp-client";
+import { getGoogleCredentials, backendOrigin, gbpRedirectUri } from "@/lib/google-credentials";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,12 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const code = searchParams.get("code") ?? "", state = searchParams.get("state") ?? "";
 
-  const redirect = (path: string) => { const r = NextResponse.redirect(new URL(path, req.nextUrl.origin)); clearCookie(r); return r; };
+  // Resolve the public backend origin from config — req.nextUrl.origin is the
+  // container's internal address (e.g. https://0.0.0.0:3000) behind a proxy.
+  const { redirectUri: configBase } = await getGoogleCredentials();
+  const base = backendOrigin(configBase) || req.nextUrl.origin;
+
+  const redirect = (path: string) => { const r = NextResponse.redirect(new URL(path, base)); clearCookie(r); return r; };
 
   if (searchParams.get("error")) return redirect("/admin/content/seo?tab=business-profile&gbp=error&reason=access_denied");
   if (!code || !state)           return redirect("/admin/content/seo?tab=business-profile&gbp=error&reason=missing_params");
@@ -21,7 +27,7 @@ export async function GET(req: NextRequest) {
   if (!storedState || !codeVerifier || storedState !== state) return redirect("/admin/content/seo?tab=business-profile&gbp=error&reason=csrf_mismatch");
 
   try {
-    const redirectUri = `${req.nextUrl.origin}/api/gbp/callback`;
+    const redirectUri = gbpRedirectUri(configBase) || `${req.nextUrl.origin}/api/gbp/callback`;
     await exchangeGbpCodeForTokens(code, codeVerifier, redirectUri);
     return redirect("/admin/content/seo?tab=business-profile&gbp=connected");
   } catch (err) {

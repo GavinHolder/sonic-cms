@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/api-middleware";
 import { UserRole } from "@prisma/client";
 import { randomBytes, createHash } from "crypto";
-import { getGoogleCredentials } from "@/lib/google-credentials";
+import { getGoogleCredentials, gbpRedirectUri } from "@/lib/google-credentials";
 
 export const dynamic = "force-dynamic";
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -10,10 +10,11 @@ const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 export async function GET(req: NextRequest) {
   const authError = await requireRole(req, UserRole.SUPER_ADMIN);
   if (authError) return authError;
-  const { clientId } = await getGoogleCredentials();
+  const { clientId, redirectUri: configBase } = await getGoogleCredentials();
   if (!clientId) return NextResponse.json({ error: "Google Client ID not configured in Settings → Google Integration." }, { status: 500 });
 
-  const redirectUri   = `${req.nextUrl.origin}/api/gbp/callback`;
+  // Derive from the configured backend origin, not req.nextUrl.origin (internal proxy address).
+  const redirectUri   = gbpRedirectUri(configBase) || `${req.nextUrl.origin}/api/gbp/callback`;
   const codeVerifier  = randomBytes(32).toString("base64url");
   const codeChallenge = createHash("sha256").update(codeVerifier).digest("base64url");
   const state         = randomBytes(32).toString("hex");

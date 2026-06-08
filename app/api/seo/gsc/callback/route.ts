@@ -12,6 +12,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { exchangeCodeForTokens } from "@/lib/gsc-client";
+import { getGoogleCredentials, backendOrigin } from "@/lib/google-credentials";
 
 export const dynamic = "force-dynamic";
 
@@ -34,11 +35,16 @@ export async function GET(req: NextRequest) {
   const code  = searchParams.get("code")  ?? "";
   const state = searchParams.get("state") ?? "";
 
+  // Resolve the public backend origin from config — req.nextUrl.origin is the
+  // container's internal address (e.g. https://0.0.0.0:3000) behind a proxy.
+  const { redirectUri } = await getGoogleCredentials();
+  const base = backendOrigin(redirectUri) || req.nextUrl.origin;
+
   // Check for Google-returned error (e.g. user denied access)
   const googleError = searchParams.get("error");
   if (googleError) {
     const res = NextResponse.redirect(
-      new URL(ERROR_REDIRECT("access_denied"), req.nextUrl.origin),
+      new URL(ERROR_REDIRECT("access_denied"), base),
     );
     clearStateCookie(res);
     return res;
@@ -46,7 +52,7 @@ export async function GET(req: NextRequest) {
 
   if (!code || !state) {
     const res = NextResponse.redirect(
-      new URL(ERROR_REDIRECT("missing_params"), req.nextUrl.origin),
+      new URL(ERROR_REDIRECT("missing_params"), base),
     );
     clearStateCookie(res);
     return res;
@@ -58,7 +64,7 @@ export async function GET(req: NextRequest) {
 
   // Always clear the cookie — prevents replay regardless of outcome
   const makeRedirect = (path: string) => {
-    const res = NextResponse.redirect(new URL(path, req.nextUrl.origin));
+    const res = NextResponse.redirect(new URL(path, base));
     clearStateCookie(res);
     return res;
   };
