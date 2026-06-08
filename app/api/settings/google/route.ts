@@ -4,6 +4,20 @@ import { requireRole } from "@/lib/api-middleware";
 import { UserRole } from "@prisma/client";
 import { encrypt, isEncryptionConfigured } from "@/lib/crypto";
 
+/**
+ * Normalise the Google redirect base to a clean backend origin.
+ * Strips a trailing slash and any pasted callback path so the stored value is
+ * always a bare origin. Pairs with gscRedirectUri(), which re-appends the GSC path.
+ */
+function normaliseRedirectBase(input: string): string {
+  return input
+    .trim()
+    .replace(/\/+$/, "")
+    .replace(/\/api\/seo\/gsc\/callback$/, "")
+    .replace(/\/api\/gbp\/callback$/, "")
+    .replace(/\/+$/, "");
+}
+
 export async function GET(req: NextRequest) {
   const authError = await requireRole(req, UserRole.SUPER_ADMIN);
   if (authError) return authError;
@@ -25,7 +39,7 @@ export async function PATCH(req: NextRequest) {
   const body = await req.json() as { clientId?: string; clientSecret?: string; redirectUri?: string };
   const data: Record<string, string | null> = {};
   if (typeof body.clientId === "string")    data.googleClientId    = body.clientId || null;
-  if (typeof body.redirectUri === "string") data.googleRedirectUri = body.redirectUri || null;
+  if (typeof body.redirectUri === "string") data.googleRedirectUri = normaliseRedirectBase(body.redirectUri) || null;
   if (typeof body.clientSecret === "string" && body.clientSecret !== "••••••••") {
     data.googleClientSecret = body.clientSecret ? encrypt(body.clientSecret) : null;
   }

@@ -2383,7 +2383,7 @@ Steps: Credentials page → Create Credentials → OAuth client ID → Web appli
 **Step 4 — Enter Details**
 - **Client ID**: validated against the format \`digits-alphanumeric.apps.googleusercontent.com\`
 - **Client Secret**: stored encrypted; leave blank to keep an existing saved value
-- **Site Domain**: auto-filled from the current URL; only change if your domain differs from where you're running the CMS
+- **CMS Backend Domain**: the domain where this CMS backend runs (where the admin UI and the \`/api/.../callback\` OAuth routes live) — **not** your public website / template domain. Auto-filled from the current URL; the \`/api/seo/gsc/callback\` path is appended automatically. Only change it if the backend is served from a different origin
 
 **Step 5 — Verify & Save**
 Review table shows Client ID, masked secret, redirect base, and encryption status. Save button is disabled if encryption is not configured or credentials are incomplete.
@@ -4774,7 +4774,7 @@ Paste the values from Google Cloud:
 |-------|--------------|
 | **Google Client ID** | Ends in \`.apps.googleusercontent.com\` — validated in real-time |
 | **Google Client Secret** | The long string shown after creating the credential. Leave blank to keep an already-saved value |
-| **Site Domain** | Auto-filled from your current URL. Only change this if your production domain is different |
+| **CMS Backend Domain** | The domain where this CMS backend runs — where the admin and OAuth callbacks live, **not** your public website/template domain. Auto-filled from your current URL; the \`/api/seo/gsc/callback\` path is added automatically. Only change it if the backend runs on a different origin |
 
 The Client ID field turns green when the format is valid. The Client Secret field turns green when non-empty.
 
@@ -4811,7 +4811,7 @@ Go to **Content → SEO → Business Profile** to connect your listing similarly
 | Problem | Solution |
 |---------|---------|
 | Save button stays grey | \`GSC_ENCRYPTION_KEY\` not set on server — add it and restart |
-| "redirect_uri_mismatch" error from Google | Redirect URI in Google Cloud Console doesn't match exactly — re-check Step 3 |
+| "redirect_uri_mismatch" error from Google | The **CMS Backend Domain** in Step 4 must be the origin where this CMS runs (the callback path is appended automatically), and the full \`…/api/seo/gsc/callback\` URI must be registered in Google Cloud — re-check Steps 3 and 4 |
 | Client ID validation fails | Must end in \`.apps.googleusercontent.com\` — copy directly from Google Cloud |
 | "Failed to exchange code" error | Client Secret may be wrong — re-enter it in Step 4 |
 | Properties list is empty after connecting | Your Google account doesn't manage any Search Console properties — verify in [search.google.com/search-console](https://search.google.com/search-console) |

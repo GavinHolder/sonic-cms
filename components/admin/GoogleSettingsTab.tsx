@@ -313,7 +313,7 @@ export default function GoogleSettingsTab() {
             </div>
 
             <div className="mb-4">
-              <label className="form-label fw-semibold">Your Site Domain</label>
+              <label className="form-label fw-semibold">CMS Backend Domain</label>
               <input
                 type="url"
                 className="form-control"
@@ -322,7 +322,21 @@ export default function GoogleSettingsTab() {
                 placeholder={origin}
               />
               <div className="form-text">
-                The redirect URIs registered in Step 3 were based on <strong>{origin}</strong>. Only change this if your domain differs.
+                The domain where <strong>this CMS backend runs</strong> — where the admin and the OAuth
+                callback routes live. This is <strong>not</strong> your public website / template domain.
+                The <code>/api/seo/gsc/callback</code> path is added automatically.
+                Detected from your browser: <strong>{origin}</strong> — only change it if the backend is served elsewhere.
+              </div>
+              <div className="border rounded bg-light p-2 mt-2 small">
+                <div className="text-muted mb-1" style={{ fontSize: 11 }}>These exact callback URIs must be registered in Google Cloud (Step 3):</div>
+                <div className="d-flex align-items-center gap-2 mb-1">
+                  <code className="px-2 py-1 rounded flex-grow-1 bg-white">{gscCallback}</code>
+                  <span className="text-muted" style={{ fontSize: 11 }}>Search Console</span>
+                </div>
+                <div className="d-flex align-items-center gap-2">
+                  <code className="px-2 py-1 rounded flex-grow-1 bg-white">{gbpCallback}</code>
+                  <span className="text-muted" style={{ fontSize: 11 }}>Business Profile</span>
+                </div>
               </div>
             </div>
 

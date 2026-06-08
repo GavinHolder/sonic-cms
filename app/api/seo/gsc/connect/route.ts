@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/api-middleware";
 import { UserRole } from "@prisma/client";
 import { randomBytes, createHash } from "crypto";
-import { getGoogleCredentials } from "@/lib/google-credentials";
+import { getGoogleCredentials, gscRedirectUri } from "@/lib/google-credentials";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
 
   const params = new URLSearchParams({
     client_id:             clientId,
-    redirect_uri:          redirectUri,
+    redirect_uri:          gscRedirectUri(redirectUri),
     response_type:         "code",
     scope:                 `${GSC_SCOPE} ${USERINFO_SCOPE}`,
     access_type:           "offline",

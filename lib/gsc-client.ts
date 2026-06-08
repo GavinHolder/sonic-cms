@@ -16,7 +16,7 @@
 
 import prisma from "@/lib/prisma";
 import { encrypt, decrypt } from "@/lib/crypto";
-import { getGoogleCredentials } from "@/lib/google-credentials";
+import { getGoogleCredentials, gscRedirectUri } from "@/lib/google-credentials";
 
 // ── Error types ────────────────────────────────────────────────────────────────
 
@@ -162,7 +162,7 @@ export async function exchangeCodeForTokens(
       code,
       client_id:     clientId,
       client_secret: clientSecret,
-      redirect_uri:  redirectUri,
+      redirect_uri:  gscRedirectUri(redirectUri),
       grant_type:    "authorization_code",
       code_verifier: codeVerifier,
     }),
