@@ -1005,6 +1005,16 @@ const BG_PRESETS = [
   { value: "transparent", label: "Transparent", color: "transparent" },
 ];
 
+// Theme-aware background tokens. These reference CSS custom properties that flip
+// between light/dark via the [data-theme] attribute, so a section authored with
+// one of these adapts automatically when the visitor toggles the site theme.
+const THEME_BG_TOKENS = [
+  { value: "var(--theme-bg)",       label: "Theme BG" },
+  { value: "var(--theme-surface)",  label: "Theme Surface" },
+  { value: "var(--theme-navy)",     label: "Theme Navy" },
+  { value: "var(--theme-card-bg)",  label: "Theme Card" },
+];
+
 function StylingTab({ section, onChange }: { section: FlexibleSection; onChange: (patch: Partial<FlexibleSection>) => void }) {
   const bg = section.background || "white";
 
@@ -1038,9 +1048,31 @@ function StylingTab({ section, onChange }: { section: FlexibleSection; onChange:
             type="text"
             className="form-control"
             placeholder="#hex or CSS gradient"
-            value={BG_PRESETS.some((p) => p.value === bg) ? "" : bg}
+            value={BG_PRESETS.some((p) => p.value === bg) || THEME_BG_TOKENS.some((t) => t.value === bg) ? "" : bg}
             onChange={(e) => onChange({ background: e.target.value as FlexibleSection["background"] })}
           />
+        </div>
+        {/* Theme-aware backgrounds — flip with the site light/dark toggle */}
+        <div className="mt-2">
+          <div className="text-muted small mb-1" style={{ fontSize: 11 }}>
+            <i className="bi bi-circle-half me-1" />Theme-aware (flips with light/dark)
+          </div>
+          <div className="d-flex flex-wrap gap-2">
+            {THEME_BG_TOKENS.map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                title={`${label} — ${value}`}
+                onClick={() => onChange({ background: value as FlexibleSection["background"] })}
+                className={`btn btn-sm ${bg === value ? "border-primary border-2" : "border"}`}
+                style={{
+                  background: value,
+                  width: "36px", height: "36px", borderRadius: "6px", padding: 0,
+                  outline: bg === value ? "2px solid #0d6efd" : "none",
+                }}
+              />
+            ))}
+          </div>
         </div>
       </div>
 

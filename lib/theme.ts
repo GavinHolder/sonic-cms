@@ -3,7 +3,12 @@ export type Theme = "dark" | "light";
 
 export function getTheme(): Theme {
   if (typeof window === "undefined") return "light";
-  return (localStorage.getItem(THEME_KEY) as Theme) || "light";
+  const stored = localStorage.getItem(THEME_KEY);
+  if (stored === "dark" || stored === "light") return stored;
+  // No saved preference — fall back to the data-theme the flash script applied
+  // from SiteConfig.defaultTheme, so the toggle reflects the site default.
+  const attr = document.documentElement.getAttribute("data-theme");
+  return attr === "dark" || attr === "light" ? attr : "light";
 }
 
 export function setTheme(theme: Theme) {

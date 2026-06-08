@@ -328,6 +328,11 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   const darkBg   = isDarkBackground(background);
   // Gradient backgrounds require the `background` shorthand instead of `background-color`
   const isBgGrad = isGradient(bgColor);
+  // When the section background is a theme token, default text follows the theme
+  // (so it flips with light/dark). Otherwise keep the contrast-based hex defaults.
+  const themedBg     = isThemeToken(background);
+  const sectionText  = themedBg ? "var(--theme-text)"  : (darkBg ? "#fff" : "#212529");
+  const sectionMuted = themedBg ? "var(--theme-muted)" : (darkBg ? "rgba(255,255,255,0.7)" : "#6c757d");
 
   return (
     <section
@@ -337,6 +342,8 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
       data-content-mode={contentMode || "single"}
       style={{
         "--section-bg":  isBgGrad ? "#0f0c29" : bgColor,
+        "--section-text":  sectionText,
+        "--section-muted": sectionMuted,
         "--section-pt":  `${paddingTop  ?? 80}px`,
         "--section-pb":  `${paddingBottom ?? 80}px`,
         ...(paddingTopMobile != null && { "--section-pt-mobile": `${paddingTopMobile}px` }),
@@ -473,7 +480,7 @@ function SectionHeader({ heading, subheading, eyebrow, lead, variant, darkBg }: 
   heading: string; subheading?: string; eyebrow?: string; lead?: string;
   variant?: "centered" | "split"; darkBg: boolean;
 }) {
-  const tc = darkBg ? "#fff" : "#212529";
+  const tc = "var(--section-text)";
   const isSplit = variant === "split";
 
   return (
@@ -565,7 +572,7 @@ function MosaicLayout({ elements, layout, darkBg }: {
 
 /** Thin wrapper used by MosaicLayout to render individual FlexibleElement blocks */
 function FlexibleElementRenderer({ element, darkBg }: { element: FlexibleElement; darkBg: boolean }) {
-  const tc = darkBg ? "#fff" : "#212529";
+  const tc = "var(--section-text)";
   const c = element.content;
 
   switch (element.type) {
@@ -664,7 +671,7 @@ function PhotoStripBlock({ c }: { c: FlexibleElement["content"] }) {
 /** Numbered step card with optional horizontal connector line on the right edge */
 function HowStepsBlock({ p, darkBg }: { p: Record<string, unknown>; darkBg: boolean }) {
   const accent = (p.accentColor as string) || "var(--bs-success, #22c55e)";
-  const textColor = darkBg ? "#fff" : "#212529";
+  const textColor = "var(--section-text)";
   return (
     <div style={{ position: "relative", height: "100%", padding: "24px 20px", display: "flex", flexDirection: "column", gap: 8 }}>
       <div style={{ fontSize: "clamp(2rem, 4vw, 3rem)", fontWeight: 800, lineHeight: 1, color: accent, letterSpacing: "-0.04em" }}>
@@ -1225,7 +1232,7 @@ function DesignerBlock({ block, darkBg }: {
   const statsAnimDone = useRef(false);
   const p = block.props || {};
   // Default text colour based on the section's background luminance
-  const tc = darkBg ? "#fff" : "#212529";
+  const tc = "var(--section-text)";
   const subs = block.subElements || [];
 
   // ── Stats countUp animation ──────────────────────────────────────────────
@@ -2700,6 +2707,15 @@ function resolveBgColor(background?: string): string {
  * 3. For hex colours, calculate the W3C relative luminance with standard coefficients
  *    (0.299 R + 0.587 G + 0.114 B) and compare against the 0.5 threshold
  */
+/**
+ * isThemeToken — true if the value references a theme CSS custom property
+ * (e.g. "var(--theme-surface)"). Such values flip with the [data-theme] toggle,
+ * so contrast can't be computed statically; default text follows --theme-text.
+ */
+function isThemeToken(value?: string): boolean {
+  return typeof value === "string" && value.indexOf("var(--theme") === 0;
+}
+
 function isDarkBackground(background?: string): boolean {
   if (!background) return false;
   const dark = ["blue", "dark", "midnight", "teal", "purple"];

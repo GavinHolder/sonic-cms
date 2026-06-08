@@ -24,6 +24,7 @@ interface SiteConfig {
   youtube: string;
   tiktok: string;
   navbarStyle: string;
+  defaultTheme: string;
   copyrightText: string;
   showRegulatory: boolean;
   homePage: string;
@@ -40,6 +41,7 @@ const DEFAULTS: SiteConfig = {
   phone: "", email: "", address: "", city: "", postalCode: "", country: "",
   facebook: "", instagram: "", twitter: "", linkedin: "", youtube: "", tiktok: "",
   navbarStyle: "standard",
+  defaultTheme: "light",
   copyrightText: "", showRegulatory: false,
   homePage: "",
 };
@@ -352,6 +354,43 @@ function SiteConfigForm() {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Default Theme */}
+      <div className="card shadow-sm">
+        <div className="card-header py-2 px-3 fw-semibold" style={{ fontSize: "0.875rem" }}>
+          <i className="bi bi-circle-half me-2 text-primary" />Default Theme
+        </div>
+        <div className="card-body p-3">
+          <div className="d-flex gap-3">
+            {[
+              { value: "light", label: "Light", desc: "Light backgrounds by default", icon: "bi-sun" },
+              { value: "dark", label: "Dark", desc: "Dark backgrounds by default", icon: "bi-moon-stars" },
+            ].map((opt) => (
+              <label key={opt.value}
+                className="d-flex align-items-start gap-2 p-3 rounded border"
+                style={{
+                  flex: 1, cursor: "pointer",
+                  borderColor: config.defaultTheme === opt.value ? "#0d6efd" : "#dee2e6",
+                  background: config.defaultTheme === opt.value ? "#eff6ff" : "#fff",
+                  transition: "all 150ms",
+                }}
+              >
+                <input type="radio" name="defaultTheme" value={opt.value}
+                  checked={config.defaultTheme === opt.value}
+                  onChange={() => set("defaultTheme", opt.value)}
+                  className="mt-1 flex-shrink-0" />
+                <div>
+                  <div className="fw-semibold small"><i className={`bi ${opt.icon} me-1`} />{opt.label}</div>
+                  <div className="text-muted" style={{ fontSize: "0.75rem" }}>{opt.desc}</div>
+                </div>
+              </label>
+            ))}
+          </div>
+          <div className="text-muted mt-2" style={{ fontSize: "0.72rem" }}>
+            The theme a first-time visitor sees before they toggle. Theme-aware sections and Volt cards adapt to this.
           </div>
         </div>
       </div>

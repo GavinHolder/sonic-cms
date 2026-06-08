@@ -271,12 +271,25 @@ export default function VoltSvgLayer({ layer, canvasWidth, canvasHeight, instanc
         </defs>
       )}
       <g transform={transform || undefined}>
-        <path
-          d={vectorData.pathData}
-          fill={fillAttr}
-          fillOpacity={primaryFill?.opacity ?? 1}
-          {...strokeAttr}
-        />
+        {(() => {
+          // CSS custom properties (var(--theme-*)) don't resolve as SVG presentation
+          // attributes, only via the `style` property. Route theme-token fills/strokes
+          // through `style` so they flip with [data-theme]; hex/url stay on attributes.
+          const fillIsVar = typeof fillAttr === "string" && fillAttr.startsWith("var(");
+          const strokeIsVar = !!stroke && typeof stroke.color === "string" && stroke.color.startsWith("var(");
+          const cssVarStyle = (fillIsVar || strokeIsVar)
+            ? { ...(fillIsVar ? { fill: fillAttr } : {}), ...(strokeIsVar ? { stroke: stroke!.color } : {}) }
+            : undefined;
+          return (
+            <path
+              d={vectorData.pathData}
+              fill={fillIsVar ? undefined : fillAttr}
+              fillOpacity={primaryFill?.opacity ?? 1}
+              {...strokeAttr}
+              style={cssVarStyle}
+            />
+          );
+        })()}
       </g>
     </g>
   )

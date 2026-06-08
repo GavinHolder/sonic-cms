@@ -848,6 +848,11 @@ function resolveBgColor(background?: string): string {
  * Determine if background is dark enough to need light text.
  * Handles both preset names and hex colors.
  */
+/** True if the value references a theme CSS custom property (flips with [data-theme]). */
+function isThemeToken(value?: string): boolean {
+  return typeof value === "string" && value.indexOf("var(--theme") === 0;
+}
+
 function isDarkBackground(background?: string): boolean {
   if (!background) return false;
   // Known dark presets
@@ -873,8 +878,11 @@ function NormalRenderer({ section }: { section: NormalSection }) {
   const { content, background, paddingTop, paddingBottom, paddingTopMobile, paddingBottomMobile } = section;
   const bgColor = resolveBgColor(background);
   const darkBg = isDarkBackground(background);
-  const textClass = darkBg ? "text-white" : "";
-  const mutedClass = darkBg ? "text-white-50" : "text-muted";
+  // Theme-token backgrounds flip with light/dark; let text inherit --theme-text
+  // instead of a fixed Bootstrap contrast class.
+  const themedBg = isThemeToken(background);
+  const textClass = themedBg ? "" : (darkBg ? "text-white" : "");
+  const mutedClass = themedBg ? "" : (darkBg ? "text-white-50" : "text-muted");
 
   const isImageLayout =
     content.layout === "text-image" || content.layout === "image-text";
@@ -925,7 +933,7 @@ function NormalRenderer({ section }: { section: NormalSection }) {
 
   // Determine if section has visual background (image/video/gradient) for overlay contrast
   const hasVisualBg = !!(content.backgroundImage || content.backgroundVideo || content.gradient?.enabled);
-  const overlayTextColor = hasVisualBg || darkBg ? "#ffffff" : "#1a1a1a";
+  const overlayTextColor = themedBg ? "var(--theme-text)" : (hasVisualBg || darkBg ? "#ffffff" : "#1a1a1a");
 
   return (
     <section
@@ -935,6 +943,7 @@ function NormalRenderer({ section }: { section: NormalSection }) {
       style={{
         ...backgroundStyles,
         "--section-bg": bgColor,
+        ...(themedBg && { color: "var(--theme-text)" }),
         "--section-pt": `${Math.max(paddingTop ?? 100, 100)}px`,
         "--section-pb": `${paddingBottom ?? 80}px`,
         ...(paddingTopMobile != null && { "--section-pt-mobile": `${paddingTopMobile}px` }),

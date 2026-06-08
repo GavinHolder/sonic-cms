@@ -746,6 +746,8 @@
     /* Transparent / no-color swatch indicator */
     .color-null-swatch { width:36px; min-width:36px; height:28px; border:1px dashed #adb5bd; border-radius:5px; cursor:pointer; display:inline-block; background:repeating-conic-gradient(#ccc 0% 25%,#fff 0% 50%) 0 0/8px 8px; }
     .color-null-swatch:hover { border-color:#0d6efd; }
+    .color-token-swatch { width:36px; min-width:36px; height:28px; border:1px solid #dee2e6; border-radius:5px; display:inline-block; }
+    .color-row .theme-tok { flex:0 0 auto; max-width:104px; font-size:11px; padding:2px 4px; }
 
     /* CSS editor */
     .css-editor {
@@ -5408,14 +5410,37 @@ function setSpan(bId, mode) {
  * @param {string} onchange - JS expression used as the oninput/onchange handler.
  * @returns {string} HTML string for the .color-row element.
  */
+// Theme-aware colour tokens. Selecting one stores a `var(--theme-*)` string,
+// which inline styles resolve natively and which flips with the [data-theme]
+// light/dark toggle. Generic — no client-specific colours.
+const THEME_COLOR_TOKENS = [
+  ['var(--theme-bg)','BG'],
+  ['var(--theme-surface)','Surface'],
+  ['var(--theme-text)','Text'],
+  ['var(--theme-muted)','Muted'],
+  ['var(--theme-border)','Border'],
+  ['var(--theme-navy)','Navy'],
+  ['var(--theme-red)','Accent'],
+  ['var(--theme-card-bg)','Card BG'],
+  ['var(--theme-card-border)','Card Border'],
+];
 function colorRow(label,value,onchange) {
   const isHex = /^#[0-9a-fA-F]{6}$/.test(value);
+  const isToken = typeof value === 'string' && value.indexOf('var(--theme') === 0;
   // Build a click handler that assigns white when the null swatch is clicked
   const nullClick = onchange.replace(/this\.value/g,"'#ffffff'");
   const swatch = isHex
     ? `<input type="color" value="${value}" oninput="${onchange}" onchange="${onchange}">`
-    : `<span class="color-null-swatch" title="No colour set — click to assign" onclick="${nullClick}"></span>`;
-  return `<div class="color-row"><label>${label}</label>${swatch}<input class="props-input hex-in" type="text" value="${value}" placeholder="transparent" oninput="${onchange}"></div>`;
+    : isToken
+      ? `<span class="color-token-swatch" title="Theme token — ${value}" style="background:${value}"></span>`
+      : `<span class="color-null-swatch" title="No colour set — click to assign" onclick="${nullClick}"></span>`;
+  const tokenOpts = ['<option value="">＋ theme…</option>']
+    .concat(THEME_COLOR_TOKENS.map(([v,l]) => `<option value="${v}"${v===value?' selected':''}>${l}</option>`))
+    .join('');
+  return `<div class="color-row"><label>${label}</label>${swatch}`
+    + `<input class="props-input hex-in" type="text" value="${value}" placeholder="transparent" oninput="${onchange}">`
+    + `<select class="props-input theme-tok" title="Theme-aware colour (flips light/dark)" onchange="${onchange}">${tokenOpts}</select>`
+    + `</div>`;
 }
 
 /**

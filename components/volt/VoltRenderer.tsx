@@ -187,16 +187,22 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
         if (layer.type === 'vector' && layer.vectorData) {
           const pathEl = layerEl.querySelector('path')
           if (pathEl) {
+            // CSS vars (var(--theme-*)) only resolve via style, not the SVG fill attribute.
+            const setFill = (color: string) => {
+              if (color.startsWith('var(')) { pathEl.style.fill = color; pathEl.removeAttribute('fill') }
+              else { pathEl.style.fill = ''; pathEl.setAttribute('fill', color) }
+            }
             if (isRest) {
               // Restore base fill — could be solid, gradient, or glass
               const baseFill = layer.vectorData.fills?.[0]
               if (baseFill) {
                 if (baseFill.type === 'solid' && baseFill.color) {
-                  pathEl.setAttribute('fill', baseFill.color)
+                  setFill(baseFill.color)
                   pathEl.setAttribute('fill-opacity', String(baseFill.opacity ?? 1))
                 } else if (baseFill.type === 'linear-gradient' || baseFill.type === 'radial-gradient' || baseFill.type === 'angular-gradient') {
                   // Restore gradient reference — gradient defs use layer id as part of the id
                   const gradId = `volt-grad-${layer.id}`
+                  pathEl.style.fill = ''
                   pathEl.setAttribute('fill', `url(#${gradId})`)
                   pathEl.removeAttribute('fill-opacity')
                 }
@@ -206,7 +212,7 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
               const overrideFills = override?.fills ?? null
               const activeFill = (overrideFills && overrideFills.length > 0) ? overrideFills[0] : null
               if (activeFill?.type === 'solid' && activeFill.color) {
-                pathEl.setAttribute('fill', activeFill.color)
+                setFill(activeFill.color)
                 pathEl.setAttribute('fill-opacity', String(activeFill.opacity ?? 1))
               }
             }

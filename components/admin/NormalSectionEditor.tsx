@@ -1839,6 +1839,38 @@ export default function NormalSectionEditor({
                       </small>
                     </div>
 
+                    {/* Theme-aware backgrounds — flip with the site light/dark toggle */}
+                    <div className="mb-4">
+                      <label className="form-label fw-semibold">
+                        <i className="bi bi-circle-half me-2"></i>
+                        Theme-aware (flips with light/dark)
+                      </label>
+                      <div className="d-flex flex-wrap gap-2">
+                        {[
+                          { value: "var(--theme-bg)",      label: "Theme BG" },
+                          { value: "var(--theme-surface)", label: "Theme Surface" },
+                          { value: "var(--theme-navy)",    label: "Theme Navy" },
+                          { value: "var(--theme-card-bg)", label: "Theme Card" },
+                        ].map(({ value, label }) => (
+                          <button
+                            key={value}
+                            type="button"
+                            title={`${label} — ${value}`}
+                            onClick={() => { setCustomHex(value); setBackground(value); }}
+                            className="btn btn-sm p-0"
+                            style={{
+                              width: "40px", height: "40px", borderRadius: "6px",
+                              background: value,
+                              outline: background === value ? "3px solid #2563eb" : "1px solid #dee2e6",
+                            }}
+                          />
+                        ))}
+                      </div>
+                      <small className="form-text text-muted">
+                        These adapt automatically when the visitor switches theme
+                      </small>
+                    </div>
+
                     {/* Color Preview */}
                     <div className="mb-4">
                       <label className="form-label fw-semibold">Preview</label>
