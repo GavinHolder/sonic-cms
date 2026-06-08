@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import "leaflet/dist/leaflet.css";
 import CoverageMapViewer from "./CoverageMapViewer";
+import type { CoverageCheckResult } from "@/lib/coverage-utils";
 
 interface LatLng { lat: number; lng: number; }
 interface CoverageRegion {
@@ -13,10 +14,11 @@ interface CoverageLabel {
   id: string; text: string; lat: number; lng: number; fontSize: number;
   fontFamily: string; color: string; bgColor?: string | null; bold: boolean;
 }
+interface CoverageTower { id: string; name: string; lat: number; lng: number; description?: string | null; }
 interface CoverageMapData {
   id: string; name: string; slug: string;
   centerLat: number; centerLng: number; defaultZoom: number;
-  regions: CoverageRegion[]; labels: CoverageLabel[];
+  regions: CoverageRegion[]; labels: CoverageLabel[]; towers?: CoverageTower[];
 }
 
 interface Props {
@@ -24,12 +26,36 @@ interface Props {
   height?: number;
   showSearch?: boolean;
   showGeolocation?: boolean;
+  /** Render the address-check result panel under the map (default true). */
+  showResults?: boolean;
+  /** Destination for the result call-to-action. For wireless hits the matched
+   *  service slug is appended as `?service=<slug>`. No CTA shown if empty. */
+  resultCtaUrl?: string;
+  fibreCtaLabel?: string;
+  wirelessCtaLabel?: string;
+  missMessage?: string;
 }
 
-export default function CoverageMapEmbed({ slug, height = 480, showSearch = true, showGeolocation = true }: Props) {
+/** Humanise an FNO provider key like "sonic_infraco" → "Sonic Infraco". */
+function humanise(key: string): string {
+  return key
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .trim();
+}
+
+export default function CoverageMapEmbed({
+  slug, height = 480, showSearch = true, showGeolocation = true,
+  showResults = true,
+  resultCtaUrl = "",
+  fibreCtaLabel = "View plans",
+  wirelessCtaLabel = "Select plan",
+  missMessage = "No coverage at this address yet.",
+}: Props) {
   const [mapData, setMapData] = useState<CoverageMapData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [result, setResult] = useState<CoverageCheckResult | null>(null);
 
   useEffect(() => {
     if (!slug) { setError("No map slug configured"); setLoading(false); return; }
@@ -63,11 +89,57 @@ export default function CoverageMapEmbed({ slug, height = 480, showSearch = true
   }
 
   return (
-    <CoverageMapViewer
-      mapData={mapData}
-      height={height}
-      showSearch={showSearch}
-      showGeolocation={showGeolocation}
-    />
+    <div>
+      <CoverageMapViewer
+        mapData={mapData}
+        height={height}
+        showSearch={showSearch}
+        showGeolocation={showGeolocation}
+        onCoverageResult={showResults ? setResult : undefined}
+      />
+
+      {showResults && result && (
+        <div style={{ marginTop: 12 }}>
+          {result.type === "fibre" && (
+            <div className="cov-result cov-result-hit">
+              <i className="bi bi-check-circle-fill" style={{ color: "var(--theme-red, #16a34a)" }} />
+              <span>
+                Covered{result.fnoProvider ? <> by <strong>{humanise(result.fnoProvider)}</strong></> : result.regionName ? <> — <strong>{result.regionName}</strong></> : ""}
+              </span>
+              {resultCtaUrl && (
+                <a className="cov-result-cta" href={resultCtaUrl}>{fibreCtaLabel} →</a>
+              )}
+            </div>
+          )}
+
+          {result.type === "wireless" && result.services && result.services.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {result.services.map((svc) => (
+                <div key={svc.serviceSlug} className="cov-service-card">
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{svc.name}</div>
+                    {svc.towerRef && <div style={{ fontSize: 12, color: "var(--theme-muted, #6b7280)" }}>Tower: {svc.towerRef}</div>}
+                    {svc.description && <div style={{ fontSize: 12, color: "var(--theme-muted, #6b7280)", marginTop: 2 }}>{svc.description}</div>}
+                  </div>
+                  {resultCtaUrl && (
+                    <a className="cov-result-cta" style={{ whiteSpace: "nowrap" }}
+                      href={`${resultCtaUrl}${resultCtaUrl.includes("?") ? "&" : "?"}service=${encodeURIComponent(svc.serviceSlug)}`}>
+                      {wirelessCtaLabel} →
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {result.type === "miss" && (
+            <div className="cov-result cov-result-miss">
+              <i className="bi bi-x-circle" />
+              <span>{missMessage}</span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

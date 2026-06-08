@@ -304,6 +304,11 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   // Animated background config from content.animBg
   const animBg: AnimBgConfig = (content as any).animBg || DEFAULT_ANIM_BG_CONFIG;
 
+  // Decorative watermark (oversized faded number/word, top-right) — content.watermark
+  const watermarkText = ((content as any).watermark as string | undefined)?.trim() || "";
+  // Diagonal slab — clip the section at an angle top & bottom — content.diagonalSlab
+  const diagonalSlab = (content as any).diagonalSlab === true;
+
   // Section ref passed to AnimBgRenderer for IntersectionObserver
   const sectionRef = useRef<HTMLElement>(null);
 
@@ -350,8 +355,14 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
         ...(paddingBottomMobile != null && { "--section-pb-mobile": `${paddingBottomMobile}px` }),
         position: "relative",
         ...(isBgGrad ? { background: bgColor } : {}),
+        ...(diagonalSlab ? { clipPath: "polygon(0 4%, 100% 0, 100% 96%, 0 100%)", overflow: "hidden" } : {}),
       } as React.CSSProperties}
     >
+      {/* Decorative watermark — oversized faded number/word, top-right */}
+      {watermarkText && (
+        <span aria-hidden="true" className="cms-section-watermark">{watermarkText}</span>
+      )}
+
       {/* Background image layer — absolute fill, z-index 0, below everything */}
       {bgImageUrl && (
         <div
@@ -492,7 +503,7 @@ function SectionHeader({ heading, subheading, eyebrow, lead, variant, darkBg }: 
           </p>
         )}
         <h2 style={{ fontSize: "clamp(28px, 4vw, 52px)", fontWeight: 700, lineHeight: 1.1, color: tc, margin: 0 }}>
-          {heading}
+          {renderAccentText(heading)}
         </h2>
         {!isSplit && subheading && (
           <p style={{ fontSize: "clamp(15px, 2vw, 18px)", color: tc, opacity: 0.7, marginTop: "12px", marginBottom: 0 }}>
@@ -1358,7 +1369,7 @@ function DesignerBlock({ block, darkBg }: {
             padding: "40px 24px", height: "100%",
             display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", textAlign: "center",
           }}>
-            {!!p.heading && <h2 style={{ margin: 0, marginBottom: "12px", fontSize: "clamp(20px,3vw,36px)", fontWeight: 700 }}>{p.heading as string}</h2>}
+            {!!p.heading && <h2 style={{ margin: 0, marginBottom: "12px", fontSize: "clamp(20px,3vw,36px)", fontWeight: 700 }}>{renderAccentText(p.heading as string)}</h2>}
             {!!p.subtext && <p style={{ margin: 0, opacity: 0.85, fontSize: "clamp(14px,2vw,18px)" }}>{p.subtext as string}</p>}
             {!!p.showBtn && !!p.btnText && (
               <a href={String(p.btnNavTarget || "#")} style={{ marginTop: "20px", background: (p.btnColor as string) || "#0d6efd", color: (p.btnTextColor as string) || "#fff", padding: "10px 24px", borderRadius: "6px", textDecoration: "none", fontWeight: 600, fontSize: "14px" }}>{p.btnText as string}</a>
@@ -1443,7 +1454,7 @@ function DesignerBlock({ block, darkBg }: {
           }}>
             {subs.length > 0
               ? subs.map((sub, i) => <DesignerSubElement key={i} sub={sub} />)
-              : !!p.heading && <span style={{ fontSize: "18px", fontWeight: 600 }}>{p.heading as string}</span>
+              : !!p.heading && <span style={{ fontSize: "18px", fontWeight: 600 }}>{renderAccentText(p.heading as string)}</span>
             }
           </div>
         );
@@ -1544,6 +1555,11 @@ function DesignerBlock({ block, darkBg }: {
               height={(p.mapHeight as number) || 480}
               showSearch={(p.showSearch as boolean) !== false}
               showGeolocation={(p.showGeolocation as boolean) !== false}
+              showResults={(p.showResults as boolean) !== false}
+              resultCtaUrl={(p.resultCtaUrl as string) || ""}
+              fibreCtaLabel={(p.fibreCtaLabel as string) || undefined}
+              wirelessCtaLabel={(p.wirelessCtaLabel as string) || undefined}
+              missMessage={(p.missMessage as string) || undefined}
             />
           </div>
         );
@@ -1923,7 +1939,7 @@ function DesignerSubElement({ sub }: { sub: SubEl }) {
             marginBottom:  hasShell ? 0 : mb,
             marginTop:     0,
           }}>
-            {textContent}
+            {typeof textContent === "string" ? renderAccentText(textContent) : textContent}
           </div>
         );
       }
@@ -2290,7 +2306,7 @@ function TextElement({ element, darkBg }: { element: FlexibleElement; darkBg: bo
       )}
       {heading && (
         <h2 style={{ fontWeight: element.styling?.fontWeight || 800, fontSize: element.styling?.fontSize ? `${element.styling.fontSize}px` : "2rem", textAlign: (headingAlign || element.styling?.textAlign) as React.CSSProperties["textAlign"] || "inherit", margin: "0 0 8px", color: fallbackColor, lineHeight: 1.2 }}>
-          {heading}
+          {renderAccentText(heading)}
         </h2>
       )}
       {subheading && (
@@ -2714,6 +2730,20 @@ function resolveBgColor(background?: string): string {
  */
 function isThemeToken(value?: string): boolean {
   return typeof value === "string" && value.indexOf("var(--theme") === 0;
+}
+
+/**
+ * renderAccentText — converts an inline accent marker `**word**` in heading text
+ * into an accent-coloured span (`.cms-accent` → var(--theme-red)). Lets authors
+ * highlight one word per heading from a plain text field. Returns the raw string
+ * unchanged when no marker is present.
+ */
+function renderAccentText(text: string): React.ReactNode {
+  if (!text || text.indexOf("**") === -1) return text;
+  const parts = text.split(/\*\*([^*]+)\*\*/g);
+  return parts.map((part, i) =>
+    i % 2 === 1 ? <span key={i} className="cms-accent">{part}</span> : part
+  );
 }
 
 function isDarkBackground(background?: string): boolean {

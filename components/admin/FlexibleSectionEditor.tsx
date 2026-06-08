@@ -1076,6 +1076,32 @@ function StylingTab({ section, onChange }: { section: FlexibleSection; onChange:
         </div>
       </div>
 
+      <div className="col-12">
+        <label className="form-label fw-semibold">Decorative Watermark</label>
+        <input
+          type="text"
+          className="form-control form-control-sm"
+          placeholder="e.g. 01 — oversized faded number/word, top-right"
+          value={((section.content as Record<string, unknown>)?.watermark as string) || ""}
+          onChange={(e) => onChange({ content: { ...(section.content as Record<string, unknown>), watermark: e.target.value } as unknown as FlexibleSection["content"] })}
+        />
+        <div className="form-text">Large faded number/word behind the content (editorial accent). Leave blank for none.</div>
+      </div>
+
+      <div className="col-12">
+        <div className="form-check form-switch">
+          <input
+            className="form-check-input"
+            type="checkbox"
+            id="diagonalSlab"
+            checked={((section.content as Record<string, unknown>)?.diagonalSlab as boolean) === true}
+            onChange={(e) => onChange({ content: { ...(section.content as Record<string, unknown>), diagonalSlab: e.target.checked } as unknown as FlexibleSection["content"] })}
+          />
+          <label className="form-check-label fw-semibold" htmlFor="diagonalSlab">Diagonal slab</label>
+        </div>
+        <div className="form-text">Clips the section at an angle (top &amp; bottom) for a dynamic, editorial cut.</div>
+      </div>
+
       <div className="col-md-6">
         <label className="form-label fw-semibold">Padding Top (px)</label>
         <div className="d-flex gap-2 align-items-center">

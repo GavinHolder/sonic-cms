@@ -702,3 +702,65 @@ input[type="checkbox"] {
   border: 1px solid rgba(100,116,139,0.2);
   color: var(--theme-muted);
 }
+
+/* ===== Coverage-map block result panel (generic, theme-aware) ===== */
+.cov-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.cov-result-hit {
+  background: var(--theme-card-bg, #f0fdf4);
+  border: 1px solid var(--theme-card-border, #bbf7d0);
+  color: var(--theme-text, #14532d);
+}
+.cov-result-miss {
+  background: var(--theme-surface, #f8fafc);
+  border: 1px solid var(--theme-border, #e2e8f0);
+  color: var(--theme-muted, #64748b);
+}
+.cov-service-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: var(--theme-card-bg, #ffffff);
+  border: 1px solid var(--theme-card-border, #e2e8f0);
+  color: var(--theme-text, #0f172a);
+}
+.cov-result-cta {
+  margin-left: auto;
+  padding: 5px 14px;
+  border-radius: 20px;
+  background: var(--theme-red, #2563eb);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.cov-result-cta:hover { filter: brightness(0.95); color: #fff; }
+
+/* Inline accent word in headings — authored as **word** in heading text */
+.cms-accent { color: var(--theme-red, #dc2626); }
+
+/* Decorative section watermark — oversized faded number/word, top-right */
+.cms-section-watermark {
+  position: absolute;
+  top: -0.15em;
+  right: 0.02em;
+  z-index: 0;
+  font-size: clamp(120px, 20vw, 220px);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.05em;
+  color: currentColor;
+  opacity: 0.04;
+  pointer-events: none;
+  user-select: none;
+}

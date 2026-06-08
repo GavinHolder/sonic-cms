@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
+import type { CoverageCheckResult } from "@/lib/coverage-utils";
 
 // Leaflet CSS — loaded client-side only
 import "leaflet/dist/leaflet.css";
@@ -21,6 +22,18 @@ interface CoverageRegion {
   opacity: number;
   strokeColor: string;
   strokeWidth: number;
+  description?: string | null;
+  regionType?: "GENERAL" | "FIBRE" | "WIRELESS";
+  fnoProvider?: string | null;
+  serviceSlug?: string | null;
+  towerRef?: string | null;
+}
+
+interface CoverageTower {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
   description?: string | null;
 }
 
@@ -46,6 +59,12 @@ interface CoverageMapData {
   defaultZoom: number;
   regions: CoverageRegion[];
   labels: CoverageLabel[];
+  towers?: CoverageTower[];
+}
+
+/** Humanise an FNO provider key like "sonic_infraco" → "Sonic Infraco". */
+function humaniseFno(key: string): string {
+  return key.replace(/[_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()).trim();
 }
 
 function MapSkeleton() {
@@ -89,6 +108,7 @@ export default function CoveragePageClient({ initialMaps }: Props) {
   const [maps, setMaps] = useState<CoverageMapData[]>(initialMaps);
   const [activeMapId, setActiveMapId] = useState<string>(initialMaps[0]?.id ?? "");
   const [activeRegion, setActiveRegion] = useState<string | null>(null);
+  const [result, setResult] = useState<CoverageCheckResult | null>(null);
 
   const activeMap = maps.find((m) => m.id === activeMapId) ?? null;
 
@@ -160,7 +180,7 @@ export default function CoveragePageClient({ initialMaps }: Props) {
                   {maps.map((m) => (
                     <button
                       key={m.id}
-                      onClick={() => { setActiveMapId(m.id); setActiveRegion(null); }}
+                      onClick={() => { setActiveMapId(m.id); setActiveRegion(null); setResult(null); }}
                       style={{
                         padding: "10px 22px",
                         border: "none",
@@ -211,7 +231,41 @@ export default function CoveragePageClient({ initialMaps }: Props) {
                       onRegionClick={(region) =>
                         setActiveRegion((prev) => (prev === region.id ? null : region.id))
                       }
+                      onCoverageResult={setResult}
                     />
+
+                    {/* Address-check result — appears after a search */}
+                    {result && (
+                      <div style={{ marginTop: 14 }}>
+                        {result.type === "fibre" && (
+                          <div className="cov-result cov-result-hit">
+                            <i className="bi bi-check-circle-fill" style={{ color: "#16a34a" }} />
+                            <span>
+                              Covered{result.fnoProvider ? <> by <strong>{humaniseFno(result.fnoProvider)}</strong></> : result.regionName ? <> — <strong>{result.regionName}</strong></> : ""} at this address
+                            </span>
+                          </div>
+                        )}
+                        {result.type === "wireless" && result.services && result.services.length > 0 && (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            {result.services.map((svc) => (
+                              <div key={svc.serviceSlug} className="cov-service-card">
+                                <div>
+                                  <div style={{ fontWeight: 700, fontSize: 14 }}>{svc.name}</div>
+                                  {svc.towerRef && <div style={{ fontSize: 12, color: "#6b7280" }}>Tower: {svc.towerRef}</div>}
+                                  {svc.description && <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{svc.description}</div>}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {result.type === "miss" && (
+                          <div className="cov-result cov-result-miss">
+                            <i className="bi bi-x-circle" />
+                            <span>No coverage at this address yet.</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Region list sidebar */}

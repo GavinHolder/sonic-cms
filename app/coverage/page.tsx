@@ -23,6 +23,7 @@ export default async function CoveragePage() {
     include: {
       regions: { where: { isActive: true }, orderBy: { order: "asc" } },
       labels: true,
+      towers: { where: { isActive: true } },
     },
     orderBy: { createdAt: "asc" },
   });
