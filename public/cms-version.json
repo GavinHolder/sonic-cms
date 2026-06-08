@@ -1,11 +1,10 @@
 {
-  "version": "1.68.3",
+  "version": "1.68.4",
   "date": "2026-06-08",
   "changelog": {
     "features": [],
     "bugfixes": [
-      "GSC redirect_uri_mismatch + clarify backend-domain field in Google setup",
-      "list all five required Google APIs in integration wizard"
+      "derive OAuth redirect origin from config, not req.nextUrl.origin"
     ],
     "breaking": []
   }
