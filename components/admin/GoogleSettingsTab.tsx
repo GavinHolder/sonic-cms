@@ -5,6 +5,7 @@ interface GoogleSettings {
   clientId: string;
   clientSecret: string;
   redirectUri: string;
+  mapsApiKey: string;
   encryptionConfigured: boolean;
 }
 
@@ -46,10 +47,13 @@ function StepBadge({ n, active, done }: { n: number; active: boolean; done: bool
 
 export default function GoogleSettingsTab() {
   const [step, setStep] = useState<Step>(1);
-  const [s, setS] = useState<GoogleSettings>({ clientId: "", clientSecret: "", redirectUri: "", encryptionConfigured: false });
+  const [s, setS] = useState<GoogleSettings>({ clientId: "", clientSecret: "", redirectUri: "", mapsApiKey: "", encryptionConfigured: false });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mapsKeyInput, setMapsKeyInput] = useState("");
+  const [mapsSaving, setMapsSaving] = useState(false);
+  const [mapsSaved, setMapsSaved] = useState(false);
   const [origin, setOrigin] = useState("https://yourdomain.com");
 
   const gscCallback = `${origin}/api/seo/gsc/callback`;
@@ -84,6 +88,25 @@ export default function GoogleSettingsTab() {
       setError(err instanceof Error ? err.message : "Save failed");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleSaveMaps() {
+    setMapsSaving(true); setError(null);
+    try {
+      const res = await fetch("/api/settings/google", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mapsApiKey: mapsKeyInput }),
+      });
+      if (!res.ok) throw new Error("Save failed — check server logs");
+      setMapsSaved(true); setMapsKeyInput("");
+      setTimeout(() => setMapsSaved(false), 2500);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setMapsSaving(false);
     }
   }
 
@@ -425,6 +448,42 @@ export default function GoogleSettingsTab() {
           </div>
         </div>
       )}
+
+      {/* Dedicated Google Maps API key — powers coverage-map geocoding (Places + Geocoding) */}
+      <div className="card shadow-sm mt-4">
+        <div className="card-header py-2 px-3 fw-semibold d-flex align-items-center" style={{ fontSize: "0.9rem" }}>
+          <i className="bi bi-geo-alt-fill me-2 text-primary" />Google Maps API Key — Coverage geocoding
+        </div>
+        <div className="card-body p-3">
+          <p className="text-muted small mb-2">
+            Powers address autocomplete and pin-point lookup on the coverage map. Requires a Google Maps Platform
+            key with <strong>Places API (New)</strong> and <strong>Geocoding API</strong> enabled. Stored
+            server-side{s.encryptionConfigured ? " (encrypted)" : ""} and never exposed to site visitors.
+            Each deployment can use its own Google account / billing.
+          </p>
+          <div className="d-flex gap-2 align-items-center" style={{ maxWidth: 580 }}>
+            <input
+              type="password"
+              className="form-control form-control-sm font-monospace"
+              placeholder={s.mapsApiKey ? "•••••••• saved — enter a new key to replace" : "AIza…"}
+              value={mapsKeyInput}
+              onChange={(e) => setMapsKeyInput(e.target.value)}
+              autoComplete="off"
+            />
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={handleSaveMaps}
+              disabled={mapsSaving || !mapsKeyInput.trim()}
+              style={{ whiteSpace: "nowrap" }}
+            >
+              {mapsSaving ? <><span className="spinner-border spinner-border-sm me-2" />Saving…</> : <><i className="bi bi-key me-1" />Save key</>}
+            </button>
+          </div>
+          {s.mapsApiKey && !mapsKeyInput && <div className="text-success small mt-2"><i className="bi bi-check-circle-fill me-1" />A key is saved.</div>}
+          {mapsSaved && <div className="text-success small mt-2"><i className="bi bi-check-circle-fill me-1" />Maps key saved.</div>}
+          <div className="form-text">Restrict the key in Google Cloud to those two APIs. It only updates when you enter a new value.</div>
+        </div>
+      </div>
     </div>
   );
 }

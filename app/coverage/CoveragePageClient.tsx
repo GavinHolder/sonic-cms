@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import type { CoverageCheckResult } from "@/lib/coverage-utils";
 
@@ -69,30 +69,9 @@ function humaniseFno(key: string): string {
 
 function MapSkeleton() {
   return (
-    <div
-      style={{
-        height: 520,
-        width: "100%",
-        borderRadius: 12,
-        background: "#f3f4f6",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        border: "1px solid #e5e7eb",
-      }}
-    >
+    <div style={{ height: "100%", width: "100%", background: "#eef1f4", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ textAlign: "center", color: "#9ca3af" }}>
-        <div
-          style={{
-            width: 40,
-            height: 40,
-            border: "3px solid #e5e7eb",
-            borderTopColor: "#4a7c59",
-            borderRadius: "50%",
-            animation: "spin 0.8s linear infinite",
-            margin: "0 auto 12px",
-          }}
-        />
+        <div style={{ width: 40, height: 40, border: "3px solid #e5e7eb", borderTopColor: "#4a7c59", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 12px" }} />
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         <p style={{ fontSize: 14, margin: 0 }}>Loading map…</p>
       </div>
@@ -104,269 +83,212 @@ interface Props {
   initialMaps: CoverageMapData[];
 }
 
+interface FoundService {
+  key: string;
+  name: string;
+  detail: string;
+  tower?: string | null;
+  icon: string;
+}
+
 export default function CoveragePageClient({ initialMaps }: Props) {
-  const [maps, setMaps] = useState<CoverageMapData[]>(initialMaps);
+  const [maps] = useState<CoverageMapData[]>(initialMaps);
   const [activeMapId, setActiveMapId] = useState<string>(initialMaps[0]?.id ?? "");
-  const [activeRegion, setActiveRegion] = useState<string | null>(null);
   const [result, setResult] = useState<CoverageCheckResult | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selected, setSelected] = useState<string | null>(null);
 
   const activeMap = maps.find((m) => m.id === activeMapId) ?? null;
 
+  const services: FoundService[] = useMemo(() => {
+    if (!result) return [];
+    if (result.type === "fibre") {
+      return [{
+        key: "fibre",
+        name: "Fibre",
+        detail: result.fnoProvider ? `via ${humaniseFno(result.fnoProvider)}` : (result.regionName || "Fibre to the home"),
+        icon: "bi-ethernet",
+      }];
+    }
+    if (result.type === "wireless") {
+      return (result.services || []).map((s) => ({
+        key: s.serviceSlug,
+        name: s.name,
+        detail: s.description || "Fixed wireless",
+        tower: s.towerRef,
+        icon: "bi-broadcast-pin",
+      }));
+    }
+    return [];
+  }, [result]);
+
+  function handleResult(r: CoverageCheckResult) {
+    setResult(r);
+    setSelected(null);
+    setModalOpen(true);
+  }
+
+  const isMiss = result?.type === "miss";
+
   return (
-    <div style={{ background: "#f9fafb", minHeight: "100vh", paddingTop: 90 }}>
-      {/* Hero banner */}
-      <div
-        style={{
-          background: "linear-gradient(135deg, #1f2937 0%, #374151 60%, #4a7c59 100%)",
-          padding: "48px 24px 56px",
-          textAlign: "center",
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        {/* Subtle grid overlay */}
-        <div
+    <div
+      style={{
+        position: "relative",
+        width: "100%",
+        height: "calc(100dvh - var(--navbar-height, 96px))",
+        marginTop: "var(--navbar-height, 96px)",
+        background: "#eef1f4",
+      }}
+    >
+      {/* Map selector — only when more than one map exists */}
+      {maps.length > 1 && (
+        <select
+          value={activeMapId}
+          onChange={(e) => { setActiveMapId(e.target.value); setResult(null); setModalOpen(false); }}
           style={{
-            position: "absolute", inset: 0, opacity: 0.04,
-            backgroundImage: "linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)",
-            backgroundSize: "40px 40px",
+            position: "absolute", top: 16, left: 16, zIndex: 901,
+            padding: "10px 14px", borderRadius: 10, border: "1px solid #e5e7eb",
+            background: "#fff", fontSize: 14, fontWeight: 600, color: "#1f2937",
+            boxShadow: "0 6px 20px rgba(0,0,0,0.15)", cursor: "pointer",
           }}
+        >
+          {maps.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+        </select>
+      )}
+
+      {/* Full-page map with floating address search */}
+      {activeMap ? (
+        <CoverageMapViewer
+          mapData={activeMap}
+          height="100%"
+          floatingSearch
+          showSearch
+          showGeolocation
+          onCoverageResult={handleResult}
         />
-        <div style={{ position: "relative", maxWidth: 680, margin: "0 auto" }}>
-          <div
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 8,
-              background: "rgba(74,124,89,0.25)", border: "1px solid rgba(74,124,89,0.5)",
-              borderRadius: 20, padding: "4px 14px", marginBottom: 16,
-              fontSize: 13, color: "#86efac", fontWeight: 500,
-            }}
-          >
-            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#22c55e", display: "inline-block" }} />
-            Delivery Coverage
-          </div>
-          <h1
-            style={{
-              color: "#fff", fontSize: "clamp(28px, 5vw, 44px)",
-              fontWeight: 800, margin: "0 0 14px", lineHeight: 1.15,
-            }}
-          >
-            Where We Deliver
-          </h1>
-          <p style={{ color: "#d1d5db", fontSize: 17, margin: 0, lineHeight: 1.6 }}>
-            Find your area on the map — explore our delivery regions and see which
-            zones we service in your area.
-          </p>
-        </div>
-      </div>
-
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 20px 80px" }}>
-        {maps.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "80px 20px", color: "#6b7280" }}>
+      ) : (
+        <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#6b7280" }}>
+          <div style={{ textAlign: "center" }}>
             <i className="bi bi-map" style={{ fontSize: 48, display: "block", marginBottom: 16 }} />
-            <h3 style={{ color: "#1f2937", marginBottom: 8 }}>No coverage maps available</h3>
-            <p>Check back soon — we&apos;re expanding our coverage.</p>
+            <h3 style={{ color: "#1f2937" }}>No coverage maps available</h3>
           </div>
-        ) : (
-          <>
-            {/* Map tabs (only shown when multiple maps exist) */}
-            {maps.length > 1 && (
-              <div style={{ marginBottom: 28 }}>
-                <div
-                  style={{
-                    display: "flex", gap: 8, flexWrap: "wrap",
-                    borderBottom: "2px solid #e5e7eb", paddingBottom: 0,
-                  }}
-                >
-                  {maps.map((m) => (
-                    <button
-                      key={m.id}
-                      onClick={() => { setActiveMapId(m.id); setActiveRegion(null); setResult(null); }}
-                      style={{
-                        padding: "10px 22px",
-                        border: "none",
-                        background: "transparent",
-                        borderBottom: activeMapId === m.id ? "3px solid #4a7c59" : "3px solid transparent",
-                        color: activeMapId === m.id ? "#4a7c59" : "#6b7280",
-                        fontWeight: activeMapId === m.id ? 700 : 500,
-                        fontSize: 15,
-                        cursor: "pointer",
-                        marginBottom: -2,
-                        transition: "all 0.15s",
-                      }}
-                    >
-                      <i className="bi bi-map-fill me-2" style={{ fontSize: 13 }} />
-                      {m.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+        </div>
+      )}
 
-            {activeMap && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 28 }}>
-                {/* Map description */}
-                {activeMap.description && (
-                  <p style={{ color: "#4b5563", fontSize: 16, margin: 0, lineHeight: 1.6 }}>
-                    {activeMap.description}
+      {/* Results modal — services found at the confirmed address */}
+      {modalOpen && result && (
+        <div
+          onClick={() => setModalOpen(false)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 2000,
+            background: "rgba(15,23,42,0.55)", backdropFilter: "blur(2px)",
+            display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "min(480px, 100%)", background: "#fff", borderRadius: 16,
+              boxShadow: "0 24px 64px rgba(0,0,0,0.3)", overflow: "hidden",
+              maxHeight: "calc(100dvh - 120px)", display: "flex", flexDirection: "column",
+            }}
+          >
+            {/* Header */}
+            <div style={{ padding: "20px 24px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{
+                  width: 32, height: 32, borderRadius: 9, display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  background: isMiss ? "#f1f5f9" : "#ecfdf5", color: isMiss ? "#64748b" : "#16a34a",
+                }}>
+                  <i className={`bi ${isMiss ? "bi-x-circle" : "bi-check-circle-fill"}`} />
+                </span>
+                <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#0f172a" }}>
+                  {isMiss ? "No coverage yet" : "Available at this address"}
+                </h3>
+              </div>
+              <button onClick={() => setModalOpen(false)} aria-label="Close"
+                style={{ border: "none", background: "transparent", fontSize: 20, color: "#94a3b8", cursor: "pointer", lineHeight: 1 }}>
+                <i className="bi bi-x-lg" style={{ fontSize: 16 }} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div style={{ padding: 20, overflowY: "auto" }}>
+              {isMiss ? (
+                <p style={{ margin: 0, color: "#475569", fontSize: 14, lineHeight: 1.6 }}>
+                  We don&apos;t have coverage at this address yet — we&apos;re expanding all the time.
+                  Try a nearby address, or get in touch and we&apos;ll let you know when we reach you.
+                </p>
+              ) : (
+                <>
+                  <p style={{ margin: "0 0 14px", color: "#64748b", fontSize: 13 }}>
+                    {services.length > 1
+                      ? `${services.length} services reach this address — choose one to get connected:`
+                      : "Choose a service to get connected:"}
                   </p>
-                )}
-
-                {/* Main map + region list */}
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: activeMap.regions.length > 0 ? "1fr 280px" : "1fr",
-                    gap: 24,
-                    alignItems: "start",
-                  }}
-                >
-                  {/* Map viewer */}
-                  <div>
-                    <CoverageMapViewer
-                      mapData={activeMap}
-                      height={520}
-                      showSearch
-                      showGeolocation
-                      activeRegion={activeRegion}
-                      onRegionClick={(region) =>
-                        setActiveRegion((prev) => (prev === region.id ? null : region.id))
-                      }
-                      onCoverageResult={setResult}
-                    />
-
-                    {/* Address-check result — appears after a search */}
-                    {result && (
-                      <div style={{ marginTop: 14 }}>
-                        {result.type === "fibre" && (
-                          <div className="cov-result cov-result-hit">
-                            <i className="bi bi-check-circle-fill" style={{ color: "#16a34a" }} />
-                            <span>
-                              Covered{result.fnoProvider ? <> by <strong>{humaniseFno(result.fnoProvider)}</strong></> : result.regionName ? <> — <strong>{result.regionName}</strong></> : ""} at this address
-                            </span>
-                          </div>
-                        )}
-                        {result.type === "wireless" && result.services && result.services.length > 0 && (
-                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                            {result.services.map((svc) => (
-                              <div key={svc.serviceSlug} className="cov-service-card">
-                                <div>
-                                  <div style={{ fontWeight: 700, fontSize: 14 }}>{svc.name}</div>
-                                  {svc.towerRef && <div style={{ fontSize: 12, color: "#6b7280" }}>Tower: {svc.towerRef}</div>}
-                                  {svc.description && <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{svc.description}</div>}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {result.type === "miss" && (
-                          <div className="cov-result cov-result-miss">
-                            <i className="bi bi-x-circle" />
-                            <span>No coverage at this address yet.</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {services.map((s) => {
+                      const active = selected === s.key;
+                      return (
+                        <button
+                          key={s.key}
+                          onClick={() => setSelected(s.key)}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 14, textAlign: "left",
+                            padding: "14px 16px", borderRadius: 12, cursor: "pointer",
+                            background: active ? "#ecfdf5" : "#fff",
+                            border: `2px solid ${active ? "#4a7c59" : "#e5e7eb"}`,
+                            transition: "all 0.15s",
+                          }}
+                        >
+                          <span style={{
+                            width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+                            display: "inline-flex", alignItems: "center", justifyContent: "center",
+                            background: active ? "#4a7c59" : "#f1f5f9", color: active ? "#fff" : "#475569", fontSize: 18,
+                          }}>
+                            <i className={`bi ${s.icon}`} />
+                          </span>
+                          <span style={{ flex: 1 }}>
+                            <span style={{ display: "block", fontWeight: 700, fontSize: 15, color: "#0f172a" }}>{s.name}</span>
+                            <span style={{ display: "block", fontSize: 12.5, color: "#64748b" }}>{s.detail}</span>
+                            {s.tower && <span style={{ display: "block", fontSize: 11.5, color: "#94a3b8" }}>Tower: {s.tower}</span>}
+                          </span>
+                          <i className={`bi ${active ? "bi-check-circle-fill" : "bi-circle"}`} style={{ color: active ? "#4a7c59" : "#cbd5e1", fontSize: 18 }} />
+                        </button>
+                      );
+                    })}
                   </div>
+                </>
+              )}
+            </div>
 
-                  {/* Region list sidebar */}
-                  {activeMap.regions.length > 0 && (
-                    <div
-                      style={{
-                        background: "#fff",
-                        borderRadius: 12,
-                        border: "1px solid #e5e7eb",
-                        overflow: "hidden",
-                      }}
-                    >
-                      <div
-                        style={{
-                          padding: "14px 18px",
-                          borderBottom: "1px solid #f3f4f6",
-                          background: "#f9fafb",
-                        }}
-                      >
-                        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#1f2937", letterSpacing: "0.05em", textTransform: "uppercase" }}>
-                          Delivery Regions
-                        </h3>
-                      </div>
-                      <div style={{ maxHeight: 460, overflowY: "auto" }}>
-                        {activeMap.regions.map((region) => {
-                          const isActive = activeRegion === region.id;
-                          return (
-                            <button
-                              key={region.id}
-                              onClick={() => setActiveRegion(isActive ? null : region.id)}
-                              style={{
-                                display: "flex", alignItems: "center", gap: 12,
-                                width: "100%", padding: "12px 18px",
-                                border: "none", textAlign: "left",
-                                background: isActive ? "#f0fdf4" : "transparent",
-                                borderLeft: isActive ? "3px solid #4a7c59" : "3px solid transparent",
-                                cursor: "pointer",
-                                transition: "all 0.15s",
-                              }}
-                            >
-                              <span
-                                style={{
-                                  width: 14, height: 14, borderRadius: 3, flexShrink: 0,
-                                  background: region.color,
-                                  border: `2px solid ${region.strokeColor}`,
-                                }}
-                              />
-                              <div>
-                                <div style={{ fontSize: 14, fontWeight: 600, color: "#1f2937" }}>
-                                  {region.name}
-                                </div>
-                                {region.description && (
-                                  <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
-                                    {region.description}
-                                  </div>
-                                )}
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* CTA strip */}
-                <div
-                  style={{
-                    background: "linear-gradient(135deg, #1f2937, #374151)",
-                    borderRadius: 12, padding: "28px 32px",
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    flexWrap: "wrap", gap: 16,
-                  }}
-                >
-                  <div>
-                    <h3 style={{ color: "#fff", margin: "0 0 6px", fontSize: 18, fontWeight: 700 }}>
-                      Don&apos;t see your area?
-                    </h3>
-                    <p style={{ color: "#9ca3af", margin: 0, fontSize: 14 }}>
-                      We&apos;re expanding — contact us to check if we can deliver to you.
-                    </p>
-                  </div>
-                  <a
-                    href="/#contact"
-                    style={{
-                      display: "inline-flex", alignItems: "center", gap: 8,
-                      background: "#4a7c59", color: "#fff",
-                      padding: "12px 24px", borderRadius: 8,
-                      fontWeight: 600, fontSize: 15, textDecoration: "none",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    <i className="bi bi-telephone" />
-                    Contact Us
-                  </a>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-      </div>
+            {/* Footer */}
+            <div style={{ padding: "16px 20px", borderTop: "1px solid #f1f5f9", display: "flex", gap: 10 }}>
+              <button
+                onClick={() => setModalOpen(false)}
+                style={{ flex: "0 0 auto", padding: "12px 18px", borderRadius: 10, border: "1px solid #e5e7eb", background: "#fff", color: "#475569", fontWeight: 600, fontSize: 14, cursor: "pointer" }}
+              >
+                {isMiss ? "Try another" : "Search again"}
+              </button>
+              <a
+                href="/#contact"
+                aria-disabled={!isMiss && !selected}
+                onClick={(e) => { if (!isMiss && !selected) e.preventDefault(); }}
+                style={{
+                  flex: 1, padding: "12px 18px", borderRadius: 10, textDecoration: "none",
+                  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+                  background: (!isMiss && !selected) ? "#cbd5e1" : "#4a7c59", color: "#fff",
+                  fontWeight: 700, fontSize: 14,
+                  pointerEvents: (!isMiss && !selected) ? "none" : "auto",
+                }}
+              >
+                <i className="bi bi-telephone" />
+                {isMiss ? "Notify me" : "Get connected"}
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

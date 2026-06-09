@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { isPointInPolygon, type CoverageCheckResult } from "@/lib/coverage-utils";
+import { searchAddresses, resolveSuggestion, reverseGeocode, type GeoPrecision, type GeoSuggestion } from "@/lib/geocoding";
 
 export interface LatLng { lat: number; lng: number }
 
@@ -54,12 +55,15 @@ export interface CoverageMapData {
 
 interface Props {
   mapData: CoverageMapData;
-  height?: number;
+  height?: number | string;
   showSearch?: boolean;
   showGeolocation?: boolean;
   activeRegion?: string | null;
   onRegionClick?: (region: CoverageRegion) => void;
   onCoverageResult?: (result: CoverageCheckResult) => void;
+  /** Float the search bar over the map (Google-Maps style) instead of above it,
+   *  and make the map fill its container edge-to-edge. */
+  floatingSearch?: boolean;
 }
 
 export default function CoverageMapViewer({
@@ -70,6 +74,7 @@ export default function CoverageMapViewer({
   activeRegion,
   onRegionClick,
   onCoverageResult,
+  floatingSearch = false,
 }: Props) {
   const mapRef = useRef<HTMLDivElement>(null);
   const leafletMapRef = useRef<any>(null);
@@ -81,6 +86,12 @@ export default function CoverageMapViewer({
   // On touch devices, map starts locked — tap "Tap to interact" overlay to enable drag
   const [mapActive, setMapActive] = useState(false);
   const isTouchDevice = typeof window !== "undefined" && "ontouchstart" in window;
+  // Address autocomplete — precise lookup so a street address resolves to exact coords
+  const searchMarkerRef = useRef<any>(null);
+  const justSelectedRef = useRef(false);
+  const onMapClickRef = useRef<(lat: number, lng: number) => void>(() => {});
+  const [suggestions, setSuggestions] = useState<GeoSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   useEffect(() => {
     if (!mapRef.current || leafletMapRef.current) return;
@@ -99,10 +110,11 @@ export default function CoverageMapViewer({
         center: [mapData.centerLat, mapData.centerLng],
         zoom: mapData.defaultZoom,
         zoomControl: true,
-        // Disable scroll-wheel zoom and touch drag by default so the map
-        // doesn't hijack page scrolling. User taps/clicks the map to activate.
-        scrollWheelZoom: false,
-        dragging: !("ontouchstart" in window),
+        // Full-page (floatingSearch): intuitive scroll-zoom + drag, like Google Maps.
+        // Embedded inline: keep scroll/drag locked so the map doesn't hijack page
+        // scrolling — the user taps the overlay to activate.
+        scrollWheelZoom: floatingSearch ? true : false,
+        dragging: floatingSearch ? true : !("ontouchstart" in window),
       });
 
       // OpenStreetMap tile layer
@@ -110,6 +122,11 @@ export default function CoverageMapViewer({
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         maxZoom: 19,
       }).addTo(map);
+
+      // Click-to-place: clicking the map reverse-geocodes the point to a real address
+      if (showSearch) {
+        map.on("click", (e: any) => onMapClickRef.current(e.latlng.lat, e.latlng.lng));
+      }
 
       // Draw polygons
       mapData.regions.forEach((region) => {
@@ -129,14 +146,19 @@ export default function CoverageMapViewer({
           className: "coverage-tooltip",
         });
 
-        if (region.description) {
+        // In search mode a click on a region should place a pin + check coverage,
+        // so don't bind a popup that would swallow the click.
+        if (region.description && !showSearch) {
           poly.bindPopup(
             `<strong style="color:#1f2937">${region.name}</strong><br/><span style="color:#6b7280;font-size:13px">${region.description}</span>`,
             { closeButton: true }
           );
         }
 
-        poly.on("click", () => onRegionClick?.(region));
+        poly.on("click", (e: any) => {
+          onRegionClick?.(region);
+          if (showSearch) onMapClickRef.current(e.latlng.lat, e.latlng.lng);
+        });
         polygonLayersRef.current.set(region.id, poly);
       });
 
@@ -226,38 +248,108 @@ export default function CoverageMapViewer({
     });
   }, [activeRegion]);
 
+  // Debounced address autocomplete — suggest precise street addresses as the user types
+  useEffect(() => {
+    if (!showSearch) return;
+    if (justSelectedRef.current) { justSelectedRef.current = false; return; }
+    const q = searchQuery.trim();
+    if (q.length < 4) { setSuggestions([]); setShowSuggestions(false); return; }
+    const t = setTimeout(async () => {
+      try {
+        const results = await searchAddresses(q);
+        setSuggestions(results);
+        setShowSuggestions(true);
+      } catch { /* network hiccup — ignore, button still works */ }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [searchQuery, showSearch]);
+
+  // Pan to a point and drop a pin (always), then run the coverage check — but only
+  // surface a result (open the package modal) when the location is precise enough
+  // (a street address, not a bare suburb/town). "area" precision shows a hint instead.
+  // enforcePrecision gates TYPED searches to street/address level (a bare suburb
+  // shows a hint instead of a result). A deliberate map CLICK is already an exact
+  // point, so it passes enforcePrecision=false and always runs the check.
+  const resolveAndCheck = async (lat: number, lng: number, precision: GeoPrecision, enforcePrecision = true) => {
+    setSearchError("");
+    const map = leafletMapRef.current;
+    if (map) {
+      map.setView([lat, lng], precision === "area" && enforcePrecision ? 13 : 16);
+      try {
+        const L = await import("leaflet");
+        if (searchMarkerRef.current) map.removeLayer(searchMarkerRef.current);
+        searchMarkerRef.current = L.marker([lat, lng]).addTo(map);
+      } catch { /* marker is cosmetic */ }
+    }
+    if (enforcePrecision && precision === "area") {
+      setSearchError("That's an area, not a property. Enter a full street address (e.g. 5 West End Street, Sandbaai) or click your exact spot on the map.");
+      return;
+    }
+    if (onCoverageResult) {
+      const checkRes = await fetch(`/api/coverage-maps/public/${mapData.slug}/check`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lat, lng }),
+      });
+      const result: CoverageCheckResult = await checkRes.json();
+      onCoverageResult(result);
+    }
+  };
+
+  const selectSuggestion = async (s: GeoSuggestion) => {
+    justSelectedRef.current = true;
+    setSearchQuery(s.label);
+    setSuggestions([]);
+    setShowSuggestions(false);
+    setSearching(true);
+    try {
+      const pt = await resolveSuggestion(s);
+      if (pt) await resolveAndCheck(pt.lat, pt.lng, pt.precision);
+      else setSearchError("Couldn't resolve that address. Try another, or click your spot on the map.");
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  // Click anywhere on the map → reverse-geocode to the nearest real address → check
+  onMapClickRef.current = async (lat: number, lng: number) => {
+    setSearching(true);
+    setShowSuggestions(false);
+    try {
+      const r = await reverseGeocode(lat, lng);
+      if (r) {
+        justSelectedRef.current = true;
+        setSearchQuery(r.label);
+      }
+      // A click is an explicit precise point — always check (don't gate on the
+      // best-effort reverse-geocode precision).
+      await resolveAndCheck(lat, lng, r?.precision ?? "street", false);
+    } catch {
+      setSearchError("Couldn't look up that point. Try again.");
+    } finally {
+      setSearching(false);
+    }
+  };
+
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!searchQuery.trim() || !leafletMapRef.current) return;
+    const q = searchQuery.trim();
+    if (!q || !leafletMapRef.current) return;
     setSearching(true);
     setSearchError("");
+    setShowSuggestions(false);
     try {
-      const geoRes = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&limit=1&countrycodes=za`,
-        { headers: { "Accept-Language": "en" } }
-      );
-      const geoResults = await geoRes.json();
-      if (geoResults.length === 0) {
-        setSearchError("Location not found. Try a different search term.");
+      const top = suggestions[0] ?? (await searchAddresses(q, 1))[0];
+      if (!top) {
+        setSearchError("Address not found. Pick from the suggestions, or click your spot on the map.");
         return;
       }
-      const { lat: rawLat, lon: rawLon } = geoResults[0];
-      const lat = parseFloat(rawLat);
-      const lng = parseFloat(rawLon);
-      leafletMapRef.current.setView([lat, lng], 13);
-      // Coverage check
-      if (onCoverageResult) {
-        const checkRes = await fetch(
-          `/api/coverage-maps/public/${mapData.slug}/check`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ lat, lng }),
-          }
-        );
-        const result: CoverageCheckResult = await checkRes.json();
-        onCoverageResult(result);
+      const pt = await resolveSuggestion(top);
+      if (!pt) {
+        setSearchError("Couldn't resolve that address. Try another, or click your spot on the map.");
+        return;
       }
+      await resolveAndCheck(pt.lat, pt.lng, pt.precision);
     } catch {
       setSearchError("Search failed. Please try again.");
     } finally {
@@ -266,72 +358,117 @@ export default function CoverageMapViewer({
   };
 
   return (
-    <div style={{ position: "relative", width: "100%" }}>
-      {/* Search bar */}
+    <div style={{ position: "relative", width: "100%", ...(floatingSearch ? { height } : {}) }}>
+      {/* Search bar — floating overlay (Google-Maps style) or stacked above the map */}
       {showSearch && (
-        <form onSubmit={handleSearch} style={{ marginBottom: 12 }}>
+        <form
+          onSubmit={handleSearch}
+          style={floatingSearch
+            ? { position: "absolute", top: 16, left: "50%", transform: "translateX(-50%)", zIndex: 900, width: "min(560px, calc(100% - 32px))" }
+            : { marginBottom: 12, position: "relative" }}
+        >
           <div style={{ display: "flex", gap: 8 }}>
             <div style={{ position: "relative", flex: 1 }}>
               <i
                 className="bi bi-search"
                 style={{
                   position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)",
-                  color: "#6b7280", fontSize: 18, pointerEvents: "none",
+                  color: "#6b7280", fontSize: 18, pointerEvents: "none", zIndex: 1,
                 }}
               />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search your town, city or area…"
+                onFocus={(e) => { e.target.style.borderColor = "#4a7c59"; if (suggestions.length) setShowSuggestions(true); }}
+                onBlur={(e) => { e.target.style.borderColor = "#e5e7eb"; setTimeout(() => setShowSuggestions(false), 150); }}
+                placeholder="Enter your street address…"
                 style={{
                   width: "100%",
                   padding: "14px 16px 14px 48px",
                   fontSize: 16,
                   border: "2px solid #e5e7eb",
-                  borderRadius: 8,
+                  borderRadius: 10,
                   outline: "none",
                   background: "#fff",
                   color: "#1f2937",
                   transition: "border-color 0.2s",
+                  boxShadow: floatingSearch ? "0 6px 20px rgba(0,0,0,0.18)" : "none",
                 }}
-                onFocus={(e) => e.target.style.borderColor = "#4a7c59"}
-                onBlur={(e) => e.target.style.borderColor = "#e5e7eb"}
               />
             </div>
             <button
               type="submit"
               disabled={searching}
               style={{
-                padding: "14px 28px",
+                padding: "14px 24px",
                 background: "#4a7c59",
                 color: "#fff",
                 border: "none",
-                borderRadius: 8,
+                borderRadius: 10,
                 fontSize: 15,
                 fontWeight: 600,
                 cursor: "pointer",
                 whiteSpace: "nowrap",
+                boxShadow: floatingSearch ? "0 6px 20px rgba(0,0,0,0.18)" : "none",
               }}
             >
-              {searching ? "Searching…" : "Check Coverage"}
+              {searching ? "Checking…" : "Check"}
             </button>
           </div>
+
+          {/* Address autocomplete suggestions */}
+          {showSuggestions && suggestions.length > 0 && (
+            <ul
+              style={{
+                position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 950,
+                listStyle: "none", margin: 0, padding: 6, background: "#fff",
+                border: "1px solid #e5e7eb", borderRadius: 12,
+                boxShadow: "0 12px 32px rgba(0,0,0,0.18)", maxHeight: 300, overflowY: "auto",
+              }}
+            >
+              {suggestions.map((s, i) => (
+                <li key={i}>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => { e.preventDefault(); selectSuggestion(s); }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#f3f4f6")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                    style={{
+                      display: "flex", gap: 10, width: "100%", textAlign: "left",
+                      padding: "10px 12px", border: "none", background: "transparent",
+                      borderRadius: 8, cursor: "pointer", fontSize: 13, color: "#374151", lineHeight: 1.4,
+                    }}
+                  >
+                    <i className="bi bi-geo-alt" style={{ color: "#4a7c59", marginTop: 2, flexShrink: 0 }} />
+                    <span>{s.label}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
           {searchError && (
-            <p style={{ color: "#dc2626", fontSize: 13, marginTop: 6 }}>{searchError}</p>
+            <p style={{
+              color: "#dc2626", fontSize: 13, marginTop: 6,
+              ...(floatingSearch ? { background: "#fff", padding: "6px 10px", borderRadius: 8, boxShadow: "0 4px 12px rgba(0,0,0,0.1)" } : {}),
+            }}>{searchError}</p>
           )}
         </form>
       )}
 
       {/* Map container + touch activation overlay */}
-      <div style={{ position: "relative", borderRadius: 12, overflow: "hidden", border: "1px solid #e5e7eb" }}>
+      <div style={floatingSearch
+        ? { position: "absolute", inset: 0, overflow: "hidden" }
+        : { position: "relative", borderRadius: 12, overflow: "hidden", border: "1px solid #e5e7eb" }}>
         <div
           ref={mapRef}
-          style={{ height, width: "100%" }}
+          style={{ height: floatingSearch ? "100%" : height, width: "100%" }}
         />
         {/* On touch devices, show "tap to interact" overlay until user taps.
-            This prevents the map from hijacking the page scroll gesture. */}
-        {isTouchDevice && !mapActive && (
+            This prevents the map from hijacking the page scroll gesture.
+            Skipped in full-page mode where the map IS the page. */}
+        {isTouchDevice && !mapActive && !floatingSearch && (
           <div
             onClick={() => {
               setMapActive(true);

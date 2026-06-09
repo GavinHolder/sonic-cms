@@ -23,12 +23,13 @@ export async function GET(req: NextRequest) {
   if (authError) return authError;
   const cfg = await prisma.siteConfig.findUnique({
     where: { id: "singleton" },
-    select: { googleClientId: true, googleClientSecret: true, googleRedirectUri: true },
+    select: { googleClientId: true, googleClientSecret: true, googleRedirectUri: true, googleMapsApiKey: true },
   });
   return NextResponse.json({
     clientId:             cfg?.googleClientId    ?? "",
     clientSecret:         cfg?.googleClientSecret ? "••••••••" : "",
     redirectUri:          cfg?.googleRedirectUri  ?? "",
+    mapsApiKey:           cfg?.googleMapsApiKey   ? "••••••••" : "",
     encryptionConfigured: isEncryptionConfigured(),
   });
 }
@@ -36,12 +37,16 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const authError = await requireRole(req, UserRole.SUPER_ADMIN);
   if (authError) return authError;
-  const body = await req.json() as { clientId?: string; clientSecret?: string; redirectUri?: string };
+  const body = await req.json() as { clientId?: string; clientSecret?: string; redirectUri?: string; mapsApiKey?: string };
   const data: Record<string, string | null> = {};
   if (typeof body.clientId === "string")    data.googleClientId    = body.clientId || null;
   if (typeof body.redirectUri === "string") data.googleRedirectUri = normaliseRedirectBase(body.redirectUri) || null;
   if (typeof body.clientSecret === "string" && body.clientSecret !== "••••••••") {
     data.googleClientSecret = body.clientSecret ? encrypt(body.clientSecret) : null;
+  }
+  if (typeof body.mapsApiKey === "string" && body.mapsApiKey !== "••••••••") {
+    const v = body.mapsApiKey.trim();
+    data.googleMapsApiKey = v ? (isEncryptionConfigured() ? encrypt(v) : v) : null;
   }
   await prisma.siteConfig.update({ where: { id: "singleton" }, data });
   return NextResponse.json({ ok: true });

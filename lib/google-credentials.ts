@@ -60,3 +60,23 @@ export async function getGoogleCredentials(): Promise<GoogleCredentials> {
     redirectUri: cfg?.googleRedirectUri || process.env.GOOGLE_REDIRECT_URI || "",
   };
 }
+
+/**
+ * Google Maps Platform API key for geocoding (Places + Geocoding APIs).
+ * Stored in SiteConfig so it's editable in the admin — each deployment (e.g. the
+ * client's own Google account) sets its own key. Decrypted when encryption is
+ * configured; falls back to the GOOGLE_MAPS_API_KEY env var when unset.
+ */
+export async function getGoogleMapsApiKey(): Promise<string> {
+  const cfg = await prisma.siteConfig.findUnique({
+    where: { id: "singleton" },
+    select: { googleMapsApiKey: true },
+  });
+  if (cfg?.googleMapsApiKey) {
+    if (isEncryptionConfigured()) {
+      try { return decrypt(cfg.googleMapsApiKey); } catch { return cfg.googleMapsApiKey; }
+    }
+    return cfg.googleMapsApiKey;
+  }
+  return process.env.GOOGLE_MAPS_API_KEY ?? "";
+}

@@ -539,6 +539,7 @@ model SiteConfig {
   googleClientId    String?
   googleClientSecret String?
   googleRedirectUri String?
+  googleMapsApiKey  String?
 
   @@map("site_config")
 }
