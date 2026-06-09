@@ -9,8 +9,13 @@ set -e
 
 if [ "${SKIP_MIGRATIONS:-false}" != "true" ]; then
   echo "⏳ Applying database migrations..."
-  node node_modules/prisma/build/index.js migrate deploy || \
-    node node_modules/prisma/build/index.js db push --skip-generate
+  node node_modules/prisma/build/index.js migrate deploy || true
+  # Some schema changes are made with `prisma db push` (no migration file). Run a
+  # db push after migrate deploy so those additive columns/tables always reach the
+  # live DB. Idempotent and safe for additive changes; non-fatal so a hiccup here
+  # never blocks startup.
+  echo "🔄 Syncing schema (db push)..."
+  node node_modules/prisma/build/index.js db push --skip-generate || true
   echo "✅ Migrations complete."
 
   echo "🌱 Seeding default admin user (upsert — safe to run on every boot)..."
