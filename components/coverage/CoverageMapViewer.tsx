@@ -106,9 +106,15 @@ export default function CoverageMapViewer({
         shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
       });
 
+      // Guard against maps saved without a valid center/zoom — feeding Leaflet a
+      // null/NaN center throws and blanks the page. Fall back to the map's data,
+      // then to a sane regional default, so the map always renders.
+      const safeLat  = Number.isFinite(mapData.centerLat)  ? mapData.centerLat  : -34.34;
+      const safeLng  = Number.isFinite(mapData.centerLng)  ? mapData.centerLng  : 19.23;
+      const safeZoom = Number.isFinite(mapData.defaultZoom) && mapData.defaultZoom > 0 ? mapData.defaultZoom : 10;
       const map = L.map(mapRef.current!, {
-        center: [mapData.centerLat, mapData.centerLng],
-        zoom: mapData.defaultZoom,
+        center: [safeLat, safeLng],
+        zoom: safeZoom,
         zoomControl: true,
         // Full-page (floatingSearch): intuitive scroll-zoom + drag, like Google Maps.
         // Embedded inline: keep scroll/drag locked so the map doesn't hijack page
@@ -222,6 +228,9 @@ export default function CoverageMapViewer({
           () => { /* geolocation denied — use default center */ }
         );
       }
+    }).catch((err) => {
+      // Never let a map-init failure white-screen the page.
+      console.error("Coverage map failed to initialise:", err);
     });
 
     return () => {
