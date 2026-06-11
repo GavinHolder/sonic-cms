@@ -1,18 +1,18 @@
 {
-  "logoSrc": "/images/logo-placeholder.svg",
-  "logoAlt": "Your Company",
+  "logoSrc": "/images/sonic-logo.png",
+  "logoAlt": "Sonic — Fibre · Wi-Fi · Fixed Wireless · Voice · Networks",
   "logoHeight": 44,
   "logoWidth": 0,
   "cta": {
     "show": true,
-    "text": "Contact us",
+    "text": "Check my address",
     "style": "solid",
-    "href": "#11002b15-3f14-4a0a-8e26-15748228e0e2",
-    "linkMode": "anchor"
+    "href": "/coverage",
+    "linkMode": "external"
   },
   "scrolledBackground": {
-    "color": "#ffffff",
-    "opacity": 100
+    "color": "#06080f",
+    "opacity": 90
   },
-  "updatedAt": "2026-03-17T16:47:33.413Z"
+  "updatedAt": "2026-06-10T12:00:00.000Z"
 }

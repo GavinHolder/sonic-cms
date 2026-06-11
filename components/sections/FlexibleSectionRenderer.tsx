@@ -16,6 +16,7 @@ const VoltBlock                = dynamic(() => import("@/components/sections/Vol
 const InteractiveProductCard   = dynamic(() => import("@/components/sections/blocks/InteractiveProductCard"), { ssr: false });
 const ScrollStoryBlock         = dynamic(() => import("@/components/sections/blocks/ScrollStoryBlock"), { ssr: false });
 const EditorialBlock           = dynamic(() => import("@/components/sections/blocks/EditorialBlock"), { ssr: false });
+const PricingTabsBlock         = dynamic(() => import("@/components/sections/blocks/PricingTabsBlock"), { ssr: false });
 const GalleryCtaBlock          = dynamic(() => import("@/components/sections/blocks/GalleryCtaBlock"), { ssr: false });
 
 interface FlexibleSectionRendererProps {
@@ -202,6 +203,93 @@ const FLEXIBLE_CSS = `
     letter-spacing: -0.04em;
     line-height: 1;
     color: var(--bs-success, #22c55e);
+  }
+
+  /* ── Sonic "service row" variant (steps with tag + chips) ───────────────── */
+  .flex-step-row--rich {
+    grid-template-columns: 96px minmax(0, 1.05fr) minmax(0, 1.25fr);
+    gap: 32px;
+    padding: 36px 0;
+    position: relative;
+  }
+  .flex-step-row--rich .flex-step-number {
+    font-family: var(--theme-font-display, 'Archivo Black'), sans-serif;
+    font-size: clamp(38px, 4.4vw, 64px);
+    color: transparent;
+    -webkit-text-stroke: 1.4px rgba(255,255,255,0.22);
+    transition: -webkit-text-stroke-color 0.45s ease, color 0.45s ease;
+  }
+  .flex-step-row--rich:hover .flex-step-number {
+    -webkit-text-stroke-color: var(--theme-red, #E31E24);
+    color: rgba(227,30,36,0.10);
+  }
+  .flex-step-row--rich .flex-step-heading {
+    margin: 0 0 10px;
+    font-family: var(--theme-font-display, 'Archivo Black'), sans-serif;
+    font-size: clamp(20px, 2.4vw, 32px);
+    line-height: 1.04;
+    letter-spacing: -0.01em;
+  }
+  .flex-step-tag {
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    font-family: var(--theme-font-mono, 'JetBrains Mono'), monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--theme-red, #E31E24);
+  }
+  .flex-step-tag::before {
+    content: "";
+    width: 18px; height: 2px;
+    background: var(--theme-red, #E31E24);
+    display: inline-block;
+  }
+  .flex-step-desc { margin: 0 0 16px; opacity: 0.72; font-size: 15px; line-height: 1.6; }
+  .flex-step-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .flex-step-chip {
+    font-size: 12px;
+    padding: 7px 13px;
+    border-radius: 999px;
+    border: 1px solid var(--theme-card-border, rgba(255,255,255,0.12));
+    background: var(--theme-card-bg, rgba(255,255,255,0.03));
+    opacity: 0.9;
+  }
+  .flex-step-row--rich::after {
+    content: "";
+    position: absolute;
+    left: 0; bottom: -1px;
+    height: 2px; width: 0;
+    background: linear-gradient(90deg, var(--theme-red, #E31E24), transparent);
+    transition: width 0.55s ease;
+  }
+  .flex-step-row--rich:hover::after { width: 62%; }
+  @media (max-width: 768px) {
+    .flex-step-row--rich { grid-template-columns: 56px 1fr; gap: 18px; padding: 26px 0; }
+    .flex-step-row--rich .flex-step-side { grid-column: 1 / -1; }
+  }
+
+  /* ── Numbered card (ghost outline number + hover) ───────────────────────── */
+  .flex-card-default { transition: background 0.3s ease; height: 100%; }
+  .flex-card-number {
+    font-family: var(--theme-font-display, 'Archivo Black'), sans-serif;
+    font-size: clamp(38px, 4vw, 58px);
+    line-height: 1;
+    color: transparent;
+    -webkit-text-stroke: 1.3px rgba(255,255,255,0.18);
+    margin-bottom: 20px;
+    transition: -webkit-text-stroke-color 0.4s ease, color 0.4s ease;
+  }
+  .flex-card-numbered:hover .flex-card-number {
+    -webkit-text-stroke-color: var(--theme-red, #E31E24);
+    color: rgba(227,30,36,0.09);
+  }
+  .flex-card-heading {
+    font-family: var(--theme-font-display, 'Archivo Black'), sans-serif;
+    letter-spacing: -0.01em;
   }
 
   /* ── Photo strip block ──────────────────────────────────────────────── */
@@ -588,6 +676,7 @@ function FlexibleElementRenderer({ element, darkBg }: { element: FlexibleElement
 
   switch (element.type) {
     case "steps": return <StepsBlock c={c} tc={tc} />;
+    case "pricing-tabs": return <PricingTabsBlock content={c as Record<string, unknown>} darkBg={darkBg} />;
     case "photo-strip": return <PhotoStripBlock c={c} />;
     case "stats": return (
       <div style={{ padding: "24px", height: "100%", display: "flex", flexDirection: "column", justifyContent: "center" }}>
@@ -601,16 +690,27 @@ function FlexibleElementRenderer({ element, darkBg }: { element: FlexibleElement
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const cx = c as any;
       const hasImg = !!(element as any).style?.backgroundImage;
+      const numbered = !hasImg && !!cx.cardNumber;
       return (
-        <div style={{
-          height: "100%", display: "flex", flexDirection: "column", justifyContent: "flex-end",
-          ...(hasImg ? { background: "linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.1) 55%, transparent 100%)" } : { padding: "20px", color: tc }),
-        }}>
+        <div
+          className={`flex-card-default${numbered ? " flex-card-numbered" : ""}`}
+          style={{
+            height: "100%", display: "flex", flexDirection: "column",
+            justifyContent: numbered ? "flex-start" : hasImg ? "flex-end" : "center",
+            ...(hasImg ? { background: "linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.1) 55%, transparent 100%)" } : { padding: numbered ? "28px" : "26px", color: tc }),
+          }}
+        >
+          {numbered && <div className="flex-card-number" aria-hidden="true">{cx.cardNumber}</div>}
           <div style={{ padding: hasImg ? "16px 20px" : 0 }}>
-            {cx.eyebrow    && <p style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--bs-success, #22c55e)", margin: "0 0 4px" }}>{cx.eyebrow}</p>}
-            {cx.heading    && <h3 style={{ margin: "0 0 4px", fontSize: "clamp(14px, 1.8vw, 18px)", fontWeight: 700, color: hasImg ? "#fff" : tc }}>{cx.heading}</h3>}
-            {cx.subheading && <p style={{ margin: "0 0 2px", opacity: 0.8, fontSize: "13px", color: hasImg ? "rgba(255,255,255,0.85)" : tc }}>{cx.subheading}</p>}
-            {cx.text       && <p style={{ margin: 0, opacity: hasImg ? 0.6 : 0.75, fontSize: "12px", color: hasImg ? "#fff" : tc }}>{cx.text}</p>}
+            {cx.eyebrow    && <p style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--bs-success, #22c55e)", margin: "0 0 8px" }}>{cx.eyebrow}</p>}
+            {cx.heading    && <h3 className={numbered ? "flex-card-heading" : "flex-card-heading"} style={{ margin: "0 0 8px", fontSize: numbered ? "clamp(16px, 1.9vw, 21px)" : "clamp(15px, 1.8vw, 19px)", fontWeight: 700, color: hasImg ? "#fff" : tc }}>{cx.heading}</h3>}
+            {cx.subheading && <p style={{ margin: "0 0 4px", opacity: 0.85, fontSize: "13px", fontWeight: 600, color: hasImg ? "rgba(255,255,255,0.85)" : tc }}>{cx.subheading}</p>}
+            {cx.text       && <p style={{ margin: 0, opacity: hasImg ? 0.6 : 0.75, fontSize: numbered ? "13.5px" : "13px", lineHeight: numbered ? 1.55 : 1.5, color: hasImg ? "#fff" : tc }}>{cx.text}</p>}
+            {Array.isArray(cx.chips) && cx.chips.length > 0 && (
+              <div className="flex-step-chips" style={{ marginTop: "16px" }}>
+                {(cx.chips as string[]).map((chip, ci) => <span key={ci} className="flex-step-chip">{chip}</span>)}
+              </div>
+            )}
           </div>
         </div>
       );
@@ -626,26 +726,54 @@ function StepsBlock({ c, tc }: { c: FlexibleElement["content"]; tc: string }) {
   const numW  = c.stepsNumberWidth ?? 120;
   const hasDividers = c.stepsDividers !== false;
   const hasLastDiv  = c.stepsLastDivider !== false;
+  // "rich" (Sonic service-row) layout activates when any step carries a tag or chips.
+  const rich = steps.some((s) => {
+    const x = s as Record<string, unknown>;
+    return !!x.tag || (Array.isArray(x.chips) && x.chips.length > 0);
+  });
 
   return (
     <div className="flex-steps-block" style={{ color: tc }}>
-      {steps.map((step, i) => (
-        <div
-          key={i}
-          className="flex-step-row"
-          style={{
-            gridTemplateColumns: `${numW}px 1fr`,
-            borderTop: hasDividers ? `1px solid ${tc}22` : "none",
-            borderBottom: hasLastDiv && i === steps.length - 1 ? `1px solid ${tc}22` : "none",
-          }}
-        >
-          <div className="flex-step-number">{step.number}</div>
-          <div style={{ paddingTop: "8px" }}>
-            <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: "clamp(15px, 2vw, 18px)" }}>{step.heading}</p>
-            {step.subtext && <p style={{ margin: 0, opacity: 0.65, fontSize: "14px", lineHeight: 1.5 }}>{step.subtext}</p>}
+      {steps.map((step, i) => {
+        const x = step as Record<string, unknown>;
+        const chips = Array.isArray(x.chips) ? (x.chips as string[]) : [];
+        return (
+          <div
+            key={i}
+            className={`flex-step-row${rich ? " flex-step-row--rich" : ""}`}
+            style={{
+              gridTemplateColumns: rich ? undefined : `${numW}px 1fr`,
+              borderTop: hasDividers ? `1px solid ${tc}22` : "none",
+              borderBottom: hasLastDiv && i === steps.length - 1 ? `1px solid ${tc}22` : "none",
+            }}
+          >
+            <div className="flex-step-number">{step.number}</div>
+            {rich ? (
+              <>
+                <div className="flex-step-main">
+                  <p className="flex-step-heading">{step.heading}</p>
+                  {!!x.tag && <p className="flex-step-tag">{x.tag as string}</p>}
+                </div>
+                <div className="flex-step-side">
+                  {step.subtext && <p className="flex-step-desc">{step.subtext}</p>}
+                  {chips.length > 0 && (
+                    <div className="flex-step-chips">
+                      {chips.map((chip, ci) => (
+                        <span key={ci} className="flex-step-chip">{chip}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div style={{ paddingTop: "8px" }}>
+                <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: "clamp(15px, 2vw, 18px)" }}>{step.heading}</p>
+                {step.subtext && <p style={{ margin: 0, opacity: 0.65, fontSize: "14px", lineHeight: 1.5 }}>{step.subtext}</p>}
+              </div>
+            )}
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

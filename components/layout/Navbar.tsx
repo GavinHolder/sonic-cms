@@ -218,7 +218,7 @@ export default function Navbar() {
                     visibility: effectiveScrolled || mobileOpen ? "hidden" : "visible",
                     transition: `opacity ${navTransition}, visibility ${navTransition}`,
                     pointerEvents: effectiveScrolled || mobileOpen ? "none" : "auto" }}>
-                  <svg style={{ width: 28, height: 28, color: isDarkBackground ? "#fff" : "#000" }}
+                  <svg style={{ width: 28, height: 28, color: "#fff" }}
                     fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
                   </svg>
@@ -229,7 +229,7 @@ export default function Navbar() {
                     visibility: mobileOpen && !effectiveScrolled ? "visible" : "hidden",
                     transition: `opacity ${navTransition}, visibility ${navTransition}`,
                     pointerEvents: mobileOpen && !effectiveScrolled ? "auto" : "none" }}>
-                  <svg style={{ width: 28, height: 28, color: isDarkBackground ? "#fff" : "#000" }}
+                  <svg style={{ width: 28, height: 28, color: "#fff" }}
                     fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                   </svg>
@@ -260,7 +260,7 @@ export default function Navbar() {
               <div className="d-md-none">
                 <button className="p-0 bg-transparent border-0" onClick={() => setMobileOpen(!mobileOpen)}
                   style={{ outline: "none", cursor: "pointer" }} aria-label="Open menu">
-                  <svg style={{ width: 28, height: 28, color: effectiveScrolled ? "#111827" : "#fff" }}
+                  <svg style={{ width: 28, height: 28, color: "#fff" }}
                     fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
                   </svg>
@@ -282,7 +282,7 @@ export default function Navbar() {
                   <img src={logoUrl} alt={companyName}
                     style={{ height: 44, maxWidth: 180, objectFit: "contain" }} />
                 ) : (
-                  <span style={{ fontWeight: 700, fontSize: "1.25rem", color: effectiveScrolled ? "#111827" : "#fff" }}>
+                  <span style={{ fontWeight: 700, fontSize: "1.25rem", color: "#fff" }}>
                     {companyName}
                   </span>
                 )}
@@ -294,7 +294,7 @@ export default function Navbar() {
               {navLinks.map((link) =>
                 link.href ? (
                   <Link key={link.id} href={link.href} className="text-decoration-none fw-medium"
-                    style={{ cursor: "pointer", color: effectiveScrolled ? "#111827" : "#fff", fontSize: "0.95rem", whiteSpace: "nowrap" }}
+                    style={{ cursor: "pointer", color: "#fff", fontSize: "0.95rem", whiteSpace: "nowrap" }}
                     onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.7")}
                     onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}>
                     {link.label}
@@ -303,7 +303,7 @@ export default function Navbar() {
                   <button key={link.id}
                     onClick={() => scrollToSection(link.id)}
                     className="border-0 bg-transparent p-0 fw-medium"
-                    style={{ cursor: "pointer", color: effectiveScrolled ? "#111827" : "#fff", fontSize: "0.95rem", whiteSpace: "nowrap" }}
+                    style={{ cursor: "pointer", color: "#fff", fontSize: "0.95rem", whiteSpace: "nowrap" }}
                     onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.7")}
                     onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}>
                     {link.label}
@@ -316,11 +316,11 @@ export default function Navbar() {
             <div className="d-none d-md-flex flex-column align-items-end justify-content-center gap-1" style={{ zIndex: 100 }}>
               {phone && (
                 <>
-                  <span style={{ fontSize: "0.7rem", color: effectiveScrolled ? "#6b7280" : "rgba(255,255,255,0.7)", letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                  <span style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.7)", letterSpacing: "0.05em", textTransform: "uppercase" }}>
                     Call Us
                   </span>
                   <a href={`tel:${phone.replace(/\s/g, "")}`}
-                    style={{ fontSize: "1.15rem", fontWeight: 700, color: effectiveScrolled ? "#111827" : "#fff", textDecoration: "none", letterSpacing: "-0.01em" }}>
+                    style={{ fontSize: "1.15rem", fontWeight: 700, color: "#fff", textDecoration: "none", letterSpacing: "-0.01em" }}>
                     {phone}
                   </a>
                 </>
@@ -344,7 +344,7 @@ export default function Navbar() {
             <div className="d-md-none">
               <button className="p-0 bg-transparent border-0" onClick={() => setMobileOpen(!mobileOpen)}
                 style={{ outline: "none", cursor: "pointer" }} aria-label="Open menu">
-                <svg style={{ width: 28, height: 28, color: effectiveScrolled ? "#111827" : "#fff" }}
+                <svg style={{ width: 28, height: 28, color: "#fff" }}
                   fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
@@ -469,11 +469,11 @@ function LogoBlock({ logoUrl, companyName, effectiveScrolled, mobileOpen, isDark
           // eslint-disable-next-line @next/next/no-img-element
           <img src={logoUrl} alt={companyName}
             style={{ height: 36, maxWidth: 160, objectFit: "contain",
-              filter: effectiveScrolled ? "none" : "brightness(0) invert(1)",
+              filter: "none",
               transition: "filter 600ms cubic-bezier(0.4,0,0.2,1)" }} />
         ) : (
           <span style={{ height: 44, display: "flex", alignItems: "center", fontWeight: 700, fontSize: "1.2rem",
-            color: effectiveScrolled ? "#111827" : "#fff" }}>
+            color: "#fff" }}>
             {companyName}
           </span>
         )}
@@ -488,7 +488,7 @@ function NavLinks({ navLinks, effectiveScrolled, mobileOpen, navTransition, scro
 }) {
   if (!navLinks.length) return null;
   const linkStyle: React.CSSProperties = {
-    whiteSpace: "nowrap", cursor: "pointer", color: effectiveScrolled ? "#111827" : "#fff",
+    whiteSpace: "nowrap", cursor: "pointer", color: "#fff",
     fontSize: "0.95rem", letterSpacing: "0.01em", transition: `opacity 200ms ease, color ${navTransition}`,
   };
   return (
@@ -533,7 +533,7 @@ function ToolsDropdown({ enabledFeatures, effectiveScrolled, mobileOpen, navTran
         visibility: effectiveScrolled || mobileOpen ? "visible" : "hidden",
         transition: `opacity ${navTransition}, visibility ${navTransition}` }}>
       <button className="text-decoration-none fw-medium border-0 bg-transparent p-0 d-flex align-items-center gap-1"
-        style={{ cursor: "pointer", color: effectiveScrolled ? "#111827" : "#fff", fontSize: "0.95rem",
+        style={{ cursor: "pointer", color: "#fff", fontSize: "0.95rem",
           letterSpacing: "0.01em", transition: `color ${navTransition}`, whiteSpace: "nowrap" }}
         onClick={() => setToolsOpen((o) => !o)}
         onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.7")}

@@ -976,6 +976,9 @@ The block panel on the left contains **16 element types**. **Card, Banner, and S
 
 - **contact-form** — A contact form block that submits to the site's contact email via \`/api/contact\`. Configure which fields are visible (name, email, phone, message, subject), the submit button label, and the success message shown after submission. Styled to work on both light and dark backgrounds.
 - **how-steps** — A numbered process step card. Displays a large step number (e.g. "01") in a coloured circle, a bold title, and a description. Includes a dashed connector line extending to the right — set \`isLast: true\` on the final step to hide the connector. Use 3–4 of these in a row grid for a "How It Works" section.
+- **pricing-tabs** — A tabbed pricing table. Define one or more **tabs** (e.g. Wireless / Fibre / Voice); each tab holds a grid of plan cards (\`name\`, \`spec\`, \`price\`, \`period\`, \`features[]\`, optional \`flag\`, \`popular\`, \`desc\`). A tab can instead use **groups** (titled sub-sections, e.g. two fibre networks), an optional **note** panel, and a **rates** row (label/value pairs). The "Most popular" card is highlighted; prices use the display font; tabs switch client-side. Drop one block, span the full width.
+- **steps (service-row variant)** — The numbered \`steps\` block gains a richer layout automatically when a step includes a **tag** and/or **chips**: a ghost outline number, large heading, a red eyebrow tag with a tick line, the description, and a row of feature chip pills — with a red hover beam. Plain steps (number + heading + subtext only) render as before. Ideal for a "What we do" services list.
+- **card (numbered)** — Any card can show a large **ghost outline number** by setting \`cardNumber\` (e.g. "01"); it fills red on hover. Cards also accept a **chips** array to render a row of pill tags (e.g. a list of towns or features). Non-image text cards are now vertically centred.
 
 ---
 
