@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   const authError = await requireRole(req, UserRole.SUPER_ADMIN);
-  if (authError) return authError;
+  if (authError instanceof NextResponse) return authError;
 
   const token = await getStoredToken();
   if (!token) {
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
  */
 export async function PATCH(req: NextRequest) {
   const authError = await requireRole(req, UserRole.SUPER_ADMIN);
-  if (authError) return authError;
+  if (authError instanceof NextResponse) return authError;
 
   const body = await req.json() as { siteUrl?: string };
   if (!body.siteUrl) {

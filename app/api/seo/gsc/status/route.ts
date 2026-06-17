@@ -30,7 +30,7 @@ const QUOTA_DAILY = 2000;
 
 export async function GET(req: NextRequest) {
   const authError = await requireRole(req, UserRole.SUPER_ADMIN);
-  if (authError) return authError;
+  if (authError instanceof NextResponse) return authError;
 
   const token = await getStoredToken();
   if (!token) {

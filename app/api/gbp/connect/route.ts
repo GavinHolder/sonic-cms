@@ -9,7 +9,7 @@ const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 
 export async function GET(req: NextRequest) {
   const authError = await requireRole(req, UserRole.SUPER_ADMIN);
-  if (authError) return authError;
+  if (authError instanceof NextResponse) return authError;
   const { clientId, redirectUri: configBase } = await getGoogleCredentials();
   if (!clientId) return NextResponse.json({ error: "Google Client ID not configured in Settings → Google Integration." }, { status: 500 });
 

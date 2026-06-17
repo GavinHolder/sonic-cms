@@ -20,7 +20,7 @@ function normaliseRedirectBase(input: string): string {
 
 export async function GET(req: NextRequest) {
   const authError = await requireRole(req, UserRole.SUPER_ADMIN);
-  if (authError) return authError;
+  if (authError instanceof NextResponse) return authError;
   const cfg = await prisma.siteConfig.findUnique({
     where: { id: "singleton" },
     select: { googleClientId: true, googleClientSecret: true, googleRedirectUri: true, googleMapsApiKey: true },
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   const authError = await requireRole(req, UserRole.SUPER_ADMIN);
-  if (authError) return authError;
+  if (authError instanceof NextResponse) return authError;
   const body = await req.json() as { clientId?: string; clientSecret?: string; redirectUri?: string; mapsApiKey?: string };
   const data: Record<string, string | null> = {};
   if (typeof body.clientId === "string")    data.googleClientId    = body.clientId || null;

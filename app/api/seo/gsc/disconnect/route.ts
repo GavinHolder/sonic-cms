@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   const authError = await requireRole(req, UserRole.SUPER_ADMIN);
-  if (authError) return authError;
+  if (authError instanceof NextResponse) return authError;
 
   // Best-effort revocation at Google (logs warning on failure, does not throw)
   await revokeToken();

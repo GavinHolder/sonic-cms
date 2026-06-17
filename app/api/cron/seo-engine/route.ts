@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   const isCron = cronSecret && req.headers.get("authorization") === `Bearer ${cronSecret}`;
   if (!isCron) {
     const authError = await requireRole(req, UserRole.EDITOR);
-    if (authError) return authError;
+    if (authError instanceof NextResponse) return authError;
   }
 
   const startMs = Date.now();

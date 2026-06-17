@@ -18,7 +18,7 @@ const USERINFO_SCOPE  = "https://www.googleapis.com/auth/userinfo.email";
 
 export async function GET(req: NextRequest) {
   const authError = await requireRole(req, UserRole.SUPER_ADMIN);
-  if (authError) return authError;
+  if (authError instanceof NextResponse) return authError;
 
   const { clientId, redirectUri } = await getGoogleCredentials();
 

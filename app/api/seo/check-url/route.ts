@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   const authError = await requireRole(req, UserRole.EDITOR);
-  if (authError) return authError;
+  if (authError instanceof NextResponse) return authError;
 
   const url = req.nextUrl.searchParams.get("url");
   if (!url) {
