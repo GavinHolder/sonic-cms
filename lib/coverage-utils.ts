@@ -14,6 +14,26 @@ export function isPointInPolygon(point: LatLng, polygon: LatLng[]): boolean {
   return inside;
 }
 
+export interface CoveragePackage {
+  id: string;
+  name: string;
+  speedDown: string | null;
+  speedUp: string | null;
+  price: string;
+  period: string | null;
+  features: string[];
+  popular: boolean;
+}
+export interface CoverageNetworkResult {
+  id: string;
+  name: string;
+  slug: string;
+  category: "FNO" | "WISP" | "WIRELESS" | string;
+  color: string;
+  logoUrl: string | null;
+  regionNames: string[];
+  packages: CoveragePackage[];
+}
 export interface CoverageCheckResult {
   type: "fibre" | "wireless" | "miss";
   // fibre hit
@@ -26,4 +46,8 @@ export interface CoverageCheckResult {
     towerRef: string | null;
     description: string | null;
   }>;
+  // multi-network result (current format)
+  hit?: boolean;
+  networks?: CoverageNetworkResult[];
+  unlinkedRegionNames?: string[];
 }

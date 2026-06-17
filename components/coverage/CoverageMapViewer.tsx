@@ -60,7 +60,7 @@ interface Props {
   showGeolocation?: boolean;
   activeRegion?: string | null;
   onRegionClick?: (region: CoverageRegion) => void;
-  onCoverageResult?: (result: CoverageCheckResult) => void;
+  onCoverageResult?: (result: CoverageCheckResult, ctx?: { address: string; lat: number; lng: number }) => void;
   /** Float the search bar over the map (Google-Maps style) instead of above it,
    *  and make the map fill its container edge-to-edge. */
   floatingSearch?: boolean;
@@ -301,7 +301,7 @@ export default function CoverageMapViewer({
         body: JSON.stringify({ lat, lng }),
       });
       const result: CoverageCheckResult = await checkRes.json();
-      onCoverageResult(result);
+      onCoverageResult(result, { address: searchQuery.trim() || `${lat.toFixed(5)}, ${lng.toFixed(5)}`, lat, lng });
     }
   };
 
