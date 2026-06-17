@@ -4393,6 +4393,16 @@ function renderTypeProps(block) {
       break;
     }
     case 'card':
+      // Card content fields — render on the public page via the mosaic/legacy card
+      // renderer (heading/subheading/eyebrow/text/cardNumber/chips). Edits show in the
+      // live Preview tab; the canvas tile shows a generic placeholder.
+      h+=inputRow('Eyebrow',p.eyebrow||'',`updateBlockProp('${block.id}','eyebrow',this.value);renderCanvas()`,'Small label above heading');
+      h+=inputRow('Heading',p.heading||'',`updateBlockProp('${block.id}','heading',this.value);renderCanvas()`,'Card heading');
+      h+=inputRow('Subheading',p.subheading||'',`updateBlockProp('${block.id}','subheading',this.value);renderCanvas()`,'Card subheading');
+      h+=inputRow('Body Text',p.text||'',`updateBlockProp('${block.id}','text',this.value);renderCanvas()`,'Card body text');
+      h+=inputRow('Card Number',p.cardNumber||'',`updateBlockProp('${block.id}','cardNumber',this.value);renderCanvas()`,'e.g. 01');
+      h+=inputRow('Chips (comma-separated)',(p.chips||[]).join(', '),`updateBlockProp('${block.id}','chips',this.value.split(',').map(s=>s.trim()).filter(Boolean));renderCanvas()`,'Tag, Tag, Tag');
+      h+=`<div class="props-label" style="margin-top:8px;"><i class="bi bi-palette"></i> Card Style</div>`;
       h+=selectRow('Card Style',p.cardStyle||'shadow',[['shadow','Shadow'],['bordered','Bordered'],['flat','Flat'],['elevated','Elevated']],`updateBlockProp('${block.id}','cardStyle',this.value)`);
       h+=selectRow('Height Mode',p.heightMode||'fill',[['fill','Fill — stretch to row height'],['auto','Auto — wrap content only']],`updateBlockProp('${block.id}','heightMode',this.value)`);
       h+=colorRow('Background',p.bgColor||'transparent',`updateBlockProp('${block.id}','bgColor',this.value);renderCanvas()`);

@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import type { FlexibleSection, FlexibleElement, FlexibleAnimationType } from "@/types/section";
 import type { AnimBgConfig } from "@/lib/anim-bg/types";
 import { DEFAULT_ANIM_BG_CONFIG } from "@/lib/anim-bg/defaults";
+import { designerBlockToElement } from "@/lib/flexible/legacy-to-designer";
 import { animate } from "animejs";
 
 const AnimBgRenderer    = dynamic(() => import("./AnimBgRenderer"), { ssr: false });
@@ -1186,6 +1187,26 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
     const filteredBlocks = isScrollStage
       ? blocks.filter(b => (b.position?.section ?? 0) === scrollStageZone)
       : blocks;
+
+    // ── Mosaic layout mode (legacy parity) ────────────────────────────────
+    // designerData authored in mosaic mode — including payloads synthesised from a
+    // legacy `content.elements` mosaic section — renders through the SAME
+    // MosaicLayout / FlexibleElementRenderer used by the legacy `content.elements`
+    // path. Reusing the existing renderer guarantees byte-identical output (chips,
+    // card styles, gridAutoRows) with no duplicated layout/card code.
+    // Guard: only fires when mosaic is explicitly declared, so existing grid/preset/
+    // free designerData sections are completely unaffected.
+    if ((data.layout as { layoutMode?: string } | undefined)?.layoutMode === "mosaic" || data.layoutType === "mosaic") {
+      const mosaicEls = filteredBlocks.map((b) => designerBlockToElement(b));
+      const mLayout = data.layout as { gridAutoRows?: number; gridGap?: number } | undefined;
+      return (
+        <MosaicLayout
+          elements={mosaicEls}
+          layout={{ gridAutoRows: mLayout?.gridAutoRows, gridGap: mLayout?.gridGap }}
+          darkBg={darkBg}
+        />
+      );
+    }
 
     // ── Free / absolute positioning mode ──────────────────────────────────
     if (isFreeMode) {
