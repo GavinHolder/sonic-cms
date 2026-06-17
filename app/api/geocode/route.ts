@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getGoogleMapsApiKey } from "@/lib/google-credentials";
-import prisma from "@/lib/prisma";
-import { isEncryptionConfigured } from "@/lib/crypto";
 
 export const dynamic = "force-dynamic";
 
@@ -33,33 +31,7 @@ function precisionFromGeocode(r: any): Precision {
 
 export async function GET(req: NextRequest) {
   const key = await getGoogleMapsApiKey();
-  if (!key) {
-    // Safe diagnostic (no key value leaked — only length/booleans) so we can see
-    // why a saved key isn't reaching geocoding on a given deployment.
-    let dbKeyLen = 0;
-    let dbErr = "";
-    try {
-      const cfg = await prisma.siteConfig.findUnique({
-        where: { id: "singleton" },
-        select: { googleMapsApiKey: true },
-      });
-      dbKeyLen = cfg?.googleMapsApiKey ? String(cfg.googleMapsApiKey).length : 0;
-    } catch (e) {
-      dbErr = (e instanceof Error ? e.message : String(e)).slice(0, 120);
-    }
-    return NextResponse.json(
-      {
-        error: "geocoding-not-configured",
-        debug: {
-          dbKeyLen,
-          envKey: !!process.env.GOOGLE_MAPS_API_KEY,
-          encryptionConfigured: isEncryptionConfigured(),
-          dbErr,
-        },
-      },
-      { status: 503 },
-    );
-  }
+  if (!key) return NextResponse.json({ error: "geocoding-not-configured" }, { status: 503 });
 
   const sp = req.nextUrl.searchParams;
   const action = sp.get("action");
