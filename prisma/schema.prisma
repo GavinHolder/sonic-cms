@@ -80,6 +80,12 @@ model FormSubmission {
   data      Json
   userEmail String   @default("")
   status    String   @default("received")
+  // Coverage-check / lead categorization (null for ordinary contact submissions)
+  source         String? // e.g. "coverage_check", "contact"
+  leadCategory   String? // "FNO" | "WISP" | "WIRELESS" | "miss"
+  networkName    String?
+  packageName    String?
+  addressChecked String?
   createdAt DateTime @default(now())
   page      Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
 
@@ -446,11 +452,14 @@ model CoverageRegion {
   fnoProvider String?
   serviceSlug String?
   towerRef    String?
+  networkId   String?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   map         CoverageMap @relation(fields: [mapId], references: [id], onDelete: Cascade)
+  network     Network?    @relation(fields: [networkId], references: [id], onDelete: SetNull)
 
   @@index([mapId])
+  @@index([networkId])
   @@map("coverage_regions")
 }
 
@@ -493,6 +502,55 @@ model CoverageTower {
 
   @@index([mapId])
   @@map("coverage_towers")
+}
+
+enum NetworkCategory {
+  FNO
+  WISP
+  WIRELESS
+}
+
+// A distinct provider network (e.g. Internal FNO Fibre, Openserve, External FNO,
+// Wireless). Coverage polygons link to one; packages belong to one. Category drives
+// lead routing (FNO / WISP / Wireless).
+model Network {
+  id          String           @id @default(cuid())
+  name        String
+  slug        String           @unique
+  category    NetworkCategory  @default(FNO)
+  color       String           @default("#22c55e")
+  logoUrl     String?
+  description String?
+  isActive    Boolean          @default(true)
+  order       Int              @default(0)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  packages    Package[]
+  regions     CoverageRegion[]
+
+  @@map("networks")
+}
+
+// A package/plan offered by a Network. Shown on the coverage check when the
+// visitor's address falls inside one of the network's polygons.
+model Package {
+  id         String   @id @default(cuid())
+  networkId  String
+  name       String
+  speedDown  String?
+  speedUp    String?
+  price      String
+  period     String?  @default("/month")
+  features   Json     @default("[]")
+  popular    Boolean  @default(false)
+  isActive   Boolean  @default(true)
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  network    Network  @relation(fields: [networkId], references: [id], onDelete: Cascade)
+
+  @@index([networkId])
+  @@map("packages")
 }
 
 model Project {
