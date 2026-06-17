@@ -1,0 +1,319 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import AdminLayout from "@/components/admin/AdminLayout";
+import { useToast } from "@/components/admin/ToastProvider";
+import ConfirmDialog from "@/components/admin/ConfirmDialog";
+
+type Category = "FNO" | "WISP" | "WIRELESS";
+
+interface Pkg {
+  id: string;
+  name: string;
+  speedDown?: string | null;
+  speedUp?: string | null;
+  price: string;
+  period?: string | null;
+  features: string[];
+  popular: boolean;
+  isActive: boolean;
+  order: number;
+}
+interface Network {
+  id: string;
+  name: string;
+  slug: string;
+  category: Category;
+  color: string;
+  logoUrl?: string | null;
+  description?: string | null;
+  isActive: boolean;
+  order: number;
+  packages: Pkg[];
+  _count?: { regions: number };
+}
+
+const CATEGORY_BADGE: Record<Category, string> = {
+  FNO: "text-bg-primary",
+  WISP: "text-bg-info",
+  WIRELESS: "text-bg-success",
+};
+
+const slugify = (s: string) =>
+  s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+export default function NetworksAdminPage() {
+  return (
+    <AdminLayout
+      title="Networks & Packages"
+      subtitle="Provider networks (FNO / WISP / Wireless) and their packages — linked to coverage polygons"
+    >
+      <NetworksInner />
+    </AdminLayout>
+  );
+}
+
+// Inner component — rendered inside AdminLayout so useToast() has its provider.
+function NetworksInner() {
+  const toast = useToast();
+  const [networks, setNetworks] = useState<Network[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const [netModal, setNetModal] = useState<Partial<Network> | null>(null);
+  const [pkgModal, setPkgModal] = useState<{ networkId: string; pkg: Partial<Pkg> } | null>(null);
+  const [confirm, setConfirm] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await fetch("/api/networks");
+      if (r.ok) setNetworks(await r.json());
+      else toast.error("Failed to load networks");
+    } catch { toast.error("Failed to load networks"); }
+    finally { setLoading(false); }
+  }, [toast]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const toggle = (id: string) =>
+    setExpanded((p) => { const s = new Set(p); s.has(id) ? s.delete(id) : s.add(id); return s; });
+
+  // ── Network save ───────────────────────────────────────────────
+  const saveNetwork = async () => {
+    if (!netModal) return;
+    const isNew = !netModal.id;
+    const payload = {
+      name: netModal.name?.trim(),
+      slug: (netModal.slug || slugify(netModal.name || "")).trim(),
+      category: netModal.category || "FNO",
+      color: netModal.color || "#22c55e",
+      logoUrl: netModal.logoUrl || "",
+      description: netModal.description || "",
+      isActive: netModal.isActive ?? true,
+      order: netModal.order ?? 0,
+    };
+    if (!payload.name || !payload.slug) { toast.error("Name and slug required"); return; }
+    const res = await fetch(isNew ? "/api/networks" : `/api/networks/${netModal.id}`, {
+      method: isNew ? "POST" : "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) { toast.success(`Network ${isNew ? "created" : "updated"}`); setNetModal(null); load(); }
+    else toast.error("Save failed (slug may be taken)");
+  };
+
+  const deleteNetwork = (n: Network) =>
+    setConfirm({
+      title: "Delete network",
+      message: `Delete "${n.name}" and its ${n.packages.length} package(s)? Regions keep their data but unlink.`,
+      onConfirm: async () => {
+        const res = await fetch(`/api/networks/${n.id}`, { method: "DELETE" });
+        if (res.ok) { toast.success("Network deleted"); load(); } else toast.error("Delete failed");
+        setConfirm(null);
+      },
+    });
+
+  // ── Package save ───────────────────────────────────────────────
+  const savePackage = async () => {
+    if (!pkgModal) return;
+    const { networkId, pkg } = pkgModal;
+    const isNew = !pkg.id;
+    const payload = {
+      name: pkg.name?.trim(),
+      price: (pkg.price || "").trim(),
+      speedDown: pkg.speedDown || "",
+      speedUp: pkg.speedUp || "",
+      period: pkg.period ?? "/month",
+      features: pkg.features || [],
+      popular: pkg.popular ?? false,
+      isActive: pkg.isActive ?? true,
+      order: pkg.order ?? 0,
+    };
+    if (!payload.name || !payload.price) { toast.error("Name and price required"); return; }
+    const url = isNew
+      ? `/api/networks/${networkId}/packages`
+      : `/api/networks/${networkId}/packages/${pkg.id}`;
+    const res = await fetch(url, {
+      method: isNew ? "POST" : "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) { toast.success(`Package ${isNew ? "added" : "updated"}`); setPkgModal(null); load(); }
+    else toast.error("Save failed");
+  };
+
+  const deletePackage = (networkId: string, p: Pkg) =>
+    setConfirm({
+      title: "Delete package",
+      message: `Delete "${p.name}"?`,
+      onConfirm: async () => {
+        const res = await fetch(`/api/networks/${networkId}/packages/${p.id}`, { method: "DELETE" });
+        if (res.ok) { toast.success("Package deleted"); load(); } else toast.error("Delete failed");
+        setConfirm(null);
+      },
+    });
+
+  return (
+    <>
+      <div className="d-flex justify-content-end gap-2 mb-3">
+        <a href="/admin/features/coverage-maps" className="btn btn-outline-secondary btn-sm">
+          <i className="bi bi-map me-1" />Coverage Maps
+        </a>
+        <button className="btn btn-primary btn-sm" onClick={() => setNetModal({ category: "FNO", color: "#22c55e", isActive: true })}>
+          <i className="bi bi-plus-lg me-1" />Add Network
+        </button>
+      </div>
+      {loading ? (
+        <div className="text-center py-5"><div className="spinner-border text-primary" /></div>
+      ) : networks.length === 0 ? (
+        <div className="card shadow-sm"><div className="card-body text-center py-5">
+          <i className="bi bi-diagram-3 display-4 text-muted" style={{ opacity: 0.3 }} />
+          <h6 className="mt-3">No networks yet</h6>
+          <p className="text-muted small">Add your provider networks (e.g. Sonic Fibre, Openserve, Sonic Wireless), then attach packages and link them to coverage polygons.</p>
+        </div></div>
+      ) : (
+        <div className="d-flex flex-column gap-3">
+          {networks.map((n) => (
+            <div key={n.id} className="card shadow-sm">
+              <div className="card-body d-flex align-items-center gap-3 flex-wrap">
+                <span style={{ width: 18, height: 18, borderRadius: 4, background: n.color, flexShrink: 0 }} />
+                <div className="flex-grow-1" style={{ minWidth: 0 }}>
+                  <div className="d-flex align-items-center gap-2">
+                    <strong>{n.name}</strong>
+                    <span className={`badge ${CATEGORY_BADGE[n.category]}`}>{n.category}</span>
+                    {!n.isActive && <span className="badge text-bg-warning">Hidden</span>}
+                  </div>
+                  <small className="text-muted font-monospace">{n.slug}</small>
+                </div>
+                <div className="text-muted small text-nowrap">
+                  {n.packages.length} pkg · {n._count?.regions ?? 0} polygon{(n._count?.regions ?? 0) !== 1 ? "s" : ""}
+                </div>
+                <div className="d-flex gap-1">
+                  <button className="btn btn-sm btn-outline-secondary" onClick={() => toggle(n.id)}>
+                    <i className={`bi bi-chevron-${expanded.has(n.id) ? "up" : "down"}`} /> Packages
+                  </button>
+                  <button className="btn btn-sm btn-outline-primary" onClick={() => setNetModal(n)} title="Edit"><i className="bi bi-pencil" /></button>
+                  <button className="btn btn-sm btn-outline-danger" onClick={() => deleteNetwork(n)} title="Delete"><i className="bi bi-trash" /></button>
+                </div>
+              </div>
+
+              {expanded.has(n.id) && (
+                <div className="card-body border-top bg-light">
+                  <div className="d-flex justify-content-between align-items-center mb-2">
+                    <h6 className="mb-0">Packages</h6>
+                    <button className="btn btn-sm btn-primary" onClick={() => setPkgModal({ networkId: n.id, pkg: { period: "/month", features: [], isActive: true } })}>
+                      <i className="bi bi-plus-lg me-1" />Add Package
+                    </button>
+                  </div>
+                  {n.packages.length === 0 ? (
+                    <p className="text-muted small mb-0">No packages yet.</p>
+                  ) : (
+                    <div className="table-responsive">
+                      <table className="table table-sm align-middle mb-0">
+                        <thead><tr><th>Name</th><th>Speed</th><th>Price</th><th>Features</th><th></th></tr></thead>
+                        <tbody>
+                          {n.packages.map((p) => (
+                            <tr key={p.id}>
+                              <td>{p.name} {p.popular && <span className="badge text-bg-warning ms-1">Popular</span>} {!p.isActive && <span className="badge text-bg-secondary ms-1">Hidden</span>}</td>
+                              <td className="small text-muted">{[p.speedDown, p.speedUp].filter(Boolean).join(" / ") || "—"}</td>
+                              <td className="text-nowrap">{p.price}<span className="text-muted small">{p.period}</span></td>
+                              <td className="small text-muted">{(p.features || []).length} feature(s)</td>
+                              <td className="text-end text-nowrap">
+                                <button className="btn btn-sm btn-outline-primary me-1" onClick={() => setPkgModal({ networkId: n.id, pkg: p })}><i className="bi bi-pencil" /></button>
+                                <button className="btn btn-sm btn-outline-danger" onClick={() => deletePackage(n.id, p)}><i className="bi bi-trash" /></button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Network modal */}
+      {netModal && (
+        <div className="modal d-block" style={{ background: "rgba(0,0,0,0.5)" }} onClick={() => setNetModal(null)}>
+          <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content">
+              <div className="modal-header"><h5 className="modal-title">{netModal.id ? "Edit" : "Add"} Network</h5>
+                <button className="btn-close" onClick={() => setNetModal(null)} /></div>
+              <div className="modal-body d-flex flex-column gap-3">
+                <div><label className="form-label">Name</label>
+                  <input className="form-control" value={netModal.name || ""} onChange={(e) => setNetModal({ ...netModal, name: e.target.value, slug: netModal.id ? netModal.slug : slugify(e.target.value) })} placeholder="e.g. Sonic Fibre" /></div>
+                <div><label className="form-label">Slug</label>
+                  <input className="form-control font-monospace" value={netModal.slug || ""} onChange={(e) => setNetModal({ ...netModal, slug: slugify(e.target.value) })} /></div>
+                <div className="row">
+                  <div className="col"><label className="form-label">Category</label>
+                    <select className="form-select" value={netModal.category || "FNO"} onChange={(e) => setNetModal({ ...netModal, category: e.target.value as Category })}>
+                      <option value="FNO">FNO (Fibre)</option><option value="WISP">WISP</option><option value="WIRELESS">Wireless</option>
+                    </select></div>
+                  <div className="col-auto"><label className="form-label">Colour</label>
+                    <input type="color" className="form-control form-control-color" value={netModal.color || "#22c55e"} onChange={(e) => setNetModal({ ...netModal, color: e.target.value })} /></div>
+                </div>
+                <div><label className="form-label">Logo URL <span className="text-muted">(optional)</span></label>
+                  <input className="form-control" value={netModal.logoUrl || ""} onChange={(e) => setNetModal({ ...netModal, logoUrl: e.target.value })} placeholder="/uploads/logo.png" /></div>
+                <div><label className="form-label">Description <span className="text-muted">(optional)</span></label>
+                  <textarea className="form-control" rows={2} value={netModal.description || ""} onChange={(e) => setNetModal({ ...netModal, description: e.target.value })} /></div>
+                <div className="form-check form-switch"><input className="form-check-input" type="checkbox" id="net-active" checked={netModal.isActive ?? true} onChange={(e) => setNetModal({ ...netModal, isActive: e.target.checked })} />
+                  <label className="form-check-label" htmlFor="net-active">Active</label></div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setNetModal(null)}>Cancel</button>
+                <button className="btn btn-primary" onClick={saveNetwork}>Save</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Package modal */}
+      {pkgModal && (
+        <div className="modal d-block" style={{ background: "rgba(0,0,0,0.5)" }} onClick={() => setPkgModal(null)}>
+          <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content">
+              <div className="modal-header"><h5 className="modal-title">{pkgModal.pkg.id ? "Edit" : "Add"} Package</h5>
+                <button className="btn-close" onClick={() => setPkgModal(null)} /></div>
+              <div className="modal-body d-flex flex-column gap-3">
+                <div><label className="form-label">Name</label>
+                  <input className="form-control" value={pkgModal.pkg.name || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, name: e.target.value } })} placeholder="e.g. Home 50/50" /></div>
+                <div className="row">
+                  <div className="col"><label className="form-label">Down</label>
+                    <input className="form-control" value={pkgModal.pkg.speedDown || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, speedDown: e.target.value } })} placeholder="50 Mbps" /></div>
+                  <div className="col"><label className="form-label">Up</label>
+                    <input className="form-control" value={pkgModal.pkg.speedUp || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, speedUp: e.target.value } })} placeholder="50 Mbps" /></div>
+                </div>
+                <div className="row">
+                  <div className="col"><label className="form-label">Price</label>
+                    <input className="form-control" value={pkgModal.pkg.price || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, price: e.target.value } })} placeholder="R599" /></div>
+                  <div className="col"><label className="form-label">Period</label>
+                    <input className="form-control" value={pkgModal.pkg.period ?? "/month"} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, period: e.target.value } })} /></div>
+                </div>
+                <div><label className="form-label">Features <span className="text-muted">(one per line)</span></label>
+                  <textarea className="form-control font-monospace" rows={4} value={(pkgModal.pkg.features || []).join("\n")} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, features: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean) } })} placeholder={"Uncapped\nFree router\n24/7 support"} /></div>
+                <div className="d-flex gap-4">
+                  <div className="form-check form-switch"><input className="form-check-input" type="checkbox" id="pkg-popular" checked={pkgModal.pkg.popular ?? false} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, popular: e.target.checked } })} /><label className="form-check-label" htmlFor="pkg-popular">Popular</label></div>
+                  <div className="form-check form-switch"><input className="form-check-input" type="checkbox" id="pkg-active" checked={pkgModal.pkg.isActive ?? true} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, isActive: e.target.checked } })} /><label className="form-check-label" htmlFor="pkg-active">Active</label></div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setPkgModal(null)}>Cancel</button>
+                <button className="btn btn-primary" onClick={savePackage}>Save</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirm && (
+        <ConfirmDialog isOpen title={confirm.title} message={confirm.message} variant="danger" confirmText="Delete"
+          onConfirm={confirm.onConfirm} onCancel={() => setConfirm(null)} />
+      )}
+    </>
+  );
+}
