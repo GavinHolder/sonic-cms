@@ -26,7 +26,7 @@ export async function POST(
 
   const { id } = await params;
   const body = await request.json();
-  const { name, polygon, color, opacity, strokeColor, strokeWidth, description, order, regionType, fnoProvider, serviceSlug, towerRef } = body;
+  const { name, polygon, color, opacity, strokeColor, strokeWidth, description, order, regionType, fnoProvider, serviceSlug, towerRef, networkId } = body;
 
   if (!name) return NextResponse.json({ error: "name is required" }, { status: 400 });
 
@@ -45,6 +45,7 @@ export async function POST(
       fnoProvider: fnoProvider ?? null,
       serviceSlug: serviceSlug ?? null,
       towerRef: towerRef ?? null,
+      networkId: networkId || null,
     },
   });
   return NextResponse.json(region, { status: 201 });

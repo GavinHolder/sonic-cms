@@ -28,6 +28,7 @@ export async function PUT(
       ...(body.fnoProvider !== undefined && { fnoProvider: body.fnoProvider }),
       ...(body.serviceSlug !== undefined && { serviceSlug: body.serviceSlug }),
       ...(body.towerRef !== undefined && { towerRef: body.towerRef }),
+      ...(body.networkId !== undefined && { networkId: body.networkId || null }),
     },
   });
   return NextResponse.json(region);

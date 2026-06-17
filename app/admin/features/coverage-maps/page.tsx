@@ -23,7 +23,10 @@ interface CoverageRegion {
   fnoProvider: string | null;
   serviceSlug: string | null;
   towerRef: string | null;
+  networkId: string | null;
 }
+
+interface NetworkOption { id: string; name: string; category: string; color: string; }
 
 interface CoverageTower {
   id: string; mapId: string;
@@ -71,6 +74,7 @@ function CoverageMapsInner() {
   // Region form
   const [showRegionForm, setShowRegionForm] = useState(false);
   const [editingRegion, setEditingRegion] = useState<Partial<CoverageRegion> | null>(null);
+  const [networks, setNetworks] = useState<NetworkOption[]>([]);
   const [regionSaving, setRegionSaving] = useState(false);
 
   // Polygon editor
@@ -105,6 +109,12 @@ function CoverageMapsInner() {
   };
 
   useEffect(() => { loadMaps(); }, []);
+  useEffect(() => {
+    fetch("/api/networks")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => setNetworks(Array.isArray(d) ? d.map((n: NetworkOption) => ({ id: n.id, name: n.name, category: n.category, color: n.color })) : []))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (selectedMapId) {
@@ -174,7 +184,7 @@ function CoverageMapsInner() {
       mapId: selectedMapId ?? "",
       name: "", polygon: [], color: "#22c55e", opacity: 0.4,
       strokeColor: "#16a34a", strokeWidth: 2, description: "", isActive: true, order: 0,
-      regionType: "GENERAL", fnoProvider: "", serviceSlug: "", towerRef: "",
+      regionType: "GENERAL", fnoProvider: "", serviceSlug: "", towerRef: "", networkId: "",
     });
     setShowRegionForm(true);
   };
@@ -186,6 +196,7 @@ function CoverageMapsInner() {
       fnoProvider: region.fnoProvider ?? "",
       serviceSlug: region.serviceSlug ?? "",
       towerRef: region.towerRef ?? "",
+      networkId: region.networkId ?? "",
     });
     setShowRegionForm(true);
   };
@@ -208,6 +219,7 @@ function CoverageMapsInner() {
           fnoProvider: editingRegion.regionType === "FIBRE" ? (editingRegion.fnoProvider || null) : null,
           serviceSlug: editingRegion.regionType === "WIRELESS" ? (editingRegion.serviceSlug || null) : null,
           towerRef: editingRegion.regionType === "WIRELESS" ? (editingRegion.towerRef || null) : null,
+          networkId: editingRegion.networkId || null,
         }),
         }
       );
@@ -812,6 +824,23 @@ function CoverageMapsInner() {
                       <option value="FIBRE">Fibre</option>
                       <option value="WIRELESS">Wireless</option>
                     </select>
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold small">Provider Network</label>
+                    <select
+                      className="form-select form-select-sm"
+                      value={editingRegion.networkId ?? ""}
+                      onChange={(e) => setEditingRegion((prev) => ({ ...prev!, networkId: e.target.value }))}
+                    >
+                      <option value="">— None —</option>
+                      {networks.map((n) => (
+                        <option key={n.id} value={n.id}>{n.name} ({n.category})</option>
+                      ))}
+                    </select>
+                    <div className="form-text">
+                      Links this polygon to a network &amp; its packages.{" "}
+                      <a href="/admin/features/networks" target="_blank" rel="noopener noreferrer">Manage networks →</a>
+                    </div>
                   </div>
                   {editingRegion.regionType === "FIBRE" && (
                     <div className="mb-3">
