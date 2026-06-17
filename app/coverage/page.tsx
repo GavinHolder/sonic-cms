@@ -12,9 +12,10 @@ export async function generateMetadata(): Promise<Metadata> {
 export const dynamic = "force-dynamic";
 
 export default async function CoveragePage() {
-  // Feature gate — disabled by default
+  // Feature gate — disabled by default. Slug must match the feature system
+  // (admin Client Features + sidebar use "coverage-maps", plural).
   const feature = await prisma.clientFeature.findUnique({
-    where: { slug: "coverage-map" },
+    where: { slug: "coverage-maps" },
   });
   if (!feature?.enabled) notFound();
 
