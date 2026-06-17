@@ -332,6 +332,42 @@ const FLEXIBLE_CSS = `
     transition: transform 0.45s cubic-bezier(0.33, 1, 0.68, 1);
   }
   .photo-card-block:hover .photo-card-hover { transform: translateY(0); }
+
+  /* ── Marquee / animated stat strip ──────────────────────────────────────── */
+  .flex-marquee {
+    position: relative; overflow: hidden; width: 100%;
+    border-top: 1px solid var(--cms-line, rgba(255,255,255,0.10));
+    border-bottom: 1px solid var(--cms-line, rgba(255,255,255,0.10));
+    padding: 18px 0;
+  }
+  .flex-marquee-track {
+    display: flex; width: max-content; white-space: nowrap;
+    animation-name: flex-marquee-scroll;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+    will-change: transform;
+  }
+  .flex-marquee:hover .flex-marquee-track.pause { animation-play-state: paused; }
+  @keyframes flex-marquee-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  @media (prefers-reduced-motion: reduce) { .flex-marquee-track { animation: none; } }
+  .flex-marquee-item {
+    display: inline-flex; align-items: center; gap: 28px; padding: 0 28px;
+    font-family: var(--theme-font-display, 'Archivo Black'), sans-serif;
+    text-transform: uppercase; font-size: 15px; letter-spacing: 0.05em;
+    color: var(--section-muted, rgba(255,255,255,0.6));
+  }
+  .flex-marquee-item--stat {
+    flex-direction: row; align-items: baseline; gap: 10px; text-transform: none;
+  }
+  .flex-marquee-item--stat .mq-v {
+    font-family: var(--theme-font-display, 'Archivo Black'), sans-serif;
+    font-size: clamp(22px, 2.4vw, 34px); line-height: 1; color: var(--section-text, #fff);
+  }
+  .flex-marquee-item--stat .mq-l {
+    font-family: var(--theme-font-mono, 'JetBrains Mono'), monospace;
+    font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+  }
+  .flex-marquee-sep { color: var(--theme-red, #E31E24); font-size: 11px; }
 `;
 
 /** Mosaic size preset → [colSpan, rowSpan] */
@@ -677,6 +713,7 @@ function FlexibleElementRenderer({ element, darkBg }: { element: FlexibleElement
 
   switch (element.type) {
     case "steps": return <StepsBlock c={c} tc={tc} />;
+    case "marquee": return <MarqueeBlock c={c} />;
     case "pricing-tabs": return <PricingTabsBlock content={c as Record<string, unknown>} darkBg={darkBg} />;
     case "photo-strip": return <PhotoStripBlock c={c} />;
     case "stats": return (
@@ -804,6 +841,52 @@ function PhotoStripBlock({ c }: { c: FlexibleElement["content"] }) {
           }}
         />
       ))}
+    </div>
+  );
+}
+
+/**
+ * MarqueeBlock — animated horizontal strip (the design's town/stat marquee).
+ * Items duplicated once so a -50% translate loops seamlessly. Speed (seconds),
+ * direction (left/right via animation-direction), pause-on-hover and separator
+ * glyph are all author-configurable. Respects prefers-reduced-motion (CSS).
+ */
+function MarqueeBlock({ c }: { c: FlexibleElement["content"] }) {
+  const items = c.marqueeItems || [];
+  if (items.length === 0) return null;
+  const speed = c.marqueeSpeed ?? 36;
+  const direction = c.marqueeDirection === "right" ? "reverse" : "normal";
+  const pause = c.marqueePauseOnHover !== false;
+  const style = c.marqueeStyle ?? "town";
+  const sep = c.marqueeSeparator ?? "star";
+  const sepGlyph = sep === "star" ? "✦" : sep === "dot" ? "•" : sep === "bar" ? "|" : "";
+  // Duplicate the list so translateX(-50%) wraps seamlessly
+  const loop = [...items, ...items];
+
+  return (
+    <div className="flex-marquee">
+      <div
+        className={`flex-marquee-track${pause ? " pause" : ""}`}
+        style={{ animationDuration: `${speed}s`, animationDirection: direction }}
+      >
+        {loop.map((it, i) => (
+          <span
+            key={i}
+            className={`flex-marquee-item${style === "stat" ? " flex-marquee-item--stat" : ""}`}
+            aria-hidden={i >= items.length ? true : undefined}
+          >
+            {style === "stat" && it.value ? (
+              <>
+                <span className="mq-v">{it.value}</span>
+                <span className="mq-l">{it.label}</span>
+              </>
+            ) : (
+              it.label
+            )}
+            {sepGlyph && <span className="flex-marquee-sep" aria-hidden="true">{sepGlyph}</span>}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1832,6 +1915,17 @@ function DesignerBlock({ block, darkBg }: {
       // ── photo-strip: horizontal strip of background images ───────────────────
       case "photo-strip":
         return <PhotoStripBlock c={{ photoStripImages: p.images as any, photoStripHeight: p.height as any, photoStripGap: p.gap as any, photoStripHoverBrightness: p.hoverBrightness as any, photoStripColumns: p.columns as any }} />;
+
+      // ── marquee: animated horizontal stat/town strip ─────────────────────────
+      case "marquee":
+        return <MarqueeBlock c={{
+          marqueeItems: p.marqueeItems as any,
+          marqueeSpeed: p.marqueeSpeed as any,
+          marqueeDirection: p.marqueeDirection as any,
+          marqueePauseOnHover: p.marqueePauseOnHover as any,
+          marqueeSeparator: p.marqueeSeparator as any,
+          marqueeStyle: p.marqueeStyle as any,
+        }} />;
 
       case "contact-form":
         return <ContactFormBlock p={p} darkBg={darkBg} />;
@@ -2887,12 +2981,23 @@ function isThemeToken(value?: string): boolean {
  * highlight one word per heading from a plain text field. Returns the raw string
  * unchanged when no marker is present.
  */
+/**
+ * renderAccentText — inline markup in headings/labels:
+ *   **word**  → red accent  (.cms-accent)
+ *   __word__  → outlined / hollow letters (.cms-outline — transparent fill + stroke)
+ * Both can be mixed in one string. Plain text returns unchanged.
+ */
 function renderAccentText(text: string): React.ReactNode {
-  if (!text || text.indexOf("**") === -1) return text;
-  const parts = text.split(/\*\*([^*]+)\*\*/g);
-  return parts.map((part, i) =>
-    i % 2 === 1 ? <span key={i} className="cms-accent">{part}</span> : part
-  );
+  if (!text || (text.indexOf("**") === -1 && text.indexOf("__") === -1)) return text;
+  // Split while KEEPING the delimited tokens so order is preserved.
+  const parts = text.split(/(\*\*[^*]+\*\*|__[^_]+__)/g);
+  return parts.map((part, i) => {
+    const accent = part.match(/^\*\*([^*]+)\*\*$/);
+    if (accent) return <span key={i} className="cms-accent">{accent[1]}</span>;
+    const outline = part.match(/^__([^_]+)__$/);
+    if (outline) return <span key={i} className="cms-outline">{outline[1]}</span>;
+    return part;
+  });
 }
 
 function isDarkBackground(background?: string): boolean {

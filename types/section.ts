@@ -638,7 +638,7 @@ export interface FlexibleSection extends BaseSectionConfig {
  */
 export interface FlexibleElement {
   id: string;
-  type: "hero" | "text" | "image" | "video" | "banner" | "button" | "card" | "stats" | "divider" | "html" | "isp-price-card" | "steps" | "photo-strip";
+  type: "hero" | "text" | "image" | "video" | "banner" | "button" | "card" | "stats" | "divider" | "html" | "isp-price-card" | "steps" | "photo-strip" | "marquee";
   // Position (grid-based OR absolute)
   position: {
     mode: "grid" | "absolute";
@@ -779,6 +779,15 @@ export interface FlexibleElement {
     photoStripGap?: number;            // px (default: 4)
     photoStripHoverBrightness?: boolean;
     photoStripColumns?: number;        // default: auto (fills evenly)
+    // ── Marquee / stat strip (animated horizontal scroll) ──
+    // Generic strip: each item shows an optional big `value` (display font) + `label`.
+    // "town" style renders label only (uppercase). "stat" style renders value over label.
+    marqueeItems?: { value?: string; label: string }[];
+    marqueeSpeed?: number;                       // seconds per loop (default 36; lower = faster)
+    marqueeDirection?: "left" | "right";         // scroll direction (default "left")
+    marqueePauseOnHover?: boolean;               // default true
+    marqueeSeparator?: "star" | "dot" | "bar" | "none"; // glyph between items (default "star" = red ✦)
+    marqueeStyle?: "town" | "stat";              // "town" = label only uppercase; "stat" = value + label
     // ── Divider ──
     dividerType?: "line" | "dots" | "gradient" | "wave";
     dividerHeight?: number;

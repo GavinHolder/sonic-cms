@@ -48,6 +48,13 @@ export async function PATCH(req: NextRequest) {
     const v = body.mapsApiKey.trim();
     data.googleMapsApiKey = v ? (isEncryptionConfigured() ? encrypt(v) : v) : null;
   }
-  await prisma.siteConfig.update({ where: { id: "singleton" }, data });
+  // upsert (not update): on a deployment whose singleton row was never created,
+  // a plain update throws P2025 and the saved value (e.g. the Maps API key) is
+  // silently lost. upsert creates the row on first save instead.
+  await prisma.siteConfig.upsert({
+    where: { id: "singleton" },
+    update: data,
+    create: { id: "singleton", ...data },
+  });
   return NextResponse.json({ ok: true });
 }

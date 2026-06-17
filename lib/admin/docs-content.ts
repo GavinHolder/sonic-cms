@@ -981,6 +981,8 @@ The block panel on the left contains **16 element types**. **Card, Banner, and S
 - **card (numbered)** — Any card can show a large **ghost outline number** by setting \`cardNumber\` (e.g. "01"); it fills red on hover. Cards also accept a **chips** array to render a row of pill tags (e.g. a list of towns or features). Non-image text cards are now vertically centred.
 - **card content fields** — A card's **Eyebrow / Heading / Subheading / Body / Card Number / Chips** are editable directly in the Designer's card properties panel (chips are entered comma-separated). These render via the mosaic/card renderer and show in the live Preview tab.
 - **legacy sections open automatically** — Sections authored before the Designer (stored as legacy elements + a mosaic layout) now load straight into the canvas instead of showing blank. Edit them and **Save & Close** to convert the section to standard Designer data — the public page renders identically before and after.
+- **marquee** — An animated horizontal strip (the moving "stat strip" / town ticker). Drag the **Marquee** block in; in Properties choose **Style** (Town = uppercase labels, Stat = value + label), **Direction** (left ← / right →), **Speed** (seconds per loop — lower is faster), **Separator** (✦ / • / | / none), **Pause on hover**, and the **Items** (one per line; for Stat style use \`value | label\`). Honours \`prefers-reduced-motion\`.
+- **outlined text** — In any heading you can make part of the text **hollow/outlined** (transparent fill + stroke in the current colour) by wrapping it in double underscores: \`Reliably serviced. __No excuses.__\`. This sits alongside the red-accent marker \`**word**\`. Both work in section headings and card headings.
 
 ---
 

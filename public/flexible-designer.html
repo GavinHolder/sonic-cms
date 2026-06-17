@@ -1353,6 +1353,11 @@
                 <div class="ec-name">Photo Strip</div>
                 <span class="ec-badge container">Block</span>
               </div>
+              <div class="element-card" draggable="true" ondragstart="onLibDragStart(event,'marquee')">
+                <div class="ec-icon">🎞️</div>
+                <div class="ec-name">Marquee</div>
+                <span class="ec-badge container">Block</span>
+              </div>
             </div>
 
             <!-- Sub-elements -->
@@ -1620,6 +1625,7 @@ const BLOCK_DEFAULTS = {
   editorial:   { label:'Editorial', text:'Start typing your editorial content here. This text will flow around any obstacle images you place in the block. You can use multiple obstacles — each with its own position, size, and alpha hull tracing for precise text wrapping.', fontFamily:'Merriweather', fontSize:18, lineHeight:1.6, textColor:'#212529', bgColor:'transparent', obstacles:[], customCss:'' },
   steps:       { label:'Steps', steps:[{number:'01',heading:'Discovery',subtext:'We analyse your requirements and technical constraints.'},{number:'02',heading:'Design',subtext:'We prototype and validate the solution with stakeholders.'},{number:'03',heading:'Build',subtext:'We implement, test, and deploy the solution.'}], stepsNumberWidth:100, stepsDividers:true, stepsLastDivider:false, customCss:'' },
   'photo-strip':{ label:'Photo Strip', images:[{src:'',alt:''},{src:'',alt:''},{src:'',alt:''}], columns:3, height:220, gap:4, hoverBrightness:true, customCss:'' },
+  marquee:     { label:'Marquee', marqueeStyle:'town', marqueeDirection:'left', marqueeSpeed:36, marqueeSeparator:'star', marqueePauseOnHover:true, marqueeItems:[{label:'Kleinmond'},{label:'Hermanus'},{label:'Caledon'},{label:'Grabouw'}], customCss:'' },
 };
 
 const SUB_DEFAULTS = {
@@ -2709,6 +2715,15 @@ function createBlockPreview(block) {
       }
       psHtml += '</div>';
       wrap.innerHTML = psHtml;
+      break;
+    }
+    case 'marquee': {
+      var mqi = p.marqueeItems || [];
+      var mqHtml = mqi.slice(0,8).map(function(it){
+        var txt = it.value ? (it.value + ' ' + it.label) : it.label;
+        return '<span style="font-family:var(--display,sans-serif);text-transform:uppercase;font-size:11px;letter-spacing:.05em;opacity:.7;white-space:nowrap;">' + escHtml(txt) + '<span style="color:#E31E24;margin-left:8px;">✦</span></span>';
+      }).join('');
+      wrap.innerHTML = '<div style="display:flex;align-items:center;gap:20px;height:100%;padding:0 12px;overflow:hidden;border-top:1px solid rgba(255,255,255,0.12);border-bottom:1px solid rgba(255,255,255,0.12);">' + (mqHtml || '<span style="opacity:.5;font-size:11px;">Marquee — add items in Properties</span>') + '</div>';
       break;
     }
     default:
@@ -4656,6 +4671,18 @@ function renderTypeProps(block) {
         </div>`;
       });
       h+=`</div>`;
+      break;
+    }
+    case 'marquee': {
+      var mqItems = p.marqueeItems || [];
+      var mqText = mqItems.map(function(it){ return it.value ? (it.value + ' | ' + it.label) : it.label; }).join('\n');
+      h+=selectRow('Style', p.marqueeStyle||'town', [['town','Town — label only (uppercase)'],['stat','Stat — value + label']], `updateBlockProp('${block.id}','marqueeStyle',this.value);renderCanvas()`);
+      h+=selectRow('Direction', p.marqueeDirection||'left', [['left','Left  ←'],['right','Right  →']], `updateBlockProp('${block.id}','marqueeDirection',this.value);renderCanvas()`);
+      h+=`<div class="props-row"><label>Speed (sec / loop)</label><input class="props-input" type="range" min="8" max="80" step="1" value="${p.marqueeSpeed||36}" oninput="updateBlockProp('${block.id}','marqueeSpeed',parseInt(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'s'"><span class="val">${p.marqueeSpeed||36}s</span></div>`;
+      h+=selectRow('Separator', p.marqueeSeparator||'star', [['star','Star ✦ (red)'],['dot','Dot •'],['bar','Bar |'],['none','None']], `updateBlockProp('${block.id}','marqueeSeparator',this.value);renderCanvas()`);
+      h+=`<div class="props-row" style="align-items:center;"><label style="flex:1;">Pause on hover</label><input type="checkbox" style="width:18px;height:18px;cursor:pointer;" ${p.marqueePauseOnHover!==false?'checked':''} onchange="updateBlockProp('${block.id}','marqueePauseOnHover',this.checked)"></div>`;
+      h+=`<div style="margin-top:8px;"><label style="font-size:11px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Items — one per line${(p.marqueeStyle==='stat')?' (value | label)':''}</label>
+        <textarea class="props-input" rows="6" style="font-family:monospace;font-size:12px;width:100%;" placeholder="${(p.marqueeStyle==='stat')?'1000+ | Clients connected':'Kleinmond'}" oninput="updateBlockProp('${block.id}','marqueeItems', this.value.split('\\n').map(function(l){var s=l.split('|');return s.length>1?{value:s[0].trim(),label:s.slice(1).join('|').trim()}:{label:l.trim()};}).filter(function(x){return x.label;}));renderCanvas()">${escHtml(mqText)}</textarea></div>`;
       break;
     }
   }

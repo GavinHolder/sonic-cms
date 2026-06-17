@@ -817,6 +817,14 @@ input[type="checkbox"] {
 /* Inline accent word in headings — authored as **word** in heading text */
 .cms-accent { color: var(--theme-red, #dc2626); }
 
+/* Inline OUTLINED (hollow) word in headings — authored as __word__ in heading text.
+   Transparent fill + stroke in the current text colour, matching the Sonic .out treatment. */
+.cms-outline {
+  -webkit-text-fill-color: transparent; /* hollow glyphs — keeps `color` for the stroke */
+  -webkit-text-stroke: 1.6px currentColor;
+  text-stroke: 1.6px currentColor;
+}
+
 /* Decorative section watermark — oversized faded number/word, top-right */
 .cms-section-watermark {
   position: absolute;
