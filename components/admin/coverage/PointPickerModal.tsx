@@ -66,7 +66,9 @@ export default function PointPickerModal({
       });
       const startLat = initialLat ?? centerLat;
       const startLng = initialLng ?? centerLng;
-      const map = L.map(mapRef.current!, { center: [startLat, startLng], zoom: defaultZoom, scrollWheelZoom: true });
+      // Zoom control bottom-left so it doesn't sit under the address search box (top-left)
+      const map = L.map(mapRef.current!, { center: [startLat, startLng], zoom: defaultZoom, scrollWheelZoom: true, zoomControl: false });
+      L.control.zoom({ position: "bottomleft" }).addTo(map);
       const osm = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', maxZoom: 19,
       });
