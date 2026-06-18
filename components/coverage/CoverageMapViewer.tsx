@@ -123,11 +123,16 @@ export default function CoverageMapViewer({
         dragging: floatingSearch ? true : !("ontouchstart" in window),
       });
 
-      // OpenStreetMap tile layer
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      // Base layers — street map + satellite imagery, toggle in the corner
+      const osm = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         maxZoom: 19,
-      }).addTo(map);
+      });
+      const sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+        attribution: "Imagery &copy; Esri", maxZoom: 19,
+      });
+      osm.addTo(map);
+      L.control.layers({ "Map": osm, "Satellite": sat }, {}, { position: "topright", collapsed: false }).addTo(map);
 
       // Click-to-place: clicking the map reverse-geocodes the point to a real address
       if (showSearch) {

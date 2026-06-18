@@ -55,10 +55,15 @@ export default function PolygonEditorModal({
         scrollWheelZoom: true,
       });
 
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      const osm = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         maxZoom: 19,
-      }).addTo(map);
+      });
+      const sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+        attribution: "Imagery &copy; Esri", maxZoom: 19,
+      });
+      osm.addTo(map);
+      L.control.layers({ "Map": osm, "Satellite": sat }, {}, { position: "topright", collapsed: false }).addTo(map);
 
       // Draw layer group
       const drawnItems = new L.FeatureGroup();
