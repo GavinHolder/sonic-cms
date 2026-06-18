@@ -10,6 +10,10 @@ const PolygonEditorModal = dynamic(
   () => import("@/components/admin/coverage/PolygonEditorModal"),
   { ssr: false }
 );
+const PointPickerModal = dynamic(
+  () => import("@/components/admin/coverage/PointPickerModal"),
+  { ssr: false }
+);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -86,6 +90,7 @@ function CoverageMapsInner() {
   // Tower management
   const [towers, setTowers] = useState<CoverageTower[]>([]);
   const [newTower, setNewTower] = useState({ name: "", lat: "", lng: "", description: "" });
+  const [showTowerPicker, setShowTowerPicker] = useState(false);
   const [addingTower, setAddingTower] = useState(false);
 
   // Label form
@@ -646,18 +651,18 @@ function CoverageMapsInner() {
                 {/* Add tower form */}
                 <div style={{ padding: 16, background: "#f9fafb", borderRadius: 8, border: "1px solid #e5e7eb" }}>
                   <p style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 12 }}>Add Tower</p>
-                  <div className="row g-2 mb-2">
+                  <div className="row g-2 mb-2 align-items-center">
                     <div className="col-6">
                       <input className="form-control form-control-sm" placeholder="Tower name *"
                         value={newTower.name} onChange={(e) => setNewTower((t) => ({ ...t, name: e.target.value }))} />
                     </div>
-                    <div className="col-3">
-                      <input className="form-control form-control-sm" placeholder="Lat *"
-                        value={newTower.lat} onChange={(e) => setNewTower((t) => ({ ...t, lat: e.target.value }))} />
-                    </div>
-                    <div className="col-3">
-                      <input className="form-control form-control-sm" placeholder="Lng *"
-                        value={newTower.lng} onChange={(e) => setNewTower((t) => ({ ...t, lng: e.target.value }))} />
+                    <div className="col-6 d-flex align-items-center gap-2">
+                      <button type="button" className="btn btn-sm btn-outline-success text-nowrap" onClick={() => setShowTowerPicker(true)}>
+                        <i className="bi bi-geo-alt me-1" />{newTower.lat && newTower.lng ? "Change location" : "Pick on map"}
+                      </button>
+                      <span style={{ fontSize: 12, fontFamily: "monospace", color: newTower.lat ? "#16a34a" : "#9ca3af" }}>
+                        {newTower.lat && newTower.lng ? `${parseFloat(newTower.lat).toFixed(5)}, ${parseFloat(newTower.lng).toFixed(5)}` : "no location set"}
+                      </span>
                     </div>
                   </div>
                   <div className="mb-2">
@@ -1121,6 +1126,21 @@ function CoverageMapsInner() {
           strokeColor={polyEditorRegion.strokeColor}
           onSave={savePolygon}
           onClose={() => setPolyEditorOpen(false)}
+        />
+      )}
+
+      {/* ── Tower location picker ──────────────────────────────────────────────── */}
+      {showTowerPicker && selectedMap && (
+        <PointPickerModal
+          show={showTowerPicker}
+          title={`Place tower${newTower.name ? ` — ${newTower.name}` : ""}`}
+          centerLat={selectedMap.centerLat}
+          centerLng={selectedMap.centerLng}
+          defaultZoom={selectedMap.defaultZoom}
+          initialLat={newTower.lat ? parseFloat(newTower.lat) : null}
+          initialLng={newTower.lng ? parseFloat(newTower.lng) : null}
+          onSave={(lat, lng) => { setNewTower((t) => ({ ...t, lat: String(lat), lng: String(lng) })); setShowTowerPicker(false); }}
+          onClose={() => setShowTowerPicker(false)}
         />
       )}
     </div>
