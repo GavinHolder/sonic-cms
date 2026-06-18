@@ -927,10 +927,15 @@ function CoverageMapsInner() {
                         <label className="form-label fw-semibold small">Tower Reference</label>
                         <input
                           type="text" className="form-control form-control-sm"
-                          placeholder="Tower name or ID"
+                          list="region-tower-list"
+                          placeholder={towers.length ? "Search existing towers…" : "No towers yet — add them in the Towers tab"}
                           value={editingRegion.towerRef ?? ""}
                           onChange={(e) => setEditingRegion((prev) => ({ ...prev!, towerRef: e.target.value }))}
                         />
+                        <datalist id="region-tower-list">
+                          {towers.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
+                        </datalist>
+                        <div className="form-text">Pick an existing tower (type to search) or enter a reference.</div>
                       </div>
                     </>
                   )}
