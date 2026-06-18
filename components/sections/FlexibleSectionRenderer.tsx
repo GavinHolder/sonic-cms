@@ -1,12 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useEffect, useRef, useState, useCallback, useId } from "react";
+import { useEffect, useRef, useState, useCallback, useId, useMemo } from "react";
 import dynamic from "next/dynamic";
 import type { FlexibleSection, FlexibleElement, FlexibleAnimationType } from "@/types/section";
 import type { AnimBgConfig } from "@/lib/anim-bg/types";
 import { DEFAULT_ANIM_BG_CONFIG } from "@/lib/anim-bg/defaults";
 import { designerBlockToElement } from "@/lib/flexible/legacy-to-designer";
+import { resolvePackageTokens, type PackageLike } from "@/lib/packages/tokens";
 import { animate } from "animejs";
 
 const AnimBgRenderer    = dynamic(() => import("./AnimBgRenderer"), { ssr: false });
@@ -19,6 +20,7 @@ const ScrollStoryBlock         = dynamic(() => import("@/components/sections/blo
 const EditorialBlock           = dynamic(() => import("@/components/sections/blocks/EditorialBlock"), { ssr: false });
 const PricingTabsBlock         = dynamic(() => import("@/components/sections/blocks/PricingTabsBlock"), { ssr: false });
 const GalleryCtaBlock          = dynamic(() => import("@/components/sections/blocks/GalleryCtaBlock"), { ssr: false });
+const PackagesBlock            = dynamic(() => import("@/components/sections/blocks/PackagesBlock"), { ssr: false });
 
 interface FlexibleSectionRendererProps {
   section: FlexibleSection;
@@ -714,6 +716,7 @@ function FlexibleElementRenderer({ element, darkBg }: { element: FlexibleElement
   switch (element.type) {
     case "steps": return <StepsBlock c={c} tc={tc} />;
     case "marquee": return <MarqueeBlock c={c} />;
+    case "packages": return <PackagesBlock networkSlug={c.networkSlug} columns={c.packageColumns} darkBg={darkBg} />;
     case "pricing-tabs": return <PricingTabsBlock content={c as Record<string, unknown>} darkBg={darkBg} />;
     case "photo-strip": return <PhotoStripBlock c={c} />;
     case "stats": return (
@@ -1222,6 +1225,26 @@ function canvasRefW(block: { pixelPos?: PixelPos; tabletPos?: PixelPos; mobilePo
  * Tracks window width via state so blocks re-position correctly across breakpoints.
  * Renders a graceful error message if designerData fails to parse.
  */
+// Resolve {{pkg.*}} tokens in a block's string props (+ string-array items like
+// chips) and its sub-elements' props, using the block's bound package. Used for the
+// mosaic render path (designerBlockToElement) so card heading/subheading/chips bind.
+function resolveBlockTokens<T extends { props?: Record<string, unknown>; subElements?: SubEl[] }>(block: T, pkg: PackageLike | null | undefined): T {
+  if (!pkg) return block;
+  const resolveProps = (props?: Record<string, unknown>) => props
+    ? Object.fromEntries(Object.entries(props).map(([k, v]) => [
+        k,
+        typeof v === "string" ? resolvePackageTokens(v, pkg)
+          : Array.isArray(v) ? v.map((x) => (typeof x === "string" ? resolvePackageTokens(x, pkg) : x))
+          : v,
+      ]))
+    : props;
+  return {
+    ...block,
+    props: resolveProps(block.props),
+    subElements: block.subElements?.map((s) => ({ ...s, props: resolveProps(s.props) as Record<string, unknown> })),
+  };
+}
+
 function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { designerData: string | Record<string, unknown>; darkBg: boolean; scrollStageZone?: number }) {
   // Hooks must be called before any conditional returns
   const [screenW, setScreenW] = useState(typeof window !== "undefined" ? window.innerWidth : 1440);
@@ -1231,6 +1254,30 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
     window.addEventListener("resize", onResize, { passive: true });
     return () => window.removeEventListener("resize", onResize);
   }, []);
+
+  // ── Coverage-plugin package binding ───────────────────────────────────────
+  // Collect every package referenced by a bound card, fetch them once, and expose
+  // a map so {{pkg.*}} tokens resolve in the mosaic render path.
+  const packageIds = useMemo(() => {
+    try {
+      const d = typeof designerData === "string" ? JSON.parse(designerData) : designerData;
+      const ids = new Set<string>();
+      for (const b of ((d?.blocks as Array<{ props?: { packageId?: string } }>) || [])) {
+        if (b?.props?.packageId) ids.add(String(b.props.packageId));
+      }
+      return [...ids];
+    } catch { return []; }
+  }, [designerData]);
+  const [packageMap, setPackageMap] = useState<Record<string, PackageLike>>({});
+  useEffect(() => {
+    if (packageIds.length === 0) { setPackageMap({}); return; }
+    let alive = true;
+    fetch(`/api/packages?ids=${packageIds.join(",")}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive && d?.packages) setPackageMap(Object.fromEntries((d.packages as PackageLike[]).map((pp) => [pp.id, pp]))); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [packageIds]);
 
   try {
     const data = typeof designerData === 'string' ? JSON.parse(designerData) : designerData;
@@ -1280,7 +1327,10 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
     // Guard: only fires when mosaic is explicitly declared, so existing grid/preset/
     // free designerData sections are completely unaffected.
     if ((data.layout as { layoutMode?: string } | undefined)?.layoutMode === "mosaic" || data.layoutType === "mosaic") {
-      const mosaicEls = filteredBlocks.map((b) => designerBlockToElement(b));
+      const mosaicEls = filteredBlocks.map((b) => {
+        const pkg = b.props?.packageId ? packageMap[String(b.props.packageId)] : null;
+        return designerBlockToElement(resolveBlockTokens(b, pkg));
+      });
       const mLayout = data.layout as { gridAutoRows?: number; gridGap?: number } | undefined;
       return (
         <MosaicLayout
@@ -1478,6 +1528,21 @@ function DesignerBlock({ block, darkBg }: {
   const tc = "var(--section-text)";
   const subs = block.subElements || [];
 
+  // ── Card → Package binding ────────────────────────────────────────────────
+  // When a card is bound to a package, fetch it so {{pkg.*}} tokens in the card's
+  // label / sub-element text resolve to live values at render.
+  const boundPackageId = (p.packageId as string | undefined) || undefined;
+  const [boundPkg, setBoundPkg] = useState<PackageLike | null>(null);
+  useEffect(() => {
+    if (!boundPackageId) { setBoundPkg(null); return; }
+    let alive = true;
+    fetch(`/api/packages?ids=${encodeURIComponent(boundPackageId)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive) setBoundPkg(d?.packages?.[0] ?? null); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [boundPackageId]);
+
   // ── Stats countUp animation ──────────────────────────────────────────────
   // Triggered once when the stats block first enters the viewport.
   // Extracts the leading numeric part from p.number (e.g. "20+" → 20, "15" → 15)
@@ -1627,8 +1692,8 @@ function DesignerBlock({ block, darkBg }: {
             display: "flex", flexDirection: "column", gap: blockGap,
             ...blockPadding("24px", "24px"),
           }}>
-            {!!p.label && <h3 style={{ fontSize: "18px", fontWeight: 600, margin: 0 }}>{p.label as string}</h3>}
-            {subs.map((sub, i) => <DesignerSubElement key={i} sub={sub} />)}
+            {!!p.label && <h3 style={{ fontSize: "18px", fontWeight: 600, margin: 0 }}>{resolvePackageTokens(p.label as string, boundPkg)}</h3>}
+            {subs.map((sub, i) => <DesignerSubElement key={i} sub={sub} pkg={boundPkg} />)}
           </div>
         );
       }
@@ -1927,6 +1992,9 @@ function DesignerBlock({ block, darkBg }: {
           marqueeStyle: p.marqueeStyle as any,
         }} />;
 
+      case "packages":
+        return <PackagesBlock networkSlug={p.networkSlug as string | undefined} columns={p.packageColumns as number | undefined} heading={p.heading as string | undefined} darkBg={darkBg} />;
+
       case "contact-form":
         return <ContactFormBlock p={p} darkBg={darkBg} />;
 
@@ -2031,12 +2099,17 @@ function DesignerBlock({ block, darkBg }: {
  * - Per-element entrance animations (countUp, zoomIn, pulse, fadeIn, slideUp,
  *   bounceIn, blurIn, typewriter) triggered on first viewport intersection
  */
-function DesignerSubElement({ sub }: { sub: SubEl }) {
+function DesignerSubElement({ sub, pkg }: { sub: SubEl; pkg?: PackageLike | null }) {
   const uid    = useId();
   // Sanitise the React useId string (contains colons) for use as a CSS class name
   const scopeClass = `dsub-${uid.replace(/:/g, "")}`;
   const styleRef   = useRef<HTMLStyleElement>(null);
-  const p      = sub.props || {};
+  const rawP   = sub.props || {};
+  // When the parent card is bound to a package, resolve {{pkg.*}} tokens in any
+  // string prop (text, etc.) so sub-elements render live package values.
+  const p: Record<string, unknown> = pkg
+    ? Object.fromEntries(Object.entries(rawP).map(([k, v]) => [k, typeof v === "string" ? resolvePackageTokens(v, pkg) : v]))
+    : rawP;
 
   // ── Animation props ───────────────────────────────────────────────────────
   const animEffect   = (p.animEffect   as string) || "none";

@@ -1358,6 +1358,11 @@
                 <div class="ec-name">Marquee</div>
                 <span class="ec-badge container">Block</span>
               </div>
+              <div class="element-card" draggable="true" ondragstart="onLibDragStart(event,'packages')">
+                <div class="ec-icon">📶</div>
+                <div class="ec-name">Packages</div>
+                <span class="ec-badge container">Block</span>
+              </div>
             </div>
 
             <!-- Sub-elements -->
@@ -1626,6 +1631,7 @@ const BLOCK_DEFAULTS = {
   steps:       { label:'Steps', steps:[{number:'01',heading:'Discovery',subtext:'We analyse your requirements and technical constraints.'},{number:'02',heading:'Design',subtext:'We prototype and validate the solution with stakeholders.'},{number:'03',heading:'Build',subtext:'We implement, test, and deploy the solution.'}], stepsNumberWidth:100, stepsDividers:true, stepsLastDivider:false, customCss:'' },
   'photo-strip':{ label:'Photo Strip', images:[{src:'',alt:''},{src:'',alt:''},{src:'',alt:''}], columns:3, height:220, gap:4, hoverBrightness:true, customCss:'' },
   marquee:     { label:'Marquee', marqueeStyle:'town', marqueeDirection:'left', marqueeSpeed:36, marqueeSeparator:'star', marqueePauseOnHover:true, marqueeItems:[{label:'Kleinmond'},{label:'Hermanus'},{label:'Caledon'},{label:'Grabouw'}], customCss:'' },
+  packages:    { label:'Packages', networkSlug:'', packageColumns:3, heading:'', customCss:'' },
 };
 
 const SUB_DEFAULTS = {
@@ -1920,8 +1926,18 @@ function loadNavOptions() {
 // ═══════════════════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════════════════
+// Coverage-plugin networks + packages, for the Packages block + card→package binding.
+window.__networks = [];
+function loadNetworks() {
+  fetch('/api/networks', { credentials: 'include' })
+    .then(r => r.ok ? r.json() : [])
+    .then(d => { window.__networks = Array.isArray(d) ? d : []; })
+    .catch(() => {});
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   loadNavOptions();
+  loadNetworks();
   // Only restore autosave when running standalone (not embedded in admin iframe).
   // When embedded, FLEXIBLE_DESIGNER_INIT provides the correct per-section data —
   // loading the shared autosave here would briefly flash stale data from the last
@@ -2724,6 +2740,20 @@ function createBlockPreview(block) {
         return '<span style="font-family:var(--display,sans-serif);text-transform:uppercase;font-size:11px;letter-spacing:.05em;opacity:.7;white-space:nowrap;">' + escHtml(txt) + '<span style="color:#E31E24;margin-left:8px;">✦</span></span>';
       }).join('');
       wrap.innerHTML = '<div style="display:flex;align-items:center;gap:20px;height:100%;padding:0 12px;overflow:hidden;border-top:1px solid rgba(255,255,255,0.12);border-bottom:1px solid rgba(255,255,255,0.12);">' + (mqHtml || '<span style="opacity:.5;font-size:11px;">Marquee — add items in Properties</span>') + '</div>';
+      break;
+    }
+    case 'packages': {
+      var pkNet = (window.__networks || []).find(function(n){ return n.slug === p.networkSlug; });
+      var pkCols = p.packageColumns || 3;
+      var pkCards = '';
+      for (var pk=0; pk<pkCols; pk++) {
+        pkCards += '<div style="flex:1;border:1px solid rgba(255,255,255,0.14);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:6px;"><div style="font-family:var(--display,sans-serif);font-size:13px;">Package</div><div style="font-size:11px;opacity:.6;">100 / 100 Mbps</div><div style="font-family:var(--display,sans-serif);font-size:20px;">R—</div></div>';
+      }
+      wrap.innerHTML = '<div style="padding:10px 4px;">' +
+        '<div style="font-size:11px;color:#E31E24;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;">📶 Live Packages' + (pkNet ? ' — ' + escHtml(pkNet.name) : ' — pick a network') + '</div>' +
+        (p.heading ? '<div style="font-family:var(--display,sans-serif);text-transform:uppercase;font-size:18px;margin-bottom:10px;">' + escHtml(p.heading) + '</div>' : '') +
+        '<div style="display:flex;gap:10px;">' + pkCards + '</div>' +
+        '<div style="font-size:10px;opacity:.45;margin-top:8px;">Renders this network\'s packages live on the site</div></div>';
       break;
     }
     default:
@@ -4417,6 +4447,14 @@ function renderTypeProps(block) {
       h+=inputRow('Body Text',p.text||'',`updateBlockProp('${block.id}','text',this.value);renderCanvas()`,'Card body text');
       h+=inputRow('Card Number',p.cardNumber||'',`updateBlockProp('${block.id}','cardNumber',this.value);renderCanvas()`,'e.g. 01');
       h+=inputRow('Chips (comma-separated)',(p.chips||[]).join(', '),`updateBlockProp('${block.id}','chips',this.value.split(',').map(s=>s.trim()).filter(Boolean));renderCanvas()`,'Tag, Tag, Tag');
+      // ── Bind to Package (coverage plugin) ──
+      h+=`<div class="props-label" style="margin-top:8px;"><i class="bi bi-broadcast"></i> Bind to Package</div>`;
+      { var _cnets = window.__networks || [];
+        var _pkgOpts = [['','— None —']];
+        _cnets.forEach(function(n){ (n.packages||[]).forEach(function(pk){ _pkgOpts.push([pk.id, n.name+' — '+pk.name]); }); });
+        h+=selectRow('Package',p.packageId||'',_pkgOpts,`updateBlockProp('${block.id}','packageId',this.value);renderCanvas()`);
+        h+=`<div style="font-size:11px;color:#9ca3af;padding:4px 0 2px;line-height:1.6;">Bind, then use tokens in the fields above:<br><code>{{pkg.name}}</code> <code>{{pkg.price}}</code> <code>{{pkg.period}}</code> <code>{{pkg.speed}}</code> <code>{{pkg.speedDown}}</code> <code>{{pkg.speedUp}}</code> <code>{{pkg.features}}</code></div>`;
+      }
       h+=`<div class="props-label" style="margin-top:8px;"><i class="bi bi-palette"></i> Card Style</div>`;
       h+=selectRow('Card Style',p.cardStyle||'shadow',[['shadow','Shadow'],['bordered','Bordered'],['flat','Flat'],['elevated','Elevated']],`updateBlockProp('${block.id}','cardStyle',this.value)`);
       h+=selectRow('Height Mode',p.heightMode||'fill',[['fill','Fill — stretch to row height'],['auto','Auto — wrap content only']],`updateBlockProp('${block.id}','heightMode',this.value)`);
@@ -4683,6 +4721,15 @@ function renderTypeProps(block) {
       h+=`<div class="props-row" style="align-items:center;"><label style="flex:1;">Pause on hover</label><input type="checkbox" style="width:18px;height:18px;cursor:pointer;" ${p.marqueePauseOnHover!==false?'checked':''} onchange="updateBlockProp('${block.id}','marqueePauseOnHover',this.checked)"></div>`;
       h+=`<div style="margin-top:8px;"><label style="font-size:11px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Items — one per line${(p.marqueeStyle==='stat')?' (value | label)':''}</label>
         <textarea class="props-input" rows="6" style="font-family:monospace;font-size:12px;width:100%;" placeholder="${(p.marqueeStyle==='stat')?'1000+ | Clients connected':'Kleinmond'}" oninput="updateBlockProp('${block.id}','marqueeItems', this.value.split('\\n').map(function(l){var s=l.split('|');return s.length>1?{value:s[0].trim(),label:s.slice(1).join('|').trim()}:{label:l.trim()};}).filter(function(x){return x.label;}));renderCanvas()">${escHtml(mqText)}</textarea></div>`;
+      break;
+    }
+    case 'packages': {
+      var _pnets = window.__networks || [];
+      var _netOpts = [['','— Pick a network —']].concat(_pnets.map(function(n){ return [n.slug, n.name+' ('+n.category+')']; }));
+      h+=selectRow('Network', p.networkSlug||'', _netOpts, `updateBlockProp('${block.id}','networkSlug',this.value);renderCanvas()`);
+      h+=selectRow('Columns', String(p.packageColumns||3), [['1','1'],['2','2'],['3','3'],['4','4']], `updateBlockProp('${block.id}','packageColumns',parseInt(this.value));renderCanvas()`);
+      h+=inputRow('Heading (optional)', p.heading||'', `updateBlockProp('${block.id}','heading',this.value);renderCanvas()`,'Section heading');
+      h+=`<div style="font-size:11px;color:#9ca3af;padding:6px 0;line-height:1.6;">Renders this network's active packages live on the site. Manage them in <strong>Plugins → Coverage Maps → Networks &amp; Packages</strong>.${_pnets.length?'':'<br><em>No networks loaded yet — create one first.</em>'}</div>`;
       break;
     }
   }

@@ -638,7 +638,7 @@ export interface FlexibleSection extends BaseSectionConfig {
  */
 export interface FlexibleElement {
   id: string;
-  type: "hero" | "text" | "image" | "video" | "banner" | "button" | "card" | "stats" | "divider" | "html" | "isp-price-card" | "steps" | "photo-strip" | "marquee";
+  type: "hero" | "text" | "image" | "video" | "banner" | "button" | "card" | "stats" | "divider" | "html" | "isp-price-card" | "steps" | "photo-strip" | "marquee" | "packages";
   // Position (grid-based OR absolute)
   position: {
     mode: "grid" | "absolute";
@@ -788,6 +788,12 @@ export interface FlexibleElement {
     marqueePauseOnHover?: boolean;               // default true
     marqueeSeparator?: "star" | "dot" | "bar" | "none"; // glyph between items (default "star" = red ✦)
     marqueeStyle?: "town" | "stat";              // "town" = label only uppercase; "stat" = value + label
+    // ── Packages (coverage plugin) ──
+    // Card bound to a package: packageId → {{pkg.*}} tokens in card fields resolve live.
+    packageId?: string;
+    // Packages grid block: render a network's packages as cards.
+    networkSlug?: string;
+    packageColumns?: number;
     // ── Divider ──
     dividerType?: "line" | "dots" | "gradient" | "wave";
     dividerHeight?: number;
