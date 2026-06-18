@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/components/admin/ToastProvider";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
+import ImageFieldWithUpload from "@/components/admin/ImageFieldWithUpload";
 
 type Category = "FNO" | "WISP" | "WIRELESS";
 
@@ -17,6 +18,7 @@ interface Pkg {
   popular: boolean;
   isActive: boolean;
   order: number;
+  maxDistanceM?: number | null;
 }
 interface Network {
   id: string;
@@ -115,7 +117,8 @@ export default function NetworksManager() {
       speedDown: pkg.speedDown || "",
       speedUp: pkg.speedUp || "",
       period: pkg.period ?? "/month",
-      features: pkg.features || [],
+      features: (pkg.features || []).map((s) => s.trim()).filter(Boolean),
+      maxDistanceM: pkg.maxDistanceM ?? null,
       popular: pkg.popular ?? false,
       isActive: pkg.isActive ?? true,
       order: pkg.order ?? 0,
@@ -246,8 +249,13 @@ export default function NetworksManager() {
                   <div className="col-auto"><label className="form-label">Colour</label>
                     <input type="color" className="form-control form-control-color" value={netModal.color || "#22c55e"} onChange={(e) => setNetModal({ ...netModal, color: e.target.value })} /></div>
                 </div>
-                <div><label className="form-label">Logo URL <span className="text-muted">(optional)</span></label>
-                  <input className="form-control" value={netModal.logoUrl || ""} onChange={(e) => setNetModal({ ...netModal, logoUrl: e.target.value })} placeholder="/uploads/logo.png" /></div>
+                <ImageFieldWithUpload
+                  label="Logo (optional)"
+                  value={netModal.logoUrl || ""}
+                  onChange={(url) => setNetModal({ ...netModal, logoUrl: url })}
+                  helpText="Browse the Media Library or upload — shown on the coverage result cards."
+                  previewMaxHeight="60px"
+                />
                 <div><label className="form-label">Description <span className="text-muted">(optional)</span></label>
                   <textarea className="form-control" rows={2} value={netModal.description || ""} onChange={(e) => setNetModal({ ...netModal, description: e.target.value })} /></div>
                 <div className="form-check form-switch"><input className="form-check-input" type="checkbox" id="net-active" checked={netModal.isActive ?? true} onChange={(e) => setNetModal({ ...netModal, isActive: e.target.checked })} />
@@ -284,8 +292,24 @@ export default function NetworksManager() {
                   <div className="col"><label className="form-label">Period</label>
                     <input className="form-control" value={pkgModal.pkg.period ?? "/month"} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, period: e.target.value } })} /></div>
                 </div>
-                <div><label className="form-label">Features <span className="text-muted">(one per line)</span></label>
-                  <textarea className="form-control font-monospace" rows={4} value={(pkgModal.pkg.features || []).join("\n")} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, features: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean) } })} placeholder={"Uncapped\nFree router\n24/7 support"} /></div>
+                <div><label className="form-label">Features</label>
+                  {(pkgModal.pkg.features || []).map((f, i) => (
+                    <div key={i} className="d-flex gap-2 mb-2">
+                      <input className="form-control" value={f} placeholder="e.g. Uncapped"
+                        onChange={(e) => { const next = [...(pkgModal.pkg.features || [])]; next[i] = e.target.value; setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, features: next } }); }} />
+                      <button type="button" className="btn btn-outline-danger" title="Remove"
+                        onClick={() => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, features: (pkgModal.pkg.features || []).filter((_, j) => j !== i) } })}>
+                        <i className="bi bi-x-lg" />
+                      </button>
+                    </div>
+                  ))}
+                  <button type="button" className="btn btn-sm btn-outline-secondary"
+                    onClick={() => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, features: [...(pkgModal.pkg.features || []), ""] } })}>
+                    <i className="bi bi-plus-lg me-1" />Add feature
+                  </button></div>
+                <div><label className="form-label">Max distance from tower <span className="text-muted">(metres — leave blank for no limit)</span></label>
+                  <input className="form-control" type="number" min={0} value={pkgModal.pkg.maxDistanceM ?? ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, maxDistanceM: e.target.value === "" ? null : parseInt(e.target.value, 10) } })} placeholder="e.g. 100 — only offered within 100m of a tower" />
+                  <div className="form-text">Only show this package when the address is within this distance of one of the network&apos;s towers. Draws a ring around each tower on the map.</div></div>
                 <div className="d-flex gap-4">
                   <div className="form-check form-switch"><input className="form-check-input" type="checkbox" id="pkg-popular" checked={pkgModal.pkg.popular ?? false} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, popular: e.target.checked } })} /><label className="form-check-label" htmlFor="pkg-popular">Popular</label></div>
                   <div className="form-check form-switch"><input className="form-check-input" type="checkbox" id="pkg-active" checked={pkgModal.pkg.isActive ?? true} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, isActive: e.target.checked } })} /><label className="form-check-label" htmlFor="pkg-active">Active</label></div>

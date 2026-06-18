@@ -19,6 +19,7 @@ export async function PUT(
       ...(body.speedUp !== undefined && { speedUp: body.speedUp || null }),
       ...(body.period !== undefined && { period: body.period }),
       ...(body.features !== undefined && { features: Array.isArray(body.features) ? body.features : [] }),
+      ...(body.maxDistanceM !== undefined && { maxDistanceM: typeof body.maxDistanceM === "number" ? body.maxDistanceM : null }),
       ...(body.popular !== undefined && { popular: body.popular }),
       ...(body.isActive !== undefined && { isActive: body.isActive }),
       ...(body.order !== undefined && { order: body.order }),

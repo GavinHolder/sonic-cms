@@ -496,11 +496,14 @@ model CoverageTower {
   lng         Float
   description String?
   isActive    Boolean     @default(true)
+  networkId   String?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   map         CoverageMap @relation(fields: [mapId], references: [id], onDelete: Cascade)
+  network     Network?    @relation(fields: [networkId], references: [id], onDelete: SetNull)
 
   @@index([mapId])
+  @@index([networkId])
   @@map("coverage_towers")
 }
 
@@ -527,6 +530,7 @@ model Network {
   updatedAt   DateTime         @updatedAt
   packages    Package[]
   regions     CoverageRegion[]
+  towers      CoverageTower[]
 
   @@map("networks")
 }
@@ -545,6 +549,9 @@ model Package {
   popular    Boolean  @default(false)
   isActive   Boolean  @default(true)
   order      Int      @default(0)
+  // Max distance (metres) from a tower of this package's network for it to be
+  // offered. null = no distance limit (available anywhere in the polygon).
+  maxDistanceM Int?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   network    Network  @relation(fields: [networkId], references: [id], onDelete: Cascade)

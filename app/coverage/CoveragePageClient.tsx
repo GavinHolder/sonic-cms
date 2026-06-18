@@ -30,9 +30,12 @@ function MapSkeleton() {
   );
 }
 
-interface Props { initialMaps: CoverageMapData[]; }
+interface Props {
+  initialMaps: CoverageMapData[];
+  networkRadii?: Record<string, { color: string; distances: number[] }>;
+}
 
-export default function CoveragePageClient({ initialMaps }: Props) {
+export default function CoveragePageClient({ initialMaps, networkRadii }: Props) {
   const [maps] = useState<CoverageMapData[]>(initialMaps);
   const [activeMapId, setActiveMapId] = useState<string>(initialMaps[0]?.id ?? "");
   const [result, setResult] = useState<CoverageCheckResult | null>(null);
@@ -106,7 +109,7 @@ export default function CoveragePageClient({ initialMaps }: Props) {
       )}
 
       {activeMap ? (
-        <CoverageMapViewer mapData={activeMap as never} height="100%" floatingSearch showSearch showGeolocation onCoverageResult={handleResult} />
+        <CoverageMapViewer mapData={activeMap as never} height="100%" floatingSearch showSearch showGeolocation onCoverageResult={handleResult} networkRadii={networkRadii} />
       ) : (
         <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#9ca3af" }}>
           <div style={{ textAlign: "center" }}><i className="bi bi-map" style={{ fontSize: 48, display: "block", marginBottom: 16 }} /><h3 style={{ color: "#fff" }}>No coverage maps available</h3></div>
@@ -166,7 +169,9 @@ export default function CoveragePageClient({ initialMaps }: Props) {
                       <div key={n.id}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                           <span style={{ width: 12, height: 12, borderRadius: 3, background: n.color }} />
-                          <strong style={{ fontSize: 14 }}>{n.name}</strong>
+                          {n.logoUrl
+                            ? <img src={n.logoUrl} alt={n.name} style={{ height: 22, maxWidth: 130, objectFit: "contain" }} />
+                            : <strong style={{ fontSize: 14 }}>{n.name}</strong>}
                           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#E31E24", border: "1px solid rgba(227,30,36,0.4)", borderRadius: 99, padding: "2px 8px" }}>
                             {CATEGORY_LABEL[n.category] ?? n.category}
                           </span>

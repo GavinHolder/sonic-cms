@@ -31,11 +31,12 @@ export async function POST(
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
-  const { name, lat, lng, description } = body as {
+  const { name, lat, lng, description, networkId } = body as {
     name?: unknown;
     lat?: unknown;
     lng?: unknown;
     description?: unknown;
+    networkId?: unknown;
   };
   if (!name || typeof lat !== "number" || typeof lng !== "number") {
     return NextResponse.json({ error: "name, lat, lng required" }, { status: 400 });
@@ -47,6 +48,7 @@ export async function POST(
       lat,
       lng,
       description: typeof description === "string" ? description : null,
+      networkId: typeof networkId === "string" && networkId ? networkId : null,
     },
   });
   return NextResponse.json(tower, { status: 201 });

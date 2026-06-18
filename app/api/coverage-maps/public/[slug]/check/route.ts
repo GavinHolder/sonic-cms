@@ -38,6 +38,7 @@ export async function POST(
           },
         },
       },
+      towers: { where: { isActive: true }, select: { lat: true, lng: true, networkId: true } },
     },
   });
   if (!map) {
@@ -48,6 +49,21 @@ export async function POST(
   const matched = map.regions.filter((r) =>
     isPointInPolygon(point, r.polygon as Array<{ lat: number; lng: number }>)
   );
+
+  // Nearest tower (of a given network) to the checked point, in metres.
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const haversineM = (aLat: number, aLng: number, bLat: number, bLng: number) => {
+    const R = 6371000;
+    const dLat = toRad(bLat - aLat), dLng = toRad(bLng - aLng);
+    const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(s));
+  };
+  const towers = map.towers || [];
+  const nearestTowerM = (networkId: string) => {
+    const ts = towers.filter((t) => t.networkId === networkId);
+    if (ts.length === 0) return Infinity;
+    return Math.min(...ts.map((t) => haversineM(point.lat, point.lng, t.lat, t.lng)));
+  };
 
   // ── Group matched regions by network (dedupe), each with its packages ────────
   const byNetwork = new Map<string, {
@@ -61,13 +77,18 @@ export async function POST(
     if (r.network) {
       const n = r.network;
       if (!byNetwork.has(n.id)) {
+        // Distance gate: a package with maxDistanceM only shows when the point is
+        // within that distance of one of this network's towers.
+        const distM = nearestTowerM(n.id);
         byNetwork.set(n.id, {
           id: n.id, name: n.name, slug: n.slug, category: n.category, color: n.color, logoUrl: n.logoUrl,
           regionNames: [],
-          packages: n.packages.map((p) => ({
-            id: p.id, name: p.name, speedDown: p.speedDown, speedUp: p.speedUp,
-            price: p.price, period: p.period, features: p.features, popular: p.popular,
-          })),
+          packages: n.packages
+            .filter((p) => p.maxDistanceM == null || distM <= p.maxDistanceM)
+            .map((p) => ({
+              id: p.id, name: p.name, speedDown: p.speedDown, speedUp: p.speedUp,
+              price: p.price, period: p.period, features: p.features, popular: p.popular,
+            })),
         });
       }
       byNetwork.get(n.id)!.regionNames.push(r.name);

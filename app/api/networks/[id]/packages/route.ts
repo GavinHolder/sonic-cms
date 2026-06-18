@@ -24,6 +24,7 @@ export async function POST(
       speedUp: body.speedUp || null,
       period: body.period ?? "/month",
       features: Array.isArray(body.features) ? body.features : [],
+      maxDistanceM: typeof body.maxDistanceM === "number" ? body.maxDistanceM : null,
       popular: body.popular ?? false,
       isActive: body.isActive ?? true,
       order: body.order ?? 0,

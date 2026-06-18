@@ -29,7 +29,18 @@ export default async function CoveragePage() {
     orderBy: { createdAt: "asc" },
   });
 
+  // Per-network tower radius rings — distinct package distances, for the map overlay
+  const networks = await prisma.network.findMany({
+    where: { isActive: true },
+    select: { id: true, color: true, packages: { where: { isActive: true, maxDistanceM: { not: null } }, select: { maxDistanceM: true } } },
+  });
+  const networkRadii: Record<string, { color: string; distances: number[] }> = {};
+  for (const n of networks) {
+    const distances = [...new Set(n.packages.map((p) => p.maxDistanceM as number))].sort((a, b) => a - b);
+    if (distances.length) networkRadii[n.id] = { color: n.color, distances };
+  }
+
   // Cast Prisma JsonValue polygon to typed LatLng[] for the client component
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return <CoveragePageClient initialMaps={maps as any} />;
+  return <CoveragePageClient initialMaps={maps as any} networkRadii={networkRadii} />;
 }

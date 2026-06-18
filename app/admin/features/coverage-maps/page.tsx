@@ -89,7 +89,7 @@ function CoverageMapsInner() {
 
   // Tower management
   const [towers, setTowers] = useState<CoverageTower[]>([]);
-  const [newTower, setNewTower] = useState({ name: "", lat: "", lng: "", description: "" });
+  const [newTower, setNewTower] = useState({ name: "", lat: "", lng: "", description: "", networkId: "" });
   const [showTowerPicker, setShowTowerPicker] = useState(false);
   const [addingTower, setAddingTower] = useState(false);
 
@@ -286,9 +286,10 @@ function CoverageMapsInner() {
           lat: parseFloat(newTower.lat),
           lng: parseFloat(newTower.lng),
           description: newTower.description || null,
+          networkId: newTower.networkId || null,
         }),
       });
-      setNewTower({ name: "", lat: "", lng: "", description: "" });
+      setNewTower({ name: "", lat: "", lng: "", description: "", networkId: "" });
       const res = await fetch(`/api/coverage-maps/${selectedMapId}/towers`);
       setTowers(await res.json());
       toast.success("Tower added");
@@ -668,6 +669,14 @@ function CoverageMapsInner() {
                   <div className="mb-2">
                     <input className="form-control form-control-sm" placeholder="Description (optional)"
                       value={newTower.description} onChange={(e) => setNewTower((t) => ({ ...t, description: e.target.value }))} />
+                  </div>
+                  <div className="mb-2">
+                    <select className="form-select form-select-sm" value={newTower.networkId}
+                      onChange={(e) => setNewTower((t) => ({ ...t, networkId: e.target.value }))}>
+                      <option value="">— Network (for distance-limited packages) —</option>
+                      {networks.map((n) => <option key={n.id} value={n.id}>{n.name} ({n.category})</option>)}
+                    </select>
+                    <div className="form-text">Links this tower to a provider so its distance-limited packages (e.g. AirFibre ≤100m) measure from here.</div>
                   </div>
                   <button className="btn btn-sm btn-success" onClick={handleAddTower} disabled={addingTower || !newTower.name || !newTower.lat || !newTower.lng}>
                     {addingTower ? <><span className="spinner-border spinner-border-sm me-1" />Adding…</> : <><i className="bi bi-plus me-1" />Add Tower</>}

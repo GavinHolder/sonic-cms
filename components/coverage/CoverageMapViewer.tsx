@@ -27,6 +27,7 @@ export interface CoverageTowerData {
   lat: number;
   lng: number;
   description?: string | null;
+  networkId?: string | null;
 }
 
 interface CoverageLabel {
@@ -61,6 +62,8 @@ interface Props {
   activeRegion?: string | null;
   onRegionClick?: (region: CoverageRegion) => void;
   onCoverageResult?: (result: CoverageCheckResult, ctx?: { address: string; lat: number; lng: number }) => void;
+  // Per-network tower radius rings (procedurally drawn from package distances)
+  networkRadii?: Record<string, { color: string; distances: number[] }>;
   /** Float the search bar over the map (Google-Maps style) instead of above it,
    *  and make the map fill its container edge-to-edge. */
   floatingSearch?: boolean;
@@ -75,6 +78,7 @@ export default function CoverageMapViewer({
   onRegionClick,
   onCoverageResult,
   floatingSearch = false,
+  networkRadii,
 }: Props) {
   const mapRef = useRef<HTMLDivElement>(null);
   const leafletMapRef = useRef<any>(null);
@@ -210,6 +214,15 @@ export default function CoverageMapViewer({
         if (tower.name) marker.bindTooltip(tower.name, { direction: "top" });
         if (tower.description) marker.bindPopup(`<strong>${tower.name}</strong><br/><span style="color:#6b7280;font-size:13px">${tower.description}</span>`);
         marker.addTo(map);
+        // Procedural radius rings — one per distinct package distance of the tower's network
+        const nr = tower.networkId ? networkRadii?.[tower.networkId] : undefined;
+        if (nr) {
+          for (const d of nr.distances) {
+            L.circle([tower.lat, tower.lng], { radius: d, color: nr.color, weight: 1, opacity: 0.7, fillColor: nr.color, fillOpacity: 0.05 })
+              .bindTooltip(`${d >= 1000 ? (d / 1000) + " km" : d + " m"}`, { sticky: true })
+              .addTo(map);
+          }
+        }
       });
 
       leafletMapRef.current = map;
