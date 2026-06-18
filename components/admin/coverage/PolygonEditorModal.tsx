@@ -27,6 +27,7 @@ export default function PolygonEditorModal({
   const drawControlRef = useRef<any>(null);
   const [polygon, setPolygon] = useState<LatLng[]>(existingPolygon);
   const [pointCount, setPointCount] = useState(existingPolygon.length);
+  const [showHelp, setShowHelp] = useState(true);
 
   useEffect(() => {
     if (!show || !mapRef.current || leafletMapRef.current) return;
@@ -155,23 +156,35 @@ export default function PolygonEditorModal({
               <button type="button" className="btn-close btn-close-white ms-auto" onClick={onClose} />
             </div>
 
-            <div className="modal-body p-0">
-              {/* Instruction bar */}
-              <div
-                style={{
-                  background: "#f0fdf4", border: "none", borderBottom: "1px solid #d1fae5",
-                  padding: "10px 20px", fontSize: 13, color: "#065f46",
-                  display: "flex", alignItems: "center", gap: 8,
-                }}
-              >
-                <i className="bi bi-info-circle me-1" />
-                <span>
-                  Click the <strong>polygon tool</strong> (pentagon icon) in the top-left toolbar, click points to define the region, then
-                  double-click to close. Use <strong>Edit layers</strong> to adjust. Points: <strong>{pointCount}</strong>
-                </span>
-              </div>
+            <div className="modal-body p-0" style={{ position: "relative" }}>
+              {/* Kill the persistent Leaflet.draw cursor tooltip that hovers over the
+                  polygon handles and never dismisses — it gets in the way of editing. */}
+              <style>{`.leaflet-draw-tooltip { display: none !important; }`}</style>
 
-              <div ref={mapRef} style={{ height: 500, width: "100%" }} />
+              <div ref={mapRef} style={{ height: 540, width: "100%" }} />
+
+              {/* Collapsible help legend — overlaid, dismissable (no longer a fixed bar) */}
+              {showHelp ? (
+                <div style={{
+                  position: "absolute", top: 12, right: 12, zIndex: 1000, maxWidth: 300,
+                  background: "rgba(6,8,15,0.92)", color: "#e5e7eb", borderRadius: 10,
+                  padding: "12px 14px", fontSize: 12.5, lineHeight: 1.5, boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                    <strong style={{ fontSize: 12 }}><i className="bi bi-info-circle me-1" />How to draw</strong>
+                    <button type="button" onClick={() => setShowHelp(false)} aria-label="Hide help"
+                      style={{ border: "none", background: "transparent", color: "#9ca3af", cursor: "pointer", lineHeight: 1 }}>
+                      <i className="bi bi-x-lg" style={{ fontSize: 12 }} />
+                    </button>
+                  </div>
+                  <div>Click the <strong>pentagon</strong> tool (top-left), click points around the area, then <strong>double-click</strong> to finish. Use <strong>Edit</strong> to drag the handles. Points: <strong>{pointCount}</strong></div>
+                </div>
+              ) : (
+                <button type="button" onClick={() => setShowHelp(true)} title="Show help"
+                  style={{ position: "absolute", top: 12, right: 12, zIndex: 1000, width: 32, height: 32, borderRadius: 8, border: "none", background: "rgba(6,8,15,0.85)", color: "#fff", cursor: "pointer" }}>
+                  <i className="bi bi-question-lg" />
+                </button>
+              )}
             </div>
 
             <div className="modal-footer border-0" style={{ background: "#f9fafb", borderRadius: "0 0 12px 12px" }}>

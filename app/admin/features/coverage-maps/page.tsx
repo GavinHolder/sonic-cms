@@ -378,6 +378,20 @@ function CoverageMapsInner() {
         </button>
       </div>
 
+      {view === "maps" && (
+        <details className="mb-3" style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "10px 14px" }}>
+          <summary style={{ cursor: "pointer", fontWeight: 600, color: "#1e40af", fontSize: 13 }}>
+            <i className="bi bi-info-circle me-1" />How coverage works
+          </summary>
+          <div style={{ fontSize: 13, color: "#1e3a5f", marginTop: 10, lineHeight: 1.7 }}>
+            <strong>1. One map</strong> = your whole service footprint — you usually only need one.<br />
+            <strong>2. Regions</strong> = the polygons you draw. Draw <em>one per covered area</em> and set each one&apos;s <strong>Provider Network</strong>. A provider can have many scattered polygons — that&apos;s expected.<br />
+            <strong>3. Networks &amp; Packages</strong> (toggle above) = your providers (FNO / WISP / Wireless) and their plans. Regions link to a provider; the provider&apos;s packages show on the public address check.<br />
+            <strong>Labels</strong> = optional town-name text on the map · <strong>Towers</strong> = optional site-marker pins. Both are visual only.
+          </div>
+        </details>
+      )}
+
       {view === "networks" ? (
         <NetworksManager />
       ) : (
@@ -543,6 +557,20 @@ function CoverageMapsInner() {
                               {region.description}
                             </div>
                           )}
+                          {/* Assigned provider — makes provider↔polygon obvious */}
+                          {(() => {
+                            const net = networks.find((n) => n.id === region.networkId);
+                            return net ? (
+                              <div style={{ fontSize: 11.5, color: "#6b7280", display: "flex", alignItems: "center", gap: 5, marginTop: 2 }}>
+                                <span style={{ width: 9, height: 9, borderRadius: 2, background: net.color, flexShrink: 0 }} />
+                                {net.name} <span style={{ color: "#9ca3af" }}>({net.category})</span>
+                              </div>
+                            ) : (
+                              <div style={{ fontSize: 11.5, color: "#d97706", marginTop: 2 }}>
+                                <i className="bi bi-exclamation-triangle me-1" />No provider linked — won&apos;t show packages
+                              </div>
+                            );
+                          })()}
                         </div>
                         {/* Polygon status */}
                         <div style={{ fontSize: 12, color: region.polygon.length >= 3 ? "#16a34a" : "#9ca3af" }}>
