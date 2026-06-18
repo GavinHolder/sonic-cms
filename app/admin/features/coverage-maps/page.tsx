@@ -37,6 +37,7 @@ interface CoverageTower {
   id: string; mapId: string;
   name: string; lat: number; lng: number;
   description: string | null; isActive: boolean;
+  networkId?: string | null;
 }
 
 interface CoverageLabel {
@@ -146,8 +147,8 @@ function CoverageMapsInner() {
   };
 
   const saveMap = async () => {
-    if (!editingMap?.name || !editingMap?.slug) {
-      toast.error("Name and slug are required"); return;
+    if (!editingMap?.name) {
+      toast.error("Name is required"); return;
     }
     setMapSaving(true);
     try {
@@ -250,6 +251,45 @@ function CoverageMapsInner() {
     } catch {
       toast.error("Failed to delete region");
     }
+  };
+
+  // Duplicate a region — keeps the polygon + all styling/links, only the name differs.
+  const duplicateRegion = async (region: CoverageRegion) => {
+    try {
+      const res = await fetch(`/api/coverage-maps/${selectedMapId}/regions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: `${region.name} (copy)`,
+          polygon: region.polygon, color: region.color, opacity: region.opacity,
+          strokeColor: region.strokeColor, strokeWidth: region.strokeWidth,
+          description: region.description, order: region.order,
+          regionType: region.regionType, fnoProvider: region.fnoProvider,
+          serviceSlug: region.serviceSlug, towerRef: region.towerRef, networkId: region.networkId,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Region duplicated — edit the copy to adjust");
+      await loadMaps();
+    } catch { toast.error("Failed to duplicate region"); }
+  };
+
+  // Duplicate a tower — keeps description/network/location; user tweaks name + spot.
+  const duplicateTower = async (tower: CoverageTower) => {
+    try {
+      const res = await fetch(`/api/coverage-maps/${selectedMapId}/towers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: `${tower.name} (copy)`, lat: tower.lat, lng: tower.lng,
+          description: tower.description ?? null, networkId: tower.networkId ?? null,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      const r = await fetch(`/api/coverage-maps/${selectedMapId}/towers`);
+      setTowers(await r.json());
+      toast.success("Tower duplicated — edit the copy to adjust");
+    } catch { toast.error("Failed to duplicate tower"); }
   };
 
   const openPolygonEditor = (region: CoverageRegion) => {
@@ -600,6 +640,13 @@ function CoverageMapsInner() {
                             <i className="bi bi-pencil" />
                           </button>
                           <button
+                            className="btn btn-sm btn-outline-secondary"
+                            onClick={() => duplicateRegion(region)}
+                            title="Duplicate region (keeps the polygon)"
+                          >
+                            <i className="bi bi-files" />
+                          </button>
+                          <button
                             className="btn btn-sm btn-outline-danger"
                             onClick={() => deleteRegion(region.id)}
                             title="Delete region"
@@ -641,6 +688,9 @@ function CoverageMapsInner() {
                             {tower.description && ` · ${tower.description}`}
                           </div>
                         </div>
+                        <button className="btn btn-sm btn-outline-secondary" onClick={() => duplicateTower(tower)} title="Duplicate tower">
+                          <i className="bi bi-files" />
+                        </button>
                         <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteTower(tower.id)}>
                           <i className="bi bi-trash" />
                         </button>
@@ -772,16 +822,6 @@ function CoverageMapsInner() {
                       value={editingMap.name ?? ""}
                       onChange={(e) => setEditingMap((prev) => ({ ...prev!, name: e.target.value }))}
                     />
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label fw-semibold">URL Slug <span className="text-danger">*</span></label>
-                    <input
-                      type="text" className="form-control font-monospace"
-                      placeholder="e.g. western-cape"
-                      value={editingMap.slug ?? ""}
-                      onChange={(e) => setEditingMap((prev) => ({ ...prev!, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") }))}
-                    />
-                    <div className="form-text">Used in the URL: /api/coverage-maps/{editingMap.slug}/public</div>
                   </div>
                   <div className="mb-3">
                     <label className="form-label fw-semibold">Description</label>

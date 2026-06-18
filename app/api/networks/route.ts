@@ -23,14 +23,21 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json();
   const { name, slug, category, color, logoUrl, description, isActive, order } = body;
-  if (!name || !slug) {
-    return NextResponse.json({ error: "name and slug are required" }, { status: 400 });
+  if (!name) {
+    return NextResponse.json({ error: "name is required" }, { status: 400 });
+  }
+  // Slug is automatic: derive from name (or supplied slug), then ensure uniqueness.
+  const slugify = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  const base = slugify(slug || name) || "network";
+  let uniqueSlug = base;
+  for (let i = 2; await prisma.network.findUnique({ where: { slug: uniqueSlug } }); i++) {
+    uniqueSlug = `${base}-${i}`;
   }
   const validCat = ["FNO", "WISP", "WIRELESS"];
   const network = await prisma.network.create({
     data: {
       name,
-      slug,
+      slug: uniqueSlug,
       category: validCat.includes(category) ? category : "FNO",
       ...(color ? { color } : {}),
       logoUrl: logoUrl || null,

@@ -239,8 +239,6 @@ export default function NetworksManager() {
               <div className="modal-body d-flex flex-column gap-3">
                 <div><label className="form-label">Name</label>
                   <input className="form-control" value={netModal.name || ""} onChange={(e) => setNetModal({ ...netModal, name: e.target.value, slug: netModal.id ? netModal.slug : slugify(e.target.value) })} placeholder="e.g. Sonic Fibre" /></div>
-                <div><label className="form-label">Slug</label>
-                  <input className="form-control font-monospace" value={netModal.slug || ""} onChange={(e) => setNetModal({ ...netModal, slug: slugify(e.target.value) })} /></div>
                 <div className="row">
                   <div className="col"><label className="form-label">Category</label>
                     <select className="form-select" value={netModal.category || "FNO"} onChange={(e) => setNetModal({ ...netModal, category: e.target.value as Category })}>
