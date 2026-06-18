@@ -51,6 +51,7 @@ export default function CoveragePageClient({ initialMaps }: Props) {
   const activeMap = maps.find((m) => m.id === activeMapId) ?? null;
   const networks: CoverageNetworkResult[] = result?.networks ?? [];
   const isMiss = !!result && !(result.hit ?? networks.length > 0);
+  const hasAnyPackage = networks.some((n) => (n.packages?.length ?? 0) > 0);
 
   function handleResult(r: CoverageCheckResult, ctx?: { address: string }) {
     setResult(r);
@@ -70,7 +71,7 @@ export default function CoveragePageClient({ initialMaps }: Props) {
         body: JSON.stringify({
           name: name.trim(), email: email.trim(), phone: phone.trim(),
           address, mapSlug: activeMap?.slug,
-          networkId: pick?.network.id ?? null,
+          networkId: pick?.network.id ?? networks[0]?.id ?? null,
           packageId: pick?.pkg.id ?? null,
           miss: isMiss,
         }),
@@ -81,7 +82,7 @@ export default function CoveragePageClient({ initialMaps }: Props) {
     finally { setSubmitting(false); }
   }
 
-  const canSubmit = isMiss || !!pick;
+  const canSubmit = isMiss || !!pick || (!isMiss && !hasAnyPackage);
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100dvh", background: "#0a0d18" }}>
@@ -145,6 +146,13 @@ export default function CoveragePageClient({ initialMaps }: Props) {
                 <>
                   <p style={{ margin: "0 0 16px", color: "#cbd5e1", fontSize: 14, lineHeight: 1.6 }}>
                     We don&apos;t reach this address yet — but we&apos;re expanding fast. Leave your details and we&apos;ll notify you the moment coverage arrives.
+                  </p>
+                  <LeadForm {...{ name, setName, email, setEmail, phone, setPhone, error }} />
+                </>
+              ) : !hasAnyPackage ? (
+                <>
+                  <p style={{ margin: "0 0 16px", color: "#cbd5e1", fontSize: 14, lineHeight: 1.6 }}>
+                    Good news — coverage is available at this address{networks.length > 0 ? ` via ${networks.map((n) => n.name).join(", ")}` : ""}. Leave your details and our team will get you connected on the right package.
                   </p>
                   <LeadForm {...{ name, setName, email, setEmail, phone, setPhone, error }} />
                 </>

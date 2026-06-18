@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useToast } from "@/components/admin/ToastProvider";
+import NetworksManager from "@/components/admin/coverage/NetworksManager";
 
 const PolygonEditorModal = dynamic(
   () => import("@/components/admin/coverage/PolygonEditorModal"),
@@ -65,6 +66,7 @@ function CoverageMapsInner() {
   const [loading, setLoading] = useState(true);
   const [selectedMapId, setSelectedMapId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"regions" | "labels" | "towers">("regions");
+  const [view, setView] = useState<"maps" | "networks">("maps");
 
   // Map form
   const [showMapForm, setShowMapForm] = useState(false);
@@ -365,6 +367,20 @@ function CoverageMapsInner() {
   }
 
   return (
+    <>
+      {/* View toggle — Maps vs Networks & Packages (both part of this plugin) */}
+      <div className="btn-group mb-3" role="group">
+        <button type="button" className={`btn btn-sm ${view === "maps" ? "btn-success" : "btn-outline-secondary"}`} onClick={() => setView("maps")}>
+          <i className="bi bi-map me-1" />Maps
+        </button>
+        <button type="button" className={`btn btn-sm ${view === "networks" ? "btn-success" : "btn-outline-secondary"}`} onClick={() => setView("networks")}>
+          <i className="bi bi-diagram-3 me-1" />Networks &amp; Packages
+        </button>
+      </div>
+
+      {view === "networks" ? (
+        <NetworksManager />
+      ) : (
     <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 24, alignItems: "start" }}>
       {/* ── Map list sidebar ─────────────────────────────────────────────── */}
       <div className="card border-0 shadow-sm" style={{ borderRadius: 12 }}>
@@ -1080,5 +1096,7 @@ function CoverageMapsInner() {
         />
       )}
     </div>
+      )}
+    </>
   );
 }
