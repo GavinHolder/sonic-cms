@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useToast } from "@/components/admin/ToastProvider";
 import NetworksManager from "@/components/admin/coverage/NetworksManager";
+import ConfirmDialog from "@/components/admin/ConfirmDialog";
 
 const PolygonEditorModal = dynamic(
   () => import("@/components/admin/coverage/PolygonEditorModal"),
@@ -92,6 +93,9 @@ function CoverageMapsInner() {
   const [towers, setTowers] = useState<CoverageTower[]>([]);
   const [newTower, setNewTower] = useState({ name: "", lat: "", lng: "", description: "", networkId: "" });
   const [showTowerPicker, setShowTowerPicker] = useState(false);
+  // Promise-based confirm via the in-app modal (no native window.confirm)
+  const [confirmState, setConfirmState] = useState<{ message: string; resolve: (v: boolean) => void } | null>(null);
+  const requestConfirm = (message: string) => new Promise<boolean>((resolve) => setConfirmState({ message, resolve }));
   const [addingTower, setAddingTower] = useState(false);
 
   // Label form
@@ -174,7 +178,7 @@ function CoverageMapsInner() {
   };
 
   const deleteMap = async (id: string) => {
-    if (!confirm("Delete this coverage map and all its regions/labels?")) return;
+    if (!(await requestConfirm("Delete this coverage map and all its regions, labels and towers?"))) return;
     try {
       const res = await fetch(`/api/coverage-maps/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
@@ -243,7 +247,7 @@ function CoverageMapsInner() {
   };
 
   const deleteRegion = async (regionId: string) => {
-    if (!confirm("Delete this region?")) return;
+    if (!(await requestConfirm("Delete this region?"))) return;
     try {
       await fetch(`/api/coverage-maps/${selectedMapId}/regions/${regionId}`, { method: "DELETE" });
       toast.success("Region deleted");
@@ -341,7 +345,7 @@ function CoverageMapsInner() {
   };
 
   const handleDeleteTower = async (towerId: string) => {
-    if (!confirm("Delete this tower?")) return;
+    if (!(await requestConfirm("Delete this tower?"))) return;
     try {
       await fetch(`/api/coverage-maps/${selectedMapId}/towers/${towerId}`, { method: "DELETE" });
       setTowers((t) => t.filter((x) => x.id !== towerId));
@@ -393,7 +397,7 @@ function CoverageMapsInner() {
   };
 
   const deleteLabel = async (labelId: string) => {
-    if (!confirm("Delete this label?")) return;
+    if (!(await requestConfirm("Delete this label?"))) return;
     try {
       await fetch(`/api/coverage-maps/${selectedMapId}/labels/${labelId}`, { method: "DELETE" });
       toast.success("Label deleted");
@@ -1198,6 +1202,19 @@ function CoverageMapsInner() {
         />
       )}
     </div>
+      )}
+
+      {/* In-app confirm modal — replaces native window.confirm */}
+      {confirmState && (
+        <ConfirmDialog
+          isOpen
+          title="Please confirm"
+          message={confirmState.message}
+          variant="danger"
+          confirmText="Delete"
+          onConfirm={() => { confirmState.resolve(true); setConfirmState(null); }}
+          onCancel={() => { confirmState.resolve(false); setConfirmState(null); }}
+        />
       )}
     </>
   );
