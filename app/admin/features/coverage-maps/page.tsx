@@ -93,6 +93,7 @@ function CoverageMapsInner() {
   const [towers, setTowers] = useState<CoverageTower[]>([]);
   const [newTower, setNewTower] = useState({ name: "", lat: "", lng: "", description: "", networkId: "" });
   const [showTowerPicker, setShowTowerPicker] = useState(false);
+  const [showLabelPicker, setShowLabelPicker] = useState(false);
   // Promise-based confirm via the in-app modal (no native window.confirm)
   const [confirmState, setConfirmState] = useState<{ message: string; resolve: (v: boolean) => void } | null>(null);
   const requestConfirm = (message: string) => new Promise<boolean>((resolve) => setConfirmState({ message, resolve }));
@@ -120,13 +121,18 @@ function CoverageMapsInner() {
     }
   };
 
-  useEffect(() => { loadMaps(); }, []);
-  useEffect(() => {
+  // Refetchable so newly-created networks appear in the region/tower dropdowns
+  // without a full page reload.
+  const loadNetworks = () => {
     fetch("/api/networks")
       .then((r) => (r.ok ? r.json() : []))
       .then((d) => setNetworks(Array.isArray(d) ? d.map((n: NetworkOption) => ({ id: n.id, name: n.name, category: n.category, color: n.color })) : []))
       .catch(() => {});
-  }, []);
+  };
+
+  useEffect(() => { loadMaps(); }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { loadNetworks(); }, []);
 
   useEffect(() => {
     if (selectedMapId) {
@@ -198,6 +204,7 @@ function CoverageMapsInner() {
       strokeColor: "#16a34a", strokeWidth: 2, description: "", isActive: true, order: 0,
       regionType: "GENERAL", fnoProvider: "", serviceSlug: "", towerRef: "", networkId: "",
     });
+    loadNetworks();
     setShowRegionForm(true);
   };
 
@@ -210,6 +217,7 @@ function CoverageMapsInner() {
       towerRef: region.towerRef ?? "",
       networkId: region.networkId ?? "",
     });
+    loadNetworks();
     setShowRegionForm(true);
   };
 
@@ -420,7 +428,7 @@ function CoverageMapsInner() {
     <>
       {/* View toggle — Maps vs Networks & Packages (both part of this plugin) */}
       <div className="btn-group mb-3" role="group">
-        <button type="button" className={`btn btn-sm ${view === "maps" ? "btn-success" : "btn-outline-secondary"}`} onClick={() => setView("maps")}>
+        <button type="button" className={`btn btn-sm ${view === "maps" ? "btn-success" : "btn-outline-secondary"}`} onClick={() => { setView("maps"); loadNetworks(); }}>
           <i className="bi bi-map me-1" />Maps
         </button>
         <button type="button" className={`btn btn-sm ${view === "networks" ? "btn-success" : "btn-outline-secondary"}`} onClick={() => setView("networks")}>
@@ -1080,22 +1088,15 @@ function CoverageMapsInner() {
                       {editingLabel.text || "Preview"}
                     </span>
                   </div>
-                  <div className="row g-3 mb-3">
-                    <div className="col-6">
-                      <label className="form-label fw-semibold small">Latitude</label>
-                      <input
-                        type="number" className="form-control form-control-sm" step="0.0001"
-                        value={editingLabel.lat ?? 0}
-                        onChange={(e) => setEditingLabel((prev) => ({ ...prev!, lat: parseFloat(e.target.value) || 0 }))}
-                      />
-                    </div>
-                    <div className="col-6">
-                      <label className="form-label fw-semibold small">Longitude</label>
-                      <input
-                        type="number" className="form-control form-control-sm" step="0.0001"
-                        value={editingLabel.lng ?? 0}
-                        onChange={(e) => setEditingLabel((prev) => ({ ...prev!, lng: parseFloat(e.target.value) || 0 }))}
-                      />
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold small d-block">Location</label>
+                    <div className="d-flex align-items-center gap-2">
+                      <button type="button" className="btn btn-sm btn-outline-success text-nowrap" onClick={() => setShowLabelPicker(true)}>
+                        <i className="bi bi-geo-alt me-1" />{editingLabel.lat && editingLabel.lng ? "Change location" : "Pick on map"}
+                      </button>
+                      <span style={{ fontSize: 12, fontFamily: "monospace", color: editingLabel.lat ? "#16a34a" : "#9ca3af" }}>
+                        {editingLabel.lat && editingLabel.lng ? `${(editingLabel.lat as number).toFixed(5)}, ${(editingLabel.lng as number).toFixed(5)}` : "no location set"}
+                      </span>
                     </div>
                   </div>
                   <div className="row g-3 mb-3">
@@ -1199,6 +1200,21 @@ function CoverageMapsInner() {
           initialLng={newTower.lng ? parseFloat(newTower.lng) : null}
           onSave={(lat, lng) => { setNewTower((t) => ({ ...t, lat: String(lat), lng: String(lng) })); setShowTowerPicker(false); }}
           onClose={() => setShowTowerPicker(false)}
+        />
+      )}
+
+      {/* ── Label location picker ─────────────────────────────────────────────── */}
+      {showLabelPicker && selectedMap && editingLabel && (
+        <PointPickerModal
+          show={showLabelPicker}
+          title={`Place label${editingLabel.text ? ` — ${editingLabel.text}` : ""}`}
+          centerLat={selectedMap.centerLat}
+          centerLng={selectedMap.centerLng}
+          defaultZoom={selectedMap.defaultZoom}
+          initialLat={typeof editingLabel.lat === "number" ? editingLabel.lat : null}
+          initialLng={typeof editingLabel.lng === "number" ? editingLabel.lng : null}
+          onSave={(lat, lng) => { setEditingLabel((prev) => ({ ...prev!, lat, lng })); setShowLabelPicker(false); }}
+          onClose={() => setShowLabelPicker(false)}
         />
       )}
     </div>

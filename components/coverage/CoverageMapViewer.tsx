@@ -119,7 +119,7 @@ export default function CoverageMapViewer({
       const map = L.map(mapRef.current!, {
         center: [safeLat, safeLng],
         zoom: safeZoom,
-        zoomControl: true,
+        zoomControl: false,
         // Full-page (floatingSearch): intuitive scroll-zoom + drag, like Google Maps.
         // Embedded inline: keep scroll/drag locked so the map doesn't hijack page
         // scrolling — the user taps the overlay to activate.
@@ -137,6 +137,8 @@ export default function CoverageMapViewer({
       });
       osm.addTo(map);
       L.control.layers({ "Map": osm, "Satellite": sat }, {}, { position: "topright", collapsed: false }).addTo(map);
+      // Zoom control bottom-left so it never sits under the Back-to-site button
+      L.control.zoom({ position: "bottomleft" }).addTo(map);
 
       // Click-to-place: clicking the map reverse-geocodes the point to a real address
       if (showSearch) {
