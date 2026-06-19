@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useConfirm } from "@/components/admin/ConfirmProvider";
 
 export interface CmsTemplate {
   id: string;
@@ -43,6 +44,7 @@ export default function TemplatePickerModal({ templateType, sectionType, title, 
   const [search, setSearch]       = useState("");
   const [selected, setSelected]   = useState<string | null>(null);
   const [deleting, setDeleting]   = useState<string | null>(null);
+  const confirm = useConfirm();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -61,7 +63,7 @@ export default function TemplatePickerModal({ templateType, sectionType, title, 
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm("Delete this template?")) return;
+    if (!(await confirm("Delete this template?"))) return;
     setDeleting(id);
     await fetch(`/api/templates/${id}`, { method: "DELETE" });
     setTemplates(prev => prev.filter(t => t.id !== id));

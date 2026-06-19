@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import AdminLayout from "@/components/admin/AdminLayout";
+import { useConfirm } from "@/components/admin/ConfirmProvider";
 
 interface Entry {
   id: string;
@@ -41,6 +42,7 @@ export default function ContentEntryListPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ type: string; text: string } | null>(null);
+  const confirm = useConfirm();
 
   const fetchEntries = useCallback(async () => {
     setLoading(true);
@@ -62,7 +64,7 @@ export default function ContentEntryListPage() {
   useEffect(() => { fetchEntries(); }, [fetchEntries]);
 
   async function handleDelete(entry: Entry) {
-    if (!confirm(`Delete "${entry.title}"? This cannot be undone.`)) return;
+    if (!(await confirm(`Delete "${entry.title}"? This cannot be undone.`))) return;
     try {
       await fetch(`/api/admin/content-entries/${typeSlug}/${entry.id}`, { method: "DELETE" });
       setMessage({ type: "success", text: `"${entry.title}" deleted.` });

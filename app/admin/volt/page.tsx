@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useToast } from "@/components/admin/ToastProvider";
+import { useConfirm } from "@/components/admin/ConfirmProvider";
 import type { VoltElementData } from "@/types/volt";
 import { createNewVoltElement } from "@/lib/volt/volt-defaults";
 
@@ -46,6 +47,7 @@ function VoltLibrary() {
   const searchParams = useSearchParams();
   const editId = searchParams.get("edit");
   const toast = useToast();
+  const confirm = useConfirm();
   const [volts, setVolts] = useState<VoltListItem[]>([]);
   const [userId, setUserId] = useState("");
   const [loading, setLoading] = useState(true);
@@ -132,7 +134,7 @@ function VoltLibrary() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this Volt design?")) return;
+    if (!(await confirm("Delete this Volt design?"))) return;
     try {
       const res = await fetch(`/api/volt/${id}`, { method: "DELETE" });
       if (!res.ok) { toast.error("Failed to delete Volt"); return; }

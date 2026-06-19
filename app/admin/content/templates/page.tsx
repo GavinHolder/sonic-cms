@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import StandalonePageEditorModal from "@/components/admin/StandalonePageEditorModal";
 import type { StandaloneEditorSaveData } from "@/components/admin/StandalonePageEditorModal";
+import { useConfirm } from "@/components/admin/ConfirmProvider";
 
 interface CmsTemplate {
   id: string;
@@ -1507,6 +1508,7 @@ export default function TemplatesLibraryPage() {
   const [showImport, setShowImport]     = useState(false);
   const [analyzeFor, setAnalyzeFor]     = useState<CmsTemplate | null>(null);
   const [editHtmlFor, setEditHtmlFor]   = useState<CmsTemplate | null>(null);
+  const confirm = useConfirm();
 
   const showToast = (msg: string, ok = true, slug?: string) => {
     setToast({ msg, ok, slug });
@@ -1530,7 +1532,7 @@ export default function TemplatesLibraryPage() {
   useEffect(() => { load(); }, [load]);
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this template? This cannot be undone.")) return;
+    if (!(await confirm("Delete this template? This cannot be undone."))) return;
     setDeleting(id);
     const res = await fetch(`/api/templates/${id}`, { method: "DELETE" });
     const json = await res.json();

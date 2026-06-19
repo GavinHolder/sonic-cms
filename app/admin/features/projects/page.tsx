@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useToast } from "@/components/admin/ToastProvider";
+import { useConfirm } from "@/components/admin/ConfirmProvider";
 import MediaPickerModal from "@/components/admin/MediaPickerModal";
 import MediaUploadModal from "@/components/admin/MediaUploadModal";
 
@@ -23,6 +24,7 @@ export default function ProjectsPage() {
 
 function ProjectsInner() {
   const toast = useToast();
+  const confirm = useConfirm();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -81,7 +83,7 @@ function ProjectsInner() {
   };
 
   const deleteProject = async (id: string) => {
-    if (!confirm("Delete this project?")) return;
+    if (!(await confirm("Delete this project?"))) return;
     try {
       await fetch(`/api/projects/${id}`, { method: "DELETE" });
       toast.success("Project deleted");

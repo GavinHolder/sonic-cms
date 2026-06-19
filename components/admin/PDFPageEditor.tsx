@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useAlert } from "@/components/admin/ConfirmProvider";
 import type { PDFPageConfig } from "@/types/page";
 
 interface PDFPageEditorProps {
@@ -10,6 +11,7 @@ interface PDFPageEditorProps {
 }
 
 export default function PDFPageEditor({ page, onSave, onCancel }: PDFPageEditorProps) {
+  const showAlert = useAlert();
   const [pdfUrl, setPdfUrl] = useState(page.pdfUrl || "");
   const [displayMode, setDisplayMode] = useState<"embed" | "download" | "both">(
     page.displayMode || "embed"
@@ -17,9 +19,9 @@ export default function PDFPageEditor({ page, onSave, onCancel }: PDFPageEditorP
   const [description, setDescription] = useState(page.description || "");
   const [showMediaPicker, setShowMediaPicker] = useState(false);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!pdfUrl.trim()) {
-      alert("Please provide a PDF URL");
+      await showAlert("Please provide a PDF URL");
       return;
     }
 

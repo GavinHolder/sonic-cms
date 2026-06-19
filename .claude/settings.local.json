@@ -41,7 +41,8 @@
       "PowerShell(curl.exe -sk \"https://web.sonicdns.co.za/cms-version.json\" --max-time 10 2>&1)",
       "PowerShell(curl.exe -sk \"http://web.sonicdns.co.za/cms-version.json\" --max-time 10 2>&1)",
       "PowerShell(Start-Sleep -Seconds 10; curl.exe -sk \"https://web.sonicdns.co.za/cms-version.json\" --max-time 15 2>&1)",
-      "PowerShell(curl.exe -sk \"https://sonicweb.dedicated.co.za/cms-version.json\" --max-time 10 2>&1)"
+      "PowerShell(curl.exe -sk \"https://sonicweb.dedicated.co.za/cms-version.json\" --max-time 10 2>&1)",
+      "Bash(cd *)"
     ]
   }
 }

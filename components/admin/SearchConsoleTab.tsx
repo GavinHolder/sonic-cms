@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useConfirm } from "@/components/admin/ConfirmProvider";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -62,6 +63,7 @@ function fmt(n: number): string {
 function SearchConsoleTabInner() {
   const searchParams = useSearchParams();
   const router       = useRouter();
+  const confirm      = useConfirm();
 
   const [conn, setConn]             = useState<ConnectionState | null>(null);
   const [loading, setLoading]       = useState(true);
@@ -190,7 +192,7 @@ function SearchConsoleTabInner() {
 
   // ── Disconnect ──────────────────────────────────────────────────────────────
   async function handleDisconnect() {
-    if (!confirm("Disconnect Google Search Console? You can reconnect at any time.")) return;
+    if (!(await confirm("Disconnect Google Search Console? You can reconnect at any time."))) return;
     setDisconnecting(true);
     try {
       await fetch("/api/seo/gsc/disconnect", { method: "POST" });

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
+import { useConfirm, useAlert } from "@/components/admin/ConfirmProvider";
 import UpdateModal from "@/components/admin/UpdateModal";
 import { useHelpText } from "@/hooks/useHelpText";
 import MediaPickerModal from "@/components/admin/MediaPickerModal";
@@ -119,6 +120,8 @@ function AboutSection() {
 
 export default function SettingsPage() {
   const { showHelp } = useHelpText();
+  const confirm = useConfirm();
+  const showAlert = useAlert();
   const [settings, setSettings] = useState<CMSSettings | null>(null);
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -326,7 +329,7 @@ export default function SettingsPage() {
     }
   }, [emailSuccess]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!settings) return;
     setSaving(true);
     try {
@@ -334,7 +337,7 @@ export default function SettingsPage() {
       setSuccessMessage("Settings saved successfully!");
     } catch (error) {
       console.error("Error saving settings:", error);
-      alert("Failed to save settings. Please try again.");
+      await showAlert("Failed to save settings. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -407,8 +410,8 @@ export default function SettingsPage() {
     window.open(`/maintenance-preview?${p.toString()}`, "_blank");
   };
 
-  const handleReset = () => {
-    if (confirm("Are you sure you want to reset all settings to default?")) {
+  const handleReset = async () => {
+    if (await confirm("Are you sure you want to reset all settings to default?")) {
       const defaultSettings = resetCMSSettings();
       setSettings(defaultSettings);
       setSuccessMessage("Settings reset to default!");

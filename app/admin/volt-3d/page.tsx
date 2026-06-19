@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useToast } from "@/components/admin/ToastProvider";
+import { useConfirm } from "@/components/admin/ConfirmProvider";
 
 interface Volt3DVersion {
   id: string;
@@ -36,6 +37,7 @@ export default function Volt3DPage() {
 function Volt3DLibrary() {
   const router = useRouter();
   const toast = useToast();
+  const confirm = useConfirm();
   const [assets, setAssets] = useState<Volt3DAsset[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -85,7 +87,7 @@ function Volt3DLibrary() {
   }
 
   async function handleDeleteAsset(assetId: string, name: string) {
-    if (!confirm(`Delete "${name}" and all its versions? This cannot be undone.`)) return;
+    if (!(await confirm(`Delete "${name}" and all its versions? This cannot be undone.`))) return;
     try {
       const res = await fetch(`/api/volt-3d/${assetId}`, { method: "DELETE" });
       if (!res.ok) { toast.error("Failed to delete asset"); return; }

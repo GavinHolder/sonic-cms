@@ -14,6 +14,7 @@ interface ConfirmDialogProps {
   requiresTextInput?: boolean;
   expectedInput?: string;
   inputPlaceholder?: string;
+  hideCancel?: boolean;
 }
 
 export default function ConfirmDialog({
@@ -28,6 +29,7 @@ export default function ConfirmDialog({
   requiresTextInput = false,
   expectedInput,
   inputPlaceholder = "Type to confirm",
+  hideCancel = false,
 }: ConfirmDialogProps) {
   const [inputValue, setInputValue] = useState("");
 
@@ -127,13 +129,15 @@ export default function ConfirmDialog({
 
             {/* Footer */}
             <div className="modal-footer">
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={handleCancel}
-              >
-                {cancelText}
-              </button>
+              {!hideCancel && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={handleCancel}
+                >
+                  {cancelText}
+                </button>
+              )}
               <button
                 type="button"
                 className={`btn ${buttonClass}`}

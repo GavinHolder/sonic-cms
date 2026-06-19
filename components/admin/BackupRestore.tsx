@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
+import { useConfirm } from "@/components/admin/ConfirmProvider"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -39,6 +40,7 @@ const CATEGORY_OPTIONS: { value: RestoreCategory; label: string; icon: string }[
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function BackupRestore() {
+  const askConfirm = useConfirm()
   const [backups, setBackups] = useState<BackupInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
@@ -132,7 +134,7 @@ export default function BackupRestore() {
   }
 
   const handleDelete = async (filename: string) => {
-    if (!confirm(`Delete backup "${filename}"? This cannot be undone.`)) return
+    if (!(await askConfirm(`Delete backup "${filename}"? This cannot be undone.`))) return
     setDeleting(filename)
     try {
       const res = await fetch(
@@ -203,7 +205,7 @@ export default function BackupRestore() {
       ? ["everything"]
       : Array.from(selectedCategories)
 
-    const confirmed = confirm(
+    const confirmed = await askConfirm(
       `WARNING: This will REPLACE all data in the selected categories:\n\n` +
       `${categories.join(", ")}\n\n` +
       `A safety backup will be created first.\n\n` +

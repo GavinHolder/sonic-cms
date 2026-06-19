@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { FIELD_TYPES } from "@/lib/content-types";
+import { useConfirm } from "@/components/admin/ConfirmProvider";
 
 interface ContentField {
   id?: string;
@@ -69,6 +70,7 @@ export default function ContentTypesPage() {
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: string; text: string } | null>(null);
+  const confirm = useConfirm();
 
   // Form state
   const [form, setForm] = useState({
@@ -146,7 +148,7 @@ export default function ContentTypesPage() {
 
   async function handleDelete(ct: ContentType) {
     const count = ct._count?.entries || 0;
-    if (!confirm(`Delete "${ct.name}" and all ${count} entries? This cannot be undone.`)) return;
+    if (!(await confirm(`Delete "${ct.name}" and all ${count} entries? This cannot be undone.`))) return;
     try {
       await fetch(`/api/admin/content-types/${ct.id}`, { method: "DELETE" });
       fetchTypes();

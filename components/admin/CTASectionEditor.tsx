@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useConfirm, useAlert } from "@/components/admin/ConfirmProvider";
 import { useAutoSave } from "@/lib/hooks/useAutoSave";
 import type { CTASection, ButtonConfig, GradientOverlay, LowerThirdConfig } from "@/types/section";
 import type { FormField } from "@/types/page";
@@ -25,6 +26,7 @@ export default function CTASectionEditor({
   onCancel,
   allSections = [],
 }: CTASectionEditorProps) {
+  const askConfirm = useConfirm();
   const [heading, setHeading] = useState(section.content.heading || "");
   const [subheading, setSubheading] = useState(section.content.subheading || "");
   const [buttons, setButtons] = useState<ButtonConfig[]>(
@@ -170,8 +172,8 @@ export default function CTASectionEditor({
   };
 
   /** Delete a contact form field by id */
-  const handleDeleteFormField = (id: string) => {
-    if (confirm("Delete this field?")) {
+  const handleDeleteFormField = async (id: string) => {
+    if (await askConfirm("Delete this field?")) {
       setFormFields(formFields.filter((f) => f.id !== id));
     }
   };
@@ -1654,6 +1656,7 @@ interface FieldEditorModalProps {
  * Copied from FormPageEditor.tsx to avoid cross-component imports.
  */
 function FieldEditorModal({ field, onSave, onCancel }: FieldEditorModalProps) {
+  const showAlert = useAlert();
   const [type, setType] = useState(field.type);
   const [label, setLabel] = useState(field.label);
   const [name, setName] = useState(field.name);
@@ -1664,19 +1667,19 @@ function FieldEditorModal({ field, onSave, onCancel }: FieldEditorModalProps) {
   );
 
   /** Validate and call onSave with the current field state */
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!label.trim()) {
-      alert("Please enter a field label");
+      await showAlert("Please enter a field label");
       return;
     }
 
     if (!name.trim()) {
-      alert("Please enter a field name");
+      await showAlert("Please enter a field name");
       return;
     }
 
     if (type === "select" && options.length === 0) {
-      alert("Please add at least one option for dropdown");
+      await showAlert("Please add at least one option for dropdown");
       return;
     }
 

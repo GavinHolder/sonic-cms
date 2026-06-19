@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useConfirm, useAlert } from "@/components/admin/ConfirmProvider";
 import type { FormPageConfig, FormField } from "@/types/page";
 
 interface FormPageEditorProps {
@@ -19,6 +20,8 @@ const FIELD_TYPES = [
 ] as const;
 
 export default function FormPageEditor({ page, onSave, onCancel }: FormPageEditorProps) {
+  const askConfirm = useConfirm();
+  const showAlert = useAlert();
   const [fields, setFields] = useState<FormField[]>(page.fields || []);
   const [submitAction, setSubmitAction] = useState<"email" | "webhook">(
     page.submitAction || "email"
@@ -60,8 +63,8 @@ export default function FormPageEditor({ page, onSave, onCancel }: FormPageEdito
     setEditingField(null);
   };
 
-  const handleDeleteField = (id: string) => {
-    if (confirm("Delete this field?")) {
+  const handleDeleteField = async (id: string) => {
+    if (await askConfirm("Delete this field?")) {
       setFields(fields.filter((f) => f.id !== id));
     }
   };
@@ -75,19 +78,19 @@ export default function FormPageEditor({ page, onSave, onCancel }: FormPageEdito
     setFields(newFields);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (fields.length === 0) {
-      alert("Please add at least one field to the form");
+      await showAlert("Please add at least one field to the form");
       return;
     }
 
     if (submitAction === "email" && !emailTo.trim()) {
-      alert("Please enter an email address for form submissions");
+      await showAlert("Please enter an email address for form submissions");
       return;
     }
 
     if (submitAction === "webhook" && !webhookUrl.trim()) {
-      alert("Please enter a webhook URL for form submissions");
+      await showAlert("Please enter a webhook URL for form submissions");
       return;
     }
 
@@ -332,6 +335,7 @@ interface FieldEditorModalProps {
 }
 
 function FieldEditorModal({ field, onSave, onCancel }: FieldEditorModalProps) {
+  const showAlert = useAlert();
   const [type, setType] = useState(field.type);
   const [label, setLabel] = useState(field.label);
   const [name, setName] = useState(field.name);
@@ -341,19 +345,19 @@ function FieldEditorModal({ field, onSave, onCancel }: FieldEditorModalProps) {
     (field.options || []).map((o) => typeof o === "string" ? { value: o, label: o } : o)
   );
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!label.trim()) {
-      alert("Please enter a field label");
+      await showAlert("Please enter a field label");
       return;
     }
 
     if (!name.trim()) {
-      alert("Please enter a field name");
+      await showAlert("Please enter a field name");
       return;
     }
 
     if (type === "select" && options.length === 0) {
-      alert("Please add at least one option for dropdown");
+      await showAlert("Please add at least one option for dropdown");
       return;
     }
 

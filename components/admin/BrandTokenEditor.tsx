@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useConfirm } from "@/components/admin/ConfirmProvider";
 import type { BrandTokens, BrandPantone } from "@/lib/brand-tokens";
 
 const DEFAULT_TOKENS: BrandTokens = {
@@ -94,6 +95,7 @@ function ColorField({ label, value, onChange, pantone, onPantoneChange }: ColorF
 }
 
 export default function BrandTokenEditor() {
+  const askConfirm = useConfirm();
   const [tokens, setTokens] = useState<BrandTokens>(DEFAULT_TOKENS);
   const [pantone, setPantone] = useState<BrandPantone>({});
   const [loading, setLoading] = useState(true);
@@ -168,8 +170,8 @@ export default function BrandTokenEditor() {
     }
   }
 
-  function handleReset() {
-    if (confirm("Reset all brand tokens to defaults? This won't save until you click Save.")) {
+  async function handleReset() {
+    if (await askConfirm("Reset all brand tokens to defaults? This won't save until you click Save.")) {
       setTokens(DEFAULT_TOKENS);
     }
   }

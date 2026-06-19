@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
+import { useConfirm } from "@/components/admin/ConfirmProvider";
 
 interface RedirectEntry {
   id: string;
@@ -14,6 +15,7 @@ interface RedirectEntry {
 }
 
 export default function RedirectsPage() {
+  const confirm = useConfirm();
   const [redirects, setRedirects] = useState<RedirectEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ fromPath: "", toPath: "", statusCode: 301 });
@@ -53,7 +55,7 @@ export default function RedirectsPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this redirect?")) return;
+    if (!(await confirm("Delete this redirect?"))) return;
     await fetch(`/api/admin/redirects?id=${id}`, { method: "DELETE" });
     fetchRedirects();
   }

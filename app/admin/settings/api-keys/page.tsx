@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useToast } from "@/components/admin/ToastProvider";
+import { useConfirm } from "@/components/admin/ConfirmProvider";
 
 interface ApiKeyRow {
   id: string;
@@ -25,6 +26,7 @@ export default function ApiKeysPage() {
 
 function ApiKeysManager() {
   const toast = useToast();
+  const confirm = useConfirm();
   const [keys, setKeys] = useState<ApiKeyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [newLabel, setNewLabel] = useState("");
@@ -72,7 +74,7 @@ function ApiKeysManager() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this API key? It will stop working immediately.")) return;
+    if (!(await confirm("Delete this API key? It will stop working immediately."))) return;
     try {
       const res = await fetch(`/api/admin/api-keys/${id}`, { method: "DELETE" });
       if (!res.ok) { toast.error("Failed to delete API key"); return; }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
+import { useConfirm } from "@/components/admin/ConfirmProvider";
 
 interface FieldEntry {
   label?: string;
@@ -58,6 +59,7 @@ function formatDate(iso: string): string {
 }
 
 export default function FormsInboxPage() {
+  const confirm = useConfirm();
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -97,7 +99,7 @@ export default function FormsInboxPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this submission?")) return;
+    if (!(await confirm("Delete this submission?"))) return;
     await fetch(`/api/admin/form-submissions?id=${id}`, { method: "DELETE" });
     setSubmissions(prev => prev.filter(s => s.id !== id));
     if (selected?.id === id) setSelected(null);

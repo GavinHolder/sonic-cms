@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Script from "next/script";
+import { ConfirmProvider } from "@/components/admin/ConfirmProvider";
 
 export const metadata: Metadata = {
   title: "CMS Admin Portal",
@@ -26,7 +27,7 @@ export default function AdminLayout({
         rel="stylesheet"
       />
 
-      {children}
+      <ConfirmProvider>{children}</ConfirmProvider>
 
       {/* Bootstrap 5.3 JS Bundle */}
       <Script

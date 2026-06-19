@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useToast } from "@/components/admin/ToastProvider";
+import { useConfirm } from "@/components/admin/ConfirmProvider";
 import MediaPickerModal from "@/components/admin/MediaPickerModal";
 import {
   DndContext,
@@ -143,6 +144,7 @@ export default function GalleryAdminPage() {
 
 function GalleryAdminInner() {
   const toast = useToast();
+  const confirm = useConfirm();
 
   const [categories, setCategories] = useState<GalleryCategory[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
@@ -255,7 +257,7 @@ function GalleryAdminInner() {
   };
 
   const deleteCategory = async (cat: GalleryCategory) => {
-    if (!confirm(`Delete "${cat.name}" and all its images?`)) return;
+    if (!(await confirm(`Delete "${cat.name}" and all its images?`))) return;
     try {
       const res = await fetch(`/api/admin/gallery/categories/${cat.id}`, { method: "DELETE" });
       const data = await res.json();

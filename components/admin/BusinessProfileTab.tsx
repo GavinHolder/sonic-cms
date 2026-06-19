@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
+import { useConfirm } from "@/components/admin/ConfirmProvider";
 import type { GbpLocation, GbpBusinessInfo, GbpReview, GbpPost } from "@/lib/gbp-client";
 
 const STARS: Record<string, number> = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 };
@@ -10,6 +11,7 @@ function Stars({ r }: { r: string }) {
 }
 
 export default function BusinessProfileTab() {
+  const askConfirm = useConfirm();
   const [state, setState] = useState<"loading"|"disconnected"|"connected"|"error">("loading");
   const [email, setEmail] = useState("");
   const [locations, setLocations] = useState<GbpLocation[]>([]);
@@ -51,7 +53,7 @@ export default function BusinessProfileTab() {
   }
 
   async function disconnect() {
-    if (!confirm("Disconnect Google Business Profile?")) return;
+    if (!(await askConfirm("Disconnect Google Business Profile?"))) return;
     setDisconnecting(true);
     await fetch("/api/gbp/disconnect", { method: "POST" });
     setState("disconnected"); setDisconnecting(false);

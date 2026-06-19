@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useConfirm } from "@/components/admin/ConfirmProvider";
 
 interface Version {
   id: string;
@@ -22,6 +23,7 @@ export default function VersionHistory({ entryId, currentData, currentTitle, onR
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
   const [comparing, setComparing] = useState<Version | null>(null);
+  const confirm = useConfirm();
 
   useEffect(() => {
     if (!expanded) return;
@@ -94,8 +96,8 @@ export default function VersionHistory({ entryId, currentData, currentTitle, onR
                       <button
                         className="btn btn-sm btn-outline-warning"
                         style={{ fontSize: 10, padding: "2px 6px" }}
-                        onClick={() => {
-                          if (confirm(`Restore to version from ${new Date(v.createdAt).toLocaleString()}? Current content will be saved as a new version first.`)) {
+                        onClick={async () => {
+                          if (await confirm(`Restore to version from ${new Date(v.createdAt).toLocaleString()}? Current content will be saved as a new version first.`)) {
                             onRestore(v.data, v.title);
                           }
                         }}
