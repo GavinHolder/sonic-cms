@@ -85,3 +85,6 @@ public/uploads/
 
 # backup archives (generated via admin panel)
 /data/backups/
+
+# Local design-export artifact
+Sonic.zip
