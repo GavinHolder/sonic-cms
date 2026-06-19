@@ -552,12 +552,33 @@ model Package {
   // Max distance (metres) from a tower of this package's network for it to be
   // offered. null = no distance limit (available anywhere in the polygon).
   maxDistanceM Int?
+  // DATA = primary data plan (pick one); VAS = value-added add-on (Voice/IoT/CCTV…)
+  kind       String   @default("DATA")
+  // Contract term — fixed list per kind (DATA: 24-Month/Prepaid, VAS: Month-to-Month/12-Month)
+  term       String?
+  // Admin-managed service category (Data, Voice, IoT, CCTV…)
+  categoryId String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-  network    Network  @relation(fields: [networkId], references: [id], onDelete: Cascade)
+  network    Network          @relation(fields: [networkId], references: [id], onDelete: Cascade)
+  category   ServiceCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
   @@index([networkId])
+  @@index([categoryId])
   @@map("packages")
+}
+
+// Admin-managed service category for packages (Data, Voice, IoT, CCTV…).
+model ServiceCategory {
+  id        String    @id @default(cuid())
+  name      String
+  order     Int       @default(0)
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  packages  Package[]
+
+  @@map("service_categories")
 }
 
 model Project {

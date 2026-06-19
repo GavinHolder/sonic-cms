@@ -19,7 +19,17 @@ interface Pkg {
   isActive: boolean;
   order: number;
   maxDistanceM?: number | null;
+  kind?: "DATA" | "VAS";
+  term?: string | null;
+  categoryId?: string | null;
 }
+interface ServiceCategory { id: string; name: string; order: number; isActive: boolean; }
+
+// Fixed term lists per package kind (decoupled — data vs value-added billing)
+const TERMS: Record<"DATA" | "VAS", string[]> = {
+  DATA: ["24-Month", "Prepaid"],
+  VAS: ["Month-to-Month", "12-Month"],
+};
 interface Network {
   id: string;
   name: string;
@@ -56,6 +66,10 @@ export default function NetworksManager() {
   const [pkgModal, setPkgModal] = useState<{ networkId: string; pkg: Partial<Pkg> } | null>(null);
   const [confirm, setConfirm] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
 
+  const [categories, setCategories] = useState<ServiceCategory[]>([]);
+  const [newCategory, setNewCategory] = useState("");
+  const [vasEnabled, setVasEnabled] = useState(false);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -66,7 +80,41 @@ export default function NetworksManager() {
     finally { setLoading(false); }
   }, [toast]);
 
-  useEffect(() => { load(); }, [load]);
+  const loadCategories = useCallback(async () => {
+    try { const r = await fetch("/api/service-categories"); if (r.ok) setCategories(await r.json()); } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { load(); loadCategories(); }, [load, loadCategories]);
+  useEffect(() => {
+    fetch("/api/features/coverage-maps")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { const cfg = d?.config ?? d?.data?.config ?? {}; setVasEnabled(!!cfg.showValueAddedServices); })
+      .catch(() => {});
+  }, []);
+
+  // ── Categories ─────────────────────────────────────────────────────────────
+  const addCategory = async () => {
+    const name = newCategory.trim();
+    if (!name) return;
+    const res = await fetch("/api/service-categories", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, order: categories.length }) });
+    if (res.ok) { setNewCategory(""); loadCategories(); toast.success("Category added"); } else toast.error("Failed to add category");
+  };
+  const deleteCategory = (c: ServiceCategory) =>
+    setConfirm({ title: "Delete category", message: `Delete "${c.name}"? Packages using it become uncategorised.`, onConfirm: async () => {
+      const res = await fetch(`/api/service-categories/${c.id}`, { method: "DELETE" });
+      if (res.ok) { loadCategories(); toast.success("Category deleted"); } else toast.error("Delete failed");
+      setConfirm(null);
+    } });
+
+  // ── Global value-added-services visibility ───────────────────────────────────
+  const toggleVas = async (on: boolean) => {
+    setVasEnabled(on);
+    try {
+      const cur = await fetch("/api/features/coverage-maps").then((r) => (r.ok ? r.json() : null));
+      const cfg = cur?.config ?? cur?.data?.config ?? {};
+      await fetch("/api/features/coverage-maps", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ config: { ...cfg, showValueAddedServices: on } }) });
+    } catch { /* ignore */ }
+  };
 
   const toggle = (id: string) =>
     setExpanded((p) => { const s = new Set(p); s.has(id) ? s.delete(id) : s.add(id); return s; });
@@ -119,6 +167,9 @@ export default function NetworksManager() {
       period: pkg.period ?? "/month",
       features: (pkg.features || []).map((s) => s.trim()).filter(Boolean),
       maxDistanceM: pkg.maxDistanceM ?? null,
+      kind: pkg.kind ?? "DATA",
+      term: pkg.term ?? null,
+      categoryId: pkg.categoryId ?? null,
       popular: pkg.popular ?? false,
       isActive: pkg.isActive ?? true,
       order: pkg.order ?? 0,
@@ -157,6 +208,31 @@ export default function NetworksManager() {
           <i className="bi bi-plus-lg me-1" />Add Network
         </button>
       </div>
+
+      {/* Service categories + value-added services control */}
+      <div className="card shadow-sm mb-3"><div className="card-body">
+        <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+          <strong className="small"><i className="bi bi-tags me-1" />Service Categories</strong>
+          <div className="form-check form-switch mb-0">
+            <input className="form-check-input" type="checkbox" id="vas-toggle" checked={vasEnabled} onChange={(e) => toggleVas(e.target.checked)} />
+            <label className="form-check-label small" htmlFor="vas-toggle">Show value-added services on the coverage map</label>
+          </div>
+        </div>
+        <div className="d-flex flex-wrap align-items-center gap-2">
+          {categories.map((c) => (
+            <span key={c.id} className="badge text-bg-light border d-inline-flex align-items-center gap-1" style={{ fontSize: 12 }}>
+              {c.name}
+              <button type="button" className="btn-close" style={{ fontSize: 8 }} aria-label="Delete" onClick={() => deleteCategory(c)} />
+            </span>
+          ))}
+          <div className="input-group input-group-sm" style={{ width: 220 }}>
+            <input className="form-control" placeholder="New category (e.g. Voice)" value={newCategory}
+              onChange={(e) => setNewCategory(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addCategory(); }} />
+            <button className="btn btn-outline-primary" onClick={addCategory}><i className="bi bi-plus-lg" /></button>
+          </div>
+        </div>
+      </div></div>
+
       {loading ? (
         <div className="text-center py-5"><div className="spinner-border text-primary" /></div>
       ) : networks.length === 0 ? (
@@ -195,7 +271,7 @@ export default function NetworksManager() {
                 <div className="card-body border-top bg-light">
                   <div className="d-flex justify-content-between align-items-center mb-2">
                     <h6 className="mb-0">Packages</h6>
-                    <button className="btn btn-sm btn-primary" onClick={() => setPkgModal({ networkId: n.id, pkg: { period: "/month", features: [], isActive: true } })}>
+                    <button className="btn btn-sm btn-primary" onClick={() => setPkgModal({ networkId: n.id, pkg: { period: "/month", features: [], isActive: true, kind: "DATA" } })}>
                       <i className="bi bi-plus-lg me-1" />Add Package
                     </button>
                   </div>
@@ -278,6 +354,23 @@ export default function NetworksManager() {
               <div className="modal-body d-flex flex-column gap-3">
                 <div><label className="form-label">Name</label>
                   <input className="form-control" value={pkgModal.pkg.name || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, name: e.target.value } })} placeholder="e.g. Home 50/50" /></div>
+                <div className="row">
+                  <div className="col"><label className="form-label">Kind</label>
+                    <select className="form-select" value={pkgModal.pkg.kind ?? "DATA"} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, kind: e.target.value as "DATA" | "VAS", term: null } })}>
+                      <option value="DATA">Data package (primary)</option>
+                      <option value="VAS">Value-added service (add-on)</option>
+                    </select></div>
+                  <div className="col"><label className="form-label">Category</label>
+                    <select className="form-select" value={pkgModal.pkg.categoryId ?? ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, categoryId: e.target.value || null } })}>
+                      <option value="">— None —</option>
+                      {categories.filter((c) => c.isActive).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select></div>
+                  <div className="col"><label className="form-label">Term</label>
+                    <select className="form-select" value={pkgModal.pkg.term ?? ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, term: e.target.value || null } })}>
+                      <option value="">— None —</option>
+                      {TERMS[pkgModal.pkg.kind ?? "DATA"].map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select></div>
+                </div>
                 <div className="row">
                   <div className="col"><label className="form-label">Down</label>
                     <input className="form-control" value={pkgModal.pkg.speedDown || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, speedDown: e.target.value } })} placeholder="50 Mbps" /></div>
