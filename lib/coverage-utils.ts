@@ -23,6 +23,9 @@ export interface CoveragePackage {
   period: string | null;
   features: string[];
   popular: boolean;
+  kind?: string;            // "DATA" | "VAS"
+  term?: string | null;     // e.g. "24-Month", "Prepaid", "Month-to-Month"
+  category?: string | null; // service category name (Data, Voice, IoT…)
 }
 export interface CoverageNetworkResult {
   id: string;

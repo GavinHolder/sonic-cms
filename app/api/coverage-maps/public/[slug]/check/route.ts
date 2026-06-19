@@ -33,7 +33,7 @@ export async function POST(
         include: {
           network: {
             include: {
-              packages: { where: { isActive: true }, orderBy: [{ order: "asc" }, { createdAt: "asc" }] },
+              packages: { where: { isActive: true }, include: { category: { select: { name: true } } }, orderBy: [{ order: "asc" }, { createdAt: "asc" }] },
             },
           },
         },
@@ -44,6 +44,10 @@ export async function POST(
   if (!map) {
     return NextResponse.json({ error: "Map not found" }, { status: 404 });
   }
+
+  // Global toggle: hide value-added (VAS) packages unless enabled in feature config.
+  const feature = await prisma.clientFeature.findUnique({ where: { slug: "coverage-maps" } });
+  const showVas = !!((feature?.config as { showValueAddedServices?: boolean } | null)?.showValueAddedServices);
 
   const point = { lat, lng };
   const matched = map.regions.filter((r) =>
@@ -69,7 +73,7 @@ export async function POST(
   const byNetwork = new Map<string, {
     id: string; name: string; slug: string; category: string; color: string; logoUrl: string | null;
     regionNames: string[];
-    packages: Array<{ id: string; name: string; speedDown: string | null; speedUp: string | null; price: string; period: string | null; features: unknown; popular: boolean }>;
+    packages: Array<{ id: string; name: string; speedDown: string | null; speedUp: string | null; price: string; period: string | null; features: unknown; popular: boolean; kind: string; term: string | null; category: string | null }>;
   }>();
   const unlinkedRegionNames: string[] = [];
 
@@ -85,9 +89,11 @@ export async function POST(
           regionNames: [],
           packages: n.packages
             .filter((p) => p.maxDistanceM == null || distM <= p.maxDistanceM)
+            .filter((p) => showVas || p.kind !== "VAS")
             .map((p) => ({
               id: p.id, name: p.name, speedDown: p.speedDown, speedUp: p.speedUp,
               price: p.price, period: p.period, features: p.features, popular: p.popular,
+              kind: p.kind, term: p.term, category: p.category?.name ?? null,
             })),
         });
       }

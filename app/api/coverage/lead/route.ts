@@ -28,13 +28,27 @@ export async function POST(req: NextRequest) {
   // Authoritative network/package resolution (never trust client labels)
   let networkName: string | null = null;
   let packageName: string | null = null;
+  let packageTerm: string | null = null;
+  let packageCategory: string | null = null;
+  let serviceType: string | null = null;
   let leadCategory = "miss";
+  const addonIds = Array.isArray(body.addonIds) ? (body.addonIds as unknown[]).map((x) => String(x)).slice(0, 20) : [];
+  let addonNames: string[] = [];
   if (!miss && networkId) {
     const net = await prisma.network.findUnique({ where: { id: networkId }, select: { name: true, category: true } });
-    if (net) { networkName = net.name; leadCategory = net.category; }
+    if (net) {
+      networkName = net.name;
+      leadCategory = net.category;
+      const SERVICE_TYPE: Record<string, string> = { FNO: "Fibre", WISP: "Wireless ISP", WIRELESS: "Fixed Wireless" };
+      serviceType = SERVICE_TYPE[net.category] ?? net.category;
+    }
     if (packageId) {
-      const pkg = await prisma.package.findUnique({ where: { id: packageId }, select: { name: true } });
-      if (pkg) packageName = pkg.name;
+      const pkg = await prisma.package.findUnique({ where: { id: packageId }, select: { name: true, term: true, category: { select: { name: true } } } });
+      if (pkg) { packageName = pkg.name; packageTerm = pkg.term; packageCategory = pkg.category?.name ?? null; }
+    }
+    if (addonIds.length) {
+      const addons = await prisma.package.findMany({ where: { id: { in: addonIds } }, select: { name: true, term: true } });
+      addonNames = addons.map((a) => (a.term ? `${a.name} (${a.term})` : a.name));
     }
   }
 
@@ -50,8 +64,11 @@ export async function POST(req: NextRequest) {
     { label: "Email", value: email },
     ...(phone ? [{ label: "Phone", value: phone }] : []),
     ...(address ? [{ label: "Address checked", value: address }] : []),
+    ...(serviceType ? [{ label: "Service type", value: serviceType }] : []),
     ...(networkName ? [{ label: "Network", value: networkName }] : []),
-    ...(packageName ? [{ label: "Package", value: packageName }] : []),
+    ...(packageName ? [{ label: "Package", value: packageTerm ? `${packageName} (${packageTerm})` : packageName }] : []),
+    ...(packageCategory ? [{ label: "Category", value: packageCategory }] : []),
+    ...(addonNames.length ? [{ label: "Add-ons", value: addonNames.join(", ") }] : []),
     { label: "Lead type", value: leadCategory },
   ];
 
