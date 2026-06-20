@@ -21,6 +21,20 @@ Rules:
 
 ---
 
+## ⛔ NON-NEGOTIABLE: EFFICIENT TOKEN USAGE
+
+Token efficiency is a first-class constraint, every session. Overrides verbosity defaults.
+
+- **Search before reading.** Use Grep/Glob/subagents to find exact lines; never read a whole file "just in case". Read narrow ranges; never re-read a file you just edited.
+- **Delegate broad sweeps** to a subagent (Explore/Task) — keep the conclusion, not the file dumps.
+- **Never dump** large logs/JSON/trees into context — pipe through `head`/`grep`/`jq`/`wc -l`. Never `cat` a large file.
+- **No preamble, no recap.** Answer in the fewest tokens that are correct and complete.
+- **Headroom proxy** (token-compression, github.com/chopratejas/headroom) — route model traffic through it when running.
+
+Full kit (global `~/.claude/CLAUDE.md` rule, reusable setup prompt, Headroom install, 2-PC sync): `.claude/token-efficiency-kit.md`
+
+---
+
 ## MCP Servers
 
 **Figma** (`https://mcp.figma.com/mcp`):
