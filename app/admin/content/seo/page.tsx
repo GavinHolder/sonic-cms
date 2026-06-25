@@ -13,6 +13,7 @@ import PropagationTab from "./PropagationTab";
 import ScorecardTab from "./ScorecardTab";
 import SearchConsoleTab from "@/components/admin/SearchConsoleTab";
 import SeoOverviewTab from "./SeoOverviewTab";
+import SeoScoreTab from "./SeoScoreTab";
 import BusinessProfileTab from "@/components/admin/BusinessProfileTab";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -40,7 +41,7 @@ export default function SeoSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [runningAudit, setRunningAudit] = useState(false);
-  const [activeTab, setActiveTab] = useState<"overview" | "site" | "social" | "robots" | "schema" | "google" | "console" | "business-profile" | "audit" | "propagation" | "scorecard">(() => {
+  const [activeTab, setActiveTab] = useState<"overview" | "score" | "site" | "social" | "robots" | "schema" | "google" | "console" | "business-profile" | "audit" | "propagation" | "scorecard">(() => {
     if (typeof window !== "undefined") {
       const p = new URLSearchParams(window.location.search);
       const tab = p.get("tab");
@@ -435,13 +436,14 @@ export default function SeoSettingsPage() {
 
       {/* Tabs */}
       <ul className="nav nav-pills mb-4 flex-wrap gap-1">
-        {(["overview", "site", "social", "robots", "schema", "google", "console", "business-profile", "audit", "propagation", "scorecard"] as const).map((tab) => (
+        {(["overview", "score", "site", "social", "robots", "schema", "google", "console", "business-profile", "audit", "propagation", "scorecard"] as const).map((tab) => (
           <li key={tab} className="nav-item">
             <button
               className={`nav-link ${activeTab === tab ? "active" : ""}`}
               onClick={() => setActiveTab(tab)}
             >
               {tab === "overview" && <><i className="bi bi-speedometer2 me-1" />Overview</>}
+              {tab === "score" && <><i className="bi bi-trophy me-1" />Score</>}
               {tab === "site" && <><i className="bi bi-globe me-1" />Site Settings</>}
               {tab === "social" && <><i className="bi bi-share me-1" />Social & OG</>}
               {tab === "robots" && <><i className="bi bi-robot me-1" />Robots &amp; Sitemap</>}
@@ -470,6 +472,9 @@ export default function SeoSettingsPage() {
 
       {/* ── Tab: Overview ──────────────────────────────────────────────────── */}
       {activeTab === "overview" && <SeoOverviewTab />}
+
+      {/* ── Tab: Score ─────────────────────────────────────────────────────── */}
+      {activeTab === "score" && <SeoScoreTab />}
 
       {/* ── Tab: Site Settings ─────────────────────────────────────────────── */}
       {activeTab === "site" && (

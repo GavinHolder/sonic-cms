@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   const auth = requireRole(req, UserRole.EDITOR);
   if (auth instanceof NextResponse) return auth;
 
-  const [seoConfig, maintenanceRow, sitemapCount] = await Promise.all([
+  const [seoConfig, maintenanceRow, sitemapCount, siteConfig] = await Promise.all([
     fetchSeoConfig(),
     prisma.systemSettings
       .findUnique({ where: { key: "maintenance_mode" } })
@@ -32,6 +32,9 @@ export async function GET(req: NextRequest) {
     prisma.page.count({
       where: { status: "PUBLISHED", noindex: false },
     }),
+    prisma.siteConfig
+      .findUnique({ where: { id: "singleton" } })
+      .catch(() => null),
   ]);
 
   const maintenanceOff = maintenanceRow !== "true";
@@ -50,6 +53,13 @@ export async function GET(req: NextRequest) {
     seoConfig.robots?.disallowPaths?.includes("/")
   );
   const indexingAllowed = !noindexGlobal;
+
+  // NAP (Name, Address, Phone) — the highest-value local-SEO fields.
+  const napComplete = Boolean(
+    siteConfig?.companyName?.trim() &&
+      siteConfig?.address?.trim() &&
+      siteConfig?.phone?.trim()
+  );
 
   const checks: ReadinessCheck[] = [
     {
@@ -93,6 +103,13 @@ export async function GET(req: NextRequest) {
       pass: indexingAllowed,
       hint: "Remove '/' from disallowed paths in SEO → Robots & Sitemap",
       link: "/admin/content/seo",
+    },
+    {
+      id: "nap_complete",
+      label: "Business name, address & phone set",
+      pass: napComplete,
+      hint: "Set company name, address and phone in Settings → Site Config",
+      link: "/admin/settings",
     },
   ];
 

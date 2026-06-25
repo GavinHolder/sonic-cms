@@ -2715,6 +2715,24 @@ The SEO system gives you full control over how your website appears in search en
 
 ---
 
+## SEO Score & Automated Audits (Tab: Score)
+
+The **Score** tab gives you a single 0–100 health number plus three sub-scores. An audit runs **automatically every 24 hours** (configurable) and you can trigger one anytime with **Run Audit Now**.
+
+| Sub-score | What it measures | When it shows |
+|-----------|------------------|---------------|
+| **On-Page Health** | Meta titles/descriptions, duplicates, canonical, structured data, business NAP, GA4/Search Console connected, sitemap | Always |
+| **Content & Structure** | Live crawl of your published pages: exactly one H1, content depth (word count), mobile viewport, image alt text, internal linking | After a full audit runs |
+| **Performance** | Google Search Console data: pages indexed, average position, CTR, impressions (28 days) | Only when Search Console is connected |
+
+The overall score is a weighted blend of whichever sub-scores are available (On-Page 50%, Content 30%, Performance 20%).
+
+**Regression alerts:** if a scheduled audit detects the score dropping, fewer pages indexed, or more pages with issues, an email is sent to your admin address. Disable or tune the threshold in System Settings (\`seo_alert_enabled\`, \`seo_alert_score_drop\`).
+
+> 💡 The **Content & Structure** crawl needs a reachable **Canonical Base URL** — set it under Site Settings or the crawl is skipped.
+
+---
+
 ## Site-Wide Defaults (Tab: Site Settings)
 
 These apply to every page unless overridden at the page level.

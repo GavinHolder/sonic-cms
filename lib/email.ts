@@ -287,3 +287,41 @@ export async function sendSubmissionEmail(
     html: buildSubmissionEmailHtml(fields, userEmail, source, tokens, emailSettings, site),
   })
 }
+
+/**
+ * Send an SEO regression alert email to the admin.
+ * Called by the SEO engine when a scheduled audit detects a meaningful drop
+ * (score worsening, fewer indexed pages, or more pages with issues).
+ * Self-contained — does not throw if SMTP/admin email is unconfigured (returns).
+ */
+export async function sendSeoAlertEmail(
+  subject: string,
+  reasons: string[]
+): Promise<void> {
+  const cfg = await getEmailConfig()
+  const recipient = cfg.admin_email
+  if (!recipient || reasons.length === 0) return
+
+  const siteRow = await prisma.siteConfig.findFirst()
+  const companyName = siteRow?.companyName ?? 'Your site'
+
+  const items = reasons
+    .map((r) => `<li style="margin:6px 0;color:#b91c1c;">${escapeHtml(r)}</li>`)
+    .join('')
+  const html = `<!doctype html><html><body style="font-family:Arial,Helvetica,sans-serif;background:#f3f4f6;padding:24px;">
+    <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:8px;padding:24px;border:1px solid #e5e7eb;">
+      <h2 style="margin:0 0 4px;color:#111827;">SEO Alert — ${escapeHtml(companyName)}</h2>
+      <p style="margin:0 0 16px;color:#6b7280;">Your scheduled SEO audit flagged a regression:</p>
+      <ul style="padding-left:20px;margin:0 0 16px;">${items}</ul>
+      <p style="margin:0;color:#6b7280;font-size:13px;">Review details in Admin → Content → SEO → Score.</p>
+    </div>
+  </body></html>`
+
+  const transporter = await createTransporter()
+  await transporter.sendMail({
+    from: cfg.smtp_from || cfg.smtp_user,
+    to: recipient,
+    subject: `[SEO] ${subject} — ${companyName}`,
+    html,
+  })
+}

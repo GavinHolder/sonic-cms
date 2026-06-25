@@ -371,6 +371,16 @@ They are **NOT** backed up automatically. Set up a cron backup to S3/B2 for prod
 - Hard refresh (Ctrl+Shift+R) — Next.js caches aggressively
 - `docker restart CLIENT-cms-app` if server-side cache is stale
 
+### Responses served uncompressed (no `Content-Encoding`)
+- The app stack enables Traefik gzip/Brotli via two labels on the `-www` router
+  (`...-www.middlewares=...-compress` and `...-compress.compress=true`).
+- **Caveat:** clients whose Portainer stack uses an **inline compose** (pasted into
+  the Portainer editor) rather than the **git-linked Repository** stack will NOT pick
+  this up from a repo pull. Add the two labels to the live stack (Portainer stack
+  editor → redeploy, or the Portainer API).
+- Verify: `curl -sI -H 'Accept-Encoding: gzip' https://www.CLIENT.co.za | grep -i content-encoding`
+  → should report `content-encoding: gzip` (~76% smaller).
+
 ---
 
 ## Client Custom Development

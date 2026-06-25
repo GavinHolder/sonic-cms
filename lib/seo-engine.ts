@@ -1,4 +1,5 @@
 import prisma from "@/lib/prisma";
+import { computeSeoScore, type SeoScoreInput } from "@/lib/seo-score";
 
 export type PageClassification = "protected" | "monitored" | "new";
 
@@ -32,7 +33,7 @@ export interface SiteContext {
 export interface EngineIssue {
   pageId: string;
   slug: string;
-  type: "canonical_conflict" | "redirect_canonical" | "missing_meta_title" | "missing_meta_description" | "missing_og_image" | "discovered_not_indexed" | "duplicate_title" | "duplicate_description" | "canonical_base_redirect";
+  type: "canonical_conflict" | "redirect_canonical" | "missing_meta_title" | "missing_meta_description" | "missing_og_image" | "discovered_not_indexed" | "duplicate_title" | "duplicate_description" | "canonical_base_redirect" | "multiple_h1" | "missing_h1" | "thin_content" | "missing_viewport" | "images_missing_alt";
   severity: "error" | "warning" | "info";
   message: string;
   autoFixed: boolean;
@@ -45,6 +46,17 @@ export interface EngineRunResult {
   pagesProtected: number;
   pagesAlerted: number;
   issues: EngineIssue[];
+  // Score snapshot (content null when no crawl ran; performance null when GSC off)
+  score: number;
+  onPageScore: number;
+  contentScore: number | null;
+  performanceScore: number | null;
+  indexedPages: number | null;
+  avgPosition: number | null;
+  impressions: number | null;
+  clicks: number | null;
+  ctr: number | null;
+  breakdown: import("@/lib/seo-score").ScoreBreakdownItem[];
 }
 
 function parseUserEditedFields(raw: string | null): string[] {
@@ -121,13 +133,20 @@ export async function runSeoEngine(): Promise<EngineRunResult> {
   // Load site context
   const siteConfig = await prisma.siteConfig.findUnique({ where: { id: "singleton" } });
   let canonicalBase = "", siteName = siteConfig?.companyName ?? "Site";
+  let structuredDataEnabled = false, defaultOgImage = "";
   try {
     const { readFile } = await import("fs/promises");
     const pathMod = await import("path");
     const raw = await readFile(pathMod.join(process.cwd(), "data", "seo-config.json"), "utf-8");
-    const cfg = JSON.parse(raw) as { canonicalBase?: string; siteName?: string };
+    const cfg = JSON.parse(raw) as {
+      canonicalBase?: string; siteName?: string;
+      structuredData?: { enabled?: boolean };
+      social?: { ogImage?: string };
+    };
     canonicalBase = cfg.canonicalBase ?? "";
     siteName = cfg.siteName ?? siteName;
+    structuredDataEnabled = cfg.structuredData?.enabled === true;
+    defaultOgImage = cfg.social?.ogImage ?? "";
   } catch { /* no config yet */ }
 
   const ctx: SiteContext = {
@@ -138,9 +157,11 @@ export async function runSeoEngine(): Promise<EngineRunResult> {
   };
 
   // Check canonical base for redirects
+  let canonicalBaseRedirects = false;
   if (canonicalBase) {
     const check = await checkCanonicalBaseRedirects(canonicalBase);
     if (check.redirected) {
+      canonicalBaseRedirects = true;
       issues.push({
         pageId: "site", slug: "site", type: "canonical_base_redirect", severity: "error", autoFixed: false,
         message: `canonicalBase "${canonicalBase}" redirects to "${check.finalUrl}". Google ignores your canonical tags.`,
@@ -158,18 +179,25 @@ export async function runSeoEngine(): Promise<EngineRunResult> {
     select: { id: true, slug: true, title: true, publishedAt: true, metaTitle: true, metaDescription: true, ogTitle: true, ogDescription: true, ogImage: true, canonicalUrl: true, noindex: true, seoUserEditedFields: true, seoProtectedReason: true },
   });
 
-  // Fetch GSC data (best-effort)
+  // Fetch GSC data (best-effort). Also aggregate site-wide performance metrics
+  // (clicks + CTR + impression-weighted position) for the SEO score.
   const gscMap = new Map<string, GscPageData>();
+  let gscConnected = false;
+  let totalClicks = 0, totalImpressions = 0, weightedPositionSum = 0;
   try {
     const { getStoredToken, fetchSearchAnalytics } = await import("@/lib/gsc-client");
     const token = await getStoredToken();
     if (token?.siteUrl) {
+      gscConnected = true;
       const end = new Date(), start = new Date(end.getTime() - 28 * 86400_000);
       const fmt = (d: Date) => d.toISOString().slice(0, 10);
       const rows = await fetchSearchAnalytics(token.siteUrl, fmt(start), fmt(end), ["page"], 500);
       for (const row of rows) {
         const slug = row.keys[0].replace(token.siteUrl, "").replace(/^\//, "");
         gscMap.set(slug, { avgPosition: row.position, impressions28d: row.impressions, hasAnyData: true });
+        totalClicks += row.clicks;
+        totalImpressions += row.impressions;
+        weightedPositionSum += row.position * row.impressions;
       }
     }
   } catch { /* GSC unavailable — safe to continue */ }
@@ -235,5 +263,106 @@ export async function runSeoEngine(): Promise<EngineRunResult> {
     if (pageHasIssues) pagesAlerted++;
   }
 
-  return { pagesAudited: pages.length, pagesAutoFilled, pagesProtected, pagesAlerted, issues };
+  // ── Compute SEO score snapshot ──
+  const ga4Row = await prisma.systemSettings
+    .findUnique({ where: { key: "ga4_measurement_id" } })
+    .catch(() => null);
+  const ga4Connected = !!ga4Row?.value && /^G-[A-Z0-9]+$/i.test(ga4Row.value.trim());
+
+  const pagesMissingTitle = pages.filter((p) => !p.metaTitle).length;
+  const pagesMissingDescription = pages.filter((p) => !p.metaDescription).length;
+  const pagesMissingOgImage = pages.filter((p) => !p.ogImage).length;
+  const duplicateTitles = Array.from(titleCounts.values()).filter((c) => c > 1).length;
+  const duplicateDescriptions = Array.from(descCounts.values()).filter((c) => c > 1).length;
+  const indexedPages = gscConnected ? pages.filter((p) => gscMap.has(p.slug)).length : null;
+
+  const PLACEHOLDER_OG = "/images/logo-placeholder.svg";
+  const napComplete = !!(
+    siteConfig?.companyName?.trim() &&
+    siteConfig?.address?.trim() &&
+    siteConfig?.phone?.trim() &&
+    siteConfig?.city?.trim()
+  );
+
+  const gscInput = gscConnected
+    ? {
+        indexedRatio: pages.length > 0 ? (indexedPages ?? 0) / pages.length : 0,
+        avgPosition: totalImpressions > 0 ? weightedPositionSum / totalImpressions : 0,
+        ctr: totalImpressions > 0 ? totalClicks / totalImpressions : 0,
+        impressions: totalImpressions,
+      }
+    : null;
+
+  // ── On-page crawl (rendered HTML) — bounded, best-effort. Needs a reachable
+  //    canonical base; skipped gracefully otherwise. Feeds the Content sub-score. ──
+  const CRAWL_CAP = 25;
+  let crawlInput: SeoScoreInput["crawl"] = null;
+  if (canonicalBase) {
+    try {
+      const { crawlSite, THIN_CONTENT_WORDS } = await import("@/lib/seo-crawler");
+      const outcome = await crawlSite(
+        canonicalBase,
+        pages.map((p) => ({ id: p.id, slug: p.slug })),
+        { maxPages: CRAWL_CAP },
+      );
+      if (outcome.aggregate.pagesCrawled > 0) {
+        crawlInput = outcome.aggregate;
+        for (const r of outcome.results) {
+          if (!r.ok) continue;
+          if (r.h1Count === 0) {
+            issues.push({ pageId: r.id, slug: r.slug, type: "missing_h1", severity: "warning", message: "Page has no H1 heading", autoFixed: false });
+          } else if (r.h1Count > 1) {
+            issues.push({ pageId: r.id, slug: r.slug, type: "multiple_h1", severity: "warning", message: `Page has ${r.h1Count} H1 headings (should be exactly one)`, autoFixed: false });
+          }
+          if (r.wordCount < THIN_CONTENT_WORDS) {
+            issues.push({ pageId: r.id, slug: r.slug, type: "thin_content", severity: "info", message: `Thin content — ${r.wordCount} words (aim for ${THIN_CONTENT_WORDS}+)`, autoFixed: false });
+          }
+          if (!r.hasViewport) {
+            issues.push({ pageId: r.id, slug: r.slug, type: "missing_viewport", severity: "warning", message: "No mobile viewport meta tag", autoFixed: false });
+          }
+          if (r.imagesTotal > 0 && r.imagesWithAlt < r.imagesTotal) {
+            issues.push({ pageId: r.id, slug: r.slug, type: "images_missing_alt", severity: "info", message: `${r.imagesTotal - r.imagesWithAlt}/${r.imagesTotal} images missing alt text`, autoFixed: false });
+          }
+        }
+      }
+    } catch { /* crawler unavailable — skip content scoring */ }
+  }
+
+  const scoreInput: SeoScoreInput = {
+    totalPages: pages.length,
+    pagesMissingTitle,
+    pagesMissingDescription,
+    pagesMissingOgImage,
+    duplicateTitles,
+    duplicateDescriptions,
+    hasDefaultOgImage: !!defaultOgImage && defaultOgImage !== PLACEHOLDER_OG,
+    canonicalBaseSet: !!canonicalBase,
+    canonicalBaseRedirects,
+    structuredDataEnabled,
+    napComplete,
+    ga4Connected,
+    gscConnected,
+    sitemapHasPages: pages.length > 0,
+    crawl: crawlInput,
+    gsc: gscInput,
+  };
+  const scoreResult = computeSeoScore(scoreInput);
+
+  return {
+    pagesAudited: pages.length,
+    pagesAutoFilled,
+    pagesProtected,
+    pagesAlerted,
+    issues,
+    score: scoreResult.total,
+    onPageScore: scoreResult.onPage,
+    contentScore: scoreResult.content,
+    performanceScore: scoreResult.performance,
+    indexedPages,
+    avgPosition: gscInput ? gscInput.avgPosition : null,
+    impressions: gscConnected ? totalImpressions : null,
+    clicks: gscConnected ? totalClicks : null,
+    ctr: gscInput ? gscInput.ctr : null,
+    breakdown: scoreResult.breakdown,
+  };
 }

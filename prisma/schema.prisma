@@ -837,6 +837,19 @@ model SeoEngineRun {
   pagesAlerted    Int
   issues          Json
 
+  // SEO score snapshot (all nullable — older runs predate scoring, content is null
+  // when no crawl ran, GSC metrics are null when Search Console is not connected)
+  score            Int?
+  onPageScore      Int?
+  contentScore     Int?
+  performanceScore Int?
+  indexedPages     Int?
+  avgPosition      Float?
+  impressions      Int?
+  clicks           Int?
+  ctr              Float?
+  breakdown        Json?
+
   @@map("seo_engine_runs")
 }
 

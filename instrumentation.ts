@@ -40,6 +40,8 @@ export async function register() {
         "github_repo_owner",
         "github_repo_name",
         "github_workflow_id",
+        "seo_engine_last_run",
+        "seo_engine_interval_hours",
       ]);
 
       const status = settings["cms_update_status"] ?? "idle";
@@ -97,6 +99,27 @@ export async function register() {
               upsert("cms_update_status", "failed"),
               upsert("cms_update_error", "Update timed out after 45 minutes — maintenance mode auto-disabled. Check GitHub Actions for details."),
             ]);
+          }
+        }
+      }
+
+      // ── Task 3: Scheduled SEO engine run ────────────────────────────────────
+      // Vercel crons don't fire on self-hosted Docker, so the scheduler lives in
+      // this tick. If the last run is older than the configured interval, stamp
+      // the timestamp FIRST (prevents a double-run if the engine is slow) then
+      // execute. Wrapped so an engine failure never crashes the tick.
+      {
+        const intervalHours = parseInt(settings["seo_engine_interval_hours"] ?? "24", 10) || 24;
+        const lastRunRaw = settings["seo_engine_last_run"];
+        const lastRunMs = lastRunRaw ? new Date(lastRunRaw).getTime() : 0;
+        const dueMs = intervalHours * 60 * 60 * 1000;
+        if (!Number.isFinite(lastRunMs) || Date.now() - lastRunMs >= dueMs) {
+          await upsert("seo_engine_last_run", new Date().toISOString());
+          try {
+            const { executeSeoEngineRun } = await import("@/lib/seo-run");
+            await executeSeoEngineRun();
+          } catch (err) {
+            console.error("[SEO] Scheduled engine run failed:", err);
           }
         }
       }

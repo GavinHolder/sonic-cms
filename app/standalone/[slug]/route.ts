@@ -81,11 +81,14 @@ async function buildSeoInjections(
   const getSetting = (key: string) =>
     prisma.systemSettings.findUnique({ where: { key } }).then(r => r?.value || "").catch(() => "");
 
-  const [seoConfig, headScripts, bodyScripts, ga4Id] = await Promise.all([
+  const [seoConfig, headScripts, bodyScripts, ga4Id, siteConfig] = await Promise.all([
     fetchSeoConfig(),
     getSetting("custom_head_scripts"),
     getSetting("custom_body_scripts"),
     getSetting("ga4_measurement_id"),
+    prisma.siteConfig
+      .findUnique({ where: { id: "singleton" }, select: { faviconUrl: true } })
+      .catch(() => null),
   ]);
 
   const base = (seoConfig.canonicalBase || "").replace(/\/$/, "");
@@ -160,6 +163,16 @@ async function buildSeoInjections(
   // ── Keywords ──
   if (page.metaKeywords && !/name=["']keywords["']/i.test(html)) {
     headParts.push(`<meta name="keywords" content="${escHtml(page.metaKeywords)}">`);
+  }
+
+  // ── Favicon — standalone pages bypass app/layout.tsx generateMetadata,
+  //    so the site favicon never reaches them. Inject it here. ──
+  if (!/rel=["']icon["']/i.test(html)) {
+    const faviconUrl = siteConfig?.faviconUrl?.trim() || "";
+    headParts.push(`<link rel="icon" href="${escHtml(faviconUrl || "/favicon.ico")}">`);
+    if (faviconUrl && !/rel=["']apple-touch-icon["']/i.test(html)) {
+      headParts.push(`<link rel="apple-touch-icon" href="${escHtml(faviconUrl)}">`);
+    }
   }
 
   // ── JSON-LD structured data (admin Structured Data feature) ──
