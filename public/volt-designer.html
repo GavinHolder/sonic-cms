@@ -222,21 +222,15 @@
         <div class="panel">
           <div class="panel-header" data-panel="bool"><i class="bi bi-intersect"></i> Boolean Ops <i class="bi bi-chevron-down chevron"></i></div>
           <div class="panel-body" id="pb-bool">
-            <div style="display:flex;align-items:center;gap:5px;padding:5px 7px;background:#fff8e6;border:1px solid #fde68a;border-radius:5px;margin-bottom:5px;">
-              <span style="font-size:9px;font-weight:800;background:#f59e0b;color:white;padding:2px 5px;border-radius:3px;flex-shrink:0;">① CUTTER</span>
-              <span id="bool-cutter-name" style="font-size:11px;color:#78350f;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Select a shape first</span>
+            <div style="font-size:10px;color:#475569;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:5px;padding:6px 8px;margin-bottom:7px;line-height:1.5;">
+              <b>Select 2+ shapes</b> on the canvas (Shift+click), then pick an operation. The <b>first shape you select</b> is kept (base); the rest become cutters.
             </div>
-            <div style="display:flex;align-items:center;gap:5px;margin-bottom:4px;">
-              <span style="font-size:9px;font-weight:800;background:#06b6d4;color:white;padding:2px 5px;border-radius:3px;flex-shrink:0;">② BASE</span>
-              <select id="bool-base-picker" class="form-select form-select-sm" style="font-size:11px;flex:1;"></select>
-            </div>
-            <div style="font-size:9px;color:#6b7280;padding:0 2px 6px;"><kbd style="font-size:8px;padding:1px 4px;border:1px solid #6b7280;border-radius:2px;background:#374151;color:#f9fafb;font-weight:700;">Shift</kbd>+click a layer to set base</div>
             <div class="d-flex gap-1">
               <button id="btn-bool-union" class="btn btn-sm btn-outline-secondary flex-fill"><i class="bi bi-union"></i> Union</button>
               <button id="btn-bool-subtract" class="btn btn-sm btn-outline-secondary flex-fill"><i class="bi bi-subtract"></i> Sub</button>
               <button id="btn-bool-intersect" class="btn btn-sm btn-outline-secondary flex-fill"><i class="bi bi-intersect"></i> Isect</button>
             </div>
-            <div style="font-size:9px;color:#6c757d;margin-top:7px;line-height:1.6;"><b>Cutter (①)</b> punches through <b>Base (②)</b>. Result = Base modified, Cutter removed. Sub = B minus A. Union = merged. Isect = overlap only.</div>
+            <div style="font-size:9px;color:#6c757d;margin-top:7px;line-height:1.6;">Cutters are hidden and <b>travel with the base</b>. To edit a cutter, select it in the Layers panel. <b>Union</b> = merge · <b>Sub</b> = base minus cutters · <b>Isect</b> = overlap only.</div>
           </div>
         </div>
         <div class="panel">
@@ -367,6 +361,10 @@
           <button id="btn-full-canvas" class="btn btn-sm btn-light px-2 py-1" title="Fill canvas"><i class="bi bi-fullscreen"></i></button>
           <button id="btn-distribute-h" class="btn btn-sm btn-light px-2 py-1" title="Distribute H"><i class="bi bi-distribute-horizontal"></i></button>
           <button id="btn-distribute-v" class="btn btn-sm btn-light px-2 py-1" title="Distribute V"><i class="bi bi-distribute-vertical"></i></button>
+          <div style="height:1px;background:#e2e8f0;margin:2px 0;"></div>
+          <button id="tb-bool-union" class="btn btn-sm btn-light px-2 py-1" title="Union (merge selected shapes)" disabled><i class="bi bi-union"></i></button>
+          <button id="tb-bool-subtract" class="btn btn-sm btn-light px-2 py-1" title="Subtract (base minus cutters)" disabled><i class="bi bi-subtract"></i></button>
+          <button id="tb-bool-intersect" class="btn btn-sm btn-light px-2 py-1" title="Intersect (overlap only)" disabled><i class="bi bi-intersect"></i></button>
         </div>
       </div>
     </div>
@@ -853,21 +851,31 @@
           var tf='scale('+(CW/100)+','+(CH/100)+')';
           if(_lrot){var cx=topx(_lx,CW)+topx(_lw,CW)/2,cy=topx(_ly,CH)+topx(_lh,CH)/2;tf='rotate('+_lrot+' '+cx+' '+cy+') '+tf;}
           g.setAttribute('transform',tf);
-          // Composite layers: use display path (non-destructive bool result)
+          // Composite layers: non-destructive boolean result rendered via SVG masking
+          // (subtract/intersect) + co-rendered sibling paths (union). Robust for any
+          // shape incl. curves & concave — no fragile polygon clipping math.
           var dispPath=layer.vectorData.pathData,dispFillRule=layer.vectorData.fillRule||'nonzero';
-          var dispMaskId=null;
+          var dispMaskId=null;var _boolUnionPaths=[];
           if(layer.boolChildren&&layer.boolChildren.length){
+            var _bcCutter=function(bc){return state.element.layers.find(function(l){return l.id===bc.cutterId;});};
             var _subs=layer.boolChildren.filter(function(bc){return bc.op==='subtract';});
-            if(_subs.length){
-              // SVG mask: base=white, subtract-cutters=black → clean hole, no bleed outside base
+            var _ints=layer.boolChildren.filter(function(bc){return bc.op==='intersect';});
+            var _unis=layer.boolChildren.filter(function(bc){return bc.op==='union';});
+            if(_subs.length||_ints.length){
               var _mId='bm-'+layer.id;
               var _defs=svgNs('defs'),_maskEl=svgNs('mask');_maskEl.setAttribute('id',_mId);
-              var _mb=svgNs('path');_mb.setAttribute('d',layer.vectorData.pathData);_mb.setAttribute('fill','white');_maskEl.appendChild(_mb);
-              _subs.forEach(function(bc){var _c=state.element.layers.find(function(l){return l.id===bc.cutterId;});if(!_c||!_c.vectorData)return;var _mc=svgNs('path');_mc.setAttribute('d',_c.vectorData.pathData);_mc.setAttribute('fill','black');_maskEl.appendChild(_mc);});
+              if(_ints.length){
+                // Intersect: reveal only where cutter(s) overlap the base (base ∩ cutters)
+                _ints.forEach(function(bc){var _c=_bcCutter(bc);if(!_c||!_c.vectorData)return;var _mc=svgNs('path');_mc.setAttribute('d',_c.vectorData.pathData);_mc.setAttribute('fill','white');_maskEl.appendChild(_mc);});
+              }else{
+                // Subtract only: start from the full base, then punch holes
+                var _mb=svgNs('path');_mb.setAttribute('d',layer.vectorData.pathData);_mb.setAttribute('fill','white');_maskEl.appendChild(_mb);
+              }
+              _subs.forEach(function(bc){var _c=_bcCutter(bc);if(!_c||!_c.vectorData)return;var _mc=svgNs('path');_mc.setAttribute('d',_c.vectorData.pathData);_mc.setAttribute('fill','black');_maskEl.appendChild(_mc);});
               _defs.appendChild(_maskEl);svgEl.appendChild(_defs);dispMaskId=_mId;
-              // Also union any non-subtract children into dispPath
-              layer.boolChildren.filter(function(bc){return bc.op!=='subtract';}).forEach(function(bc){var _c=state.element.layers.find(function(l){return l.id===bc.cutterId;});if(_c&&_c.vectorData)dispPath+=' '+_c.vectorData.pathData;});
-            }else{var bd=getBoolDisplayPath(layer);dispPath=bd.path;dispFillRule=bd.fillRule;}
+            }
+            // Union cutters render as separate fill-only siblings (perfect merge, no winding artifacts)
+            _unis.forEach(function(bc){var _c=_bcCutter(bc);if(_c&&_c.vectorData)_boolUnionPaths.push(_c.vectorData.pathData);});
           }
           // In bool-edit mode: cutter shows as dashed orange OUTLINE only (no fill)
           var isCutterEditVis=layer.boolRole==='cutter'&&state.boolEditParentId===layer.boolParentId;
@@ -923,17 +931,38 @@
             _defs2.appendChild(_filt);svgEl.insertBefore(_defs2,svgEl.firstChild);
             g.setAttribute('filter','url(#'+_fxId+')');
           }
-          // Corner radius: clip the group to a rounded rect matching the layer bounds
+          // Corner radius/bevel: clip the group to a rounded rect (round) or a
+          // cut-corner polygon (bevel) matching the layer bounds.
           var _cr=layer.vectorData.cornerRadius;var _crV=Array.isArray(_cr)?_cr[0]:(_cr||0);
           if(_crV>0){
             var _crId='cr-'+layer.id;var _crDefs=svgNs('defs');var _cpEl=svgNs('clipPath');_cpEl.setAttribute('id',_crId);
-            var _crRect=svgNs('rect');_crRect.setAttribute('x',_lx);_crRect.setAttribute('y',_ly);_crRect.setAttribute('width',_lw);_crRect.setAttribute('height',_lh);
             var _rx=(_crV/CW*100).toFixed(4);var _ry=(_crV/CH*100).toFixed(4);
-            _crRect.setAttribute('rx',_rx);_crRect.setAttribute('ry',_ry);
-            _cpEl.appendChild(_crRect);_crDefs.appendChild(_cpEl);svgEl.insertBefore(_crDefs,svgEl.firstChild);
+            if((layer.vectorData.cornerStyle||'round')==='bevel'){
+              // Chamfer: 8-point polygon with corners cut by _rx (x) / _ry (y)
+              var _bx=Math.min(parseFloat(_rx),_lw/2),_by=Math.min(parseFloat(_ry),_lh/2);
+              var _pts=[[_lx+_bx,_ly],[_lx+_lw-_bx,_ly],[_lx+_lw,_ly+_by],[_lx+_lw,_ly+_lh-_by],[_lx+_lw-_bx,_ly+_lh],[_lx+_bx,_ly+_lh],[_lx,_ly+_lh-_by],[_lx,_ly+_by]];
+              var _poly=svgNs('polygon');_poly.setAttribute('points',_pts.map(function(p){return p[0].toFixed(3)+','+p[1].toFixed(3);}).join(' '));
+              _cpEl.appendChild(_poly);
+            }else{
+              var _crRect=svgNs('rect');_crRect.setAttribute('x',_lx);_crRect.setAttribute('y',_ly);_crRect.setAttribute('width',_lw);_crRect.setAttribute('height',_lh);
+              _crRect.setAttribute('rx',_rx);_crRect.setAttribute('ry',_ry);
+              _cpEl.appendChild(_crRect);
+            }
+            _crDefs.appendChild(_cpEl);svgEl.insertBefore(_crDefs,svgEl.firstChild);
             g.setAttribute('clip-path','url(#'+_crId+')');
           }
-          g.appendChild(path);svgEl.appendChild(g);
+          g.appendChild(path);
+          // Boolean UNION: co-render merged cutter shapes with the base fill (fill-only, unmasked)
+          if(_boolUnionPaths.length&&!isCutterEditVis){
+            _boolUnionPaths.forEach(function(_up){
+              var _upath=svgNs('path');_upath.setAttribute('d',_up);
+              _upath.setAttribute('fill',_fAttr);
+              _upath.setAttribute('fill-opacity',(_isGrad||(fill&&fill.type==='glass'))?1:(fill?fill.opacity:1));
+              _upath.setAttribute('fill-rule',dispFillRule);
+              g.appendChild(_upath);
+            });
+          }
+          svgEl.appendChild(g);
         }
         if(layer.type==='slot'){
           var _sd=layer.slotData||{};var _st=_sd.slotType||'title';
@@ -1588,8 +1617,22 @@
               }
             });
           } else {
-            state.element.layers[idx2].x=nx2;state.element.layers[idx2].y=ny2;
-            if(dragSt.origPath&&state.element.layers[idx2].vectorData)state.element.layers[idx2].vectorData.pathData=translatePath(dragSt.origPath,ddx2,ddy2);
+            var _dl=state.element.layers[idx2];
+            _dl.x=nx2;_dl.y=ny2;
+            if(dragSt.origPath&&_dl.vectorData)_dl.vectorData.pathData=translatePath(dragSt.origPath,ddx2,ddy2);
+            // Cutters travel WITH their base — a boolean result moves as one unit.
+            // (A cutter is only repositioned independently when selected on its own.)
+            if(_dl.boolChildren&&_dl.boolChildren.length){
+              if(!dragSt._boolCutterOrig){
+                dragSt._boolCutterOrig={};
+                _dl.boolChildren.forEach(function(bc){var c=state.element.layers.find(function(l){return l.id===bc.cutterId;});if(c)dragSt._boolCutterOrig[bc.cutterId]={x:c.x,y:c.y,path:c.vectorData?c.vectorData.pathData:null};});
+              }
+              _dl.boolChildren.forEach(function(bc){
+                var c=state.element.layers.find(function(l){return l.id===bc.cutterId;});
+                var o=dragSt._boolCutterOrig[bc.cutterId];
+                if(c&&o){c.x=o.x+ddx2;c.y=o.y+ddy2;if(c.vectorData&&o.path)c.vectorData.pathData=translatePath(o.path,ddx2,ddy2);}
+              });
+            }
           }
           if(Math.abs(dpx2)>2||Math.abs(dpy2)>2)dragSt.moved=true;
           // If moving a cutter in bool-edit mode, recalc parent bounds live
@@ -1901,10 +1944,14 @@
             if(!state.selectedLayerId)state.selectedLayerId=layer.id;
             renderCanvas();renderLayers();return;
           }
-          if(ev.shiftKey&&state.selectedLayerId&&layer.id!==state.selectedLayerId){
-            // No boolean ops on slots — Shift+click on/from a slot does nothing
-            var _curSel=state.element.layers.find(function(l){return l.id===state.selectedLayerId;});
-            if(layer.type!=='slot'&&_curSel&&_curSel.type!=='slot'){state.boolBaseId=layer.id;renderAll();}
+          if(ev.shiftKey&&layer.id!==state.selectedLayerId){
+            // Shift+click in the layers panel → add/remove from multi-select (matches canvas).
+            // Preserves selection order so the first-selected shape stays the boolean base.
+            if(state.selectedLayerId&&state.multiSelectIds.indexOf(state.selectedLayerId)<0)state.multiSelectIds.unshift(state.selectedLayerId);
+            var _mi=state.multiSelectIds.indexOf(layer.id);
+            if(_mi>=0){state.multiSelectIds.splice(_mi,1);}else{state.multiSelectIds.push(layer.id);}
+            if(!state.selectedLayerId)state.selectedLayerId=layer.id;
+            renderCanvas();renderLayers();renderProps();
           }
           else if(layer.id!==state.selectedLayerId){
             if(onName){_lyrDblClick={id:layer.id,time:Date.now()};}
@@ -2059,37 +2106,18 @@
         return l&&l.type==='slot';
       });
     }
+    /** Count vector (non-slot) layers in the current multi-selection. */
+    function boolSelectableVectorCount(){
+      var ids=state.multiSelectIds||[];
+      return ids.filter(function(id){var l=state.element.layers.find(function(x){return x.id===id;});return l&&l.type==='vector';}).length;
+    }
     function renderBoolPanel(){
-      var cutterNameEl=document.getElementById('bool-cutter-name');
-      var basePicker=document.getElementById('bool-base-picker');
-      if(!cutterNameEl||!basePicker)return;
-      // Disable entire panel when selection contains slot layers (no bool ops on slots)
-      var slotBlock=hasSlotInMultiSel();
-      var boolBtns=['btn-bool-union','btn-bool-subtract','btn-bool-intersect'];
-      boolBtns.forEach(function(id){var b=document.getElementById(id);if(b)b.disabled=slotBlock;});
-      if(slotBlock){
-        state.boolBaseId=null;
-        cutterNameEl.textContent='N/A — slots selected';
-        while(basePicker.firstChild)basePicker.removeChild(basePicker.firstChild);
-        var na=document.createElement('option');na.value='';na.textContent='N/A — slots selected';basePicker.appendChild(na);
-        return;
-      }
-      var sel=state.selectedLayerId?state.element.layers.find(function(l){return l.id===state.selectedLayerId;}):null;
-      cutterNameEl.textContent=(sel&&sel.type==='vector')?sel.name:'Select a vector shape first';
-      while(basePicker.firstChild)basePicker.removeChild(basePicker.firstChild);
-      var vectors=state.element.layers.filter(function(l){return l.type==='vector'&&l.id!==state.selectedLayerId;});
-      if(!vectors.length){
-        var no=document.createElement('option');no.value='';no.textContent='No other shapes';basePicker.appendChild(no);
-        state.boolBaseId=null;
-      }else{
-        // Only keep boolBaseId if it still refers to a valid non-cutter vector layer.
-        // Never auto-assign — require explicit user selection to avoid silently
-        // targeting an unrelated layer from a different pair.
-        var stillValid=state.boolBaseId&&vectors.find(function(l){return l.id===state.boolBaseId;});
-        if(!stillValid)state.boolBaseId=null;
-        var placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='— choose base —';placeholder.disabled=false;if(!state.boolBaseId)placeholder.selected=true;basePicker.appendChild(placeholder);
-        vectors.forEach(function(l){var o=document.createElement('option');o.value=l.id;o.textContent=l.name;if(l.id===state.boolBaseId)o.selected=true;basePicker.appendChild(o);});
-      }
+      // New workflow: ops act on the canvas multi-selection (first = base, rest = cutters).
+      // No sidebar base/cutter picking — buttons enable only when 2+ vector shapes are selected.
+      var boolBtns=['btn-bool-union','btn-bool-subtract','btn-bool-intersect',
+                    'tb-bool-union','tb-bool-subtract','tb-bool-intersect'];
+      var ok=(state.multiSelectIds||[]).length>=2 && !hasSlotInMultiSel() && boolSelectableVectorCount()>=2;
+      boolBtns.forEach(function(id){var b=document.getElementById(id);if(b)b.disabled=!ok;});
     }
     // ── 3D Object modal ───────────────────────────────────────────────────────
     function openV3DModal() {
@@ -2945,10 +2973,19 @@
     function renderCornerRadiusSec(body,layer){
       var cr=layer.vectorData&&layer.vectorData.cornerRadius!=null?layer.vectorData.cornerRadius:0;
       var crVal=Array.isArray(cr)?cr[0]:cr;
+      var cstyle=(layer.vectorData&&layer.vectorData.cornerStyle)||'round';
       var sec=mkSec();var hdr=document.createElement('div');hdr.className='d-flex align-items-center justify-content-between mb-1';
-      var lb=document.createElement('div');lb.className='prop-label mb-0';lb.textContent='Corner Radius';
+      var lb=document.createElement('div');lb.className='prop-label mb-0';lb.textContent='Corners';
       var crNum=document.createElement('input');crNum.type='number';crNum.id='prop-corner-radius-val';crNum.className='form-control form-control-sm';crNum.value=crVal||0;crNum.min='0';crNum.max='200';crNum.step='1';crNum.style.width='52px';crNum.style.fontSize='10px';
       hdr.appendChild(lb);hdr.appendChild(crNum);sec.appendChild(hdr);
+      // Round / Bevel mode toggle
+      var modeWrap=document.createElement('div');modeWrap.className='btn-group btn-group-sm w-100 mb-1';modeWrap.setAttribute('role','group');
+      function _setStyle(v){var i=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i<0)return;state.element.layers[i].vectorData.cornerStyle=v;pushHistory();markDirty();renderCanvas();renderProps();}
+      [['round','Round'],['bevel','Bevel']].forEach(function(pair){
+        var b=document.createElement('button');b.type='button';b.className='btn btn-sm '+(cstyle===pair[0]?'btn-primary':'btn-outline-secondary');b.style.fontSize='10px';b.textContent=pair[1];
+        b.addEventListener('click',function(){_setStyle(pair[0]);});modeWrap.appendChild(b);
+      });
+      sec.appendChild(modeWrap);
       var crSl=document.createElement('input');crSl.type='range';crSl.id='prop-corner-radius';crSl.className='form-range';crSl.min='0';crSl.max='200';crSl.step='1';crSl.value=crVal||0;
       function _setCR(v){var i=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i<0)return;var n=parseFloat(v)||0;state.element.layers[i].vectorData.cornerRadius=n;crNum.value=n;crSl.value=n;renderCanvas();}
       crSl.addEventListener('input',function(e){_setCR(e.target.value);});crSl.addEventListener('change',function(){pushHistory();markDirty();});
@@ -3596,33 +3633,36 @@
     }
     // ── Boolean ops ───────────────────────────────────────────────────────────
     function booleanOp(op){
-      var cutterId=state.selectedLayerId,baseId=state.boolBaseId;
-      if(!cutterId){alert('Select the cutter shape \u2460 first');return;}
-      if(!baseId){alert('Choose a base shape \u2461 from the dropdown');return;}
-      var cutter=state.element.layers.find(function(l){return l.id===cutterId;});
-      var base=state.element.layers.find(function(l){return l.id===baseId;});
-      if(!cutter||!base){alert('Could not find layers');return;}
-      if(cutter.type!=='vector'||base.type!=='vector'){alert('Both layers must be vector shapes');return;}
-      if(!cutter.vectorData||!base.vectorData){alert('Both layers must have vector path data');return;}
-      // Don't allow cutter-of-cutter
-      if(cutter.boolRole==='cutter'){alert('Cannot use a cutter layer as cutter again');return;}
+      // WORKFLOW: multi-select 2+ shapes on the canvas. First-selected = base (kept),
+      // remaining selected shapes = cutters. No sidebar base/cutter picking.
+      var ids=(state.multiSelectIds||[]).slice();
+      if(ids.length<2){alert('Select 2 or more shapes on the canvas first (Shift+click). The first shape you select is kept; the rest become cutters.');return;}
+      var byId={};state.element.layers.forEach(function(l){byId[l.id]=l;});
+      var base=byId[ids[0]];
+      if(!base||base.type!=='vector'||!base.vectorData){alert('The first selected shape (the one kept) must be a vector shape.');return;}
+      var cutters=[];
+      for(var i=1;i<ids.length;i++){
+        var c=byId[ids[i]];
+        if(!c)continue;
+        if(c.id===base.id)continue;
+        if(c.type!=='vector'||!c.vectorData){alert('All selected shapes must be vector shapes (no slots/text/images).');return;}
+        cutters.push(c);
+      }
+      if(!cutters.length){alert('Select at least one cutter shape in addition to the base.');return;}
       pushHistory();
-      // NON-DESTRUCTIVE: hide cutter, store relationship on base
-      cutter.visible=false;
-      cutter.boolRole='cutter';
-      cutter.boolParentId=baseId;
       if(!base.boolChildren)base.boolChildren=[];
-      // Replace any existing same-cutter entry
-      base.boolChildren=base.boolChildren.filter(function(bc){return bc.cutterId!==cutterId;});
-      base.boolChildren.push({cutterId:cutterId,op:op});
-      // Recalculate bounding box from combined display path
+      cutters.forEach(function(c){
+        // NON-DESTRUCTIVE: hide cutter, store the relationship on the base.
+        c.visible=false;c.boolRole='cutter';c.boolParentId=base.id;
+        base.boolChildren=base.boolChildren.filter(function(bc){return bc.cutterId!==c.id;});
+        base.boolChildren.push({cutterId:c.id,op:op});
+      });
       recalcLayerBounds(base);
-      state.selectedLayerId=baseId;state.boolBaseId=null;state.multiSelectIds=[baseId];markDirty();renderAll();
+      state.selectedLayerId=base.id;state.boolBaseId=null;state.multiSelectIds=[base.id];markDirty();renderAll();
     }
-    document.getElementById('btn-bool-union').addEventListener('click',function(){booleanOp('union');});
-    document.getElementById('btn-bool-subtract').addEventListener('click',function(){booleanOp('subtract');});
-    document.getElementById('btn-bool-intersect').addEventListener('click',function(){booleanOp('intersect');});
-    document.getElementById('bool-base-picker').addEventListener('change',function(e){state.boolBaseId=e.target.value||null;renderCanvas();});
+    ['btn-bool-union','tb-bool-union'].forEach(function(id){var b=document.getElementById(id);if(b)b.addEventListener('click',function(){booleanOp('union');});});
+    ['btn-bool-subtract','tb-bool-subtract'].forEach(function(id){var b=document.getElementById(id);if(b)b.addEventListener('click',function(){booleanOp('subtract');});});
+    ['btn-bool-intersect','tb-bool-intersect'].forEach(function(id){var b=document.getElementById(id);if(b)b.addEventListener('click',function(){booleanOp('intersect');});});
     // ── Canvas size ───────────────────────────────────────────────────────────
     // Scale SVG path data (percentage coords) by independent x/y factors.
     // Handles M, L, A (arc), Z commands — covers rect, ellipse, polygon paths.
@@ -4468,7 +4508,13 @@
       {id:'pentagon',  name:'Pentagon',     path:'M 50 0 L 100 38 L 81 100 L 19 100 L 0 38 Z'},
       {id:'shield',    name:'Shield',       path:'M 50 0 L 100 20 L 100 55 L 50 100 L 0 55 L 0 20 Z'},
       {id:'speech',    name:'Callout',      path:'M 10 0 L 90 0 L 100 10 L 100 70 L 58 70 L 50 90 L 42 70 L 0 70 L 0 10 Z'},
-      {id:'tag',       name:'Tag',          path:'M 0 0 L 75 0 L 100 50 L 75 100 L 0 100 Z'}
+      {id:'tag',       name:'Tag',          path:'M 0 0 L 75 0 L 100 50 L 75 100 L 0 100 Z'},
+      {id:'banner-dn', name:'Banner ↓',     path:'M 0 0 L 100 0 L 100 70 L 50 100 L 0 70 Z'},
+      {id:'banner-up', name:'Banner ↑',     path:'M 0 30 L 50 0 L 100 30 L 100 100 L 0 100 Z'},
+      {id:'ribbon',    name:'Ribbon',       path:'M 0 0 L 100 0 L 85 50 L 100 100 L 0 100 L 15 50 Z'},
+      {id:'wave',      name:'Wave',         path:'M 0 0 L 100 0 L 100 70 C 83 92 67 48 50 70 C 33 92 17 48 0 70 Z'},
+      {id:'pill',      name:'Pill',         path:'M 25 0 L 75 0 C 89 0 100 11 100 25 L 100 75 C 100 89 89 100 75 100 L 25 100 C 11 100 0 89 0 75 L 0 25 C 0 11 11 0 25 0 Z'},
+      {id:'badge',     name:'Badge',        path:'M 50 0 L 63 12 L 80 8 L 86 25 L 100 33 L 92 50 L 100 67 L 86 75 L 80 92 L 63 88 L 50 100 L 37 88 L 20 92 L 14 75 L 0 67 L 8 50 L 0 33 L 14 25 L 20 8 L 37 12 Z'}
     ];
     // Scale a normalized 0-100 path to actual canvas coordinates
     function scalePresetPath(np,x,y,w,h){

@@ -4081,39 +4081,26 @@ Boolean ops combine two vector shapes non-destructively into a composite shape.
 
 ## Workflow
 
-1. **Select the CUTTER shape** (the shape doing the cutting) — it appears in the ① CUTTER field
-2. **Shift-click a BASE shape** on canvas — or pick from the ② BASE dropdown
-3. Click one of the three operation buttons:
+1. **Multi-select 2+ shapes on the canvas** — Shift+click each shape (or Shift+click in the Layers panel). Works for any vector shapes, including curves and concave paths.
+2. The **first shape you selected** is kept (the base). The rest become **cutters**.
+3. Click one of the three operation buttons (in the Boolean Ops panel **or** the floating right toolbar):
 
 | Button | Operation | Result |
 |--------|-----------|--------|
-| **Union** | Merge | Both shapes combined into one outline |
-| **Sub** | Subtract | BASE minus CUTTER — punches a hole |
+| **Union** | Merge | All shapes combined into one outline |
+| **Sub** | Subtract | Base minus cutters — punches holes |
 | **Isect** | Intersect | Only the overlapping region remains |
 
----
-
-## Non-Destructive
-
-- The cutter shape is **hidden** (not deleted) — you can edit it later
-- The base shape stores the boolean relationship in \`boolChildren\`
-- The SVG display path is recomputed every render
+There is **no base/cutter dropdown** — the canvas selection is the workflow.
 
 ---
 
-## Bool Edit Mode
+## Non-Destructive & Move-as-One
 
-Double-click the composite base shape to enter **Bool Edit Mode**:
-
-| Action | Result |
-|--------|--------|
-| **Drag cutter** | Move the cutter to a new position |
-| **Hold Ctrl + drag** | Move cutter snapping to grid |
-| **Double-click cutter** | Enter vertex edit on the cutter path |
-| **Esc** | Confirm position and exit Bool Edit mode |
-
-The cutter is shown with an orange **CUTTER ✂** badge and dashed orange outline.
-The base is shown with a teal **BASE** badge.
+- Each cutter is **hidden** (not deleted) and the base stores the relationship in \`boolChildren\`.
+- **Cutters travel with the base**: moving the composite result moves its cutters with it, so the cut never breaks.
+- To reposition a cutter on its own, **select it in the Layers panel** (it carries a **CUT** badge) and move/rotate/scale it there.
+- Rendering uses SVG masking (subtract/intersect) and co-rendered fills (union) — robust for curves and concave shapes, with **no winding artifacts**. Booleans also render correctly on the **published site**.
 
 > **Cutter position is saved on mouse-up** — no extra Save needed. Esc confirms and returns to normal selection mode.
 

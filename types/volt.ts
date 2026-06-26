@@ -179,7 +179,19 @@ export interface VoltVectorData {
   stroke?: VoltStroke
   cornerRadius?: number | number[]
   cornerSmoothing?: number
+  /** How corners are cut when cornerRadius > 0: rounded (default) or beveled (straight chamfer) */
+  cornerStyle?: 'round' | 'bevel'
   closed: boolean
+  /** SVG fill-rule for self-intersecting / composite paths */
+  fillRule?: 'nonzero' | 'evenodd'
+}
+
+/** A non-destructive boolean relationship: a cutter shape combined into a base shape. */
+export interface VoltBoolChild {
+  /** Layer id of the hidden cutter shape */
+  cutterId: string
+  /** How the cutter combines with the base */
+  op: 'union' | 'subtract' | 'intersect'
 }
 
 export interface VoltSlotData {
@@ -371,6 +383,12 @@ export interface VoltLayer {
   timeline?: VoltTimelineConfig
   /** Clip mask — this layer is clipped to the shape of the referenced vector layer */
   clipMaskLayerId?: string
+  /** Non-destructive boolean ops — cutter shapes combined into this (base) layer */
+  boolChildren?: VoltBoolChild[]
+  /** Set on a layer that is acting as a cutter for some base layer */
+  boolRole?: 'cutter'
+  /** Layer id of the base this cutter belongs to */
+  boolParentId?: string
   /** Component instance — this layer renders a reusable Volt component */
   componentRef?: {
     /** ID of the source VoltElement (elementType: "component") */

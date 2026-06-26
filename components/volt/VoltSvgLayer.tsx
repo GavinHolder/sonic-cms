@@ -64,6 +64,8 @@ interface Props {
   canvasWidth: number
   canvasHeight: number
   instanceOverride?: VoltLayerInstanceOverride
+  /** All vector layers on the same face — needed to resolve boolean cutter shapes */
+  siblingLayers?: VoltLayer[]
 }
 
 /**
@@ -138,9 +140,10 @@ function GradientDef({ fill, layerId }: { fill: VoltFill; layerId: string }) {
   return null
 }
 
-export default function VoltSvgLayer({ layer, canvasWidth, canvasHeight, instanceOverride }: Props) {
+export default function VoltSvgLayer({ layer, canvasWidth, canvasHeight, instanceOverride, siblingLayers }: Props) {
   const isVisible = instanceOverride?.visible !== undefined ? instanceOverride.visible : layer.visible
-  if (!isVisible || layer.type !== 'vector' || !layer.vectorData) return null
+  // Cutter layers are hidden — they render only as part of their base's boolean composite.
+  if (!isVisible || layer.boolRole === 'cutter' || layer.type !== 'vector' || !layer.vectorData) return null
 
   const { vectorData, opacity, blendMode, rotation, x, y, width, height } = layer
   const ax = (x / 100) * canvasWidth
@@ -207,6 +210,47 @@ export default function VoltSvgLayer({ layer, canvasWidth, canvasHeight, instanc
   // rx/ry in % coords (the path data lives in 0-100 space)
   const crRx = crVal / canvasWidth * 100
   const crRy = crVal / canvasHeight * 100
+  const cornerStyle = vectorData.cornerStyle ?? 'round'
+  // Bevel chamfer: 8-point polygon with corners cut by crRx (x) / crRy (y)
+  const bvx = Math.min(crRx, width / 2)
+  const bvy = Math.min(crRy, height / 2)
+  const bevelPoints = [
+    [x + bvx, y], [x + width - bvx, y], [x + width, y + bvy], [x + width, y + height - bvy],
+    [x + width - bvx, y + height], [x + bvx, y + height], [x, y + height - bvy], [x, y + bvy],
+  ].map(p => `${p[0].toFixed(3)},${p[1].toFixed(3)}`).join(' ')
+
+  // ── Boolean composite (non-destructive) ───────────────────────────────────
+  // subtract/intersect render via an SVG <mask>; union via co-rendered fill paths.
+  // Cutter shapes are resolved from siblingLayers by id. Coords stay in 0-100 space
+  // (same as pathData), so mask content aligns with the masked path's user space.
+  const boolChildren = layer.boolChildren ?? []
+  const cutterPath = (id: string) => {
+    const c = siblingLayers?.find(l => l.id === id)
+    return c?.vectorData?.pathData
+  }
+  let boolMaskId: string | undefined
+  let boolMaskDef: React.ReactNode = null
+  const boolUnionPaths: string[] = []
+  if (boolChildren.length && siblingLayers) {
+    const subs = boolChildren.filter(b => b.op === 'subtract')
+    const ints = boolChildren.filter(b => b.op === 'intersect')
+    const unis = boolChildren.filter(b => b.op === 'union')
+    if (subs.length || ints.length) {
+      boolMaskId = `bm-${layer.id}`
+      boolMaskDef = (
+        <defs>
+          <mask id={boolMaskId} maskContentUnits="userSpaceOnUse">
+            {ints.length
+              ? ints.map(b => { const d = cutterPath(b.cutterId); return d ? <path key={`i-${b.cutterId}`} d={d} fill="white" /> : null })
+              : <path d={vectorData.pathData} fill="white" />}
+            {subs.map(b => { const d = cutterPath(b.cutterId); return d ? <path key={`s-${b.cutterId}`} d={d} fill="black" /> : null })}
+          </mask>
+        </defs>
+      )
+    }
+    unis.forEach(b => { const d = cutterPath(b.cutterId); if (d) boolUnionPaths.push(d) })
+  }
+  const fillRule = vectorData.fillRule
 
   return (
     <g
@@ -266,10 +310,13 @@ export default function VoltSvgLayer({ layer, canvasWidth, canvasHeight, instanc
       {hasCornerRadius && (
         <defs>
           <clipPath id={crClipId!}>
-            <rect x={x} y={y} width={width} height={height} rx={crRx} ry={crRy} />
+            {cornerStyle === 'bevel'
+              ? <polygon points={bevelPoints} />
+              : <rect x={x} y={y} width={width} height={height} rx={crRx} ry={crRy} />}
           </clipPath>
         </defs>
       )}
+      {boolMaskDef}
       <g transform={transform || undefined}>
         {(() => {
           // CSS custom properties (var(--theme-*)) don't resolve as SVG presentation
@@ -281,13 +328,28 @@ export default function VoltSvgLayer({ layer, canvasWidth, canvasHeight, instanc
             ? { ...(fillIsVar ? { fill: fillAttr } : {}), ...(strokeIsVar ? { stroke: stroke!.color } : {}) }
             : undefined;
           return (
-            <path
-              d={vectorData.pathData}
-              fill={fillIsVar ? undefined : fillAttr}
-              fillOpacity={primaryFill?.opacity ?? 1}
-              {...strokeAttr}
-              style={cssVarStyle}
-            />
+            <>
+              <path
+                d={vectorData.pathData}
+                fill={fillIsVar ? undefined : fillAttr}
+                fillOpacity={primaryFill?.opacity ?? 1}
+                fillRule={fillRule}
+                mask={boolMaskId ? `url(#${boolMaskId})` : undefined}
+                {...strokeAttr}
+                style={cssVarStyle}
+              />
+              {/* Boolean UNION: co-render merged cutter shapes with the base fill (fill-only, unmasked) */}
+              {boolUnionPaths.map((d, i) => (
+                <path
+                  key={`u-${i}`}
+                  d={d}
+                  fill={fillIsVar ? undefined : fillAttr}
+                  fillOpacity={primaryFill?.opacity ?? 1}
+                  fillRule={fillRule}
+                  style={fillIsVar ? { fill: fillAttr } : undefined}
+                />
+              ))}
+            </>
           );
         })()}
       </g>

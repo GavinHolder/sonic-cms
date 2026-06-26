@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { HeroCarouselSlide, AnimationType, HeadingRow } from "@/types/section";
+import type { HeroCarouselSlide, AnimationType, HeadingRow, HeadingWord } from "@/types/section";
 import MediaUploader from "./MediaUploader";
 
 interface SlideEditorProps {
@@ -83,6 +83,48 @@ export default function SlideEditor({
     const rows = [...(slide.overlay?.headingRows ?? [])];
     const [moved] = rows.splice(from, 1);
     rows.splice(to, 0, moved);
+    updateOverlay({ headingRows: rows });
+  };
+
+  // ── Per-word outline / fill helpers ────────────────────────────────────────
+  const splitRowToWords = (index: number) => {
+    const row = (slide.overlay?.headingRows ?? [])[index];
+    if (!row) return;
+    const words: HeadingWord[] = (row.text || "")
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((t) => ({ text: t }));
+    updateHeadingRow(index, { words: words.length ? words : [{ text: "" }] });
+  };
+
+  const clearRowWords = (index: number) => {
+    const row = (slide.overlay?.headingRows ?? [])[index];
+    if (!row) return;
+    // Collapse words back into plain text (keep content, drop per-word styling)
+    const text = (row.words ?? []).map((w) => w.text).join(" ").trim();
+    updateHeadingRow(index, { words: undefined, text: text || row.text });
+  };
+
+  const updateWord = (rowIdx: number, wordIdx: number, updates: Partial<HeadingWord>) => {
+    const rows = [...(slide.overlay?.headingRows ?? [])];
+    const words = [...(rows[rowIdx]?.words ?? [])];
+    if (!words[wordIdx]) return;
+    words[wordIdx] = { ...words[wordIdx], ...updates };
+    rows[rowIdx] = { ...rows[rowIdx], words, text: words.map((w) => w.text).join(" ") };
+    updateOverlay({ headingRows: rows });
+  };
+
+  const moveWordToRow = (fromRow: number, wordIdx: number, toRow: number) => {
+    if (fromRow === toRow) return;
+    const rows = [...(slide.overlay?.headingRows ?? [])];
+    const fromWords = [...(rows[fromRow]?.words ?? [])];
+    const [moved] = fromWords.splice(wordIdx, 1);
+    if (!moved) return;
+    // Target row must be in per-word mode to receive the word
+    const toWords = [...(rows[toRow]?.words ?? (rows[toRow]?.text ? rows[toRow].text.split(/\s+/).filter(Boolean).map((t) => ({ text: t } as HeadingWord)) : []))];
+    toWords.push(moved);
+    rows[fromRow] = { ...rows[fromRow], words: fromWords, text: fromWords.map((w) => w.text).join(" ") };
+    rows[toRow] = { ...rows[toRow], words: toWords, text: toWords.map((w) => w.text).join(" ") };
     updateOverlay({ headingRows: rows });
   };
 
@@ -903,6 +945,67 @@ export default function SlideEditor({
                               <option value="zoom">Zoom</option>
                             </select>
                           </div>
+                        </div>
+
+                        {/* ── Per-word outline / fill ─────────────────────────── */}
+                        <div className="mt-2 pt-2 border-top">
+                          <div className="d-flex align-items-center justify-content-between mb-1">
+                            <label className="form-label form-label-sm mb-0 fw-semibold" style={{ fontSize: 11 }}>
+                              <i className="bi bi-fonts me-1" />Per-word outline
+                            </label>
+                            {row.words && row.words.length > 0 ? (
+                              <button type="button" className="btn btn-sm btn-outline-secondary py-0" style={{ fontSize: 10 }} onClick={() => clearRowWords(idx)}>
+                                Use plain text
+                              </button>
+                            ) : (
+                              <button type="button" className="btn btn-sm btn-outline-primary py-0" style={{ fontSize: 10 }} onClick={() => splitRowToWords(idx)} disabled={!row.text.trim()}>
+                                Split into words
+                              </button>
+                            )}
+                          </div>
+                          {row.words && row.words.length > 0 && (
+                            <div className="d-flex flex-column gap-1">
+                              {row.words.map((w, wi) => (
+                                <div key={wi} className="d-flex align-items-center gap-1" style={{ fontSize: 11 }}>
+                                  <input
+                                    type="text"
+                                    className="form-control form-control-sm flex-grow-1 py-0"
+                                    style={{ fontSize: 11 }}
+                                    value={w.text}
+                                    onChange={(e) => updateWord(idx, wi, { text: e.target.value })}
+                                    placeholder="word"
+                                  />
+                                  <label className="d-flex align-items-center gap-1 m-0" title="Outline this word" style={{ whiteSpace: "nowrap" }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={!!w.outlined}
+                                      onChange={(e) => updateWord(idx, wi, { outlined: e.target.checked })}
+                                    />
+                                    <span>Outline</span>
+                                  </label>
+                                  <input
+                                    type="color"
+                                    className="form-control form-control-color form-control-sm p-0"
+                                    style={{ width: 28, height: 26 }}
+                                    value={w.outlined ? (w.outlineColor || row.color) : (w.color || row.color)}
+                                    onChange={(e) => updateWord(idx, wi, w.outlined ? { outlineColor: e.target.value } : { color: e.target.value })}
+                                    title={w.outlined ? "Outline colour" : "Fill colour"}
+                                  />
+                                  <select
+                                    className="form-select form-select-sm py-0"
+                                    style={{ width: 64, fontSize: 10 }}
+                                    value={idx}
+                                    onChange={(e) => moveWordToRow(idx, wi, parseInt(e.target.value))}
+                                    title="Move word to row"
+                                  >
+                                    {(slide.overlay?.headingRows ?? []).map((_, rIdx) => (
+                                      <option key={rIdx} value={rIdx}>Row {rIdx + 1}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>

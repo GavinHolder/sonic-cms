@@ -292,8 +292,27 @@ export interface GradientOverlay {
  * Single row in a multi-row hero heading (OVB-style stacked display type).
  * Each row can have independent color, size, weight, and animation.
  */
+/**
+ * A single word within a heading row — enables per-word outline (stroke) styling
+ * and per-word fill colour. When a row has a non-empty `words` array it is rendered
+ * word-by-word; otherwise the row's plain `text` is used (backward compatible).
+ */
+export interface HeadingWord {
+  text: string;
+  /** Outlined = transparent fill + text stroke (vs solid fill) */
+  outlined?: boolean;
+  /** Stroke colour when outlined (defaults to the row colour) */
+  outlineColor?: string;
+  /** Stroke width in px when outlined (default 2) */
+  outlineWidth?: number;
+  /** Solid fill colour override when not outlined (defaults to the row colour) */
+  color?: string;
+}
+
 export interface HeadingRow {
   text: string;
+  /** Optional per-word styling (outline/fill). Takes precedence over `text` when non-empty. */
+  words?: HeadingWord[];
   fontSize: number;        // px — rendered with clamp(28px, 7vw, Xpx)
   fontWeight: number;      // 100–900
   fontFamily: string;

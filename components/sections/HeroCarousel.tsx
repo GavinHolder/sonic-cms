@@ -318,7 +318,22 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                             letterSpacing: "-0.02em",
                           }}
                         >
-                          {row.text}
+                          {row.words && row.words.length > 0
+                            ? row.words.map((w, wi) => (
+                                <span
+                                  key={wi}
+                                  style={{
+                                    color: w.outlined ? "transparent" : (w.color || undefined),
+                                    WebkitTextStroke: w.outlined
+                                      ? `${w.outlineWidth ?? 2}px ${w.outlineColor || row.color}`
+                                      : undefined,
+                                  }}
+                                >
+                                  {w.text}
+                                  {wi < row.words!.length - 1 ? " " : ""}
+                                </span>
+                              ))
+                            : row.text}
                         </motion.span>
                       ))}
                     </h1>

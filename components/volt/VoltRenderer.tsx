@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import type { VoltElementData, VoltSlots, VoltInstanceOverrides, VoltBreakpoint } from '@/types/volt'
+import type { VoltElementData, VoltSlots, VoltInstanceOverrides, VoltBreakpoint, VoltLayerStateOverride } from '@/types/volt'
 import { sortLayersByZ } from '@/lib/volt/volt-utils'
 import { personalityToAnimeConfig } from '@/lib/volt/personality-to-anime'
 import VoltSvgLayer from './VoltSvgLayer'
@@ -162,9 +162,17 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
       for (const layer of staggeredLayers) {
         const override = overrides[layer.id]
         const { animates } = layer.animation
-        const anyAnimates = animates.opacity || animates.scale || animates.position || animates.rotation
+        // Size animation is opt-in simply by defining a width/height override on any
+        // state — enables "expand / reveal on hover" (e.g. pricing-card spec panels).
+        let sizeOv: VoltLayerStateOverride | undefined
+        for (const s of states) {
+          const o = s.layerOverrides?.[layer.id]
+          if (o && (o.width !== undefined || o.height !== undefined)) { sizeOv = o; break }
+        }
+        const animatesSize = !!sizeOv
+        const anyAnimates = animates.opacity || animates.scale || animates.position || animates.rotation || animatesSize
 
-        if (!override && !isRest) continue
+        if (!override && !isRest && !animatesSize) continue
         if (!override && isRest && !anyAnimates) continue
 
         const layerEl = el?.querySelector(`#volt-layer-${layer.id}`)
@@ -172,6 +180,11 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
 
         const { duration, ease, delay } = personalityToAnimeConfig(layer.animation)
         const targets: Record<string, unknown> = {}
+
+        if (animatesSize) {
+          if (sizeOv!.height !== undefined) targets.height = isRest ? `${layer.height}%` : `${override?.height ?? sizeOv!.height}%`
+          if (sizeOv!.width  !== undefined) targets.width  = isRest ? `${layer.width}%`  : `${override?.width  ?? sizeOv!.width}%`
+        }
 
         // REST: animate back to base layer values (ignore overrides)
         // HOVER: animate to override values (the hover state target)
@@ -1028,6 +1041,7 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
                 canvasWidth={canvasWidth}
                 canvasHeight={canvasHeight}
                 instanceOverride={instanceOverrides?.[layer.id]}
+                siblingLayers={faceLayers}
               />
             ))}
         </svg>
@@ -1175,6 +1189,7 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
                 canvasWidth={canvasWidth}
                 canvasHeight={canvasHeight}
                 instanceOverride={instanceOverrides?.[layer.id]}
+                siblingLayers={displayLayers}
               />
             ))}
         </svg>
