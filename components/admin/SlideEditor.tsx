@@ -823,6 +823,34 @@ export default function SlideEditor({
                       title="Eyebrow color"
                     />
                   </div>
+                  <div className="d-flex align-items-center gap-3 mt-2">
+                    <div className="d-flex align-items-center gap-1">
+                      <span className="small text-muted">Align</span>
+                      <div className="btn-group btn-group-sm" role="group">
+                        {(["left", "center", "right"] as const).map((al) => (
+                          <button
+                            key={al}
+                            type="button"
+                            className={`btn btn-sm ${(slide.overlay?.eyebrowAlign ?? "left") === al ? "btn-primary" : "btn-outline-secondary"}`}
+                            style={{ fontSize: 11 }}
+                            onClick={() => updateOverlay({ eyebrowAlign: al })}
+                            title={`Align eyebrow ${al}`}
+                          >
+                            <i className={`bi bi-text-${al === "center" ? "center" : al}`} />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <label className="d-flex align-items-center gap-1 m-0 small text-muted" title="Show or hide the eyebrow">
+                      <input
+                        type="checkbox"
+                        checked={!slide.overlay?.eyebrowHidden}
+                        onChange={(e) => updateOverlay({ eyebrowHidden: !e.target.checked })}
+                      />
+                      <span>Visible</span>
+                    </label>
+                  </div>
+                  <div className="form-text">Small uppercase label shown above the heading.</div>
                 </div>
 
                 <div className="mb-3">

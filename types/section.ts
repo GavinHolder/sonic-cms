@@ -350,6 +350,10 @@ export interface TextOverlayElement {
   eyebrow?: string;
   /** Eyebrow text color (default: accent / brand green) */
   eyebrowColor?: string;
+  /** Eyebrow horizontal alignment override (defaults to the overlay position's alignment) */
+  eyebrowAlign?: "left" | "center" | "right";
+  /** Hide the eyebrow without clearing its text */
+  eyebrowHidden?: boolean;
   subheading?: {
     text: string;
     fontSize: number;

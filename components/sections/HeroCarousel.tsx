@@ -169,25 +169,25 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
     return positionMap[position] || positionMap.center;
   };
 
-  const getOverlayOffsetStyle = (overlay: typeof slides[0]["overlay"]) => {
-    const offset = overlay?.overlayOffset;
-    const position = overlay?.position;
-
-    // Use configured offset if available
-    if (offset) {
-      return {
-        paddingTop: `${offset.top}px`,
-        paddingRight: `${offset.right}px`,
-        paddingBottom: `${offset.bottom}px`,
-        paddingLeft: `${offset.left}px`,
-      };
-    }
-
-    // Fallback: auto-add top padding for top positions to clear navbar
-    if (position === "topLeft" || position === "topCenter" || position === "topRight") {
+  // Outer flex container: only the navbar-clearance fallback for top positions
+  // (skipped when the author set a manual top offset).
+  const getOverlayOuterStyle = (overlay: typeof slides[0]["overlay"]) => {
+    const position = (overlay?.position || "").toLowerCase();
+    if (position.includes("top") && !overlay?.overlayOffset?.top) {
       return { paddingTop: "100px" };
     }
     return {};
+  };
+
+  // Overlay Offset → a direct, predictable translate on the content itself.
+  // Top pushes content down (away from top edge), bottom pushes up, left → right, right → left.
+  const getOverlayTransform = (overlay: typeof slides[0]["overlay"]) => {
+    const o = overlay?.overlayOffset;
+    if (!o) return undefined;
+    const tx = (o.left || 0) - (o.right || 0);
+    const ty = (o.top || 0) - (o.bottom || 0);
+    if (!tx && !ty) return undefined;
+    return `translate(${tx}px, ${ty}px)`;
   };
 
   const slide = slides[currentSlide];
@@ -260,7 +260,7 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
           {slide.overlay && (
             <div
               className={`position-absolute top-0 start-0 w-100 h-100 d-flex ${getPositionClasses(slide.overlay.position)}`}
-              style={getOverlayOffsetStyle(slide.overlay)}
+              style={getOverlayOuterStyle(slide.overlay)}
             >
               <div
                 className={
@@ -268,11 +268,11 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                   (slide.overlay.position || "").toLowerCase().includes("right") ? "text-end" :
                   "text-center"
                 }
-                style={{ maxWidth: "860px", zIndex: 10, padding: (slide.overlay.position || "").toLowerCase().includes("left") ? "0 0 60px 60px" : (slide.overlay.position || "").toLowerCase().includes("right") ? "0 60px 60px 0" : undefined }}
+                style={{ maxWidth: "860px", zIndex: 10, transform: getOverlayTransform(slide.overlay), padding: (slide.overlay.position || "").toLowerCase().includes("left") ? "0 0 60px 60px" : (slide.overlay.position || "").toLowerCase().includes("right") ? "0 60px 60px 0" : undefined }}
               >
                 <AnimatePresence>
-                  {/* Eyebrow — slide-level or overlay-level */}
-                  {(slide.eyebrow || slide.overlay.eyebrow) && (
+                  {/* Eyebrow — slide-level or overlay-level (hideable, alignable) */}
+                  {(slide.eyebrow || slide.overlay.eyebrow) && !slide.overlay.eyebrowHidden && (
                     <motion.p
                       key={`eyebrow-${currentSlide}`}
                       initial={{ opacity: 0, y: 12 }}
@@ -287,6 +287,7 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                         color: slide.overlay.eyebrowColor || "var(--bs-success, #22c55e)",
                         marginBottom: "16px",
                         lineHeight: 1,
+                        textAlign: slide.overlay.eyebrowAlign || undefined,
                       }}
                     >
                       {slide.eyebrow || slide.overlay.eyebrow}
