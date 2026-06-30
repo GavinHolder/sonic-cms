@@ -291,7 +291,7 @@ export default function SettingsPage() {
       .catch(() => {})
       .finally(() => setMaintenanceLoading(false));
     // Load standalone pages for the "Standalone Page" maintenance template picker
-    fetch("/api/pages?type=STANDALONE")
+    fetch("/api/pages?type=standalone")
       .then((r) => r.json())
       .then((d) => {
         const pages = (d?.data?.pages ?? []).map((p: { slug: string; title: string }) => ({ slug: p.slug, title: p.title }));
