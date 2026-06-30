@@ -36,6 +36,32 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // ── Maintenance mode (page template) ────────────────────────────────────
+  // When maintenance is on with the "page" template, serve the chosen standalone
+  // page (raw HTML) to all public visitors via the proven /standalone renderer.
+  // Plain/construction/custom templates are handled in app/layout.tsx instead.
+  // Admins (/admin) and /api always bypass. /standalone + /maintenance-preview
+  // are excluded to avoid rewrite loops.
+  if (
+    isPublicPath &&
+    !pathname.startsWith("/standalone") &&
+    !pathname.startsWith("/maintenance-preview")
+  ) {
+    try {
+      const mRes = await fetch(`${internalBase}/api/internal/maintenance`, { headers: { "x-internal": "1" } });
+      if (mRes.ok) {
+        const m = await mRes.json();
+        if (m.enabled && m.template === "page" && m.slug) {
+          return NextResponse.rewrite(new URL(`/standalone/${m.slug}`, request.url), {
+            request: { headers: request.headers },
+          });
+        }
+      }
+    } catch {
+      // Maintenance check failure must not block the site
+    }
+  }
+
   // Set custom headers (x-pathname always reflects the ORIGINAL path so layout.tsx can detect type)
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-pathname", pathname);
