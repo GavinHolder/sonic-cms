@@ -114,19 +114,6 @@ export default function SlideEditor({
     updateOverlay({ headingRows: rows });
   };
 
-  const moveWordToRow = (fromRow: number, wordIdx: number, toRow: number) => {
-    if (fromRow === toRow) return;
-    const rows = [...(slide.overlay?.headingRows ?? [])];
-    const fromWords = [...(rows[fromRow]?.words ?? [])];
-    const [moved] = fromWords.splice(wordIdx, 1);
-    if (!moved) return;
-    // Target row must be in per-word mode to receive the word
-    const toWords = [...(rows[toRow]?.words ?? (rows[toRow]?.text ? rows[toRow].text.split(/\s+/).filter(Boolean).map((t) => ({ text: t } as HeadingWord)) : []))];
-    toWords.push(moved);
-    rows[fromRow] = { ...rows[fromRow], words: fromWords, text: fromWords.map((w) => w.text).join(" ") };
-    rows[toRow] = { ...rows[toRow], words: toWords, text: toWords.map((w) => w.text).join(" ") };
-    updateOverlay({ headingRows: rows });
-  };
 
   const updateGradient = (updates: Partial<NonNullable<HeroCarouselSlide["gradient"]>>) => {
     onChange({
@@ -991,17 +978,6 @@ export default function SlideEditor({
                                     onChange={(e) => updateWord(idx, wi, w.outlined ? { outlineColor: e.target.value } : { color: e.target.value })}
                                     title={w.outlined ? "Outline colour" : "Fill colour"}
                                   />
-                                  <select
-                                    className="form-select form-select-sm py-0"
-                                    style={{ width: 64, fontSize: 10 }}
-                                    value={idx}
-                                    onChange={(e) => moveWordToRow(idx, wi, parseInt(e.target.value))}
-                                    title="Move word to row"
-                                  >
-                                    {(slide.overlay?.headingRows ?? []).map((_, rIdx) => (
-                                      <option key={rIdx} value={rIdx}>Row {rIdx + 1}</option>
-                                    ))}
-                                  </select>
                                 </div>
                               ))}
                             </div>

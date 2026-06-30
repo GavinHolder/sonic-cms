@@ -264,11 +264,11 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
             >
               <div
                 className={
-                  slide.overlay.position?.includes("Left") ? "text-start" :
-                  slide.overlay.position?.includes("Right") ? "text-end" :
+                  (slide.overlay.position || "").toLowerCase().includes("left") ? "text-start" :
+                  (slide.overlay.position || "").toLowerCase().includes("right") ? "text-end" :
                   "text-center"
                 }
-                style={{ maxWidth: "860px", zIndex: 10, padding: slide.overlay.position?.includes("Left") ? "0 0 60px 60px" : slide.overlay.position?.includes("Right") ? "0 60px 60px 0" : undefined }}
+                style={{ maxWidth: "860px", zIndex: 10, padding: (slide.overlay.position || "").toLowerCase().includes("left") ? "0 0 60px 60px" : (slide.overlay.position || "").toLowerCase().includes("right") ? "0 60px 60px 0" : undefined }}
               >
                 <AnimatePresence>
                   {/* Eyebrow — slide-level or overlay-level */}
@@ -323,11 +323,14 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                                 <span
                                   key={wi}
                                   style={{
-                                    color: w.outlined ? "transparent" : (w.color || undefined),
-                                    WebkitTextStroke: w.outlined
-                                      ? `${w.outlineWidth ?? 2}px ${w.outlineColor || row.color}`
-                                      : undefined,
-                                  }}
+                                    // Outlined: hollow glyphs via the canonical technique —
+                                    // currentColor (=color) drives the stroke, fill is transparent.
+                                    color: w.outlined ? (w.outlineColor || row.color) : (w.color || undefined),
+                                    WebkitTextFillColor: w.outlined ? "transparent" : (w.color || undefined),
+                                    WebkitTextStroke: w.outlined ? `${w.outlineWidth ?? 1.6}px currentColor` : "0",
+                                    textShadow: w.outlined ? "none" : undefined,
+                                    paintOrder: "stroke fill",
+                                  } as React.CSSProperties}
                                 >
                                   {w.text}
                                   {wi < row.words!.length - 1 ? " " : ""}
