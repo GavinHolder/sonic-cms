@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useRef } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import DOMPurify from "isomorphic-dompurify";
 import HeroCarousel from "./HeroCarousel";
@@ -378,6 +378,25 @@ export default function DynamicSection({ section, isFirstAfterHero = false }: Dy
 function FooterRenderer({ section }: { section: FooterSection }) {
   const { content, background, paddingTop, paddingBottom, paddingTopMobile, paddingBottomMobile } = section;
 
+  // Fall back to global Site Settings (SiteConfig) when the footer section hasn't
+  // overridden logo / company info — so a default footer still shows brand + contact.
+  const [cfg, setCfg] = useState<{
+    companyName?: string; tagline?: string; logoUrl?: string;
+    phone?: string; email?: string; address?: string; city?: string; postalCode?: string;
+  }>({});
+  useEffect(() => {
+    fetch("/api/site-config").then((r) => r.json()).then((d) => { if (d?.data) setCfg(d.data); }).catch(() => {});
+  }, []);
+  const effLogo = content.logo || cfg.logoUrl || "";
+  const effTagline = content.tagline || cfg.tagline || "";
+  const cfgAddress = [cfg.address, cfg.city, cfg.postalCode].filter(Boolean).join(", ");
+  const effCompany = {
+    name: content.companyInfo?.name || cfg.companyName || "",
+    address: content.companyInfo?.address || cfgAddress || "",
+    phone: content.companyInfo?.phone || cfg.phone || "",
+    email: content.companyInfo?.email || cfg.email || "",
+  };
+
   // Map preset background colors to hex values; pass through raw hex values
   const bgColor =
     background?.startsWith("#") || background?.startsWith("rgb")
@@ -411,12 +430,12 @@ function FooterRenderer({ section }: { section: FooterSection }) {
     return "text-start justify-content-start";
   };
 
-  // Build logo element
-  const logoElement = (content.logo || content.tagline) && (
+  // Build logo element (falls back to SiteConfig logo/tagline)
+  const logoElement = (effLogo || effTagline) && (
     <div className="mb-3">
-      {content.logo && (
+      {effLogo && (
         <img
-          src={content.logo}
+          src={effLogo}
           alt="Logo"
           style={{ maxHeight: "60px", marginBottom: "12px" }}
           onError={(e) => {
@@ -424,15 +443,15 @@ function FooterRenderer({ section }: { section: FooterSection }) {
           }}
         />
       )}
-      {content.tagline && (
-        <p className={`${mutedClass} small mb-0`}>{content.tagline}</p>
+      {effTagline && (
+        <p className={`${mutedClass} small mb-0`}>{effTagline}</p>
       )}
     </div>
   );
 
-  // Build company info element
-  const ci = content.companyInfo;
-  const companyInfoElement = (ci && (ci.name || ci.address || ci.phone || ci.email)) && (
+  // Build company info element (falls back to SiteConfig company/contact)
+  const ci = effCompany;
+  const companyInfoElement = (ci.name || ci.address || ci.phone || ci.email) && (
     <div className="mb-3">
       {ci.name && (
         <h6 className={`fw-bold mb-2 ${textClass}`}>{ci.name}</h6>
