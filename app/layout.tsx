@@ -94,9 +94,12 @@ export default async function RootLayout({
   const isPublicRoute = !isAdminRoute && !pathname.startsWith("/api") && !pathname.startsWith("/volt-preview") && !pathname.startsWith("/maintenance-preview");
   let maintenanceMode = false;
   let maintenanceTheme: import("@/components/MaintenancePage").MaintenanceTheme = {};
+  // When template === "page", serve a chosen standalone page's HTML full-screen.
+  let maintenancePageHtml: string | null = null;
+  let maintenancePageCss: string | null = null;
   if (isPublicRoute) {
     try {
-      const [mRow, tplRow, imgRow, primRow, darkRow, lightRow, schemeRow, siteConfig] = await Promise.all([
+      const [mRow, tplRow, imgRow, primRow, darkRow, lightRow, schemeRow, pageRow, siteConfig] = await Promise.all([
         prisma.systemSettings.findUnique({ where: { key: "maintenance_mode" } }),
         prisma.systemSettings.findUnique({ where: { key: "maintenance_template" } }),
         prisma.systemSettings.findUnique({ where: { key: "maintenance_custom_img" } }),
@@ -104,20 +107,31 @@ export default async function RootLayout({
         prisma.systemSettings.findUnique({ where: { key: "maintenance_dark_color" } }),
         prisma.systemSettings.findUnique({ where: { key: "maintenance_light_color" } }),
         prisma.systemSettings.findUnique({ where: { key: "maintenance_color_scheme" } }),
+        prisma.systemSettings.findUnique({ where: { key: "maintenance_page_slug" } }),
         prisma.siteConfig.findUnique({ where: { id: "singleton" }, select: { logoUrl: true, companyName: true } }),
       ]);
       maintenanceMode = mRow?.value === "true";
       if (maintenanceMode) {
+        const template = (tplRow?.value as import("@/components/MaintenancePage").MaintenanceTemplate) || "plain";
         maintenanceTheme = {
           logoUrl:      siteConfig?.logoUrl     || undefined,
           companyName:  siteConfig?.companyName || undefined,
-          template:     (tplRow?.value as import("@/components/MaintenancePage").MaintenanceTemplate) || "plain",
+          template,
           colorScheme:  (schemeRow?.value as "light" | "dark") || "light",
           customImage:  imgRow?.value   || undefined,
           primaryColor: primRow?.value  || undefined,
           darkColor:    darkRow?.value  || undefined,
           lightColor:   lightRow?.value || undefined,
         };
+        // Standalone-page maintenance template: load the chosen page's HTML/CSS.
+        if (template === "page" && pageRow?.value) {
+          const mPage = await prisma.page.findFirst({
+            where: { slug: pageRow.value, type: "STANDALONE" },
+            select: { customHtml: true, customCss: true },
+          });
+          maintenancePageHtml = mPage?.customHtml ?? null;
+          maintenancePageCss = mPage?.customCss ?? null;
+        }
       }
     } catch {
       // DB unavailable during startup — don't block the site
@@ -196,7 +210,12 @@ export default async function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         style={{ margin: 0, padding: 0 }}
       >
-        {maintenanceMode ? <MaintenancePage theme={maintenanceTheme} /> : isEffectivelyIsolated ? children : (
+        {maintenanceMode && maintenancePageHtml != null ? (
+          <div style={{ minHeight: "100vh" }}>
+            {maintenancePageCss ? <style dangerouslySetInnerHTML={{ __html: maintenancePageCss }} /> : null}
+            <div dangerouslySetInnerHTML={{ __html: maintenancePageHtml }} />
+          </div>
+        ) : maintenanceMode ? <MaintenancePage theme={maintenanceTheme} /> : isEffectivelyIsolated ? children : (
           <>
             <ScrollRestoration />
             <ClientLayout showNavigation={!isAdminRoute}>

@@ -167,7 +167,9 @@ export default function SettingsPage() {
 
   // Maintenance mode
   const [maintenanceEnabled, setMaintenanceEnabled] = useState(false);
-  const [maintenanceTemplate, setMaintenanceTemplate] = useState<"plain" | "construction" | "custom">("plain");
+  const [maintenanceTemplate, setMaintenanceTemplate] = useState<"plain" | "construction" | "custom" | "page">("plain");
+  const [maintenancePageSlug, setMaintenancePageSlug] = useState("");
+  const [standalonePages, setStandalonePages] = useState<{ slug: string; title: string }[]>([]);
   const [maintenanceCustomImage, setMaintenanceCustomImage] = useState("");
   const [maintenancePrimary, setMaintenancePrimary] = useState("#78BE20");
   const [maintenanceDark, setMaintenanceDark] = useState("#53565A");
@@ -284,9 +286,18 @@ export default function SettingsPage() {
         if (d.darkColor)    setMaintenanceDark(d.darkColor);
         if (d.lightColor)   setMaintenanceLight(d.lightColor);
         if (d.colorScheme)  setMaintenanceScheme(d.colorScheme);
+        if (d.pageSlug)     setMaintenancePageSlug(d.pageSlug);
       })
       .catch(() => {})
       .finally(() => setMaintenanceLoading(false));
+    // Load standalone pages for the "Standalone Page" maintenance template picker
+    fetch("/api/pages?type=STANDALONE")
+      .then((r) => r.json())
+      .then((d) => {
+        const pages = (d?.data?.pages ?? []).map((p: { slug: string; title: string }) => ({ slug: p.slug, title: p.title }));
+        setStandalonePages(pages);
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -364,8 +375,8 @@ export default function SettingsPage() {
   };
 
   const handleSaveMaintenanceTemplate = async (
-    template: "plain" | "construction" | "custom",
-    opts?: { customImage?: string; primaryColor?: string; darkColor?: string; lightColor?: string; colorScheme?: string },
+    template: "plain" | "construction" | "custom" | "page",
+    opts?: { customImage?: string; primaryColor?: string; darkColor?: string; lightColor?: string; colorScheme?: string; pageSlug?: string },
   ) => {
     setMaintenanceSaving(true);
     setMaintenanceMsg(null);
@@ -380,10 +391,12 @@ export default function SettingsPage() {
           primaryColor: opts?.primaryColor ?? maintenancePrimary,
           darkColor:    opts?.darkColor    ?? maintenanceDark,
           lightColor:   opts?.lightColor   ?? maintenanceLight,
+          pageSlug:     opts?.pageSlug     ?? maintenancePageSlug,
         }),
       });
       if (!res.ok) throw new Error("Failed");
       setMaintenanceTemplate(template);
+      if (opts?.pageSlug !== undefined) setMaintenancePageSlug(opts.pageSlug);
       if (opts?.colorScheme  !== undefined) setMaintenanceScheme(opts.colorScheme as "light" | "dark");
       if (opts?.customImage  !== undefined) setMaintenanceCustomImage(opts.customImage);
       if (opts?.primaryColor !== undefined) setMaintenancePrimary(opts.primaryColor);
@@ -734,7 +747,48 @@ export default function SettingsPage() {
                         </div>
                       </button>
                     </div>
+
+                    {/* Standalone Page template */}
+                    <div className="col-sm-4">
+                      <button
+                        type="button"
+                        className={`w-100 p-0 border rounded-2 overflow-hidden text-start ${maintenanceTemplate === "page" ? "border-primary border-2" : "border-secondary-subtle"}`}
+                        style={{ background: "none", cursor: "pointer" }}
+                        onClick={() => handleSaveMaintenanceTemplate("page")}
+                        disabled={maintenanceSaving}
+                      >
+                        <div style={{ background: "#0f172a", padding: "16px 12px", height: 80, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                          <i className="bi bi-file-earmark-code" style={{ color: "#fff", fontSize: "1.2rem" }} />
+                          <div style={{ width: 46, height: 5, background: "rgba(255,255,255,0.8)", borderRadius: 2 }} />
+                        </div>
+                        <div className="px-2 py-2 d-flex align-items-center gap-2">
+                          {maintenanceTemplate === "page" && <i className="bi bi-check-circle-fill text-primary" />}
+                          <span className="small fw-semibold">Standalone Page</span>
+                        </div>
+                      </button>
+                    </div>
                   </div>
+
+                  {/* Standalone page picker — shown when "Standalone Page" is selected */}
+                  {maintenanceTemplate === "page" && (
+                    <div className="mt-3">
+                      <label className="form-label small fw-semibold">Maintenance page</label>
+                      <select
+                        className="form-select form-select-sm"
+                        value={maintenancePageSlug}
+                        onChange={(e) => handleSaveMaintenanceTemplate("page", { pageSlug: e.target.value })}
+                        disabled={maintenanceSaving}
+                      >
+                        <option value="">— choose a standalone page —</option>
+                        {standalonePages.map((p) => (
+                          <option key={p.slug} value={p.slug}>{p.title} (/{p.slug})</option>
+                        ))}
+                      </select>
+                      <div className="form-text">
+                        Pick a Standalone page (e.g. your &ldquo;Sonic Coming Soon&rdquo; template → <strong>Use as Page</strong> first). It renders full-screen to visitors while maintenance mode is on; admins and <code>/admin</code> stay accessible.
+                      </div>
+                    </div>
+                  )}
 
                   {/* Light / Dark toggle */}
                   <div className="d-flex align-items-center gap-2 mt-3">

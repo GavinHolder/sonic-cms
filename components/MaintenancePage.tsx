@@ -14,7 +14,7 @@ import dynamic from "next/dynamic";
  *   custom       — full-screen user image with dark overlay
  */
 
-export type MaintenanceTemplate = "plain" | "construction" | "custom";
+export type MaintenanceTemplate = "plain" | "construction" | "custom" | "page";
 
 export interface MaintenanceTheme {
   logoUrl?: string;
