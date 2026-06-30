@@ -401,7 +401,11 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
 
                   {/* Buttons */}
                   {slide.overlay.buttons.length > 0 && (
-                    <div className="d-flex gap-2 gap-md-3 justify-content-center flex-wrap" style={{ marginTop: `${slide.overlay.spacing.betweenSubheadingButtons}px` }}>
+                    <div className={`d-flex gap-2 gap-md-3 flex-wrap ${
+                      (slide.overlay.position || "").toLowerCase().includes("left") ? "justify-content-start" :
+                      (slide.overlay.position || "").toLowerCase().includes("right") ? "justify-content-end" :
+                      "justify-content-center"
+                    }`} style={{ marginTop: `${slide.overlay.spacing.betweenSubheadingButtons}px` }}>
                       {slide.overlay.buttons.map((button, index) => (
                         <motion.a
                           key={index}
