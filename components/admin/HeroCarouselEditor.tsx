@@ -6,10 +6,12 @@ import type { HeroSection, HeroCarouselSlide } from "@/types/section";
 import SlideEditor from "./SlideEditor";
 import HeroCarousel from "@/components/sections/HeroCarousel";
 
-// Virtual viewport the hero is rendered at inside the preview pane, then
-// transform-scaled down to fit the pane width. 16:9 keeps a faithful thumbnail.
-const PREVIEW_VW = 1280;
-const PREVIEW_VH = 720;
+// SSR-safe default for the admin's viewport before the client measures it.
+// The preview renders the hero into a virtual viewport matching the REAL
+// browser window (w×h) so `background-size: cover` crops/centers identically
+// to the live page, then transform-scales that down to fit the pane.
+const DEFAULT_VW = 1440;
+const DEFAULT_VH = 900;
 
 interface HeroCarouselEditorProps {
   section: HeroSection;
@@ -67,8 +69,20 @@ export default function HeroCarouselEditor({
   const [showPreview, setShowPreview] = useState(true);
   const previewRef = useRef<HTMLDivElement>(null);
   const [previewWidth, setPreviewWidth] = useState(0);
+  // Real browser viewport of the admin — the hero fills THIS on the live page,
+  // so the preview must render into the same w×h for cover-crop to match 1:1.
+  const [viewport, setViewport] = useState({ w: DEFAULT_VW, h: DEFAULT_VH });
 
-  // Measure the pane so we can scale the 1280px virtual hero down to fit.
+  // Track the admin's actual window size (SSR-safe default until mounted).
+  useEffect(() => {
+    const readViewport = () =>
+      setViewport({ w: window.innerWidth, h: window.innerHeight });
+    readViewport();
+    window.addEventListener("resize", readViewport);
+    return () => window.removeEventListener("resize", readViewport);
+  }, []);
+
+  // Measure the pane so we can scale the virtual hero down to fit.
   useEffect(() => {
     if (!showPreview) return;
     const el = previewRef.current;
@@ -111,8 +125,11 @@ export default function HeroCarouselEditor({
     ]
   );
 
-  const previewScale = previewWidth > 0 ? previewWidth / PREVIEW_VW : 0;
-  const previewBoxHeight = previewWidth > 0 ? previewWidth * (PREVIEW_VH / PREVIEW_VW) : 360;
+  // Scale the real-viewport-sized hero down to the measured pane width. Box
+  // height preserves the true window aspect ratio so the crop matches the page.
+  const previewScale = previewWidth > 0 ? previewWidth / viewport.w : 0;
+  const previewBoxHeight =
+    previewWidth > 0 ? previewWidth * (viewport.h / viewport.w) : 360;
 
   const startEditingName = (index: number, current: string) => {
     setNameDraft(current);
@@ -674,8 +691,9 @@ export default function HeroCarouselEditor({
                       <span className="text-muted small">Updates as you edit</span>
                     </div>
 
-                    {/* Fixed-aspect box clips the 100vh hero; inner virtual
-                        viewport (1280x720) is transform-scaled to fit. */}
+                    {/* Box matches the real window aspect ratio and clips the
+                        hero; inner virtual viewport is the actual window w×h,
+                        transform-scaled to fit — so cover-crop is identical. */}
                     <div
                       ref={previewRef}
                       className="hero-preview-scope border rounded"
@@ -690,11 +708,12 @@ export default function HeroCarouselEditor({
                       {/* Scoped override: beat the global
                           `.hero-carousel { height:100vh !important }` with a
                           higher-specificity + !important rule so the hero fills
-                          the virtual viewport instead of the real one. */}
+                          the virtual viewport (real window height) exactly as on
+                          the page — same cover crop and centering. */}
                       <style>{`
                         .hero-preview-scope .hero-carousel {
-                          height: ${PREVIEW_VH}px !important;
-                          min-height: ${PREVIEW_VH}px !important;
+                          height: ${viewport.h}px !important;
+                          min-height: ${viewport.h}px !important;
                         }
                       `}</style>
                       {previewScale > 0 && (
@@ -703,8 +722,8 @@ export default function HeroCarouselEditor({
                             position: "absolute",
                             top: 0,
                             left: 0,
-                            width: `${PREVIEW_VW}px`,
-                            height: `${PREVIEW_VH}px`,
+                            width: `${viewport.w}px`,
+                            height: `${viewport.h}px`,
                             transform: `scale(${previewScale})`,
                             transformOrigin: "top left",
                             pointerEvents: "none",
