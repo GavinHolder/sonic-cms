@@ -1880,6 +1880,57 @@ document.addEventListener('keydown', e => {
       removeBlock(state.selectedBlockId);
     }
   }
+  // Arrow keys — nudge the selected element (1px, or 10px with Shift).
+  // Skipped while typing in a field so text-caret navigation still works.
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key) &&
+      !e.target.closest('input, textarea, [contenteditable="true"], select')) {
+    const step = e.shiftKey ? 10 : 1;
+    let dx = 0, dy = 0;
+    if (e.key === 'ArrowLeft')  dx = -step;
+    if (e.key === 'ArrowRight') dx =  step;
+    if (e.key === 'ArrowUp')    dy = -step;
+    if (e.key === 'ArrowDown')  dy =  step;
+    // A sub-element is selected → nudge it within its parent block
+    if (state.selectedSubId && state.selectedBlockId) {
+      const b = state.blocks.find(b => b.id === state.selectedBlockId);
+      const s = b && b.subElements.find(s => s.id === state.selectedSubId);
+      if (s) {
+        e.preventDefault();
+        const seEl = document.querySelector(`.sub-element[data-sub-id="${s.id}"]`);
+        const listEl = seEl && seEl.parentElement;
+        const maxX = listEl ? Math.max(0, listEl.clientWidth  - seEl.offsetWidth)  : Infinity;
+        const maxY = listEl ? Math.max(0, listEl.clientHeight - seEl.offsetHeight) : Infinity;
+        s.x = Math.min(maxX, Math.max(0, (s.x || 0) + dx));
+        s.y = Math.min(maxY, Math.max(0, (s.y || 0) + dy));
+        if (seEl) { seEl.style.left = s.x + 'px'; seEl.style.top = s.y + 'px'; }
+        b.manualSize = true; // keep nudged position across re-render (see startSubElementMove)
+        fitBlockToSubElementsDOM(state.selectedBlockId);
+        const xn = document.getElementById(`sub-x-num-${s.id}`); if (xn) xn.value = s.x;
+        const yn = document.getElementById(`sub-y-num-${s.id}`); if (yn) yn.value = s.y;
+        autoSave();
+      }
+      return;
+    }
+    // A block is selected (free mode only — grid mode snaps to cells) → nudge it
+    if (state.selectedBlockId && state.positionMode === 'free') {
+      const block = state.blocks.find(b => b.id === state.selectedBlockId);
+      if (block) {
+        e.preventDefault();
+        const pos = getDisplayPos(block);
+        const nx = Math.max(0, (pos.x || 0) + dx);
+        const ny = Math.max(0, (pos.y || 0) + dy);
+        setDisplayPos(block, nx, ny, pos.w, pos.h);
+        const el = document.querySelector(`[data-block-id="${block.id}"]`);
+        if (el) { el.style.left = nx + 'px'; el.style.top = ny + 'px'; }
+        const xNum = document.getElementById('pos-x-num');   if (xNum)   xNum.value   = Math.round(nx);
+        const yNum = document.getElementById('pos-y-num');   if (yNum)   yNum.value   = Math.round(ny);
+        const xRng = document.getElementById('pos-x-rng');   if (xRng)   xRng.value   = Math.round(nx);
+        const yRng = document.getElementById('pos-y-rng');   if (yRng)   yRng.value   = Math.round(ny);
+        autoSave();
+      }
+      return;
+    }
+  }
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -3023,9 +3074,15 @@ function startSubElementMove(e, blockId, seId) {
       }
     }
     moved = true;
-    // Clamp to non-negative coordinates so elements cannot be dragged above/left of the block
-    let newX = Math.round(Math.max(0, origX + dx));
-    let newY = Math.round(Math.max(0, origY + dy));
+    // Clamp so the element stays INSIDE the parent block's inner content box
+    // (not merely >=0). Without an upper bound a dragged child could escape the
+    // parent and force it to grow toward a corner instead of staying dropped.
+    const seW = seEl.offsetWidth, seH = seEl.offsetHeight;
+    const listEl = seEl.parentElement; // .sub-elements-list (position:relative)
+    const maxX = listEl ? Math.max(0, listEl.clientWidth  - seW) : Infinity;
+    const maxY = listEl ? Math.max(0, listEl.clientHeight - seH) : Infinity;
+    let newX = Math.round(Math.min(maxX, Math.max(0, origX + dx)));
+    let newY = Math.round(Math.min(maxY, Math.max(0, origY + dy)));
     if (state.subElementSnap) {
       const sg = 8;
       newX = Math.round(newX / sg) * sg;
@@ -3043,6 +3100,11 @@ function startSubElementMove(e, blockId, seId) {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
     if (moved) {
+      // Mark the block as manually laid out so the post-render restack
+      // (renderCanvas → fitBlockToSubElementsDOM(id, true)) does NOT reset this
+      // child's dragged Y back into a vertical stack. That restack was what made
+      // a moved/added child snap to a corner on release/click-away.
+      block.manualSize = true;
       // Final accurate measurement after drag ends — DOM has settled
       fitBlockToSubElementsDOM(blockId);
       autoSave();
@@ -5524,13 +5586,16 @@ const THEME_COLOR_TOKENS = [
 function colorRow(label,value,onchange) {
   const isHex = /^#[0-9a-fA-F]{6}$/.test(value);
   const isToken = typeof value === 'string' && value.indexOf('var(--theme') === 0;
-  // Build a click handler that assigns white when the null swatch is clicked
-  const nullClick = onchange.replace(/this\.value/g,"'#ffffff'");
+  // For the "no colour" state, render the checkerboard swatch as a <label>
+  // wrapping a full-size, invisible native colour input. One click on the
+  // swatch opens the OS colour picker immediately, and choosing a colour applies
+  // it via the same handler — instead of the old behaviour that mutated the
+  // element to white first and only opened the picker on a second click.
   const swatch = isHex
     ? `<input type="color" value="${value}" oninput="${onchange}" onchange="${onchange}">`
     : isToken
       ? `<span class="color-token-swatch" title="Theme token — ${value}" style="background:${value}"></span>`
-      : `<span class="color-null-swatch" title="No colour set — click to assign" onclick="${nullClick}"></span>`;
+      : `<label class="color-null-swatch" title="No colour set — click to pick" style="position:relative;"><input type="color" value="#ffffff" oninput="${onchange}" onchange="${onchange}" style="position:absolute;left:0;top:0;width:100%;height:100%;margin:0;padding:0;border:0;opacity:0;cursor:pointer;"></label>`;
   const tokenOpts = ['<option value="">＋ theme…</option>']
     .concat(THEME_COLOR_TOKENS.map(([v,l]) => `<option value="${v}"${v===value?' selected':''}>${l}</option>`))
     .join('');
