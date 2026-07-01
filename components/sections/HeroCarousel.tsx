@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { HeroSection, AnimationType, HeadingRow } from "@/types/section";
 
@@ -231,21 +231,33 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
               }}
             />
           ) : slide.type === "video" ? (
-            <video
-              className="position-absolute top-0 start-0 w-100 h-100"
-              style={{
-                objectFit: "cover",
-                width: "100%",
-                height: "100%"
-              }}
-              autoPlay
-              loop
-              muted
-              playsInline
-              poster={slide.poster}
-            >
-              <source src={slide.src} type="video/mp4" />
-            </video>
+            isMobile && slide.mobileSrc ? (
+              // Mobile: honor the slide's mobile image instead of the video (perf + art direction)
+              <div
+                className="position-absolute top-0 start-0 w-100 h-100"
+                style={{
+                  backgroundImage: `url(${slide.mobileSrc})`,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                }}
+              />
+            ) : (
+              <video
+                className="position-absolute top-0 start-0 w-100 h-100"
+                style={{
+                  objectFit: "cover",
+                  width: "100%",
+                  height: "100%"
+                }}
+                autoPlay
+                loop
+                muted
+                playsInline
+                poster={slide.poster}
+              >
+                <source src={slide.src} type="video/mp4" />
+              </video>
+            )
           ) : null /* type === "color" — gradient overlay provides background */}
 
           {/* Gradient Overlay */}
@@ -332,23 +344,76 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                           }}
                         >
                           {row.words && row.words.length > 0
-                            ? row.words.map((w, wi) => (
-                                <span
-                                  key={wi}
-                                  style={{
-                                    // Outlined: hollow glyphs via the canonical technique —
-                                    // currentColor (=color) drives the stroke, fill is transparent.
-                                    color: w.outlined ? (w.outlineColor || row.color) : (w.color || undefined),
-                                    WebkitTextFillColor: w.outlined ? "transparent" : (w.color || undefined),
-                                    WebkitTextStroke: w.outlined ? `${w.outlineWidth ?? 1.6}px currentColor` : "0",
-                                    textShadow: w.outlined ? "none" : undefined,
-                                    paintOrder: "stroke fill",
-                                  } as React.CSSProperties}
-                                >
-                                  {w.text}
-                                  {wi < row.words!.length - 1 ? " " : ""}
-                                </span>
-                              ))
+                            ? row.words.map((w, wi) => {
+                                const trailing = wi < row.words!.length - 1 ? " " : "";
+                                if (!w.outlined) {
+                                  // Solid word — unchanged: plain colored fill on the same line.
+                                  return (
+                                    <span key={wi} style={{ color: w.color || undefined }}>
+                                      {w.text}
+                                      {trailing}
+                                    </span>
+                                  );
+                                }
+                                // Outlined word — clean hollow glyphs via SVG stroke.
+                                // A transparent copy of the same text sizes the inline-block box
+                                // (so it shares the solid words' font-size + baseline on this row);
+                                // an absolutely-positioned SVG paints the outline on top using
+                                // paint-order:stroke + round joins, which — unlike a CENTERED
+                                // -webkit-text-stroke — never blobs at glyph junctions (R/B/W).
+                                // The SVG <text> inherits the row's font props, so it scales with
+                                // the responsive clamp() font-size automatically.
+                                return (
+                                  <Fragment key={wi}>
+                                    <span
+                                      style={{
+                                        position: "relative",
+                                        display: "inline-block",
+                                        whiteSpace: "pre",
+                                      }}
+                                    >
+                                      {/* Sizing layer: real text, transparent — sets exact box + baseline */}
+                                      <span style={{ color: "transparent", WebkitTextFillColor: "transparent" }}>
+                                        {w.text}
+                                      </span>
+                                      {/* Outline layer: SVG stroke, hollow center (fill=none) */}
+                                      <svg
+                                        aria-hidden="true"
+                                        style={{
+                                          position: "absolute",
+                                          left: 0,
+                                          top: 0,
+                                          width: "100%",
+                                          height: "100%",
+                                          overflow: "visible",
+                                          pointerEvents: "none",
+                                        }}
+                                      >
+                                        <text
+                                          x="50%"
+                                          y="50%"
+                                          textAnchor="middle"
+                                          dominantBaseline="central"
+                                          fill="none"
+                                          stroke={w.outlineColor || row.color}
+                                          strokeWidth={w.outlineWidth ?? 2}
+                                          strokeLinejoin="round"
+                                          paintOrder="stroke"
+                                          style={{
+                                            fontSize: "inherit",
+                                            fontWeight: "inherit",
+                                            fontFamily: "inherit",
+                                            letterSpacing: "inherit",
+                                          }}
+                                        >
+                                          {w.text}
+                                        </text>
+                                      </svg>
+                                    </span>
+                                    {trailing}
+                                  </Fragment>
+                                );
+                              })
                             : row.text}
                         </motion.span>
                       ))}

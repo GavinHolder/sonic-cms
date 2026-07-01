@@ -53,6 +53,20 @@ export default function HeroCarouselEditor({
   const [showLastSlideError, setShowLastSlideError] = useState(false);
   // Auto-expand first slide so controls are visible immediately
   const [expandedSlides, setExpandedSlides] = useState<Set<number>>(new Set([0]));
+  // Inline slide-name editing (double-click the label to rename)
+  const [editingNameIndex, setEditingNameIndex] = useState<number | null>(null);
+  const [nameDraft, setNameDraft] = useState("");
+
+  const startEditingName = (index: number, current: string) => {
+    setNameDraft(current);
+    setEditingNameIndex(index);
+  };
+
+  const commitName = (index: number) => {
+    const trimmed = nameDraft.trim();
+    updateSlide(index, { name: trimmed || undefined });
+    setEditingNameIndex(null);
+  };
 
   const toggleSlide = (index: number) => {
     setExpandedSlides((prev) => {
@@ -458,7 +472,42 @@ export default function HeroCarouselEditor({
                           </span>
                         )}
 
-                        <strong className="small">Slide {index + 1}</strong>
+                        {editingNameIndex === index ? (
+                          <input
+                            type="text"
+                            className="form-control form-control-sm"
+                            style={{ maxWidth: "200px" }}
+                            autoFocus
+                            value={nameDraft}
+                            placeholder={`Slide ${index + 1}`}
+                            onClick={(e) => e.stopPropagation()}
+                            onDoubleClick={(e) => e.stopPropagation()}
+                            onChange={(e) => setNameDraft(e.target.value)}
+                            onBlur={() => commitName(index)}
+                            onKeyDown={(e) => {
+                              e.stopPropagation();
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                commitName(index);
+                              } else if (e.key === "Escape") {
+                                e.preventDefault();
+                                setEditingNameIndex(null);
+                              }
+                            }}
+                          />
+                        ) : (
+                          <strong
+                            className="small"
+                            title="Double-click to rename"
+                            style={{ cursor: "text" }}
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              startEditingName(index, slide.name || "");
+                            }}
+                          >
+                            {slide.name || `Slide ${index + 1}`}
+                          </strong>
+                        )}
 
                         {headingText && (
                           <span className="text-muted small text-truncate" style={{ maxWidth: "200px" }}>

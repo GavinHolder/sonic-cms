@@ -36,12 +36,25 @@ const TALL_HEIGHT     = 140; // px
 
 export default function Navbar() {
   const pathname = usePathname();
-  const isLandingPage = pathname === "/";
+  // A hero renders transparently at the top of these routes. Broadened from just "/"
+  // so the admin Preview page (which renders the same hero) also gets the
+  // transparent-over-hero treatment. Generic hero detection (in the scroll effect
+  // below) extends this to any page that actually mounts a ".hero-carousel" element.
+  const pathHasHero = pathname === "/" || pathname === "/preview/landing-page";
+
+  // TODO(admin-toggle): expose `hideOverHero` in Settings → Navbar and return it from
+  // /api/site-config. Until then it defaults false (current behaviour). Flip this
+  // constant to true to preview the "hide over hero, reveal on scroll" mode locally.
+  const HIDE_OVER_HERO_DEFAULT = false;
+  const REVEAL_DELTA = 40; // px scrolled before the hidden-over-hero navbar reveals
 
   const [mobileOpen, setMobileOpen]       = useState(false);
-  const [scrolled, setScrolled]           = useState(!isLandingPage);
+  const [scrolled, setScrolled]           = useState(!pathHasHero);
+  const [heroPresent, setHeroPresent]     = useState(pathHasHero);
+  const [pastRevealDelta, setPastRevealDelta] = useState(!pathHasHero);
+  const [hideOverHero, setHideOverHero]   = useState(HIDE_OVER_HERO_DEFAULT);
   const [navLinks, setNavLinks]           = useState<Array<{ id: string; label: string; href?: string }>>([]);
-  const [isDarkBackground, setIsDarkBg]   = useState(isLandingPage);
+  const [isDarkBackground, setIsDarkBg]   = useState(pathHasHero);
   const [ctaConfig, setCtaConfig]         = useState<NavbarCtaButton>(defaultNavbarConfig.cta);
   const [toolsOpen, setToolsOpen]         = useState(false);
   const [enabledFeatures, setEnabledFeatures] = useState<string[]>([]);
@@ -112,6 +125,8 @@ export default function Navbar() {
         if (data?.companyName) setCompanyName(data.companyName);
         if (data?.logoUrl)     setLogoUrl(data.logoUrl);
         if (data?.navbarStyle) setNavbarStyle(data.navbarStyle as "standard" | "tall");
+        // Optional flag — API may not return it yet; stays false (current behaviour) until then.
+        if (typeof data?.hideOverHero === "boolean") setHideOverHero(data.hideOverHero);
         if (data?.phone)       setPhone(data.phone);
         // Collect all social URLs
         const s: Record<string, string> = {};
@@ -167,15 +182,22 @@ export default function Navbar() {
     };
 
     detectBg();
+    // Generic hero detection: treat any page that actually mounts a hero like the
+    // landing page. Falls back to the pathname check so first paint (before the hero
+    // element exists in the DOM) is still correct on the known hero routes.
+    const heroExists = !!document.querySelector(".hero-carousel") || pathHasHero;
+    setHeroPresent(heroExists);
     const container = document.getElementById("snap-container");
     const onScroll = () => {
-      if (!isLandingPage) return;
+      if (!heroExists) return;
       const top = container ? container.scrollTop : window.scrollY;
       // The hero fills ~one viewport (sections are 100vh). Stay transparent while the
       // hero is on screen; go opaque only once it has scrolled up behind the navbar.
       const heroThreshold = window.innerHeight - navbarHeight;
       const isScrolled = top > Math.max(20, heroThreshold);
       setScrolled(isScrolled);
+      // "Hide over hero" mode reveals the navbar as soon as the user scrolls a little.
+      setPastRevealDelta(top > REVEAL_DELTA);
       if (isScrolled && window.innerWidth >= 768) setMobileOpen(false);
       detectBg();
     };
@@ -186,10 +208,15 @@ export default function Navbar() {
       container?.removeEventListener("scroll", onScroll);
       window.removeEventListener("scroll", onScroll);
     };
-  }, [isLandingPage]);
+  }, [pathHasHero]);
 
-  const effectiveScrolled = !isLandingPage || scrolled;
-  const navTransition = isLandingPage ? "600ms cubic-bezier(0.4, 0, 0.2, 1)" : "none";
+  const effectiveScrolled = !heroPresent || scrolled;
+  const navTransition = heroPresent ? "600ms cubic-bezier(0.4, 0, 0.2, 1)" : "none";
+
+  // Hide-over-hero mode: while the hero is on screen and the user hasn't scrolled past
+  // the small reveal delta, render the whole navbar hidden (slide/fade up), revealing it
+  // on scroll. When the flag is off this is always false → default behaviour unchanged.
+  const navHiddenOverHero = hideOverHero && heroPresent && !pastRevealDelta;
 
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -202,7 +229,19 @@ export default function Navbar() {
   return (
     <nav
       className={`navbar fixed-top ${effectiveScrolled ? "navbar-scrolled" : "navbar-transparent"}`}
-      style={{ padding: isTall ? "0" : "1rem 0", zIndex: 1050, overflow: "visible", height: `${navbarHeight}px` }}
+      style={{
+        padding: isTall ? "0" : "1rem 0", zIndex: 1050, overflow: "visible", height: `${navbarHeight}px`,
+        // Only add the hide/reveal transform + transition when the mode is enabled, so the
+        // default navbar's inline style is byte-for-byte unchanged when hideOverHero is off.
+        ...(hideOverHero
+          ? {
+              transform: navHiddenOverHero ? "translateY(-100%)" : "translateY(0)",
+              opacity: navHiddenOverHero ? 0 : 1,
+              pointerEvents: navHiddenOverHero ? ("none" as const) : ("auto" as const),
+              transition: "transform 400ms cubic-bezier(0.4,0,0.2,1), opacity 400ms cubic-bezier(0.4,0,0.2,1)",
+            }
+          : {}),
+      }}
     >
       <div
         className="container-fluid px-4 h-100"

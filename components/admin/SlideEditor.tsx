@@ -3,6 +3,8 @@
 import { useState } from "react";
 import type { HeroCarouselSlide, AnimationType, HeadingRow, HeadingWord } from "@/types/section";
 import MediaUploader from "./MediaUploader";
+import MediaPickerModal from "./MediaPickerModal";
+import { LinkPicker } from "./LinkPicker";
 
 interface SlideEditorProps {
   slide: HeroCarouselSlide;
@@ -25,6 +27,10 @@ export default function SlideEditor({
 }: SlideEditorProps) {
   const [activeTab, setActiveTab] = useState<"media" | "gradient" | "overlay" | "position">("media");
   const [dragRow, setDragRow] = useState<number | null>(null);
+  // Which media field the library picker targets ("src" = main media, "poster" = video poster)
+  const [libraryTarget, setLibraryTarget] = useState<null | "src" | "poster">(null);
+
+  const overlayEnabled = slide.showTextOverlay ?? true;
 
   const isStackedMode = !!(slide.overlay?.headingRows && slide.overlay.headingRows.length > 0);
 
@@ -264,9 +270,44 @@ export default function SlideEditor({
                 maxSizeMB={slide.type === "image" ? 10 : 50}
                 label={`Upload ${slide.type === "image" ? "Image" : "Video"}`}
               />
+              <div className="d-flex gap-2 mt-2">
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-secondary"
+                  onClick={() => setLibraryTarget("src")}
+                  title="Choose existing media from the library"
+                >
+                  <i className="bi bi-folder2-open me-1"></i>
+                  Choose from Library
+                </button>
+                {slide.src && (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-danger"
+                    onClick={() => onChange({ src: "" })}
+                    title="Remove current media"
+                  >
+                    <i className="bi bi-x-lg me-1"></i>
+                    Remove
+                  </button>
+                )}
+              </div>
               {slide.src && (
-                <div className="mt-2">
-                  <small className="text-muted">
+                <div className="mt-2 d-flex align-items-center gap-2">
+                  {slide.type === "image" ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={slide.src}
+                      alt="Current media"
+                      className="img-thumbnail"
+                      style={{ width: 80, height: 50, objectFit: "cover" }}
+                    />
+                  ) : (
+                    <span className="badge bg-warning text-dark">
+                      <i className="bi bi-play-circle me-1"></i>Video
+                    </span>
+                  )}
+                  <small className="text-muted text-truncate" style={{ maxWidth: 260 }}>
                     <i className="bi bi-check-circle-fill text-success me-1"></i>
                     Current: {slide.src}
                   </small>
@@ -378,9 +419,38 @@ export default function SlideEditor({
                   maxSizeMB={5}
                   label="Upload Poster Image"
                 />
+                <div className="d-flex gap-2 mt-2">
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-secondary"
+                    onClick={() => setLibraryTarget("poster")}
+                    title="Choose existing image from the library"
+                  >
+                    <i className="bi bi-folder2-open me-1"></i>
+                    Choose from Library
+                  </button>
+                  {slide.poster && (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-danger"
+                      onClick={() => onChange({ poster: undefined })}
+                      title="Remove poster image"
+                    >
+                      <i className="bi bi-x-lg me-1"></i>
+                      Remove
+                    </button>
+                  )}
+                </div>
                 {slide.poster && (
-                  <div className="mt-2">
-                    <small className="text-muted">
+                  <div className="mt-2 d-flex align-items-center gap-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={slide.poster}
+                      alt="Poster preview"
+                      className="img-thumbnail"
+                      style={{ width: 80, height: 50, objectFit: "cover" }}
+                    />
+                    <small className="text-muted text-truncate" style={{ maxWidth: 260 }}>
                       <i className="bi bi-check-circle-fill text-success me-1"></i>
                       Current: {slide.poster}
                     </small>
@@ -388,6 +458,21 @@ export default function SlideEditor({
                 )}
               </div>
             )}
+
+            {/* Media Library Picker (shared by main media + poster fields) */}
+            <MediaPickerModal
+              isOpen={libraryTarget !== null}
+              onClose={() => setLibraryTarget(null)}
+              filterType={libraryTarget === "poster" ? "image" : slide.type}
+              onSelect={(url) => {
+                if (libraryTarget === "poster") {
+                  onChange({ poster: url });
+                } else {
+                  onChange({ src: url });
+                }
+                setLibraryTarget(null);
+              }}
+            />
           </div>
         )}
 
@@ -555,6 +640,21 @@ export default function SlideEditor({
         {/* Text Overlay Tab */}
         {activeTab === "overlay" && (
           <div>
+            {/* Show / hide text overlay */}
+            <div className="d-flex align-items-center gap-2 mb-3" style={{ cursor: "pointer" }} onClick={() => onChange({ showTextOverlay: !overlayEnabled })}>
+              <div role="switch" aria-checked={overlayEnabled} style={{ width: "42px", height: "22px", borderRadius: "11px", flexShrink: 0, backgroundColor: overlayEnabled ? "#0d6efd" : "#adb5bd", transition: "background-color 0.15s", position: "relative" }}>
+                <div style={{ width: "16px", height: "16px", borderRadius: "50%", backgroundColor: "#fff", position: "absolute", top: "3px", left: overlayEnabled ? "23px" : "3px", transition: "left 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
+              </div>
+              <span className="fw-semibold small">Show text overlay</span>
+            </div>
+            {!overlayEnabled && (
+              <div className="alert alert-secondary small py-2 px-3 mb-3">
+                <i className="bi bi-eye-slash me-1"></i>
+                Text overlay is hidden — this slide shows the image/video only.
+              </div>
+            )}
+
+            <div style={{ opacity: overlayEnabled ? 1 : 0.5, pointerEvents: overlayEnabled ? "auto" : "none" }}>
             {/* Heading Mode Toggle */}
             <div className="mb-3">
               <label className="form-label fw-semibold">Heading Mode</label>
@@ -1261,13 +1361,11 @@ export default function SlideEditor({
                     </div>
                     <div className="col-md-6">
                       <label className="form-label fw-semibold">Link</label>
-                      <input
-                        type="text"
-                        className="form-control form-control-sm"
+                      <LinkPicker
                         value={button.href}
-                        onChange={(e) => {
+                        onChange={(href) => {
                           const updatedButtons = [...(slide.overlay?.buttons ?? [])];
-                          updatedButtons[index] = { ...button, href: e.target.value };
+                          updatedButtons[index] = { ...button, href };
                           updateOverlay({ buttons: updatedButtons });
                         }}
                       />
@@ -1391,6 +1489,7 @@ export default function SlideEditor({
                 </div>
               </div>
             ))}
+            </div>
           </div>
         )}
 
@@ -1466,9 +1565,9 @@ export default function SlideEditor({
                         },
                       })
                     }
-                    min="0"
-                    max="300"
-                    step="5"
+                    min="-500"
+                    max="500"
+                    step="1"
                   />
                   <input
                     type="number"
@@ -1485,8 +1584,8 @@ export default function SlideEditor({
                         },
                       })
                     }
-                    min="0"
-                    max="300"
+                    min="-500"
+                    max="500"
                   />
                 </div>
               </div>
@@ -1512,9 +1611,9 @@ export default function SlideEditor({
                         },
                       })
                     }
-                    min="0"
-                    max="300"
-                    step="5"
+                    min="-500"
+                    max="500"
+                    step="1"
                   />
                   <input
                     type="number"
@@ -1531,8 +1630,8 @@ export default function SlideEditor({
                         },
                       })
                     }
-                    min="0"
-                    max="300"
+                    min="-500"
+                    max="500"
                   />
                 </div>
               </div>
@@ -1558,9 +1657,9 @@ export default function SlideEditor({
                         },
                       })
                     }
-                    min="0"
-                    max="300"
-                    step="5"
+                    min="-500"
+                    max="500"
+                    step="1"
                   />
                   <input
                     type="number"
@@ -1577,8 +1676,8 @@ export default function SlideEditor({
                         },
                       })
                     }
-                    min="0"
-                    max="300"
+                    min="-500"
+                    max="500"
                   />
                 </div>
               </div>
@@ -1604,9 +1703,9 @@ export default function SlideEditor({
                         },
                       })
                     }
-                    min="0"
-                    max="300"
-                    step="5"
+                    min="-500"
+                    max="500"
+                    step="1"
                   />
                   <input
                     type="number"
@@ -1623,8 +1722,8 @@ export default function SlideEditor({
                         },
                       })
                     }
-                    min="0"
-                    max="300"
+                    min="-500"
+                    max="500"
                   />
                 </div>
               </div>
