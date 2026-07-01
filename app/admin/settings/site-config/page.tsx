@@ -24,6 +24,7 @@ interface SiteConfig {
   youtube: string;
   tiktok: string;
   navbarStyle: string;
+  hideOverHero: boolean;
   defaultTheme: string;
   copyrightText: string;
   showRegulatory: boolean;
@@ -41,6 +42,7 @@ const DEFAULTS: SiteConfig = {
   phone: "", email: "", address: "", city: "", postalCode: "", country: "",
   facebook: "", instagram: "", twitter: "", linkedin: "", youtube: "", tiktok: "",
   navbarStyle: "standard",
+  hideOverHero: false,
   defaultTheme: "light",
   copyrightText: "", showRegulatory: false,
   homePage: "",
@@ -353,6 +355,18 @@ function SiteConfigForm() {
                   Add a phone number in Contact Details above — it will appear in the tall navbar.
                 </div>
               )}
+
+              <div className="form-check form-switch mt-3">
+                <input className="form-check-input" type="checkbox" id="hideOverHero"
+                  checked={config.hideOverHero}
+                  onChange={() => set("hideOverHero", !config.hideOverHero)} />
+                <label className="form-check-label small" htmlFor="hideOverHero">
+                  <span className="fw-semibold">Hide navbar over hero</span>
+                  <span className="text-muted d-block" style={{ fontSize: "0.75rem" }}>
+                    Hide the navbar while the hero is on screen; reveal it (fade in) once the visitor scrolls down. Off = navbar always shown (transparent over hero).
+                  </span>
+                </label>
+              </div>
             </div>
           </div>
         </div>
