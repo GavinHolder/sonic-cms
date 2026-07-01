@@ -592,6 +592,7 @@ export default function HeroCarouselEditor({
                             className="small"
                             title="Double-click to rename"
                             style={{ cursor: "text" }}
+                            onClick={(e) => e.stopPropagation()}
                             onDoubleClick={(e) => {
                               e.stopPropagation();
                               startEditingName(index, slide.name || "");

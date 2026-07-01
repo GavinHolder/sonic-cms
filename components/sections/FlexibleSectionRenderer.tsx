@@ -1279,6 +1279,45 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
     return () => { alive = false; };
   }, [packageIds]);
 
+  // ── Google Font loading ───────────────────────────────────────────────────
+  // The designer stores a chosen font as props.fontFamily (e.g. "'Poppins', sans-serif")
+  // and the render path applies it as CSS — but nothing LOADS the webfont in the
+  // published page. Without the stylesheet the browser falls back to the default
+  // family, so a saved font appears to "revert to default" on save/reload.
+  // Collect every family referenced by blocks + sub-elements and inject the
+  // matching Google Fonts stylesheet once (guarded by a derived id).
+  // TODO(custom-fonts): user-UPLOADED font files (not Google Fonts) need a stored
+  // @font-face source (URL/API) before they can load here — out of scope for now.
+  const designerFonts = useMemo(() => {
+    const GENERIC = new Set(["inherit", "sans-serif", "serif", "monospace", "cursive", "fantasy", "system-ui", "ui-sans-serif", "ui-serif", "ui-monospace"]);
+    const fams = new Set<string>();
+    const add = (v: unknown) => {
+      if (typeof v !== "string") return;
+      const m = v.match(/'([^']+)'/) || v.match(/^([^,]+)/);
+      const name = (m ? m[1] : v).trim().replace(/^["']|["']$/g, "");
+      if (!name || name.startsWith("-") || GENERIC.has(name.toLowerCase())) return;
+      fams.add(name);
+    };
+    try {
+      const d = typeof designerData === "string" ? JSON.parse(designerData) : designerData;
+      for (const b of ((d?.blocks as Array<{ props?: Record<string, unknown>; subElements?: Array<{ props?: Record<string, unknown> }> }>) || [])) {
+        add(b?.props?.fontFamily);
+        for (const se of (b?.subElements || [])) add(se?.props?.fontFamily);
+      }
+    } catch { /* parse errors handled in the render try/catch below */ }
+    return [...fams];
+  }, [designerData]);
+  useEffect(() => {
+    for (const fam of designerFonts) {
+      const id = "gf-" + fam.replace(/\s+/g, "-");
+      if (document.getElementById(id)) continue;
+      const l = document.createElement("link");
+      l.id = id; l.rel = "stylesheet";
+      l.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(fam).replace(/%20/g, "+")}:wght@400;700&display=swap`;
+      document.head.appendChild(l);
+    }
+  }, [designerFonts]);
+
   try {
     const data = typeof designerData === 'string' ? JSON.parse(designerData) : designerData;
     const blocks: Array<{

@@ -3071,14 +3071,25 @@ function startSubElementWidthResize(e, blockId, seId) {
   // Capture starting width; fall back to DOM measurement if not stored
   const origW = se.w || seEl.offsetWidth;
   const startMX = e.clientX;
+  const CONTENT_PAD = 8;  // .cb-content padding on each side
+  const RIGHT_PAD   = 8;  // breathing room so the child never hugs the parent edge
 
   const onMove = ev => {
+    // Constrain to the parent's inner content width so the child resizes WITHIN
+    // the parent rather than driving the parent wider (which made it hug/overshoot
+    // the parent's right edge). Snap first, THEN clamp — for consistent snapping.
+    const parentW = block.w || (document.querySelector(`.container-block[data-block-id="${blockId}"]`)?.offsetWidth) || 0;
+    const innerW  = Math.max(120, parentW - CONTENT_PAD * 2);
+    const maxW    = Math.max(60, innerW - (se.x || 0) - RIGHT_PAD);
     // Minimum width of 60px prevents the element from becoming unclickable
     let newW = Math.max(60, Math.round(origW + (ev.clientX - startMX) / getCanvasScale()));
-    if (state.subElementSnap) { const sg = 8; newW = Math.round(newW / sg) * sg; if (newW < 60) newW = 64; }
+    if (state.subElementSnap) { const sg = 8; newW = Math.round(newW / sg) * sg; }
+    if (newW > maxW) newW = maxW;   // never exceed / hug the parent
+    if (newW < 60)   newW = 60;
     se.w = newW;
     seEl.style.width = newW + 'px';
-    fitBlockToSubElementsDOM(blockId);
+    // lockWidth=true → grow height to fit content but keep the parent's width stable
+    fitBlockToSubElementsDOM(blockId, false, true);
   };
 
   const onUp = () => {
@@ -3223,8 +3234,10 @@ function fitBlockToSubElements(blockId) {
  * the canvas reflects the new size without a full re-render.
  * @param {string} blockId - ID of the block to resize.
  */
-function fitBlockToSubElementsDOM(blockId, restack) {
+function fitBlockToSubElementsDOM(blockId, restack, lockWidth) {
   // DOM-aware: reads actual rendered sizes; always grows AND shrinks, both axes
+  // lockWidth=true: fit height only, leave block.w untouched (used during child
+  // width-resize so the child sizes within the parent instead of resizing it).
   // restack=true: re-stack sub-elements vertically using actual DOM heights (called on initial load)
   const block = state.blocks.find(b => b.id === blockId);
   if (!block || !block.subElements?.length) return;
@@ -3270,16 +3283,16 @@ function fitBlockToSubElementsDOM(blockId, restack) {
   // If manually resized, only grow (never shrink below user-set size)
   if (block.manualSize) {
     block.h = Math.max(block.h, contentH);
-    if (contentW > 0) block.w = Math.max(block.w, contentW);
+    if (!lockWidth && contentW > 0) block.w = Math.max(block.w, contentW);
   } else {
     block.h = contentH;
-    if (contentW > 0) block.w = contentW;
+    if (!lockWidth && contentW > 0) block.w = contentW;
   }
   // Update DOM immediately to avoid a full re-render on every drag tick
   const blockEl = document.querySelector(`.container-block[data-block-id="${blockId}"]`);
   if (blockEl) {
     blockEl.style.height = block.h + 'px';
-    if (maxRight > 0 || block.manualSize) blockEl.style.width = block.w + 'px';
+    if (!lockWidth && (maxRight > 0 || block.manualSize)) blockEl.style.width = block.w + 'px';
   }
 }
 
@@ -7033,18 +7046,21 @@ function updateMiniToolbar() {
   const MARGIN = 6;
   const tbH = 92; // approx: 3×26px buttons + 1px sep + padding
   const tbW = 32;
-  // Place on RIGHT if block is in left half, LEFT if block is in right half
-  const blockCenterX = dp.x + dp.w / 2;
-  let leftX, topY;
-  if (blockCenterX > canvasW / 2) {
-    // Block is in right half → toolbar on the LEFT of block
-    leftX = dp.x - tbW - MARGIN;
+  const canvasH = canvas ? canvas.offsetHeight : 900;
+  // Default: place the toolbar on the RIGHT of the block. Auto-flip to the LEFT
+  // when there isn't enough room before the canvas right edge (prevents overflow).
+  const preferRightX = dp.x + dp.w + MARGIN;
+  let leftX;
+  if (preferRightX + tbW <= canvasW - MARGIN) {
+    leftX = preferRightX;                 // room on the right
   } else {
-    // Block is in left half → toolbar on the RIGHT of block
-    leftX = dp.x + dp.w + MARGIN;
+    leftX = dp.x - tbW - MARGIN;          // flip to the left of the block
+    if (leftX < MARGIN) leftX = MARGIN;   // clamp inside canvas
   }
-  // Vertically centre on block, clamped to canvas bounds
-  topY = Math.max(4, dp.y + dp.h / 2 - tbH / 2);
+  // Align the toolbar TOP with the element's top; clamp so it stays on-canvas.
+  let topY = dp.y;
+  if (topY < 4) topY = 4;
+  if (topY + tbH > canvasH - 4) topY = Math.max(4, canvasH - tbH - 4);
   tb.style.left = leftX + 'px';
   tb.style.top = topY + 'px';
   tb.classList.add('mtt-visible');
@@ -7086,6 +7102,13 @@ function mttDuplicate() {
   pushHistory();
   const copy = JSON.parse(JSON.stringify(b));
   copy.id = 'b' + (++state.nextId);
+  // Deep-clone (above) already severed shared object references. Now assign a
+  // FRESH unique id to every nested sub-element so the copy shares NO ids with
+  // the original — duplicate ids made DOM (data-sub-id) and data lookups resolve
+  // to the original element, producing a "linked" copy that edited both.
+  if (Array.isArray(copy.subElements)) {
+    copy.subElements.forEach(se => { se.id = 'se-' + (state.nextId++); });
+  }
   // Offset copy slightly so it's visible
   copy.x = (copy.x || 0) + 20;
   copy.y = (copy.y || 0) + 20;
