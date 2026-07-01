@@ -1,9 +1,17 @@
 "use client";
 
-import { useState, useEffect, Fragment } from "react";
+import { useState, useEffect, useLayoutEffect, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { HeroSection, AnimationType, HeadingRow, TextShadowConfig, FreeformPos } from "@/types/section";
 import { defaultFreeformPos } from "@/types/section";
+
+/**
+ * SSR-safe layout effect: runs synchronously before paint on the client (so we
+ * can correct the mobile flag before the first frame, avoiding a visible
+ * desktop→mobile image swap), and falls back to useEffect on the server where
+ * useLayoutEffect would emit a warning and cannot run anyway.
+ */
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 interface HeroCarouselProps {
   section: HeroSection;
@@ -135,8 +143,11 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
     statsStrip,
   } = section.content;
 
-  // Detect mobile viewport for mobile-specific images/colors
-  useEffect(() => {
+  // Detect mobile viewport for mobile-specific images/colors.
+  // useLayoutEffect (isomorphic) so the correct src is chosen BEFORE the browser
+  // paints the first frame — prevents the mount-time desktop→mobile image flash
+  // (e.g. the Sonic mobile logo blinking in) that a post-paint useEffect caused.
+  useIsomorphicLayoutEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
     window.addEventListener("resize", checkMobile);
@@ -320,6 +331,66 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
     zIndex: 10,
   });
 
+  // Background media (mobile bg color / image / video-with-mobile-image / video)
+  // + gradient overlay for a given slide. Shared by BOTH the persistent
+  // under-layer (which always covers the container so nothing behind the hero
+  // bleeds through during a transition) and the animated slide layer (which
+  // cross-fades). Keeping the gradient here means it is always keyed to its own
+  // slide and never leaks past it.
+  const renderSlideBackground = (s: typeof slides[0]) => (
+    <>
+      {/* Background Media - Mobile: solid color or mobile image, Desktop: full media */}
+      {isMobile && s.mobileBgColor ? (
+        // Mobile solid color background (overrides image entirely)
+        <div
+          className="position-absolute top-0 start-0 w-100 h-100"
+          style={{ backgroundColor: s.mobileBgColor }}
+        />
+      ) : s.type === "image" ? (
+        <div
+          className="position-absolute top-0 start-0 w-100 h-100"
+          style={{
+            backgroundImage: `url(${isMobile && s.mobileSrc ? s.mobileSrc : s.src})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        />
+      ) : s.type === "video" ? (
+        isMobile && s.mobileSrc ? (
+          // Mobile: honor the slide's mobile image instead of the video (perf + art direction)
+          <div
+            className="position-absolute top-0 start-0 w-100 h-100"
+            style={{
+              backgroundImage: `url(${s.mobileSrc})`,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+            }}
+          />
+        ) : (
+          <video
+            className="position-absolute top-0 start-0 w-100 h-100"
+            style={{ objectFit: "cover", width: "100%", height: "100%" }}
+            autoPlay
+            loop
+            muted
+            playsInline
+            poster={s.poster}
+          >
+            <source src={s.src} type="video/mp4" />
+          </video>
+        )
+      ) : null /* type === "color" — gradient overlay provides background */}
+
+      {/* Gradient Overlay */}
+      {s.gradient?.enabled && (
+        <div
+          className="position-absolute top-0 start-0 w-100 h-100"
+          style={getGradientStyle(s)}
+        />
+      )}
+    </>
+  );
+
   const slide = slides[currentSlide];
   if (!slide) {
     return (
@@ -335,6 +406,20 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
       className="hero-carousel position-relative w-100"
       style={{ minHeight: "100dvh", overflow: "hidden" }}
     >
+      {/*
+        Persistent background layer (NOT inside AnimatePresence).
+        Always renders the CURRENT slide's opaque background + gradient, so at no
+        point during a transition can you see through the hero to the page/adjacent
+        section behind it. With mode="wait" the animated layer briefly fades to
+        transparent between slides; this under-layer covers that gap. It also
+        makes the swap read as a clean cross-fade: the exiting slide fades away
+        over the already-present incoming background.
+        zIndex 0 keeps it beneath the animated text/overlay content.
+      */}
+      <div className="position-absolute top-0 start-0 w-100 h-100" style={{ zIndex: 0 }}>
+        {renderSlideBackground(slide)}
+      </div>
+
       <AnimatePresence mode="wait">
         <motion.div
           key={currentSlide}
@@ -343,60 +428,10 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
           exit={{ opacity: 0 }}
           transition={{ duration: transitionDuration / 1000 }}
           className="position-absolute top-0 start-0 w-100 h-100"
+          style={{ zIndex: 1 }}
         >
-          {/* Background Media - Mobile: solid color or mobile image, Desktop: full media */}
-          {isMobile && slide.mobileBgColor ? (
-            // Mobile solid color background (overrides image entirely)
-            <div
-              className="position-absolute top-0 start-0 w-100 h-100"
-              style={{ backgroundColor: slide.mobileBgColor }}
-            />
-          ) : slide.type === "image" ? (
-            <div
-              className="position-absolute top-0 start-0 w-100 h-100"
-              style={{
-                backgroundImage: `url(${isMobile && slide.mobileSrc ? slide.mobileSrc : slide.src})`,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-              }}
-            />
-          ) : slide.type === "video" ? (
-            isMobile && slide.mobileSrc ? (
-              // Mobile: honor the slide's mobile image instead of the video (perf + art direction)
-              <div
-                className="position-absolute top-0 start-0 w-100 h-100"
-                style={{
-                  backgroundImage: `url(${slide.mobileSrc})`,
-                  backgroundSize: "cover",
-                  backgroundPosition: "center",
-                }}
-              />
-            ) : (
-              <video
-                className="position-absolute top-0 start-0 w-100 h-100"
-                style={{
-                  objectFit: "cover",
-                  width: "100%",
-                  height: "100%"
-                }}
-                autoPlay
-                loop
-                muted
-                playsInline
-                poster={slide.poster}
-              >
-                <source src={slide.src} type="video/mp4" />
-              </video>
-            )
-          ) : null /* type === "color" — gradient overlay provides background */}
-
-          {/* Gradient Overlay */}
-          {slide.gradient?.enabled && (
-            <div
-              className="position-absolute top-0 start-0 w-100 h-100"
-              style={getGradientStyle(slide)}
-            />
-          )}
+          {/* Background media + gradient, keyed with this slide so it cross-fades */}
+          {renderSlideBackground(slide)}
 
           {/* Text Overlay (PRESET) — hidden when the slide is image/video-only or in freeform mode */}
           {slide.overlay && slide.showTextOverlay !== false && slide.overlay.layoutMode !== "freeform" && (
