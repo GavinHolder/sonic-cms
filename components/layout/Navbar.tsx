@@ -171,10 +171,9 @@ export default function Navbar() {
     const onScroll = () => {
       if (!isLandingPage) return;
       const top = container ? container.scrollTop : window.scrollY;
-      // Transparent while the hero (first section) is on screen; opaque only once
-      // scrolled PAST it. Flip point = hero bottom reaching the navbar's bottom.
-      const heroEl = (container?.firstElementChild ?? null) as HTMLElement | null;
-      const heroThreshold = (heroEl?.offsetHeight ?? window.innerHeight) - navbarHeight;
+      // The hero fills ~one viewport (sections are 100vh). Stay transparent while the
+      // hero is on screen; go opaque only once it has scrolled up behind the navbar.
+      const heroThreshold = window.innerHeight - navbarHeight;
       const isScrolled = top > Math.max(20, heroThreshold);
       setScrolled(isScrolled);
       if (isScrolled && window.innerWidth >= 768) setMobileOpen(false);
