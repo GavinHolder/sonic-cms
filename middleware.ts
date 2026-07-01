@@ -44,6 +44,7 @@ export async function middleware(request: NextRequest) {
   // are excluded to avoid rewrite loops.
   if (
     isPublicPath &&
+    !request.cookies.get("access_token") && // logged-in admins bypass maintenance so they can build/preview pages live
     !pathname.startsWith("/standalone") &&
     !pathname.startsWith("/maintenance-preview")
   ) {
