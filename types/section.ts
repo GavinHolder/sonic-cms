@@ -322,6 +322,37 @@ export interface TextShadowConfig {
   opacity: number; // 0-100
 }
 
+/**
+ * Freeform position — percentage of the hero box (0–100), anchor = element CENTER.
+ * Used only when the overlay's `layoutMode === "freeform"`. Optional everywhere so
+ * existing preset layouts are untouched.
+ */
+export interface FreeformPos {
+  x: number; // 0–100 (% of hero width)
+  y: number; // 0–100 (% of hero height)
+}
+
+/**
+ * Sensible fallback position for a freeform element that has no explicit `pos`.
+ * Shared by the renderer and the editor drag surface so a chip appears where it renders.
+ * Staggered so untouched elements don't all pile up dead-center.
+ */
+export function defaultFreeformPos(
+  kind: "eyebrow" | "heading" | "subheading" | "button",
+  index = 0
+): FreeformPos {
+  switch (kind) {
+    case "eyebrow":
+      return { x: 50, y: 22 };
+    case "heading":
+      return { x: 50, y: 38 + index * 12 };
+    case "subheading":
+      return { x: 50, y: 70 };
+    case "button":
+      return { x: 40 + index * 16, y: 85 };
+  }
+}
+
 export interface HeadingRow {
   text: string;
   /** Optional per-word styling (outline/fill). Takes precedence over `text` when non-empty. */
@@ -333,6 +364,8 @@ export interface HeadingRow {
   animation: AnimationType;
   animationDuration: number; // ms
   animationDelay: number;    // ms
+  /** Freeform placement (only used when overlay.layoutMode === "freeform"). */
+  pos?: FreeformPos;
 }
 
 /**
@@ -386,7 +419,22 @@ export interface TextOverlayElement {
     animation: AnimationType;
     animationDuration: number;
     animationDelay: number;
+    /** Freeform placement (only used when overlay.layoutMode === "freeform"). */
+    pos?: FreeformPos;
   }>;
+  /**
+   * Overlay layout mode.
+   *  - "preset" (default / undefined): current behaviour — a single positioned text block.
+   *  - "freeform": each addressable element (heading rows, subheading, buttons, eyebrow)
+   *    is absolutely placed via its own `pos` percentage. Opt-in & fully back-compat.
+   */
+  layoutMode?: "preset" | "freeform";
+  /** Freeform position for the legacy single `heading` (classic mode). */
+  headingPos?: FreeformPos;
+  /** Freeform position for the subheading. */
+  subheadingPos?: FreeformPos;
+  /** Freeform position for the eyebrow label. */
+  eyebrowPos?: FreeformPos;
   position: "center" | "left" | "right" | "topLeft" | "topCenter" | "topRight" | "bottomLeft" | "bottomCenter" | "bottomRight";
   spacing: {
     betweenHeadingSubheading: number; // px

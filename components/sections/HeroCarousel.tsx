@@ -2,7 +2,8 @@
 
 import { useState, useEffect, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import type { HeroSection, AnimationType, HeadingRow, TextShadowConfig } from "@/types/section";
+import type { HeroSection, AnimationType, HeadingRow, TextShadowConfig, FreeformPos } from "@/types/section";
+import { defaultFreeformPos } from "@/types/section";
 
 interface HeroCarouselProps {
   section: HeroSection;
@@ -44,6 +45,85 @@ function buildTextShadow(cfg: TextShadowConfig | undefined, fallback?: string): 
 function buildDropShadowFilter(cfg: TextShadowConfig | undefined): string | undefined {
   if (!cfg || !cfg.enabled) return undefined;
   return `drop-shadow(${cfg.offsetX}px ${cfg.offsetY}px ${cfg.blur}px ${rgbaFromHex(cfg.color, cfg.opacity)})`;
+}
+
+/**
+ * Render a heading row's inner content — either the per-word outline/fill spans
+ * or the plain `text`. Shared by the preset and freeform layouts so both paths
+ * produce identical markup (no drift). `shadow` drives the SVG-outline drop shadow.
+ */
+function renderRowInner(row: HeadingRow, shadow: TextShadowConfig | undefined) {
+  if (!(row.words && row.words.length > 0)) return row.text;
+  return row.words.map((w, wi) => {
+    const trailing = wi < row.words!.length - 1 ? " " : "";
+    if (!w.outlined) {
+      // Solid word — plain colored fill on the same line.
+      return (
+        <span key={wi} style={{ color: w.color || undefined }}>
+          {w.text}
+          {trailing}
+        </span>
+      );
+    }
+    // Outlined word — clean hollow glyphs via SVG stroke. A transparent copy of the
+    // same text sizes the inline-block box (shares font-size + baseline on this row);
+    // an absolutely-positioned SVG paints the outline on top using paint-order:stroke
+    // + round joins, which — unlike a centered -webkit-text-stroke — never blobs at
+    // glyph junctions (R/B/W). The SVG <text> inherits the row's font props.
+    return (
+      <Fragment key={wi}>
+        <span
+          style={{
+            position: "relative",
+            display: "inline-block",
+            whiteSpace: "pre",
+            // Hollow SVG strokes ignore text-shadow, so cast the drop shadow here
+            // via a CSS filter (only when shadow is enabled).
+            filter: buildDropShadowFilter(shadow),
+          }}
+        >
+          {/* Sizing layer: real text, transparent — sets exact box + baseline. */}
+          <span style={{ color: "transparent", WebkitTextFillColor: "transparent", textShadow: "none" }}>
+            {w.text}
+          </span>
+          {/* Outline layer: SVG stroke, hollow center (fill=none) */}
+          <svg
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              left: 0,
+              top: 0,
+              width: "100%",
+              height: "100%",
+              overflow: "visible",
+              pointerEvents: "none",
+            }}
+          >
+            <text
+              x="50%"
+              y="50%"
+              textAnchor="middle"
+              dominantBaseline="central"
+              fill="none"
+              stroke={w.outlineColor || row.color}
+              strokeWidth={w.outlineWidth ?? 2}
+              strokeLinejoin="round"
+              paintOrder="stroke"
+              style={{
+                fontSize: "inherit",
+                fontWeight: "inherit",
+                fontFamily: "inherit",
+                letterSpacing: "inherit",
+              }}
+            >
+              {w.text}
+            </text>
+          </svg>
+        </span>
+        {trailing}
+      </Fragment>
+    );
+  });
 }
 
 export default function HeroCarousel({ section }: HeroCarouselProps) {
@@ -228,6 +308,18 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
     return `translate(${tx}px, ${ty}px)`;
   };
 
+  // Freeform: absolute-position wrapper for a single overlay element.
+  // Anchor is the element CENTER (translate -50%,-50%); pos falls back to a
+  // staggered default so an un-dragged element still renders somewhere sane.
+  const ffStyle = (pos: FreeformPos | undefined, def: FreeformPos): React.CSSProperties => ({
+    position: "absolute",
+    left: `${pos?.x ?? def.x}%`,
+    top: `${pos?.y ?? def.y}%`,
+    transform: "translate(-50%, -50%)",
+    maxWidth: "92%",
+    zIndex: 10,
+  });
+
   const slide = slides[currentSlide];
   if (!slide) {
     return (
@@ -306,8 +398,8 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
             />
           )}
 
-          {/* Text Overlay — hidden when the slide is set to image/video-only */}
-          {slide.overlay && slide.showTextOverlay !== false && (
+          {/* Text Overlay (PRESET) — hidden when the slide is image/video-only or in freeform mode */}
+          {slide.overlay && slide.showTextOverlay !== false && slide.overlay.layoutMode !== "freeform" && (
             <div
               className={`position-absolute top-0 start-0 w-100 h-100 d-flex ${getPositionClasses(slide.overlay.position)}`}
               style={getOverlayOuterStyle(slide.overlay)}
@@ -384,83 +476,7 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                             textShadow: buildTextShadow(slide.overlay?.textShadow),
                           }}
                         >
-                          {row.words && row.words.length > 0
-                            ? row.words.map((w, wi) => {
-                                const trailing = wi < row.words!.length - 1 ? " " : "";
-                                if (!w.outlined) {
-                                  // Solid word — unchanged: plain colored fill on the same line.
-                                  return (
-                                    <span key={wi} style={{ color: w.color || undefined }}>
-                                      {w.text}
-                                      {trailing}
-                                    </span>
-                                  );
-                                }
-                                // Outlined word — clean hollow glyphs via SVG stroke.
-                                // A transparent copy of the same text sizes the inline-block box
-                                // (so it shares the solid words' font-size + baseline on this row);
-                                // an absolutely-positioned SVG paints the outline on top using
-                                // paint-order:stroke + round joins, which — unlike a CENTERED
-                                // -webkit-text-stroke — never blobs at glyph junctions (R/B/W).
-                                // The SVG <text> inherits the row's font props, so it scales with
-                                // the responsive clamp() font-size automatically.
-                                return (
-                                  <Fragment key={wi}>
-                                    <span
-                                      style={{
-                                        position: "relative",
-                                        display: "inline-block",
-                                        whiteSpace: "pre",
-                                        // Hollow SVG strokes ignore text-shadow, so cast the drop
-                                        // shadow here via a CSS filter (only when shadow is enabled).
-                                        filter: buildDropShadowFilter(slide.overlay?.textShadow),
-                                      }}
-                                    >
-                                      {/* Sizing layer: real text, transparent — sets exact box + baseline.
-                                          Suppress the inherited text-shadow so the transparent glyph
-                                          doesn't double up with the wrapper's drop-shadow filter. */}
-                                      <span style={{ color: "transparent", WebkitTextFillColor: "transparent", textShadow: "none" }}>
-                                        {w.text}
-                                      </span>
-                                      {/* Outline layer: SVG stroke, hollow center (fill=none) */}
-                                      <svg
-                                        aria-hidden="true"
-                                        style={{
-                                          position: "absolute",
-                                          left: 0,
-                                          top: 0,
-                                          width: "100%",
-                                          height: "100%",
-                                          overflow: "visible",
-                                          pointerEvents: "none",
-                                        }}
-                                      >
-                                        <text
-                                          x="50%"
-                                          y="50%"
-                                          textAnchor="middle"
-                                          dominantBaseline="central"
-                                          fill="none"
-                                          stroke={w.outlineColor || row.color}
-                                          strokeWidth={w.outlineWidth ?? 2}
-                                          strokeLinejoin="round"
-                                          paintOrder="stroke"
-                                          style={{
-                                            fontSize: "inherit",
-                                            fontWeight: "inherit",
-                                            fontFamily: "inherit",
-                                            letterSpacing: "inherit",
-                                          }}
-                                        >
-                                          {w.text}
-                                        </text>
-                                      </svg>
-                                    </span>
-                                    {trailing}
-                                  </Fragment>
-                                );
-                              })
-                            : row.text}
+                          {renderRowInner(row, slide.overlay?.textShadow)}
                         </motion.span>
                       ))}
                     </h1>
@@ -561,6 +577,156 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                   )}
                 </AnimatePresence>
               </div>
+            </div>
+          )}
+
+          {/* Text Overlay (FREEFORM) — each element absolutely placed via its own pos% */}
+          {slide.overlay && slide.showTextOverlay !== false && slide.overlay.layoutMode === "freeform" && (
+            <div className="position-absolute top-0 start-0 w-100 h-100" style={{ overflow: "hidden" }}>
+              <AnimatePresence>
+                {/* Eyebrow */}
+                {(slide.eyebrow || slide.overlay.eyebrow) && !slide.overlay.eyebrowHidden && (
+                  <div key={`ff-eyebrow-${currentSlide}`} style={ffStyle(slide.overlay.eyebrowPos, defaultFreeformPos("eyebrow"))}>
+                    <motion.p
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.5, delay: 0.05 }}
+                      style={{
+                        fontSize: "clamp(11px, 1.4vw, 13px)",
+                        fontWeight: 600,
+                        letterSpacing: "0.18em",
+                        textTransform: "uppercase",
+                        color: slide.overlay.eyebrowColor || "var(--bs-success, #22c55e)",
+                        margin: 0,
+                        lineHeight: 1,
+                        whiteSpace: "nowrap",
+                        textAlign: "center",
+                      }}
+                    >
+                      {slide.eyebrow || slide.overlay.eyebrow}
+                    </motion.p>
+                  </div>
+                )}
+
+                {/* Headings — stacked rows (each independently placed) or legacy single heading */}
+                {slide.overlay.headingRows && slide.overlay.headingRows.length > 0
+                  ? slide.overlay.headingRows.map((row: HeadingRow, i: number) => (
+                      <div key={`ff-row-${i}-${currentSlide}`} style={ffStyle(row.pos, defaultFreeformPos("heading", i))}>
+                        <motion.h1
+                          className="hero-heading"
+                          {...getAnimationVariants(row.animation)}
+                          transition={{
+                            duration: (row.animationDuration ?? 800) / 1000,
+                            delay: (row.animationDelay ?? i * 120) / 1000,
+                          }}
+                          style={{
+                            margin: 0,
+                            padding: 0,
+                            fontSize: `clamp(32px, 8vw, ${row.fontSize}px)`,
+                            fontWeight: row.fontWeight,
+                            fontFamily: row.fontFamily || "inherit",
+                            color: row.color,
+                            lineHeight: 0.95,
+                            letterSpacing: "-0.02em",
+                            whiteSpace: "nowrap",
+                            textAlign: "center",
+                            textShadow: buildTextShadow(slide.overlay?.textShadow),
+                          }}
+                        >
+                          {renderRowInner(row, slide.overlay?.textShadow)}
+                        </motion.h1>
+                      </div>
+                    ))
+                  : (
+                      <div key={`ff-heading-${currentSlide}`} style={ffStyle(slide.overlay.headingPos, defaultFreeformPos("heading"))}>
+                        <motion.h1
+                          {...getAnimationVariants(slide.overlay.heading.animation)}
+                          transition={{
+                            duration: (slide.overlay.heading.animationDuration ?? 800) / 1000,
+                            delay: (slide.overlay.heading.animationDelay ?? 0) / 1000,
+                          }}
+                          className="hero-heading"
+                          style={{
+                            margin: 0,
+                            fontSize: `clamp(28px, 7vw, ${slide.overlay.heading.fontSize}px)`,
+                            fontWeight: slide.overlay.heading.fontWeight,
+                            fontFamily: slide.overlay.heading.fontFamily,
+                            color: slide.overlay.heading.color,
+                            textShadow: buildTextShadow(slide.overlay.textShadow, BAKED_HEADING_SHADOW),
+                            lineHeight: 1.2,
+                            whiteSpace: "nowrap",
+                            textAlign: "center",
+                          }}
+                        >
+                          {slide.overlay.heading.text}
+                        </motion.h1>
+                      </div>
+                    )}
+
+                {/* Subheading */}
+                {slide.overlay.subheading && (
+                  <div key={`ff-sub-${currentSlide}`} style={ffStyle(slide.overlay.subheadingPos, defaultFreeformPos("subheading"))}>
+                    <motion.p
+                      {...getAnimationVariants(slide.overlay.subheading.animation)}
+                      transition={{
+                        duration: (slide.overlay.subheading.animationDuration ?? 800) / 1000,
+                        delay: (slide.overlay.subheading.animationDelay ?? 0) / 1000,
+                      }}
+                      className="hero-subheading"
+                      style={{
+                        margin: 0,
+                        fontSize: `clamp(16px, 4vw, ${slide.overlay.subheading.fontSize}px)`,
+                        fontWeight: slide.overlay.subheading.fontWeight,
+                        fontFamily: slide.overlay.subheading.fontFamily,
+                        color: slide.overlay.subheading.color,
+                        textShadow: buildTextShadow(slide.overlay.textShadow, BAKED_SUBHEADING_SHADOW),
+                        lineHeight: 1.4,
+                        textAlign: "center",
+                      }}
+                    >
+                      {slide.overlay.subheading.text}
+                    </motion.p>
+                  </div>
+                )}
+
+                {/* Buttons — each placed independently */}
+                {slide.overlay.buttons.map((button, index) => (
+                  <div key={`ff-btn-${index}-${currentSlide}`} style={ffStyle(button.pos, defaultFreeformPos("button", index))}>
+                    <motion.a
+                      href={button.href}
+                      {...getAnimationVariants(button.animation)}
+                      transition={{
+                        duration: (button.animationDuration ?? 800) / 1000,
+                        delay: (button.animationDelay ?? 0) / 1000,
+                      }}
+                      className={`btn ${
+                        button.variant === "filled" ? "" : button.variant === "outline" ? "btn-outline" : "btn-ghost"
+                      }`}
+                      style={{
+                        backgroundColor: button.variant === "filled" ? button.backgroundColor : "transparent",
+                        color: button.textColor,
+                        borderColor: button.variant === "outline" ? button.backgroundColor : "transparent",
+                        padding: "10px 24px",
+                        fontSize: "clamp(14px, 3.5vw, 18px)",
+                        fontWeight: 600,
+                        textDecoration: "none",
+                        borderRadius: "8px",
+                        border: button.variant === "outline" ? `2px solid ${button.backgroundColor}` : "none",
+                        whiteSpace: "nowrap",
+                        boxShadow: `
+                          0 2px 8px rgba(0, 0, 0, 0.2),
+                          0 4px 16px rgba(0, 0, 0, 0.15),
+                          0 1px 0 rgba(255, 255, 255, 0.1) inset
+                        `,
+                        textShadow: `0 1px 2px rgba(0, 0, 0, 0.3)`,
+                      }}
+                    >
+                      {button.text}
+                    </motion.a>
+                  </div>
+                ))}
+              </AnimatePresence>
             </div>
           )}
         </motion.div>

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import type { HeroCarouselSlide, AnimationType, HeadingRow, HeadingWord } from "@/types/section";
+import { useState, useRef } from "react";
+import type { HeroCarouselSlide, AnimationType, HeadingRow, HeadingWord, FreeformPos } from "@/types/section";
+import { defaultFreeformPos } from "@/types/section";
 import MediaUploader from "./MediaUploader";
 import MediaPickerModal from "./MediaPickerModal";
 import { LinkPicker } from "./LinkPicker";
@@ -33,6 +34,71 @@ export default function SlideEditor({
   const overlayEnabled = slide.showTextOverlay ?? true;
 
   const isStackedMode = !!(slide.overlay?.headingRows && slide.overlay.headingRows.length > 0);
+
+  const isFreeform = slide.overlay?.layoutMode === "freeform";
+
+  // Update a single button's freeform pos (buttons live in an array on the overlay).
+  const setButtonPos = (index: number, pos: FreeformPos) => {
+    const buttons = [...(slide.overlay?.buttons ?? [])];
+    if (!buttons[index]) return;
+    buttons[index] = { ...buttons[index], pos };
+    updateOverlay({ buttons });
+  };
+
+  // Build the draggable chip list for the freeform surface from live overlay state.
+  const buildFreeformChips = (): FreeformChip[] => {
+    const ov = slide.overlay;
+    if (!ov) return [];
+    const chips: FreeformChip[] = [];
+    const eyebrowText = slide.eyebrow || ov.eyebrow;
+    if (eyebrowText && !ov.eyebrowHidden) {
+      chips.push({
+        id: "eyebrow",
+        label: eyebrowText,
+        color: "#0891b2",
+        pos: ov.eyebrowPos ?? defaultFreeformPos("eyebrow"),
+        onMove: (p) => updateOverlay({ eyebrowPos: p }),
+      });
+    }
+    if (isStackedMode) {
+      (ov.headingRows ?? []).forEach((row, i) => {
+        chips.push({
+          id: `row-${i}`,
+          label: row.text || `Row ${i + 1}`,
+          color: "#7c3aed",
+          pos: row.pos ?? defaultFreeformPos("heading", i),
+          onMove: (p) => updateHeadingRow(i, { pos: p }),
+        });
+      });
+    } else if (ov.heading?.text) {
+      chips.push({
+        id: "heading",
+        label: ov.heading.text,
+        color: "#7c3aed",
+        pos: ov.headingPos ?? defaultFreeformPos("heading"),
+        onMove: (p) => updateOverlay({ headingPos: p }),
+      });
+    }
+    if (ov.subheading?.text) {
+      chips.push({
+        id: "subheading",
+        label: "Subheading",
+        color: "#2563eb",
+        pos: ov.subheadingPos ?? defaultFreeformPos("subheading"),
+        onMove: (p) => updateOverlay({ subheadingPos: p }),
+      });
+    }
+    (ov.buttons ?? []).forEach((b, i) => {
+      chips.push({
+        id: `btn-${i}`,
+        label: `▸ ${b.text || "Button"}`,
+        color: "#16a34a",
+        pos: b.pos ?? defaultFreeformPos("button", i),
+        onMove: (p) => setButtonPos(i, p),
+      });
+    });
+    return chips;
+  };
 
   const switchToStacked = () => {
     const existing = slide.overlay?.heading;
@@ -655,6 +721,41 @@ export default function SlideEditor({
             )}
 
             <div style={{ opacity: overlayEnabled ? 1 : 0.5, pointerEvents: overlayEnabled ? "auto" : "none" }}>
+            {/* Freeform Layout — opt-in drag placement of each overlay element */}
+            <div className="mb-3 p-2 border rounded" style={{ background: "#f8f9fa" }}>
+              <div className="d-flex align-items-center justify-content-between gap-2">
+                <div>
+                  <label className="form-label fw-semibold mb-0">
+                    <i className="bi bi-arrows-move me-1"></i>Freeform Layout
+                  </label>
+                  <div className="form-text mt-0">
+                    Drag each element (heading rows, subheading, buttons) anywhere on the slide.
+                  </div>
+                </div>
+                <div
+                  role="switch"
+                  aria-checked={isFreeform}
+                  style={{ width: "42px", height: "22px", borderRadius: "11px", flexShrink: 0, cursor: "pointer", backgroundColor: isFreeform ? "#16a34a" : "#adb5bd", transition: "background-color 0.15s", position: "relative" }}
+                  onClick={() => updateOverlay({ layoutMode: isFreeform ? "preset" : "freeform" })}
+                >
+                  <div style={{ width: "16px", height: "16px", borderRadius: "50%", backgroundColor: "#fff", position: "absolute", top: "3px", left: isFreeform ? "23px" : "3px", transition: "left 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
+                </div>
+              </div>
+
+              {isFreeform && (
+                <div className="mt-2">
+                  <div className="alert alert-info small py-2 px-2 mb-2">
+                    <i className="bi bi-hand-index me-1"></i>
+                    Drag the chips to place each element. Position is shown as <strong>x%, y%</strong> (anchor = element centre). Elements not moved use a sensible default.
+                  </div>
+                  <FreeformDragSurface chips={buildFreeformChips()} />
+                  <div className="form-text mt-1">
+                    Preset position controls in the <strong>Position</strong> tab are ignored while freeform is on.
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Heading Mode Toggle */}
             <div className="mb-3">
               <label className="form-label fw-semibold">Heading Mode</label>
@@ -2104,6 +2205,103 @@ export default function SlideEditor({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Freeform drag surface ──────────────────────────────────────────────────
+// A 16:9 proxy of the slide. Each overlay element is a draggable chip; dragging
+// updates that element's pos {x,y} as a % of the box (clamped 0–100). Pointer
+// events + the box's bounding rect drive the math (no external deps).
+interface FreeformChip {
+  id: string;
+  label: string;
+  color: string;
+  pos: FreeformPos;
+  onMove: (p: FreeformPos) => void;
+}
+
+function FreeformDragSurface({ chips }: { chips: FreeformChip[] }) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const moveRef = useRef<((p: FreeformPos) => void) | null>(null);
+
+  const clampPct = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
+
+  const posFromEvent = (clientX: number, clientY: number): FreeformPos => {
+    const el = boxRef.current;
+    if (!el) return { x: 50, y: 50 };
+    const r = el.getBoundingClientRect();
+    return {
+      x: clampPct(((clientX - r.left) / r.width) * 100),
+      y: clampPct(((clientY - r.top) / r.height) * 100),
+    };
+  };
+
+  return (
+    <div
+      ref={boxRef}
+      onPointerMove={(e) => {
+        if (dragId && moveRef.current) moveRef.current(posFromEvent(e.clientX, e.clientY));
+      }}
+      onPointerUp={(e) => {
+        boxRef.current?.releasePointerCapture?.(e.pointerId);
+        setDragId(null);
+        moveRef.current = null;
+      }}
+      style={{
+        position: "relative",
+        width: "100%",
+        aspectRatio: "16 / 9",
+        borderRadius: 8,
+        overflow: "hidden",
+        background:
+          "repeating-linear-gradient(0deg, #1f2937 0, #1f2937 1px, transparent 1px, transparent 25%), repeating-linear-gradient(90deg, #1f2937 0, #1f2937 1px, transparent 1px, transparent 25%), #0f172a",
+        border: "1px solid #334155",
+        touchAction: "none",
+        userSelect: "none",
+      }}
+    >
+      {chips.map((chip) => (
+        <div
+          key={chip.id}
+          onPointerDown={(e) => {
+            e.preventDefault();
+            boxRef.current?.setPointerCapture?.(e.pointerId);
+            setDragId(chip.id);
+            moveRef.current = chip.onMove;
+          }}
+          title={`${chip.label} — ${chip.pos.x}%, ${chip.pos.y}%`}
+          style={{
+            position: "absolute",
+            left: `${chip.pos.x}%`,
+            top: `${chip.pos.y}%`,
+            transform: "translate(-50%, -50%)",
+            cursor: dragId === chip.id ? "grabbing" : "grab",
+            background: chip.color,
+            color: "#fff",
+            fontSize: 11,
+            fontWeight: 600,
+            lineHeight: 1.1,
+            padding: "4px 8px",
+            borderRadius: 6,
+            whiteSpace: "nowrap",
+            boxShadow: dragId === chip.id ? "0 0 0 2px #fff, 0 4px 10px rgba(0,0,0,0.5)" : "0 2px 6px rgba(0,0,0,0.4)",
+            maxWidth: "70%",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 1,
+          }}
+        >
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", maxWidth: 140 }}>{chip.label}</span>
+          <span style={{ fontSize: 9, fontWeight: 500, opacity: 0.85 }}>
+            {chip.pos.x}, {chip.pos.y}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }
