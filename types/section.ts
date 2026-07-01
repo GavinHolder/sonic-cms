@@ -400,6 +400,8 @@ export interface HeroCarouselSlide {
   poster?: string; // Video poster image
   gradient?: GradientOverlay;
   overlay?: TextOverlayElement;
+  name?: string; // Admin-facing slide label (editor management only; not rendered)
+  showTextOverlay?: boolean; // Default true. When false the slide is image/video-only (no text overlay).
   // Mobile-specific overrides
   mobileSrc?: string; // Portrait-oriented mobile image (falls back to src if not set)
   mobileBgColor?: string; // Solid background color for mobile (overrides image)

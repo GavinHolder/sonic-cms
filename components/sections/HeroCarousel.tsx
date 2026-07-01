@@ -256,8 +256,8 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
             />
           )}
 
-          {/* Text Overlay */}
-          {slide.overlay && (
+          {/* Text Overlay — hidden when the slide is set to image/video-only */}
+          {slide.overlay && slide.showTextOverlay !== false && (
             <div
               className={`position-absolute top-0 start-0 w-100 h-100 d-flex ${getPositionClasses(slide.overlay.position)}`}
               style={getOverlayOuterStyle(slide.overlay)}
@@ -268,7 +268,19 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                   (slide.overlay.position || "").toLowerCase().includes("right") ? "text-end" :
                   "text-center"
                 }
-                style={{ maxWidth: "860px", zIndex: 10, transform: getOverlayTransform(slide.overlay), padding: (slide.overlay.position || "").toLowerCase().includes("left") ? "0 0 60px 60px" : (slide.overlay.position || "").toLowerCase().includes("right") ? "0 60px 60px 0" : undefined }}
+                style={{
+                  // Mobile-first: full width + tight side padding so content always fits;
+                  // desktop keeps the roomy positioned padding.
+                  maxWidth: isMobile ? "100%" : "860px",
+                  width: isMobile ? "100%" : undefined,
+                  zIndex: 10,
+                  transform: getOverlayTransform(slide.overlay),
+                  padding: isMobile
+                    ? "0 20px"
+                    : (slide.overlay.position || "").toLowerCase().includes("left") ? "0 0 60px 60px"
+                    : (slide.overlay.position || "").toLowerCase().includes("right") ? "0 60px 60px 0"
+                    : undefined,
+                }}
               >
                 <AnimatePresence>
                   {/* Eyebrow — slide-level or overlay-level (hideable, alignable) */}
