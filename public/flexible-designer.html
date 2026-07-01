@@ -564,6 +564,45 @@
     .sub-element:hover .sub-width-resize,
     .sub-element.selected .sub-width-resize { background: #0d6efd; opacity: 0.7; }
 
+    /* ── PARENT CHROME GATING ──────────────────────────────────────
+       When a parent block has child sub-elements, its own chrome
+       (header bar, selection outline, resize handles) is hidden by
+       default so only the children + their UI show. A child's eye
+       toggle removes .chrome-hidden to reveal the parent chrome. */
+    .container-block.chrome-hidden,
+    .container-block.chrome-hidden:hover,
+    .container-block.type-text-block.chrome-hidden,
+    .container-block.type-text-block.chrome-hidden:hover {
+      border-color: transparent !important;
+      box-shadow: none !important;
+    }
+    .container-block.chrome-hidden .cb-header {
+      max-height: 0 !important; padding: 0 8px !important;
+      opacity: 0 !important; overflow: hidden !important; pointer-events: none !important;
+    }
+    .container-block.chrome-hidden .resize-handle {
+      opacity: 0 !important; pointer-events: none !important;
+    }
+    /* Allow the child eye-toggle to float just outside the child's
+       top-right corner without being clipped by the block/content box. */
+    .container-block.has-sub,
+    .container-block.has-sub .cb-content { overflow: visible; }
+
+    /* Floating EYE toggle on a child — reveals/hides the parent chrome */
+    .se-eye-toggle {
+      position: absolute; top: -11px; right: -11px;
+      width: 22px; height: 22px; padding: 0;
+      background: #fff; border: 1px solid #ced4da; border-radius: 50%;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+      display: none; align-items: center; justify-content: center;
+      cursor: pointer; z-index: 60; color: #495057; line-height: 0;
+    }
+    .se-eye-toggle svg { width: 13px; height: 13px; display: block; }
+    .se-eye-toggle:hover { border-color: #20c997; color: #20c997; }
+    .se-eye-toggle.eye-active { background: #20c997; border-color: #20c997; color: #fff; }
+    .sub-element:hover .se-eye-toggle,
+    .sub-element.selected .se-eye-toggle { display: flex; }
+
     /* Sub-element previews */
     .se-heading    { font-weight: 700; color: #212529; word-wrap: break-word; overflow-wrap: break-word; }
     .se-heading.h1 { font-size: 20px; } .se-heading.h2 { font-size: 17px; }
@@ -1599,6 +1638,7 @@ const state = {
   snapGrid: false,      // pixel-grid snap in free mode (S key or toolbar button)
   snapSize: 10,         // snap increment in px
   subElementSnap: false, // snap sub-elements to 8px grid when dragging inside parent
+  parentChromeShownFor: null, // transient: blockId whose parent chrome is revealed via a child's eye toggle
   isResizing: false,
   nextId: 1,
   navOptions: [],
@@ -2438,6 +2478,14 @@ function createBlockElement(block) {
   if (block.id === state.selectedBlockId) el.classList.add('selected');
   if (block.id === state.editingBlockId)  { el.classList.add('editing','selected'); }
   if (block.subElements?.length > 0)     el.classList.add('has-sub');
+  // Parent chrome gating: a block with children hides its own chrome by default
+  // (header, outline, handles) — revealed only when a child's eye toggle is on
+  // for this block, or while it is being edited.
+  if (block.subElements?.length > 0
+      && state.parentChromeShownFor !== block.id
+      && state.editingBlockId !== block.id) {
+    el.classList.add('chrome-hidden');
+  }
   // Responsive behavior visual states
   const _device = state.devicePreview;
   const _behavior = _device === 'mobile' ? (block.mobileBehavior||'auto') : _device === 'tablet' ? (block.tabletBehavior||'auto') : 'auto';
@@ -2892,6 +2940,21 @@ function createSubElementDOM(se, blockId) {
   rm.innerHTML = '✕';
   rm.addEventListener('click', e => { e.stopPropagation(); removeSubElement(blockId, se.id); });
   el.appendChild(rm);
+
+  // Floating EYE toggle — shows/hides the PARENT block's chrome (header,
+  // outline, resize handles, mini-toolbar). Sits just outside the child's
+  // top-right corner so it never overlaps the child content.
+  const eye = document.createElement('button');
+  eye.className = 'se-eye-toggle' + (state.parentChromeShownFor === blockId ? ' eye-active' : '');
+  eye.title = state.parentChromeShownFor === blockId
+    ? 'Hide parent block controls'
+    : 'Show parent block controls (select / resize / add child)';
+  eye.innerHTML = state.parentChromeShownFor === blockId
+    ? '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 2l12 12M6.7 6.7a2 2 0 002.6 2.6M4.3 4.4C2.9 5.3 1.8 6.6 1 8c1.5 2.7 4 4.5 7 4.5 1.2 0 2.3-.3 3.3-.8M8 3.5c3 0 5.5 1.8 7 4.5-.5.9-1.1 1.7-1.8 2.3"/></svg>'
+    : '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 8c1.5-2.7 4-4.5 7-4.5S13.5 5.3 15 8c-1.5 2.7-4 4.5-7 4.5S2.5 10.7 1 8z"/><circle cx="8" cy="8" r="2"/></svg>';
+  eye.addEventListener('mousedown', e => e.stopPropagation());
+  eye.addEventListener('click', e => toggleParentChrome(blockId, e));
+  el.appendChild(eye);
 
   // Show animation badge indicator when animation effect is active
   if (se.props.animEffect && se.props.animEffect !== 'none') {
@@ -4133,7 +4196,32 @@ function startResize(e, blockId, dir) {
  * the canvas and properties panel to reflect the new selection state.
  * @param {string} id - ID of the block to select.
  */
-function selectBlock(id) { state.selectedBlockId=id; state.selectedSubId=null; renderCanvas(); renderPropsPanel(); updateMiniToolbar(); }
+function selectBlock(id) {
+  // Moving to a different block clears any revealed parent chrome (transient UI).
+  if (id !== state.parentChromeShownFor) state.parentChromeShownFor = null;
+  state.selectedBlockId=id; state.selectedSubId=null; renderCanvas(); renderPropsPanel(); updateMiniToolbar();
+}
+
+/**
+ * Toggles the parent block's chrome (header, selection outline, resize
+ * handles, mini-toolbar) on/off from a child's floating eye button.
+ * OFF (default) shows only the children; ON reveals the parent so it can
+ * be selected, resized/moved, or have more children added via "+".
+ * State is transient — not persisted to saved data.
+ * @param {string} blockId - ID of the parent block to reveal/hide.
+ * @param {MouseEvent} [e] - Optional click event; propagation is stopped.
+ */
+function toggleParentChrome(blockId, e) {
+  if (e) e.stopPropagation();
+  if (state.parentChromeShownFor === blockId) {
+    state.parentChromeShownFor = null;      // hide again → only children show
+  } else {
+    state.parentChromeShownFor = blockId;   // reveal parent chrome
+    state.selectedBlockId = blockId;        // select parent so its toolbar / + are usable
+    state.selectedSubId = null;
+  }
+  renderCanvas(); renderPropsPanel(); updateMiniToolbar();
+}
 
 /**
  * Selects a sub-element within a block using fast DOM class toggling to
@@ -4144,6 +4232,8 @@ function selectBlock(id) { state.selectedBlockId=id; state.selectedSubId=null; r
  * @param {string} sId - ID of the sub-element to select.
  */
 function selectSubElement(bId, sId) {
+  // Selecting a child in a different block clears any revealed parent chrome.
+  if (bId !== state.parentChromeShownFor) state.parentChromeShownFor = null;
   const prevBlockId = state.selectedBlockId;
   const prevSubId   = state.selectedSubId;
   state.selectedBlockId = bId;
@@ -4167,7 +4257,7 @@ function selectSubElement(bId, sId) {
  */
 function onCanvasClick(e) {
   if (e.target===document.getElementById('canvas')||e.target===document.getElementById('grid-overlay')) {
-    state.selectedBlockId=null; state.selectedSubId=null;
+    state.selectedBlockId=null; state.selectedSubId=null; state.parentChromeShownFor=null;
     if (state.editingBlockId) exitEditMode();
     renderCanvas(); renderPropsPanel();
   }
@@ -7105,6 +7195,15 @@ function updateMiniToolbar() {
   if (!tb) return;
   const b = state.blocks.find(b => b.id === state.selectedBlockId);
   if (!b) { tb.classList.remove('mtt-visible'); return; }
+  // Parent chrome gating: when a block has children and its chrome is not
+  // revealed via a child's eye toggle, keep the parent mini-toolbar hidden
+  // too (unless the block is being edited).
+  if (b.subElements?.length > 0
+      && state.parentChromeShownFor !== b.id
+      && state.editingBlockId !== b.id) {
+    tb.classList.remove('mtt-visible');
+    return;
+  }
   const dp = getDisplayPos(b);
   const canvas = document.getElementById('canvas');
   const canvasW = canvas ? canvas.offsetWidth : 1440;

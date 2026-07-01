@@ -1191,14 +1191,22 @@ export default function SlideEditor({
                                     onChange={(e) => updateWord(idx, wi, { text: e.target.value })}
                                     placeholder="word"
                                   />
-                                  <label className="d-flex align-items-center gap-1 m-0" title="Outline this word" style={{ whiteSpace: "nowrap" }}>
-                                    <input
-                                      type="checkbox"
-                                      checked={!!w.outlined}
-                                      onChange={(e) => updateWord(idx, wi, { outlined: e.target.checked })}
-                                    />
-                                    <span>Outline</span>
-                                  </label>
+                                  <select
+                                    className="form-select form-select-sm py-0"
+                                    style={{ fontSize: 11, width: 92 }}
+                                    title="Outline style — Clean uses a single-contour font (Inter) to avoid R/B/W glyph crossings; Thin uses a hairline stroke"
+                                    value={w.outlined ? (w.outlineStyle ?? "standard") : "solid"}
+                                    onChange={(e) => {
+                                      const v = e.target.value;
+                                      if (v === "solid") updateWord(idx, wi, { outlined: false });
+                                      else updateWord(idx, wi, { outlined: true, outlineStyle: v as "thin" | "standard" | "clean" });
+                                    }}
+                                  >
+                                    <option value="solid">Solid</option>
+                                    <option value="thin">Thin</option>
+                                    <option value="standard">Standard</option>
+                                    <option value="clean">Clean</option>
+                                  </select>
                                   <input
                                     type="color"
                                     className="form-control form-control-color form-control-sm p-0"

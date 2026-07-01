@@ -305,6 +305,14 @@ export interface HeadingWord {
   outlineColor?: string;
   /** Stroke width in px when outlined (default 2) */
   outlineWidth?: number;
+  /**
+   * Outline rendering style when `outlined` is true (default "standard"):
+   * - "standard" → current stroke width (outlineWidth ?? 2)
+   * - "thin"     → hairline stroke, greatly reduces Archivo Black junction crossings
+   * - "clean"    → render outline in a single-contour font (Inter) — no R/B/W glyph crossings
+   * Undefined renders identically to "standard" (backward compatible).
+   */
+  outlineStyle?: "thin" | "standard" | "clean";
   /** Solid fill colour override when not outlined (defaults to the row colour) */
   color?: string;
 }

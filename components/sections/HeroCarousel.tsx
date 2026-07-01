@@ -78,6 +78,19 @@ function renderRowInner(row: HeadingRow, shadow: TextShadowConfig | undefined) {
     // an absolutely-positioned SVG paints the outline on top using paint-order:stroke
     // + round joins, which — unlike a centered -webkit-text-stroke — never blobs at
     // glyph junctions (R/B/W). The SVG <text> inherits the row's font props.
+    //
+    // Outline style (admin-chosen, backward compatible when undefined → "standard"):
+    // - "standard" → stroke width = outlineWidth ?? 2 (current behaviour).
+    // - "thin"     → hairline stroke — greatly reduces the R/B/W junction artifact
+    //                caused by Archivo Black's overlapping glyph contours.
+    // - "clean"    → render the outline in a single-contour font (Inter, already
+    //                loaded) so the contours never cross at glyph junctions. The
+    //                sizing span is switched to the same font so the box matches the
+    //                rendered outline and the word stays aligned on the row.
+    const outlineStyle = w.outlineStyle ?? "standard";
+    const isClean = outlineStyle === "clean";
+    const strokeW = outlineStyle === "thin" ? 1.25 : (w.outlineWidth ?? 2);
+    const outlineFontFamily = isClean ? "'Inter', sans-serif" : "inherit";
     return (
       <Fragment key={wi}>
         <span
@@ -90,8 +103,16 @@ function renderRowInner(row: HeadingRow, shadow: TextShadowConfig | undefined) {
             filter: buildDropShadowFilter(shadow),
           }}
         >
-          {/* Sizing layer: real text, transparent — sets exact box + baseline. */}
-          <span style={{ color: "transparent", WebkitTextFillColor: "transparent", textShadow: "none" }}>
+          {/* Sizing layer: real text, transparent — sets exact box + baseline.
+              For "clean" it uses the same clean font so the box matches the outline. */}
+          <span
+            style={{
+              color: "transparent",
+              WebkitTextFillColor: "transparent",
+              textShadow: "none",
+              fontFamily: isClean ? "'Inter', sans-serif" : undefined,
+            }}
+          >
             {w.text}
           </span>
           {/* Outline layer: SVG stroke, hollow center (fill=none) */}
@@ -114,13 +135,13 @@ function renderRowInner(row: HeadingRow, shadow: TextShadowConfig | undefined) {
               dominantBaseline="central"
               fill="none"
               stroke={w.outlineColor || row.color}
-              strokeWidth={w.outlineWidth ?? 2}
+              strokeWidth={strokeW}
               strokeLinejoin="round"
               paintOrder="stroke"
               style={{
                 fontSize: "inherit",
-                fontWeight: "inherit",
-                fontFamily: "inherit",
+                fontWeight: isClean ? 700 : "inherit",
+                fontFamily: outlineFontFamily,
                 letterSpacing: "inherit",
               }}
             >
