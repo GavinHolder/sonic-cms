@@ -309,6 +309,19 @@ export interface HeadingWord {
   color?: string;
 }
 
+/**
+ * Toggleable drop-shadow config for hero text overlays (headings + subheading).
+ * Optional throughout — when undefined, renderers keep their existing baked look.
+ */
+export interface TextShadowConfig {
+  enabled: boolean;
+  offsetX: number; // px
+  offsetY: number; // px
+  blur: number;    // px
+  color: string;   // hex e.g. "#000000"
+  opacity: number; // 0-100
+}
+
 export interface HeadingRow {
   text: string;
   /** Optional per-word styling (outline/fill). Takes precedence over `text` when non-empty. */
@@ -380,6 +393,12 @@ export interface TextOverlayElement {
     betweenSubheadingButtons: number; // px
     betweenButtons: number; // px
   };
+  /**
+   * Drop shadow for the heading rows / legacy heading / subheading.
+   * Optional & back-compat: when undefined, renderers keep the current baked look
+   * (subheading keeps its shadow, headings keep none). enabled:false = no shadow.
+   */
+  textShadow?: TextShadowConfig;
   /** Offset the entire text overlay from the edges (in px). Useful for clearing the navbar. */
   overlayOffset?: {
     top: number;    // px (default: 0, recommended ~100 for top positions to clear navbar)

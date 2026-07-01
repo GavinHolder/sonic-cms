@@ -1299,6 +1299,118 @@ export default function SlideEditor({
 
             <hr />
 
+            {/* Drop Shadow — toggleable/adjustable shadow for headings + subheading */}
+            <h6 className="mb-3">Drop Shadow</h6>
+            <div className="form-check form-switch mb-3">
+              <input
+                className="form-check-input"
+                type="checkbox"
+                id="textShadowEnabled"
+                checked={slide.overlay?.textShadow?.enabled ?? false}
+                onChange={(e) =>
+                  updateOverlay({
+                    textShadow: {
+                      offsetX: slide.overlay?.textShadow?.offsetX ?? 0,
+                      offsetY: slide.overlay?.textShadow?.offsetY ?? 2,
+                      blur: slide.overlay?.textShadow?.blur ?? 8,
+                      color: slide.overlay?.textShadow?.color ?? "#000000",
+                      opacity: slide.overlay?.textShadow?.opacity ?? 50,
+                      enabled: e.target.checked,
+                    },
+                  })
+                }
+              />
+              <label className="form-check-label fw-semibold" htmlFor="textShadowEnabled">
+                Enable drop shadow on headings &amp; subheading
+              </label>
+            </div>
+
+            {slide.overlay?.textShadow?.enabled && (
+              <>
+                <div className="row mb-3">
+                  <div className="col-md-6">
+                    <label className="form-label fw-semibold">Offset X (px)</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      value={slide.overlay.textShadow.offsetX}
+                      onChange={(e) =>
+                        updateOverlay({
+                          textShadow: { ...slide.overlay?.textShadow!, offsetX: parseInt(e.target.value) || 0 },
+                        })
+                      }
+                      min="-50"
+                      max="50"
+                    />
+                  </div>
+                  <div className="col-md-6">
+                    <label className="form-label fw-semibold">Offset Y (px)</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      value={slide.overlay.textShadow.offsetY}
+                      onChange={(e) =>
+                        updateOverlay({
+                          textShadow: { ...slide.overlay?.textShadow!, offsetY: parseInt(e.target.value) || 0 },
+                        })
+                      }
+                      min="-50"
+                      max="50"
+                    />
+                  </div>
+                </div>
+
+                <div className="row mb-3 align-items-end">
+                  <div className="col-md-4">
+                    <label className="form-label fw-semibold">Blur (px)</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      value={slide.overlay.textShadow.blur}
+                      onChange={(e) =>
+                        updateOverlay({
+                          textShadow: { ...slide.overlay?.textShadow!, blur: Math.max(0, parseInt(e.target.value) || 0) },
+                        })
+                      }
+                      min="0"
+                      max="100"
+                    />
+                  </div>
+                  <div className="col-md-4">
+                    <label className="form-label fw-semibold">Color</label>
+                    <input
+                      type="color"
+                      className="form-control form-control-color w-100"
+                      value={slide.overlay.textShadow.color}
+                      onChange={(e) =>
+                        updateOverlay({
+                          textShadow: { ...slide.overlay?.textShadow!, color: e.target.value },
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="col-md-4">
+                    <label className="form-label fw-semibold">Opacity ({slide.overlay.textShadow.opacity}%)</label>
+                    <input
+                      type="range"
+                      className="form-range"
+                      value={slide.overlay.textShadow.opacity}
+                      onChange={(e) =>
+                        updateOverlay({
+                          textShadow: { ...slide.overlay?.textShadow!, opacity: parseInt(e.target.value) },
+                        })
+                      }
+                      min="0"
+                      max="100"
+                      step="1"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
+            <hr />
+
             <div className="d-flex justify-content-between align-items-center mb-3">
               <h6 className="mb-0">Buttons</h6>
               <button

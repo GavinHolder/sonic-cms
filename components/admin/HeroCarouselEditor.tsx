@@ -1,9 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useAutoSave } from "@/lib/hooks/useAutoSave";
 import type { HeroSection, HeroCarouselSlide } from "@/types/section";
 import SlideEditor from "./SlideEditor";
+import HeroCarousel from "@/components/sections/HeroCarousel";
+
+// Virtual viewport the hero is rendered at inside the preview pane, then
+// transform-scaled down to fit the pane width. 16:9 keeps a faithful thumbnail.
+const PREVIEW_VW = 1280;
+const PREVIEW_VH = 720;
 
 interface HeroCarouselEditorProps {
   section: HeroSection;
@@ -56,6 +62,57 @@ export default function HeroCarouselEditor({
   // Inline slide-name editing (double-click the label to rename)
   const [editingNameIndex, setEditingNameIndex] = useState<number | null>(null);
   const [nameDraft, setNameDraft] = useState("");
+
+  // --- Live preview pane -------------------------------------------------
+  const [showPreview, setShowPreview] = useState(true);
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [previewWidth, setPreviewWidth] = useState(0);
+
+  // Measure the pane so we can scale the 1280px virtual hero down to fit.
+  useEffect(() => {
+    if (!showPreview) return;
+    const el = previewRef.current;
+    if (!el) return;
+    setPreviewWidth(el.clientWidth);
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) setPreviewWidth(entry.contentRect.width);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [showPreview]);
+
+  // Synthesized draft section fed to <HeroCarousel>. Rebuilds on every edit so
+  // the preview re-renders live (React state change) — no manual refresh.
+  const draftSection = useMemo<HeroSection>(
+    () => ({
+      ...section,
+      displayName,
+      content: {
+        ...section.content,
+        slides,
+        autoPlay,
+        autoPlayInterval,
+        showDots,
+        showArrows,
+        transitionDuration,
+        statsStrip,
+      },
+    }),
+    [
+      section,
+      displayName,
+      slides,
+      autoPlay,
+      autoPlayInterval,
+      showDots,
+      showArrows,
+      transitionDuration,
+      statsStrip,
+    ]
+  );
+
+  const previewScale = previewWidth > 0 ? previewWidth / PREVIEW_VW : 0;
+  const previewBoxHeight = previewWidth > 0 ? previewWidth * (PREVIEW_VH / PREVIEW_VW) : 360;
 
   const startEditingName = (index: number, current: string) => {
     setNameDraft(current);
@@ -186,17 +243,35 @@ export default function HeroCarouselEditor({
 
   return (
     <div className="modal d-block" style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1115 }}>
-      <div className="modal-dialog modal-xl modal-dialog-scrollable" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal-dialog modal-xl modal-dialog-scrollable"
+        style={showPreview ? { maxWidth: "1600px", width: "96vw" } : undefined}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-content">
           <div className="modal-header">
             <h5 className="modal-title">
               <i className="bi bi-images me-2"></i>
               Edit Hero Carousel
             </h5>
-            <button type="button" className="btn-close" onClick={onCancel}></button>
+            <div className="d-flex align-items-center gap-2 ms-auto">
+              <button
+                type="button"
+                className={`btn btn-sm ${showPreview ? "btn-outline-primary" : "btn-primary"}`}
+                onClick={() => setShowPreview((v) => !v)}
+                title={showPreview ? "Hide live preview" : "Show live preview"}
+              >
+                <i className={`bi ${showPreview ? "bi-eye-slash" : "bi-eye"} me-1`}></i>
+                {showPreview ? "Hide Preview" : "Show Preview"}
+              </button>
+              <button type="button" className="btn-close" onClick={onCancel}></button>
+            </div>
           </div>
 
           <div className="modal-body">
+            <div className="row g-4">
+              {/* ===== FORM COLUMN ===== */}
+              <div className={showPreview ? "col-12 col-lg-7" : "col-12"}>
             {/* Section Name */}
             <div className="mb-4">
               <label className="form-label fw-semibold">Section Name</label>
@@ -573,6 +648,81 @@ export default function HeroCarouselEditor({
                 })}
               </div>
             )}
+              </div>
+              {/* ===== END FORM COLUMN ===== */}
+
+              {/* ===== LIVE PREVIEW COLUMN ===== */}
+              {showPreview && (
+                <div className="col-12 col-lg-5">
+                  <div style={{ position: "sticky", top: 0 }}>
+                    <div className="d-flex align-items-center gap-2 mb-2">
+                      <span
+                        className="badge bg-danger d-inline-flex align-items-center gap-1"
+                        style={{ fontSize: "11px" }}
+                      >
+                        <span
+                          style={{
+                            width: 7,
+                            height: 7,
+                            borderRadius: "50%",
+                            backgroundColor: "#fff",
+                            display: "inline-block",
+                          }}
+                        />
+                        LIVE PREVIEW
+                      </span>
+                      <span className="text-muted small">Updates as you edit</span>
+                    </div>
+
+                    {/* Fixed-aspect box clips the 100vh hero; inner virtual
+                        viewport (1280x720) is transform-scaled to fit. */}
+                    <div
+                      ref={previewRef}
+                      className="hero-preview-scope border rounded"
+                      style={{
+                        position: "relative",
+                        width: "100%",
+                        height: `${previewBoxHeight}px`,
+                        overflow: "hidden",
+                        backgroundColor: "#000",
+                      }}
+                    >
+                      {/* Scoped override: beat the global
+                          `.hero-carousel { height:100vh !important }` with a
+                          higher-specificity + !important rule so the hero fills
+                          the virtual viewport instead of the real one. */}
+                      <style>{`
+                        .hero-preview-scope .hero-carousel {
+                          height: ${PREVIEW_VH}px !important;
+                          min-height: ${PREVIEW_VH}px !important;
+                        }
+                      `}</style>
+                      {previewScale > 0 && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: 0,
+                            left: 0,
+                            width: `${PREVIEW_VW}px`,
+                            height: `${PREVIEW_VH}px`,
+                            transform: `scale(${previewScale})`,
+                            transformOrigin: "top left",
+                            pointerEvents: "none",
+                          }}
+                        >
+                          <HeroCarousel section={draftSection} />
+                        </div>
+                      )}
+                    </div>
+                    <div className="form-text mt-2">
+                      Scaled-down thumbnail of the live hero. Autoplay and
+                      transitions run here exactly as on the page.
+                    </div>
+                  </div>
+                </div>
+              )}
+              {/* ===== END LIVE PREVIEW COLUMN ===== */}
+            </div>
           </div>
 
           <div className="modal-footer">

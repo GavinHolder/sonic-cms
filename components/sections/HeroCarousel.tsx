@@ -2,10 +2,48 @@
 
 import { useState, useEffect, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import type { HeroSection, AnimationType, HeadingRow } from "@/types/section";
+import type { HeroSection, AnimationType, HeadingRow, TextShadowConfig } from "@/types/section";
 
 interface HeroCarouselProps {
   section: HeroSection;
+}
+
+/** Current baked shadows — used as the back-compat fallback when textShadow is undefined. */
+const BAKED_HEADING_SHADOW =
+  "0 2px 4px rgba(0, 0, 0, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2), 0 8px 16px rgba(0, 0, 0, 0.1), 2px 2px 0 rgba(0, 0, 0, 0.4)";
+const BAKED_SUBHEADING_SHADOW =
+  "0 1px 3px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.2), 0 4px 12px rgba(0, 0, 0, 0.1), 1px 1px 0 rgba(0, 0, 0, 0.4)";
+
+/** Convert a hex color + 0-100 opacity into an rgba() string. */
+function rgbaFromHex(hex: string, opacity: number): string {
+  const a = Math.max(0, Math.min(100, opacity)) / 100;
+  let h = (hex || "#000000").replace("#", "");
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  const r = parseInt(h.slice(0, 2), 16) || 0;
+  const g = parseInt(h.slice(2, 4), 16) || 0;
+  const b = parseInt(h.slice(4, 6), 16) || 0;
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
+
+/**
+ * Resolve the CSS `text-shadow` value for a text element.
+ * - cfg undefined      → keep current look (fallback baked shadow, or none)
+ * - cfg.enabled false  → "none"
+ * - cfg.enabled true   → configured shadow (overrides any baked one)
+ */
+function buildTextShadow(cfg: TextShadowConfig | undefined, fallback?: string): string | undefined {
+  if (!cfg) return fallback;
+  if (!cfg.enabled) return "none";
+  return `${cfg.offsetX}px ${cfg.offsetY}px ${cfg.blur}px ${rgbaFromHex(cfg.color, cfg.opacity)}`;
+}
+
+/**
+ * Resolve the CSS `filter: drop-shadow(...)` value for hollow SVG-outlined words
+ * (text-shadow does not affect SVG strokes). Only active when the shadow is enabled.
+ */
+function buildDropShadowFilter(cfg: TextShadowConfig | undefined): string | undefined {
+  if (!cfg || !cfg.enabled) return undefined;
+  return `drop-shadow(${cfg.offsetX}px ${cfg.offsetY}px ${cfg.blur}px ${rgbaFromHex(cfg.color, cfg.opacity)})`;
 }
 
 export default function HeroCarousel({ section }: HeroCarouselProps) {
@@ -341,6 +379,9 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                             color: row.color,
                             lineHeight: 0.95,
                             letterSpacing: "-0.02em",
+                            // Solid words inherit this text-shadow; outlined words handle it
+                            // via a CSS filter on their wrapper (see below). Undefined = current look (none).
+                            textShadow: buildTextShadow(slide.overlay?.textShadow),
                           }}
                         >
                           {row.words && row.words.length > 0
@@ -370,10 +411,15 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                                         position: "relative",
                                         display: "inline-block",
                                         whiteSpace: "pre",
+                                        // Hollow SVG strokes ignore text-shadow, so cast the drop
+                                        // shadow here via a CSS filter (only when shadow is enabled).
+                                        filter: buildDropShadowFilter(slide.overlay?.textShadow),
                                       }}
                                     >
-                                      {/* Sizing layer: real text, transparent — sets exact box + baseline */}
-                                      <span style={{ color: "transparent", WebkitTextFillColor: "transparent" }}>
+                                      {/* Sizing layer: real text, transparent — sets exact box + baseline.
+                                          Suppress the inherited text-shadow so the transparent glyph
+                                          doesn't double up with the wrapper's drop-shadow filter. */}
+                                      <span style={{ color: "transparent", WebkitTextFillColor: "transparent", textShadow: "none" }}>
                                         {w.text}
                                       </span>
                                       {/* Outline layer: SVG stroke, hollow center (fill=none) */}
@@ -434,12 +480,7 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                         fontFamily: slide.overlay.heading.fontFamily,
                         color: slide.overlay.heading.color,
                         marginBottom: `${slide.overlay.spacing.betweenHeadingSubheading}px`,
-                        textShadow: `
-                          0 2px 4px rgba(0, 0, 0, 0.3),
-                          0 4px 8px rgba(0, 0, 0, 0.2),
-                          0 8px 16px rgba(0, 0, 0, 0.1),
-                          2px 2px 0 rgba(0, 0, 0, 0.4)
-                        `,
+                        textShadow: buildTextShadow(slide.overlay.textShadow, BAKED_HEADING_SHADOW),
                         lineHeight: 1.2,
                       }}
                     >
@@ -463,12 +504,7 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                         fontFamily: slide.overlay.subheading.fontFamily,
                         color: slide.overlay.subheading.color,
                         marginBottom: `${slide.overlay.spacing.betweenSubheadingButtons}px`,
-                        textShadow: `
-                          0 1px 3px rgba(0, 0, 0, 0.3),
-                          0 2px 6px rgba(0, 0, 0, 0.2),
-                          0 4px 12px rgba(0, 0, 0, 0.1),
-                          1px 1px 0 rgba(0, 0, 0, 0.4)
-                        `,
+                        textShadow: buildTextShadow(slide.overlay.textShadow, BAKED_SUBHEADING_SHADOW),
                         lineHeight: 1.4,
                       }}
                     >
