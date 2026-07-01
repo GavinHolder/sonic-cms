@@ -60,8 +60,8 @@ export default function SlideEditor({
         onMove: (p) => updateOverlay({ eyebrowPos: p }),
       });
     }
-    if (isStackedMode) {
-      (ov.headingRows ?? []).forEach((row, i) => {
+    if (ov.headingRows && ov.headingRows.length > 0) {
+      ov.headingRows.forEach((row, i) => {
         chips.push({
           id: `row-${i}`,
           label: row.text || `Row ${i + 1}`,
@@ -748,7 +748,7 @@ export default function SlideEditor({
                     <i className="bi bi-hand-index me-1"></i>
                     Drag the chips to place each element. Position is shown as <strong>x%, y%</strong> (anchor = element centre). Elements not moved use a sensible default.
                   </div>
-                  <FreeformDragSurface chips={buildFreeformChips()} />
+                  <FreeformDragSurface chips={buildFreeformChips()} slide={slide} />
                   <div className="form-text mt-1">
                     Preset position controls in the <strong>Position</strong> tab are ignored while freeform is on.
                   </div>
@@ -2221,7 +2221,7 @@ interface FreeformChip {
   onMove: (p: FreeformPos) => void;
 }
 
-function FreeformDragSurface({ chips }: { chips: FreeformChip[] }) {
+function FreeformDragSurface({ chips, slide }: { chips: FreeformChip[]; slide: HeroCarouselSlide }) {
   const boxRef = useRef<HTMLDivElement>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const moveRef = useRef<((p: FreeformPos) => void) | null>(null);
@@ -2237,6 +2237,10 @@ function FreeformDragSurface({ chips }: { chips: FreeformChip[] }) {
       y: clampPct(((clientY - r.top) / r.height) * 100),
     };
   };
+
+  const bgImg = slide.type === "image" ? (slide.src || slide.mobileSrc) : (slide.poster || slide.mobileSrc);
+  const gridOverlay =
+    "repeating-linear-gradient(0deg, rgba(255,255,255,0.18) 0, rgba(255,255,255,0.18) 1px, transparent 1px, transparent 25%), repeating-linear-gradient(90deg, rgba(255,255,255,0.18) 0, rgba(255,255,255,0.18) 1px, transparent 1px, transparent 25%)";
 
   return (
     <div
@@ -2255,14 +2259,38 @@ function FreeformDragSurface({ chips }: { chips: FreeformChip[] }) {
         aspectRatio: "16 / 9",
         borderRadius: 8,
         overflow: "hidden",
-        background:
-          "repeating-linear-gradient(0deg, #1f2937 0, #1f2937 1px, transparent 1px, transparent 25%), repeating-linear-gradient(90deg, #1f2937 0, #1f2937 1px, transparent 1px, transparent 25%), #0f172a",
+        background: "#0f172a",
         border: "1px solid #334155",
         touchAction: "none",
         userSelect: "none",
       }}
     >
-      {chips.map((chip) => (
+      {/* Slide media background so text is placed against the real image/video */}
+      {slide.type === "video" && slide.src ? (
+        <video
+          src={slide.src}
+          muted
+          loop
+          autoPlay
+          playsInline
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
+        />
+      ) : bgImg ? (
+        <div
+          style={{
+            position: "absolute", inset: 0,
+            backgroundImage: `url(${bgImg})`, backgroundSize: "cover", backgroundPosition: "center",
+          }}
+        />
+      ) : null}
+      {/* Placement grid overlay */}
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: gridOverlay }} />
+
+      {chips.length === 0 ? (
+        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: 16, color: "#e2e8f0", fontSize: 12, textShadow: "0 1px 3px rgba(0,0,0,0.8)" }}>
+          No overlay elements to place yet — add a heading, subheading or button.
+        </div>
+      ) : chips.map((chip) => (
         <div
           key={chip.id}
           onPointerDown={(e) => {
