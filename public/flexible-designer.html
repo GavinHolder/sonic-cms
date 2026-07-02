@@ -7427,6 +7427,13 @@ window.addEventListener('message', function(e) {
             w: pp.w !== undefined ? pp.w : (b.w || 300),
             h: pp.h !== undefined ? pp.h : (b.h || 180),
             zIndex: b.zIndex || 1,
+            // CRITICAL: preserve manualSize — it flags a block whose children were
+            // manually placed/sized. If dropped here, the post-load restack
+            // (fitBlockToSubElementsDOM(id,true)) re-stacks children vertically and
+            // their saved x/y are lost on every reopen (the "positions reset on save"
+            // data-loss bug). Same for hidden (Layers-panel visibility).
+            manualSize: b.manualSize || undefined,
+            hidden: b.hidden || undefined,
             // Restore per-breakpoint positions
             tabletPos: b.tabletPos || undefined,
             mobilePos: b.mobilePos || undefined,
