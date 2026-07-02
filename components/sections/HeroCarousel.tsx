@@ -428,18 +428,36 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
       style={{ minHeight: "100dvh", overflow: "hidden" }}
     >
       {/*
-        Persistent background layer (NOT inside AnimatePresence).
-        Always renders the CURRENT slide's opaque background + gradient, so at no
-        point during a transition can you see through the hero to the page/adjacent
-        section behind it. With mode="wait" the animated layer briefly fades to
-        transparent between slides; this under-layer covers that gap. It also
-        makes the swap read as a clean cross-fade: the exiting slide fades away
-        over the already-present incoming background.
-        zIndex 0 keeps it beneath the animated text/overlay content.
+        Always-mounted background STACK — one layer per slide, cross-faded by
+        opacity. This is the fix for transition glitches (stale-video bleed, flash
+        of unrelated media, mount stutter):
+          • Every slide's <video>/image stays mounted for the life of the carousel,
+            so React never reuses a <video> node across slides (which kept playing
+            the previous slide's footage because swapping <source src> doesn't
+            reload without .load()), and never mounts a cold <video> mid-swap
+            (which flashed black/poster until it buffered).
+          • The swap is a pure opacity cross-fade driven by currentSlide, fully
+            decoupled from the text AnimatePresence timing — so even if autoplay
+            fires mid-animation the background just re-targets, it can't stutter.
+          • The current slide's layer is always opacity 1 at rest, so nothing
+            behind the hero ever shows through.
+        zIndex 0 keeps the stack beneath the animated text/overlay content.
       */}
-      <div className="position-absolute top-0 start-0 w-100 h-100" style={{ zIndex: 0 }}>
-        {renderSlideBackground(slide)}
-      </div>
+      {slides.map((s, i) => (
+        <div
+          key={`bg-${i}`}
+          className="position-absolute top-0 start-0 w-100 h-100"
+          style={{
+            zIndex: 0,
+            opacity: i === currentSlide ? 1 : 0,
+            transition: `opacity ${transitionDuration / 1000}s ease-in-out`,
+            pointerEvents: "none",
+          }}
+          aria-hidden={i !== currentSlide}
+        >
+          {renderSlideBackground(s)}
+        </div>
+      ))}
 
       <AnimatePresence mode="wait">
         <motion.div
@@ -451,8 +469,9 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
           className="position-absolute top-0 start-0 w-100 h-100"
           style={{ zIndex: 1 }}
         >
-          {/* Background media + gradient, keyed with this slide so it cross-fades */}
-          {renderSlideBackground(slide)}
+          {/* Background is handled by the always-mounted stack above; this
+              AnimatePresence layer now carries ONLY the text/overlay content so
+              the media never mounts/unmounts on a swap. */}
 
           {/* Text Overlay (PRESET) — hidden when the slide is image/video-only or in freeform mode */}
           {slide.overlay && slide.showTextOverlay !== false && slide.overlay.layoutMode !== "freeform" && (
