@@ -62,7 +62,12 @@
     .canvas-wrap{flex:1;position:relative;overflow:hidden;background:#dee2e6;display:flex;align-items:center;justify-content:center;cursor:default !important;}
     #artboard{background:white;box-shadow:0 4px 24px rgba(0,0,0,0.18);position:relative;transform-origin:center center;}
     #artboard-svg{position:absolute;inset:0;display:block;}
-    .cdotgrid{position:absolute;inset:0;pointer-events:none;background-image:radial-gradient(circle,#c8cdd4 1px,transparent 1px);background-size:20px 20px;}
+    /* Dots offset by half a cell (background-position = gridSize/2) so each dot sits
+       ON a snap point: snapPt() snaps to multiples of gridSize (0,g,2g… = tile
+       corners / artboard origin), and a centered radial-gradient dot would otherwise
+       render at the cell CENTER (g/2, 3g/2…) — half a cell off, which read as
+       "snapping to the middle of the dots". updateDotGrid() keeps this in sync. */
+    .cdotgrid{position:absolute;inset:0;pointer-events:none;background-image:radial-gradient(circle,#c8cdd4 1px,transparent 1px);background-size:20px 20px;background-position:10px 10px;}
     .resize-handle{fill:white;stroke:#0d6efd;stroke-width:1.5;}
     /* Horizontal tool strip in canvas toolbar */
     .tools-strip{display:flex;align-items:center;gap:2px;}
@@ -510,7 +515,7 @@
       activeTool:'select',selectedLayerId:null,boolBaseId:null,vertexEditLayerId:null,
       boolEditParentId:null,   // composite layer being edited (shows/moves its cutters)
       multiSelectIds:[],       // layers selected by marquee
-      isDirty:false,history:[],historyIndex:-1,zoom:1,gridSize:10,
+      isDirty:false,history:[],historyIndex:-1,zoom:1,panX:0,panY:0,gridSize:10,
       activeStateName:'rest',   // 'rest' | 'hover' — state machine view toggle
       activeFace:'front'        // 'front' | 'back' — flip card face preview
     };
@@ -932,21 +937,45 @@
             g.setAttribute('filter','url(#'+_fxId+')');
           }
           // Corner radius/bevel: clip the group to a rounded rect (round) or a
-          // cut-corner polygon (bevel) matching the layer bounds.
+          // cut-corner polygon (bevel) matching the layer bounds. A per-corner mask
+          // (vectorData.cornerMask {tl,tr,br,bl}) selects WHICH corners get the
+          // radius/bevel — round the top only, left only, etc. Default = all corners
+          // (so existing shapes render exactly as before via the fast <rect> path).
           var _cr=layer.vectorData.cornerRadius;var _crV=Array.isArray(_cr)?_cr[0]:(_cr||0);
           if(_crV>0){
+            var _cm=layer.vectorData.cornerMask||{tl:true,tr:true,br:true,bl:true};
+            var _cTL=_cm.tl!==false,_cTR=_cm.tr!==false,_cBR=_cm.br!==false,_cBL=_cm.bl!==false;
+            var _allOn=_cTL&&_cTR&&_cBR&&_cBL;
             var _crId='cr-'+layer.id;var _crDefs=svgNs('defs');var _cpEl=svgNs('clipPath');_cpEl.setAttribute('id',_crId);
-            var _rx=(_crV/CW*100).toFixed(4);var _ry=(_crV/CH*100).toFixed(4);
+            var _rx=Math.min(parseFloat((_crV/CW*100).toFixed(4)),_lw/2),_ry=Math.min(parseFloat((_crV/CH*100).toFixed(4)),_lh/2);
             if((layer.vectorData.cornerStyle||'round')==='bevel'){
-              // Chamfer: 8-point polygon with corners cut by _rx (x) / _ry (y)
-              var _bx=Math.min(parseFloat(_rx),_lw/2),_by=Math.min(parseFloat(_ry),_lh/2);
-              var _pts=[[_lx+_bx,_ly],[_lx+_lw-_bx,_ly],[_lx+_lw,_ly+_by],[_lx+_lw,_ly+_lh-_by],[_lx+_lw-_bx,_ly+_lh],[_lx+_bx,_ly+_lh],[_lx,_ly+_lh-_by],[_lx,_ly+_by]];
+              // Chamfer: cut only the masked corners; unmasked corners stay square.
+              var _bx=_rx,_by=_ry,_pts=[];
+              _pts.push(_cTL?[_lx+_bx,_ly]:[_lx,_ly]);
+              if(_cTR){_pts.push([_lx+_lw-_bx,_ly],[_lx+_lw,_ly+_by]);}else{_pts.push([_lx+_lw,_ly]);}
+              if(_cBR){_pts.push([_lx+_lw,_ly+_lh-_by],[_lx+_lw-_bx,_ly+_lh]);}else{_pts.push([_lx+_lw,_ly+_lh]);}
+              if(_cBL){_pts.push([_lx+_bx,_ly+_lh],[_lx,_ly+_lh-_by]);}else{_pts.push([_lx,_ly+_lh]);}
+              if(_cTL){_pts.push([_lx,_ly+_by]);}
               var _poly=svgNs('polygon');_poly.setAttribute('points',_pts.map(function(p){return p[0].toFixed(3)+','+p[1].toFixed(3);}).join(' '));
               _cpEl.appendChild(_poly);
-            }else{
+            }else if(_allOn){
               var _crRect=svgNs('rect');_crRect.setAttribute('x',_lx);_crRect.setAttribute('y',_ly);_crRect.setAttribute('width',_lw);_crRect.setAttribute('height',_lh);
               _crRect.setAttribute('rx',_rx);_crRect.setAttribute('ry',_ry);
               _cpEl.appendChild(_crRect);
+            }else{
+              // Rounded-rect PATH with independent per-corner radii (0 = sharp).
+              var X=_lx,Y=_ly,W=_lw,H=_lh;
+              var d='M'+(X+(_cTL?_rx:0))+','+Y
+                +' L'+(X+W-(_cTR?_rx:0))+','+Y
+                +(_cTR?(' A'+_rx+','+_ry+' 0 0 1 '+(X+W)+','+(Y+_ry)):(' L'+(X+W)+','+Y))
+                +' L'+(X+W)+','+(Y+H-(_cBR?_ry:0))
+                +(_cBR?(' A'+_rx+','+_ry+' 0 0 1 '+(X+W-_rx)+','+(Y+H)):(' L'+(X+W)+','+(Y+H)))
+                +' L'+(X+(_cBL?_rx:0))+','+(Y+H)
+                +(_cBL?(' A'+_rx+','+_ry+' 0 0 1 '+X+','+(Y+H-_ry)):(' L'+X+','+(Y+H)))
+                +' L'+X+','+(Y+(_cTL?_ry:0))
+                +(_cTL?(' A'+_rx+','+_ry+' 0 0 1 '+(X+_rx)+','+Y):(' L'+X+','+Y))
+                +' Z';
+              var _crPath=svgNs('path');_crPath.setAttribute('d',d);_cpEl.appendChild(_crPath);
             }
             _crDefs.appendChild(_cpEl);svgEl.insertBefore(_crDefs,svgEl.firstChild);
             g.setAttribute('clip-path','url(#'+_crId+')');
@@ -1372,7 +1401,7 @@
     function cancelPen(){penState.verts=[];penState.cursorPt=null;penState.dragging=false;_penDown=false;_penMoved=false;var old=svgEl.querySelector('#pen-ghost');if(old)old.remove();}
     function activateTool(name){var btn=document.querySelector('.tool-btn-h[data-tool="'+name+'"]');if(btn)btn.click();}
     function snapPt(pt,doSnap){if(!doSnap||!state.gridSize)return pt;var g=state.gridSize;return{x:Math.round(pt.x/g)*g,y:Math.round(pt.y/g)*g};}
-    function updateDotGrid(){var cg=artboard.querySelector('.cdotgrid');if(cg)cg.style.backgroundSize=state.gridSize+'px '+state.gridSize+'px';}
+    function updateDotGrid(){var cg=artboard.querySelector('.cdotgrid');if(cg){var g=state.gridSize;cg.style.backgroundSize=g+'px '+g+'px';/* keep dots on the snap points (multiples of g), not cell centers */cg.style.backgroundPosition=(g/2)+'px '+(g/2)+'px';}}
     // ── Interaction state ─────────────────────────────────────────────────────
     var dragSt=null;    // {layerId,startPt,startX,startY,origPath,moved}
     var resizeSt=null;  // {layerId,handle,startPt,origBounds,origPath}
@@ -2990,7 +3019,21 @@
       function _setCR(v){var i=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i<0)return;var n=parseFloat(v)||0;state.element.layers[i].vectorData.cornerRadius=n;crNum.value=n;crSl.value=n;renderCanvas();}
       crSl.addEventListener('input',function(e){_setCR(e.target.value);});crSl.addEventListener('change',function(){pushHistory();markDirty();});
       crNum.addEventListener('input',function(e){_setCR(e.target.value);});crNum.addEventListener('change',function(){pushHistory();markDirty();});
-      sec.appendChild(crSl);body.appendChild(sec);
+      sec.appendChild(crSl);
+      // Per-corner selector — pick which corners get the radius/bevel (default all).
+      // Toggling here writes vectorData.cornerMask {tl,tr,br,bl}; the renderer draws
+      // a per-corner path/polygon when the mask isn't all-on.
+      var cm=(layer.vectorData&&layer.vectorData.cornerMask)||{tl:true,tr:true,br:true,bl:true};
+      var cLbl=document.createElement('div');cLbl.className='prop-label mb-1 mt-2';cLbl.style.fontSize='9px';cLbl.textContent='Round which corners';sec.appendChild(cLbl);
+      var cornerWrap=document.createElement('div');cornerWrap.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:4px;';
+      function _setMask(k){var i=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i<0)return;var lv=state.element.layers[i];if(!lv.vectorData.cornerMask)lv.vectorData.cornerMask={tl:true,tr:true,br:true,bl:true};lv.vectorData.cornerMask[k]=lv.vectorData.cornerMask[k]===false?true:false;pushHistory();markDirty();renderCanvas();renderProps();}
+      [['tl','&#9484; TL'],['tr','TR &#9488;'],['bl','&#9492; BL'],['br','BR &#9496;']].forEach(function(pair){
+        var on=cm[pair[0]]!==false;
+        var b=document.createElement('button');b.type='button';b.className='btn btn-sm '+(on?'btn-primary':'btn-outline-secondary');b.style.fontSize='10px';b.style.padding='2px 0';b.innerHTML=pair[1];
+        b.addEventListener('click',function(){_setMask(pair[0]);});cornerWrap.appendChild(b);
+      });
+      sec.appendChild(cornerWrap);
+      body.appendChild(sec);
     }
     // ── Gradient CSS helper ───────────────────────────────────────────────────
     function _gradPreviewCss(fill){
@@ -3774,18 +3817,33 @@
     document.getElementById('el-mood').addEventListener('change',function(e){state.element.mood=e.target.value||null;markDirty();});
     document.getElementById('el-public').addEventListener('change',function(e){state.element.isPublic=e.target.checked;markDirty();});
     // ── Zoom ──────────────────────────────────────────────────────────────────
-    function applyZoom(z){state.zoom=Math.min(Math.max(z,0.05),8);artboard.style.transform='scale('+state.zoom+')';document.getElementById('zoom-label').textContent=Math.round(state.zoom*100)+'%';renderCanvas();}
-    document.getElementById('btn-zoom-in').addEventListener('click',function(){applyZoom(state.zoom*1.2);});
-    document.getElementById('btn-zoom-out').addEventListener('click',function(){applyZoom(state.zoom/1.2);});
-    document.getElementById('btn-zoom-fit').addEventListener('click',function(){var wrap=document.getElementById('canvas-wrap');var z=Math.min((wrap.clientWidth-40)/state.element.canvasWidth,(wrap.clientHeight-40)/state.element.canvasHeight);applyZoom(z);});
+    function applyZoom(z){state.zoom=Math.min(Math.max(z,0.05),8);artboard.style.transform='translate('+(state.panX||0)+'px,'+(state.panY||0)+'px) scale('+state.zoom+')';document.getElementById('zoom-label').textContent=Math.round(state.zoom*100)+'%';renderCanvas();}
+    // Zoom toward a focal point. ox,oy = focal offset from the canvas-wrap CENTER
+    // (unscaled px). The artboard is flex-centered with transform-origin center, so
+    // on screen a local point maps to: wrapCenter + d*zoom + pan. To hold the focal
+    // point fixed across a zoom change, solve for the new pan:
+    //   pan' = focal - (focal - pan) * (newZoom / oldZoom).
+    // ox=oy=0 keeps the viewport center fixed (used by the +/- buttons).
+    function zoomAtPoint(newZ, ox, oy){
+      newZ=Math.min(Math.max(newZ,0.05),8);
+      var z0=state.zoom||1;
+      state.panX=ox-(ox-(state.panX||0))*(newZ/z0);
+      state.panY=oy-(oy-(state.panY||0))*(newZ/z0);
+      applyZoom(newZ);
+    }
+    function _wrapFocal(e){var r=document.getElementById('canvas-wrap').getBoundingClientRect();return {ox:(e.clientX-r.left)-r.width/2, oy:(e.clientY-r.top)-r.height/2};}
+    document.getElementById('btn-zoom-in').addEventListener('click',function(){zoomAtPoint(state.zoom*1.2,0,0);});
+    document.getElementById('btn-zoom-out').addEventListener('click',function(){zoomAtPoint(state.zoom/1.2,0,0);});
+    document.getElementById('btn-zoom-fit').addEventListener('click',function(){var wrap=document.getElementById('canvas-wrap');state.panX=0;state.panY=0;var z=Math.min((wrap.clientWidth-40)/state.element.canvasWidth,(wrap.clientHeight-40)/state.element.canvasHeight);applyZoom(z);});
     // ── State switcher ────────────────────────────────────────────────────────
     document.getElementById('btn-state-rest').addEventListener('click',function(){state.activeStateName='rest';_updateStateButtons();renderCanvas();renderProps();});
     document.getElementById('btn-state-hover').addEventListener('click',function(){_ensureStates();state.activeStateName='hover';_updateStateButtons();renderCanvas();renderProps();});
     // ── Flip card face preview ────────────────────────────────────────────────
     document.getElementById('btn-face-front').addEventListener('click',function(){state.activeFace='front';_updateFaceSwitcher();renderCanvas();renderLayers();});
     document.getElementById('btn-face-back').addEventListener('click',function(){state.activeFace='back';_updateFaceSwitcher();renderCanvas();renderLayers();});
-    // Ctrl+wheel to zoom
-    document.getElementById('canvas-wrap').addEventListener('wheel',function(e){if(!e.ctrlKey&&!e.metaKey)return;e.preventDefault();applyZoom(e.deltaY<0?state.zoom*1.1:state.zoom/1.1);},{passive:false});
+    // Ctrl/⌘+wheel to zoom toward the cursor (zoom-to-pointer). Single source of
+    // truth — the duplicate handler further down was removed to avoid double-zoom.
+    document.getElementById('canvas-wrap').addEventListener('wheel',function(e){if(!e.ctrlKey&&!e.metaKey)return;e.preventDefault();var f=_wrapFocal(e);zoomAtPoint(e.deltaY<0?state.zoom*1.1:state.zoom/1.1,f.ox,f.oy);},{passive:false});
     // ── Toolbar ───────────────────────────────────────────────────────────────
     document.getElementById('btn-undo').addEventListener('click',undo);
     document.getElementById('btn-redo').addEventListener('click',redo);
@@ -3910,13 +3968,8 @@
       layer.x=0;layer.y=0;layer.width=100;layer.height=100;
       markDirty();renderAll();renderProps();
     });
-    // ── Scroll wheel zoom (Ctrl+scroll) ──────────────────────────────────────
-    document.getElementById('canvas-wrap').addEventListener('wheel',function(e){
-      if(!e.ctrlKey&&!e.metaKey)return;
-      e.preventDefault();
-      var delta=e.deltaY>0?-0.05:0.05;
-      applyZoom(state.zoom+delta);
-    },{passive:false});
+    // ── Scroll wheel zoom consolidated into the single zoom-to-pointer handler
+    //    above (was a duplicate that double-applied zoom on every Ctrl+wheel). ──
     // ── Timeline Panel Logic ────────────────────────────────────────────────
     var _tlVisible=false;
     var _tlPlaying=false;
