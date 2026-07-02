@@ -564,44 +564,82 @@
     .sub-element:hover .sub-width-resize,
     .sub-element.selected .sub-width-resize { background: #0d6efd; opacity: 0.7; }
 
-    /* ── PARENT CHROME GATING ──────────────────────────────────────
-       When a parent block has child sub-elements, its own chrome
-       (header bar, selection outline, resize handles) is hidden by
-       default so only the children + their UI show. A child's eye
-       toggle removes .chrome-hidden to reveal the parent chrome. */
-    .container-block.chrome-hidden,
-    .container-block.chrome-hidden:hover,
-    .container-block.type-text-block.chrome-hidden,
-    .container-block.type-text-block.chrome-hidden:hover {
+    /* ── ORGANIZATIONAL PARENT (Figma-style layers model) ──────────
+       A block that HAS child sub-elements renders NO canvas box: it is
+       transparent, has no header / resize handles / drop-zone, and lets
+       pointer events fall through to its free-positioned children. The
+       parent is purely an organizational group, managed from the Layers
+       panel. Only the children are visible on the canvas. */
+    .container-block.group-parent {
+      background: transparent !important;
       border-color: transparent !important;
       box-shadow: none !important;
+      pointer-events: none;          /* clicks pass through to children/canvas */
+      overflow: visible;
     }
-    .container-block.chrome-hidden .cb-header {
-      max-height: 0 !important; padding: 0 8px !important;
-      opacity: 0 !important; overflow: hidden !important; pointer-events: none !important;
+    .container-block.group-parent > .cb-header,
+    .container-block.group-parent > .resize-handle,
+    .container-block.group-parent .cb-drop-zone { display: none !important; }
+    .container-block.group-parent .sub-element { pointer-events: auto; }
+    /* When the group itself is selected, show a dashed bounding outline so
+       the author can see the set they are about to move/duplicate/delete. */
+    .container-block.group-parent.selected {
+      outline: 1.5px dashed #0d6efd; outline-offset: 2px;
     }
-    .container-block.chrome-hidden .resize-handle {
-      opacity: 0 !important; pointer-events: none !important;
-    }
-    /* Allow the child eye-toggle to float just outside the child's
-       top-right corner without being clipped by the block/content box. */
+    /* Children (and their handles) may overflow the invisible parent box. */
     .container-block.has-sub,
     .container-block.has-sub .cb-content { overflow: visible; }
 
-    /* Floating EYE toggle on a child — reveals/hides the parent chrome */
-    .se-eye-toggle {
-      position: absolute; top: -11px; right: -11px;
-      width: 22px; height: 22px; padding: 0;
-      background: #fff; border: 1px solid #ced4da; border-radius: 50%;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.18);
-      display: none; align-items: center; justify-content: center;
-      cursor: pointer; z-index: 60; color: #495057; line-height: 0;
+    /* Floating group-move handle — the only interactive parent affordance.
+       Shown at the group's top-left when the group is selected; dragging it
+       translates every child by the same delta (moves the parent x/y). */
+    .group-move-handle {
+      position: absolute; top: -26px; left: 0;
+      display: flex; align-items: center; gap: 4px;
+      height: 20px; padding: 0 8px;
+      background: #0d6efd; color: #fff; border: none; border-radius: 4px;
+      font-size: 11px; font-weight: 600; cursor: grab; line-height: 1;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2); z-index: 70; pointer-events: auto;
+      white-space: nowrap;
     }
-    .se-eye-toggle svg { width: 13px; height: 13px; display: block; }
-    .se-eye-toggle:hover { border-color: #20c997; color: #20c997; }
-    .se-eye-toggle.eye-active { background: #20c997; border-color: #20c997; color: #fff; }
-    .sub-element:hover .se-eye-toggle,
-    .sub-element.selected .se-eye-toggle { display: flex; }
+    .group-move-handle:active { cursor: grabbing; }
+    .group-move-handle svg { width: 12px; height: 12px; }
+
+    /* ── LAYERS PANEL ──────────────────────────────────────────────── */
+    .layers-tree { padding: 6px 6px 10px; font-size: 12.5px; }
+    .layer-row {
+      display: flex; align-items: center; gap: 6px;
+      padding: 4px 6px; border-radius: 5px; cursor: pointer;
+      color: #343a40; user-select: none;
+    }
+    .layer-row:hover { background: #f1f3f5; }
+    .layer-row.selected { background: #e7f1ff; color: #0d6efd; }
+    .layer-row.layer-child { margin-left: 20px; }
+    .layer-row.drag-over-top { box-shadow: inset 0 2px 0 #0d6efd; }
+    .layer-row.drag-over-bottom { box-shadow: inset 0 -2px 0 #0d6efd; }
+    .layer-row.drag-over-into { background: #d0e5ff; }
+    .layer-caret {
+      width: 14px; text-align: center; flex: 0 0 14px;
+      color: #868e96; font-size: 10px; transition: transform .12s;
+    }
+    .layer-caret.collapsed { transform: rotate(-90deg); }
+    .layer-icon { flex: 0 0 16px; color: #868e96; }
+    .layer-row.selected .layer-icon { color: #0d6efd; }
+    .layer-name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .layer-name-input { flex: 1 1 auto; font-size: 12.5px; padding: 1px 4px; border: 1px solid #0d6efd; border-radius: 3px; }
+    .layer-actions { display: none; gap: 2px; flex: 0 0 auto; }
+    .layer-row:hover .layer-actions,
+    .layer-row.selected .layer-actions { display: flex; }
+    .layer-act {
+      width: 20px; height: 20px; padding: 0; border: none; background: transparent;
+      color: #868e96; cursor: pointer; border-radius: 3px; font-size: 12px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .layer-act:hover { background: #dee2e6; color: #212529; }
+    .layer-act.act-del:hover { background: #ffe3e3; color: #e03131; }
+    .layer-row.layer-hidden .layer-name,
+    .layer-row.layer-hidden .layer-icon { opacity: 0.45; }
+    .layers-empty { padding: 16px; color: #adb5bd; font-size: 12px; text-align: center; }
 
     /* Sub-element previews */
     .se-heading    { font-weight: 700; color: #212529; word-wrap: break-word; overflow-wrap: break-word; }
@@ -1564,6 +1602,13 @@
             </div>
           </div>
         </div>
+        <div class="panel">
+          <div class="panel-header">
+            <i class="bi bi-stack"></i> Layers
+            <button class="ms-auto layer-act" id="layers-collapse-toggle" title="Collapse / expand all groups" onclick="toggleAllLayerGroups()"><i class="bi bi-chevron-expand"></i></button>
+          </div>
+          <div id="layers-content" class="layers-tree"></div>
+        </div>
       </div>
     </div><!-- end sidebar-scroll -->
   </div><!-- end sidebar-right -->
@@ -1638,7 +1683,6 @@ const state = {
   snapGrid: false,      // pixel-grid snap in free mode (S key or toolbar button)
   snapSize: 10,         // snap increment in px
   subElementSnap: false, // snap sub-elements to 8px grid when dragging inside parent
-  parentChromeShownFor: null, // transient: blockId whose parent chrome is revealed via a child's eye toggle
   isResizing: false,
   nextId: 1,
   navOptions: [],
@@ -2185,6 +2229,7 @@ function renderCanvas() {
   renderGridOverlay();
   renderBlocks();
   renderGuideOverlay();
+  renderLayersPanel();
   updateDimensions();
   updateBlockCount();
   // Schedule ruler tick marks after layout reflow so canvas dimensions are final
@@ -2477,15 +2522,16 @@ function createBlockElement(block) {
   // Apply selection / editing visual states
   if (block.id === state.selectedBlockId) el.classList.add('selected');
   if (block.id === state.editingBlockId)  { el.classList.add('editing','selected'); }
-  if (block.subElements?.length > 0)     el.classList.add('has-sub');
-  // Parent chrome gating: a block with children hides its own chrome by default
-  // (header, outline, handles) — revealed only when a child's eye toggle is on
-  // for this block, or while it is being edited.
-  if (block.subElements?.length > 0
-      && state.parentChromeShownFor !== block.id
-      && state.editingBlockId !== block.id) {
-    el.classList.add('chrome-hidden');
-  }
+  const _hasChildren = block.subElements?.length > 0;
+  if (_hasChildren) el.classList.add('has-sub');
+  // Layer visibility toggle (from Layers panel)
+  if (block.hidden) el.style.display = 'none';
+  // Organizational-parent model: a block WITH children renders no canvas box or
+  // chrome — only its free-positioned children show; the parent is managed from
+  // the Layers panel. Exception: while it is being edited (sub-element library
+  // drop mode) the box stays visible so drops have a target.
+  const _isGroupParent = _hasChildren && state.editingBlockId !== block.id;
+  if (_isGroupParent) el.classList.add('group-parent');
   // Responsive behavior visual states
   const _device = state.devicePreview;
   const _behavior = _device === 'mobile' ? (block.mobileBehavior||'auto') : _device === 'tablet' ? (block.tabletBehavior||'auto') : 'auto';
@@ -2569,6 +2615,20 @@ function createBlockElement(block) {
   el.addEventListener('click', e => { e.stopPropagation(); selectBlock(block.id); });
   if (block.type === 'volt') {
     el.addEventListener('dblclick', e => { e.stopPropagation(); openVoltModal(block.id); });
+  }
+
+  // Group-move affordance: when this group is selected (block, no child), show a
+  // draggable handle. Since children are DOM-nested in the parent, moving the
+  // parent's x/y translates every child by the same delta (relative positions
+  // preserved). This is the canvas half of the Layers-panel group model.
+  if (_isGroupParent && block.id === state.selectedBlockId && !state.selectedSubId) {
+    const gmh = document.createElement('button');
+    gmh.className = 'group-move-handle';
+    gmh.title = 'Drag to move all elements in this group together';
+    gmh.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1v14M1 8h14M8 1 5.5 3.5M8 1l2.5 2.5M8 15l-2.5-2.5M8 15l2.5-2.5M1 8l2.5-2.5M1 8l2.5 2.5M15 8l-2.5-2.5M15 8l-2.5 2.5"/></svg><span>Move group</span>';
+    gmh.addEventListener('mousedown', e => { e.stopPropagation(); startBlockMove(e, block.id); });
+    gmh.addEventListener('click', e => e.stopPropagation());
+    el.appendChild(gmh);
   }
   return el;
 }
@@ -2878,6 +2938,7 @@ function createSubElementDOM(se, blockId) {
   el.style.left  = (se.x || 0) + 'px';
   el.style.top   = (se.y || 0) + 'px';
   el.style.width = se.w ? se.w + 'px' : 'calc(100% - 0px)';
+  if (se.hidden) el.style.display = 'none';  // Layers-panel visibility toggle
 
   const preview = document.createElement('div');
   const p = se.props;
@@ -2941,20 +3002,8 @@ function createSubElementDOM(se, blockId) {
   rm.addEventListener('click', e => { e.stopPropagation(); removeSubElement(blockId, se.id); });
   el.appendChild(rm);
 
-  // Floating EYE toggle — shows/hides the PARENT block's chrome (header,
-  // outline, resize handles, mini-toolbar). Sits just outside the child's
-  // top-right corner so it never overlaps the child content.
-  const eye = document.createElement('button');
-  eye.className = 'se-eye-toggle' + (state.parentChromeShownFor === blockId ? ' eye-active' : '');
-  eye.title = state.parentChromeShownFor === blockId
-    ? 'Hide parent block controls'
-    : 'Show parent block controls (select / resize / add child)';
-  eye.innerHTML = state.parentChromeShownFor === blockId
-    ? '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 2l12 12M6.7 6.7a2 2 0 002.6 2.6M4.3 4.4C2.9 5.3 1.8 6.6 1 8c1.5 2.7 4 4.5 7 4.5 1.2 0 2.3-.3 3.3-.8M8 3.5c3 0 5.5 1.8 7 4.5-.5.9-1.1 1.7-1.8 2.3"/></svg>'
-    : '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 8c1.5-2.7 4-4.5 7-4.5S13.5 5.3 15 8c-1.5 2.7-4 4.5-7 4.5S2.5 10.7 1 8z"/><circle cx="8" cy="8" r="2"/></svg>';
-  eye.addEventListener('mousedown', e => e.stopPropagation());
-  eye.addEventListener('click', e => toggleParentChrome(blockId, e));
-  el.appendChild(eye);
+  // (Parent eye-toggle removed — the organizational parent no longer renders
+  //  on the canvas; visibility is controlled from the Layers panel instead.)
 
   // Show animation badge indicator when animation effect is active
   if (se.props.animEffect && se.props.animEffect !== 'none') {
@@ -3137,15 +3186,11 @@ function startSubElementMove(e, blockId, seId) {
       }
     }
     moved = true;
-    // Clamp so the element stays INSIDE the parent block's inner content box
-    // (not merely >=0). Without an upper bound a dragged child could escape the
-    // parent and force it to grow toward a corner instead of staying dropped.
-    const seW = seEl.offsetWidth, seH = seEl.offsetHeight;
-    const listEl = seEl.parentElement; // .sub-elements-list (position:relative)
-    const maxX = listEl ? Math.max(0, listEl.clientWidth  - seW) : Infinity;
-    const maxY = listEl ? Math.max(0, listEl.clientHeight - seH) : Infinity;
-    let newX = Math.round(Math.min(maxX, Math.max(0, origX + dx)));
-    let newY = Math.round(Math.min(maxY, Math.max(0, origY + dy)));
+    // Organizational-parent model: children are FREE — no clamp to the parent's
+    // inner box. The parent renders no canvas box, so a child may be positioned
+    // anywhere (including negative offsets). Positions persist as x/y + manualSize.
+    let newX = Math.round(origX + dx);
+    let newY = Math.round(origY + dy);
     if (state.subElementSnap) {
       const sg = 8;
       newX = Math.round(newX / sg) * sg;
@@ -4197,30 +4242,7 @@ function startResize(e, blockId, dir) {
  * @param {string} id - ID of the block to select.
  */
 function selectBlock(id) {
-  // Moving to a different block clears any revealed parent chrome (transient UI).
-  if (id !== state.parentChromeShownFor) state.parentChromeShownFor = null;
   state.selectedBlockId=id; state.selectedSubId=null; renderCanvas(); renderPropsPanel(); updateMiniToolbar();
-}
-
-/**
- * Toggles the parent block's chrome (header, selection outline, resize
- * handles, mini-toolbar) on/off from a child's floating eye button.
- * OFF (default) shows only the children; ON reveals the parent so it can
- * be selected, resized/moved, or have more children added via "+".
- * State is transient — not persisted to saved data.
- * @param {string} blockId - ID of the parent block to reveal/hide.
- * @param {MouseEvent} [e] - Optional click event; propagation is stopped.
- */
-function toggleParentChrome(blockId, e) {
-  if (e) e.stopPropagation();
-  if (state.parentChromeShownFor === blockId) {
-    state.parentChromeShownFor = null;      // hide again → only children show
-  } else {
-    state.parentChromeShownFor = blockId;   // reveal parent chrome
-    state.selectedBlockId = blockId;        // select parent so its toolbar / + are usable
-    state.selectedSubId = null;
-  }
-  renderCanvas(); renderPropsPanel(); updateMiniToolbar();
 }
 
 /**
@@ -4232,8 +4254,6 @@ function toggleParentChrome(blockId, e) {
  * @param {string} sId - ID of the sub-element to select.
  */
 function selectSubElement(bId, sId) {
-  // Selecting a child in a different block clears any revealed parent chrome.
-  if (bId !== state.parentChromeShownFor) state.parentChromeShownFor = null;
   const prevBlockId = state.selectedBlockId;
   const prevSubId   = state.selectedSubId;
   state.selectedBlockId = bId;
@@ -4248,6 +4268,7 @@ function selectSubElement(bId, sId) {
     renderCanvas();
   }
   renderPropsPanel();
+  renderLayersPanel();
 }
 
 /**
@@ -4257,10 +4278,270 @@ function selectSubElement(bId, sId) {
  */
 function onCanvasClick(e) {
   if (e.target===document.getElementById('canvas')||e.target===document.getElementById('grid-overlay')) {
-    state.selectedBlockId=null; state.selectedSubId=null; state.parentChromeShownFor=null;
+    state.selectedBlockId=null; state.selectedSubId=null;
     if (state.editingBlockId) exitEditMode();
     renderCanvas(); renderPropsPanel();
   }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  LAYERS PANEL — Figma-style hierarchy tree (right sidebar)
+//  Reads the EXISTING block/sub-element hierarchy (no data-model change):
+//  each block with children = a collapsible group; its sub-elements = nested
+//  rows; childless blocks = top-level leaf rows. Selecting a row syncs canvas
+//  selection. Per-row: show/hide, delete, duplicate, rename (group), drag reorder.
+// ═══════════════════════════════════════════════════════════
+let _layersCollapsed = new Set();  // group blockIds currently collapsed
+let _layersDrag = null;            // { kind:'block'|'sub', blockId, seId }
+
+function _lyEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function _lySeLabel(se){ const t = se.props?.text; return (t && typeof t === 'string' && t.trim()) ? t.trim().slice(0,32) : se.type; }
+function _lySeIcon(type){
+  const m = { heading:'bi-type-h1', paragraph:'bi-text-paragraph', button:'bi-hand-index-thumb',
+    badge:'bi-award', image:'bi-image', icon:'bi-star', divider:'bi-dash-lg', spacer:'bi-arrows-expand', video:'bi-camera-video' };
+  return m[type] || 'bi-square';
+}
+
+function _lyGroupRowHtml(block){
+  const collapsed = _layersCollapsed.has(block.id);
+  const sel = (state.selectedBlockId===block.id && !state.selectedSubId) ? ' selected' : '';
+  const hid = block.hidden ? ' layer-hidden' : '';
+  const label = block.props?.label || block.type;
+  return `<div class="layer-row layer-group${sel}${hid}" draggable="true" data-layer-row data-kind="block" data-block-id="${_lyEsc(block.id)}">
+    <span class="layer-caret${collapsed?' collapsed':''}" data-caret>&#9662;</span>
+    <i class="layer-icon bi ${getBlockIcon(block.type)}"></i>
+    <span class="layer-name" data-name>${_lyEsc(label)}</span>
+    <span class="layer-actions">
+      <button class="layer-act" data-act="hide" title="Show / hide"><i class="bi ${block.hidden?'bi-eye-slash':'bi-eye'}"></i></button>
+      <button class="layer-act" data-act="rename" title="Rename group"><i class="bi bi-pencil"></i></button>
+      <button class="layer-act" data-act="dup" title="Duplicate group"><i class="bi bi-copy"></i></button>
+      <button class="layer-act act-del" data-act="del" title="Delete group"><i class="bi bi-trash"></i></button>
+    </span></div>`;
+}
+function _lyChildRowHtml(block, se){
+  const ssel = (state.selectedSubId===se.id) ? ' selected' : '';
+  const shid = se.hidden ? ' layer-hidden' : '';
+  return `<div class="layer-row layer-child${ssel}${shid}" draggable="true" data-layer-row data-kind="sub" data-block-id="${_lyEsc(block.id)}" data-se-id="${_lyEsc(se.id)}">
+    <span class="layer-caret" style="visibility:hidden">&bull;</span>
+    <i class="layer-icon bi ${_lySeIcon(se.type)}"></i>
+    <span class="layer-name">${_lyEsc(_lySeLabel(se))}</span>
+    <span class="layer-actions">
+      <button class="layer-act" data-act="hide" title="Show / hide"><i class="bi ${se.hidden?'bi-eye-slash':'bi-eye'}"></i></button>
+      <button class="layer-act" data-act="dup" title="Duplicate"><i class="bi bi-copy"></i></button>
+      <button class="layer-act act-del" data-act="del" title="Delete"><i class="bi bi-trash"></i></button>
+    </span></div>`;
+}
+function _lyLeafRowHtml(block){
+  const sel = (state.selectedBlockId===block.id && !state.selectedSubId) ? ' selected' : '';
+  const hid = block.hidden ? ' layer-hidden' : '';
+  const label = block.props?.label || block.type;
+  return `<div class="layer-row layer-leaf${sel}${hid}" draggable="true" data-layer-row data-kind="block" data-block-id="${_lyEsc(block.id)}">
+    <span class="layer-caret" style="visibility:hidden">&bull;</span>
+    <i class="layer-icon bi ${getBlockIcon(block.type)}"></i>
+    <span class="layer-name" data-name>${_lyEsc(label)}</span>
+    <span class="layer-actions">
+      <button class="layer-act" data-act="hide" title="Show / hide"><i class="bi ${block.hidden?'bi-eye-slash':'bi-eye'}"></i></button>
+      <button class="layer-act" data-act="rename" title="Rename"><i class="bi bi-pencil"></i></button>
+      <button class="layer-act" data-act="dup" title="Duplicate"><i class="bi bi-copy"></i></button>
+      <button class="layer-act act-del" data-act="del" title="Delete"><i class="bi bi-trash"></i></button>
+    </span></div>`;
+}
+
+function renderLayersPanel(){
+  const host = document.getElementById('layers-content');
+  if (!host) return;
+  if (!state.blocks.length){
+    host.innerHTML = '<div class="layers-empty">No elements yet.<br>Drag a block onto the canvas.</div>';
+  } else {
+    let html = '';
+    state.blocks.forEach(block => {
+      if (block.subElements?.length > 0){
+        html += _lyGroupRowHtml(block);
+        if (!_layersCollapsed.has(block.id)) block.subElements.forEach(se => { html += _lyChildRowHtml(block, se); });
+      } else {
+        html += _lyLeafRowHtml(block);
+      }
+    });
+    host.innerHTML = html;
+  }
+  _lyWire(host);
+}
+
+function _lyClearDropCues(host){
+  host.querySelectorAll('.drag-over-top,.drag-over-bottom,.drag-over-into')
+      .forEach(r=>r.classList.remove('drag-over-top','drag-over-bottom','drag-over-into'));
+}
+
+function _lyWire(host){
+  if (host._lyWired) return;   // delegated listeners attached once (survive innerHTML rebuilds)
+  host._lyWired = true;
+  host.addEventListener('click', e => {
+    const row = e.target.closest('[data-layer-row]'); if (!row) return;
+    const kind = row.dataset.kind, blockId = row.dataset.blockId, seId = row.dataset.seId;
+    const actBtn = e.target.closest('[data-act]');
+    if (actBtn){ e.stopPropagation(); _lyAction(actBtn.dataset.act, kind, blockId, seId); return; }
+    if (e.target.closest('[data-caret]') && kind==='block' && row.classList.contains('layer-group')){
+      if (_layersCollapsed.has(blockId)) _layersCollapsed.delete(blockId); else _layersCollapsed.add(blockId);
+      renderLayersPanel(); return;
+    }
+    if (kind==='sub') selectSubElement(blockId, seId);
+    else selectBlock(blockId);
+  });
+  host.addEventListener('dblclick', e => {
+    const nameEl = e.target.closest('[data-name]'); if (!nameEl) return;
+    const row = e.target.closest('[data-layer-row]'); if (!row || row.dataset.kind!=='block') return;
+    _lyStartRename(row.dataset.blockId, nameEl);
+  });
+  host.addEventListener('dragstart', e => {
+    const row = e.target.closest('[data-layer-row]'); if (!row) return;
+    _layersDrag = { kind: row.dataset.kind, blockId: row.dataset.blockId, seId: row.dataset.seId };
+    if (e.dataTransfer){ e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', row.dataset.blockId||''); } catch(_){} }
+  });
+  host.addEventListener('dragover', e => {
+    if (!_layersDrag) return;
+    const row = e.target.closest('[data-layer-row]'); if (!row) return;
+    e.preventDefault();
+    _lyClearDropCues(host);
+    if (_layersDrag.kind==='sub' && row.dataset.kind==='block' && row.classList.contains('layer-group')){
+      row.classList.add('drag-over-into');
+    } else {
+      const r = row.getBoundingClientRect();
+      row.classList.add(e.clientY < r.top + r.height/2 ? 'drag-over-top' : 'drag-over-bottom');
+    }
+  });
+  host.addEventListener('drop', e => {
+    const row = e.target.closest('[data-layer-row]');
+    _lyClearDropCues(host);
+    if (_layersDrag && row){ e.preventDefault(); _lyHandleDrop(_layersDrag, row, e); }
+    _layersDrag = null;
+  });
+  host.addEventListener('dragend', () => { _layersDrag = null; _lyClearDropCues(host); });
+}
+
+function _lyAction(act, kind, blockId, seId){
+  if (kind==='block'){
+    const b = state.blocks.find(x=>x.id===blockId); if (!b) return;
+    if (act==='hide'){ pushHistory(); b.hidden=!b.hidden; renderCanvas(); autoSave(); }
+    else if (act==='rename'){ const nm=document.querySelector(`[data-layer-row][data-kind="block"][data-block-id="${CSS.escape(blockId)}"] [data-name]`); if (nm) _lyStartRename(blockId, nm); }
+    else if (act==='dup') _lyDuplicateBlock(blockId);
+    else if (act==='del') removeBlock(blockId);
+  } else {
+    const b = state.blocks.find(x=>x.id===blockId); const se = b?.subElements.find(s=>s.id===seId); if (!se) return;
+    if (act==='hide'){ pushHistory(); se.hidden=!se.hidden; renderCanvas(); autoSave(); }
+    else if (act==='dup') _lyDuplicateSub(blockId, seId);
+    else if (act==='del') removeSubElement(blockId, seId);
+  }
+}
+
+function _lyDuplicateBlock(blockId){
+  const b = state.blocks.find(x=>x.id===blockId); if (!b) return;
+  pushHistory();
+  const copy = JSON.parse(JSON.stringify(b));
+  copy.id = 'b' + (++state.nextId);
+  if (Array.isArray(copy.subElements)) copy.subElements.forEach(se => { se.id = 'se-' + (state.nextId++); });
+  copy.x = (copy.x||0)+20; copy.y = (copy.y||0)+20; copy.zIndex = (copy.zIndex||1)+1;
+  const idx = state.blocks.indexOf(b);
+  state.blocks.splice(idx+1, 0, copy);
+  state.selectedBlockId = copy.id; state.selectedSubId = null;
+  renderCanvas(); renderPropsPanel(); autoSave();
+}
+
+function _lyDuplicateSub(blockId, seId){
+  const b = state.blocks.find(x=>x.id===blockId); if (!b) return;
+  const se = b.subElements.find(s=>s.id===seId); if (!se) return;
+  pushHistory();
+  const copy = JSON.parse(JSON.stringify(se));
+  copy.id = 'se-' + (state.nextId++);
+  copy.x = (copy.x||0)+16; copy.y = (copy.y||0)+16;
+  const idx = b.subElements.indexOf(se);
+  b.subElements.splice(idx+1, 0, copy);
+  b.manualSize = true;
+  state.selectedBlockId = blockId; state.selectedSubId = copy.id;
+  renderCanvas(); renderPropsPanel(); autoSave();
+}
+
+function _lyStartRename(blockId, nameEl){
+  const b = state.blocks.find(x=>x.id===blockId); if (!b) return;
+  const cur = b.props?.label || b.type;
+  const input = document.createElement('input');
+  input.className = 'layer-name-input'; input.value = cur;
+  nameEl.replaceWith(input); input.focus(); input.select();
+  let done = false;
+  const commit = () => {
+    if (done) return; done = true;
+    const v = input.value.trim();
+    if (!b.props) b.props = {};
+    b.props.label = v || b.type;
+    renderLayersPanel(); renderPropsPanel(); autoSave();
+  };
+  input.addEventListener('blur', commit);
+  input.addEventListener('click', e => e.stopPropagation());
+  input.addEventListener('keydown', e => {
+    e.stopPropagation();
+    if (e.key==='Enter'){ e.preventDefault(); input.blur(); }
+    else if (e.key==='Escape'){ done=true; renderLayersPanel(); }
+  });
+}
+
+// Reorder / regroup from a tree drag-drop.
+function _lyHandleDrop(drag, row, e){
+  const tKind = row.dataset.kind, tBlockId = row.dataset.blockId, tSeId = row.dataset.seId;
+  const r = row.getBoundingClientRect();
+  const after = e.clientY >= r.top + r.height/2;
+
+  if (drag.kind==='block'){
+    // Reorder among top-level blocks. z-order follows array order (later paints on top).
+    const from = state.blocks.findIndex(b=>b.id===drag.blockId); if (from<0) return;
+    const targetTopId = tBlockId; // both group + leaf rows carry their block id
+    if (targetTopId === drag.blockId) return;
+    pushHistory();
+    const moved = state.blocks.splice(from,1)[0];
+    let to = state.blocks.findIndex(b=>b.id===targetTopId);
+    if (to<0){ state.blocks.splice(from,0,moved); return; }
+    if (after) to += 1;
+    state.blocks.splice(to,0,moved);
+    state.blocks.forEach((b,i)=> b.zIndex = i+1);
+    renderCanvas(); autoSave();
+    return;
+  }
+
+  // drag.kind === 'sub'
+  const srcB = state.blocks.find(b=>b.id===drag.blockId);
+  const se = srcB?.subElements.find(s=>s.id===drag.seId);
+  if (!se) return;
+
+  if (tKind==='block'){
+    // Drop onto a GROUP row → move child into that group (grouping change). No-op on own group.
+    const destB = state.blocks.find(b=>b.id===tBlockId);
+    if (!destB || destB===srcB) return;
+    pushHistory();
+    srcB.subElements = srcB.subElements.filter(s=>s.id!==se.id);
+    if (!destB.subElements) destB.subElements = [];
+    destB.subElements.push(se);
+    destB.manualSize = true;
+    state.selectedBlockId = destB.id; state.selectedSubId = se.id;
+    renderCanvas(); renderPropsPanel(); autoSave();
+    return;
+  }
+
+  // Drop onto another CHILD row → reorder (within same group) or move + insert (cross-group).
+  const destB = state.blocks.find(b=>b.id===tBlockId); if (!destB) return;
+  pushHistory();
+  srcB.subElements = srcB.subElements.filter(s=>s.id!==se.id);
+  let to = destB.subElements.findIndex(s=>s.id===tSeId);
+  if (to<0) destB.subElements.push(se);
+  else { if (after) to += 1; destB.subElements.splice(to,0,se); }
+  if (destB!==srcB) destB.manualSize = true;
+  state.selectedBlockId = destB.id; state.selectedSubId = se.id;
+  renderCanvas(); renderPropsPanel(); autoSave();
+}
+
+function toggleAllLayerGroups(){
+  const groups = state.blocks.filter(b=>b.subElements?.length>0);
+  const allCollapsed = groups.length>0 && groups.every(b=>_layersCollapsed.has(b.id));
+  if (allCollapsed) _layersCollapsed.clear();
+  else groups.forEach(b=>_layersCollapsed.add(b.id));
+  renderLayersPanel();
 }
 
 /**
@@ -7195,12 +7476,10 @@ function updateMiniToolbar() {
   if (!tb) return;
   const b = state.blocks.find(b => b.id === state.selectedBlockId);
   if (!b) { tb.classList.remove('mtt-visible'); return; }
-  // Parent chrome gating: when a block has children and its chrome is not
-  // revealed via a child's eye toggle, keep the parent mini-toolbar hidden
-  // too (unless the block is being edited).
-  if (b.subElements?.length > 0
-      && state.parentChromeShownFor !== b.id
-      && state.editingBlockId !== b.id) {
+  // Organizational-parent model: a block WITH children renders no canvas chrome,
+  // so its mini-toolbar stays hidden too (group actions live in the Layers panel).
+  // Exception: while the block is being edited (sub-element drop mode).
+  if (b.subElements?.length > 0 && state.editingBlockId !== b.id) {
     tb.classList.remove('mtt-visible');
     return;
   }
