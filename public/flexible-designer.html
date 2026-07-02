@@ -7442,6 +7442,14 @@ window.addEventListener('message', function(e) {
           };
         })
       }), false);
+      // ===== TEMP DEBUG: dump loaded positions on-screen (remove after diagnosis) =====
+      try {
+        var __d = document.getElementById('__posdbg') || (function(){var d=document.createElement('div');d.id='__posdbg';d.style.cssText='position:fixed;left:6px;bottom:6px;z-index:2147483647;background:rgba(0,0,0,.9);color:#0f0;font:11px/1.4 monospace;padding:8px 10px;max-width:60vw;max-height:48vh;overflow:auto;white-space:pre;border:1px solid #0f0;border-radius:4px;';document.body.appendChild(d);return d;})();
+        __d.textContent = 'LOAD DEBUG  positionMode='+state.positionMode+'  layoutType='+state.layoutType+'\n'+
+          (state.blocks||[]).map(function(b){return 'BLOCK '+b.id+' ('+b.type+')  x='+b.x+' y='+b.y+' w='+b.w+' gRow='+b.gridRow+' gCol='+b.gridCol+' manualSize='+b.manualSize+'\n'+
+            (b.subElements||[]).map(function(s){return '   • '+s.type+'  x='+s.x+' y='+s.y+' w='+s.w+'  "'+String((s.props&&s.props.text)||'').slice(0,14)+'"';}).join('\n');}).join('\n');
+      } catch(_e){}
+      // ===== END TEMP DEBUG =====
       // Cache desktop canvas width for responsive auto-scaling
       state._desktopCanvasW = layout.designerCanvasW || null;
       // Restore section header/footer fields
