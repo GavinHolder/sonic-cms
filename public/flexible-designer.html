@@ -3268,18 +3268,20 @@ function startSubElementWidthResize(e, blockId, seId) {
     // Constrain to the parent's inner content width so the child resizes WITHIN
     // the parent rather than driving the parent wider (which made it hug/overshoot
     // the parent's right edge). Snap first, THEN clamp — for consistent snapping.
-    const parentW = block.w || (document.querySelector(`.container-block[data-block-id="${blockId}"]`)?.offsetWidth) || 0;
-    const innerW  = Math.max(120, parentW - CONTENT_PAD * 2);
-    const maxW    = Math.max(60, innerW - (se.x || 0) - RIGHT_PAD);
-    // Minimum width of 60px prevents the element from becoming unclickable
+    // Organizational-parent model: children size FREELY — no clamp to the parent's
+    // inner width (that was the old "can't widen past a point" limit). Cap only at a
+    // sane hard maximum so a runaway drag can't explode the layout; the (invisible)
+    // parent grows to contain the wider child.
+    const HARD_MAX = 4000;
     let newW = Math.max(60, Math.round(origW + (ev.clientX - startMX) / getCanvasScale()));
     if (state.subElementSnap) { const sg = 8; newW = Math.round(newW / sg) * sg; }
-    if (newW > maxW) newW = maxW;   // never exceed / hug the parent
+    if (newW > HARD_MAX) newW = HARD_MAX;
     if (newW < 60)   newW = 60;
     se.w = newW;
+    block.manualSize = true;
     seEl.style.width = newW + 'px';
-    // lockWidth=true → grow height to fit content but keep the parent's width stable
-    fitBlockToSubElementsDOM(blockId, false, true);
+    // Let the parent grow to contain the child (no lockWidth) so wide children fit.
+    fitBlockToSubElementsDOM(blockId, false, false);
   };
 
   const onUp = () => {
@@ -3309,6 +3311,7 @@ function liveSubPos(bId, sId, key, val) {
   const b = state.blocks.find(b => b.id === bId);
   const s = b?.subElements.find(s => s.id === sId);
   if (!s) return;
+  if (b) b.manualSize = true;   // slider positioning = a manual layout; preserve on reload
   const n = Number(val);
   s[key] = n;
   const seEl = document.querySelector(`.sub-element[data-sub-id="${sId}"]`);
@@ -3341,6 +3344,7 @@ function updateSubPos(bId, sId, key, val) {
   const b = state.blocks.find(b => b.id === bId);
   const s = b?.subElements.find(s => s.id === sId);
   if (!s) return;
+  if (b) b.manualSize = true;   // slider positioning = a manual layout; preserve on reload
   s[key] = val === '' || val === null ? null : Number(val);
   fitBlockToSubElements(bId);
   autoSave();
@@ -3424,6 +3428,27 @@ function fitBlockToSubElements(blockId) {
  * the canvas reflects the new size without a full re-render.
  * @param {string} blockId - ID of the block to resize.
  */
+// True if any two sub-elements' rectangles overlap (>2px on both axes). Used to
+// decide whether the on-load restack should run: only messy/overlapping layouts
+// get re-stacked; clean authored layouts are preserved exactly as saved.
+function _subElementsOverlap(block) {
+  if (!block.subElements || block.subElements.length < 2) return false;
+  const rects = block.subElements.map(se => {
+    const w = (se.w != null && se.w !== undefined) ? se.w : (se._measuredW || ((block.w || 216) - 16) || 200);
+    const h = se._measuredH || estimateSubElementHeight(se.type);
+    return { x: se.x || 0, y: se.y || 0, w, h };
+  });
+  for (let i = 0; i < rects.length; i++) {
+    for (let j = i + 1; j < rects.length; j++) {
+      const a = rects[i], b = rects[j];
+      const ox = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+      const oy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+      if (ox > 2 && oy > 2) return true;
+    }
+  }
+  return false;
+}
+
 function fitBlockToSubElementsDOM(blockId, restack, lockWidth) {
   // DOM-aware: reads actual rendered sizes; always grows AND shrinks, both axes
   // lockWidth=true: fit height only, leave block.w untouched (used during child
@@ -3435,15 +3460,18 @@ function fitBlockToSubElementsDOM(blockId, restack, lockWidth) {
   // at the bottom of cb-content are never clipped behind it.
   const HEADER_H = 26;
 
-  // Measure all actual rendered heights first
+  // Measure all actual rendered sizes first
   block.subElements.forEach(se => {
     const domEl = document.querySelector(`.sub-element[data-sub-id="${se.id}"]`);
-    if (domEl) se._measuredH = domEl.offsetHeight;
+    if (domEl) { se._measuredH = domEl.offsetHeight; se._measuredW = domEl.offsetWidth; }
   });
 
-  // Restack vertically when called after initial render (not during drag)
-  // Only restacks blocks that were never manually resized/repositioned
-  if (restack && !block.manualSize) {
+  // Restack vertically when called after initial render (not during drag).
+  // Gate: only restack blocks never manually laid out AND whose children actually
+  // OVERLAP. A clean, non-overlapping authored layout is left EXACTLY as saved —
+  // this is what stops "children re-stack/re-center on reopen" when the manualSize
+  // flag was dropped across the save → DB → reload round-trip.
+  if (restack && !block.manualSize && _subElementsOverlap(block)) {
     const startY = block.type === 'text-block' ? (block.props?.paddingTop ?? 16) : 8;
     let nextY = startY;
     block.subElements.forEach(se => {
@@ -5239,8 +5267,8 @@ function renderSubElementProps(block, se) {
     </div>
     <div class="xyslider-row">
       <label>W</label>
-      <input type="range" min="40" max="${contW}" value="${seW||contW}" oninput="liveSubPos('${block.id}','${se.id}','w',+this.value)" onchange="updateSubPos('${block.id}','${se.id}','w',+this.value)">
-      <input type="number" id="sub-w-num-${se.id}" value="${seW}" min="40" max="${contW}" placeholder="auto" onchange="updateSubPos('${block.id}','${se.id}','w',this.value===''?null:+this.value)" style="width:52px;">
+      <input type="range" min="40" max="2000" value="${seW||contW}" oninput="liveSubPos('${block.id}','${se.id}','w',+this.value)" onchange="updateSubPos('${block.id}','${se.id}','w',+this.value)">
+      <input type="number" id="sub-w-num-${se.id}" value="${seW}" min="40" max="4000" placeholder="auto" onchange="updateSubPos('${block.id}','${se.id}','w',this.value===''?null:+this.value)" style="width:52px;">
     </div>
     <button class="action-btn" style="margin-top:6px;font-size:10px;" onclick="resetSubElementPos('${block.id}','${se.id}')"><i class="bi bi-layout-text-window"></i> Re-stack All</button>
   </div>`;
