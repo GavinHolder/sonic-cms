@@ -88,9 +88,10 @@ function renderRowInner(row: HeadingRow, shadow: TextShadowConfig | undefined) {
     //                sizing span is switched to the same font so the box matches the
     //                rendered outline and the word stays aligned on the row.
     const outlineStyle = w.outlineStyle ?? "standard";
-    const isClean = outlineStyle === "clean";
-    const strokeW = outlineStyle === "thin" ? 1.25 : (w.outlineWidth ?? 2);
-    const outlineFontFamily = isClean ? "'Inter', sans-serif" : "inherit";
+    // Outline thickness = feMorphology erode radius (below). Every style is now
+    // artifact-free for ANY font, so no font switching (Inter) is needed.
+    const radius = outlineStyle === "thin" ? 1.25 : (w.outlineWidth ?? 2);
+    const fid = `hero-outline-erode-r${String(radius).replace(".", "p")}`;
     return (
       <Fragment key={wi}>
         <span
@@ -110,12 +111,15 @@ function renderRowInner(row: HeadingRow, shadow: TextShadowConfig | undefined) {
               color: "transparent",
               WebkitTextFillColor: "transparent",
               textShadow: "none",
-              fontFamily: isClean ? "'Inter', sans-serif" : undefined,
             }}
           >
             {w.text}
           </span>
-          {/* Outline layer: SVG stroke, hollow center (fill=none) */}
+          {/* Outline layer: filled glyph MINUS an eroded copy (feMorphology erode +
+              feComposite out) = a constant-width hollow band that follows the glyph.
+              Unlike a centered stroke it can NEVER blob at self-approaching junctions
+              (R leg/bowl, W inner Vs, B bowls), and it works for ANY font — the word
+              keeps its own font. Outline color = fill; thickness = erode radius. */}
           <svg
             aria-hidden="true"
             style={{
@@ -128,20 +132,23 @@ function renderRowInner(row: HeadingRow, shadow: TextShadowConfig | undefined) {
               pointerEvents: "none",
             }}
           >
+            <defs>
+              <filter id={fid} x="-25%" y="-25%" width="150%" height="150%">
+                <feMorphology in="SourceAlpha" operator="erode" radius={radius} result="eroded" />
+                <feComposite in="SourceGraphic" in2="eroded" operator="out" />
+              </filter>
+            </defs>
             <text
               x="50%"
               y="50%"
               textAnchor="middle"
               dominantBaseline="central"
-              fill="none"
-              stroke={w.outlineColor || row.color}
-              strokeWidth={strokeW}
-              strokeLinejoin="round"
-              paintOrder="stroke"
+              fill={w.outlineColor || row.color}
+              filter={`url(#${fid})`}
               style={{
                 fontSize: "inherit",
-                fontWeight: isClean ? 700 : "inherit",
-                fontFamily: outlineFontFamily,
+                fontWeight: "inherit",
+                fontFamily: "inherit",
                 letterSpacing: "inherit",
               }}
             >
