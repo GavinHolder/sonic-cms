@@ -640,6 +640,23 @@
     .layer-row.layer-hidden .layer-name,
     .layer-row.layer-hidden .layer-icon { opacity: 0.45; }
     .layers-empty { padding: 16px; color: #adb5bd; font-size: 12px; text-align: center; }
+    /* Parent/group rows must read clearly as the container that owns its children:
+       bold, a distinct "collection" icon, and a child-count badge. */
+    .layer-row.layer-group { font-weight: 700; color: #1c2833; }
+    .layer-row.layer-group > .layer-icon { color: #0d6efd; }
+    .layer-group-count {
+      flex: 0 0 auto; min-width: 16px; height: 16px; padding: 0 5px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: #e7f1ff; color: #0d6efd; border-radius: 8px;
+      font-size: 10px; font-weight: 700;
+    }
+    .layer-row.selected .layer-group-count { background: #d0e5ff; }
+    /* Nesting guide line so children read as belonging to the parent above. */
+    .layer-row.layer-child { position: relative; }
+    .layer-row.layer-child::before {
+      content: ''; position: absolute; left: 11px; top: 0; bottom: 0;
+      border-left: 1px solid #dee2e6;
+    }
 
     /* Sub-element previews */
     .se-heading    { font-weight: 700; color: #212529; word-wrap: break-word; overflow-wrap: break-word; }
@@ -2519,19 +2536,22 @@ function createBlockElement(block) {
   // Use device-specific display position (auto-scaled for tablet/mobile)
   const _dp = getDisplayPos(block);
   el.style.cssText = `left:${_dp.x}px;top:${_dp.y}px;width:${_dp.w}px;height:${_dp.h}px;z-index:${block.zIndex||1};background:${_bg};${_glass !== 'none' ? 'backdrop-filter:blur(12px);' : ''}`;
-  // Apply selection / editing visual states
-  if (block.id === state.selectedBlockId) el.classList.add('selected');
-  if (block.id === state.editingBlockId)  { el.classList.add('editing','selected'); }
+  // Apply selection / editing visual states.
   const _hasChildren = block.subElements?.length > 0;
-  if (_hasChildren) el.classList.add('has-sub');
-  // Layer visibility toggle (from Layers panel)
-  if (block.hidden) el.style.display = 'none';
   // Organizational-parent model: a block WITH children renders no canvas box or
   // chrome — only its free-positioned children show; the parent is managed from
   // the Layers panel. Exception: while it is being edited (sub-element library
   // drop mode) the box stays visible so drops have a target.
   const _isGroupParent = _hasChildren && state.editingBlockId !== block.id;
+  // A group-parent must NOT show its dashed bounding box when one of its CHILDREN
+  // is selected — that clutters the canvas. Only show the parent selection outline
+  // when the group itself is selected (no child selected).
+  if (block.id === state.selectedBlockId && !(_isGroupParent && state.selectedSubId)) el.classList.add('selected');
+  if (block.id === state.editingBlockId)  { el.classList.add('editing','selected'); }
+  if (_hasChildren) el.classList.add('has-sub');
   if (_isGroupParent) el.classList.add('group-parent');
+  // Layer visibility toggle (from Layers panel)
+  if (block.hidden) el.style.display = 'none';
   // Responsive behavior visual states
   const _device = state.devicePreview;
   const _behavior = _device === 'mobile' ? (block.mobileBehavior||'auto') : _device === 'tablet' ? (block.tabletBehavior||'auto') : 'auto';
@@ -4309,8 +4329,9 @@ function _lyGroupRowHtml(block){
   const label = block.props?.label || block.type;
   return `<div class="layer-row layer-group${sel}${hid}" draggable="true" data-layer-row data-kind="block" data-block-id="${_lyEsc(block.id)}">
     <span class="layer-caret${collapsed?' collapsed':''}" data-caret>&#9662;</span>
-    <i class="layer-icon bi ${getBlockIcon(block.type)}"></i>
+    <i class="layer-icon bi bi-collection" title="Parent group — ${block.subElements.length} element(s)"></i>
     <span class="layer-name" data-name>${_lyEsc(label)}</span>
+    <span class="layer-group-count" title="${block.subElements.length} child element(s)">${block.subElements.length}</span>
     <span class="layer-actions">
       <button class="layer-act" data-act="hide" title="Show / hide"><i class="bi ${block.hidden?'bi-eye-slash':'bi-eye'}"></i></button>
       <button class="layer-act" data-act="rename" title="Rename group"><i class="bi bi-pencil"></i></button>
