@@ -1398,6 +1398,28 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
             // Pick the responsive position set and reference canvas width for this block
             const pos = pickPos(block, screenW);
             const refW = canvasRefW(block, cw, screenW);
+            const subs = (block.subElements || []) as SubEl[];
+            const isContainer = block.type === "text" || block.type === "text-block" || block.type === "card";
+            // FREE-FORM children (organizational-parent model): the designer places each
+            // child absolutely and a child may sit OUTSIDE its block (the block itself is
+            // an invisible group). Render each child at block-origin + child-offset, as %
+            // of the design canvas, so the live output matches the canvas 1:1.
+            // (Previously the renderer flex-stacked children and ignored their x/y — that
+            // was why free-form layouts never matched the designer on the live site.)
+            if (isContainer && subs.length > 0) {
+              return subs.map((sub, si) => (
+                <div key={String(block.id) + "-" + si} style={{
+                  position: "absolute",
+                  left: pct((pos.x || 0) + (sub.x || 0), refW),
+                  top:  pct((pos.y || 0) + (sub.y || 0), ch),
+                  width: sub.w != null ? pct(sub.w, refW) : "auto",
+                }}>
+                  <DesignerSubElement sub={sub} />
+                </div>
+              ));
+            }
+            // Non-container block (hero, image, packages, etc.): render the whole block
+            // at its position, clipped to its box.
             return (
               <div key={block.id} style={{
                 position: "absolute",
