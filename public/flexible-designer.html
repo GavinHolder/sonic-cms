@@ -3926,8 +3926,8 @@ function onCanvasDrop(e) {
     }
     if (bType === 'banner') {
       block.subElements = [
-        { id:`se-${state.nextId++}`, type:'heading',   props:{...SUB_DEFAULTS.heading,   text:'Banner Heading', fontSize:28, textAlign:'center', color:'#ffffff'}, x:0, y:8,   w:null },
-        { id:`se-${state.nextId++}`, type:'paragraph', props:{...SUB_DEFAULTS.paragraph, text:'Supporting message text', textAlign:'center', color:'#ffffff'},      x:0, y:58,  w:null },
+        { id:`se-${state.nextId++}`, type:'heading',   props:{...SUB_DEFAULTS.heading,   text:'Banner Heading', fontSize:28, textAlign:'center', color:'#212529'}, x:0, y:8,   w:null },
+        { id:`se-${state.nextId++}`, type:'paragraph', props:{...SUB_DEFAULTS.paragraph, text:'Supporting message text', textAlign:'center', color:'#212529'},      x:0, y:58,  w:null },
         { id:`se-${state.nextId++}`, type:'button',    props:{...SUB_DEFAULTS.button,    text:'Learn More'},                                                        x:0, y:108, w:null }
       ];
     }
