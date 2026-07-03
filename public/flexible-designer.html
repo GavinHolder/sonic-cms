@@ -3737,9 +3737,17 @@ function showSubAddMenu(blockId, anchorEl) {
     if (left < 8) left = 8;
   }
   top = rect.top;
-  if (top + _menuEstH > window.innerHeight) top = Math.max(8, window.innerHeight - _menuEstH - 8);
+  if (top < 8) top = 8;
+  // Shift up if the menu would spill past the viewport bottom, but never above
+  // the top gutter — any remaining overflow is absorbed by internal scrolling.
+  if (top + _menuEstH > window.innerHeight - 8) top = Math.max(8, window.innerHeight - _menuEstH - 8);
   menu.style.left = left + 'px';
   menu.style.top  = top  + 'px';
+  // Cap height to the space left below `top` (or 70vh, whichever is smaller) and
+  // enable scroll so the preset/element list can never overflow off-screen (#66).
+  const _availH = Math.max(120, window.innerHeight - top - 8);
+  menu.style.maxHeight = 'min(70vh, ' + _availH + 'px)';
+  menu.style.overflowY = 'auto';
 
   setTimeout(function() {
     document.addEventListener('click', function closeMenu(e) {
