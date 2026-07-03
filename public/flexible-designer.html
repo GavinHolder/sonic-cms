@@ -4319,6 +4319,7 @@ function selectSubElement(bId, sId) {
   }
   renderPropsPanel();
   renderLayersPanel();
+  updateMiniToolbar();   // keep the parent's add-child/dup/delete toolbar in sync (#41)
 }
 
 /**
@@ -7534,13 +7535,13 @@ function updateMiniToolbar() {
   if (!tb) return;
   const b = state.blocks.find(b => b.id === state.selectedBlockId);
   if (!b) { tb.classList.remove('mtt-visible'); return; }
-  // Organizational-parent model: a block WITH children renders no canvas chrome,
-  // so its mini-toolbar stays hidden too (group actions live in the Layers panel).
-  // Exception: while the block is being edited (sub-element drop mode).
-  if (b.subElements?.length > 0 && state.editingBlockId !== b.id) {
-    tb.classList.remove('mtt-visible');
-    return;
-  }
+  // Organizational-parent model: the parent renders no dashed box/chrome on the canvas,
+  // BUT the author still needs on-canvas add-child / duplicate / delete — so the
+  // mini-toolbar DOES show for parent blocks too, anchored to the children's bounding
+  // box. It's just a small side toolbar (not the old parent chrome), so no clutter
+  // returns. It appears whenever the block is selected — including when one of its
+  // children is selected (selectedBlockId is the parent) — making "add another child"
+  // one click away. (#41 restores this after #34 hid it.)
   const dp = getDisplayPos(b);
   const canvas = document.getElementById('canvas');
   const canvasW = canvas ? canvas.offsetWidth : 1440;
