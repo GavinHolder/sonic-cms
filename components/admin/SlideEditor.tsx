@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { HeroCarouselSlide, AnimationType, HeadingRow, HeadingWord, FreeformPos } from "@/types/section";
 import { defaultFreeformPos } from "@/types/section";
 import MediaUploader from "./MediaUploader";
@@ -53,9 +53,8 @@ export default function SlideEditor({
     const eyebrowText = slide.eyebrow || ov.eyebrow;
     if (eyebrowText && !ov.eyebrowHidden) {
       chips.push({
-        id: "eyebrow",
-        label: eyebrowText,
-        color: "#0891b2",
+        id: "eyebrow", kind: "eyebrow", text: eyebrowText,
+        color: ov.eyebrowColor || "#22c55e", fontSize: 15, fontWeight: 700,
         pos: ov.eyebrowPos ?? defaultFreeformPos("eyebrow"),
         onMove: (p) => updateOverlay({ eyebrowPos: p }),
       });
@@ -63,36 +62,32 @@ export default function SlideEditor({
     if (ov.headingRows && ov.headingRows.length > 0) {
       ov.headingRows.forEach((row, i) => {
         chips.push({
-          id: `row-${i}`,
-          label: row.text || `Row ${i + 1}`,
-          color: "#7c3aed",
+          id: `row-${i}`, kind: "heading", text: row.text, words: row.words,
+          fontSize: row.fontSize, fontWeight: row.fontWeight, fontFamily: row.fontFamily, color: row.color,
           pos: row.pos ?? defaultFreeformPos("heading", i),
           onMove: (p) => updateHeadingRow(i, { pos: p }),
         });
       });
     } else if (ov.heading?.text) {
       chips.push({
-        id: "heading",
-        label: ov.heading.text,
-        color: "#7c3aed",
+        id: "heading", kind: "heading", text: ov.heading.text,
+        fontSize: ov.heading.fontSize, fontWeight: ov.heading.fontWeight, fontFamily: ov.heading.fontFamily, color: ov.heading.color,
         pos: ov.headingPos ?? defaultFreeformPos("heading"),
         onMove: (p) => updateOverlay({ headingPos: p }),
       });
     }
     if (ov.subheading?.text) {
       chips.push({
-        id: "subheading",
-        label: "Subheading",
-        color: "#2563eb",
+        id: "subheading", kind: "subheading", text: ov.subheading.text,
+        fontSize: ov.subheading.fontSize, fontWeight: ov.subheading.fontWeight, fontFamily: ov.subheading.fontFamily, color: ov.subheading.color,
         pos: ov.subheadingPos ?? defaultFreeformPos("subheading"),
         onMove: (p) => updateOverlay({ subheadingPos: p }),
       });
     }
     (ov.buttons ?? []).forEach((b, i) => {
       chips.push({
-        id: `btn-${i}`,
-        label: `▸ ${b.text || "Button"}`,
-        color: "#16a34a",
+        id: `btn-${i}`, kind: "button", text: b.text || "Button",
+        btnBg: b.backgroundColor, btnColor: b.textColor, variant: b.variant,
         pos: b.pos ?? defaultFreeformPos("button", i),
         onMove: (p) => setButtonPos(i, p),
       });
@@ -2223,8 +2218,18 @@ export default function SlideEditor({
 // events + the box's bounding rect drive the math (no external deps).
 interface FreeformChip {
   id: string;
-  label: string;
-  color: string;
+  kind: "eyebrow" | "heading" | "subheading" | "button";
+  text: string;
+  /** Heading rows: per-word fill/outline styling (mirrors the live slide). */
+  words?: HeadingWord[];
+  fontSize?: number;      // px (design canvas)
+  fontWeight?: number;
+  fontFamily?: string;
+  color?: string;         // text / fill colour
+  // Button styling
+  btnBg?: string;
+  btnColor?: string;
+  variant?: "filled" | "outline" | "ghost";
   pos: FreeformPos;
   onMove: (p: FreeformPos) => void;
 }
@@ -2233,6 +2238,18 @@ function FreeformDragSurface({ chips, slide }: { chips: FreeformChip[]; slide: H
   const boxRef = useRef<HTMLDivElement>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const moveRef = useRef<((p: FreeformPos) => void) | null>(null);
+  // Scale factor = surface width / reference desktop slide width (1440), so the
+  // overlay text renders at the SAME relative size it has on the real slide.
+  const [scale, setScale] = useState(0.35);
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const measure = () => setScale((el.clientWidth || 500) / 1440);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const clampPct = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
 
@@ -2298,46 +2315,80 @@ function FreeformDragSurface({ chips, slide }: { chips: FreeformChip[]; slide: H
         <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: 16, color: "#e2e8f0", fontSize: 12, textShadow: "0 1px 3px rgba(0,0,0,0.8)" }}>
           No overlay elements to place yet — add a heading, subheading or button.
         </div>
-      ) : chips.map((chip) => (
-        <div
-          key={chip.id}
-          onPointerDown={(e) => {
-            e.preventDefault();
-            boxRef.current?.setPointerCapture?.(e.pointerId);
-            setDragId(chip.id);
-            moveRef.current = chip.onMove;
-          }}
-          title={`${chip.label} — ${chip.pos.x}%, ${chip.pos.y}%`}
-          style={{
-            position: "absolute",
-            left: `${chip.pos.x}%`,
-            top: `${chip.pos.y}%`,
-            transform: "translate(-50%, -50%)",
-            cursor: dragId === chip.id ? "grabbing" : "grab",
-            background: chip.color,
-            color: "#fff",
-            fontSize: 11,
-            fontWeight: 600,
-            lineHeight: 1.1,
-            padding: "4px 8px",
-            borderRadius: 6,
-            whiteSpace: "nowrap",
-            boxShadow: dragId === chip.id ? "0 0 0 2px #fff, 0 4px 10px rgba(0,0,0,0.5)" : "0 2px 6px rgba(0,0,0,0.4)",
-            maxWidth: "70%",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 1,
-          }}
-        >
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis", maxWidth: 140 }}>{chip.label}</span>
-          <span style={{ fontSize: 9, fontWeight: 500, opacity: 0.85 }}>
-            {chip.pos.x}, {chip.pos.y}
-          </span>
-        </div>
-      ))}
+      ) : chips.map((chip) => {
+        const selected = dragId === chip.id;
+        return (
+          <div
+            key={chip.id}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              boxRef.current?.setPointerCapture?.(e.pointerId);
+              setDragId(chip.id);
+              moveRef.current = chip.onMove;
+            }}
+            title={`${chip.kind} — ${chip.pos.x}%, ${chip.pos.y}%`}
+            style={{
+              position: "absolute",
+              left: `${chip.pos.x}%`,
+              top: `${chip.pos.y}%`,
+              transform: "translate(-50%, -50%)",
+              cursor: selected ? "grabbing" : "grab",
+              whiteSpace: chip.kind === "subheading" ? "normal" : "nowrap",
+              maxWidth: chip.kind === "subheading" ? "45%" : "92%",
+              textAlign: "center",
+              outline: selected ? "1.5px solid #38bdf8" : "1px dashed rgba(255,255,255,0.35)",
+              outlineOffset: 2,
+              borderRadius: 3,
+              textShadow: "0 1px 3px rgba(0,0,0,0.55)",
+            }}
+          >
+            {renderFreeformChip(chip, scale)}
+          </div>
+        );
+      })}
     </div>
+  );
+}
+
+/**
+ * Render a freeform overlay element as the ACTUAL styled text (1:1 with the slide),
+ * scaled to the drag surface. `scale` = surface width / 1440 (reference slide width).
+ * Headings honor per-word fill/outline; buttons/eyebrow/subheading use their real styles.
+ */
+function renderFreeformChip(chip: FreeformChip, scale: number) {
+  const px = (n: number, cap = Infinity) => `${Math.max(1, Math.min(n, cap) * scale)}px`;
+  if (chip.kind === "heading") {
+    const words = chip.words;
+    return (
+      <div style={{ fontFamily: chip.fontFamily || "inherit", fontWeight: chip.fontWeight || 800, fontSize: px(chip.fontSize || 60, 108), lineHeight: 1.02, color: chip.color || "#fff" }}>
+        {words && words.length > 0
+          ? words.map((w, wi) => {
+              const sp = wi < words.length - 1 ? " " : "";
+              return w.outlined ? (
+                <span key={wi} style={{ color: "transparent", WebkitTextStroke: `${Math.max(0.5, (w.outlineWidth ?? 2) * scale)}px ${w.outlineColor || chip.color || "#fff"}` }}>{w.text}{sp}</span>
+              ) : (
+                <span key={wi} style={{ color: w.color || chip.color || "#fff" }}>{w.text}{sp}</span>
+              );
+            })
+          : chip.text}
+      </div>
+    );
+  }
+  if (chip.kind === "eyebrow") {
+    return <div style={{ fontSize: px(chip.fontSize || 15), fontWeight: chip.fontWeight || 700, letterSpacing: `${1.5 * scale}px`, textTransform: "uppercase", color: chip.color || "#22c55e" }}>{chip.text}</div>;
+  }
+  if (chip.kind === "subheading") {
+    return <div style={{ fontFamily: chip.fontFamily || "inherit", fontSize: px(chip.fontSize || 22, 52), fontWeight: chip.fontWeight || 400, lineHeight: 1.25, color: chip.color || "#fff" }}>{chip.text}</div>;
+  }
+  // button
+  const filled = chip.variant !== "ghost" && chip.variant !== "outline";
+  return (
+    <div style={{
+      display: "inline-block",
+      fontSize: px(15), fontWeight: 600, padding: `${6 * scale}px ${16 * scale}px`, borderRadius: `${6 * scale}px`,
+      background: filled ? (chip.btnBg || "#0d6efd") : "transparent",
+      color: filled ? (chip.btnColor || "#fff") : (chip.btnBg || "#fff"),
+      border: chip.variant === "outline" ? `${Math.max(1, 2 * scale)}px solid ${chip.btnBg || "#fff"}` : "none",
+    }}>{chip.text}</div>
   );
 }
