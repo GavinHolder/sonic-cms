@@ -1254,6 +1254,18 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
     window.addEventListener("resize", onResize, { passive: true });
     return () => window.removeEventListener("resize", onResize);
   }, []);
+  // Measured width of the free-mode stage container — drives the 1:1 scale factor so the
+  // live section is a pixel-exact scaled copy of the designer canvas (see free-mode branch).
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [stageW, setStageW] = useState(0);
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => setStageW(el.clientWidth));
+    ro.observe(el);
+    setStageW(el.clientWidth);
+    return () => ro.disconnect();
+  }, []);
 
   // ── Coverage-plugin package binding ───────────────────────────────────────
   // Collect every package referenced by a bound card, fetch them once, and expose
@@ -1380,60 +1392,63 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
       );
     }
 
-    // ── Free / absolute positioning mode ──────────────────────────────────
+    // ── Free / absolute positioning mode — 1:1 SCALED STAGE ────────────────
+    // The designer canvas is a fixed cw×ch px stage with px fonts. To render EXACTLY like
+    // the designer at any viewport, we reproduce that stage in absolute PX (children exactly
+    // as designed) and scale the WHOLE stage by (containerWidth / cw). The live section is
+    // then a pixel-exact scaled photograph of the canvas — identical wrapping, sizes and
+    // positions at every width. (Percent-positions + px-fonts could never be 1:1; that drift
+    // was the recurring "designer ≠ live" bug.)
     if (isFreeMode) {
-      // cw/ch are the canvas dimensions recorded by the designer at save time
-      const cw = data.designerCanvasW || 1200;
-      const ch = data.designerCanvasH || 800;
-
+      const cw = data.designerCanvasW || 1440;
+      const ch = data.designerCanvasH || 900;
+      const scale = (stageW || screenW || cw) / cw;
       return (
-        <div style={{
+        <div ref={stageRef} style={{
           position: "relative",
           width: "100%",
-          height: containerH,
-          minHeight: containerH,
+          height: Math.round(ch * scale),
           overflow: "hidden",
         }}>
-          {filteredBlocks.map((block) => {
-            // Pick the responsive position set and reference canvas width for this block
-            const pos = pickPos(block, screenW);
-            const refW = canvasRefW(block, cw, screenW);
-            const subs = (block.subElements || []) as SubEl[];
-            const isContainer = block.type === "text" || block.type === "text-block" || block.type === "card";
-            // FREE-FORM children (organizational-parent model): the designer places each
-            // child absolutely and a child may sit OUTSIDE its block (the block itself is
-            // an invisible group). Render each child at block-origin + child-offset, as %
-            // of the design canvas, so the live output matches the canvas 1:1.
-            // (Previously the renderer flex-stacked children and ignored their x/y — that
-            // was why free-form layouts never matched the designer on the live site.)
-            if (isContainer && subs.length > 0) {
-              return subs.map((sub, si) => (
-                <div key={String(block.id) + "-" + si} style={{
+          <div style={{
+            position: "absolute", top: 0, left: 0,
+            width: cw, height: ch,
+            transform: `scale(${scale})`,
+            transformOrigin: "top left",
+          }}>
+            {filteredBlocks.map((block) => {
+              // Always the DESKTOP design layout — the whole stage scales, so there is no
+              // per-breakpoint reflow by default (exact 1:1). Per-breakpoint mobile layouts
+              // are a future opt-in.
+              const pos = block.pixelPos || { x: 0, y: 0, w: 300, h: 180 };
+              const subs = (block.subElements || []) as SubEl[];
+              const isContainer = block.type === "text" || block.type === "text-block" || block.type === "card";
+              if (isContainer && subs.length > 0) {
+                // Free-form children in ABSOLUTE design px (block origin + child offset).
+                return subs.map((sub, si) => (
+                  <div key={String(block.id) + "-" + si} style={{
+                    position: "absolute",
+                    left: (pos.x || 0) + (sub.x || 0),
+                    top:  (pos.y || 0) + (sub.y || 0),
+                    width: sub.w != null ? sub.w : "auto",
+                    height: sub.h != null ? sub.h : undefined,
+                  }}>
+                    <DesignerSubElement sub={sub} />
+                  </div>
+                ));
+              }
+              // Non-container block (hero, image, packages, etc.): whole block at its design px box.
+              return (
+                <div key={block.id} style={{
                   position: "absolute",
-                  left: pct((pos.x || 0) + (sub.x || 0), refW),
-                  top:  pct((pos.y || 0) + (sub.y || 0), ch),
-                  width: sub.w != null ? pct(sub.w, refW) : "auto",
-                  height: sub.h != null ? pct(sub.h, ch) : undefined,
+                  left: pos.x, top: pos.y, width: pos.w, height: pos.h,
+                  overflow: "hidden",
                 }}>
-                  <DesignerSubElement sub={sub} />
+                  <DesignerBlock block={block} darkBg={darkBg} />
                 </div>
-              ));
-            }
-            // Non-container block (hero, image, packages, etc.): render the whole block
-            // at its position, clipped to its box.
-            return (
-              <div key={block.id} style={{
-                position: "absolute",
-                left:   pct(pos.x, refW),
-                top:    pct(pos.y, ch),
-                width:  pct(pos.w, refW),
-                height: pct(pos.h, ch),
-                overflow: "hidden",
-              }}>
-                <DesignerBlock block={block} darkBg={darkBg} />
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       );
     }
