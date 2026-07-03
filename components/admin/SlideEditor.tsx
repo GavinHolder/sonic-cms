@@ -2238,17 +2238,28 @@ function FreeformDragSurface({ chips, slide }: { chips: FreeformChip[]; slide: H
   const boxRef = useRef<HTMLDivElement>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const moveRef = useRef<((p: FreeformPos) => void) | null>(null);
-  // Scale factor = surface width / reference desktop slide width (1440), so the
-  // overlay text renders at the SAME relative size it has on the real slide.
+  // The live hero is 100vw × 100vh, so its background crop AND its font sizes depend
+  // on the actual viewport. To be truly 1:1 we (a) match the surface aspect ratio to
+  // the viewport (same media crop → text lands on the same visual spot), and (b) scale
+  // text by surfaceWidth / viewport width (same relative size + honoring the 7vw clamp).
   const [scale, setScale] = useState(0.35);
+  const [aspect, setAspect] = useState("16 / 9");
+  const [vpW, setVpW] = useState(1440);
   useEffect(() => {
-    const el = boxRef.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const measure = () => setScale((el.clientWidth || 500) / 1440);
+    const measure = () => {
+      const w = window.innerWidth || 1440;
+      const h = window.innerHeight || 900;
+      setVpW(w);
+      setAspect(`${w} / ${h}`);
+      const el = boxRef.current;
+      if (el) setScale((el.clientWidth || 500) / w);
+    };
     measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
+    const el = boxRef.current;
+    const ro = el && typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    if (ro && el) ro.observe(el);
+    window.addEventListener("resize", measure);
+    return () => { ro?.disconnect(); window.removeEventListener("resize", measure); };
   }, []);
 
   const clampPct = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
@@ -2281,7 +2292,7 @@ function FreeformDragSurface({ chips, slide }: { chips: FreeformChip[]; slide: H
       style={{
         position: "relative",
         width: "100%",
-        aspectRatio: "16 / 9",
+        aspectRatio: aspect,
         borderRadius: 8,
         overflow: "hidden",
         background: "#0f172a",
@@ -2342,7 +2353,7 @@ function FreeformDragSurface({ chips, slide }: { chips: FreeformChip[]; slide: H
               textShadow: "0 1px 3px rgba(0,0,0,0.55)",
             }}
           >
-            {renderFreeformChip(chip, scale)}
+            {renderFreeformChip(chip, scale, vpW)}
           </div>
         );
       })}
@@ -2355,19 +2366,40 @@ function FreeformDragSurface({ chips, slide }: { chips: FreeformChip[]; slide: H
  * scaled to the drag surface. `scale` = surface width / 1440 (reference slide width).
  * Headings honor per-word fill/outline; buttons/eyebrow/subheading use their real styles.
  */
-function renderFreeformChip(chip: FreeformChip, scale: number) {
+function renderFreeformChip(chip: FreeformChip, scale: number, vpW: number) {
   const px = (n: number, cap = Infinity) => `${Math.max(1, Math.min(n, cap) * scale)}px`;
   if (chip.kind === "heading") {
     const words = chip.words;
+    // Heading effective size honors the slide's clamp(28px, 7vw, fontSize): the 7vw
+    // ceiling at the current viewport is 0.07 * vpW.
+    const cap = 0.07 * vpW;
     return (
-      <div style={{ fontFamily: chip.fontFamily || "inherit", fontWeight: chip.fontWeight || 800, fontSize: px(chip.fontSize || 60, 108), lineHeight: 1.02, color: chip.color || "#fff" }}>
+      <div style={{ fontFamily: chip.fontFamily || "inherit", fontWeight: chip.fontWeight || 800, fontSize: px(chip.fontSize || 60, cap), lineHeight: 1.02, color: chip.color || "#fff" }}>
         {words && words.length > 0
           ? words.map((w, wi) => {
               const sp = wi < words.length - 1 ? " " : "";
-              return w.outlined ? (
-                <span key={wi} style={{ color: "transparent", WebkitTextStroke: `${Math.max(0.5, (w.outlineWidth ?? 2) * scale)}px ${w.outlineColor || chip.color || "#fff"}` }}>{w.text}{sp}</span>
-              ) : (
-                <span key={wi} style={{ color: w.color || chip.color || "#fff" }}>{w.text}{sp}</span>
+              if (!w.outlined) {
+                return <span key={wi} style={{ color: w.color || chip.color || "#fff" }}>{w.text}{sp}</span>;
+              }
+              // Outlined word: clean hollow via feMorphology erode (same technique as the
+              // live hero — a centered text-stroke would blob at R/W/B junctions).
+              const oc = w.outlineColor || chip.color || "#fff";
+              const r = Math.max(0.4, (w.outlineWidth ?? 2) * scale);
+              const fid = `ff-erode-${chip.id}-${wi}`;
+              return (
+                <span key={wi} style={{ position: "relative", display: "inline-block", whiteSpace: "pre" }}>
+                  <span style={{ color: "transparent" }}>{w.text}{sp}</span>
+                  <svg aria-hidden style={{ position: "absolute", left: 0, top: 0, width: "100%", height: "100%", overflow: "visible", pointerEvents: "none" }}>
+                    <defs>
+                      <filter id={fid} x="-25%" y="-25%" width="150%" height="150%">
+                        <feMorphology in="SourceAlpha" operator="erode" radius={r} result="er" />
+                        <feComposite in="SourceGraphic" in2="er" operator="out" />
+                      </filter>
+                    </defs>
+                    <text x="50%" y="50%" textAnchor="middle" dominantBaseline="central" fill={oc} filter={`url(#${fid})`}
+                      style={{ fontSize: "inherit", fontWeight: "inherit", fontFamily: "inherit" }}>{w.text}</text>
+                  </svg>
+                </span>
               );
             })
           : chip.text}
