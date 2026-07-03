@@ -1737,6 +1737,7 @@ const BLOCK_DEFAULTS = {
 
 const SUB_DEFAULTS = {
   heading:   { level:'h2', text:'', color:'', fontSize:22, customCss:'' },
+  eyebrow:   { text:'EYEBROW', color:'#0d6efd', fontSize:13, letterSpacing:2, customCss:'' },
   paragraph: { text:'', color:'', fontSize:14, customCss:'' },
   image:     { src:'', alt:'', imageMode:'fill', customCss:'' },
   button:    { text:'Click Here', variant:'filled', bgColor:'#0d6efd', textColor:'#ffffff', navTarget:'', size:'md', icon:'', customCss:'' },
@@ -2966,11 +2967,15 @@ function createSubElementDOM(se, blockId) {
   switch(se.type) {
     case 'heading':
       if (p.fontFamily && p.fontFamily !== 'inherit') { const _m=p.fontFamily.match(/'([^']+)'/); if(_m) injectGoogleFont(_m[1]); }
-      preview.innerHTML = `<div class="se-heading ${p.level||'h2'}" style="color:${p.color||''};font-size:${p.fontSize||22}px;font-family:${p.fontFamily||'inherit'};font-weight:${p.fontWeight||'700'};text-align:${p.textAlign||'left'};white-space:${p.textWrap||'normal'};line-height:${p.lineHeight||1.2};letter-spacing:${p.letterSpacing||0}px;">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">' + (p.level||'h2').toUpperCase() + ' — double-click to edit</span>')}</div>`;
+      preview.innerHTML = `<div class="se-heading ${p.level||'h2'}" style="color:${p.color||''};font-size:${p.fontSize||22}px;font-family:${p.fontFamily||'inherit'};font-weight:${p.fontWeight||'700'};text-align:${p.textAlign||'left'};white-space:${p.textWrap||'normal'};line-height:${p.lineHeight||1.2};letter-spacing:${p.letterSpacing||0}px;text-transform:${p.textTransform||'none'};">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">' + (p.level||'h2').toUpperCase() + ' — double-click to edit</span>')}</div>`;
+      break;
+    case 'eyebrow':
+      if (p.fontFamily && p.fontFamily !== 'inherit') { const _m=p.fontFamily.match(/'([^']+)'/); if(_m) injectGoogleFont(_m[1]); }
+      preview.innerHTML = `<div class="se-eyebrow" style="color:${p.color||'#0d6efd'};font-size:${p.fontSize||13}px;font-family:${p.fontFamily||'inherit'};font-weight:${p.fontWeight||'700'};text-align:${p.textAlign||'left'};text-transform:${p.textTransform||'uppercase'};letter-spacing:${p.letterSpacing??2}px;line-height:${p.lineHeight||1.4};">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">EYEBROW — double-click to edit</span>')}</div>`;
       break;
     case 'paragraph':
       if (p.fontFamily && p.fontFamily !== 'inherit') { const _m=p.fontFamily.match(/'([^']+)'/); if(_m) injectGoogleFont(_m[1]); }
-      preview.innerHTML = `<div class="se-paragraph" style="color:${p.color||''};font-size:${p.fontSize||14}px;font-family:${p.fontFamily||'inherit'};text-align:${p.textAlign||'left'};white-space:${p.textWrap||'pre-wrap'};line-height:${p.lineHeight||1.6};letter-spacing:${p.letterSpacing||0}px;">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">Paragraph — double-click to edit</span>')} </div>`;
+      preview.innerHTML = `<div class="se-paragraph" style="color:${p.color||''};font-size:${p.fontSize||14}px;font-family:${p.fontFamily||'inherit'};text-align:${p.textAlign||'left'};white-space:${p.textWrap||'pre-wrap'};line-height:${p.lineHeight||1.6};letter-spacing:${p.letterSpacing||0}px;text-transform:${p.textTransform||'none'};">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">Paragraph — double-click to edit</span>')} </div>`;
       break;
     case 'image':
       preview.innerHTML = p.src
@@ -3141,7 +3146,7 @@ function startInlineTextEdit(blockId, seId, previewEl) {
  * @returns {number} Estimated height in pixels.
  */
 function estimateSubElementHeight(type) {
-  const heights = { heading: 42, paragraph: 52, button: 36, badge: 28, divider: 18, image: 70, icon: 56 };
+  const heights = { heading: 42, eyebrow: 26, paragraph: 52, button: 36, badge: 28, divider: 18, image: 70, icon: 56 };
   return heights[type] || 42;
 }
 
@@ -3682,10 +3687,12 @@ function showSubAddMenu(blockId, anchorEl) {
     { type:'heading',   icon:'bi-type-h4',   label:'H4 — Heading',        extra:{level:'h4', fontSize:18} },
     { type:'heading',   icon:'bi-type-h5',   label:'H5 — Small heading',  extra:{level:'h5', fontSize:15} },
     { type:'heading',   icon:'bi-type-h6',   label:'H6 — Label',          extra:{level:'h6', fontSize:13} },
+    { type:'eyebrow',   icon:'bi-fonts',     label:'Eyebrow — Small label', extra:{} },
     { type:'paragraph', icon:'bi-paragraph', label:'Paragraph — Body text', extra:{fontSize:16} },
     { type:'button',    icon:'bi-cursor',    label:'Button',              extra:{} },
   ] : [
     { type:'heading',   icon:'bi-type-h1',   label:'Heading'   },
+    { type:'eyebrow',   icon:'bi-fonts',     label:'Eyebrow'   },
     { type:'paragraph', icon:'bi-paragraph', label:'Paragraph' },
     { type:'button',    icon:'bi-cursor',    label:'Button'    },
     { type:'image',     icon:'bi-image',     label:'Image'     },
@@ -4358,7 +4365,7 @@ let _layersDrag = null;            // { kind:'block'|'sub', blockId, seId }
 function _lyEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function _lySeLabel(se){ const t = se.props?.text; return (t && typeof t === 'string' && t.trim()) ? t.trim().slice(0,32) : se.type; }
 function _lySeIcon(type){
-  const m = { heading:'bi-type-h1', paragraph:'bi-text-paragraph', button:'bi-hand-index-thumb',
+  const m = { heading:'bi-type-h1', eyebrow:'bi-fonts', paragraph:'bi-text-paragraph', button:'bi-hand-index-thumb',
     badge:'bi-award', image:'bi-image', icon:'bi-star', divider:'bi-dash-lg', spacer:'bi-arrows-expand', video:'bi-camera-video' };
   return m[type] || 'bi-square';
 }
@@ -5369,6 +5376,17 @@ function renderSubTypeProps(bId, se) {
       h+=selectRow('Text Wrap',p.textWrap||'pre-wrap',[['pre-wrap','Wrap (keep line breaks)'],['normal','Wrap (auto only)'],['nowrap','Single line']],`updateSubProp('${bId}','${se.id}','textWrap',this.value);renderCanvas()`);
       h+=`<div class="props-row"><label>Line Height</label><input class="props-input" type="range" min="1.0" max="3.0" step="0.1" value="${p.lineHeight||1.6}" oninput="updateSubProp('${bId}','${se.id}','lineHeight',parseFloat(this.value));renderCanvas();this.nextElementSibling.textContent=this.value"><span class="val">${p.lineHeight||1.6}</span></div>`;
       h+=`<div class="props-row"><label>Letter Spacing</label><input class="props-input" type="range" min="-3" max="15" step="0.5" value="${p.letterSpacing||0}" oninput="updateSubProp('${bId}','${se.id}','letterSpacing',parseFloat(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.letterSpacing||0}px</span></div>`;
+      h+=subAnimSection(bId,se.id,p);
+      break;
+    case 'eyebrow':
+      h+=`<div class="props-label"><i class="bi bi-fonts"></i> Eyebrow Text</div>`;
+      h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;margin-bottom:8px;"><input class="props-input" type="text" value="${escHtml(p.text||'')}" oninput="updateSubProp('${bId}','${se.id}','text',this.value);renderCanvas()" placeholder="Enter eyebrow label..."></div>`;
+      h+=colorRow('Color',p.color||'#0d6efd',`updateSubProp('${bId}','${se.id}','color',this.value);renderCanvas()`);
+      h+=`<div class="props-row"><label>Font Size</label><input class="props-input" type="range" min="9" max="28" value="${p.fontSize||13}" oninput="updateSubProp('${bId}','${se.id}','fontSize',parseInt(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.fontSize||13}px</span></div>`;
+      h+=fontFamilyRow('Font Family', p.fontFamily||'inherit', bId, se.id);
+      h+=selectRow('Align',p.textAlign||'left',[['left','Left'],['center','Center'],['right','Right']],`updateSubProp('${bId}','${se.id}','textAlign',this.value);renderCanvas()`);
+      h+=selectRow('Case',p.textTransform||'uppercase',[['uppercase','UPPERCASE'],['none','As typed'],['lowercase','lowercase'],['capitalize','Capitalize']],`updateSubProp('${bId}','${se.id}','textTransform',this.value);renderCanvas()`);
+      h+=`<div class="props-row"><label>Letter Spacing</label><input class="props-input" type="range" min="0" max="15" step="0.5" value="${p.letterSpacing??2}" oninput="updateSubProp('${bId}','${se.id}','letterSpacing',parseFloat(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.letterSpacing??2}px</span></div>`;
       h+=subAnimSection(bId,se.id,p);
       break;
     case 'image':
