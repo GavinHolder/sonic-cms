@@ -2958,6 +2958,7 @@ function createSubElementDOM(se, blockId) {
   el.style.left  = (se.x || 0) + 'px';
   el.style.top   = (se.y || 0) + 'px';
   el.style.width = se.w ? se.w + 'px' : 'calc(100% - 0px)';
+  if (se.h) el.style.height = se.h + 'px';   // explicit height (0/null = auto by content)
   if (se.hidden) el.style.display = 'none';  // Layers-panel visibility toggle
 
   const preview = document.createElement('div');
@@ -3319,6 +3320,7 @@ function liveSubPos(bId, sId, key, val) {
     if (key === 'x') seEl.style.left  = n + 'px';
     if (key === 'y') seEl.style.top   = n + 'px';
     if (key === 'w') seEl.style.width = n + 'px';
+    if (key === 'h') seEl.style.height = n ? n + 'px' : '';
   }
   const numEl = document.getElementById(`sub-${key}-num-${sId}`);
   if (numEl) numEl.value = n;
@@ -5272,6 +5274,11 @@ function renderSubElementProps(block, se) {
       <label>W</label>
       <input type="range" min="40" max="2000" value="${seW||contW}" oninput="liveSubPos('${block.id}','${se.id}','w',+this.value)" onchange="updateSubPos('${block.id}','${se.id}','w',+this.value)">
       <input type="number" id="sub-w-num-${se.id}" value="${seW}" min="40" max="4000" placeholder="auto" onchange="updateSubPos('${block.id}','${se.id}','w',this.value===''?null:+this.value)" style="width:52px;">
+    </div>
+    <div class="xyslider-row">
+      <label>H</label>
+      <input type="range" min="0" max="1200" value="${se.h||0}" oninput="liveSubPos('${block.id}','${se.id}','h',+this.value||null)" onchange="updateSubPos('${block.id}','${se.id}','h',+this.value||null)">
+      <input type="number" id="sub-h-num-${se.id}" value="${se.h?Math.round(se.h):''}" min="0" max="4000" placeholder="auto" onchange="updateSubPos('${block.id}','${se.id}','h',this.value===''?null:+this.value)" style="width:52px;">
     </div>
     <button class="action-btn" style="margin-top:6px;font-size:10px;" onclick="resetSubElementPos('${block.id}','${se.id}')"><i class="bi bi-layout-text-window"></i> Re-stack All</button>
   </div>`;

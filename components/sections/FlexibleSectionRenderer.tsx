@@ -1413,6 +1413,7 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
                   left: pct((pos.x || 0) + (sub.x || 0), refW),
                   top:  pct((pos.y || 0) + (sub.y || 0), ch),
                   width: sub.w != null ? pct(sub.w, refW) : "auto",
+                  height: sub.h != null ? pct(sub.h, ch) : undefined,
                 }}>
                   <DesignerSubElement sub={sub} />
                 </div>
@@ -1554,7 +1555,7 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
  * - Scroll-triggered entrance animation via IntersectionObserver
  * - Content delegation to renderInner() which switches on block.type
  */
-type SubEl = { type: string; props?: Record<string, unknown>; x?: number; y?: number; w?: number | null };
+type SubEl = { type: string; props?: Record<string, unknown>; x?: number; y?: number; w?: number | null; h?: number | null };
 
 /**
  * Groups sub-elements into columns by clustering their x positions.
