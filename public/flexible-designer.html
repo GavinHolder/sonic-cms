@@ -6279,6 +6279,31 @@ const DESIGNER_FONTS = [
   ["'Amatic SC', handwriting",'Amatic SC','handwriting'],
 ];
 
+// Alphabetized copy of DESIGNER_FONTS with 'System Default' (inherit) pinned FIRST.
+// Used by every font <select> so the list reads A→Z regardless of source grouping.
+const DESIGNER_FONTS_SORTED = (function(){
+  const first = DESIGNER_FONTS[0];                       // ['inherit','System Default','inherit']
+  const rest  = DESIGNER_FONTS.slice(1).slice().sort((a,b)=>a[1].localeCompare(b[1]));
+  return [first, ...rest];
+})();
+
+// Injects ONE combined Google Fonts stylesheet for every font in the list so each
+// <option> can be previewed in its own typeface. Guarded to run at most once.
+let _allDesignerFontsInjected = false;
+function injectAllDesignerFonts() {
+  if (_allDesignerFontsInjected) return;
+  _allDesignerFontsInjected = true;
+  const fams = DESIGNER_FONTS
+    .filter(f => f[0] !== 'inherit')
+    .map(f => 'family=' + encodeURIComponent(f[1]).replace(/%20/g,'+') + ':wght@400;700');
+  if (!fams.length) return;
+  const l = document.createElement('link');
+  l.id = 'gf-all-designer-fonts';
+  l.rel = 'stylesheet';
+  l.href = 'https://fonts.googleapis.com/css2?' + fams.join('&') + '&display=swap';
+  document.head.appendChild(l);
+}
+
 /**
  * Injects a Google Fonts stylesheet link for the given font family into the
  * document head. Guards against duplicate injection using a derived element ID.
@@ -6309,7 +6334,8 @@ function injectGoogleFont(family) {
  */
 function fontFamilyRow(label, currentVal, bId, sId) {
   const safeId = (bId + '-' + sId).replace(/[^a-zA-Z0-9-]/g,'_');
-  const opts = DESIGNER_FONTS.map(([v,l])=>`<option value="${v}" ${currentVal===v?'selected':''}>${l}</option>`).join('');
+  injectAllDesignerFonts();
+  const opts = DESIGNER_FONTS_SORTED.map(([v,l])=>`<option value="${v}" style="font-family:${v}" ${currentVal===v?'selected':''}>${l}</option>`).join('');
   return `<div class="props-row" style="flex-direction:column;align-items:stretch;gap:4px;">
     <label style="margin-bottom:2px;">${label}</label>
     <select id="ff-sel-${safeId}" class="props-select" onchange="onDesignerFontChange('${bId}','${sId}','${safeId}',this.value)">${opts}</select>
