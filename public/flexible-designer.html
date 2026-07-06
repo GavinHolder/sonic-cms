@@ -5393,6 +5393,7 @@ function renderSubTypeProps(bId, se) {
       h+=selectRow('Text Wrap',p.textWrap||'normal',[['normal','Wrap (default)'],['break-all','Break anywhere'],['nowrap','Single line']],`updateSubProp('${bId}','${se.id}','textWrap',this.value);renderCanvas()`);
       h+=`<div class="props-row"><label>Line Height</label><input class="props-input" type="range" min="0.8" max="2.5" step="0.1" value="${p.lineHeight||1.2}" oninput="updateSubProp('${bId}','${se.id}','lineHeight',parseFloat(this.value));renderCanvas();this.nextElementSibling.textContent=this.value"><span class="val">${p.lineHeight||1.2}</span></div>`;
       h+=`<div class="props-row"><label>Letter Spacing</label><input class="props-input" type="range" min="-3" max="15" step="0.5" value="${p.letterSpacing||0}" oninput="updateSubProp('${bId}','${se.id}','letterSpacing',parseFloat(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.letterSpacing||0}px</span></div>`;
+      h+=outlineRows(bId,se.id,p);
       h+=subAnimSection(bId,se.id,p);
       break;
     case 'paragraph':
@@ -5405,6 +5406,7 @@ function renderSubTypeProps(bId, se) {
       h+=selectRow('Text Wrap',p.textWrap||'pre-wrap',[['pre-wrap','Wrap (keep line breaks)'],['normal','Wrap (auto only)'],['nowrap','Single line']],`updateSubProp('${bId}','${se.id}','textWrap',this.value);renderCanvas()`);
       h+=`<div class="props-row"><label>Line Height</label><input class="props-input" type="range" min="1.0" max="3.0" step="0.1" value="${p.lineHeight||1.6}" oninput="updateSubProp('${bId}','${se.id}','lineHeight',parseFloat(this.value));renderCanvas();this.nextElementSibling.textContent=this.value"><span class="val">${p.lineHeight||1.6}</span></div>`;
       h+=`<div class="props-row"><label>Letter Spacing</label><input class="props-input" type="range" min="-3" max="15" step="0.5" value="${p.letterSpacing||0}" oninput="updateSubProp('${bId}','${se.id}','letterSpacing',parseFloat(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.letterSpacing||0}px</span></div>`;
+      h+=outlineRows(bId,se.id,p);
       h+=subAnimSection(bId,se.id,p);
       break;
     case 'eyebrow':
@@ -5416,6 +5418,7 @@ function renderSubTypeProps(bId, se) {
       h+=selectRow('Align',p.textAlign||'left',[['left','Left'],['center','Center'],['right','Right']],`updateSubProp('${bId}','${se.id}','textAlign',this.value);renderCanvas()`);
       h+=selectRow('Case',p.textTransform||'uppercase',[['uppercase','UPPERCASE'],['none','As typed'],['lowercase','lowercase'],['capitalize','Capitalize']],`updateSubProp('${bId}','${se.id}','textTransform',this.value);renderCanvas()`);
       h+=`<div class="props-row"><label>Letter Spacing</label><input class="props-input" type="range" min="0" max="15" step="0.5" value="${p.letterSpacing??2}" oninput="updateSubProp('${bId}','${se.id}','letterSpacing',parseFloat(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.letterSpacing??2}px</span></div>`;
+      h+=outlineRows(bId,se.id,p);
       h+=subAnimSection(bId,se.id,p);
       break;
     case 'image':
@@ -6114,6 +6117,28 @@ function inputRow(label,value,oninput,placeholder='') {
 function selectRow(label,value,options,onchange) {
   const opts=options.map(([v,l])=>`<option value="${v}" ${value===v?'selected':''}>${l}</option>`).join('');
   return `<div class="props-row"><label>${label}</label><select class="props-select" onchange="${onchange}">${opts}</select></div>`;
+}
+
+/**
+ * Builds the "Outline" controls for a TEXT sub-element (heading/paragraph/eyebrow):
+ * an on/off toggle, plus width + colour rows when enabled. (#81 — makes the
+ * outlined-text feature discoverable in the properties panel rather than only via
+ * the small floating format-toolbar icon.) Binds to the SAME props the toolbar +
+ * renderer already use — `outlined` (flag), `outlineWidth` (px), `outlineColor` —
+ * so both controls stay in sync and the renderer applies -webkit-text-stroke.
+ * @param {string} bId - Parent block id.
+ * @param {string} seId - Sub-element id.
+ * @param {Object} p - Sub-element props object.
+ * @returns {string} HTML string for the outline props rows.
+ */
+function outlineRows(bId, seId, p) {
+  const on = !!p.outlined;
+  let h = `<div class="props-row"><label>Outline</label><input type="checkbox" ${on?'checked':''} onchange="updateSubProp('${bId}','${seId}','outlined',this.checked);renderCanvas();renderPropsPanel()"></div>`;
+  if (on) {
+    h += `<div class="props-row"><label>Outline Width</label><input class="props-input" type="range" min="0.5" max="8" step="0.5" value="${p.outlineWidth||1}" oninput="updateSubProp('${bId}','${seId}','outlineWidth',parseFloat(this.value)||1);renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.outlineWidth||1}px</span></div>`;
+    h += colorRow('Outline Colour', p.outlineColor||'#000000', `updateSubProp('${bId}','${seId}','outlineColor',this.value);renderCanvas()`);
+  }
+  return h;
 }
 
 // ── Media upload picker ───────────────────────────────────────────────────────
@@ -7637,18 +7662,38 @@ function updateMiniToolbar() {
   const tbH = 92; // approx: 3×26px buttons + 1px sep + padding
   const tbW = 32;
   const canvasH = canvas ? canvas.offsetHeight : 900;
-  // Default: place the toolbar on the RIGHT of the block. Auto-flip to the LEFT
+  // Anchor rect (#80): when a child sub-element is selected, anchor the mini
+  // toolbar to that CHILD's box instead of the (often wide-open, invisible)
+  // organizational-parent block. Sub-elements store se.x/se.y relative to the
+  // block origin, so their LOGICAL canvas coords are dp.x+se.x / dp.y+se.y —
+  // the same pre-scale space getDisplayPos uses (the toolbar lives inside the
+  // transform-scaled canvas, so we must stay in logical px, not client rects).
+  // offsetWidth/offsetHeight are unscaled layout px, so they're safe for size.
+  let anchor = { x: dp.x, y: dp.y, w: dp.w, h: dp.h };
+  if (state.selectedSubId) {
+    const se = b.subElements && b.subElements.find(x => x.id === state.selectedSubId);
+    const subNode = document.querySelector(`.sub-element[data-sub-id="${state.selectedSubId}"]`);
+    if (se && subNode) {
+      anchor = {
+        x: dp.x + (se.x || 0),
+        y: dp.y + (se.y || 0),
+        w: subNode.offsetWidth || se.w || dp.w,
+        h: subNode.offsetHeight || se.h || 40,
+      };
+    }
+  }
+  // Default: place the toolbar on the RIGHT of the anchor. Auto-flip to the LEFT
   // when there isn't enough room before the canvas right edge (prevents overflow).
-  const preferRightX = dp.x + dp.w + MARGIN;
+  const preferRightX = anchor.x + anchor.w + MARGIN;
   let leftX;
   if (preferRightX + tbW <= canvasW - MARGIN) {
     leftX = preferRightX;                 // room on the right
   } else {
-    leftX = dp.x - tbW - MARGIN;          // flip to the left of the block
+    leftX = anchor.x - tbW - MARGIN;      // flip to the left of the anchor
     if (leftX < MARGIN) leftX = MARGIN;   // clamp inside canvas
   }
   // Align the toolbar TOP with the element's top; clamp so it stays on-canvas.
-  let topY = dp.y;
+  let topY = anchor.y;
   if (topY < 4) topY = 4;
   if (topY + tbH > canvasH - 4) topY = Math.max(4, canvasH - tbH - 4);
   tb.style.left = leftX + 'px';
