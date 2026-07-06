@@ -1152,6 +1152,18 @@
     .mtt-btn.mtt-add:hover { background:#d1e7dd;color:#0a3622; }
     .mtt-btn.mtt-danger:hover { background:#fff0f0;color:#dc3545; }
     .mtt-sep { height:1px;width:16px;background:#e9ecef;margin:1px 0;flex-shrink:0; }
+    /* ── Floating text FORMAT toolbar (anchored to selected text child) ── */
+    #text-format-toolbar { position:fixed;z-index:600;display:none;background:#fff;border:1px solid #dee2e6;border-radius:9px;box-shadow:0 4px 18px rgba(0,0,0,0.16);padding:5px 7px;gap:6px;align-items:center;flex-wrap:nowrap;max-width:calc(100vw - 24px); }
+    #text-format-toolbar.tft-visible { display:flex; }
+    #text-format-toolbar .tft-group { display:flex;align-items:center;gap:2px; }
+    #text-format-toolbar .tft-sep { width:1px;height:22px;background:#e9ecef;flex-shrink:0; }
+    #text-format-toolbar .tft-btn { display:flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 5px;border:1px solid transparent;border-radius:5px;background:#f8f9fa;cursor:pointer;font-size:12px;color:#495057;line-height:1; }
+    #text-format-toolbar .tft-btn:hover { background:#eef2ff;color:#0d6efd; }
+    #text-format-toolbar .tft-btn.active { background:#0d6efd;color:#fff; }
+    #text-format-toolbar select.tft-sel { height:24px;max-width:120px;border:1px solid #dee2e6;border-radius:5px;font-size:11px;background:#fff;color:#212529;padding:0 4px; }
+    #text-format-toolbar input.tft-num { width:44px;height:24px;border:1px solid #dee2e6;border-radius:5px;font-size:11px;text-align:center;padding:0 2px; }
+    #text-format-toolbar input.tft-color { width:26px;height:24px;border:1px solid #dee2e6;border-radius:5px;padding:0;background:#fff;cursor:pointer; }
+    #text-format-toolbar .tft-lbl { font-size:10px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:.4px; }
     /* ── Volt Studio Modal ─────────────────────────────────────────── */
     #volt-modal { position:fixed;inset:0;z-index:9999;display:none;flex-direction:column; }
     #volt-modal.vm-open { display:flex; }
@@ -1597,6 +1609,7 @@
           <div class="mtt-sep"></div>
           <button class="mtt-btn mtt-danger" title="Delete Block" onclick="mttDelete()"><i class="bi bi-trash3"></i></button>
         </div>
+        <div id="text-format-toolbar"></div>
       </div>
     </div>
   </div><!-- end canvas-area -->
@@ -2967,15 +2980,15 @@ function createSubElementDOM(se, blockId) {
   switch(se.type) {
     case 'heading':
       if (p.fontFamily && p.fontFamily !== 'inherit') { const _m=p.fontFamily.match(/'([^']+)'/); if(_m) injectGoogleFont(_m[1]); }
-      preview.innerHTML = `<div class="se-heading ${p.level||'h2'}" style="color:${p.color||''};font-size:${p.fontSize||22}px;font-family:${p.fontFamily||'inherit'};font-weight:${p.fontWeight||'700'};text-align:${p.textAlign||'left'};white-space:${p.textWrap||'normal'};line-height:${p.lineHeight||1.2};letter-spacing:${p.letterSpacing||0}px;text-transform:${p.textTransform||'none'};">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">' + (p.level||'h2').toUpperCase() + ' — double-click to edit</span>')}</div>`;
+      preview.innerHTML = `<div class="se-heading ${p.level||'h2'}" style="color:${p.color||''};font-size:${p.fontSize||22}px;font-family:${p.fontFamily||'inherit'};font-weight:${p.fontWeight||'700'};text-align:${p.textAlign||'left'};white-space:${p.textWrap||'normal'};line-height:${p.lineHeight||1.2};letter-spacing:${p.letterSpacing||0}px;text-transform:${p.textTransform||'none'};${p.outlined?`-webkit-text-stroke:${p.outlineWidth||1}px ${p.outlineColor||'#000000'};`:''}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">' + (p.level||'h2').toUpperCase() + ' — double-click to edit</span>')}</div>`;
       break;
     case 'eyebrow':
       if (p.fontFamily && p.fontFamily !== 'inherit') { const _m=p.fontFamily.match(/'([^']+)'/); if(_m) injectGoogleFont(_m[1]); }
-      preview.innerHTML = `<div class="se-eyebrow" style="color:${p.color||'#0d6efd'};font-size:${p.fontSize||13}px;font-family:${p.fontFamily||'inherit'};font-weight:${p.fontWeight||'700'};text-align:${p.textAlign||'left'};text-transform:${p.textTransform||'uppercase'};letter-spacing:${p.letterSpacing??2}px;line-height:${p.lineHeight||1.4};">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">EYEBROW — double-click to edit</span>')}</div>`;
+      preview.innerHTML = `<div class="se-eyebrow" style="color:${p.color||'#0d6efd'};font-size:${p.fontSize||13}px;font-family:${p.fontFamily||'inherit'};font-weight:${p.fontWeight||'700'};text-align:${p.textAlign||'left'};text-transform:${p.textTransform||'uppercase'};letter-spacing:${p.letterSpacing??2}px;line-height:${p.lineHeight||1.4};${p.outlined?`-webkit-text-stroke:${p.outlineWidth||1}px ${p.outlineColor||'#000000'};`:''}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">EYEBROW — double-click to edit</span>')}</div>`;
       break;
     case 'paragraph':
       if (p.fontFamily && p.fontFamily !== 'inherit') { const _m=p.fontFamily.match(/'([^']+)'/); if(_m) injectGoogleFont(_m[1]); }
-      preview.innerHTML = `<div class="se-paragraph" style="color:${p.color||''};font-size:${p.fontSize||14}px;font-family:${p.fontFamily||'inherit'};text-align:${p.textAlign||'left'};white-space:${p.textWrap||'pre-wrap'};line-height:${p.lineHeight||1.6};letter-spacing:${p.letterSpacing||0}px;text-transform:${p.textTransform||'none'};">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">Paragraph — double-click to edit</span>')} </div>`;
+      preview.innerHTML = `<div class="se-paragraph" style="color:${p.color||''};font-size:${p.fontSize||14}px;font-family:${p.fontFamily||'inherit'};text-align:${p.textAlign||'left'};white-space:${p.textWrap||'pre-wrap'};line-height:${p.lineHeight||1.6};letter-spacing:${p.letterSpacing||0}px;text-transform:${p.textTransform||'none'};${p.outlined?`-webkit-text-stroke:${p.outlineWidth||1}px ${p.outlineColor||'#000000'};`:''}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">Paragraph — double-click to edit</span>')} </div>`;
       break;
     case 'image':
       preview.innerHTML = p.src
@@ -4309,7 +4322,7 @@ function startResize(e, blockId, dir) {
  * @param {string} id - ID of the block to select.
  */
 function selectBlock(id) {
-  state.selectedBlockId=id; state.selectedSubId=null; renderCanvas(); renderPropsPanel(); updateMiniToolbar();
+  state.selectedBlockId=id; state.selectedSubId=null; renderCanvas(); renderPropsPanel(); updateMiniToolbar(); updateTextFormatToolbar();
 }
 
 /**
@@ -4337,6 +4350,7 @@ function selectSubElement(bId, sId) {
   renderPropsPanel();
   renderLayersPanel();
   updateMiniToolbar();   // keep the parent's add-child/dup/delete toolbar in sync (#41)
+  updateTextFormatToolbar();  // show/anchor the floating format bar for text children (#39/#42/#63)
 }
 
 /**
@@ -4348,7 +4362,7 @@ function onCanvasClick(e) {
   if (e.target===document.getElementById('canvas')||e.target===document.getElementById('grid-overlay')) {
     state.selectedBlockId=null; state.selectedSubId=null;
     if (state.editingBlockId) exitEditMode();
-    renderCanvas(); renderPropsPanel();
+    renderCanvas(); renderPropsPanel(); updateTextFormatToolbar();
   }
 }
 
@@ -7637,6 +7651,99 @@ function updateMiniToolbar() {
     snapBtn.classList.toggle('mtt-snap-active', !!state.subElementSnap);
     snapBtn.title = state.subElementSnap ? 'Sub-element snap ON (8px grid) — click to disable' : 'Snap sub-elements to 8px grid';
   }
+}
+
+// ── Floating text FORMAT toolbar (#39/#42/#63) ─────────────────────────────
+// A single quick-format bar that appears next to the currently-selected TEXT
+// child (heading/paragraph/eyebrow) and writes via updateSubProp(). Anchored to
+// the child's on-canvas rect (fixes #63 which anchored to the block instead).
+const _TFT_TEXT_TYPES = ['heading','paragraph','eyebrow'];
+let _tftListenersWired = false;
+
+function _tftEnsureListeners() {
+  if (_tftListenersWired) return;
+  _tftListenersWired = true;
+  // Reposition (not rebuild) on scroll/resize so the bar tracks its child.
+  const reposition = () => positionTextFormatToolbar();
+  window.addEventListener('scroll', reposition, true);
+  window.addEventListener('resize', reposition);
+}
+
+function updateTextFormatToolbar() {
+  const tb = document.getElementById('text-format-toolbar');
+  if (!tb) return;
+  _tftEnsureListeners();
+  const bId = state.selectedBlockId, sId = state.selectedSubId;
+  if (!bId || !sId) { tb.classList.remove('tft-visible'); return; }
+  const b = state.blocks.find(x => x.id === bId);
+  const se = b && b.subElements && b.subElements.find(x => x.id === sId);
+  if (!se || !_TFT_TEXT_TYPES.includes(se.type)) { tb.classList.remove('tft-visible'); return; }
+  const node = document.querySelector(`.sub-element[data-sub-id="${sId}"]`);
+  if (!node) { tb.classList.remove('tft-visible'); return; }
+  const p = se.props || {};
+  injectAllDesignerFonts();
+
+  const curTT = p.textTransform || (se.type === 'eyebrow' ? 'uppercase' : 'none');
+  const cases = [['none','Tt','As typed'],['uppercase','AB','UPPERCASE'],['lowercase','ab','lowercase'],['capitalize','Ab','Capitalize']];
+  const caseBtns = cases.map(([v,lbl,ti]) => `<button type="button" class="tft-btn${curTT===v?' active':''}" data-tt="${v}" title="${ti}">${lbl}</button>`).join('');
+  const curFont = p.fontFamily || 'inherit';
+  const fontOpts = DESIGNER_FONTS_SORTED.map(([v,l]) => `<option value="${escHtml(v)}" style="font-family:${v}" ${curFont===v?'selected':''}>${l}</option>`).join('');
+  const defSize = se.type === 'heading' ? 22 : (se.type === 'eyebrow' ? 13 : 14);
+  const defColor = se.type === 'eyebrow' ? '#0d6efd' : '#212529';
+  const outlined = !!p.outlined;
+  const outlineExtra = outlined
+    ? `<input type="color" class="tft-color" id="tft-ocolor" value="${p.outlineColor||'#000000'}" title="Outline colour"><input type="number" class="tft-num" id="tft-owidth" min="0.5" max="8" step="0.5" value="${p.outlineWidth||1}" title="Outline width (px)">`
+    : '';
+  tb.innerHTML =
+    `<div class="tft-group" id="tft-case">${caseBtns}</div>` +
+    `<div class="tft-sep"></div>` +
+    `<select class="tft-sel" id="tft-font" title="Font family">${fontOpts}</select>` +
+    `<input type="number" class="tft-num" id="tft-size" min="8" max="120" value="${p.fontSize||defSize}" title="Font size (px)">` +
+    `<input type="color" class="tft-color" id="tft-color" value="${p.color||defColor}" title="Text colour">` +
+    `<div class="tft-sep"></div>` +
+    `<button type="button" class="tft-btn${outlined?' active':''}" id="tft-outline" title="Toggle text outline"><i class="bi bi-type"></i></button>` +
+    outlineExtra;
+
+  const apply = (k, v) => { updateSubProp(bId, sId, k, v); renderCanvas(); updateTextFormatToolbar(); };
+  tb.querySelectorAll('#tft-case .tft-btn').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); apply('textTransform', btn.dataset.tt); }));
+  tb.querySelector('#tft-font')?.addEventListener('change', e => { e.stopPropagation(); const v = e.target.value; updateSubProp(bId, sId, 'fontFamily', v); const _m = v.match(/'([^']+)'/); if (_m) injectGoogleFont(_m[1]); renderCanvas(); updateTextFormatToolbar(); });
+  tb.querySelector('#tft-size')?.addEventListener('change', e => { e.stopPropagation(); apply('fontSize', parseInt(e.target.value) || defSize); });
+  tb.querySelector('#tft-color')?.addEventListener('change', e => { e.stopPropagation(); apply('color', e.target.value); });
+  tb.querySelector('#tft-outline')?.addEventListener('click', e => { e.stopPropagation(); apply('outlined', !outlined); });
+  tb.querySelector('#tft-ocolor')?.addEventListener('change', e => { e.stopPropagation(); apply('outlineColor', e.target.value); });
+  tb.querySelector('#tft-owidth')?.addEventListener('change', e => { e.stopPropagation(); apply('outlineWidth', parseFloat(e.target.value) || 1); });
+  // Keep clicks inside the bar from bubbling to the canvas (which would deselect).
+  tb.onmousedown = ev => ev.stopPropagation();
+  tb.onclick = ev => ev.stopPropagation();
+
+  tb.classList.add('tft-visible');
+  positionTextFormatToolbar(node);
+}
+
+function positionTextFormatToolbar(elNode) {
+  const tb = document.getElementById('text-format-toolbar');
+  if (!tb || !tb.classList.contains('tft-visible')) return;
+  const node = elNode || document.querySelector(`.sub-element[data-sub-id="${state.selectedSubId}"]`);
+  const canvas = document.getElementById('canvas');
+  if (!node || !canvas) { tb.classList.remove('tft-visible'); return; }
+  const r = node.getBoundingClientRect();
+  const cr = canvas.getBoundingClientRect();
+  const tw = tb.offsetWidth || 280;
+  const th = tb.offsetHeight || 36;
+  const GAP = 8;
+  // Prefer ABOVE the child; flip below when there's no room above.
+  let top = r.top - th - GAP;
+  if (top < cr.top + 4) top = r.bottom + GAP;
+  if (top + th > cr.bottom - 4) top = Math.max(cr.top + 4, cr.bottom - th - 4);
+  // Left-align with the child, then clamp inside the canvas and the viewport.
+  let left = r.left;
+  if (left + tw > cr.right - 4) left = cr.right - tw - 4;
+  if (left < cr.left + 4) left = cr.left + 4;
+  if (left + tw > window.innerWidth - 4) left = window.innerWidth - tw - 4;
+  if (left < 4) left = 4;
+  if (top < 4) top = 4;
+  tb.style.left = left + 'px';
+  tb.style.top = top + 'px';
 }
 
 function mttAdd() {
