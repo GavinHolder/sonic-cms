@@ -406,11 +406,11 @@ export default function Navbar() {
         <AnimatePresence>
           {mobileOpen && (
             <motion.div
-              className="position-absolute start-0 end-0 bg-white rounded shadow-lg d-md-none"
-              style={{ top: "calc(100% + 0.5rem)", marginLeft: "1rem", marginRight: "1rem", zIndex: 1000 }}
-              initial={{ opacity: 0, y: -10, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+              className="position-absolute start-0 end-0 d-md-none overflow-hidden"
+              style={{ top: "100%", background: "var(--theme-bg)", borderBottom: "1px solid var(--theme-border)", zIndex: 1000 }}
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
             >
               <div className="d-flex flex-column py-2">
@@ -420,15 +420,15 @@ export default function Navbar() {
                       transition={{ duration: 0.2, delay: i * 0.05 }}>
                       <Link href={link.href} onClick={() => setMobileOpen(false)}
                         className="text-decoration-none fw-medium px-4 py-2 dropdown-link d-block text-center w-100"
-                        style={{ color: "#111827", whiteSpace: "nowrap" }}>
+                        style={{ color: "var(--theme-text)", whiteSpace: "nowrap" }}>
                         {link.label}
                       </Link>
                     </motion.div>
                   ) : (
                     <motion.button key={link.id} onClick={() => { scrollToSection(link.id); setMobileOpen(false); }}
                       className="text-decoration-none fw-medium px-4 py-2 dropdown-link d-block border-0 bg-transparent text-center w-100"
-                      style={{ color: "#111827", whiteSpace: "nowrap", cursor: "pointer" }}
-                      whileHover={{ backgroundColor: "#f3f4f6" }}
+                      style={{ color: "var(--theme-text)", whiteSpace: "nowrap", cursor: "pointer" }}
+                      whileHover={{ backgroundColor: "rgba(127,127,127,0.15)" }}
                       initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
                       transition={{ duration: 0.2, delay: i * 0.05 }}>
                       {link.label}
@@ -442,7 +442,7 @@ export default function Navbar() {
                     {phone && (
                       <a href={`tel:${phone.replace(/\s/g, "")}`}
                         className="d-block fw-bold text-decoration-none mb-2"
-                        style={{ color: "#111827", fontSize: "1rem" }}>
+                        style={{ color: "var(--theme-text)", fontSize: "1rem" }}>
                         <i className="bi bi-telephone me-1 text-success" />{phone}
                       </a>
                     )}
@@ -472,7 +472,7 @@ export default function Navbar() {
                               transition={{ duration: 0.2, delay: (navLinks.length + i) * 0.05 }}>
                               <Link href={ft.href}
                                 className="d-flex align-items-center justify-content-center gap-2 px-4 py-2 text-decoration-none fw-medium"
-                                style={{ color: "#111827", fontSize: "0.95rem" }} onClick={() => setMobileOpen(false)}>
+                                style={{ color: "var(--theme-text)", fontSize: "0.95rem" }} onClick={() => setMobileOpen(false)}>
                                 <i className={ft.icon} style={{ color: "#3b82f6" }} />{ft.label}
                               </Link>
                             </motion.div>
