@@ -1286,6 +1286,10 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
     setStageW(el.clientWidth);
     return () => ro.disconnect();
   }, []);
+  // Mobile FLOW reflow only activates after mount so SSR + first client render both emit the
+  // scaled stage (identical trees → no hydration mismatch); the phone reflow swaps in on the client. (#61)
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   // ── Coverage-plugin package binding ───────────────────────────────────────
   // Collect every package referenced by a bound card, fetch them once, and expose
@@ -1422,6 +1426,45 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
     if (isFreeMode) {
       const cw = data.designerCanvasW || 1440;
       const ch = data.designerCanvasH || 900;
+
+      // ── Mobile FLOW reflow (≤768px) ───────────────────────────────────────
+      // The 1:1 scaled stage is pixel-exact but on a phone it shrinks every font
+      // uniformly → unreadable (and absolute coords clip off-edge). Below the tablet/
+      // phone breakpoint we instead DROP absolute positioning and stack the leaves in
+      // reading order (y-band, then x), full-width, with fluid clamp() fonts and even
+      // rhythm — natural mobile flow, nothing overlaps or clips. The designer's mobile
+      // preview runs the same concept → WYSIWYG. (#61, generic mobile-first mechanics)
+      if (mounted && screenW <= 768) {
+        type Leaf = { key: string; sub?: SubEl; blk?: (typeof filteredBlocks)[number]; y: number; x: number; h: number };
+        const leaves: Leaf[] = [];
+        filteredBlocks.forEach((block) => {
+          const pos = block.pixelPos || { x: 0, y: 0, w: 300, h: 180 };
+          const subs = (block.subElements || []) as SubEl[];
+          const isContainer = block.type === "text" || block.type === "text-block" || block.type === "card";
+          if (isContainer && subs.length > 0) {
+            subs.forEach((sub, si) => leaves.push({
+              key: String(block.id) + "-" + si, sub,
+              y: (pos.y || 0) + (sub.y || 0), x: (pos.x || 0) + (sub.x || 0), h: sub.h ?? 0,
+            }));
+          } else {
+            leaves.push({ key: String(block.id), blk: block, y: pos.y || 0, x: pos.x || 0, h: pos.h || 0 });
+          }
+        });
+        // Reading order: band y to ~24px rows so side-by-side items keep left→right order.
+        leaves.sort((a, b) => (Math.round(a.y / 24) - Math.round(b.y / 24)) || (a.x - b.x));
+        return (
+          <div style={{ display: "flex", flexDirection: "column", gap: 18, width: "100%", padding: "0 20px", alignItems: "stretch" }}>
+            {leaves.map((l) => (
+              <div key={l.key} style={{ width: "100%", ...(l.blk && l.h ? { minHeight: Math.min(l.h, 480) } : {}) }}>
+                {l.sub
+                  ? <DesignerSubElement sub={l.sub} mobile />
+                  : <DesignerBlock block={l.blk!} darkBg={darkBg} />}
+              </div>
+            ))}
+          </div>
+        );
+      }
+
       const scale = (stageW || screenW || cw) / cw;
       return (
         <div ref={stageRef} style={{
@@ -2196,7 +2239,7 @@ function DesignerBlock({ block, darkBg }: {
  * - Per-element entrance animations (countUp, zoomIn, pulse, fadeIn, slideUp,
  *   bounceIn, blurIn, typewriter) triggered on first viewport intersection
  */
-function DesignerSubElement({ sub, pkg }: { sub: SubEl; pkg?: PackageLike | null }) {
+function DesignerSubElement({ sub, pkg, mobile }: { sub: SubEl; pkg?: PackageLike | null; mobile?: boolean }) {
   const uid    = useId();
   // Sanitise the React useId string (contains colons) for use as a CSS class name
   const scopeClass = `dsub-${uid.replace(/:/g, "")}`;
@@ -2207,6 +2250,18 @@ function DesignerSubElement({ sub, pkg }: { sub: SubEl; pkg?: PackageLike | null
   const p: Record<string, unknown> = pkg
     ? Object.fromEntries(Object.entries(rawP).map(([k, v]) => [k, typeof v === "string" ? resolvePackageTokens(v, pkg) : v]))
     : rawP;
+
+  // Font sizing. Desktop: exact design px. Mobile FLOW-reflow (mobile=true): a fluid
+  // clamp(readable-floor, vw-proportional, design-px) — preserves the author's size
+  // hierarchy while guaranteeing legibility and never exceeding the design size. The vw
+  // term treats the px as a fraction of the 1440 design canvas, boosted so headings stay
+  // bold on a phone. Generic — applies to any authored text. (#61 mobile-first)
+  const fs = (px: number): string => {
+    if (!mobile) return `${px}px`;
+    const floor = Math.round(Math.min(Math.max(14, px * 0.5), 44));
+    const vw = +(px / 14.4 * 1.55).toFixed(2);
+    return `clamp(${floor}px, ${vw}vw, ${px}px)`;
+  };
 
   // ── Animation props ───────────────────────────────────────────────────────
   const animEffect   = (p.animEffect   as string) || "none";
@@ -2341,7 +2396,7 @@ function DesignerSubElement({ sub, pkg }: { sub: SubEl; pkg?: PackageLike | null
           : text;
         return (
           <div style={{
-            fontSize:      `${Number(p.fontSize) || 22}px`,
+            fontSize:      fs(Number(p.fontSize) || 22),
             fontFamily:    (p.fontFamily as string) || undefined,
             fontWeight:    (p.fontWeight as string) || "700",
             color:         (p.color as string) || undefined,
@@ -2369,7 +2424,7 @@ function DesignerSubElement({ sub, pkg }: { sub: SubEl; pkg?: PackageLike | null
           : text;
         return (
           <p style={{
-            fontSize:      `${Number(p.fontSize) || 15}px`,
+            fontSize:      fs(Number(p.fontSize) || 15),
             fontFamily:    (p.fontFamily as string) || undefined,
             fontWeight:    (p.fontWeight as string) || undefined,
             color:         (p.color as string) || undefined,
@@ -2454,7 +2509,7 @@ function DesignerSubElement({ sub, pkg }: { sub: SubEl; pkg?: PackageLike | null
       case "icon":
         return (
           <i className={`bi ${(p.iconName as string) || "bi-star"}`} style={{
-            fontSize:   `${Number(p.size) || 48}px`,
+            fontSize:   fs(Number(p.size) || 48),
             color:      (p.color as string) || "#0d6efd",
             display:    "block",
             textAlign:  (p.textAlign as React.CSSProperties["textAlign"]) || "left",
