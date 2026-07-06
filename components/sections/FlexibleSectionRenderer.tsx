@@ -1286,6 +1286,12 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
     setStageW(el.clientWidth);
     return () => ro.disconnect();
   }, []);
+  // Mount gate — the free-mode mobile reflow (screenW <= 768) must only apply AFTER
+  // hydration, otherwise SSR (which has no window) and the first client paint disagree
+  // and React throws a hydration mismatch. Desktop scaled-stage renders identically on
+  // both, so it stays the pre-mount default.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   // ── Coverage-plugin package binding ───────────────────────────────────────
   // Collect every package referenced by a bound card, fetch them once, and expose
@@ -1422,6 +1428,23 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
     if (isFreeMode) {
       const cw = data.designerCanvasW || 1440;
       const ch = data.designerCanvasH || 900;
+
+      // ── Mobile: smart, readable reflow (≤768px, post-mount) ─────────────────
+      // Replaces the tiny scaled photograph with a single-column reading-order stack
+      // whose inter-element gaps mirror the design's grouping (adjacent/overlapping
+      // elements stay tight; far-apart ones get a normal gap). See FreeReflowStack.
+      if (mounted && screenW <= 768) {
+        return (
+          <FreeReflowStack
+            blocks={filteredBlocks}
+            designerCanvasW={cw}
+            containerW={stageW || screenW || cw}
+            darkBg={darkBg}
+          />
+        );
+      }
+
+      // ── Desktop: 1:1 scaled stage — pixel-exact copy of the designer canvas ─────
       const scale = (stageW || screenW || cw) / cw;
       return (
         <div ref={stageRef} style={{
@@ -1445,15 +1468,23 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
               const isContainer = block.type === "text" || block.type === "text-block" || block.type === "card";
               if (isContainer && subs.length > 0) {
                 // Free-form children in ABSOLUTE design px (block origin + child offset).
+                // WIDTH must match the designer EXACTLY so text wraps identically:
+                // flexible-designer.html sizes each sub as `se.w ? se.w+'px' : 'calc(100% - 0px)'`
+                // (i.e. a null width fills the parent block, = pos.w). Rendering a null-width
+                // sub at `width:auto` let it shrink/grow to content — a different line-wrap and
+                // therefore a different height, which is what made a neighbouring absolute
+                // element overlap on the live page but not on the canvas (#79). `exact` also
+                // stops DesignerSubElement from applying a paragraph maxWidth the designer
+                // never applies (another wrap-width divergence).
                 return subs.map((sub, si) => (
                   <div key={String(block.id) + "-" + si} style={{
                     position: "absolute",
                     left: (pos.x || 0) + (sub.x || 0),
                     top:  (pos.y || 0) + (sub.y || 0),
-                    width: sub.w != null ? sub.w : "auto",
+                    width: sub.w != null ? sub.w : pos.w,
                     height: sub.h != null ? sub.h : undefined,
                   }}>
-                    <DesignerSubElement sub={sub} />
+                    <DesignerSubElement sub={sub} exact />
                   </div>
                 ));
               }
@@ -2196,7 +2227,141 @@ function DesignerBlock({ block, darkBg }: {
  * - Per-element entrance animations (countUp, zoomIn, pulse, fadeIn, slideUp,
  *   bounceIn, blurIn, typewriter) triggered on first viewport intersection
  */
-function DesignerSubElement({ sub, pkg }: { sub: SubEl; pkg?: PackageLike | null }) {
+/**
+ * Estimate a sub-element's rendered height (in design px) when its height is auto/unset.
+ * Only used to WEIGHT the reflow gap between stacked elements, so an approximate line
+ * count is sufficient — it never sets an actual box height.
+ */
+function estimateSubHeight(sub: SubEl, w: number): number {
+  const p = sub.props || {};
+  const fs = Number(p.fontSize) || (sub.type === "heading" ? 22 : sub.type === "icon" ? 48 : 15);
+  const lh = Number(p.lineHeight) || (sub.type === "heading" ? 1.2 : 1.6);
+  if (sub.type === "icon") return Number(p.size) || 48;
+  if (sub.type === "paragraph" || sub.type === "heading") {
+    const text = String(p.text || "");
+    const cpl  = Math.max(1, Math.floor(w / (fs * 0.52))); // ~chars per line at this size
+    const lines = Math.max(1, Math.ceil(text.length / cpl));
+    return fs * lh * lines;
+  }
+  return fs * lh;
+}
+
+type ReflowBlock = { id: number; type: string; pixelPos?: PixelPos; props?: Record<string, unknown>; subElements?: SubEl[] };
+type ReflowLeaf = {
+  top: number; left: number; width: number; height: number;
+  textAlign: React.CSSProperties["textAlign"];
+  node: React.ReactNode;
+  aspect?: number | null; // non-container block design aspect (w/h), else null
+  minH?: number;          // non-container block fallback min-height when no aspect
+};
+
+/**
+ * FreeReflowStack — the free-mode MOBILE layout (≤768px). Instead of shrinking the whole
+ * designer canvas into a tiny scaled photograph, it lays the design's leaves out as a
+ * single readable column:
+ *  1. Collect leaves — every sub-element of a container block (absolute box = block
+ *     pixelPos + sub {x,y,w,h}) and every non-container block (its pixelPos box).
+ *  2. Order them in READING ORDER — top banded to ~24px rows, then left-to-right.
+ *  3. Stack them full-width; the GAP between two consecutive leaves mirrors how close
+ *     they were in the design: rendered = clamp(4, originalGap * scaleGuess, 28). So
+ *     elements that overlapped or sat adjacent (e.g. a paragraph and the emphasized
+ *     heading continuing its sentence) render tight and read as connected, while
+ *     far-apart elements keep a normal gap. Fonts become readable fluid clamps (mobile).
+ */
+function FreeReflowStack({ blocks, designerCanvasW, containerW, darkBg }: {
+  blocks: ReflowBlock[]; designerCanvasW: number; containerW: number; darkBg: boolean;
+}) {
+  const isContainerType = (t: string) => t === "text" || t === "text-block" || t === "card";
+
+  const leaves: ReflowLeaf[] = [];
+  for (const block of blocks) {
+    const pos  = block.pixelPos || { x: 0, y: 0, w: 300, h: 180 };
+    const subs = (block.subElements || []) as SubEl[];
+    if (isContainerType(block.type) && subs.length > 0) {
+      subs.forEach((sub, si) => {
+        const w = sub.w != null ? sub.w : pos.w;
+        const h = sub.h != null ? sub.h : estimateSubHeight(sub, w);
+        leaves.push({
+          top: (pos.y || 0) + (sub.y || 0),
+          left: (pos.x || 0) + (sub.x || 0),
+          width: w, height: h,
+          textAlign: (sub.props?.textAlign as React.CSSProperties["textAlign"]) || undefined,
+          node: <DesignerSubElement key={String(block.id) + "-" + si} sub={sub} mobile />,
+        });
+      });
+    } else {
+      const aspect = pos.w > 0 && pos.h > 0 ? pos.w / pos.h : null;
+      leaves.push({
+        top: pos.y || 0, left: pos.x || 0, width: pos.w, height: pos.h,
+        textAlign: undefined,
+        aspect,
+        minH: aspect ? undefined : Math.max(80, Math.min(pos.h || 0, 420)),
+        node: <DesignerBlock key={block.id} block={block} darkBg={darkBg} />,
+      });
+    }
+  }
+
+  // Reading order: band the top to ~24px rows so near-level elements read left-to-right,
+  // then fall back to source order for exact ties.
+  const band = (y: number) => Math.round(y / 24);
+  const ordered = leaves
+    .map((leaf, i) => ({ leaf, i }))
+    .sort((a, b) => band(a.leaf.top) - band(b.leaf.top) || a.leaf.left - b.leaf.left || a.i - b.i)
+    .map((x) => x.leaf);
+
+  // scaleGuess ≈ how much the design is compressed horizontally into the phone column.
+  const scaleGuess = designerCanvasW > 0 ? containerW / designerCanvasW : 0.26;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", width: "100%", padding: "0 20px" }}>
+      {ordered.map((leaf, i) => {
+        const prev = i > 0 ? ordered[i - 1] : null;
+        let marginTop = 0;
+        if (prev) {
+          const originalGap = leaf.top - (prev.top + prev.height);
+          marginTop = Math.max(4, Math.min(28, originalGap * scaleGuess));
+        }
+        const isBlock = leaf.aspect !== undefined || leaf.minH !== undefined;
+        return (
+          <div key={i} style={{ width: "100%", marginTop, textAlign: leaf.textAlign }}>
+            {isBlock ? (
+              <div style={{
+                position: "relative", width: "100%", overflow: "hidden",
+                ...(leaf.aspect ? { aspectRatio: `${leaf.aspect}` } : {}),
+                ...(leaf.minH != null ? { minHeight: leaf.minH } : {}),
+              }}>
+                {leaf.node}
+              </div>
+            ) : leaf.node}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Fluid font size for the free-mode mobile reflow. Maps a fixed design px size to a
+ * `clamp(floor, vw, designPx)` so headings/paragraphs are readable on small screens
+ * (never the tiny scaled-down px they'd get from the desktop stage) yet never exceed
+ * their designed size on wider phones. floor and vw formulas are fixed by spec.
+ */
+function mobileFontClamp(px: number): string {
+  const floor = Math.round(Math.min(Math.max(14, px * 0.5), 44));
+  const vw = (px / 14.4) * 1.55;
+  return `clamp(${floor}px, ${vw.toFixed(2)}vw, ${px}px)`;
+}
+
+/**
+ * DesignerSubElement flags:
+ * - `exact`  (desktop free stage): reproduce the designer canvas 1:1 — the wrapper
+ *   width governs wrapping, so suppress the paragraph maxWidth the designer never
+ *   applies and match its white-space (pre-wrap + break-word) so line breaks land
+ *   identically.
+ * - `mobile` (free reflow): render readable fluid fonts via mobileFontClamp and let
+ *   text wrap naturally at full column width.
+ */
+function DesignerSubElement({ sub, pkg, mobile, exact }: { sub: SubEl; pkg?: PackageLike | null; mobile?: boolean; exact?: boolean }) {
   const uid    = useId();
   // Sanitise the React useId string (contains colons) for use as a CSS class name
   const scopeClass = `dsub-${uid.replace(/:/g, "")}`;
@@ -2341,7 +2506,7 @@ function DesignerSubElement({ sub, pkg }: { sub: SubEl; pkg?: PackageLike | null
           : text;
         return (
           <div style={{
-            fontSize:      `${Number(p.fontSize) || 22}px`,
+            fontSize:      mobile ? mobileFontClamp(Number(p.fontSize) || 22) : `${Number(p.fontSize) || 22}px`,
             fontFamily:    (p.fontFamily as string) || undefined,
             fontWeight:    (p.fontWeight as string) || "700",
             color:         (p.color as string) || undefined,
@@ -2349,6 +2514,8 @@ function DesignerSubElement({ sub, pkg }: { sub: SubEl; pkg?: PackageLike | null
             lineHeight:    p.lineHeight !== undefined ? Number(p.lineHeight) : undefined,
             letterSpacing: p.letterSpacing !== undefined ? `${Number(p.letterSpacing)}px` : undefined,
             textTransform: (p.textTransform as React.CSSProperties["textTransform"]) || undefined,
+            // Match the designer canvas white-space so line breaks land identically (#79).
+            ...(exact ? { whiteSpace: (p.textWrap as React.CSSProperties["whiteSpace"]) || undefined, overflowWrap: "break-word" as const } : {}),
             marginBottom:  hasShell ? 0 : mb,
             marginTop:     0,
           }}>
@@ -2367,9 +2534,14 @@ function DesignerSubElement({ sub, pkg }: { sub: SubEl; pkg?: PackageLike | null
           : animEffect === "typewriter"
           ? <span ref={countSpanRef} data-fulltext={text} />
           : text;
+        // In `exact` (desktop 1:1) and `mobile` (reflow) modes the wrapper/column width is
+        // authoritative — the designer never applies a paragraph maxWidth, so honouring it
+        // here would wrap the text narrower than the canvas, growing an extra line and making
+        // a neighbouring absolute element overlap on the live page (#79). Suppress it.
+        const constrainWidth = !exact && !mobile && !!p.maxWidth && Number(p.maxWidth) > 0;
         return (
           <p style={{
-            fontSize:      `${Number(p.fontSize) || 15}px`,
+            fontSize:      mobile ? mobileFontClamp(Number(p.fontSize) || 15) : `${Number(p.fontSize) || 15}px`,
             fontFamily:    (p.fontFamily as string) || undefined,
             fontWeight:    (p.fontWeight as string) || undefined,
             color:         (p.color as string) || undefined,
@@ -2377,9 +2549,12 @@ function DesignerSubElement({ sub, pkg }: { sub: SubEl; pkg?: PackageLike | null
             lineHeight:    p.lineHeight !== undefined ? Number(p.lineHeight) : 1.65,
             letterSpacing: p.letterSpacing !== undefined ? `${Number(p.letterSpacing)}px` : undefined,
             textTransform: (p.textTransform as React.CSSProperties["textTransform"]) || undefined,
-            maxWidth:      p.maxWidth && Number(p.maxWidth) > 0 ? `${Number(p.maxWidth)}px` : undefined,
-            marginLeft:    p.maxWidth && Number(p.maxWidth) > 0 ? "auto" : undefined,
-            marginRight:   p.maxWidth && Number(p.maxWidth) > 0 ? "auto" : undefined,
+            maxWidth:      constrainWidth ? `${Number(p.maxWidth)}px` : undefined,
+            marginLeft:    constrainWidth ? "auto" : undefined,
+            marginRight:   constrainWidth ? "auto" : undefined,
+            // Match the designer's `.se-paragraph` wrapping (pre-wrap keeps authored line
+            // breaks; break-word prevents long tokens from widening the box) so height is 1:1.
+            ...(exact ? { whiteSpace: (p.textWrap as React.CSSProperties["whiteSpace"]) || "pre-wrap", overflowWrap: "break-word" as const, wordBreak: "break-word" as const } : {}),
             marginBottom:  hasShell ? 0 : mb,
             marginTop:     0,
           }}>
@@ -2454,7 +2629,7 @@ function DesignerSubElement({ sub, pkg }: { sub: SubEl; pkg?: PackageLike | null
       case "icon":
         return (
           <i className={`bi ${(p.iconName as string) || "bi-star"}`} style={{
-            fontSize:   `${Number(p.size) || 48}px`,
+            fontSize:   mobile ? mobileFontClamp(Number(p.size) || 48) : `${Number(p.size) || 48}px`,
             color:      (p.color as string) || "#0d6efd",
             display:    "block",
             textAlign:  (p.textAlign as React.CSSProperties["textAlign"]) || "left",
