@@ -510,8 +510,10 @@ main {
     overflow: visible !important;
     height: auto !important;
     min-height: unset !important;
-    padding-top: 80px;
-    padding-bottom: 40px;
+    /* Clear the fixed navbar on mobile (was a hardcoded 80px < 100px navbar → heading hid
+       behind the nav) and honour the per-section mobile padding override. (#74) */
+    padding-top: max(var(--section-pt-mobile, 80px), var(--navbar-height, 100px));
+    padding-bottom: var(--section-pb-mobile, 40px);
   }
 
   #snap-container section.flexible-section .container-fluid {
