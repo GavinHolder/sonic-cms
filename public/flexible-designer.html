@@ -806,6 +806,9 @@
     }
     .props-row label { font-size: 12px; color: #495057; min-width: 70px; flex-shrink: 0; }
     .props-row .val  { font-size: 12px; font-weight: 700; color: #0d6efd; min-width: 28px; text-align: right; }
+    /* Typed numeric companion for range sliders (#70) — type an exact value instead of dragging. */
+    .props-row .props-num { width: 52px; flex-shrink: 0; font-size: 12px; font-weight: 700; color: #0d6efd; text-align: center; height: 26px; padding: 0 2px; border: 1px solid #dee2e6; border-radius: 5px; background: #fff; }
+    .props-row .props-num:focus { outline: none; border-color: #0d6efd; box-shadow: 0 0 0 2px rgba(13,110,253,0.12); }
     .btn-icon-sm { width:26px;height:26px;border-radius:4px;border:1px solid #dee2e6;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0; }
     .btn-icon-sm:hover { background:#f1f3f5; }
     .btn-danger-sm { border-color:#fca5a5;color:#dc2626; }
@@ -5146,7 +5149,7 @@ function renderTypeProps(block) {
       // Font family
       h += selectRow('Font Family', p.fontFamily||'Merriweather', EDITORIAL_FONTS, `updateBlockProp('${block.id}','fontFamily',this.value);renderCanvas()`);
       // Font size
-      h += `<div class="props-row"><label>Font Size</label><input class="props-input" type="range" min="12" max="36" step="1" value="${p.fontSize||18}" oninput="updateBlockProp('${block.id}','fontSize',parseInt(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.fontSize||18}px</span></div>`;
+      h += `<div class="props-row"><label>Font Size</label><input class="props-input" type="range" min="12" max="36" step="1" value="${p.fontSize||18}" oninput="updateBlockProp('${block.id}','fontSize',parseInt(this.value));renderCanvas();this.nextElementSibling.value=this.value"><input type="number" class="props-num" min="8" max="400" value="${p.fontSize||18}" oninput="const v=parseInt(this.value)||18;updateBlockProp('${block.id}','fontSize',v);renderCanvas();this.previousElementSibling.value=Math.min(v,this.previousElementSibling.max)"></div>`;
       // Line height
       h += `<div class="props-row"><label>Line Height</label><input class="props-input" type="range" min="1.0" max="2.5" step="0.05" value="${p.lineHeight||1.6}" oninput="updateBlockProp('${block.id}','lineHeight',parseFloat(this.value));renderCanvas();this.nextElementSibling.textContent=parseFloat(this.value).toFixed(2)"><span class="val">${(p.lineHeight||1.6).toFixed(2)}</span></div>`;
       // Text color
@@ -5371,7 +5374,7 @@ function renderSubTypeProps(bId, se) {
       h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;margin-bottom:8px;"><input class="props-input" type="text" value="${escHtml(p.text||'')}" oninput="updateSubProp('${bId}','${se.id}','text',this.value);renderCanvas()" placeholder="Enter heading text..."></div>`;
       h+=selectRow('Level',p.level||'h2',[['h1','H1'],['h2','H2'],['h3','H3'],['h4','H4'],['h5','H5'],['h6','H6']],`updateSubProp('${bId}','${se.id}','level',this.value);renderCanvas()`);
       h+=colorRow('Color',p.color||'',`updateSubProp('${bId}','${se.id}','color',this.value);renderCanvas()`);
-      h+=`<div class="props-row"><label>Font Size</label><input class="props-input" type="range" min="12" max="96" value="${p.fontSize||22}" oninput="updateSubProp('${bId}','${se.id}','fontSize',parseInt(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.fontSize||22}px</span></div>`;
+      h+=`<div class="props-row"><label>Font Size</label><input class="props-input" type="range" min="12" max="96" value="${p.fontSize||22}" oninput="updateSubProp('${bId}','${se.id}','fontSize',parseInt(this.value));renderCanvas();this.nextElementSibling.value=this.value"><input type="number" class="props-num" min="8" max="400" value="${p.fontSize||22}" oninput="const v=parseInt(this.value)||22;updateSubProp('${bId}','${se.id}','fontSize',v);renderCanvas();this.previousElementSibling.value=Math.min(v,this.previousElementSibling.max)"></div>`;
       h+=fontFamilyRow('Font Family', p.fontFamily||'inherit', bId, se.id);
       h+=selectRow('Align',p.textAlign||'left',[['left','Left'],['center','Center'],['right','Right']],`updateSubProp('${bId}','${se.id}','textAlign',this.value);renderCanvas()`);
       h+=selectRow('Weight',p.fontWeight||'700',[['300','300 Light'],['400','400 Regular'],['500','500 Medium'],['600','600 Semibold'],['700','700 Bold'],['800','800 Extra Bold'],['900','900 Black']],`updateSubProp('${bId}','${se.id}','fontWeight',this.value);renderCanvas()`);
@@ -5384,7 +5387,7 @@ function renderSubTypeProps(bId, se) {
       h+=`<div class="props-label"><i class="bi bi-paragraph"></i> Paragraph Text</div>`;
       h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;margin-bottom:8px;"><textarea class="css-editor" style="min-height:100px;" oninput="updateSubProp('${bId}','${se.id}','text',this.value);renderCanvas()" placeholder="Enter paragraph text...">${escHtml(p.text||'')}</textarea></div>`;
       h+=colorRow('Color',p.color||'',`updateSubProp('${bId}','${se.id}','color',this.value);renderCanvas()`);
-      h+=`<div class="props-row"><label>Font Size</label><input class="props-input" type="range" min="10" max="96" value="${p.fontSize||14}" oninput="updateSubProp('${bId}','${se.id}','fontSize',parseInt(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.fontSize||14}px</span></div>`;
+      h+=`<div class="props-row"><label>Font Size</label><input class="props-input" type="range" min="10" max="96" value="${p.fontSize||14}" oninput="updateSubProp('${bId}','${se.id}','fontSize',parseInt(this.value));renderCanvas();this.nextElementSibling.value=this.value"><input type="number" class="props-num" min="8" max="400" value="${p.fontSize||14}" oninput="const v=parseInt(this.value)||14;updateSubProp('${bId}','${se.id}','fontSize',v);renderCanvas();this.previousElementSibling.value=Math.min(v,this.previousElementSibling.max)"></div>`;
       h+=fontFamilyRow('Font Family', p.fontFamily||'inherit', bId, se.id);
       h+=selectRow('Align',p.textAlign||'left',[['left','Left'],['center','Center'],['right','Right'],['justify','Justify']],`updateSubProp('${bId}','${se.id}','textAlign',this.value);renderCanvas()`);
       h+=selectRow('Text Wrap',p.textWrap||'pre-wrap',[['pre-wrap','Wrap (keep line breaks)'],['normal','Wrap (auto only)'],['nowrap','Single line']],`updateSubProp('${bId}','${se.id}','textWrap',this.value);renderCanvas()`);
@@ -5396,7 +5399,7 @@ function renderSubTypeProps(bId, se) {
       h+=`<div class="props-label"><i class="bi bi-fonts"></i> Eyebrow Text</div>`;
       h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;margin-bottom:8px;"><input class="props-input" type="text" value="${escHtml(p.text||'')}" oninput="updateSubProp('${bId}','${se.id}','text',this.value);renderCanvas()" placeholder="Enter eyebrow label..."></div>`;
       h+=colorRow('Color',p.color||'#0d6efd',`updateSubProp('${bId}','${se.id}','color',this.value);renderCanvas()`);
-      h+=`<div class="props-row"><label>Font Size</label><input class="props-input" type="range" min="9" max="28" value="${p.fontSize||13}" oninput="updateSubProp('${bId}','${se.id}','fontSize',parseInt(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.fontSize||13}px</span></div>`;
+      h+=`<div class="props-row"><label>Font Size</label><input class="props-input" type="range" min="9" max="28" value="${p.fontSize||13}" oninput="updateSubProp('${bId}','${se.id}','fontSize',parseInt(this.value));renderCanvas();this.nextElementSibling.value=this.value"><input type="number" class="props-num" min="8" max="400" value="${p.fontSize||13}" oninput="const v=parseInt(this.value)||13;updateSubProp('${bId}','${se.id}','fontSize',v);renderCanvas();this.previousElementSibling.value=Math.min(v,this.previousElementSibling.max)"></div>`;
       h+=fontFamilyRow('Font Family', p.fontFamily||'inherit', bId, se.id);
       h+=selectRow('Align',p.textAlign||'left',[['left','Left'],['center','Center'],['right','Right']],`updateSubProp('${bId}','${se.id}','textAlign',this.value);renderCanvas()`);
       h+=selectRow('Case',p.textTransform||'uppercase',[['uppercase','UPPERCASE'],['none','As typed'],['lowercase','lowercase'],['capitalize','Capitalize']],`updateSubProp('${bId}','${se.id}','textTransform',this.value);renderCanvas()`);
@@ -5428,7 +5431,7 @@ function renderSubTypeProps(bId, se) {
     case 'icon':
       h+=inputRow('Icon (bi-...)',p.iconName||'bi-star',`updateSubProp('${bId}','${se.id}','iconName',this.value);renderCanvas()`,'e.g. bi-wifi');
       h+=`<div class="props-row"><label>Preview</label><i class="bi ${escHtml(p.iconName||'bi-star')}" style="font-size:24px;color:${p.color||'#0d6efd'};margin-left:8px;vertical-align:middle;"></i></div>`;
-      h+=`<div class="props-row"><label>Size</label><input class="props-input" type="range" min="16" max="96" value="${p.size||48}" oninput="updateSubProp('${bId}','${se.id}','size',parseInt(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.size||48}px</span></div>`;
+      h+=`<div class="props-row"><label>Size</label><input class="props-input" type="range" min="16" max="96" value="${p.size||48}" oninput="updateSubProp('${bId}','${se.id}','size',parseInt(this.value));renderCanvas();this.nextElementSibling.value=this.value"><input type="number" class="props-num" min="8" max="400" value="${p.size||48}" oninput="const v=parseInt(this.value)||48;updateSubProp('${bId}','${se.id}','size',v);renderCanvas();this.previousElementSibling.value=Math.min(v,this.previousElementSibling.max)"></div>`;
       h+=colorRow('Colour',p.color||'#0d6efd',`updateSubProp('${bId}','${se.id}','color',this.value);renderCanvas()`);
       h+=selectRow('Align',p.textAlign||'left',[['left','Left'],['center','Center'],['right','Right']],`updateSubProp('${bId}','${se.id}','textAlign',this.value);renderCanvas()`);
       h+=subAnimSection(bId,se.id,p);
