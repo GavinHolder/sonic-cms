@@ -350,14 +350,19 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
   // Freeform: absolute-position wrapper for a single overlay element.
   // Anchor is the element CENTER (translate -50%,-50%); pos falls back to a
   // staggered default so an un-dragged element still renders somewhere sane.
-  const ffStyle = (pos: FreeformPos | undefined, def: FreeformPos): React.CSSProperties => ({
-    position: "absolute",
-    left: `${pos?.x ?? def.x}%`,
-    top: `${pos?.y ?? def.y}%`,
-    transform: "translate(-50%, -50%)",
-    maxWidth: "92%",
-    zIndex: 10,
-  });
+  const ffStyle = (pos: FreeformPos | undefined, def: FreeformPos): React.CSSProperties =>
+    isMobile
+      ? // Mobile: drop absolute % positioning (which clips desktop coords off-edge) and flow the
+        // element in a centered reading-order stack. (#72 mobile-first hero reflow)
+        { position: "relative", left: "auto", top: "auto", transform: "none", width: "100%", maxWidth: "100%", margin: "9px 0", display: "flex", justifyContent: "center", zIndex: 10 }
+      : {
+          position: "absolute",
+          left: `${pos?.x ?? def.x}%`,
+          top: `${pos?.y ?? def.y}%`,
+          transform: "translate(-50%, -50%)",
+          maxWidth: "92%",
+          zIndex: 10,
+        };
 
   // Background media (mobile bg color / image / video-with-mobile-image / video)
   // + gradient overlay for a given slide. Shared by BOTH the persistent
@@ -664,7 +669,12 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
 
           {/* Text Overlay (FREEFORM) — each element absolutely placed via its own pos% */}
           {slide.overlay && slide.showTextOverlay !== false && slide.overlay.layoutMode === "freeform" && (
-            <div className="position-absolute top-0 start-0 w-100 h-100" style={{ overflow: "hidden" }}>
+            <div className="position-absolute top-0 start-0 w-100 h-100" style={{
+              overflow: "hidden",
+              // Mobile: stack the freeform elements in a centered column that clears the fixed nav,
+              // instead of honouring their desktop absolute coords (which clip off-edge). (#72)
+              ...(isMobile ? { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "104px 20px 64px" } : {}),
+            }}>
               <AnimatePresence>
                 {/* Eyebrow */}
                 {(slide.eyebrow || slide.overlay.eyebrow) && !slide.overlay.eyebrowHidden && (
@@ -682,7 +692,7 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                         color: slide.overlay.eyebrowColor || "var(--bs-success, #22c55e)",
                         margin: 0,
                         lineHeight: 1,
-                        whiteSpace: "nowrap",
+                        whiteSpace: isMobile ? "normal" : "nowrap",
                         textAlign: "center",
                       }}
                     >
@@ -711,7 +721,7 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                             color: row.color,
                             lineHeight: 0.95,
                             letterSpacing: "-0.02em",
-                            whiteSpace: "nowrap",
+                            whiteSpace: isMobile ? "normal" : "nowrap",
                             textAlign: "center",
                             textShadow: buildTextShadow(slide.overlay?.textShadow),
                           }}
@@ -737,7 +747,7 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                             color: slide.overlay.heading.color,
                             textShadow: buildTextShadow(slide.overlay.textShadow, BAKED_HEADING_SHADOW),
                             lineHeight: 1.2,
-                            whiteSpace: "nowrap",
+                            whiteSpace: isMobile ? "normal" : "nowrap",
                             textAlign: "center",
                           }}
                         >
@@ -795,7 +805,9 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                         textDecoration: "none",
                         borderRadius: "8px",
                         border: button.variant === "outline" ? `2px solid ${button.backgroundColor}` : "none",
-                        whiteSpace: "nowrap",
+                        // Mobile: full-width tap target (capped), centred. (#72)
+                        ...(isMobile ? { width: "100%", maxWidth: 360, textAlign: "center" as const, justifyContent: "center" } : {}),
+                        whiteSpace: isMobile ? "normal" : "nowrap",
                         boxShadow: `
                           0 2px 8px rgba(0, 0, 0, 0.2),
                           0 4px 16px rgba(0, 0, 0, 0.15),
