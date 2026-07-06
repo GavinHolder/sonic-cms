@@ -529,8 +529,12 @@ function NavLinks({ navLinks, effectiveScrolled, mobileOpen, navTransition, scro
   navTransition: string; scrollToSection: (id: string) => void; setMobileOpen: (v: boolean) => void;
 }) {
   if (!navLinks.length) return null;
+  // Links are only visible in the opaque (scrolled / no-hero) or mobile-open state; at hero-top
+  // they're hidden. So text is theme-contrasting (var(--theme-text): near-white on the dark-glass
+  // navbar, dark-navy on the light/cream navbar) when opaque, and white over the transparent hero. (#69)
+  const linkColor = effectiveScrolled || mobileOpen ? "var(--theme-text)" : "#fff";
   const linkStyle: React.CSSProperties = {
-    whiteSpace: "nowrap", cursor: "pointer", color: "#fff",
+    whiteSpace: "nowrap", cursor: "pointer", color: linkColor,
     fontSize: "0.95rem", letterSpacing: "0.01em", transition: `opacity 200ms ease, color ${navTransition}`,
   };
   return (
@@ -575,7 +579,7 @@ function ToolsDropdown({ enabledFeatures, effectiveScrolled, mobileOpen, navTran
         visibility: effectiveScrolled || mobileOpen ? "visible" : "hidden",
         transition: `opacity ${navTransition}, visibility ${navTransition}` }}>
       <button className="text-decoration-none fw-medium border-0 bg-transparent p-0 d-flex align-items-center gap-1"
-        style={{ cursor: "pointer", color: "#fff", fontSize: "0.95rem",
+        style={{ cursor: "pointer", color: effectiveScrolled || mobileOpen ? "var(--theme-text)" : "#fff", fontSize: "0.95rem",
           letterSpacing: "0.01em", transition: `color ${navTransition}`, whiteSpace: "nowrap" }}
         onClick={() => setToolsOpen((o) => !o)}
         onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.7")}
