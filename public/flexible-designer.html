@@ -3244,6 +3244,10 @@ function startSubElementMove(e, blockId, seId) {
     seEl.style.top  = se.y + 'px';
     // Live-resize parent block (grows AND shrinks) in all directions while dragging
     fitBlockToSubElementsDOM(blockId);
+    // #75 keep floating toolbars anchored to the element as it moves (guards no-op
+    // when nothing is selected / the format bar is hidden)
+    positionTextFormatToolbar(seEl);
+    updateMiniToolbar();
   };
 
   const onUp = () => {
@@ -3257,6 +3261,9 @@ function startSubElementMove(e, blockId, seId) {
       block.manualSize = true;
       // Final accurate measurement after drag ends — DOM has settled
       fitBlockToSubElementsDOM(blockId);
+      // #75 re-anchor floating toolbars to the element's final resting spot
+      positionTextFormatToolbar(seEl);
+      updateMiniToolbar();
       autoSave();
       renderPropsPanel();
     }
@@ -4222,6 +4229,11 @@ function startBlockMove(e, blockId) {
         if (c.textContent === cellLabel) c.classList.add(occupied ? 'drop-occupied' : 'drop-hover');
       });
     }
+    // #75 keep the block's floating toolbars tracking it during the drag
+    // (updateMiniToolbar re-reads the block pos we just set; the format bar
+    // call is a no-op unless a text child is selected + visible)
+    updateMiniToolbar();
+    positionTextFormatToolbar();
   }
   function onUp(e) {
     document.body.style.cursor = '';
