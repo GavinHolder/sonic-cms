@@ -7,7 +7,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import Button from "@/components/ui/Button";
 import { getSections } from "@/lib/section-manager";
 import { defaultNavbarConfig, type NavbarCtaButton } from "@/lib/navbar-config";
-import ThemeToggle from "@/components/layout/ThemeToggle";
 
 // Map feature slug → navbar entry
 const FEATURE_ROUTES: Record<string, { label: string; href: string; icon: string }> = {
@@ -297,7 +296,6 @@ export default function Navbar() {
               <ToolsDropdown enabledFeatures={enabledFeatures} effectiveScrolled={effectiveScrolled}
                 mobileOpen={mobileOpen} navTransition={navTransition} toolsOpen={toolsOpen}
                 setToolsOpen={setToolsOpen} toolsRef={toolsRef} />
-              <ThemeToggle className="d-none d-md-flex" />
               {navbarStyleLoaded && ctaConfig.show && (
                 <div className="d-none d-md-block">
                   <Button href={ctaConfig.href} variant={ctaStyleToVariant(ctaConfig.style)} size="sm">
