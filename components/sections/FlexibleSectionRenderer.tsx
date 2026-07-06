@@ -465,6 +465,20 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   const themedBg     = isThemeToken(background);
   const sectionText  = themedBg ? "var(--theme-text)"  : (darkBg ? "#fff" : "#212529");
   const sectionMuted = themedBg ? "var(--theme-muted)" : (darkBg ? "rgba(255,255,255,0.7)" : "#6c757d");
+  // Section gradient OVERLAY (content.gradient, set in the Background tab). It was saved
+  // but never drawn, so a gradient configured over a bg image did nothing (#59). Build the
+  // CSS here and render it as a scrim over the image below.
+  const gradCfg = (content as any).gradient as { enabled?: boolean; preset?: { direction?: string; color?: string; startOpacity?: number; endOpacity?: number } } | undefined;
+  const gradCss: string | null = (() => {
+    const p = gradCfg?.preset;
+    if (!p) return null;
+    const so = p.startOpacity ?? 0, eo = p.endOpacity ?? 0;
+    if (so <= 0 && eo <= 0) return null;
+    const h = (p.color || "#000000").replace("#", "");
+    const r = parseInt(h.slice(0, 2), 16) || 0, g = parseInt(h.slice(2, 4), 16) || 0, b = parseInt(h.slice(4, 6), 16) || 0;
+    const DIR: Record<string, string> = { top: "to top", bottom: "to bottom", left: "to left", right: "to right", topLeft: "to top left", topRight: "to top right", bottomLeft: "to bottom left", bottomRight: "to bottom right" };
+    return `linear-gradient(${DIR[p.direction || "bottom"] || "to bottom"}, rgba(${r},${g},${b},${so / 100}), rgba(${r},${g},${b},${eo / 100}))`;
+  })();
 
   return (
     <section
@@ -506,6 +520,12 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
             pointerEvents: "none",
           }}
         />
+      )}
+
+      {/* Gradient overlay (scrim) over the bg image — colour/direction/opacity from the
+          Background tab's gradient controls. z-index 1 = above the image, below content. */}
+      {gradCss && bgImageUrl && (
+        <div aria-hidden="true" style={{ position: "absolute", inset: 0, zIndex: 1, background: gradCss, pointerEvents: "none" }} />
       )}
 
       {/* Animated background layers — rendered below content (z-index 0–10).
