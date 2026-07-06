@@ -77,6 +77,13 @@ export default function Navbar() {
     document.documentElement.style.setProperty("--navbar-height", `${navbarHeight}px`);
   }, [navbarHeight, navbarStyleLoaded]);
 
+  // Lock body scroll while the mobile drawer is open so the page behind doesn't scroll. (#73)
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.body.style.overflow = mobileOpen ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [mobileOpen]);
+
   // Load all dynamic data
   useEffect(() => {
     const loadNavLinks = async () => {
@@ -302,7 +309,7 @@ export default function Navbar() {
               <div className="d-md-none">
                 <button className="p-0 bg-transparent border-0" onClick={() => setMobileOpen(!mobileOpen)}
                   style={{ outline: "none", cursor: "pointer" }} aria-label="Open menu">
-                  <svg style={{ width: 28, height: 28, color: "#fff" }}
+                  <svg style={{ width: 28, height: 28, color: effectiveScrolled ? "var(--theme-text)" : "#fff", transition: `color ${navTransition}` }}
                     fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
                   </svg>
@@ -386,7 +393,7 @@ export default function Navbar() {
             <div className="d-md-none">
               <button className="p-0 bg-transparent border-0" onClick={() => setMobileOpen(!mobileOpen)}
                 style={{ outline: "none", cursor: "pointer" }} aria-label="Open menu">
-                <svg style={{ width: 28, height: 28, color: "#fff" }}
+                <svg style={{ width: 28, height: 28, color: effectiveScrolled ? "var(--theme-text)" : "#fff", transition: `color ${navTransition}` }}
                   fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
