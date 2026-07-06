@@ -11,6 +11,7 @@ import LowerThirdTab from "./LowerThirdTab";
 import MotionElementEditor, { createDefaultMotionElement } from "./MotionElementEditor";
 import type { MotionElement } from "@/types/section";
 import SpacingControls from "@/components/admin/SpacingControls";
+import SectionRenderPreview from "@/components/admin/SectionLivePreview";
 import SectionIntoShapePicker from "@/components/admin/SectionIntoShapePicker";
 import ImageFieldWithUpload from "@/components/admin/ImageFieldWithUpload";
 import GoogleFontPicker from "@/components/admin/GoogleFontPicker";
@@ -1058,7 +1059,9 @@ export default function NormalSectionEditor({
   const showImageFields = layout === "text-image" || layout === "image-text";
   const showColumnsField = layout === "grid" || layout === "columns";
 
-  const handleSave = (shouldClose: boolean = true) => {
+  // Builds the live section object from current editor state. Used both by the
+  // live preview (on every render → instant updates) and by save.
+  const buildSection = (): NormalSection => {
     // Build gradient object
     // For "gradient" background type, always include gradient
     // For "image"/"video" background type, only include if gradientEnabled is true
@@ -1157,7 +1160,11 @@ export default function NormalSectionEditor({
         animBg: animBg.enabled ? animBg : undefined,
       } as any,
     } as any;
-    onSave(updatedSection as NormalSection, shouldClose);
+    return updatedSection as NormalSection;
+  };
+
+  const handleSave = (shouldClose: boolean = true) => {
+    onSave(buildSection(), shouldClose);
   };
 
   // Wire up autosave — reads autoSaveEnabled + autoSaveIntervalMs from admin settings
@@ -3043,6 +3050,17 @@ export default function NormalSectionEditor({
 
             {/* Live Preview Tab */}
             {activeTab === "preview" && (
+              <>
+                {/* Real renderer — reflects EVERY change instantly, no Save needed */}
+                <SectionRenderPreview section={buildSection()} />
+
+                {/* Legacy settings-summary preview kept for the at-a-glance overview */}
+                <details className="mt-4">
+                  <summary className="fw-semibold small text-muted" style={{ cursor: "pointer" }}>
+                    <i className="bi bi-list-check me-1" />
+                    Settings summary & quick preview
+                  </summary>
+                  <div className="mt-3">
               <SectionLivePreview
                 background={backgroundType === "solid" ? background : "transparent"}
                 backgroundType={backgroundType}
@@ -3069,6 +3087,9 @@ export default function NormalSectionEditor({
                 colorPalette={colorPalette}
                 contentMode={contentMode}
               />
+                  </div>
+                </details>
+              </>
             )}
           </div>
 
