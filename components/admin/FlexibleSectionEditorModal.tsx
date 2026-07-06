@@ -18,6 +18,7 @@ import { defaultScrollStage, defaultZone, defaultThreeZone } from "@/components/
 import type { ScrollStageConfig, ScrollStageZoneConfig, ScrollStageZoneImageConfig, ScrollStageZoneThreeConfig } from "@/components/sections/scroll-stage/types";
 import { DEFAULT_LOWER_THIRD } from "@/lib/lower-third-presets";
 import { legacyToDesignerData } from "@/lib/flexible/legacy-to-designer";
+import { useConfirm } from "@/components/admin/ConfirmProvider";
 import {
   PRESET_COLORS,
   generatePalette,
@@ -50,6 +51,7 @@ export default function FlexibleSectionEditorModal({
   onCancel,
   allSections = [],
 }: FlexibleSectionEditorModalProps) {
+  const confirm = useConfirm();
   // ── Section meta ──────────────────────────────────────────────
   const [displayName, setDisplayName] = useState(section.displayName || "Flexible Section");
   const [activeTab, setActiveTab] = useState<ActiveTab>("content");
@@ -186,11 +188,18 @@ export default function FlexibleSectionEditorModal({
   );
 
   // ── Save ──────────────────────────────────────────────────────
-  const handleCancel = () => {
+  const handleCancel = async () => {
     // Guard against silently discarding designer work that hasn't been saved to the section.
-    if (sectionDirty && !window.confirm(
-      "You saved changes in the designer, but the SECTION hasn't been saved yet.\n\nClose and lose those changes?"
-    )) return;
+    if (sectionDirty) {
+      const discard = await confirm({
+        title: "Unsaved designer changes",
+        message: "You saved changes in the designer, but the SECTION hasn't been saved yet. Close and lose those changes?",
+        confirmText: "Discard changes",
+        cancelText: "Cancel",
+        variant: "danger",
+      });
+      if (!discard) return;
+    }
     try { localStorage.removeItem(draftKey); } catch {}
     onCancel();
   };

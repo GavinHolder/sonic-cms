@@ -14,6 +14,7 @@ import SpacingControls from "@/components/admin/SpacingControls";
 import SectionIntoShapePicker from "@/components/admin/SectionIntoShapePicker";
 import ImageFieldWithUpload from "@/components/admin/ImageFieldWithUpload";
 import GoogleFontPicker from "@/components/admin/GoogleFontPicker";
+import { useConfirm } from "@/components/admin/ConfirmProvider";
 import dynamic from "next/dynamic";
 import {
   PRESET_COLORS,
@@ -911,6 +912,7 @@ export default function NormalSectionEditor({
   onCancel,
   allSections = [],
 }: NormalSectionEditorProps) {
+  const confirm = useConfirm();
   const [heading, setHeading] = useState(section.content.heading || "");
   const [subheading, setSubheading] = useState(section.content.subheading || "");
   const [body, setBody] = useState(section.content.body || "");
@@ -2086,8 +2088,13 @@ export default function NormalSectionEditor({
                                 <button
                                   type="button"
                                   className="btn btn-sm btn-warning"
-                                  onClick={() => {
-                                    if (window.confirm("Lock this color theme? You can unlock it later if needed.")) {
+                                  onClick={async () => {
+                                    if (await confirm({
+                                      title: "Lock color theme",
+                                      message: "Lock this color theme? You can unlock it later if needed.",
+                                      confirmText: "Lock",
+                                      variant: "warning",
+                                    })) {
                                       setPaletteLocked(true);
                                     }
                                   }}
@@ -2099,8 +2106,13 @@ export default function NormalSectionEditor({
                                 <button
                                   type="button"
                                   className="btn btn-sm btn-outline-warning"
-                                  onClick={() => {
-                                    if (window.confirm("Unlock theme? This allows editing the color palette.")) {
+                                  onClick={async () => {
+                                    if (await confirm({
+                                      title: "Unlock color theme",
+                                      message: "Unlock theme? This allows editing the color palette.",
+                                      confirmText: "Unlock",
+                                      variant: "warning",
+                                    })) {
                                       setPaletteLocked(false);
                                     }
                                   }}
