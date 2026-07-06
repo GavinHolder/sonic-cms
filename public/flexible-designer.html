@@ -7658,9 +7658,6 @@ function updateMiniToolbar() {
   const dp = getDisplayPos(b);
   const canvas = document.getElementById('canvas');
   const canvasW = canvas ? canvas.offsetWidth : 1440;
-  const MARGIN = 6;
-  const tbH = 92; // approx: 3×26px buttons + 1px sep + padding
-  const tbW = 32;
   const canvasH = canvas ? canvas.offsetHeight : 900;
   // Anchor rect (#80): when a child sub-element is selected, anchor the mini
   // toolbar to that CHILD's box instead of the (often wide-open, invisible)
@@ -7682,24 +7679,10 @@ function updateMiniToolbar() {
       };
     }
   }
-  // Default: place the toolbar on the RIGHT of the anchor. Auto-flip to the LEFT
-  // when there isn't enough room before the canvas right edge (prevents overflow).
-  const preferRightX = anchor.x + anchor.w + MARGIN;
-  let leftX;
-  if (preferRightX + tbW <= canvasW - MARGIN) {
-    leftX = preferRightX;                 // room on the right
-  } else {
-    leftX = anchor.x - tbW - MARGIN;      // flip to the left of the anchor
-    if (leftX < MARGIN) leftX = MARGIN;   // clamp inside canvas
-  }
-  // Align the toolbar TOP with the element's top; clamp so it stays on-canvas.
-  let topY = anchor.y;
-  if (topY < 4) topY = 4;
-  if (topY + tbH > canvasH - 4) topY = Math.max(4, canvasH - tbH - 4);
-  tb.style.left = leftX + 'px';
-  tb.style.top = topY + 'px';
-  tb.classList.add('mtt-visible');
-  // Show + add button only for blocks that support sub-elements
+  // Reveal the toolbar and set its button visibility BEFORE measuring — a
+  // display:none toolbar reports offsetWidth/Height 0. Buttons are a vertical
+  // column so width is ~constant, but showing/hiding add+snap changes HEIGHT,
+  // which the vertical clamp below depends on. (#80 follow-up)
   const supportsAdd = ['card','text-block','text','banner','stats'].includes(b.type);
   const addBtn = document.getElementById('mtt-add-btn');
   const addSep = document.getElementById('mtt-add-sep');
@@ -7711,6 +7694,26 @@ function updateMiniToolbar() {
     snapBtn.classList.toggle('mtt-snap-active', !!state.subElementSnap);
     snapBtn.title = state.subElementSnap ? 'Sub-element snap ON (8px grid) — click to disable' : 'Snap sub-elements to 8px grid';
   }
+  tb.classList.add('mtt-visible');
+
+  // Position the toolbar OUTSIDE the selected element so it never overlaps it.
+  // Measure the toolbar's ACTUAL size (unscaled layout px, same logical space as
+  // the anchor). Prefer just BEYOND the element's right edge; flip to the LEFT
+  // when the right side would overflow the canvas width; clamp vertically so the
+  // whole toolbar stays within the visible canvas. (#80 follow-up)
+  const GAP = 10;
+  const tbW = tb.offsetWidth || 32;
+  const tbH = tb.offsetHeight || 92;
+  let leftX = anchor.x + anchor.w + GAP;                 // beyond the right edge
+  if (leftX + tbW > canvasW - GAP) {                     // would overflow → flip left
+    leftX = anchor.x - tbW - GAP;                        // beside the left edge
+    if (leftX < GAP) leftX = GAP;                        // clamp to a small margin
+  }
+  let topY = anchor.y;                                   // align toolbar top with element top
+  if (topY + tbH > canvasH - 4) topY = canvasH - tbH - 4; // keep bottom on-canvas
+  if (topY < 4) topY = 4;                                // keep top on-canvas
+  tb.style.left = leftX + 'px';
+  tb.style.top = topY + 'px';
 }
 
 // ── Floating text FORMAT toolbar (#39/#42/#63) ─────────────────────────────
