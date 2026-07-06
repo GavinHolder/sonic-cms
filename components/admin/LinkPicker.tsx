@@ -80,9 +80,11 @@ export function LinkPicker({
           status: string;
         }> = json?.data?.pages ?? [];
 
-        const publishedEnabled = list.filter(
-          (p) => p.enabled && p.status === "PUBLISHED" && p.slug && p.slug !== "/"
+        const enabled = list.filter(
+          (p) => p.enabled && p.slug && p.slug !== "/"
         );
+        // Regular content pages must be PUBLISHED to be linkable.
+        const publishedEnabled = enabled.filter((p) => p.status === "PUBLISHED");
 
         setPages(
           publishedEnabled
@@ -90,8 +92,11 @@ export function LinkPicker({
             .map((p) => ({ value: `/${p.slug}`, label: p.title || p.slug }))
         );
 
+        // Forms & PDFs don't go through the page "publish" flow — they're linkable as
+        // soon as they're enabled, so a freshly-created form is selectable immediately
+        // (before this the PUBLISHED filter hid EVERY form → empty Forms group). (#71)
         setForms(
-          publishedEnabled
+          enabled
             .filter((p) => p.type === "form")
             .map((p) => ({ value: `/${p.slug}`, label: p.title || p.slug }))
         );
@@ -100,7 +105,7 @@ export function LinkPicker({
         setDocuments((prev) =>
           dedupe([
             ...prev,
-            ...publishedEnabled
+            ...enabled
               .filter((p) => p.type === "pdf")
               .map((p) => ({ value: `/${p.slug}`, label: p.title || p.slug })),
           ])
