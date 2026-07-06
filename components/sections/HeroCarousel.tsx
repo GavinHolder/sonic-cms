@@ -165,6 +165,9 @@ function renderRowInner(row: HeadingRow, shadow: TextShadowConfig | undefined) {
 export default function HeroCarousel({ section }: HeroCarouselProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
+  // Manual autoplay pause toggle. Combined with autoPlay so EITHER can stop the
+  // timer (see auto-play effect below). Additive; defaults to playing.
+  const [paused, setPaused] = useState(false);
   const {
     slides = [], autoPlay, autoPlayInterval, showDots, showArrows, transitionDuration,
     showSlideCounter, showScrollIndicator, metaLine, controlsPosition = "bottom-left",
@@ -194,16 +197,17 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
     );
   }
 
-  // Auto-play functionality
+  // Auto-play functionality — halted when autoPlay is off, when the user has
+  // manually paused, or when there is nothing to advance to.
   useEffect(() => {
-    if (!autoPlay || slides.length <= 1) return;
+    if (!autoPlay || paused || slides.length <= 1) return;
 
     const interval = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % slides.length);
     }, autoPlayInterval);
 
     return () => clearInterval(interval);
-  }, [autoPlay, autoPlayInterval, slides.length]);
+  }, [autoPlay, paused, autoPlayInterval, slides.length]);
 
   const goToSlide = (index: number) => {
     setCurrentSlide(index);
@@ -867,6 +871,32 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                   />
                 ))}
               </div>
+            )}
+            {/* Autoplay pause/play toggle — same subtle white treatment as the dots/
+                arrows, visible on mobile too. Only shown when there is an autoplay
+                loop to control. */}
+            {autoPlay && slides.length > 1 && (
+              <button
+                type="button"
+                className="border-0 p-0 d-flex align-items-center justify-content-center"
+                style={{
+                  width: "20px",
+                  height: "20px",
+                  background: "transparent",
+                  color: "rgba(255,255,255,0.7)",
+                  cursor: "pointer",
+                  lineHeight: 1,
+                  transition: "color 0.3s ease",
+                }}
+                onClick={() => setPaused((p) => !p)}
+                aria-label={paused ? "Play slideshow" : "Pause slideshow"}
+                aria-pressed={paused}
+              >
+                <i
+                  className={`bi ${paused ? "bi-play-fill" : "bi-pause-fill"}`}
+                  style={{ fontSize: "14px" }}
+                />
+              </button>
             )}
           </div>
         </div>
