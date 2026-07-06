@@ -1481,10 +1481,10 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
                     position: "absolute",
                     left: (pos.x || 0) + (sub.x || 0),
                     top:  (pos.y || 0) + (sub.y || 0),
-                    width: sub.w != null ? sub.w : pos.w,
+                    width: sub.w != null ? sub.w : "auto",
                     height: sub.h != null ? sub.h : undefined,
                   }}>
-                    <DesignerSubElement sub={sub} exact />
+                    <DesignerSubElement sub={sub} />
                   </div>
                 ));
               }
