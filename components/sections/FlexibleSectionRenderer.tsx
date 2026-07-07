@@ -2414,14 +2414,13 @@ function DesignerSubElement({ sub, pkg, mobile, exact, darkBg }: { sub: SubEl; p
     ? Object.fromEntries(Object.entries(rawP).map(([k, v]) => [k, typeof v === "string" ? resolvePackageTokens(v, pkg) : v]))
     : rawP;
 
-  // Outlined (hollow) text — matches the designer's per-sub `outlined` flag and the
-  // established .cms-outline convention (globals.css): transparent glyph FILL + a stroke
-  // in the outline colour. Previously the renderer left the fill opaque, so outlined
-  // headings (e.g. INTERNET, ROCK SOLID) rendered SOLID on the live page while the canvas
-  // showed them HOLLOW (#84). Designer stroke values: outlineWidth||1 px, outlineColor||#000.
+  // Outlined text — byte-identical to the designer canvas (#93). The designer
+  // (createSubElementDOM: heading/eyebrow/paragraph) applies ONLY
+  // `-webkit-text-stroke:${p.outlineWidth||1}px ${p.outlineColor||'#000000'}` and KEEPS the
+  // glyph fill (p.color or inherited). It never sets -webkit-text-fill-color, so forcing a
+  // transparent fill here (#84) made the live page hollow while the canvas stayed filled.
   const outlinedStyle: React.CSSProperties = p.outlined
     ? {
-        WebkitTextFillColor: "transparent",
         WebkitTextStroke: `${Number(p.outlineWidth) || 1}px ${(p.outlineColor as string) || "#000000"}`,
       }
     : {};
