@@ -472,8 +472,18 @@
       <span style="font-size:10px;color:#94a3b8;">/</span>
       <input id="tl-duration" type="number" value="3000" min="500" max="30000" step="100" style="width:56px;font-size:10px;padding:1px 4px;border:1px solid #dee2e6;border-radius:4px;text-align:right;" title="Total duration (ms)" />
       <span style="font-size:10px;color:#94a3b8;">ms</span>
+      <label style="font-size:10px;color:#64748b;display:flex;align-items:center;gap:2px;margin-left:4px;cursor:pointer;" title="What fires the timeline">
+        Trigger
+        <select id="tl-trigger" style="font-size:10px;padding:1px 3px;border:1px solid #dee2e6;border-radius:4px;cursor:pointer;">
+          <option value="viewport">Viewport</option>
+          <option value="hover">Hover-once</option>
+        </select>
+      </label>
       <label style="font-size:10px;color:#64748b;display:flex;align-items:center;gap:2px;margin-left:4px;cursor:pointer;">
         <input id="tl-loop" type="checkbox" style="width:12px;height:12px;cursor:pointer;" /> Loop
+      </label>
+      <label style="font-size:10px;color:#64748b;display:flex;align-items:center;gap:2px;margin-left:4px;cursor:pointer;" title="Loop the animation only while the card is hovered">
+        <input id="tl-loophover" type="checkbox" style="width:12px;height:12px;cursor:pointer;" /> Loop&nbsp;on&nbsp;hover
       </label>
     </div>
   </div>
@@ -3986,6 +3996,8 @@
 
     function _tlGetDuration(){return parseInt(document.getElementById('tl-duration').value)||3000;}
     function _tlGetLoop(){return document.getElementById('tl-loop').checked;}
+    function _tlGetTrigger(){return document.getElementById('tl-trigger').value||'viewport';}
+    function _tlGetLoopHover(){return document.getElementById('tl-loophover').checked;}
     var _tlPxPerMs=0.15; // pixels per millisecond
 
     function renderTimeline(){
@@ -4034,7 +4046,7 @@
           var time=Math.round(xPos/_tlPxPerMs/50)*50; // snap to 50ms
           if(time<0)time=0;if(time>dur)time=dur;
           pushHistory();
-          if(!layer.timeline)layer.timeline={keyframes:[],duration:dur,loop:_tlGetLoop(),autoplay:true};
+          if(!layer.timeline)layer.timeline={keyframes:[],duration:dur,loop:_tlGetLoop(),autoplay:true,trigger:_tlGetTrigger(),loopWhileHover:_tlGetLoopHover()};
           layer.timeline.keyframes.push({time:time,props:{opacity:layer.opacity,translateX:0,translateY:0,scaleX:1,scaleY:1,rotate:0}});
           layer.timeline.keyframes.sort(function(a,b){return a.time-b.time;});
           markDirty();renderTimeline();renderProps();
@@ -4173,7 +4185,21 @@
     });
     document.getElementById('tl-loop').addEventListener('change',function(){
       var loop=_tlGetLoop();
-      state.element.layers.forEach(function(l){if(l.timeline)l.timeline.loop=loop;});
+      // Forever-loop and loop-while-hover are mutually exclusive.
+      if(loop){document.getElementById('tl-loophover').checked=false;}
+      state.element.layers.forEach(function(l){if(l.timeline){l.timeline.loop=loop;if(loop)l.timeline.loopWhileHover=false;}});
+      markDirty();
+    });
+    document.getElementById('tl-trigger').addEventListener('change',function(){
+      var trig=_tlGetTrigger();
+      state.element.layers.forEach(function(l){if(l.timeline)l.timeline.trigger=trig;});
+      markDirty();
+    });
+    document.getElementById('tl-loophover').addEventListener('change',function(){
+      var lh=_tlGetLoopHover();
+      // Mutually exclusive with the forever-loop checkbox.
+      if(lh){document.getElementById('tl-loop').checked=false;}
+      state.element.layers.forEach(function(l){if(l.timeline){l.timeline.loopWhileHover=lh;if(lh)l.timeline.loop=false;}});
       markDirty();
     });
 
@@ -4190,7 +4216,7 @@
         if(time>dur)time=dur;
       }
       pushHistory();
-      if(!layer.timeline)layer.timeline={keyframes:[],duration:dur,loop:_tlGetLoop(),autoplay:true};
+      if(!layer.timeline)layer.timeline={keyframes:[],duration:dur,loop:_tlGetLoop(),autoplay:true,trigger:_tlGetTrigger(),loopWhileHover:_tlGetLoopHover()};
       layer.timeline.keyframes.push({time:time,props:{opacity:layer.opacity,translateX:0,translateY:0,scaleX:1,scaleY:1,rotate:0},ease:'easeInOutQuad'});
       layer.timeline.keyframes.sort(function(a,b){return a.time-b.time;});
       markDirty();renderTimeline();renderProps();

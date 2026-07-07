@@ -347,16 +347,136 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
       isFlippedRef.current = toBack
     }
 
+    // ── Timeline machinery (viewport autoplay · #3 hover-once · #4 loop-hover) ──
+    const allTimelineLayers = layers.filter(l => l.timeline && l.timeline.keyframes.length >= 2)
+    // loop-while-hover is always hover-driven, never viewport-autoplayed (regardless of trigger).
+    const loopHoverLayers = allTimelineLayers.filter(l => !!l.timeline!.loopWhileHover)
+    const viewportTimelineLayers = allTimelineLayers.filter(l => (l.timeline!.trigger ?? 'viewport') === 'viewport' && !l.timeline!.loopWhileHover)
+    const hoverOnceLayers = allTimelineLayers.filter(l => l.timeline!.trigger === 'hover' && !l.timeline!.loopWhileHover)
+    // Armed at rest; consumed by the first onEnter, re-armed on onLeave (one shot per hover).
+    let hoverTimelineArmed = true
+    const loopHoverAnims: AnimeAnimation[] = []
+
+    // Segment-tween playback — shared verbatim by viewport autoplay AND hover-once (#3).
+    async function playTimelines(targetLayers: typeof layers) {
+      const { animate } = await import('animejs')
+      for (const layer of targetLayers) {
+        const tl = layer.timeline!
+        const layerEl = el!.querySelector<HTMLElement>(`#volt-layer-${layer.id}`)
+        if (!layerEl) continue
+
+        const sortedKf = [...tl.keyframes].sort((a, b) => a.time - b.time)
+
+        // Animate through each keyframe segment sequentially
+        for (let i = 0; i < sortedKf.length - 1; i++) {
+          const from = sortedKf[i]
+          const to = sortedKf[i + 1]
+          const segDuration = to.time - from.time
+          if (segDuration <= 0) continue
+
+          const targets: Record<string, unknown> = {}
+          if (to.props.opacity !== undefined) targets.opacity = to.props.opacity
+          if (to.props.translateX !== undefined) targets.translateX = to.props.translateX
+          if (to.props.translateY !== undefined) targets.translateY = to.props.translateY
+          if (to.props.scaleX !== undefined || to.props.scaleY !== undefined) {
+            const sx = to.props.scaleX ?? 1
+            const sy = to.props.scaleY ?? 1
+            targets.scale = sx === sy ? sx : sx // uniform scale for now
+          }
+          if (to.props.rotate !== undefined) targets.rotate = `${to.props.rotate}deg`
+
+          if (Object.keys(targets).length === 0) continue
+
+          // Set initial state from first keyframe
+          if (i === 0) {
+            if (from.props.opacity !== undefined) layerEl.style.opacity = String(from.props.opacity)
+            if (from.props.translateX !== undefined || from.props.translateY !== undefined) {
+              layerEl.style.transform = `translate(${from.props.translateX ?? 0}px, ${from.props.translateY ?? 0}px) scale(${from.props.scaleX ?? 1}) rotate(${from.props.rotate ?? 0}deg)`
+            }
+          }
+
+          const anim = animate(layerEl, {
+            ...targets,
+            duration: segDuration,
+            ease: to.ease ?? 'easeInOutQuad',
+            delay: i === 0 ? from.time : 0,
+          }) as AnimeAnimation
+          activeAnimationsRef.current.push(anim)
+        }
+
+        // Forever-loop: viewport-triggered, non-hover layers only (hover timelines
+        // stay OFF this shared autoTimerRef hack).
+        if (tl.loop && (tl.trigger ?? 'viewport') === 'viewport' && !tl.loopWhileHover) {
+          const totalDuration = sortedKf[sortedKf.length - 1].time
+          const loopTimer = setInterval(() => {
+            playTimelines(targetLayers)
+          }, totalDuration + 100) // small gap between loops
+          const origCleanup = autoTimerRef.current
+          autoTimerRef.current = loopTimer
+          if (origCleanup) clearInterval(origCleanup)
+        }
+      }
+    }
+
+    // #4 loop-while-hover — a single anime.js loop:true playback driven by the
+    // layer's keyframe values (as anime value-arrays). Cancellation is routed
+    // through activeAnimationsRef so nothing leaks.
+    async function startLoopWhileHover() {
+      if (loopHoverLayers.length === 0) return
+      const { animate } = await import('animejs')
+      for (const layer of loopHoverLayers) {
+        const tl = layer.timeline!
+        const layerEl = el!.querySelector<HTMLElement>(`#volt-layer-${layer.id}`)
+        if (!layerEl) continue
+        const sortedKf = [...tl.keyframes].sort((a, b) => a.time - b.time)
+        const has = (k: 'opacity' | 'translateX' | 'translateY' | 'scaleX' | 'scaleY' | 'rotate') =>
+          sortedKf.some(kf => kf.props[k] !== undefined)
+        const t: Record<string, unknown> = {}
+        if (has('opacity'))    t.opacity    = sortedKf.map(kf => kf.props.opacity ?? 1)
+        if (has('translateX')) t.translateX = sortedKf.map(kf => kf.props.translateX ?? 0)
+        if (has('translateY')) t.translateY = sortedKf.map(kf => kf.props.translateY ?? 0)
+        if (has('scaleX') || has('scaleY')) t.scale = sortedKf.map(kf => kf.props.scaleX ?? kf.props.scaleY ?? 1)
+        if (has('rotate'))     t.rotate     = sortedKf.map(kf => `${kf.props.rotate ?? 0}deg`)
+        if (Object.keys(t).length === 0) continue
+        const total = sortedKf[sortedKf.length - 1].time || tl.duration || 1000
+        const anim = animate(layerEl, { ...t, duration: total, loop: true, ease: 'easeInOutQuad' }) as AnimeAnimation
+        activeAnimationsRef.current.push(anim)
+        loopHoverAnims.push(anim)
+      }
+    }
+    function stopLoopWhileHover() {
+      loopHoverAnims.forEach(a => a.cancel())
+      loopHoverAnims.length = 0
+      for (const layer of loopHoverLayers) {
+        const layerEl = el!.querySelector<HTMLElement>(`#volt-layer-${layer.id}`)
+        if (!layerEl) continue
+        // Reset to base transform/opacity so the layer settles at rest.
+        layerEl.style.transform = ''
+        layerEl.style.opacity = String(layer.opacity)
+      }
+    }
+
     // ── Event wiring ───────────────────────────────────────────────────────────
     const onEnter = () => {
       transitionToState('hover')
       onHoverChange?.(true)
       if (isFlip && flipTrigger === 'hover' && !isFlippedRef.current) animateFlip(true)
+      // #3 one-shot-on-hover timelines — fire once per fresh hover
+      if (hoverOnceLayers.length > 0 && hoverTimelineArmed) {
+        hoverTimelineArmed = false
+        playTimelines(hoverOnceLayers)
+      }
+      // #4 loop-while-hover — start looping decorative layers
+      if (loopHoverLayers.length > 0) startLoopWhileHover()
     }
     const onLeave = () => {
-      transitionToState('rest')
+      transitionToState('rest') // also cancels in-flight activeAnimationsRef (incl. hover timelines)
       onHoverChange?.(false)
       if (isFlip && flipTrigger === 'hover' && isFlippedRef.current) animateFlip(false)
+      // #3 re-arm so the next hover fires the one-shot again
+      hoverTimelineArmed = true
+      // #4 stop the loop and reset to base transform
+      if (loopHoverLayers.length > 0) stopLoopWhileHover()
     }
     const onClick = () => {
       if (!isFlip || flipTrigger !== 'click') return
@@ -513,82 +633,20 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
       ;(el as HTMLElement & { _voltScrollObs?: IntersectionObserver })._voltScrollObs = scrollObserver
     }
 
-    // ── Timeline keyframe animations ──────────────────────────────────────────
-    const layersWithTimeline = layers.filter(l => l.timeline && l.timeline.keyframes.length >= 2)
-    if (layersWithTimeline.length > 0) {
-      const playTimelines = async () => {
-        const { animate } = await import('animejs')
-        for (const layer of layersWithTimeline) {
-          const tl = layer.timeline!
-          const layerEl = el.querySelector<HTMLElement>(`#volt-layer-${layer.id}`)
-          if (!layerEl) continue
-
-          const sortedKf = [...tl.keyframes].sort((a, b) => a.time - b.time)
-
-          // Animate through each keyframe segment sequentially
-          for (let i = 0; i < sortedKf.length - 1; i++) {
-            const from = sortedKf[i]
-            const to = sortedKf[i + 1]
-            const segDuration = to.time - from.time
-            if (segDuration <= 0) continue
-
-            const targets: Record<string, unknown> = {}
-            if (to.props.opacity !== undefined) targets.opacity = to.props.opacity
-            if (to.props.translateX !== undefined) targets.translateX = to.props.translateX
-            if (to.props.translateY !== undefined) targets.translateY = to.props.translateY
-            if (to.props.scaleX !== undefined || to.props.scaleY !== undefined) {
-              const sx = to.props.scaleX ?? 1
-              const sy = to.props.scaleY ?? 1
-              targets.scale = sx === sy ? sx : sx // uniform scale for now
-            }
-            if (to.props.rotate !== undefined) targets.rotate = `${to.props.rotate}deg`
-
-            if (Object.keys(targets).length === 0) continue
-
-            // Set initial state from first keyframe
-            if (i === 0) {
-              if (from.props.opacity !== undefined) layerEl.style.opacity = String(from.props.opacity)
-              if (from.props.translateX !== undefined || from.props.translateY !== undefined) {
-                layerEl.style.transform = `translate(${from.props.translateX ?? 0}px, ${from.props.translateY ?? 0}px) scale(${from.props.scaleX ?? 1}) rotate(${from.props.rotate ?? 0}deg)`
-              }
-            }
-
-            const anim = animate(layerEl, {
-              ...targets,
-              duration: segDuration,
-              ease: to.ease ?? 'easeInOutQuad',
-              delay: i === 0 ? from.time : 0,
-            }) as AnimeAnimation
-            activeAnimationsRef.current.push(anim)
-          }
-
-          // Loop: replay from start after last keyframe
-          if (tl.loop) {
-            const totalDuration = sortedKf[sortedKf.length - 1].time
-            const loopTimer = setInterval(() => {
-              // Re-run all keyframe animations
-              playTimelines()
-            }, totalDuration + 100) // small gap between loops
-            // Store for cleanup
-            const origCleanup = autoTimerRef.current
-            autoTimerRef.current = loopTimer
-            if (origCleanup) clearInterval(origCleanup)
-          }
-        }
-      }
-
-      if (layersWithTimeline.some(l => l.timeline!.autoplay !== false)) {
-        // Use IntersectionObserver to trigger on viewport entry
-        const timelineObserver = new IntersectionObserver(
-          (entries) => {
-            if (!entries[0].isIntersecting) return
-            timelineObserver.disconnect()
-            playTimelines()
-          },
-          { threshold: 0.1 }
-        )
-        timelineObserver.observe(el)
-      }
+    // ── Timeline keyframe animations — viewport autoplay trigger ───────────────
+    // (hover-once #3 and loop-while-hover #4 are wired into onEnter/onLeave above)
+    if (viewportTimelineLayers.some(l => l.timeline!.autoplay !== false)) {
+      // Use IntersectionObserver to trigger on viewport entry
+      const timelineObserver = new IntersectionObserver(
+        (entries) => {
+          if (!entries[0].isIntersecting) return
+          timelineObserver.disconnect()
+          playTimelines(viewportTimelineLayers)
+        },
+        { threshold: 0.1 }
+      )
+      timelineObserver.observe(el)
+      ;(el as HTMLElement & { _voltTimelineObs?: IntersectionObserver })._voltTimelineObs = timelineObserver
     }
 
     // ── 3D Tilt + parallax depth ─────────────────────────────────────────────
@@ -684,6 +742,9 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
       // Disconnect exit observer
       const xobs = (el as HTMLElement & { _voltExitObs?: IntersectionObserver })._voltExitObs
       if (xobs) xobs.disconnect()
+      // Disconnect timeline (viewport autoplay) observer
+      const tobs = (el as HTMLElement & { _voltTimelineObs?: IntersectionObserver })._voltTimelineObs
+      if (tobs) tobs.disconnect()
     }
   }, [voltElement, isFlip, flipAnimType, flipTrigger, flipAxis, flipDuration, flipEase, flipDirection, flipPerspective, flipAutoInterval, tiltEnabled, tiltMaxDeg, tiltPerspective, layers, states])
 

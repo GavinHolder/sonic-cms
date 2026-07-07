@@ -151,6 +151,17 @@ export interface VoltTimelineConfig {
   loop: boolean
   /** Auto-play when component enters viewport (default: true) */
   autoplay: boolean
+  /**
+   * What fires this timeline (default: 'viewport').
+   * - 'viewport' → IntersectionObserver autoplay (may loop forever if `loop`).
+   * - 'hover'    → fires ONCE per fresh hover (onEnter), re-arms on mouse-leave.
+   */
+  trigger?: 'viewport' | 'hover'
+  /**
+   * Loop the keyframe animation ONLY while the card is hovered, resetting to
+   * base transform on leave. Mutually exclusive with the forever-`loop` flag.
+   */
+  loopWhileHover?: boolean
 }
 
 // ── Responsive Breakpoints ────────────────────────────────────────────────────
