@@ -119,6 +119,16 @@ export default function HeroItemEditor({ item, onSave, onCancel }: HeroItemEdito
             >
               Upload
             </button>
+            {formData.src && (
+              <button
+                type="button"
+                className="btn btn-outline-danger"
+                onClick={() => handleFieldChange("src", "")}
+                title="Clear this image (empties the field only — does not delete the file)"
+              >
+                Clear
+              </button>
+            )}
           </div>
           {formData.src && (
             <div className="mt-2">
@@ -172,6 +182,16 @@ export default function HeroItemEditor({ item, onSave, onCancel }: HeroItemEdito
             >
               Upload
             </button>
+            {formData.mobileSrc && (
+              <button
+                type="button"
+                className="btn btn-outline-danger"
+                onClick={() => handleFieldChange("mobileSrc", "")}
+                title="Clear this image (empties the field only — does not delete the file)"
+              >
+                Clear
+              </button>
+            )}
           </div>
           <div className="form-text">
             Optional: Provide a portrait-oriented image for mobile devices (768x1024px recommended)
@@ -229,6 +249,16 @@ export default function HeroItemEditor({ item, onSave, onCancel }: HeroItemEdito
               >
                 Upload
               </button>
+              {formData.poster && (
+                <button
+                  type="button"
+                  className="btn btn-outline-danger"
+                  onClick={() => handleFieldChange("poster", "")}
+                  title="Clear this image (empties the field only — does not delete the file)"
+                >
+                  Clear
+                </button>
+              )}
             </div>
             <div className="form-text">
               Image shown before video loads or plays

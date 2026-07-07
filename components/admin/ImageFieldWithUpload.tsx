@@ -72,6 +72,17 @@ export default function ImageFieldWithUpload({
           <i className="bi bi-cloud-upload me-1"></i>
           Upload
         </button>
+        {value && (
+          <button
+            type="button"
+            className="btn btn-outline-danger"
+            onClick={() => handleChange("")}
+            title="Clear this image (empties the field only — does not delete the file from the media library)"
+          >
+            <i className="bi bi-x-lg me-1"></i>
+            Clear
+          </button>
+        )}
       </div>
       {helpText && <div className="form-text">{helpText}</div>}
 
