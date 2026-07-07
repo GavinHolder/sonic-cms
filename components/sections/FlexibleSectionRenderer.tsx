@@ -1326,32 +1326,53 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
   // matching Google Fonts stylesheet once (guarded by a derived id).
   // TODO(custom-fonts): user-UPLOADED font files (not Google Fonts) need a stored
   // @font-face source (URL/API) before they can load here — out of scope for now.
+  // Each family is loaded with the UNION of weights actually used by elements of
+  // that family (plus 400/700 defaults) — requesting only 400;700 made e.g. a
+  // fontWeight 300 paragraph fall back to synthetic/400, wrapping differently
+  // than the designer canvas (#90).
   const designerFonts = useMemo(() => {
     const GENERIC = new Set(["inherit", "sans-serif", "serif", "monospace", "cursive", "fantasy", "system-ui", "ui-sans-serif", "ui-serif", "ui-monospace"]);
-    const fams = new Set<string>();
-    const add = (v: unknown) => {
+    const famWeights = new Map<string, Set<number>>();
+    const normWeight = (w: unknown): number | null => {
+      if (typeof w === "number" && Number.isFinite(w)) return w;
+      if (typeof w === "string") {
+        const t = w.trim().toLowerCase();
+        if (t === "bold") return 700;
+        if (t === "normal" || t === "regular") return 400;
+        const n = parseInt(t, 10);
+        if (Number.isFinite(n)) return n;
+      }
+      return null;
+    };
+    const add = (props?: Record<string, unknown>) => {
+      const v = props?.fontFamily;
       if (typeof v !== "string") return;
       const m = v.match(/'([^']+)'/) || v.match(/^([^,]+)/);
       const name = (m ? m[1] : v).trim().replace(/^["']|["']$/g, "");
       if (!name || name.startsWith("-") || GENERIC.has(name.toLowerCase())) return;
-      fams.add(name);
+      let ws = famWeights.get(name);
+      if (!ws) { ws = new Set([400, 700]); famWeights.set(name, ws); }
+      const w = normWeight(props?.fontWeight);
+      if (w !== null && w >= 100 && w <= 900) ws.add(Math.round(w / 100) * 100);
     };
     try {
       const d = typeof designerData === "string" ? JSON.parse(designerData) : designerData;
       for (const b of ((d?.blocks as Array<{ props?: Record<string, unknown>; subElements?: Array<{ props?: Record<string, unknown> }> }>) || [])) {
-        add(b?.props?.fontFamily);
-        for (const se of (b?.subElements || [])) add(se?.props?.fontFamily);
+        add(b?.props);
+        for (const se of (b?.subElements || [])) add(se?.props);
       }
     } catch { /* parse errors handled in the render try/catch below */ }
-    return [...fams];
+    // css2 API requires the wght@ list in ascending order
+    return [...famWeights.entries()].map(([family, ws]) => ({ family, weights: [...ws].sort((a, b) => a - b) }));
   }, [designerData]);
   useEffect(() => {
-    for (const fam of designerFonts) {
-      const id = "gf-" + fam.replace(/\s+/g, "-");
+    for (const { family, weights } of designerFonts) {
+      const wght = weights.join(";");
+      const id = "gf-" + family.replace(/\s+/g, "-") + "-" + weights.join("_");
       if (document.getElementById(id)) continue;
       const l = document.createElement("link");
       l.id = id; l.rel = "stylesheet";
-      l.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(fam).replace(/%20/g, "+")}:wght@400;700&display=swap`;
+      l.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family).replace(/%20/g, "+")}:wght@${wght}&display=swap`;
       document.head.appendChild(l);
     }
   }, [designerFonts]);
