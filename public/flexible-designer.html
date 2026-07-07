@@ -1177,9 +1177,22 @@
     #canvas-empty-hint p { font-size:13px;color:#c8cdd4;margin:0;font-weight:600; }
     #canvas-empty-hint small { font-size:11px;color:#dee2e6; }
 
-    /* ── BLOCK MINI-TOOLBAR ─────────────────── */
-    #block-mini-toolbar { position:absolute;z-index:500;background:white;border:1px solid #dee2e6;border-radius:8px;box-shadow:0 3px 14px rgba(0,0,0,0.13);padding:3px;gap:1px;display:none;flex-direction:column;align-items:center; }
+    /* ── BLOCK MINI-TOOLBAR (#92: collapsed "+" pill just outside the element's
+       right-middle; hovering expands the action column vertically) ── */
+    #block-mini-toolbar { position:fixed;z-index:600;display:none;flex-direction:column;align-items:center;gap:0; }
     #block-mini-toolbar.mtt-visible { display:flex; }
+    /* fm-flip-y is set by anchorFloatingMenu (the floating-menu standard) when
+       the menu must grow UP instead of down — pill stays put via column-reverse */
+    #block-mini-toolbar.fm-flip-y { flex-direction:column-reverse; }
+    .fm-flip-y { flex-direction:column-reverse; }
+    .fm-flip-x { flex-direction:row-reverse; }
+    #block-mini-toolbar:hover { gap:4px; }
+    /* Collapsed pill — same visual language as the toolbar buttons (.mtt-btn):
+       white, subtle border+shadow, dark glyph, brand-blue hover accent */
+    .mtt-toggle { display:flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid #dee2e6;border-radius:50%;background:#fff;color:#495057;font-size:14px;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,0.14);flex-shrink:0;transition:background 0.15s,color 0.15s,border-color 0.15s; }
+    #block-mini-toolbar:hover .mtt-toggle { background:#f0f4ff;color:#0d6efd;border-color:#b6cdf5; }
+    .mtt-body { display:flex;flex-direction:column;align-items:center;gap:1px;background:white;border:0 solid #dee2e6;border-radius:8px;box-shadow:0 3px 14px rgba(0,0,0,0.13);padding:0 3px;max-height:0;opacity:0;overflow:hidden;transition:max-height 0.2s ease, opacity 0.15s ease, padding 0.2s ease, border-width 0.2s ease; }
+    #block-mini-toolbar:hover .mtt-body { max-height:240px;opacity:1;padding:3px;border-width:1px; }
     .mtt-btn { display:flex;align-items:center;justify-content:center;width:26px;height:26px;border:none;border-radius:5px;background:white;cursor:pointer;font-size:13px;color:#495057;transition:all 0.1s; }
     .mtt-btn:hover { background:#f0f4ff;color:#0d6efd; }
     .mtt-btn.mtt-add { color:#198754;font-size:15px; }
@@ -1188,9 +1201,21 @@
     .mtt-btn.mtt-add:hover { background:#d1e7dd;color:#0a3622; }
     .mtt-btn.mtt-danger:hover { background:#fff0f0;color:#dc3545; }
     .mtt-sep { height:1px;width:16px;background:#e9ecef;margin:1px 0;flex-shrink:0; }
-    /* ── Floating text FORMAT toolbar (anchored to selected text child) ── */
-    #text-format-toolbar { position:fixed;z-index:600;display:none;background:#fff;border:1px solid #dee2e6;border-radius:9px;box-shadow:0 4px 18px rgba(0,0,0,0.16);padding:5px 7px;gap:6px;align-items:center;flex-wrap:nowrap;max-width:calc(100vw - 24px); }
+    /* ── Floating text FORMAT toolbar (#92: collapsed "A" pill at the selected
+       element's top-right corner; hovering expands the bar horizontally —
+       leftward across the top of the element by default, .tft-flip grows right) ── */
+    #text-format-toolbar { position:fixed;z-index:600;display:none;align-items:center;flex-wrap:nowrap;gap:0; }
     #text-format-toolbar.tft-visible { display:flex; }
+    /* fm-flip-x is set by anchorFloatingMenu (the floating-menu standard) when
+       the bar must grow RIGHT instead of left — pill stays put via row-reverse */
+    #text-format-toolbar.fm-flip-x { flex-direction:row-reverse; }
+    #text-format-toolbar:hover { gap:4px; }
+    /* Collapsed pill — same visual language as the toolbar buttons (.tft-btn):
+       white, subtle border+shadow, dark glyph, brand-blue hover accent */
+    .tft-toggle { display:flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid #dee2e6;border-radius:50%;background:#fff;color:#495057;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,0.14);flex-shrink:0;line-height:1;transition:background 0.15s,color 0.15s,border-color 0.15s; }
+    #text-format-toolbar:hover .tft-toggle { background:#eef2ff;color:#0d6efd;border-color:#b6cdf5; }
+    #text-format-toolbar .tft-body { display:flex;align-items:center;gap:6px;flex-wrap:nowrap;background:#fff;border:0 solid #dee2e6;border-radius:9px;box-shadow:0 4px 18px rgba(0,0,0,0.16);padding:5px 0;max-width:0;opacity:0;overflow:hidden;transition:max-width 0.22s ease, opacity 0.16s ease, padding 0.22s ease, border-width 0.22s ease; }
+    #text-format-toolbar:hover .tft-body { max-width:min(880px, calc(100vw - 70px));opacity:1;padding:5px 7px;border-width:1px; }
     #text-format-toolbar .tft-group { display:flex;align-items:center;gap:2px; }
     #text-format-toolbar .tft-sep { width:1px;height:22px;background:#e9ecef;flex-shrink:0; }
     #text-format-toolbar .tft-btn { display:flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 5px;border:1px solid transparent;border-radius:5px;background:#f8f9fa;cursor:pointer;font-size:12px;color:#495057;line-height:1; }
@@ -1637,13 +1662,16 @@
           <small>Use the Block Library on the left &nbsp;&middot;&nbsp; Drag blocks onto the canvas</small>
         </div>
         <div id="block-mini-toolbar">
-          <button class="mtt-btn mtt-add" id="mtt-add-btn" title="Add Sub-Element" onclick="mttAdd()" style="display:none"><i class="bi bi-plus-lg"></i></button>
-          <div class="mtt-sep mtt-add-sep" id="mtt-add-sep" style="display:none"></div>
-          <button class="mtt-btn" title="Edit Content" onclick="mttEdit()"><i class="bi bi-pencil"></i></button>
-          <button class="mtt-btn" title="Duplicate Block" onclick="mttDuplicate()"><i class="bi bi-copy"></i></button>
-          <button class="mtt-btn" id="mtt-snap-btn" title="Snap sub-elements to 8px grid" onclick="mttToggleSubSnap()" style="display:none"><i class="bi bi-magnet"></i></button>
-          <div class="mtt-sep"></div>
-          <button class="mtt-btn mtt-danger" title="Delete Block" onclick="mttDelete()"><i class="bi bi-trash3"></i></button>
+          <button type="button" class="mtt-toggle fm-toggle" title="Block actions (hover to expand)" onclick="event.stopPropagation()"><i class="bi bi-plus-lg"></i></button>
+          <div class="mtt-body fm-body">
+            <button class="mtt-btn mtt-add" id="mtt-add-btn" title="Add Sub-Element" onclick="mttAdd()" style="display:none"><i class="bi bi-plus-lg"></i></button>
+            <div class="mtt-sep mtt-add-sep" id="mtt-add-sep" style="display:none"></div>
+            <button class="mtt-btn" title="Edit Content" onclick="mttEdit()"><i class="bi bi-pencil"></i></button>
+            <button class="mtt-btn" title="Duplicate Block" onclick="mttDuplicate()"><i class="bi bi-copy"></i></button>
+            <button class="mtt-btn" id="mtt-snap-btn" title="Snap sub-elements to 8px grid" onclick="mttToggleSubSnap()" style="display:none"><i class="bi bi-magnet"></i></button>
+            <div class="mtt-sep"></div>
+            <button class="mtt-btn mtt-danger" title="Delete Block" onclick="mttDelete()"><i class="bi bi-trash3"></i></button>
+          </div>
         </div>
         <div id="text-format-toolbar"></div>
       </div>
@@ -7676,59 +7704,119 @@ function toggleSectionFooter() {
 // ═══════════════════════════════════════════════════════════
 //  BLOCK MINI-TOOLBAR
 // ═══════════════════════════════════════════════════════════
-function updateMiniToolbar() {
-  const tb = document.getElementById('block-mini-toolbar');
-  if (!tb) return;
-  const b = state.blocks.find(b => b.id === state.selectedBlockId);
-  if (!b) { tb.classList.remove('mtt-visible'); return; }
-  // Organizational-parent model: the parent renders no dashed box/chrome on the canvas,
-  // BUT the author still needs on-canvas add-child / duplicate / delete — so the
-  // mini-toolbar DOES show for parent blocks too, anchored to the children's bounding
-  // box. It's just a small side toolbar (not the old parent chrome), so no clutter
-  // returns. It appears whenever the block is selected — including when one of its
-  // children is selected (selectedBlockId is the parent) — making "add another child"
-  // one click away. (#41 restores this after #34 hid it.)
-  const dp = getDisplayPos(b);
-  const canvas = document.getElementById('canvas');
-  const canvasW = canvas ? canvas.offsetWidth : 1440;
-  const canvasH = canvas ? canvas.offsetHeight : 900;
-  // Anchor rect (#80): when a child sub-element is selected, anchor the mini
-  // toolbar to that CHILD's box instead of the (often wide-open, invisible)
-  // organizational-parent block. Sub-elements store se.x/se.y relative to the
-  // block origin, so their LOGICAL canvas coords are dp.x+se.x / dp.y+se.y —
-  // the same pre-scale space getDisplayPos uses (the toolbar lives inside the
-  // transform-scaled canvas, so we must stay in logical px, not client rects).
-  // offsetWidth/offsetHeight are unscaled layout px, so they're safe for size.
-  let anchor = { x: dp.x, y: dp.y, w: dp.w, h: dp.h };
-  if (state.selectedSubId) {
-    const se = b.subElements && b.subElements.find(x => x.id === state.selectedSubId);
-    const subNode = document.querySelector(`.sub-element[data-sub-id="${state.selectedSubId}"]`);
-    const blockNode = canvas ? canvas.querySelector(`[data-block-id="${b.id}"]`) : null;
-    if (se && subNode) {
-      // Logical offset of the child inside its block, measured from REAL client
-      // rects (divided by the zoom scale) so container padding/borders are
-      // included — dp.x + se.x alone ignored the block's inner padding and the
-      // toolbar overlapped the child's right edge (#83).
-      let offX = se.x || 0, offY = se.y || 0;
-      if (blockNode) {
-        const br = blockNode.getBoundingClientRect();
-        const sr = subNode.getBoundingClientRect();
-        const scale = (br.width && blockNode.offsetWidth) ? br.width / blockNode.offsetWidth : 1;
-        offX = (sr.left - br.left) / scale;
-        offY = (sr.top - br.top) / scale;
-      }
-      anchor = {
-        x: dp.x + offX,
-        y: dp.y + offY,
-        w: subNode.offsetWidth || se.w || dp.w,
-        h: subNode.offsetHeight || se.h || 40,
-      };
+// ════════════════════════════════════════════════════════════════════════════
+// THE FLOATING-MENU STANDARD (#92) — ALL floating menus MUST use this helper.
+// One system, no per-menu positioning one-offs: any future floating menu
+// (image options, link options, …) gets context-awareness for free by calling
+// anchorFloatingMenu with its own corner/expand options.
+//
+//   anchorFloatingMenu(menuEl, targetEl, {
+//     corner:        'top-right' | 'top-left' | 'right-middle'   (anchor point on the target)
+//     expand:        'horizontal' | 'vertical'                   (hover grow direction)
+//     gap:           px between target edge and collapsed pill   (default 6)
+//     collapsedSize: pill diameter in px                         (default 28)
+//   })
+//
+// MENU MARKUP CONTRACT: the menu element contains a `.fm-body` (the expandable
+// content, styled with max-width/max-height:0 + opacity:0, revealed by the
+// menu's :hover rule) and a `.fm-toggle` (the always-visible collapsed pill).
+// Collapse/expand is pure CSS :hover — this helper only anchors and clamps.
+//
+// WHAT THE HELPER GUARANTEES:
+//   • menuEl is parented to <body>: position:fixed then truly means viewport.
+//     NEVER leave a floating menu inside the transform-scaled #canvas — the
+//     CSS transform becomes the containing block and re-scales/re-offsets
+//     every coordinate (#83 root cause).
+//   • All coords come from targetEl.getBoundingClientRect() — viewport px,
+//     correct at ANY canvas zoom (zoom is baked into client rects).
+//   • The collapsed pill sits OUTSIDE the target (never covering content).
+//   • Expansion direction auto-flips + clamps so the expanded menu stays
+//     fully on-screen: horizontal grows LEFT by default (right-anchored),
+//     `.fm-flip-x` grows RIGHT; vertical grows DOWN by default (top-anchored),
+//     `.fm-flip-y` grows UP. Flip classes use row/column-reverse so the pill
+//     stays put at its anchor while the body grows away from it.
+//   • Re-anchoring = just call again (selection change, drag move, scroll,
+//     resize — the existing call sites already do this).
+// ════════════════════════════════════════════════════════════════════════════
+function anchorFloatingMenu(menuEl, targetEl, opts) {
+  if (!menuEl || !targetEl || !targetEl.getBoundingClientRect) return;
+  const o = Object.assign({ corner: 'top-right', expand: 'horizontal', gap: 6, collapsedSize: 28 }, opts || {});
+  if (menuEl.parentElement !== document.body) document.body.appendChild(menuEl);
+  const r = targetEl.getBoundingClientRect();
+  const BTN = o.collapsedSize, GAP = o.gap, M = 6; // M = viewport safety margin
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const body = menuEl.querySelector('.fm-body');
+  // The collapsed body is hidden by overflow (max-width/height:0), NOT
+  // display:none — so scrollWidth/scrollHeight still report the full expanded
+  // content size, letting us clamp for the EXPANDED footprint up front.
+  const area = document.querySelector('.canvas-area');
+  const minLeft = Math.max(M, area ? area.getBoundingClientRect().left + 4 : M);
+
+  if (o.expand === 'horizontal') {
+    // Expanded width = body content + body side padding + pill + hover gap.
+    const fullW = ((body && body.scrollWidth) || 620) + 14 + BTN + 4;
+    const expH = Math.max(BTN, ((body && body.scrollHeight) || 26) + 12);
+    const anchorX = o.corner.indexOf('left') >= 0 ? r.left : r.right;
+    // Default: bar's right edge pinned at the anchor → grows LEFT across the
+    // top of the target. Flip to grow RIGHT when the left edge would overflow.
+    const flip = (anchorX - fullW) < minLeft;
+    menuEl.classList.toggle('fm-flip-x', flip);
+    if (flip) {
+      let left = Math.max(M, anchorX - BTN); // pill stays at the corner
+      if (left + fullW > vw - M) left = Math.max(M, vw - fullW - M);
+      menuEl.style.left = left + 'px'; menuEl.style.right = '';
+    } else {
+      menuEl.style.right = Math.max(M, vw - anchorX) + 'px'; menuEl.style.left = '';
+    }
+    // Bottom edge pinned just ABOVE the target's top edge (bottom-anchored so
+    // a taller expanded bar grows upward, never onto the target). Clamp the
+    // expanded top on-screen.
+    let bottom = vh - (r.top - GAP);
+    bottom = Math.min(bottom, vh - expH - M);
+    if (bottom < M) bottom = M;
+    menuEl.style.bottom = bottom + 'px'; menuEl.style.top = '';
+  } else {
+    // vertical: pill just OUTSIDE the target's right edge.
+    const expH = BTN + 4 + ((body && body.scrollHeight) || 170) + 8;
+    let left = r.right + GAP;
+    if (left + BTN > vw - M) left = vw - BTN - M;
+    menuEl.style.left = left + 'px'; menuEl.style.right = '';
+    // Pill centre: target's vertical middle ('right-middle') or top corner.
+    const cy = o.corner === 'right-middle' ? r.top + r.height / 2 : r.top + BTN / 2;
+    // Grow DOWN by default; grow UP when the bottom would overflow AND there
+    // is headroom above (otherwise stay down, clamped).
+    const growUp = (cy - BTN / 2 + expH) > (vh - M) && (cy + BTN / 2 - expH) >= M;
+    menuEl.classList.toggle('fm-flip-y', growUp);
+    if (growUp) {
+      menuEl.style.bottom = Math.max(M, vh - (cy + BTN / 2)) + 'px'; menuEl.style.top = '';
+    } else {
+      menuEl.style.top = Math.min(Math.max(M, cy - BTN / 2), Math.max(M, vh - expH - M)) + 'px';
+      menuEl.style.bottom = '';
     }
   }
-  // Reveal the toolbar and set its button visibility BEFORE measuring — a
-  // display:none toolbar reports offsetWidth/Height 0. Buttons are a vertical
-  // column so width is ~constant, but showing/hiding add+snap changes HEIGHT,
-  // which the vertical clamp below depends on. (#80 follow-up)
+}
+
+function updateMiniToolbar() {
+  // #92 redesign: the mini action toolbar is a small collapsed "+" pill sitting
+  // just OUTSIDE the selected element's RIGHT edge, vertically CENTRED on it.
+  // Hovering the pill expands the full action column (add/edit/duplicate/snap/
+  // delete) downward via CSS max-height (upward via .fm-flip-y when the
+  // viewport bottom is too close). Anchoring/clamping is delegated to
+  // anchorFloatingMenu — the floating-menu standard. The toolbar still shows
+  // for parent blocks (#41), anchored to the selected CHILD when one is
+  // selected (#80), else the block's own node.
+  const tb = document.getElementById('block-mini-toolbar');
+  if (!tb) return;
+  const b = state.blocks.find(x => x.id === state.selectedBlockId);
+  if (!b) { tb.classList.remove('mtt-visible'); return; }
+  const canvas = document.getElementById('canvas');
+  let node = state.selectedSubId
+    ? document.querySelector(`.sub-element[data-sub-id="${state.selectedSubId}"]`)
+    : null;
+  if (!node && canvas) node = canvas.querySelector(`[data-block-id="${b.id}"]`);
+  if (!node) { tb.classList.remove('mtt-visible'); return; }
+  // Button visibility per block type (unchanged from #41/#80). Set BEFORE
+  // anchoring so the body's measured height reflects the visible buttons.
   const supportsAdd = ['card','text-block','text','banner','stats'].includes(b.type);
   const addBtn = document.getElementById('mtt-add-btn');
   const addSep = document.getElementById('mtt-add-sep');
@@ -7741,56 +7829,7 @@ function updateMiniToolbar() {
     snapBtn.title = state.subElementSnap ? 'Sub-element snap ON (8px grid) — click to disable' : 'Snap sub-elements to 8px grid';
   }
   tb.classList.add('mtt-visible');
-
-  // Position the toolbar OUTSIDE the selected element so it never overlaps it.
-  // Measure the toolbar's ACTUAL size (unscaled layout px, same logical space as
-  // the anchor). Prefer just BEYOND the element's right edge; flip to the LEFT
-  // when the right side would overflow the canvas width; clamp vertically so the
-  // whole toolbar stays within the visible canvas. (#80 follow-up)
-  const GAP = 10;
-  const tbW = tb.offsetWidth || 32;
-  const tbH = tb.offsetHeight || 92;
-  let topY = anchor.y;                                    // align toolbar top with element top
-  if (topY + tbH > canvasH - 4) topY = canvasH - tbH - 4; // keep bottom on-canvas
-  if (topY < 4) topY = 4;                                 // keep top on-canvas
-  // Horizontal (#83): the column is usually TALLER than the selected child, so
-  // it must clear every sibling its vertical span crosses — not just the anchor
-  // (a wider sibling below the child was being grazed). Build the block's
-  // content rects in logical px and sit beyond their extremes.
-  const rects = [{ x: anchor.x, y: anchor.y, w: anchor.w, h: anchor.h }];
-  const bNode = canvas ? canvas.querySelector(`[data-block-id="${b.id}"]`) : null;
-  if (bNode) {
-    const br = bNode.getBoundingClientRect();
-    const sc = (br.width && bNode.offsetWidth) ? br.width / bNode.offsetWidth : 1;
-    bNode.querySelectorAll('.sub-element').forEach(n => {
-      const sr = n.getBoundingClientRect();
-      if (!sr.width || !sr.height) return;
-      rects.push({ x: dp.x + (sr.left - br.left) / sc, y: dp.y + (sr.top - br.top) / sc, w: sr.width / sc, h: sr.height / sc });
-    });
-  }
-  let crossing = rects.filter(c => topY < c.y + c.h && topY + tbH > c.y);
-  if (!crossing.length) crossing = [rects[0]];
-  const maxRight = Math.max(...crossing.map(c => c.x + c.w));
-  const minLeft  = Math.min(...crossing.map(c => c.x));
-  let leftX = maxRight + GAP;                             // beyond the right edge
-  if (leftX + tbW > canvasW - GAP) {                      // would overflow → flip left
-    leftX = minLeft - tbW - GAP;                          // beside the left edge
-    if (leftX < GAP) leftX = GAP;                         // clamp to a small margin
-  }
-  // If neither side had room and the clamp landed the bar ON the content (#83),
-  // drop it just below the block's content instead of covering it (above if the
-  // canvas bottom is too close).
-  const hitsContent = crossing.some(c => leftX < c.x + c.w && leftX + tbW > c.x);
-  if (hitsContent) {
-    const contentBot = Math.max(...rects.map(c => c.y + c.h));
-    const contentTop = Math.min(...rects.map(c => c.y));
-    topY = contentBot + GAP;
-    if (topY + tbH > canvasH - 4) topY = contentTop - tbH - GAP;
-    if (topY < 4) topY = 4;
-    leftX = Math.min(Math.max(anchor.x, GAP), Math.max(GAP, canvasW - tbW - GAP));
-  }
-  tb.style.left = leftX + 'px';
-  tb.style.top = topY + 'px';
+  anchorFloatingMenu(tb, node, { corner: 'right-middle', expand: 'vertical', gap: 8, collapsedSize: 28 });
 }
 
 // ── Floating text FORMAT toolbar (#39/#42/#63) ─────────────────────────────
@@ -7803,8 +7842,9 @@ let _tftListenersWired = false;
 function _tftEnsureListeners() {
   if (_tftListenersWired) return;
   _tftListenersWired = true;
-  // Reposition (not rebuild) on scroll/resize so the bar tracks its child.
-  const reposition = () => positionTextFormatToolbar();
+  // Reposition (not rebuild) on scroll/resize so BOTH floating toolbars track
+  // their element (#92 — the mini "+" toolbar is now viewport-fixed too).
+  const reposition = () => { positionTextFormatToolbar(); updateMiniToolbar(); };
   window.addEventListener('scroll', reposition, true);
   window.addEventListener('resize', reposition);
 }
@@ -7844,7 +7884,12 @@ function updateTextFormatToolbar() {
   const outlineExtra = outlined
     ? `<input type="color" class="tft-color" id="tft-ocolor" value="${p.outlineColor||'#000000'}" title="Outline colour"><input type="number" class="tft-num" id="tft-owidth" min="0.5" max="8" step="0.5" value="${p.outlineWidth||1}" title="Outline width (px)">`
     : '';
+  // #92: content lives in a collapsible .tft-body; the round "A" pill is the
+  // always-visible collapsed state. DOM order [body][toggle] + right-anchoring
+  // makes the bar grow LEFT on hover; .tft-flip (row-reverse + left-anchoring)
+  // makes it grow RIGHT when the left edge would overflow the canvas.
   tb.innerHTML =
+    `<div class="tft-body fm-body">` +
     `<div class="tft-group" id="tft-case">${caseBtns}</div>` +
     `<div class="tft-sep"></div>` +
     `<div class="tft-group" id="tft-align">${alignBtns}</div>` +
@@ -7854,7 +7899,9 @@ function updateTextFormatToolbar() {
     `<input type="color" class="tft-color" id="tft-color" value="${p.color||defColor}" title="Text colour">` +
     `<div class="tft-sep"></div>` +
     `<button type="button" class="tft-btn${outlined?' active':''}" id="tft-outline" title="Toggle text outline"><i class="bi bi-type"></i></button>` +
-    outlineExtra;
+    outlineExtra +
+    `</div>` +
+    `<button type="button" class="tft-toggle fm-toggle" title="Text format (hover to expand)">A</button>`;
 
   const apply = (k, v) => { updateSubProp(bId, sId, k, v); renderCanvas(); updateTextFormatToolbar(); };
   tb.querySelectorAll('#tft-case .tft-btn').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); apply('textTransform', btn.dataset.tt); }));
@@ -7873,35 +7920,21 @@ function updateTextFormatToolbar() {
   positionTextFormatToolbar(node);
 }
 
-function positionTextFormatToolbar() {
-  // #83 FINAL BEHAVIOUR (user decision): the format bar is DOCKED at one fixed
-  // spot — top-centre of the canvas panel — and NEVER follows the selected
-  // element. Selection only toggles its visibility; its position is constant,
-  // so it can't overlap the element being edited or hop around per selection.
-  // (The element-hugging attempt was reverted on user feedback.)
-  // The bar lives on <body> (position:fixed): keeping it inside the transform-
-  // scaled #canvas made the transform the containing block and re-scaled every
-  // coordinate — the original root cause of the drift onto content below.
+function positionTextFormatToolbar(nodeArg) {
+  // #92 redesign (supersedes the #83 docked bar): a collapsed round "A" pill
+  // anchored to the selected text child's TOP-RIGHT corner, sitting fully
+  // ABOVE the element. Hovering expands the full format bar HORIZONTALLY —
+  // leftward across the top of the element by default, flipping right
+  // (.fm-flip-x) when the canvas left edge is too close. All anchor math,
+  // reparenting to <body>, and on-screen clamping is delegated to
+  // anchorFloatingMenu — the floating-menu standard.
   const tb = document.getElementById('text-format-toolbar');
   if (!tb || !tb.classList.contains('tft-visible')) return;
-  const canvas = document.getElementById('canvas');
-  if (!canvas) { tb.classList.remove('tft-visible'); return; }
-  const area = canvas.closest('.canvas-area');
-  const cr = (area || canvas).getBoundingClientRect();
-  const tw = tb.offsetWidth || 280;
-  const th = tb.offsetHeight || 36;
-  const GAP = 8;
-  // Dock just below the canvas panel header (zoom/device bar) when present.
-  const header = area ? area.querySelector('.canvas-panel-header') : null;
-  let top = (header ? header.getBoundingClientRect().bottom : cr.top) + GAP;
-  let left = cr.left + (cr.width - tw) / 2;   // centred over the canvas panel
-  // Clamp fully on-screen.
-  if (left + tw > window.innerWidth - 4) left = window.innerWidth - tw - 4;
-  if (left < 4) left = 4;
-  if (top + th > window.innerHeight - 4) top = window.innerHeight - th - 4;
-  if (top < 4) top = 4;
-  tb.style.left = left + 'px';
-  tb.style.top = top + 'px';
+  const node = (nodeArg && nodeArg.getBoundingClientRect)
+    ? nodeArg
+    : (state.selectedSubId ? document.querySelector(`.sub-element[data-sub-id="${state.selectedSubId}"]`) : null);
+  if (!node) { tb.classList.remove('tft-visible'); return; }
+  anchorFloatingMenu(tb, node, { corner: 'top-right', expand: 'horizontal', gap: 6, collapsedSize: 28 });
 }
 
 function mttAdd() {
