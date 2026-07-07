@@ -1125,6 +1125,39 @@
     .dev-btn.active { border-color: #0d6efd; background: #e7f0ff; color: #0d6efd; }
     .dev-btn:hover:not(.active) { border-color: #adb5bd; background: #f8f9fa; color: #495057; }
 
+    /* ── Task #86: unified toolbar / canvas control-bar button sizing ──
+       Normalizes SIZE/SHAPE only — semantic colours (Save=blue, Done=green,
+       trash=red, FREE pill=green) come from Bootstrap variants / .free and are
+       left intact. */
+    #toolbar .ms-auto .btn,
+    #toolbar .ms-auto .dev-btn,
+    #toolbar .ms-auto .pos-mode-badge,
+    .canvas-panel-header .ms-auto .btn,
+    .canvas-panel-header .ms-auto .dev-btn {
+      height: 30px;
+      min-width: 30px;
+      padding: 0 9px;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      box-sizing: border-box;
+    }
+    /* Uniform glyph size for all icon buttons in both bars */
+    #toolbar .ms-auto .btn i,
+    #toolbar .ms-auto .dev-btn i,
+    .canvas-panel-header .ms-auto .btn i,
+    .canvas-panel-header .ms-auto .dev-btn i {
+      font-size: 15px;
+      line-height: 1;
+    }
+    /* FREE state pill keeps its rounded badge shape (meaning preserved) */
+    #toolbar .ms-auto .pos-mode-badge { border-radius: 20px; padding: 0 11px; }
+
     /* X/Y/W/H position inputs in props panel */
     .xyslider-row { display:flex; align-items:center; gap:6px; margin-bottom:7px; }
     .xyslider-row label { font-size:11px; font-weight:700; color:#6c757d; min-width:16px; text-align:right; }
@@ -1214,7 +1247,7 @@
     <!-- Guides toggle (icon-only) -->
     <button class="btn btn-sm btn-outline-primary" id="guides-btn" onclick="toggleGuides()" title="Show / Hide grid guides"><i class="bi bi-grid"></i></button>
     <!-- Pixel-grid snap toggle (free mode) -->
-    <button class="btn btn-sm btn-outline-secondary" id="snap-btn" onclick="toggleSnapGrid()" title="Grid snap OFF — press S to toggle" style="font-size:10px;padding:2px 7px;font-weight:600;letter-spacing:0.3px;">SNAP</button>
+    <button class="btn btn-sm btn-outline-secondary" id="snap-btn" onclick="toggleSnapGrid()" title="Grid snap OFF — press S to toggle" style="letter-spacing:0.3px;">SNAP</button>
     <!-- Utilities (icon-only) -->
     <button class="btn btn-sm btn-outline-primary" onclick="toggleJson()" title="JSON Output"><i class="bi bi-code-slash"></i></button>
     <button class="btn btn-sm btn-outline-danger" onclick="clearAll()" title="Clear entire canvas"><i class="bi bi-trash"></i></button>
@@ -1572,7 +1605,7 @@
         </div>
         <!-- Device editing indicator + reset -->
         <span id="dev-indicator" style="display:none;font-size:11px;font-weight:600;padding:2px 7px;border-radius:10px;"></span>
-        <button id="dev-reset-btn" style="display:none;" class="btn btn-sm btn-outline-secondary" onclick="resetDevicePositions()" title="Clear device-specific positions and revert to auto-scaled desktop layout" style="font-size:11px;">↺ Reset</button>
+        <button id="dev-reset-btn" style="display:none;" class="btn btn-sm btn-outline-secondary" onclick="resetDevicePositions()" title="Clear device-specific positions and revert to auto-scaled desktop layout">↺ Reset</button>
         <!-- Divider before preview to prevent accidental clicks -->
         <div style="width:1px;height:20px;background:rgba(255,255,255,0.15);margin:0 4px;flex-shrink:0;"></div>
         <!-- Preview -->
@@ -1581,7 +1614,7 @@
           <button class="btn btn-sm btn-outline-secondary" onclick="adjustUserZoom(-0.1)" title="Zoom out (Ctrl+-)"><i class="bi bi-dash-lg"></i></button>
           <span id="zoom-label" style="font-size:11px;font-weight:700;min-width:36px;text-align:center;color:#495057;">100%</span>
           <button class="btn btn-sm btn-outline-secondary" onclick="adjustUserZoom(0.1)" title="Zoom in (Ctrl+=)"><i class="bi bi-plus-lg"></i></button>
-          <button class="btn btn-sm btn-outline-secondary" onclick="resetUserZoom()" title="Reset zoom (Ctrl+0)" style="font-size:10px;padding:2px 5px;">1:1</button>
+          <button class="btn btn-sm btn-outline-secondary" onclick="resetUserZoom()" title="Reset zoom (Ctrl+0)">1:1</button>
         </div>
         <button class="btn btn-sm btn-outline-secondary" onclick="previewSection()" title="Preview section in tab"><i class="bi bi-eye"></i></button>
       </div>
