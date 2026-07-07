@@ -1468,25 +1468,29 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
               const isContainer = block.type === "text" || block.type === "text-block" || block.type === "card";
               if (isContainer && subs.length > 0) {
                 // Free-form children in ABSOLUTE design px (block origin + child offset).
-                // WIDTH must match the designer EXACTLY so text wraps identically:
-                // flexible-designer.html sizes each sub as `se.w ? se.w+'px' : 'calc(100% - 0px)'`
-                // (i.e. a null width fills the parent block, = pos.w). Rendering a null-width
-                // sub at `width:auto` let it shrink/grow to content — a different line-wrap and
-                // therefore a different height, which is what made a neighbouring absolute
-                // element overlap on the live page but not on the canvas (#79). `exact` also
-                // stops DesignerSubElement from applying a paragraph maxWidth the designer
-                // never applies (another wrap-width divergence).
-                return subs.map((sub, si) => (
-                  <div key={String(block.id) + "-" + si} style={{
-                    position: "absolute",
-                    left: (pos.x || 0) + (sub.x || 0),
-                    top:  (pos.y || 0) + (sub.y || 0),
-                    width: sub.w != null ? sub.w : "auto",
-                    height: sub.h != null ? sub.h : undefined,
-                  }}>
-                    <DesignerSubElement sub={sub} />
-                  </div>
-                ));
+                // Null-width sizing must match the designer, which sizes every sub as
+                // `se.w ? se.w+'px' : 'calc(100% - 0px)'` — a null width fills the parent
+                // block (= pos.w). For FLOWING text (paragraphs) the box width drives the
+                // line-wrap, so a null-width paragraph MUST take pos.w or it wraps at a
+                // different width and grows an extra line, shoving neighbours out of place
+                // (#79/#84). Headings, however, must stay natural (auto) width: blanket
+                // pos.w cut oversized/centred headings off on the left (the #79 regression
+                // reverted in 6e59f0e). So the block width is applied to paragraphs only,
+                // and `exact` (designer white-space + no paragraph maxWidth) rides with it.
+                return subs.map((sub, si) => {
+                  const isPara = sub.type === "paragraph";
+                  return (
+                    <div key={String(block.id) + "-" + si} style={{
+                      position: "absolute",
+                      left: (pos.x || 0) + (sub.x || 0),
+                      top:  (pos.y || 0) + (sub.y || 0),
+                      width: sub.w != null ? sub.w : (isPara ? pos.w : "auto"),
+                      height: sub.h != null ? sub.h : undefined,
+                    }}>
+                      <DesignerSubElement sub={sub} exact={isPara} />
+                    </div>
+                  );
+                });
               }
               // Non-container block (hero, image, packages, etc.): whole block at its design px box.
               return (
@@ -2373,6 +2377,18 @@ function DesignerSubElement({ sub, pkg, mobile, exact }: { sub: SubEl; pkg?: Pac
     ? Object.fromEntries(Object.entries(rawP).map(([k, v]) => [k, typeof v === "string" ? resolvePackageTokens(v, pkg) : v]))
     : rawP;
 
+  // Outlined (hollow) text — matches the designer's per-sub `outlined` flag and the
+  // established .cms-outline convention (globals.css): transparent glyph FILL + a stroke
+  // in the outline colour. Previously the renderer left the fill opaque, so outlined
+  // headings (e.g. INTERNET, ROCK SOLID) rendered SOLID on the live page while the canvas
+  // showed them HOLLOW (#84). Designer stroke values: outlineWidth||1 px, outlineColor||#000.
+  const outlinedStyle: React.CSSProperties = p.outlined
+    ? {
+        WebkitTextFillColor: "transparent",
+        WebkitTextStroke: `${Number(p.outlineWidth) || 1}px ${(p.outlineColor as string) || "#000000"}`,
+      }
+    : {};
+
   // ── Animation props ───────────────────────────────────────────────────────
   const animEffect   = (p.animEffect   as string) || "none";
   const animDuration = Number(p.animDuration) || 1000;
@@ -2516,6 +2532,7 @@ function DesignerSubElement({ sub, pkg, mobile, exact }: { sub: SubEl; pkg?: Pac
             textTransform: (p.textTransform as React.CSSProperties["textTransform"]) || undefined,
             // Match the designer canvas white-space so line breaks land identically (#79).
             ...(exact ? { whiteSpace: (p.textWrap as React.CSSProperties["whiteSpace"]) || undefined, overflowWrap: "break-word" as const } : {}),
+            ...outlinedStyle,
             marginBottom:  hasShell ? 0 : mb,
             marginTop:     0,
           }}>
@@ -2555,6 +2572,7 @@ function DesignerSubElement({ sub, pkg, mobile, exact }: { sub: SubEl; pkg?: Pac
             // Match the designer's `.se-paragraph` wrapping (pre-wrap keeps authored line
             // breaks; break-word prevents long tokens from widening the box) so height is 1:1.
             ...(exact ? { whiteSpace: (p.textWrap as React.CSSProperties["whiteSpace"]) || "pre-wrap", overflowWrap: "break-word" as const, wordBreak: "break-word" as const } : {}),
+            ...outlinedStyle,
             marginBottom:  hasShell ? 0 : mb,
             marginTop:     0,
           }}>
