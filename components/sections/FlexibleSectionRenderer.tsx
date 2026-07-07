@@ -1488,30 +1488,39 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
               const subs = (block.subElements || []) as SubEl[];
               const isContainer = block.type === "text" || block.type === "text-block" || block.type === "card";
               if (isContainer && subs.length > 0) {
-                // Free-form children in ABSOLUTE design px (block origin + child offset).
-                // Null-width sizing must match the designer, which sizes every sub as
-                // `se.w ? se.w+'px' : 'calc(100% - 0px)'` — a null width fills the parent
-                // block (= pos.w). For FLOWING text (paragraphs) the box width drives the
-                // line-wrap, so a null-width paragraph MUST take pos.w or it wraps at a
-                // different width and grows an extra line, shoving neighbours out of place
-                // (#79/#84). Headings, however, must stay natural (auto) width: blanket
-                // pos.w cut oversized/centred headings off on the left (the #79 regression
-                // reverted in 6e59f0e). So the block width is applied to paragraphs only,
-                // and `exact` (designer white-space + no paragraph maxWidth) rides with it.
-                return subs.map((sub, si) => {
-                  const isPara = sub.type === "paragraph";
-                  return (
-                    <div key={String(block.id) + "-" + si} style={{
-                      position: "absolute",
-                      left: (pos.x || 0) + (sub.x || 0),
-                      top:  (pos.y || 0) + (sub.y || 0),
-                      width: sub.w != null ? sub.w : (isPara ? pos.w : "auto"),
-                      height: sub.h != null ? sub.h : undefined,
-                    }}>
-                      <DesignerSubElement sub={sub} exact={isPara} />
-                    </div>
-                  );
-                });
+                // ── Designer-chrome geometry — measured 1:1 against the canvas ──────
+                // The canvas does NOT place a child's text at (block.x + se.x): the
+                // designer's .container-block has a 2px border, its .cb-content applies
+                // the block's padding props (paddingTop/Bottom ?? 16, paddingX ?? 20),
+                // and every .sub-element wrapper adds a 1px border + 6px 10px padding
+                // (box-sizing: border-box, min-width 60px). So on the canvas the text
+                // box actually sits at block + child + (2+padX+1+10, 2+padT+1+6) and
+                // FLOWING text wraps at (se.w − 22)px, not se.w. Reproducing these
+                // wrapper metrics — instead of raw (block.x+se.x, width se.w) — is what
+                // makes live positions AND line breaks land exactly like the canvas.
+                // A null se.w fills the padded content box, exactly like the designer's
+                // `calc(100% - 0px)` inside .sub-elements-list (= pos.w − 2·padX).
+                // No overflow:hidden here, so an oversized heading wraps like the
+                // canvas does — it can never left-clip (the old #79 cutoff came from
+                // clipping, which this wrapper doesn't do).
+                const bp   = (block.props || {}) as Record<string, unknown>;
+                const padT = Number(bp.paddingTop ?? 16);
+                const padX = Number(bp.paddingX   ?? 20);
+                return subs.map((sub, si) => (
+                  <div key={String(block.id) + "-" + si} style={{
+                    position: "absolute",
+                    left: (pos.x || 0) + 2 + padX + (sub.x || 0),
+                    top:  (pos.y || 0) + 2 + padT + (sub.y || 0),
+                    width: sub.w != null ? sub.w : Math.max((pos.w || 0) - 2 * padX, 0),
+                    minWidth: 60,
+                    height: sub.h != null ? sub.h : undefined,
+                    padding: "6px 10px",
+                    border: "1px solid transparent",
+                    boxSizing: "border-box",
+                  }}>
+                    <DesignerSubElement sub={sub} exact darkBg={darkBg} />
+                  </div>
+                ));
               }
               // Non-container block (hero, image, packages, etc.): whole block at its design px box.
               return (
@@ -2381,12 +2390,19 @@ function mobileFontClamp(px: number): string {
  * DesignerSubElement flags:
  * - `exact`  (desktop free stage): reproduce the designer canvas 1:1 — the wrapper
  *   width governs wrapping, so suppress the paragraph maxWidth the designer never
- *   applies and match its white-space (pre-wrap + break-word) so line breaks land
- *   identically.
+ *   applies, match its white-space (pre-wrap + break-word) so line breaks land
+ *   identically, and apply the designer's own text-metric DEFAULTS (heading
+ *   line-height 1.2, paragraph 14px/1.6, text-align left, letter-spacing 0,
+ *   text-transform none, #212529 text) instead of inheriting the site theme's —
+ *   the canvas resolves un-set props to those values, so inheriting anything else
+ *   changes wrap width/line height and breaks the 1:1 match.
+ * - `darkBg` (with exact): keeps the default text colour inherited on dark section
+ *   backgrounds (the white designer canvas can't represent those) so default-colour
+ *   text never renders near-black on black.
  * - `mobile` (free reflow): render readable fluid fonts via mobileFontClamp and let
  *   text wrap naturally at full column width.
  */
-function DesignerSubElement({ sub, pkg, mobile, exact }: { sub: SubEl; pkg?: PackageLike | null; mobile?: boolean; exact?: boolean }) {
+function DesignerSubElement({ sub, pkg, mobile, exact, darkBg }: { sub: SubEl; pkg?: PackageLike | null; mobile?: boolean; exact?: boolean; darkBg?: boolean }) {
   const uid    = useId();
   // Sanitise the React useId string (contains colons) for use as a CSS class name
   const scopeClass = `dsub-${uid.replace(/:/g, "")}`;
@@ -2546,13 +2562,18 @@ function DesignerSubElement({ sub, pkg, mobile, exact }: { sub: SubEl; pkg?: Pac
             fontSize:      mobile ? mobileFontClamp(Number(p.fontSize) || 22) : `${Number(p.fontSize) || 22}px`,
             fontFamily:    (p.fontFamily as string) || undefined,
             fontWeight:    (p.fontWeight as string) || "700",
-            color:         (p.color as string) || undefined,
-            textAlign:     (p.textAlign as React.CSSProperties["textAlign"]) || undefined,
-            lineHeight:    p.lineHeight !== undefined ? Number(p.lineHeight) : undefined,
-            letterSpacing: p.letterSpacing !== undefined ? `${Number(p.letterSpacing)}px` : undefined,
-            textTransform: (p.textTransform as React.CSSProperties["textTransform"]) || undefined,
+            // exact: designer headings resolve an un-set colour to #212529 (.se-heading),
+            // NOT the inherited theme colour — except on dark section backgrounds.
+            color:         (p.color as string) || (exact && !darkBg ? "#212529" : undefined),
+            textAlign:     (p.textAlign as React.CSSProperties["textAlign"]) || (exact ? "left" : undefined),
+            // exact: designer heading default line-height is 1.2 (`p.lineHeight||1.2`);
+            // inheriting the page's 1.5 made an 80px heading 120px tall vs 96px on canvas.
+            lineHeight:    p.lineHeight !== undefined ? Number(p.lineHeight) : (exact ? 1.2 : undefined),
+            letterSpacing: p.letterSpacing !== undefined ? `${Number(p.letterSpacing)}px` : (exact ? "0px" : undefined),
+            textTransform: (p.textTransform as React.CSSProperties["textTransform"]) || (exact ? "none" : undefined),
             // Match the designer canvas white-space so line breaks land identically (#79).
-            ...(exact ? { whiteSpace: (p.textWrap as React.CSSProperties["whiteSpace"]) || undefined, overflowWrap: "break-word" as const } : {}),
+            // Designer heading: `white-space: p.textWrap||'normal'` + .se-heading break-word.
+            ...(exact ? { whiteSpace: (p.textWrap as React.CSSProperties["whiteSpace"]) || ("normal" as const), overflowWrap: "break-word" as const } : {}),
             ...outlinedStyle,
             marginBottom:  hasShell ? 0 : mb,
             marginTop:     0,
@@ -2579,20 +2600,24 @@ function DesignerSubElement({ sub, pkg, mobile, exact }: { sub: SubEl; pkg?: Pac
         const constrainWidth = !exact && !mobile && !!p.maxWidth && Number(p.maxWidth) > 0;
         return (
           <p style={{
-            fontSize:      mobile ? mobileFontClamp(Number(p.fontSize) || 15) : `${Number(p.fontSize) || 15}px`,
+            // exact: designer paragraph defaults are 14px / line-height 1.6
+            // (`p.fontSize||14`, `p.lineHeight||1.6`) — not the renderer's legacy 15/1.65.
+            fontSize:      mobile ? mobileFontClamp(Number(p.fontSize) || 15) : `${Number(p.fontSize) || (exact ? 14 : 15)}px`,
             fontFamily:    (p.fontFamily as string) || undefined,
             fontWeight:    (p.fontWeight as string) || undefined,
-            color:         (p.color as string) || undefined,
-            textAlign:     (p.textAlign as React.CSSProperties["textAlign"]) || undefined,
-            lineHeight:    p.lineHeight !== undefined ? Number(p.lineHeight) : 1.65,
-            letterSpacing: p.letterSpacing !== undefined ? `${Number(p.letterSpacing)}px` : undefined,
-            textTransform: (p.textTransform as React.CSSProperties["textTransform"]) || undefined,
+            color:         (p.color as string) || (exact && !darkBg ? "#212529" : undefined),
+            textAlign:     (p.textAlign as React.CSSProperties["textAlign"]) || (exact ? "left" : undefined),
+            lineHeight:    p.lineHeight !== undefined ? Number(p.lineHeight) : (exact ? 1.6 : 1.65),
+            letterSpacing: p.letterSpacing !== undefined ? `${Number(p.letterSpacing)}px` : (exact ? "0px" : undefined),
+            textTransform: (p.textTransform as React.CSSProperties["textTransform"]) || (exact ? "none" : undefined),
             maxWidth:      constrainWidth ? `${Number(p.maxWidth)}px` : undefined,
             marginLeft:    constrainWidth ? "auto" : undefined,
             marginRight:   constrainWidth ? "auto" : undefined,
             // Match the designer's `.se-paragraph` wrapping (pre-wrap keeps authored line
             // breaks; break-word prevents long tokens from widening the box) so height is 1:1.
-            ...(exact ? { whiteSpace: (p.textWrap as React.CSSProperties["whiteSpace"]) || "pre-wrap", overflowWrap: "break-word" as const, wordBreak: "break-word" as const } : {}),
+            // No word-break here — the designer never sets it, and its min-content sizing
+            // differs from overflow-wrap, which can change where lines break.
+            ...(exact ? { whiteSpace: (p.textWrap as React.CSSProperties["whiteSpace"]) || "pre-wrap", overflowWrap: "break-word" as const } : {}),
             ...outlinedStyle,
             marginBottom:  hasShell ? 0 : mb,
             marginTop:     0,
