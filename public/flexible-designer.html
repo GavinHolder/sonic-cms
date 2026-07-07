@@ -7703,10 +7703,23 @@ function updateMiniToolbar() {
   if (state.selectedSubId) {
     const se = b.subElements && b.subElements.find(x => x.id === state.selectedSubId);
     const subNode = document.querySelector(`.sub-element[data-sub-id="${state.selectedSubId}"]`);
+    const blockNode = canvas ? canvas.querySelector(`[data-block-id="${b.id}"]`) : null;
     if (se && subNode) {
+      // Logical offset of the child inside its block, measured from REAL client
+      // rects (divided by the zoom scale) so container padding/borders are
+      // included — dp.x + se.x alone ignored the block's inner padding and the
+      // toolbar overlapped the child's right edge (#83).
+      let offX = se.x || 0, offY = se.y || 0;
+      if (blockNode) {
+        const br = blockNode.getBoundingClientRect();
+        const sr = subNode.getBoundingClientRect();
+        const scale = (br.width && blockNode.offsetWidth) ? br.width / blockNode.offsetWidth : 1;
+        offX = (sr.left - br.left) / scale;
+        offY = (sr.top - br.top) / scale;
+      }
       anchor = {
-        x: dp.x + (se.x || 0),
-        y: dp.y + (se.y || 0),
+        x: dp.x + offX,
+        y: dp.y + offY,
         w: subNode.offsetWidth || se.w || dp.w,
         h: subNode.offsetHeight || se.h || 40,
       };
@@ -7737,14 +7750,45 @@ function updateMiniToolbar() {
   const GAP = 10;
   const tbW = tb.offsetWidth || 32;
   const tbH = tb.offsetHeight || 92;
-  let leftX = anchor.x + anchor.w + GAP;                 // beyond the right edge
-  if (leftX + tbW > canvasW - GAP) {                     // would overflow → flip left
-    leftX = anchor.x - tbW - GAP;                        // beside the left edge
-    if (leftX < GAP) leftX = GAP;                        // clamp to a small margin
-  }
-  let topY = anchor.y;                                   // align toolbar top with element top
+  let topY = anchor.y;                                    // align toolbar top with element top
   if (topY + tbH > canvasH - 4) topY = canvasH - tbH - 4; // keep bottom on-canvas
-  if (topY < 4) topY = 4;                                // keep top on-canvas
+  if (topY < 4) topY = 4;                                 // keep top on-canvas
+  // Horizontal (#83): the column is usually TALLER than the selected child, so
+  // it must clear every sibling its vertical span crosses — not just the anchor
+  // (a wider sibling below the child was being grazed). Build the block's
+  // content rects in logical px and sit beyond their extremes.
+  const rects = [{ x: anchor.x, y: anchor.y, w: anchor.w, h: anchor.h }];
+  const bNode = canvas ? canvas.querySelector(`[data-block-id="${b.id}"]`) : null;
+  if (bNode) {
+    const br = bNode.getBoundingClientRect();
+    const sc = (br.width && bNode.offsetWidth) ? br.width / bNode.offsetWidth : 1;
+    bNode.querySelectorAll('.sub-element').forEach(n => {
+      const sr = n.getBoundingClientRect();
+      if (!sr.width || !sr.height) return;
+      rects.push({ x: dp.x + (sr.left - br.left) / sc, y: dp.y + (sr.top - br.top) / sc, w: sr.width / sc, h: sr.height / sc });
+    });
+  }
+  let crossing = rects.filter(c => topY < c.y + c.h && topY + tbH > c.y);
+  if (!crossing.length) crossing = [rects[0]];
+  const maxRight = Math.max(...crossing.map(c => c.x + c.w));
+  const minLeft  = Math.min(...crossing.map(c => c.x));
+  let leftX = maxRight + GAP;                             // beyond the right edge
+  if (leftX + tbW > canvasW - GAP) {                      // would overflow → flip left
+    leftX = minLeft - tbW - GAP;                          // beside the left edge
+    if (leftX < GAP) leftX = GAP;                         // clamp to a small margin
+  }
+  // If neither side had room and the clamp landed the bar ON the content (#83),
+  // drop it just below the block's content instead of covering it (above if the
+  // canvas bottom is too close).
+  const hitsContent = crossing.some(c => leftX < c.x + c.w && leftX + tbW > c.x);
+  if (hitsContent) {
+    const contentBot = Math.max(...rects.map(c => c.y + c.h));
+    const contentTop = Math.min(...rects.map(c => c.y));
+    topY = contentBot + GAP;
+    if (topY + tbH > canvasH - 4) topY = contentTop - tbH - GAP;
+    if (topY < 4) topY = 4;
+    leftX = Math.min(Math.max(anchor.x, GAP), Math.max(GAP, canvasW - tbW - GAP));
+  }
   tb.style.left = leftX + 'px';
   tb.style.top = topY + 'px';
 }
@@ -7768,6 +7812,12 @@ function _tftEnsureListeners() {
 function updateTextFormatToolbar() {
   const tb = document.getElementById('text-format-toolbar');
   if (!tb) return;
+  // #83 root cause: the bar was a child of the transform-scaled #canvas. A CSS
+  // transform makes that element the containing block for position:fixed, so
+  // the viewport coords we computed were re-offset AND re-scaled — the bar
+  // drifted down-right onto the content below the selected child. Reparent to
+  // <body> once so fixed truly means viewport (renderCanvas never wipes it).
+  if (tb.parentElement !== document.body) document.body.appendChild(tb);
   _tftEnsureListeners();
   const bId = state.selectedBlockId, sId = state.selectedSubId;
   if (!bId || !sId) { tb.classList.remove('tft-visible'); return; }
@@ -7782,6 +7832,10 @@ function updateTextFormatToolbar() {
   const curTT = p.textTransform || (se.type === 'eyebrow' ? 'uppercase' : 'none');
   const cases = [['none','Tt','As typed'],['uppercase','AB','UPPERCASE'],['lowercase','ab','lowercase'],['capitalize','Ab','Capitalize']];
   const caseBtns = cases.map(([v,lbl,ti]) => `<button type="button" class="tft-btn${curTT===v?' active':''}" data-tt="${v}" title="${ti}">${lbl}</button>`).join('');
+  // Text-align group (#87) — bound to the same textAlign prop the props panel uses.
+  const curAlign = p.textAlign || 'left';
+  const aligns = [['left','bi-text-left','Align left'],['center','bi-text-center','Align centre'],['right','bi-text-right','Align right'],['justify','bi-justify','Justify']];
+  const alignBtns = aligns.map(([v,ic,ti]) => `<button type="button" class="tft-btn${curAlign===v?' active':''}" data-al="${v}" title="${ti}"><i class="bi ${ic}"></i></button>`).join('');
   const curFont = p.fontFamily || 'inherit';
   const fontOpts = DESIGNER_FONTS_SORTED.map(([v,l]) => `<option value="${escHtml(v)}" style="font-family:${v}" ${curFont===v?'selected':''}>${l}</option>`).join('');
   const defSize = se.type === 'heading' ? 22 : (se.type === 'eyebrow' ? 13 : 14);
@@ -7793,6 +7847,8 @@ function updateTextFormatToolbar() {
   tb.innerHTML =
     `<div class="tft-group" id="tft-case">${caseBtns}</div>` +
     `<div class="tft-sep"></div>` +
+    `<div class="tft-group" id="tft-align">${alignBtns}</div>` +
+    `<div class="tft-sep"></div>` +
     `<select class="tft-sel" id="tft-font" title="Font family">${fontOpts}</select>` +
     `<input type="number" class="tft-num" id="tft-size" min="8" max="120" value="${p.fontSize||defSize}" title="Font size (px)">` +
     `<input type="color" class="tft-color" id="tft-color" value="${p.color||defColor}" title="Text colour">` +
@@ -7802,6 +7858,7 @@ function updateTextFormatToolbar() {
 
   const apply = (k, v) => { updateSubProp(bId, sId, k, v); renderCanvas(); updateTextFormatToolbar(); };
   tb.querySelectorAll('#tft-case .tft-btn').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); apply('textTransform', btn.dataset.tt); }));
+  tb.querySelectorAll('#tft-align .tft-btn').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); apply('textAlign', btn.dataset.al); }));
   tb.querySelector('#tft-font')?.addEventListener('change', e => { e.stopPropagation(); const v = e.target.value; updateSubProp(bId, sId, 'fontFamily', v); const _m = v.match(/'([^']+)'/); if (_m) injectGoogleFont(_m[1]); renderCanvas(); updateTextFormatToolbar(); });
   tb.querySelector('#tft-size')?.addEventListener('change', e => { e.stopPropagation(); apply('fontSize', parseInt(e.target.value) || defSize); });
   tb.querySelector('#tft-color')?.addEventListener('change', e => { e.stopPropagation(); apply('color', e.target.value); });
@@ -7816,27 +7873,32 @@ function updateTextFormatToolbar() {
   positionTextFormatToolbar(node);
 }
 
-function positionTextFormatToolbar(elNode) {
+function positionTextFormatToolbar() {
+  // #83 FINAL BEHAVIOUR (user decision): the format bar is DOCKED at one fixed
+  // spot — top-centre of the canvas panel — and NEVER follows the selected
+  // element. Selection only toggles its visibility; its position is constant,
+  // so it can't overlap the element being edited or hop around per selection.
+  // (The element-hugging attempt was reverted on user feedback.)
+  // The bar lives on <body> (position:fixed): keeping it inside the transform-
+  // scaled #canvas made the transform the containing block and re-scaled every
+  // coordinate — the original root cause of the drift onto content below.
   const tb = document.getElementById('text-format-toolbar');
   if (!tb || !tb.classList.contains('tft-visible')) return;
-  const node = elNode || document.querySelector(`.sub-element[data-sub-id="${state.selectedSubId}"]`);
   const canvas = document.getElementById('canvas');
-  if (!node || !canvas) { tb.classList.remove('tft-visible'); return; }
-  const r = node.getBoundingClientRect();
-  const cr = canvas.getBoundingClientRect();
+  if (!canvas) { tb.classList.remove('tft-visible'); return; }
+  const area = canvas.closest('.canvas-area');
+  const cr = (area || canvas).getBoundingClientRect();
   const tw = tb.offsetWidth || 280;
   const th = tb.offsetHeight || 36;
   const GAP = 8;
-  // Prefer ABOVE the child; flip below when there's no room above.
-  let top = r.top - th - GAP;
-  if (top < cr.top + 4) top = r.bottom + GAP;
-  if (top + th > cr.bottom - 4) top = Math.max(cr.top + 4, cr.bottom - th - 4);
-  // Left-align with the child, then clamp inside the canvas and the viewport.
-  let left = r.left;
-  if (left + tw > cr.right - 4) left = cr.right - tw - 4;
-  if (left < cr.left + 4) left = cr.left + 4;
+  // Dock just below the canvas panel header (zoom/device bar) when present.
+  const header = area ? area.querySelector('.canvas-panel-header') : null;
+  let top = (header ? header.getBoundingClientRect().bottom : cr.top) + GAP;
+  let left = cr.left + (cr.width - tw) / 2;   // centred over the canvas panel
+  // Clamp fully on-screen.
   if (left + tw > window.innerWidth - 4) left = window.innerWidth - tw - 4;
   if (left < 4) left = 4;
+  if (top + th > window.innerHeight - 4) top = window.innerHeight - th - 4;
   if (top < 4) top = 4;
   tb.style.left = left + 'px';
   tb.style.top = top + 'px';
