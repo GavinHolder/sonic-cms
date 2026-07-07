@@ -44,7 +44,7 @@ interface FlexibleSectionEditorModalProps {
   allSections?: Array<{ id: string; type: string; title?: string; displayName?: string; order: number }>;
 }
 
-type ActiveTab = "content" | "background" | "animation" | "overlay" | "triangle" | "lower-third" | "motion" | "spacing" | "scroll-stage" | "preview";
+type ActiveTab = "content" | "background" | "animation" | "overlay" | "triangle" | "lower-third" | "motion" | "spacing" | "scroll-stage";
 
 export default function FlexibleSectionEditorModal({
   section,
@@ -313,9 +313,8 @@ export default function FlexibleSectionEditorModal({
       }
     }
     if (e.data.type === "FLEXIBLE_DESIGNER_PREVIEW") {
-      // Close the designer and switch to the Preview tab to show a real render
+      // Close the designer — the live preview pane is always visible now.
       setShowDesigner(false);
-      setActiveTab("preview");
     }
   }, [designerData, contentMode, layout, draftKey, section]);
 
@@ -434,7 +433,10 @@ export default function FlexibleSectionEditorModal({
 
       {/* Main editor modal — same shell as NormalSectionEditor */}
       <div className="modal d-block" style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1115 }}>
-        <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl">
+        <div
+          className="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl"
+          style={{ maxWidth: "1680px", width: "97vw" }}
+        >
           <div className="modal-content">
 
             {/* Header */}
@@ -446,8 +448,11 @@ export default function FlexibleSectionEditorModal({
               <button type="button" className="btn-close" onClick={handleCancel} aria-label="Close" />
             </div>
 
-            {/* Body */}
+            {/* Body — 2-column: controls left, persistent live preview right */}
             <div className="modal-body">
+              <div className="row g-4">
+              {/* ═══ CONTROLS COLUMN ═══════════════════════════════════════ */}
+              <div className="col-12 col-xl-7">
               {/* Display Name */}
               <div className="mb-4">
                 <label className="form-label fw-semibold">
@@ -495,22 +500,6 @@ export default function FlexibleSectionEditorModal({
                   </button>
                 ))}
                 </div>
-                {/* Live Preview — pinned right */}
-                <button
-                    className={`btn btn-link text-decoration-none px-3 py-2 border-0 rounded-0 text-nowrap ms-auto`}
-                    style={{
-                      fontSize: "0.82rem",
-                      color: activeTab === "preview" ? "#198754" : "#0d6efd",
-                      borderBottom: activeTab === "preview" ? "2px solid #198754" : "2px solid transparent",
-                      fontWeight: activeTab === "preview" ? 600 : 400,
-                      marginBottom: "-1px",
-                      flexShrink: 0,
-                    }}
-                    onClick={() => setActiveTab("preview")}
-                  >
-                    <i className="bi bi-eye me-1" />
-                    Preview
-                  </button>
               </div>
 
               {/* ══ CONTENT TAB ════════════════════════════════════════════ */}
@@ -1259,15 +1248,21 @@ export default function FlexibleSectionEditorModal({
               {activeTab === "scroll-stage" && contentMode === "multi" && (
                 <ModalScrollStageTab config={scrollStage} onChange={setScrollStage} />
               )}
+              </div>
+              {/* ═══ END CONTROLS COLUMN ═══════════════════════════════════ */}
 
-              {/* ══ PREVIEW TAB ══════════════════════════════════════════ */}
-              {activeTab === "preview" && (
-                <SectionLivePreview
-                  section={designerSection}
-                  viewport={previewViewport}
-                  onViewportChange={setPreviewViewport}
-                />
-              )}
+              {/* ═══ LIVE PREVIEW COLUMN — always visible, sticky ══════════ */}
+              <div className="col-12 col-xl-5">
+                <div style={{ position: "sticky", top: 0 }}>
+                  <SectionLivePreview
+                    section={designerSection}
+                    viewport={previewViewport}
+                    onViewportChange={setPreviewViewport}
+                  />
+                </div>
+              </div>
+              {/* ═══ END LIVE PREVIEW COLUMN ═══════════════════════════════ */}
+              </div>
             </div>
 
             {/* Footer */}

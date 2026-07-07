@@ -1045,7 +1045,7 @@ export default function NormalSectionEditor({
   const [bgImageOpacity, setBgImageOpacity] = useState(section.bgImageOpacity || 100);
   const [bgParallax, setBgParallax] = useState(section.bgParallax || false);
 
-  const [activeTab, setActiveTab] = useState<"content" | "background" | "animation" | "overlay" | "spacing" | "triangle" | "lower-third" | "motion" | "preview">("content");
+  const [activeTab, setActiveTab] = useState<"content" | "background" | "animation" | "overlay" | "spacing" | "triangle" | "lower-third" | "motion">("content");
   const [animBg, setAnimBg] = useState<AnimBgConfig>(
     (section as any).content?.animBg || DEFAULT_ANIM_BG_CONFIG
   );
@@ -1173,7 +1173,10 @@ export default function NormalSectionEditor({
 
   return (
     <div className="modal d-block" style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1115 }}>
-      <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl">
+      <div
+        className="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl"
+        style={{ maxWidth: "1680px", width: "97vw" }}
+      >
         <div className="modal-content">
           <div className="modal-header">
             <h5 className="modal-title">
@@ -1189,6 +1192,9 @@ export default function NormalSectionEditor({
           </div>
 
           <div className="modal-body">
+            <div className="row g-4">
+            {/* ═══ CONTROLS COLUMN ═══════════════════════════════════════ */}
+            <div className="col-12 col-xl-7">
             {/* Display Name */}
             <div className="mb-4">
               <label className="form-label fw-semibold">
@@ -1235,23 +1241,6 @@ export default function NormalSectionEditor({
                   </button>
                 ))}
               </div>
-              {/* Live Preview — pinned right */}
-              <button
-                type="button"
-                className="btn btn-link text-decoration-none px-3 py-2 border-0 rounded-0 text-nowrap ms-auto"
-                style={{
-                  fontSize: "0.82rem",
-                  color: activeTab === "preview" ? "#198754" : "#0d6efd",
-                  borderBottom: activeTab === "preview" ? "2px solid #198754" : "2px solid transparent",
-                  fontWeight: activeTab === "preview" ? 600 : 400,
-                  marginBottom: "-1px",
-                  flexShrink: 0,
-                }}
-                onClick={() => setActiveTab("preview")}
-              >
-                <i className="bi bi-eye me-1" />
-                Preview
-              </button>
             </div>
 
             {/* Content Tab */}
@@ -3048,9 +3037,12 @@ export default function NormalSectionEditor({
               </div>
             )}
 
-            {/* Live Preview Tab */}
-            {activeTab === "preview" && (
-              <>
+            </div>
+            {/* ═══ END CONTROLS COLUMN ═══════════════════════════════════ */}
+
+            {/* ═══ LIVE PREVIEW COLUMN — always visible, sticky ══════════ */}
+            <div className="col-12 col-xl-5">
+              <div style={{ position: "sticky", top: 0 }}>
                 {/* Real renderer — reflects EVERY change instantly, no Save needed */}
                 <SectionRenderPreview section={buildSection()} />
 
@@ -3089,8 +3081,10 @@ export default function NormalSectionEditor({
               />
                   </div>
                 </details>
-              </>
-            )}
+              </div>
+            </div>
+            {/* ═══ END LIVE PREVIEW COLUMN ═══════════════════════════════ */}
+            </div>
           </div>
 
           <div className="modal-footer">
