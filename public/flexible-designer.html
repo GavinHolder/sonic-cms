@@ -293,6 +293,26 @@
     }
     #canvas.drag-over { outline: 3px solid rgba(13,110,253,0.5); }
 
+    /* #68 — Section background preview layer. Sits behind grid guides (z1),
+       blocks (z>=1) and toolbars; purely visual (pointer-events:none) so it never
+       interferes with selection, drag, marquee, guides, resize or toolbars.
+       Hidden by default; JS reveals it only when a bg is configured and the toggle is ON. */
+    #canvas-section-bg {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      border-radius: inherit;
+      overflow: hidden;
+      display: none;
+    }
+    #canvas-section-bg .csb-image,
+    #canvas-section-bg .csb-scrim {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
     /* Grid guides */
     #grid-overlay {
       position: absolute;
@@ -1651,6 +1671,8 @@
           <button class="btn btn-sm btn-outline-secondary" onclick="adjustUserZoom(0.1)" title="Zoom in (Ctrl+=)"><i class="bi bi-plus-lg"></i></button>
           <button class="btn btn-sm btn-outline-secondary" onclick="resetUserZoom()" title="Reset zoom (Ctrl+0)">1:1</button>
         </div>
+        <!-- #68 — Show/hide the section's configured background on the canvas (view only; does not change saved data) -->
+        <button id="section-bg-toggle-btn" class="btn btn-sm btn-outline-secondary active" aria-pressed="true" onclick="toggleSectionBg()" title="Show section background on canvas (view only)"><i class="bi bi-image"></i></button>
         <button class="btn btn-sm btn-outline-secondary" onclick="previewSection()" title="Preview section in tab"><i class="bi bi-eye"></i></button>
       </div>
     </div>
@@ -1664,6 +1686,7 @@
         ondrop="onCanvasDrop(event)"
         onmousedown="onCanvasMouseDown(event)"
         onclick="onCanvasClick(event)">
+        <div id="canvas-section-bg" aria-hidden="true"></div>
         <div id="grid-overlay"></div>
         <div id="guide-overlay"></div>
         <div id="dim-display">—</div>
@@ -1795,7 +1818,11 @@ const state = {
   history: [],
   historyPos: -1,
   guidelines: [],
-  _guideIdCounter: 0
+  _guideIdCounter: 0,
+  // #68 — section background preview on the canvas. VIEW-ONLY: never written back
+  // into buildJson(); mirrors the fields FlexibleSectionRenderer reads off the section.
+  sectionBg: null,        // { background, bgImageUrl, bgImageSize, bgImagePosition, bgImageRepeat, bgImageOpacity, gradient } | null
+  showSectionBg: true     // toggle state (default ON) — pure view preference
 };
 let _saveTimer = null;
 
@@ -8112,6 +8139,104 @@ function showConfirmModal(title, bodyHtml, onConfirm) {
 }
 
 // ═══════════════════════════════════════════════════════════
+//  #68 — SECTION BACKGROUND PREVIEW ON CANVAS (view-only)
+//  Mirrors the exact fields FlexibleSectionRenderer reads off the section object:
+//    - background            → resolveBgColor() presets / raw colour / gradient string
+//    - bgImageUrl + bgImageSize/Position/Repeat/Opacity → absolute bg-image layer
+//    - content.gradient(.preset) → gradient scrim, drawn only when a bg image is present
+//  None of this is written back into buildJson(); it is a pure viewing aid.
+// ═══════════════════════════════════════════════════════════
+function resolveBgColor(bg) {
+  // Mirror of FlexibleSectionRenderer.resolveBgColor — keep in sync.
+  const BG_PRESETS = {
+    white:'#ffffff', gray:'#f8f9fa', blue:'#1e3a5f', lightblue:'#e8f4fd',
+    transparent:'transparent', dark:'#0d1117',
+    midnight:'linear-gradient(135deg, #0f0c29, #302b63, #24243e)',
+    teal:'linear-gradient(135deg, #0d4a4a, #0a2a2a)',
+    purple:'linear-gradient(135deg, #2d1b69, #11073f)'
+  };
+  if (!bg) return '#ffffff';
+  return BG_PRESETS[bg] || bg;
+}
+function isGradient(v) {
+  return !!v && (v.includes('gradient') || v.startsWith('linear-') || v.startsWith('radial-'));
+}
+// Mirror of the renderer's content.gradient → CSS scrim builder (#59 parity).
+function sectionGradCss(gradient) {
+  const p = gradient && gradient.preset;
+  if (!p) return null;
+  const so = (p.startOpacity == null ? 0 : p.startOpacity);
+  const eo = (p.endOpacity   == null ? 0 : p.endOpacity);
+  if (so <= 0 && eo <= 0) return null;
+  const h = (p.color || '#000000').replace('#', '');
+  const r = parseInt(h.slice(0, 2), 16) || 0, g = parseInt(h.slice(2, 4), 16) || 0, b = parseInt(h.slice(4, 6), 16) || 0;
+  const DIR = { top:'to top', bottom:'to bottom', left:'to left', right:'to right', topLeft:'to top left', topRight:'to top right', bottomLeft:'to bottom left', bottomRight:'to bottom right' };
+  return `linear-gradient(${DIR[p.direction || 'bottom'] || 'to bottom'}, rgba(${r},${g},${b},${so / 100}), rgba(${r},${g},${b},${eo / 100}))`;
+}
+// Neutralise a URL so it can't break out of the url('...') context.
+function cssUrl(u) { return String(u == null ? '' : u).replace(/["'()\\\n\r]/g, ''); }
+// Pull section bg fields out of the incoming designer payload. Supports both a flat
+// section config and a nested `sectionBackground` object. Returns null when the payload
+// carries no bg info (canvas then keeps its default white — unchanged behaviour).
+function readSectionBgFromPayload(layout) {
+  if (!layout || typeof layout !== 'object') return null;
+  const src = (layout.sectionBackground && typeof layout.sectionBackground === 'object')
+    ? layout.sectionBackground : layout;
+  const KEYS = ['background','bgImageUrl','bgImageSize','bgImagePosition','bgImageRepeat','bgImageOpacity','gradient'];
+  const has = KEYS.some(k => src[k] !== undefined && src[k] !== null && src[k] !== '');
+  if (!has) return null;
+  return {
+    background:      src.background,
+    bgImageUrl:      src.bgImageUrl || '',
+    bgImageSize:     src.bgImageSize,
+    bgImagePosition: src.bgImagePosition,
+    bgImageRepeat:   src.bgImageRepeat,
+    bgImageOpacity:  src.bgImageOpacity,
+    gradient:        src.gradient || null
+  };
+}
+// Paint (or clear) the #canvas-section-bg layer from state.sectionBg + state.showSectionBg.
+function applySectionBgToCanvas() {
+  const layer = document.getElementById('canvas-section-bg');
+  if (!layer) return;
+  const bg = state.sectionBg;
+  const on = state.showSectionBg !== false;
+  // Keep the toolbar toggle in sync (disabled when there is nothing to show).
+  const btn = document.getElementById('section-bg-toggle-btn');
+  if (btn) {
+    btn.classList.toggle('active', on && !!bg);
+    btn.setAttribute('aria-pressed', (on && !!bg) ? 'true' : 'false');
+    btn.disabled = !bg;
+    btn.style.opacity = bg ? '' : '0.5';
+  }
+  if (!bg || !on) { layer.style.display = 'none'; layer.innerHTML = ''; layer.style.background = ''; return; }
+
+  // Base solid colour / gradient (mirrors the section element's own background).
+  const baseVal = resolveBgColor(bg.background);
+  layer.style.background = (baseVal && baseVal !== 'transparent') ? baseVal : 'transparent';
+  layer.style.display = 'block';
+
+  let html = '';
+  if (bg.bgImageUrl) {
+    const size = bg.bgImageSize || 'cover';
+    const pos  = bg.bgImagePosition || 'center';
+    const rep  = bg.bgImageRepeat || 'no-repeat';
+    const op   = (bg.bgImageOpacity == null ? 100 : bg.bgImageOpacity) / 100;
+    html += `<div class="csb-image" style="background-image:url('${cssUrl(bg.bgImageUrl)}');background-size:${size};background-position:${pos};background-repeat:${rep};opacity:${op};"></div>`;
+    // Gradient scrim — renderer only draws it over a bg image, so match that condition.
+    const grad = sectionGradCss(bg.gradient);
+    if (grad) html += `<div class="csb-scrim" style="background:${grad};"></div>`;
+  }
+  layer.innerHTML = html;
+}
+// Toolbar toggle — flips the view-only preference. Never mutates saved section data.
+function toggleSectionBg() {
+  if (!state.sectionBg) return;
+  state.showSectionBg = !state.showSectionBg;
+  applySectionBgToCanvas();
+}
+
+// ═══════════════════════════════════════════════════════════
 //  IFRAME INTEGRATION (postMessage in/out)
 // ═══════════════════════════════════════════════════════════
 window.addEventListener('message', function(e) {
@@ -8198,11 +8323,16 @@ window.addEventListener('message', function(e) {
           const href = document.getElementById('sectionFooterBtnHref'); if (href) href.value = layout.sectionFooter.rightButton.href  || '';
         }
       }
+      // #68 — read the section's configured background out of the payload and
+      // paint it onto the canvas (view-only; not persisted). Mirrors the fields
+      // FlexibleSectionRenderer reads off the section object.
+      state.sectionBg = readSectionBgFromPayload(layout);
+      applySectionBgToCanvas();
       // Re-render after a paint frame so canvas has settled dimensions.
       // Without this, getCellRect reads offsetHeight=0 on the first render
       // (message fires before the browser paints the iframe layout), causing
       // all grid blocks to stack at y=0 instead of their correct row positions.
-      requestAnimationFrame(() => { renderCanvas(); renderRulers(); });
+      requestAnimationFrame(() => { renderCanvas(); renderRulers(); applySectionBgToCanvas(); });
     }
   } catch(err) {
     console.warn('[FlexibleDesigner] Could not apply init data:', err);
