@@ -85,6 +85,13 @@ export default function FooterSectionEditor({
     copyright: section.content.copyright || "",
     socialLinks: section.content.socialLinks || [],
     certificationLogos: section.content.certificationLogos || [],
+    textColor: section.content.textColor || "",
+    regulatory: {
+      maxLogoHeight: section.content.regulatory?.maxLogoHeight ?? 48,
+      align: section.content.regulatory?.align ?? ("center" as "left" | "center" | "right"),
+      backgroundImage: section.content.regulatory?.backgroundImage || "",
+      backgroundColor: section.content.regulatory?.backgroundColor || "",
+    },
     background: section.background || "gray",
     backgroundImage: section.content.backgroundImage || "",
     gradient: section.content.gradient || {
@@ -122,6 +129,19 @@ export default function FooterSectionEditor({
         copyright: formData.copyright || undefined,
         socialLinks: formData.socialLinks,
         certificationLogos: formData.certificationLogos,
+        textColor: formData.textColor.trim() || undefined,
+        regulatory:
+          formData.regulatory.maxLogoHeight !== 48 ||
+          formData.regulatory.align !== "center" ||
+          formData.regulatory.backgroundImage ||
+          formData.regulatory.backgroundColor
+            ? {
+                maxLogoHeight: formData.regulatory.maxLogoHeight,
+                align: formData.regulatory.align,
+                backgroundImage: formData.regulatory.backgroundImage || undefined,
+                backgroundColor: formData.regulatory.backgroundColor || undefined,
+              }
+            : undefined,
         backgroundImage: formData.backgroundImage || undefined,
         gradient: formData.gradient.enabled ? formData.gradient : undefined,
       },
@@ -955,6 +975,125 @@ export default function FooterSectionEditor({
                 </button>
               </div>
 
+              {/* #50 — Regulatory / partner strip: normalized size, position, background */}
+              <div className="card bg-light border-0 mb-4">
+                <div className="card-body">
+                  <p className="fw-semibold small mb-3">
+                    <i className="bi bi-sliders me-2"></i>
+                    Regulatory Strip Settings
+                  </p>
+                  <div className="row g-3">
+                    <div className="col-md-4">
+                      <label className="form-label small fw-semibold mb-1">
+                        Max Logo Height (px)
+                      </label>
+                      <input
+                        type="number"
+                        className="form-control form-control-sm"
+                        min="16"
+                        max="120"
+                        value={formData.regulatory.maxLogoHeight}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            regulatory: {
+                              ...formData.regulatory,
+                              maxLogoHeight: parseInt(e.target.value) || 48,
+                            },
+                          })
+                        }
+                      />
+                      <small className="form-text text-muted">
+                        Every logo is capped to this height for consistent sizing.
+                      </small>
+                    </div>
+                    <div className="col-md-4">
+                      <label className="form-label small fw-semibold mb-1">Position</label>
+                      <div className="btn-group w-100" role="group">
+                        {(["left", "center", "right"] as const).map((a) => (
+                          <button
+                            key={a}
+                            type="button"
+                            className={`btn btn-sm ${
+                              formData.regulatory.align === a
+                                ? "btn-primary"
+                                : "btn-outline-secondary"
+                            }`}
+                            onClick={() =>
+                              setFormData({
+                                ...formData,
+                                regulatory: { ...formData.regulatory, align: a },
+                              })
+                            }
+                          >
+                            <i
+                              className={`bi bi-text-${
+                                a === "center" ? "center" : a
+                              }`}
+                            ></i>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="col-md-4">
+                      <label className="form-label small fw-semibold mb-1">
+                        Strip Background Colour
+                      </label>
+                      <div className="input-group input-group-sm">
+                        <input
+                          type="text"
+                          className="form-control form-control-sm"
+                          value={formData.regulatory.backgroundColor}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              regulatory: {
+                                ...formData.regulatory,
+                                backgroundColor: e.target.value,
+                              },
+                            })
+                          }
+                          placeholder="#ffffff or linear-gradient(...)"
+                        />
+                        {formData.regulatory.backgroundColor && (
+                          <button
+                            type="button"
+                            className="btn btn-outline-secondary"
+                            title="Clear"
+                            onClick={() =>
+                              setFormData({
+                                ...formData,
+                                regulatory: { ...formData.regulatory, backgroundColor: "" },
+                              })
+                            }
+                          >
+                            <i className="bi bi-x"></i>
+                          </button>
+                        )}
+                      </div>
+                      <small className="form-text text-muted">
+                        Solid colour or CSS gradient (optional).
+                      </small>
+                    </div>
+                    <div className="col-12">
+                      <ImageFieldWithUpload
+                        label="Strip Background Image (Optional)"
+                        value={formData.regulatory.backgroundImage}
+                        onChange={(url) =>
+                          setFormData({
+                            ...formData,
+                            regulatory: { ...formData.regulatory, backgroundImage: url },
+                          })
+                        }
+                        placeholder="/images/regulatory-strip-bg.jpg"
+                        helpText="Optional background behind the regulatory / partner logos"
+                        previewMaxHeight="80px"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {formData.certificationLogos.length === 0 ? (
                 <div className="alert alert-info mb-4">
                   <i className="bi bi-info-circle me-2"></i>
@@ -1104,7 +1243,7 @@ export default function FooterSectionEditor({
                 <div className="col-md-4 mb-3">
                   <label className="form-label fw-semibold">
                     <i className="bi bi-arrows-expand me-1"></i>
-                    Navbar Clearance (Padding Top)
+                    Padding Top (px)
                   </label>
                   <input
                     type="number"
@@ -1121,7 +1260,7 @@ export default function FooterSectionEditor({
                     placeholder="80"
                   />
                   <small className="form-text text-muted">
-                    <strong>Recommended: 80-100px</strong> to prevent content from going behind navbar when scrolling into view
+                    Pushes the footer content down from the top. Applies directly (0–200px).
                   </small>
                 </div>
 
@@ -1145,6 +1284,52 @@ export default function FooterSectionEditor({
                   />
                   <small className="form-text text-muted">
                     Space at bottom of footer
+                  </small>
+                </div>
+              </div>
+
+              {/* #82 — Text colour override (default: auto based on background) */}
+              <div className="row">
+                <div className="col-md-6 mb-3">
+                  <label className="form-label fw-semibold">
+                    <i className="bi bi-fonts me-1"></i>
+                    Text Colour
+                  </label>
+                  <div className="input-group">
+                    <span className="input-group-text p-1">
+                      <input
+                        type="color"
+                        className="form-control form-control-color border-0"
+                        value={formData.textColor || "#ffffff"}
+                        onChange={(e) =>
+                          setFormData({ ...formData, textColor: e.target.value })
+                        }
+                        title="Pick footer text colour"
+                        style={{ width: 36, height: 30 }}
+                      />
+                    </span>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={formData.textColor}
+                      onChange={(e) =>
+                        setFormData({ ...formData, textColor: e.target.value })
+                      }
+                      placeholder="Auto (based on background)"
+                    />
+                    {formData.textColor && (
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary"
+                        title="Reset to automatic"
+                        onClick={() => setFormData({ ...formData, textColor: "" })}
+                      >
+                        <i className="bi bi-arrow-counterclockwise"></i>
+                      </button>
+                    )}
+                  </div>
+                  <small className="form-text text-muted">
+                    Leave empty to auto-pick black/white for contrast. Set a colour to override.
                   </small>
                 </div>
               </div>

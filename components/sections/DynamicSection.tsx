@@ -418,8 +418,15 @@ function FooterRenderer({ section }: { section: FooterSection }) {
     content.gradient
   );
   const contrastColor = getContrastColor(effectiveBgColor);
-  const { text: textClass, muted: mutedClass, link: linkClass, cursor: cursorClass } =
-    getTextColorClasses(contrastColor);
+  const auto = getTextColorClasses(contrastColor);
+  // #82 — optional manual text colour. When content.textColor is set it overrides the
+  // automatic contrast colour and elements inherit it (muted dims via opacity, links
+  // inherit). Unset keeps the original automatic behaviour (default — no visual change).
+  const customTextColor = content.textColor?.trim() || null;
+  const textClass = customTextColor ? "" : auto.text;
+  const mutedClass = customTextColor ? "footer-text-muted" : auto.muted;
+  const linkClass = customTextColor ? "footer-text-link text-decoration-none" : auto.link;
+  const cursorClass = auto.cursor;
 
   const logoPos = content.logoPosition || "top-left";
 
@@ -481,14 +488,34 @@ function FooterRenderer({ section }: { section: FooterSection }) {
     </div>
   );
 
+  // #50 — regulatory / partner logo strip: normalize logo sizes (consistent bounding
+  // box so wide & tall logos read at the same scale), position the strip, and optionally
+  // give it its own background image / colour.
+  const reg = content.regulatory || {};
+  const certMaxH =
+    typeof reg.maxLogoHeight === "number" && reg.maxLogoHeight > 0 ? reg.maxLogoHeight : 48;
+  const certAlign = reg.align || "center";
+  const certJustify =
+    certAlign === "left"
+      ? "justify-content-start"
+      : certAlign === "right"
+      ? "justify-content-end"
+      : "justify-content-center";
+
   // Build certification logos - auto-flow based on main logo position
   const certLogos = content.certificationLogos?.filter(cert => cert.image) || [];
   const certElements = certLogos.map((cert, i) => (
-    <div key={`cert-${i}`} className="mb-3 text-center">
+    <div key={`cert-${i}`} className="text-center">
       <img
         src={cert.image}
         alt="Certification"
-        style={{ maxHeight: "50px", marginBottom: "8px" }}
+        style={{
+          maxHeight: `${certMaxH}px`,
+          maxWidth: `${Math.round(certMaxH * 2.6)}px`,
+          width: "auto",
+          objectFit: "contain",
+          marginBottom: "8px",
+        }}
         onError={(e) => {
           e.currentTarget.style.display = "none";
         }}
@@ -601,8 +628,12 @@ function FooterRenderer({ section }: { section: FooterSection }) {
       style={{
         ...backgroundStyles,
         backgroundColor: bgColor,
+        ...(customTextColor ? { color: customTextColor } : {}),
         "--section-bg": bgColor,
-        "--section-pt": `${Math.max(paddingTop ?? 100, 100)}px`,
+        // #49 — honour the author's paddingTop/paddingBottom verbatim. Footer-scoped CSS
+        // (footer .section-content-wrapper) consumes these without the navbar-clearance
+        // floor other sections apply, so these controls move content across the full range.
+        "--section-pt": `${paddingTop ?? 80}px`,
         "--section-pb": `${paddingBottom ?? 40}px`,
         ...(paddingTopMobile != null && { "--section-pt-mobile": `${paddingTopMobile}px` }),
         ...(paddingBottomMobile != null && { "--section-pb-mobile": `${paddingBottomMobile}px` }),
@@ -722,11 +753,28 @@ function FooterRenderer({ section }: { section: FooterSection }) {
           </>
         )}
 
-        {/* Certification Logos Row - ALWAYS at bottom before copyright, max 5 logos, evenly spaced */}
+        {/* Certification Logos Row - ALWAYS at bottom before copyright, max 5 logos.
+            #50 — alignment + optional background come from content.regulatory. */}
         {certElements.length > 0 && (
           <div className="row mb-5">
             <div className="col-12">
-              <div className="d-flex justify-content-evenly align-items-center flex-wrap">
+              <div
+                className={`d-flex ${certJustify} align-items-center flex-wrap gap-4 gap-md-5`}
+                style={{
+                  ...(reg.backgroundColor ? { background: reg.backgroundColor } : {}),
+                  ...(reg.backgroundImage
+                    ? {
+                        backgroundImage: `url(${reg.backgroundImage})`,
+                        backgroundSize: "cover",
+                        backgroundPosition: "center",
+                        backgroundRepeat: "no-repeat",
+                      }
+                    : {}),
+                  ...(reg.backgroundColor || reg.backgroundImage
+                    ? { padding: "1.25rem 1rem", borderRadius: "8px" }
+                    : {}),
+                }}
+              >
                 {certElements.slice(0, 5)}
               </div>
             </div>

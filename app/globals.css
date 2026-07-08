@@ -286,6 +286,28 @@ footer {
   overflow: hidden;
 }
 
+/* #49 — Footer honours its OWN paddingTop/paddingBottom directly. The shared
+   .section-content-wrapper rule floors padding-top at the navbar height so page
+   sections never slide under the fixed nav; the footer is the last section and does
+   not need that floor, so this footer-scoped override (higher specificity) lets the
+   spacing controls move the footer content across their full 0–200px range. */
+footer .section-content-wrapper {
+  padding-top: var(--section-pt, 80px);
+  padding-bottom: var(--section-pb, 40px);
+}
+@media (max-width: 767px) {
+  footer .section-content-wrapper {
+    padding-top: var(--section-pt-mobile, var(--section-pt, 80px));
+    padding-bottom: var(--section-pb-mobile, var(--section-pb, 40px));
+  }
+}
+
+/* #82 — manual footer text colour helpers. When a colour is set the footer root gets
+   an inline `color`; these classes let muted text dim and links inherit that colour
+   instead of forcing Bootstrap white/dark. Unset = original auto-contrast classes. */
+footer .footer-text-muted { opacity: 0.72; }
+footer .footer-text-link { color: inherit; }
+
 /* ===== CUSTOM SCROLLBAR ===== */
 
 ::-webkit-scrollbar {

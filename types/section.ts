@@ -585,6 +585,17 @@ export interface FooterSection extends BaseSectionConfig {
     // Background options (same as hero section)
     backgroundImage?: string; // Custom background image URL
     gradient?: GradientOverlay; // Gradient overlay
+    /** #82 — Manual footer text colour. When set, overrides the automatic
+     *  background-contrast colour. Empty/undefined keeps the automatic behaviour. */
+    textColor?: string;
+    /** #50 — Regulatory / partner logo strip settings. Normalizes logo sizes,
+     *  positions the strip, and adds an optional background image/gradient. */
+    regulatory?: {
+      maxLogoHeight?: number; // px cap applied to every strip logo (default 48)
+      align?: "left" | "center" | "right"; // strip alignment (default "center")
+      backgroundImage?: string; // optional strip background image URL
+      backgroundColor?: string; // optional strip background colour or CSS gradient
+    };
   };
 }
 
