@@ -539,6 +539,11 @@
     .sub-element.selected { border-color: #20c997; background: rgba(32,201,151,0.04); box-shadow: 0 0 0 2px rgba(32,201,151,0.3); }
     /* #89 marquee rubber-band — brand blue, matches the designer's #0d6efd chrome (no new colours) */
     .marquee-box { position: absolute; z-index: 9998; border: 1px solid #0d6efd; background: rgba(13,110,253,0.10); border-radius: 2px; pointer-events: none; }
+    /* #48 Smart alignment guides — transient lines shown while dragging a child.
+       Live inside #canvas (scaled), positioned in canvas-local coords, removed on drop. */
+    .smart-guide { position: absolute; z-index: 9995; pointer-events: none; }
+    .smart-guide.v { top: 0; bottom: 0; width: 0; border-left: 1px solid #0d6efd; }
+    .smart-guide.h { left: 0; right: 0; height: 0; border-top: 1px solid #0d6efd; }
 
     .se-anim-badge {
       position: absolute;
@@ -3367,6 +3372,18 @@ function startSubElementMove(e, blockId, seId) {
   const startMY = e.clientY;
   let moved = false;
 
+  // #48 smart-guide setup: capture the stable mapping from block-relative x/y to
+  // canvas-local coords, and the static target lines (measured once — targets
+  // don't move during the drag). _originLeft/_originTop convert any tentative
+  // block-relative newX/newY to a canvas-local edge position.
+  const _sgCanvas = document.getElementById('canvas');
+  const _sgScale = getCanvasScale();
+  const _sgCanvasRect = _sgCanvas ? _sgCanvas.getBoundingClientRect() : null;
+  const _sgStartRect = seEl.getBoundingClientRect();
+  const _originLeft = _sgCanvasRect ? (_sgStartRect.left - _sgCanvasRect.left) / _sgScale - origX : 0;
+  const _originTop  = _sgCanvasRect ? (_sgStartRect.top  - _sgCanvasRect.top)  / _sgScale - origY : 0;
+  const _sgTargets = _sgCanvasRect ? _buildAlignTargets(new Set([seId]), _sgCanvasRect, _sgScale) : { x: [], y: [] };
+
   const onMove = ev => {
     const _sem_s = getCanvasScale();
     const dx = (ev.clientX - startMX) / _sem_s;
@@ -3392,6 +3409,21 @@ function startSubElementMove(e, blockId, seId) {
       newX = Math.round(newX / sg) * sg;
       newY = Math.round(newY / sg) * sg;
     }
+    // #48 smart alignment snap: map tentative position → canvas-local edges,
+    // find nearest guide within threshold, nudge onto it, and draw the guides.
+    if (_sgCanvasRect) {
+      const w = seEl.offsetWidth, h = seEl.offsetHeight;
+      const ll = _originLeft + newX, tt = _originTop + newY;
+      const snap = _alignSnap(
+        [ll, ll + w / 2, ll + w],
+        [tt, tt + h / 2, tt + h],
+        _sgTargets, SMART_SNAP_PX
+      );
+      newX += Math.round(snap.dx);
+      newY += Math.round(snap.dy);
+      clearSmartGuides();
+      drawSmartGuides(snap.guideXs, snap.guideYs);
+    }
     se.x = newX;
     se.y = newY;
     seEl.style.left = se.x + 'px';
@@ -3407,6 +3439,7 @@ function startSubElementMove(e, blockId, seId) {
   const onUp = () => {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    clearSmartGuides(); // #48 remove transient alignment guides on drop
     if (moved) {
       // Mark the block as manually laid out so the post-render restack
       // (renderCanvas → fitBlockToSubElementsDOM(id, true)) does NOT reset this
@@ -3506,6 +3539,27 @@ function startGroupMove(e, clickBlockId, clickSeId) {
   const affectedBlocks = new Set(members.map(m => m.block.id));
   let moved = false;
 
+  // #48 smart-guide setup for group drag: capture the group's start bounding box
+  // in canvas-local coords and the static target lines (all sub-elements EXCEPT
+  // the selected members, plus canvas centres). The whole group snaps as one:
+  // the adjustment found for the bbox is applied to every member equally.
+  const _sgCanvas = document.getElementById('canvas');
+  const _sgScale = getCanvasScale();
+  const _sgCanvasRect = _sgCanvas ? _sgCanvas.getBoundingClientRect() : null;
+  let _grpL = Infinity, _grpT = Infinity, _grpR = -Infinity, _grpB = -Infinity;
+  if (_sgCanvasRect) {
+    members.forEach(m => {
+      const r = _seCanvasLocalRect(m.el, _sgCanvasRect, _sgScale);
+      if (!r) return;
+      _grpL = Math.min(_grpL, r.left); _grpT = Math.min(_grpT, r.top);
+      _grpR = Math.max(_grpR, r.left + r.width); _grpB = Math.max(_grpB, r.top + r.height);
+    });
+  }
+  const _grpTargets = _sgCanvasRect
+    ? _buildAlignTargets(new Set(members.map(m => m.se.id)), _sgCanvasRect, _sgScale)
+    : { x: [], y: [] };
+  const _grpHasBox = !!_sgCanvasRect && _grpL !== Infinity;
+
   const onMove = ev => {
     const s = getCanvasScale();
     const dx = (ev.clientX - startMX) / s;
@@ -3519,9 +3573,18 @@ function startGroupMove(e, clickBlockId, clickSeId) {
       });
     }
     moved = true;
+    // #48 snap the group bbox onto alignment guides; apply the same nudge to all.
+    let adx = dx, ady = dy;
+    if (_grpHasBox) {
+      const bl = _grpL + dx, bt = _grpT + dy, br = _grpR + dx, bb = _grpB + dy;
+      const snap = _alignSnap([bl, (bl + br) / 2, br], [bt, (bt + bb) / 2, bb], _grpTargets, SMART_SNAP_PX);
+      adx = dx + snap.dx; ady = dy + snap.dy;
+      clearSmartGuides();
+      drawSmartGuides(snap.guideXs, snap.guideYs);
+    }
     members.forEach(m => {
-      let nx = Math.round(m.origX + dx);
-      let ny = Math.round(m.origY + dy);
+      let nx = Math.round(m.origX + adx);
+      let ny = Math.round(m.origY + ady);
       if (state.subElementSnap) { const g = 8; nx = Math.round(nx / g) * g; ny = Math.round(ny / g) * g; }
       m.se.x = nx; m.se.y = ny;
       m.el.style.left = nx + 'px'; m.el.style.top = ny + 'px';
@@ -3532,6 +3595,7 @@ function startGroupMove(e, clickBlockId, clickSeId) {
   const onUp = () => {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    clearSmartGuides(); // #48 remove transient alignment guides on drop
     if (moved) {
       // Persist: mark blocks manual so the restack doesn't reset dragged Y, remeasure, save.
       members.forEach(m => { m.block.manualSize = true; });
@@ -3630,6 +3694,126 @@ function finishMarquee(mRect) {
     // Empty marquee → clear everything.
     renderCanvas(); renderPropsPanel(); updateTextFormatToolbar();
   }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  #48 SMART ALIGNMENT GUIDES + SNAPPING (child drag / group drag)
+//  Transient guide lines appear while a child (or multi-selection) is dragged
+//  when its edges/centre line up with another element's left/centre/right or
+//  top/middle/bottom, or with the canvas centre lines. The dragged element
+//  snaps onto the target within SMART_SNAP_PX and releases past it. Everything
+//  works in CANVAS-LOCAL coordinates (unscaled px, same space the canvas is
+//  laid out in) so it stays correct at any zoom/fit-scale. Guides are removed
+//  on drop. No new libraries, no persisted state — purely visual during drag.
+// ═══════════════════════════════════════════════════════════
+const SMART_SNAP_PX = 6; // canvas-local px threshold for edge/centre snapping
+
+/** Removes any transient alignment guide lines from the canvas. */
+function clearSmartGuides() {
+  document.querySelectorAll('#canvas .smart-guide').forEach(el => el.remove());
+}
+
+/**
+ * Draws transient vertical/horizontal alignment guides at the given
+ * canvas-local coordinates. Lines are appended to #canvas (which is the scaled
+ * offset parent) so a local X/Y renders exactly over the aligned element edge.
+ * @param {number[]} xs - canvas-local X positions for vertical guides.
+ * @param {number[]} ys - canvas-local Y positions for horizontal guides.
+ */
+function drawSmartGuides(xs, ys) {
+  const canvas = document.getElementById('canvas');
+  if (!canvas) return;
+  (xs || []).forEach(x => {
+    const ln = document.createElement('div');
+    ln.className = 'smart-guide v';
+    ln.style.left = x + 'px';
+    canvas.appendChild(ln);
+  });
+  (ys || []).forEach(y => {
+    const ln = document.createElement('div');
+    ln.className = 'smart-guide h';
+    ln.style.top = y + 'px';
+    canvas.appendChild(ln);
+  });
+}
+
+/**
+ * Converts a DOM element's on-screen rect into canvas-local coords (unscaled).
+ * Returns null for zero-size (e.g. hidden) elements so they never become targets.
+ * @param {Element} el - the element to measure.
+ * @param {DOMRect} cRect - canvas getBoundingClientRect (visual/scaled).
+ * @param {number} scale - current canvas scale from getCanvasScale().
+ */
+function _seCanvasLocalRect(el, cRect, scale) {
+  const r = el.getBoundingClientRect();
+  if (!r.width && !r.height) return null;
+  return {
+    left: (r.left - cRect.left) / scale,
+    top:  (r.top  - cRect.top)  / scale,
+    width:  r.width  / scale,
+    height: r.height / scale,
+  };
+}
+
+/**
+ * Builds the set of snap-target lines (canvas-local X and Y positions) from
+ * every sub-element on the canvas except those in excludeSet, plus the canvas
+ * centre lines. Each element contributes left/centre/right (X) and
+ * top/middle/bottom (Y). Called ONCE at drag start (targets are static during a
+ * drag) for performance.
+ * @param {Set<string>} excludeSet - sub-element ids to skip (the dragged one[s]).
+ * @param {DOMRect} cRect - canvas getBoundingClientRect.
+ * @param {number} scale - current canvas scale.
+ * @returns {{x:number[], y:number[]}}
+ */
+function _buildAlignTargets(excludeSet, cRect, scale) {
+  const xs = [], ys = [];
+  const canvas = document.getElementById('canvas');
+  if (!canvas) return { x: xs, y: ys };
+  canvas.querySelectorAll('.sub-element').forEach(el => {
+    if (excludeSet.has(el.dataset.subId)) return;
+    const r = _seCanvasLocalRect(el, cRect, scale);
+    if (!r) return;
+    xs.push(r.left, r.left + r.width / 2, r.left + r.width);
+    ys.push(r.top,  r.top  + r.height / 2, r.top  + r.height);
+  });
+  // Canvas centre lines (clientWidth/Height are layout px = canvas-local space).
+  xs.push(canvas.clientWidth / 2);
+  ys.push(canvas.clientHeight / 2);
+  return { x: xs, y: ys };
+}
+
+/**
+ * Given the dragged element/group's tentative moving edges (canvas-local) and
+ * the static target lines, finds the closest target within SMART_SNAP_PX on
+ * each axis independently. Returns the local-space adjustment (dx/dy) that lands
+ * the nearest moving edge exactly on its target, plus the guide lines to draw
+ * (every target that any moving edge coincides with after snapping).
+ * @param {number[]} movingXs - tentative left/centre/right (canvas-local).
+ * @param {number[]} movingYs - tentative top/middle/bottom (canvas-local).
+ * @param {{x:number[], y:number[]}} targets - static target lines.
+ * @param {number} thresh - snap threshold in canvas-local px.
+ * @returns {{dx:number, dy:number, guideXs:number[], guideYs:number[]}}
+ */
+function _alignSnap(movingXs, movingYs, targets, thresh) {
+  let dx = 0, snappedX = false, bestX = thresh;
+  movingXs.forEach(m => targets.x.forEach(t => {
+    const d = t - m, a = Math.abs(d);
+    if (a <= bestX) { bestX = a; dx = d; snappedX = true; }
+  }));
+  let dy = 0, snappedY = false, bestY = thresh;
+  movingYs.forEach(m => targets.y.forEach(t => {
+    const d = t - m, a = Math.abs(d);
+    if (a <= bestY) { bestY = a; dy = d; snappedY = true; }
+  }));
+  const guideXs = [], guideYs = [];
+  if (snappedX) movingXs.forEach(m => targets.x.forEach(t => {
+    if (Math.abs(t - (m + dx)) < 0.5 && !guideXs.some(g => Math.abs(g - t) < 0.5)) guideXs.push(t);
+  }));
+  if (snappedY) movingYs.forEach(m => targets.y.forEach(t => {
+    if (Math.abs(t - (m + dy)) < 0.5 && !guideYs.some(g => Math.abs(g - t) < 0.5)) guideYs.push(t);
+  }));
+  return { dx: snappedX ? dx : 0, dy: snappedY ? dy : 0, guideXs, guideYs };
 }
 
 /**
