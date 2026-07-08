@@ -2414,16 +2414,34 @@ function DesignerSubElement({ sub, pkg, mobile, exact, darkBg }: { sub: SubEl; p
     ? Object.fromEntries(Object.entries(rawP).map(([k, v]) => [k, typeof v === "string" ? resolvePackageTokens(v, pkg) : v]))
     : rawP;
 
-  // Outlined text — byte-identical to the designer canvas (#93). The designer
-  // (createSubElementDOM: heading/eyebrow/paragraph) applies ONLY
-  // `-webkit-text-stroke:${p.outlineWidth||1}px ${p.outlineColor||'#000000'}` and KEEPS the
-  // glyph fill (p.color or inherited). It never sets -webkit-text-fill-color, so forcing a
-  // transparent fill here (#84) made the live page hollow while the canvas stayed filled.
+  // Outlined text — CLEAN hollow outline via the hero's feMorphology technique (#95).
+  // -webkit-text-stroke centres the stroke ON the glyph contour, so heavy fonts paint
+  // stray internal lines where contours self-approach (R leg/bowl, W inner Vs, B bowls).
+  // Instead: render the glyphs FILLED in the outline colour and apply an SVG filter —
+  // erode(SourceAlpha) composited OUT of SourceGraphic — leaving a constant-width hollow
+  // band that follows the glyph for ANY font with zero junction artifacts. Same filter
+  // structure as HeroCarousel.renderRowInner; applied here as a CSS `filter: url(#id)`
+  // on the text element itself so multi-line text works and layout metrics are untouched.
+  // The designer canvas (createSubElementDOM) applies the identical filter → 1:1.
+  // Outline colour: p.outlineColor, else the glyph colour, else #000000; thickness = erode radius.
+  const outlineColor    = (p.outlineColor as string) || (p.color as string) || "#000000";
+  const outlineRadius   = Number(p.outlineWidth) || 1;
+  const outlineFilterId = `dsub-outline-${scopeClass}`;
   const outlinedStyle: React.CSSProperties = p.outlined
-    ? {
-        WebkitTextStroke: `${Number(p.outlineWidth) || 1}px ${(p.outlineColor as string) || "#000000"}`,
-      }
+    ? { color: outlineColor, filter: `url(#${outlineFilterId})` }
     : {};
+  // Hidden SVG carrying the filter def the CSS filter above references (only when outlined).
+  const outlineDefs = p.outlined ? (
+    <svg aria-hidden="true" focusable="false" width={0} height={0}
+         style={{ position: "absolute", width: 0, height: 0, overflow: "hidden" }}>
+      <defs>
+        <filter id={outlineFilterId} x="-25%" y="-25%" width="150%" height="150%">
+          <feMorphology in="SourceAlpha" operator="erode" radius={outlineRadius} result="eroded" />
+          <feComposite in="SourceGraphic" in2="eroded" operator="out" />
+        </filter>
+      </defs>
+    </svg>
+  ) : null;
 
   // ── Animation props ───────────────────────────────────────────────────────
   const animEffect   = (p.animEffect   as string) || "none";
@@ -2723,15 +2741,17 @@ function DesignerSubElement({ sub, pkg, mobile, exact, darkBg }: { sub: SubEl; p
     marginBottom: p.marginBottom !== undefined ? `${Number(p.marginBottom)}px` : "8px",
   };
 
-  // Build the content node (shell or bare)
+  // Build the content node (shell or bare). outlineDefs (hidden 0×0 svg) hosts the
+  // feMorphology filter that outlined heading/paragraph text references (#95).
   const contentNode = hasShell
     ? (
       <div className={scopeClass} style={shellStyle}>
         {customCss && <style ref={styleRef} />}
+        {outlineDefs}
         {inner()}
       </div>
     )
-    : <>{inner()}</>;
+    : <>{outlineDefs}{inner()}</>;
 
   // When an animation effect is active, wrap in a ref div so anime.js can target it
   if (animEffect !== "none") {

@@ -3028,6 +3028,59 @@ function createBlockPreview(block) {
  * @param {string} blockId - The ID of the parent block.
  * @returns {HTMLElement} The .sub-element div ready to insert into the canvas.
  */
+/**
+ * #95: clean hollow outlined text — the hero's feMorphology technique.
+ * -webkit-text-stroke centres the stroke ON the glyph contour, so heavy fonts paint
+ * stray internal lines at junctions (R leg/bowl, W inner Vs). Instead outlined text is
+ * rendered FILLED in the outline colour with a CSS `filter: url(#id)` referencing an
+ * SVG filter: erode(SourceAlpha) composited OUT of SourceGraphic → a constant-width
+ * hollow band that follows the glyph for ANY font, zero junction artifacts.
+ * FlexibleSectionRenderer.DesignerSubElement applies the identical filter → canvas
+ * and live page render 1:1. Filters are shared per erode radius, created on demand
+ * inside a hidden 0×0 <svg> appended to <body>.
+ */
+function ensureOutlineErodeFilter(radius) {
+  const r  = Number(radius) || 1;
+  const id = 'fd-outline-erode-r' + String(r).replace('.', 'p');
+  if (!document.getElementById(id)) {
+    const ns = 'http://www.w3.org/2000/svg';
+    let host = document.getElementById('fd-outline-filter-defs');
+    if (!host) {
+      host = document.createElementNS(ns, 'svg');
+      host.id = 'fd-outline-filter-defs';
+      host.setAttribute('aria-hidden', 'true');
+      host.setAttribute('width', '0');
+      host.setAttribute('height', '0');
+      // Must stay rendered (not display:none) or browsers disable the filter refs
+      host.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;';
+      document.body.appendChild(host);
+    }
+    const f = document.createElementNS(ns, 'filter');
+    f.id = id;
+    f.setAttribute('x', '-25%'); f.setAttribute('y', '-25%');
+    f.setAttribute('width', '150%'); f.setAttribute('height', '150%');
+    const morph = document.createElementNS(ns, 'feMorphology');
+    morph.setAttribute('in', 'SourceAlpha');
+    morph.setAttribute('operator', 'erode');
+    morph.setAttribute('radius', String(r));
+    morph.setAttribute('result', 'eroded');
+    const comp = document.createElementNS(ns, 'feComposite');
+    comp.setAttribute('in', 'SourceGraphic');
+    comp.setAttribute('in2', 'eroded');
+    comp.setAttribute('operator', 'out');
+    f.appendChild(morph); f.appendChild(comp);
+    host.appendChild(f);
+  }
+  return id;
+}
+
+/** Inline style fragment for outlined text (#95) — filled glyphs in the outline colour + erode filter. */
+function outlineStyleFrag(p) {
+  if (!p.outlined) return '';
+  const col = p.outlineColor || p.color || '#000000';
+  return `color:${col};filter:url(#${ensureOutlineErodeFilter(p.outlineWidth || 1)});`;
+}
+
 function createSubElementDOM(se, blockId) {
   const el = document.createElement('div');
   el.className = 'sub-element' + (se.id === state.selectedSubId ? ' selected' : '');
@@ -3044,15 +3097,15 @@ function createSubElementDOM(se, blockId) {
   switch(se.type) {
     case 'heading':
       if (p.fontFamily && p.fontFamily !== 'inherit') { const _m=p.fontFamily.match(/'([^']+)'/); if(_m) injectGoogleFont(_m[1]); }
-      preview.innerHTML = `<div class="se-heading ${p.level||'h2'}" style="color:${p.color||''};font-size:${p.fontSize||22}px;font-family:${p.fontFamily||'inherit'};font-weight:${p.fontWeight||'700'};text-align:${p.textAlign||'left'};white-space:${p.textWrap||'normal'};line-height:${p.lineHeight||1.2};letter-spacing:${p.letterSpacing||0}px;text-transform:${p.textTransform||'none'};${p.outlined?`-webkit-text-stroke:${p.outlineWidth||1}px ${p.outlineColor||'#000000'};`:''}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">' + (p.level||'h2').toUpperCase() + ' — double-click to edit</span>')}</div>`;
+      preview.innerHTML = `<div class="se-heading ${p.level||'h2'}" style="color:${p.color||''};font-size:${p.fontSize||22}px;font-family:${p.fontFamily||'inherit'};font-weight:${p.fontWeight||'700'};text-align:${p.textAlign||'left'};white-space:${p.textWrap||'normal'};line-height:${p.lineHeight||1.2};letter-spacing:${p.letterSpacing||0}px;text-transform:${p.textTransform||'none'};${outlineStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">' + (p.level||'h2').toUpperCase() + ' — double-click to edit</span>')}</div>`;
       break;
     case 'eyebrow':
       if (p.fontFamily && p.fontFamily !== 'inherit') { const _m=p.fontFamily.match(/'([^']+)'/); if(_m) injectGoogleFont(_m[1]); }
-      preview.innerHTML = `<div class="se-eyebrow" style="color:${p.color||'#0d6efd'};font-size:${p.fontSize||13}px;font-family:${p.fontFamily||'inherit'};font-weight:${p.fontWeight||'700'};text-align:${p.textAlign||'left'};text-transform:${p.textTransform||'uppercase'};letter-spacing:${p.letterSpacing??2}px;line-height:${p.lineHeight||1.4};${p.outlined?`-webkit-text-stroke:${p.outlineWidth||1}px ${p.outlineColor||'#000000'};`:''}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">EYEBROW — double-click to edit</span>')}</div>`;
+      preview.innerHTML = `<div class="se-eyebrow" style="color:${p.color||'#0d6efd'};font-size:${p.fontSize||13}px;font-family:${p.fontFamily||'inherit'};font-weight:${p.fontWeight||'700'};text-align:${p.textAlign||'left'};text-transform:${p.textTransform||'uppercase'};letter-spacing:${p.letterSpacing??2}px;line-height:${p.lineHeight||1.4};${outlineStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">EYEBROW — double-click to edit</span>')}</div>`;
       break;
     case 'paragraph':
       if (p.fontFamily && p.fontFamily !== 'inherit') { const _m=p.fontFamily.match(/'([^']+)'/); if(_m) injectGoogleFont(_m[1]); }
-      preview.innerHTML = `<div class="se-paragraph" style="color:${p.color||''};font-size:${p.fontSize||14}px;font-family:${p.fontFamily||'inherit'};text-align:${p.textAlign||'left'};white-space:${p.textWrap||'pre-wrap'};line-height:${p.lineHeight||1.6};letter-spacing:${p.letterSpacing||0}px;text-transform:${p.textTransform||'none'};${p.outlined?`-webkit-text-stroke:${p.outlineWidth||1}px ${p.outlineColor||'#000000'};`:''}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">Paragraph — double-click to edit</span>')} </div>`;
+      preview.innerHTML = `<div class="se-paragraph" style="color:${p.color||''};font-size:${p.fontSize||14}px;font-family:${p.fontFamily||'inherit'};text-align:${p.textAlign||'left'};white-space:${p.textWrap||'pre-wrap'};line-height:${p.lineHeight||1.6};letter-spacing:${p.letterSpacing||0}px;text-transform:${p.textTransform||'none'};${outlineStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">Paragraph — double-click to edit</span>')} </div>`;
       break;
     case 'image':
       preview.innerHTML = p.src
@@ -6185,8 +6238,9 @@ function selectRow(label,value,options,onchange) {
  * an on/off toggle, plus width + colour rows when enabled. (#81 — makes the
  * outlined-text feature discoverable in the properties panel rather than only via
  * the small floating format-toolbar icon.) Binds to the SAME props the toolbar +
- * renderer already use — `outlined` (flag), `outlineWidth` (px), `outlineColor` —
- * so both controls stay in sync and the renderer applies -webkit-text-stroke.
+ * renderer already use — `outlined` (flag), `outlineWidth` (px = erode radius),
+ * `outlineColor` — so both controls stay in sync; canvas + renderer draw the clean
+ * hollow outline via the shared feMorphology erode filter (#95).
  * @param {string} bId - Parent block id.
  * @param {string} seId - Sub-element id.
  * @param {Object} p - Sub-element props object.
