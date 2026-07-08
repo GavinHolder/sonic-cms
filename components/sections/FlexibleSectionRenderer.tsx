@@ -480,6 +480,20 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
     return `linear-gradient(${DIR[p.direction || "bottom"] || "to bottom"}, rgba(${r},${g},${b},${so / 100}), rgba(${r},${g},${b},${eo / 100}))`;
   })();
 
+  // Background-image fade/MASK (#60). Fades the bg IMAGE to transparent along an
+  // alpha gradient so it blends into the section/page colour behind it (distinct from
+  // the gradient OVERLAY above, which tints with colour). Applied to the image layer
+  // ONLY. Default-off: unset/false → no mask (back-compat, unchanged behaviour).
+  const bgMaskEnabled   = (content as any).bgMaskEnabled === true;
+  const bgMaskCss: string | null = (() => {
+    if (!bgMaskEnabled) return null;
+    const DIR: Record<string, string> = { top: "to top", bottom: "to bottom", left: "to left", right: "to right" };
+    const dir   = DIR[((content as any).bgMaskDirection as string) || "bottom"] || "to bottom";
+    const start = Math.max(0, Math.min(100, (content as any).bgMaskStart ?? 0));
+    const end   = Math.max(0, Math.min(100, (content as any).bgMaskEnd   ?? 100));
+    return `linear-gradient(${dir}, black ${start}%, transparent ${end}%)`;
+  })();
+
   return (
     <section
       ref={sectionRef}
@@ -517,6 +531,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
             backgroundPosition: bgImagePosition || "center",
             backgroundRepeat: bgImageRepeat || "no-repeat",
             opacity: (bgImageOpacity ?? 100) / 100,
+            ...(bgMaskCss ? { maskImage: bgMaskCss, WebkitMaskImage: bgMaskCss } : {}),
             pointerEvents: "none",
           }}
         />

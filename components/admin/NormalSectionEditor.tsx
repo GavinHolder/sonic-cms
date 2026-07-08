@@ -1044,6 +1044,11 @@ export default function NormalSectionEditor({
   const [bgImageRepeat, setBgImageRepeat] = useState(section.bgImageRepeat || "no-repeat");
   const [bgImageOpacity, setBgImageOpacity] = useState(section.bgImageOpacity || 100);
   const [bgParallax, setBgParallax] = useState(section.bgParallax || false);
+  // Background-image fade/MASK (#60) — persisted inside content JSONB
+  const [bgMaskEnabled, setBgMaskEnabled] = useState((section.content as any)?.bgMaskEnabled === true);
+  const [bgMaskDirection, setBgMaskDirection] = useState((section.content as any)?.bgMaskDirection || "bottom");
+  const [bgMaskStart, setBgMaskStart] = useState<number>((section.content as any)?.bgMaskStart ?? 0);
+  const [bgMaskEnd, setBgMaskEnd] = useState<number>((section.content as any)?.bgMaskEnd ?? 100);
 
   const [activeTab, setActiveTab] = useState<"content" | "background" | "animation" | "overlay" | "spacing" | "triangle" | "lower-third" | "motion">("content");
   const [animBg, setAnimBg] = useState<AnimBgConfig>(
@@ -1155,6 +1160,11 @@ export default function NormalSectionEditor({
         backgroundVideo: backgroundType === "video" ? backgroundVideo : undefined,
         videoPoster: backgroundType === "video" ? videoPoster : undefined,
         gradient,
+        // Background-image fade/MASK (#60)
+        bgMaskEnabled,
+        bgMaskDirection,
+        bgMaskStart,
+        bgMaskEnd,
         ...(overlay && { overlay }), // Add overlay if enabled
         // Animated background stored inside content JSONB (persisted by API)
         animBg: animBg.enabled ? animBg : undefined,
@@ -2978,6 +2988,46 @@ export default function NormalSectionEditor({
                             </label>
                           </div>
                         </div>
+
+                        {/* Fade image to transparent (alpha mask) — #60 */}
+                        <div className="mb-3">
+                          <div className="form-check form-switch">
+                            <input
+                              className="form-check-input"
+                              type="checkbox"
+                              id="bgMaskEnabled"
+                              checked={bgMaskEnabled}
+                              onChange={(e) => setBgMaskEnabled(e.target.checked)}
+                            />
+                            <label className="form-check-label" htmlFor="bgMaskEnabled">
+                              Fade image to transparent (gradient mask)
+                            </label>
+                          </div>
+                          <small className="text-muted d-block mt-1">
+                            Fades the background image to transparent so it blends into the section colour. Different from the colour gradient overlay.
+                          </small>
+                        </div>
+                        {bgMaskEnabled && (
+                          <div className="row mb-4">
+                            <div className="col-md-4">
+                              <label className="form-label">Fade Direction</label>
+                              <select className="form-select" value={bgMaskDirection} onChange={(e) => setBgMaskDirection(e.target.value)}>
+                                <option value="top">To Top</option>
+                                <option value="bottom">To Bottom</option>
+                                <option value="left">To Left</option>
+                                <option value="right">To Right</option>
+                              </select>
+                            </div>
+                            <div className="col-md-4">
+                              <label className="form-label">Opaque Until: {bgMaskStart}%</label>
+                              <input type="range" className="form-range" min={0} max={100} value={bgMaskStart} onChange={(e) => setBgMaskStart(Number(e.target.value))} />
+                            </div>
+                            <div className="col-md-4">
+                              <label className="form-label">Fully Faded At: {bgMaskEnd}%</label>
+                              <input type="range" className="form-range" min={0} max={100} value={bgMaskEnd} onChange={(e) => setBgMaskEnd(Number(e.target.value))} />
+                            </div>
+                          </div>
+                        )}
                       </>
                     )}
                   </>

@@ -174,6 +174,11 @@ export default function FlexibleSectionEditorModal({
   const [bgImageRepeat, setBgImageRepeat] = useState(section.bgImageRepeat || "no-repeat");
   const [bgImageOpacity, setBgImageOpacity] = useState(section.bgImageOpacity ?? 100);
   const [bgParallax, setBgParallax] = useState(section.bgParallax || false);
+  // Background-image fade/MASK (#60) — persisted inside content JSONB
+  const [bgMaskEnabled, setBgMaskEnabled] = useState(contentAny?.bgMaskEnabled === true);
+  const [bgMaskDirection, setBgMaskDirection] = useState(contentAny?.bgMaskDirection || "bottom");
+  const [bgMaskStart, setBgMaskStart] = useState<number>(contentAny?.bgMaskStart ?? 0);
+  const [bgMaskEnd, setBgMaskEnd] = useState<number>(contentAny?.bgMaskEnd ?? 100);
 
   // ── Motion Elements + Lower Third ────────────────────────────
   const [motionElements, setMotionElements] = useState<MotionElement[]>(
@@ -270,6 +275,11 @@ export default function FlexibleSectionEditorModal({
         designerData: designerData || null,
         layout,
         gradient,
+        // Background-image fade/MASK (#60)
+        bgMaskEnabled,
+        bgMaskDirection,
+        bgMaskStart,
+        bgMaskEnd,
         ...(overlayEnabled ? { overlay: { heading: overlayHeading, subheading: overlaySubheading, animation: overlayAnimation, position: overlayPosition } } : {}),
         animBg,
         scrollStage,
@@ -871,6 +881,36 @@ export default function FlexibleSectionEditorModal({
                           <label className="form-check-label" htmlFor="flex-bgParallax">Enable Parallax Effect</label>
                         </div>
                       </div>
+
+                      {/* Fade image to transparent (alpha mask) — #60 */}
+                      <div className="mb-3">
+                        <div className="form-check form-switch">
+                          <input className="form-check-input" type="checkbox" id="flex-bgMask" checked={bgMaskEnabled} onChange={(e) => setBgMaskEnabled(e.target.checked)} />
+                          <label className="form-check-label" htmlFor="flex-bgMask">Fade image to transparent (gradient mask)</label>
+                        </div>
+                        <small className="text-muted d-block mt-1">Fades the background image to transparent so it blends into the section colour. Different from the colour gradient overlay.</small>
+                      </div>
+                      {bgMaskEnabled && (
+                        <div className="row mb-4">
+                          <div className="col-md-4">
+                            <label className="form-label">Fade Direction</label>
+                            <select className="form-select" value={bgMaskDirection} onChange={(e) => setBgMaskDirection(e.target.value)}>
+                              <option value="top">To Top</option>
+                              <option value="bottom">To Bottom</option>
+                              <option value="left">To Left</option>
+                              <option value="right">To Right</option>
+                            </select>
+                          </div>
+                          <div className="col-md-4">
+                            <label className="form-label">Opaque Until: {bgMaskStart}%</label>
+                            <input type="range" className="form-range" min={0} max={100} value={bgMaskStart} onChange={(e) => setBgMaskStart(Number(e.target.value))} />
+                          </div>
+                          <div className="col-md-4">
+                            <label className="form-label">Fully Faded At: {bgMaskEnd}%</label>
+                            <input type="range" className="form-range" min={0} max={100} value={bgMaskEnd} onChange={(e) => setBgMaskEnd(Number(e.target.value))} />
+                          </div>
+                        </div>
+                      )}
                     </>
                   )}
 

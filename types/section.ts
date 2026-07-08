@@ -242,6 +242,15 @@ export interface BaseSectionConfig {
   bgImageOpacity?: number; // 0-100, default 100
   bgParallax?: boolean; // default false
 
+  // Background image fade/MASK (#60) — fades the bg IMAGE to transparent along an
+  // alpha gradient (mask-image), revealing the section/page colour behind it. This
+  // is distinct from the gradient OVERLAY (content.gradient) which tints with colour.
+  // Persisted inside `content` JSONB (no schema column). Default-off = no mask.
+  bgMaskEnabled?: boolean; // default false — off = no mask (back-compat)
+  bgMaskDirection?: string; // "top" | "bottom" | "left" | "right" — direction the image fades toward
+  bgMaskStart?: number; // 0-100, % where the image is still fully opaque (black stop). Default 0
+  bgMaskEnd?: number; // 0-100, % where the image is fully transparent. Default 100
+
   // Section color theme / palette
   colorPalette?: string[]; // Array of 5 hex colors
   colorPaletteHarmony?: string; // Harmony type used to generate
