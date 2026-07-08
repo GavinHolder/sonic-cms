@@ -308,8 +308,27 @@ export default function FlexibleSectionEditorModal({
         preset: layout.preset || "2-col-split",
         blocks: [],
       });
+      // #68 — forward the section's configured background so the designer canvas can
+      // preview it (view-only in the designer). Mirrors the fields FlexibleSectionRenderer
+      // reads off the section: solid/preset colour, bg image + sizing, and gradient overlay.
+      let payloadWithBg = initPayload;
+      try {
+        const obj = JSON.parse(initPayload);
+        obj.sectionBackground = {
+          background: backgroundType === "solid" ? background : "transparent",
+          bgImageUrl: bgImageUrl || "",
+          bgImageSize,
+          bgImagePosition,
+          bgImageRepeat,
+          bgImageOpacity,
+          gradient: backgroundType === "gradient"
+            ? { enabled: true, type: "preset", preset: { direction: gradientDirection, startOpacity: gradientStartOpacity, endOpacity: gradientEndOpacity, color: gradientColor } }
+            : undefined,
+        };
+        payloadWithBg = JSON.stringify(obj);
+      } catch { /* non-JSON payload — send as-is */ }
       iframeRef.current?.contentWindow?.postMessage(
-        { type: "FLEXIBLE_DESIGNER_INIT", payload: initPayload },
+        { type: "FLEXIBLE_DESIGNER_INIT", payload: payloadWithBg },
         "*"
       );
     }
@@ -326,7 +345,9 @@ export default function FlexibleSectionEditorModal({
       // Close the designer — the live preview pane is always visible now.
       setShowDesigner(false);
     }
-  }, [designerData, contentMode, layout, draftKey, section]);
+  }, [designerData, contentMode, layout, draftKey, section,
+      backgroundType, background, bgImageUrl, bgImageSize, bgImagePosition, bgImageRepeat, bgImageOpacity,
+      gradientDirection, gradientStartOpacity, gradientEndOpacity, gradientColor]);
 
   useEffect(() => {
     window.addEventListener("message", handleDesignerMessage);
