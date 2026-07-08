@@ -537,10 +537,13 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
         />
       )}
 
-      {/* Gradient overlay (scrim) over the bg image — colour/direction/opacity from the
-          Background tab's gradient controls. z-index 1 = above the image, below content. */}
-      {gradCss && bgImageUrl && (
-        <div aria-hidden="true" style={{ position: "absolute", inset: 0, zIndex: 1, background: gradCss, pointerEvents: "none" }} />
+      {/* Gradient layer (content.gradient) — colour/direction/opacity from the Background tab.
+          WITH a bg image it's a scrim OVER the image (z-index 1, #59). With NO image it renders
+          as a standalone full-section background layer (z-index 0) so a gradient-only background
+          is visible on the live page — not just when an image is present. The #60 image mask
+          stays on the image layer above, untouched. */}
+      {gradCss && (
+        <div aria-hidden="true" style={{ position: "absolute", inset: 0, zIndex: bgImageUrl ? 1 : 0, background: gradCss, pointerEvents: "none" }} />
       )}
 
       {/* Animated background layers — rendered below content (z-index 0–10).
