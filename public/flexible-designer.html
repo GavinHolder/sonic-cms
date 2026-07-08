@@ -2692,7 +2692,8 @@ function createBlockElement(block) {
   // Responsive behavior visual states
   const _device = state.devicePreview;
   const _behavior = _device === 'mobile' ? (block.mobileBehavior||'auto') : _device === 'tablet' ? (block.tabletBehavior||'auto') : 'auto';
-  if (_device !== 'desktop') {
+  // Free mode ignores per-block behavior (pure scaled stage); only grid/mosaic applies it.
+  if (_device !== 'desktop' && state.positionMode !== 'free') {
     if (_dp.hidden)             el.classList.add('preview-hidden');
     if (_behavior === 'stretch') el.classList.add('preview-stretch');
   }
@@ -2704,8 +2705,8 @@ function createBlockElement(block) {
   hdrIc.className = 'bi ' + getBlockIcon(block.type);
   hdr.appendChild(hdrIc);
   hdr.appendChild(document.createTextNode(' ' + (block.props.label || block.type)));
-  // Responsive behavior badge (non-desktop only, non-auto only)
-  if (_device !== 'desktop' && _behavior !== 'auto') {
+  // Responsive behavior badge (grid/mosaic non-desktop only, non-auto only)
+  if (_device !== 'desktop' && state.positionMode !== 'free' && _behavior !== 'auto') {
     const badge = document.createElement('span');
     badge.className = 'cb-behavior-badge ' + _behavior;
     badge.textContent = _behavior === 'hide' ? 'HIDDEN' : '↔ STRETCH';
@@ -5386,8 +5387,10 @@ function renderBlockProps(block) {
   const isEdit=state.editingBlockId===block.id;
   let h='';
 
-  // ── Responsive Behavior (tablet/mobile preview only) ──────────────────────
-  if (state.devicePreview !== 'desktop') {
+  // ── Responsive Behavior (grid/mosaic tablet/mobile preview only) ──────────
+  // Free mode is a pixel-exact scaled stage that mirrors the renderer (no per-block
+  // reflow), so per-block auto/stretch/hide controls only apply to grid/mosaic stacking.
+  if (state.devicePreview !== 'desktop' && state.positionMode !== 'free') {
     const dev = state.devicePreview;
     const behavior = dev === 'mobile' ? (block.mobileBehavior||'auto') : (block.tabletBehavior||'auto');
     const devLabel = dev === 'mobile' ? '📱 Mobile' : '💻 Tablet';
@@ -7243,6 +7246,9 @@ function togglePositionMode() {
       b.colSpan = 1; b.rowSpan = 1;
     });
   }
+  // Re-apply the active device preview so the canvas width, scale and frame switch between
+  // the grid (narrow canvas) and free (scaled-stage) presentations correctly.
+  if (state.devicePreview !== 'desktop') setDevicePreview(state.devicePreview);
   renderCanvas(); renderPropsPanel(); autoSave();
 }
 
@@ -7276,6 +7282,14 @@ function updatePositionModeBadge() {
  */
 function getDisplayPos(block) {
   const device = state.devicePreview;
+  // Free-mode tablet/mobile is a scaled-stage VIEW: the whole desktop canvas is shrunk to
+  // the breakpoint via getCanvasScale(), so every block renders at its true desktop
+  // coordinates (an exact shrink that matches the live renderer). No per-breakpoint
+  // reposition here — desktop coords stay the single source of truth. Independent
+  // per-breakpoint position editing would need a data-model change (separate follow-up).
+  if (device !== 'desktop' && state.positionMode === 'free') {
+    return { x: block.x, y: block.y, w: block.w, h: block.h };
+  }
   const canvas = document.getElementById('canvas');
   if (device === 'mobile') {
     const behavior = block.mobileBehavior || 'auto';
@@ -7324,9 +7338,14 @@ function getDisplayPos(block) {
  * @param {number} h - New height in canvas pixels.
  */
 function setDisplayPos(block, x, y, w, h) {
-  if (state.devicePreview === 'mobile')  { block.mobilePos = { x, y, w, h }; }
-  else if (state.devicePreview === 'tablet') { block.tabletPos = { x, y, w, h }; }
-  else { block.x = x; block.y = y; block.w = w; block.h = h; }
+  // Grid/mosaic per-device stacking stores overrides in mobilePos/tabletPos. Free mode is
+  // a scaled-stage preview of the single desktop layout, so edits there write the canonical
+  // desktop coords — exactly like desktop mode (desktop stays the source of truth).
+  if (state.devicePreview !== 'desktop' && state.positionMode !== 'free') {
+    if (state.devicePreview === 'mobile') { block.mobilePos = { x, y, w, h }; return; }
+    if (state.devicePreview === 'tablet') { block.tabletPos = { x, y, w, h }; return; }
+  }
+  block.x = x; block.y = y; block.w = w; block.h = h;
 }
 
 /**
@@ -7371,11 +7390,16 @@ function setDevicePreview(device) {
   const canvas = document.getElementById('canvas');
   const canvasArea = document.querySelector('.canvas-area');
   canvasArea.classList.remove('device-mobile','device-tablet','device-desktop');
-  canvasArea.classList.add(`device-${device}`);
+  // Free-mode tablet/mobile is a SCALED-STAGE preview (see getCanvasScale): the canvas
+  // keeps its full desktop design width and is shrunk to the breakpoint via CSS transform.
+  // We must NOT apply the narrow-canvas device frame/centering (which assumes a 375/768-wide
+  // canvas) — that fights the scaled artboard. Grid/mosaic mode keeps the device frame.
+  const freeScaledPreview = device !== 'desktop' && state.positionMode === 'free';
+  canvasArea.classList.add(freeScaledPreview ? 'device-desktop' : `device-${device}`);
   // Set inline width so flex-stretch doesn't collapse on absolutely-positioned content
-  if (device === 'mobile')  canvas.style.width = '375px';
-  else if (device === 'tablet') canvas.style.width = '768px';
-  else canvas.style.width = DESKTOP_CANVAS_W + 'px'; // desktop: fixed design width
+  if (device === 'desktop' || freeScaledPreview) canvas.style.width = DESKTOP_CANVAS_W + 'px'; // full design width; transform shrinks it
+  else if (device === 'mobile') canvas.style.width = '375px';
+  else canvas.style.width = '768px';
   // Update active button
   ['mobile','tablet','desktop'].forEach(d => {
     document.getElementById(`dev-${d}`)?.classList.toggle('active', d === device);
@@ -7385,6 +7409,12 @@ function setDevicePreview(device) {
   const resetBtn  = document.getElementById('dev-reset-btn');
   if (device === 'desktop') {
     if (indicator) { indicator.style.display = 'none'; indicator.className = ''; }
+    if (resetBtn)  resetBtn.style.display = 'none';
+  } else if (freeScaledPreview) {
+    // Scaled-stage preview: the real desktop layout shrunk to the breakpoint. No
+    // per-breakpoint positions are used, so the "reset device positions" action is hidden.
+    const label = device === 'tablet' ? '🔍 Tablet Preview · scaled to 768px' : '🔍 Mobile Preview · scaled to 375px';
+    if (indicator) { indicator.textContent = label; indicator.className = device; indicator.style.display = ''; }
     if (resetBtn)  resetBtn.style.display = 'none';
   } else {
     const label = device === 'tablet' ? '📱 Editing Tablet Layout' : '📱 Editing Mobile Layout';
@@ -7883,7 +7913,19 @@ function updateDimensions() {
  * @returns {number} Scale ratio in the range (0, 1].
  */
 function getCanvasScale() {
-  if (state.devicePreview !== 'desktop') return state.userZoom || 1;
+  if (state.devicePreview !== 'desktop') {
+    // Free-mode tablet/mobile = SCALED-STAGE preview: #canvas keeps its full desktop
+    // design width (DESKTOP_CANVAS_W) and the WHOLE stage (blocks + overlays) is scaled
+    // down to the breakpoint footprint — a pixel-exact shrink that mirrors the live
+    // renderer's 1:1 scaled stage. Nothing clips; desktop coords stay the source of truth.
+    if (state.positionMode === 'free') {
+      const bpW = state.devicePreview === 'mobile' ? 375 : 768;
+      return (bpW / DESKTOP_CANVAS_W) * (state.userZoom || 1);
+    }
+    // Grid/mosaic mode: the canvas is natively the breakpoint width (blocks re-stack),
+    // so no fit-scale is applied — only the user's manual zoom.
+    return state.userZoom || 1;
+  }
   const cwrap = document.querySelector('.canvas-with-rulers');
   if (!cwrap) return state.userZoom || 1;
   const rulerW = cwrap.classList.contains('rulers-hidden') ? 0 : 20;
