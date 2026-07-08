@@ -8165,10 +8165,14 @@ function isGradient(v) {
 function sectionGradCss(gradient) {
   const p = gradient && gradient.preset;
   if (!p) return null;
-  const so = (p.startOpacity == null ? 0 : p.startOpacity);
-  const eo = (p.endOpacity   == null ? 0 : p.endOpacity);
+  // Coerce opacity fields to finite numbers (defense-in-depth: values may come from
+  // untrusted Template import). The scrim string is only ever assigned via the
+  // .style.background PROPERTY, so it cannot inject HTML regardless.
+  const soN = Number(p.startOpacity), eoN = Number(p.endOpacity);
+  const so = (p.startOpacity == null || !Number.isFinite(soN)) ? 0 : soN;
+  const eo = (p.endOpacity   == null || !Number.isFinite(eoN)) ? 0 : eoN;
   if (so <= 0 && eo <= 0) return null;
-  const h = (p.color || '#000000').replace('#', '');
+  const h = String(p.color || '#000000').replace('#', '');
   const r = parseInt(h.slice(0, 2), 16) || 0, g = parseInt(h.slice(2, 4), 16) || 0, b = parseInt(h.slice(4, 6), 16) || 0;
   const DIR = { top:'to top', bottom:'to bottom', left:'to left', right:'to right', topLeft:'to top left', topRight:'to top right', bottomLeft:'to bottom left', bottomRight:'to bottom right' };
   return `linear-gradient(${DIR[p.direction || 'bottom'] || 'to bottom'}, rgba(${r},${g},${b},${so / 100}), rgba(${r},${g},${b},${eo / 100}))`;
@@ -8209,25 +8213,44 @@ function applySectionBgToCanvas() {
     btn.disabled = !bg;
     btn.style.opacity = bg ? '' : '0.5';
   }
-  if (!bg || !on) { layer.style.display = 'none'; layer.innerHTML = ''; layer.style.background = ''; return; }
+  if (!bg || !on) { layer.style.display = 'none'; layer.replaceChildren(); layer.style.background = ''; return; }
 
   // Base solid colour / gradient (mirrors the section element's own background).
   const baseVal = resolveBgColor(bg.background);
   layer.style.background = (baseVal && baseVal !== 'transparent') ? baseVal : 'transparent';
   layer.style.display = 'block';
 
-  let html = '';
+  // SECURITY (#68): build bg layers via DOM + style-PROPERTY assignment, never innerHTML.
+  // Section-bg fields (bgImageSize/Position/Repeat, gradient) can arrive from untrusted
+  // Template JSON import. Assigning to a CSSStyleDeclaration property makes the browser
+  // reject an invalid value as CSS — it is never parsed as HTML — so markup like
+  // `cover;"></div><img src=x onerror=...>` cannot break out. No section-bg field is
+  // ever concatenated into HTML.
+  const children = [];
   if (bg.bgImageUrl) {
     const size = bg.bgImageSize || 'cover';
     const pos  = bg.bgImagePosition || 'center';
     const rep  = bg.bgImageRepeat || 'no-repeat';
-    const op   = (bg.bgImageOpacity == null ? 100 : bg.bgImageOpacity) / 100;
-    html += `<div class="csb-image" style="background-image:url('${cssUrl(bg.bgImageUrl)}');background-size:${size};background-position:${pos};background-repeat:${rep};opacity:${op};"></div>`;
+    const opN  = Number(bg.bgImageOpacity);
+    const op   = (bg.bgImageOpacity == null || !Number.isFinite(opN)) ? 1 : opN / 100;
+    const img = document.createElement('div');
+    img.className = 'csb-image';
+    img.style.backgroundImage    = "url('" + cssUrl(bg.bgImageUrl) + "')";
+    img.style.backgroundSize     = String(size);
+    img.style.backgroundPosition = String(pos);
+    img.style.backgroundRepeat   = String(rep);
+    img.style.opacity            = String(op);
+    children.push(img);
     // Gradient scrim — renderer only draws it over a bg image, so match that condition.
     const grad = sectionGradCss(bg.gradient);
-    if (grad) html += `<div class="csb-scrim" style="background:${grad};"></div>`;
+    if (grad) {
+      const scrim = document.createElement('div');
+      scrim.className = 'csb-scrim';
+      scrim.style.background = grad; // property assignment — HTML-injection-safe
+      children.push(scrim);
+    }
   }
-  layer.innerHTML = html;
+  layer.replaceChildren(...children);
 }
 // Toolbar toggle — flips the view-only preference. Never mutates saved section data.
 function toggleSectionBg() {
