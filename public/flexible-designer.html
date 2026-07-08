@@ -3077,7 +3077,10 @@ function ensureOutlineErodeFilter(radius) {
 /** Inline style fragment for outlined text (#95) — filled glyphs in the outline colour + erode filter. */
 function outlineStyleFrag(p) {
   if (!p.outlined) return '';
-  const col = p.outlineColor || p.color || '#000000';
+  // Explicit outlineColor, else #000000 (the default the props-panel + toolbar pickers show).
+  // Must NOT fall back to p.color: a white heading toggled outlined without choosing a colour
+  // would inherit white and paint an invisible white outline on a light bg (#95). 1:1 with renderer.
+  const col = p.outlineColor || '#000000';
   return `color:${col};filter:url(#${ensureOutlineErodeFilter(p.outlineWidth || 1)});`;
 }
 

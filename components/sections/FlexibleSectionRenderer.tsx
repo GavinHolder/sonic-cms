@@ -2423,8 +2423,11 @@ function DesignerSubElement({ sub, pkg, mobile, exact, darkBg }: { sub: SubEl; p
   // structure as HeroCarousel.renderRowInner; applied here as a CSS `filter: url(#id)`
   // on the text element itself so multi-line text works and layout metrics are untouched.
   // The designer canvas (createSubElementDOM) applies the identical filter → 1:1.
-  // Outline colour: p.outlineColor, else the glyph colour, else #000000; thickness = erode radius.
-  const outlineColor    = (p.outlineColor as string) || (p.color as string) || "#000000";
+  // Outline colour: explicit p.outlineColor, else #000000 (the default shown in the props
+  // panel + floating toolbar colour pickers). It must NOT fall back to the glyph colour —
+  // a white heading toggled "outlined" without picking a colour would inherit white and
+  // paint an invisible white hollow outline on a light background (#95 regression). thickness = erode radius.
+  const outlineColor    = (p.outlineColor as string) || "#000000";
   const outlineRadius   = Number(p.outlineWidth) || 1;
   const outlineFilterId = `dsub-outline-${scopeClass}`;
   const outlinedStyle: React.CSSProperties = p.outlined
