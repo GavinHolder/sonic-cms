@@ -537,6 +537,8 @@
     }
     .sub-element:hover { border-color: rgba(13,110,253,0.5); background: rgba(13,110,253,0.04); }
     .sub-element.selected { border-color: #20c997; background: rgba(32,201,151,0.04); box-shadow: 0 0 0 2px rgba(32,201,151,0.3); }
+    /* #89 marquee rubber-band — brand blue, matches the designer's #0d6efd chrome (no new colours) */
+    .marquee-box { position: absolute; z-index: 9998; border: 1px solid #0d6efd; background: rgba(13,110,253,0.10); border-radius: 2px; pointer-events: none; }
 
     .se-anim-badge {
       position: absolute;
@@ -1652,6 +1654,7 @@
         ondragover="onCanvasDragOver(event)"
         ondragleave="onCanvasDragLeave(event)"
         ondrop="onCanvasDrop(event)"
+        onmousedown="onCanvasMouseDown(event)"
         onclick="onCanvasClick(event)">
         <div id="grid-overlay"></div>
         <div id="guide-overlay"></div>
@@ -1771,6 +1774,7 @@ const state = {
   blocks: [],
   selectedBlockId: null,
   selectedSubId: null,
+  multiSel: [],         // #89 multi-select set: [{b:blockId, s:seId}]. Length>=2 = group; length<=1 uses the normal single-select path (selectedBlockId/selectedSubId)
   editingBlockId: null,
   dragSource: null,
   showGuides: true,
@@ -2048,9 +2052,29 @@ document.addEventListener('keydown', e => {
       !e.target.closest('input, textarea, [contenteditable="true"], select')) {
     e.preventDefault(); toggleSnapGrid(); return;
   }
+  // #89 Escape — clear the current selection (single or multi) when not typing.
+  if (e.key === 'Escape' && !e.target.closest('input, textarea, [contenteditable="true"], select')) {
+    if (multiSelCount() || state.selectedSubId || state.selectedBlockId) {
+      e.preventDefault();
+      clearMultiSel();
+      state.selectedBlockId = null; state.selectedSubId = null;
+      if (state.editingBlockId) exitEditMode();
+      renderCanvas(); renderPropsPanel(); updateTextFormatToolbar(); updateMiniToolbar();
+    }
+    return;
+  }
   // Delete / Backspace — delete selected element (skip when typing in inputs)
   if ((e.key === 'Delete' || e.key === 'Backspace') &&
       !e.target.closest('input, textarea, [contenteditable="true"], select')) {
+    // #89 multi-selection → delete every selected child
+    if (multiSelCount() > 1) {
+      e.preventDefault();
+      const victims = state.multiSel.slice();
+      clearMultiSel();
+      state.selectedBlockId = null; state.selectedSubId = null;
+      victims.forEach(m => removeSubElement(m.b, m.s));
+      return;
+    }
     if (state.selectedSubId && state.selectedBlockId) {
       e.preventDefault();
       removeSubElement(state.selectedBlockId, state.selectedSubId);
@@ -3181,6 +3205,19 @@ function createSubElementDOM(se, blockId) {
   el.addEventListener('mousedown', e => {
     if (e.target.closest('.se-remove, button, input, textarea, .se-inline-input, [contenteditable="true"]')) return;
     e.stopPropagation();
+    // #89 Shift-click toggles this element in/out of the multi-selection (additive). No drag.
+    if (e.shiftKey) {
+      e.preventDefault();
+      toggleMultiSelect(blockId, se.id);
+      return;
+    }
+    // #89 Plain press on a member of an existing 2+ selection → drag the whole group together.
+    if (multiSelCount() > 1 && isInMultiSel(se.id)) {
+      startGroupMove(e, blockId, se.id);
+      return;
+    }
+    // Plain single-select — collapse any multi-selection so behaviour is EXACTLY as before.
+    clearMultiSel();
     selectSubElement(blockId, se.id);
     startSubElementMove(e, blockId, se.id);
   });
@@ -3388,6 +3425,211 @@ function startSubElementMove(e, blockId, seId) {
 
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  #89 MULTI-SELECT — shift-click + marquee + group move
+//  state.multiSel holds the FULL set as [{b:blockId, s:seId}] whenever 2+
+//  children are selected. When 0–1 are selected the app uses the ordinary
+//  single-select path (selectedBlockId/selectedSubId) so single-select drag,
+//  resize, format bar, and outlined-text rendering behave EXACTLY as before.
+//  Selected chrome reuses the EXISTING `.sub-element.selected` class — no new
+//  styles invented. The primary (last-touched) member stays in
+//  selectedBlockId/selectedSubId so the props panel/keyboard keep working.
+// ═══════════════════════════════════════════════════════════
+function multiSelCount() { return state.multiSel ? state.multiSel.length : 0; }
+function isInMultiSel(seId) { return !!(state.multiSel && state.multiSel.some(m => m.s === seId)); }
+
+/** Removes every element from the multi-selection and strips its outline class. */
+function clearMultiSel() {
+  if (!state.multiSel || !state.multiSel.length) return;
+  state.multiSel.forEach(m => document.querySelector(`.sub-element[data-sub-id="${m.s}"]`)?.classList.remove('selected'));
+  state.multiSel = [];
+}
+/** Re-applies the existing `.selected` outline to every current multi-selection member. */
+function paintMultiSel() {
+  (state.multiSel || []).forEach(m => document.querySelector(`.sub-element[data-sub-id="${m.s}"]`)?.classList.add('selected'));
+}
+/** Sets the primary (last) selection from the current set, or clears it when empty. */
+function _syncPrimaryFromMultiSel() {
+  if (state.multiSel && state.multiSel.length) {
+    const last = state.multiSel[state.multiSel.length - 1];
+    state.selectedBlockId = last.b;
+    state.selectedSubId   = last.s;
+  } else {
+    state.selectedBlockId = null;
+    state.selectedSubId   = null;
+  }
+}
+
+/**
+ * Toggles a sub-element in/out of the multi-selection (Shift-click, additive).
+ * Seeds the set with any pre-existing single selection so Shift-clicking a
+ * second element yields BOTH, matching the standard designer selection model.
+ */
+function toggleMultiSelect(blockId, seId) {
+  if (!state.multiSel) state.multiSel = [];
+  // Seed with the current single selection so the first shift-click is additive to it.
+  if (state.multiSel.length === 0 && state.selectedSubId && state.selectedSubId !== seId) {
+    state.multiSel.push({ b: state.selectedBlockId, s: state.selectedSubId });
+    document.querySelector(`.sub-element[data-sub-id="${state.selectedSubId}"]`)?.classList.add('selected');
+  }
+  const idx = state.multiSel.findIndex(m => m.s === seId);
+  const el  = document.querySelector(`.sub-element[data-sub-id="${seId}"]`);
+  if (idx >= 0) { state.multiSel.splice(idx, 1); el?.classList.remove('selected'); }
+  else          { state.multiSel.push({ b: blockId, s: seId }); el?.classList.add('selected'); }
+  _syncPrimaryFromMultiSel();
+  renderPropsPanel();
+  updateMiniToolbar();        // hides per-element toolbars automatically when 2+ selected
+  updateTextFormatToolbar();
+}
+
+/**
+ * Drags EVERY multi-selected child together by a single delta. Reuses the exact
+ * scale/dead-zone/snap math of startSubElementMove so each element moves as it
+ * would on its own, then persists x/y for all of them (buildJson reads x/y) and
+ * grows/shrinks every affected parent block on drop.
+ * @param {MouseEvent} e - mousedown on a member of the selection.
+ * @param {string} clickBlockId - block of the pressed element (for no-drag collapse).
+ * @param {string} clickSeId - the pressed element (for no-drag collapse).
+ */
+function startGroupMove(e, clickBlockId, clickSeId) {
+  const members = (state.multiSel || []).map(m => {
+    const block = state.blocks.find(b => b.id === m.b);
+    const se = block && block.subElements.find(s => s.id === m.s);
+    const el = document.querySelector(`.sub-element[data-sub-id="${m.s}"]`);
+    return (block && se && el) ? { block, se, el, origX: se.x || 0, origY: se.y || 0 } : null;
+  }).filter(Boolean);
+  if (!members.length) return;
+  e.preventDefault();
+  const startMX = e.clientX, startMY = e.clientY;
+  const affectedBlocks = new Set(members.map(m => m.block.id));
+  let moved = false;
+
+  const onMove = ev => {
+    const s = getCanvasScale();
+    const dx = (ev.clientX - startMX) / s;
+    const dy = (ev.clientY - startMY) / s;
+    // Same 3px dead-zone as single-drag so a plain click on a member doesn't drift the group.
+    if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
+    if (!moved) {
+      // Convert any full-width members to explicit px width once (mirrors startSubElementMove).
+      members.forEach(m => {
+        if (m.se.w === null || m.se.w === undefined) { m.se.w = m.el.offsetWidth; m.el.style.width = m.se.w + 'px'; }
+      });
+    }
+    moved = true;
+    members.forEach(m => {
+      let nx = Math.round(m.origX + dx);
+      let ny = Math.round(m.origY + dy);
+      if (state.subElementSnap) { const g = 8; nx = Math.round(nx / g) * g; ny = Math.round(ny / g) * g; }
+      m.se.x = nx; m.se.y = ny;
+      m.el.style.left = nx + 'px'; m.el.style.top = ny + 'px';
+    });
+    affectedBlocks.forEach(id => fitBlockToSubElementsDOM(id));
+  };
+
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    if (moved) {
+      // Persist: mark blocks manual so the restack doesn't reset dragged Y, remeasure, save.
+      members.forEach(m => { m.block.manualSize = true; });
+      affectedBlocks.forEach(id => fitBlockToSubElementsDOM(id));
+      autoSave();
+      renderPropsPanel();
+    } else {
+      // No drag → a plain click on one member collapses to selecting just that one.
+      clearMultiSel();
+      selectSubElement(clickBlockId, clickSeId);
+    }
+  };
+
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+// Suppress the click that trailing-fires after a marquee drag (it would hit
+// onCanvasClick and wipe the fresh marquee selection).
+let _suppressCanvasClick = false;
+
+/**
+ * Canvas-background mousedown → begin a marquee ONLY when the press starts on
+ * empty canvas (same guard as onCanvasClick). Block/sub-element mousedowns
+ * either stopPropagation or start on a non-canvas target, so they never reach here.
+ */
+function onCanvasMouseDown(e) {
+  if (e.button !== 0) return;
+  const id = e.target.id;
+  if (e.target !== document.getElementById('canvas') && id !== 'grid-overlay' && id !== 'guide-overlay') return;
+  startMarquee(e);
+}
+
+/**
+ * Draws a rubber-band rectangle on empty canvas; on mouse-up selects every
+ * sub-element whose on-screen rect intersects it. A 4px dead-zone preserves the
+ * plain click-to-deselect behaviour of onCanvasClick.
+ */
+function startMarquee(e) {
+  const canvas = document.getElementById('canvas');
+  if (!canvas) return;
+  const rect = canvas.getBoundingClientRect();
+  const s = getCanvasScale();
+  const startLX = (e.clientX - rect.left) / s, startLY = (e.clientY - rect.top) / s;
+  const startCX = e.clientX, startCY = e.clientY;
+  let box = null, active = false;
+
+  const onMove = ev => {
+    if (!active && Math.abs(ev.clientX - startCX) < 4 && Math.abs(ev.clientY - startCY) < 4) return;
+    active = true;
+    if (!box) { box = document.createElement('div'); box.className = 'marquee-box'; canvas.appendChild(box); }
+    const curLX = (ev.clientX - rect.left) / s, curLY = (ev.clientY - rect.top) / s;
+    box.style.left   = Math.min(startLX, curLX) + 'px';
+    box.style.top    = Math.min(startLY, curLY) + 'px';
+    box.style.width  = Math.abs(curLX - startLX) + 'px';
+    box.style.height = Math.abs(curLY - startLY) + 'px';
+  };
+  const onUp = ev => {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    if (box) box.remove();
+    if (!active) return; // plain click → let onCanvasClick handle deselect
+    _suppressCanvasClick = true;
+    finishMarquee({
+      left:   Math.min(startCX, ev.clientX), right:  Math.max(startCX, ev.clientX),
+      top:    Math.min(startCY, ev.clientY), bottom: Math.max(startCY, ev.clientY),
+    });
+  };
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+/** Selects all sub-elements intersecting the marquee rect (client coords). */
+function finishMarquee(mRect) {
+  const canvas = document.getElementById('canvas');
+  const found = [];
+  canvas.querySelectorAll('.sub-element').forEach(el => {
+    const r = el.getBoundingClientRect();
+    const hit = !(r.right < mRect.left || r.left > mRect.right || r.bottom < mRect.top || r.top > mRect.bottom);
+    if (!hit) return;
+    const seId = el.dataset.subId;
+    const bId  = el.closest('[data-block-id]')?.dataset.blockId;
+    if (seId && bId) found.push({ b: bId, s: seId });
+  });
+  clearMultiSel();
+  state.selectedBlockId = null; state.selectedSubId = null;
+  if (found.length === 1) {
+    // Single hit → ordinary single selection (identical to a normal click).
+    selectSubElement(found[0].b, found[0].s);
+  } else if (found.length > 1) {
+    state.multiSel = found;
+    paintMultiSel();
+    _syncPrimaryFromMultiSel();
+    renderPropsPanel(); updateMiniToolbar(); updateTextFormatToolbar();
+  } else {
+    // Empty marquee → clear everything.
+    renderCanvas(); renderPropsPanel(); updateTextFormatToolbar();
+  }
 }
 
 /**
@@ -4454,6 +4696,7 @@ function startResize(e, blockId, dir) {
  * @param {string} id - ID of the block to select.
  */
 function selectBlock(id) {
+  clearMultiSel();  // #89 selecting a block collapses any child multi-selection
   state.selectedBlockId=id; state.selectedSubId=null; renderCanvas(); renderPropsPanel(); updateMiniToolbar(); updateTextFormatToolbar();
 }
 
@@ -4466,6 +4709,7 @@ function selectBlock(id) {
  * @param {string} sId - ID of the sub-element to select.
  */
 function selectSubElement(bId, sId) {
+  clearMultiSel();  // #89 a fresh single selection collapses any multi-selection
   const prevBlockId = state.selectedBlockId;
   const prevSubId   = state.selectedSubId;
   state.selectedBlockId = bId;
@@ -4491,7 +4735,11 @@ function selectSubElement(bId, sId) {
  * @param {MouseEvent} e - The canvas click event.
  */
 function onCanvasClick(e) {
+  // #89 swallow the click that trailing-fires right after a marquee drag so it
+  // doesn't wipe the selection the marquee just made.
+  if (_suppressCanvasClick) { _suppressCanvasClick = false; return; }
   if (e.target===document.getElementById('canvas')||e.target===document.getElementById('grid-overlay')) {
+    clearMultiSel();
     state.selectedBlockId=null; state.selectedSubId=null;
     if (state.editingBlockId) exitEditMode();
     renderCanvas(); renderPropsPanel(); updateTextFormatToolbar();
@@ -7864,6 +8112,8 @@ function updateMiniToolbar() {
   // selected (#80), else the block's own node.
   const tb = document.getElementById('block-mini-toolbar');
   if (!tb) return;
+  // #89 hide the per-element action toolbar while a multi-selection is active — avoids clutter.
+  if (multiSelCount() > 1) { tb.classList.remove('mtt-visible'); return; }
   const b = state.blocks.find(x => x.id === state.selectedBlockId);
   if (!b) { tb.classList.remove('mtt-visible'); return; }
   const canvas = document.getElementById('canvas');
@@ -7916,6 +8166,8 @@ function updateTextFormatToolbar() {
   // <body> once so fixed truly means viewport (renderCanvas never wipes it).
   if (tb.parentElement !== document.body) document.body.appendChild(tb);
   _tftEnsureListeners();
+  // #89 hide the per-element text format bar while a multi-selection is active.
+  if (multiSelCount() > 1) { tb.classList.remove('tft-visible'); return; }
   const bId = state.selectedBlockId, sId = state.selectedSubId;
   if (!bId || !sId) { tb.classList.remove('tft-visible'); return; }
   const b = state.blocks.find(x => x.id === bId);
