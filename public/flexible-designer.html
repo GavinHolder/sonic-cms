@@ -539,11 +539,14 @@
     .sub-element.selected { border-color: #20c997; background: rgba(32,201,151,0.04); box-shadow: 0 0 0 2px rgba(32,201,151,0.3); }
     /* #89 marquee rubber-band — brand blue, matches the designer's #0d6efd chrome (no new colours) */
     .marquee-box { position: absolute; z-index: 9998; border: 1px solid #0d6efd; background: rgba(13,110,253,0.10); border-radius: 2px; pointer-events: none; }
-    /* #48 Smart alignment guides — transient lines shown while dragging a child.
-       Live inside #canvas (scaled), positioned in canvas-local coords, removed on drop. */
-    .smart-guide { position: absolute; z-index: 9995; pointer-events: none; }
-    .smart-guide.v { top: 0; bottom: 0; width: 0; border-left: 1px solid #0d6efd; }
-    .smart-guide.h { left: 0; right: 0; height: 0; border-top: 1px solid #0d6efd; }
+    /* #48 Smart alignment guides — exactly ONE vertical + ONE horizontal reusable
+       line. Live inside #canvas (scaled), positioned in canvas-local coords. JS sets
+       position + span (v: top/height, h: left/width) and toggles display; the DIVs are
+       never re-created per move (that was the old flicker source). Thin brand-blue,
+       above content, below the marquee (9998). Hidden by default + on drop. */
+    .smart-guide { position: absolute; z-index: 9995; pointer-events: none; display: none; }
+    .smart-guide.v { width: 0; border-left: 1px solid #0d6efd; }
+    .smart-guide.h { height: 0; border-top: 1px solid #0d6efd; }
 
     .se-anim-badge {
       position: absolute;
@@ -3372,17 +3375,14 @@ function startSubElementMove(e, blockId, seId) {
   const startMY = e.clientY;
   let moved = false;
 
-  // #48 smart-guide setup: capture the stable mapping from block-relative x/y to
-  // canvas-local coords, and the static target lines (measured once — targets
-  // don't move during the drag). _originLeft/_originTop convert any tentative
-  // block-relative newX/newY to a canvas-local edge position.
-  const _sgCanvas = document.getElementById('canvas');
-  const _sgScale = getCanvasScale();
-  const _sgCanvasRect = _sgCanvas ? _sgCanvas.getBoundingClientRect() : null;
+  // #48 smart-guide setup: build the drag context ONCE (canvas rect/scale + static
+  // alignment targets + per-axis hysteresis state + the two reusable guide DIVs).
+  // _originLeft/_originTop map a tentative block-relative newX/newY to the element's
+  // canvas-local top-left so we can test its edges against the targets.
+  const _sgCtx = _sgBegin(new Set([seId]));
   const _sgStartRect = seEl.getBoundingClientRect();
-  const _originLeft = _sgCanvasRect ? (_sgStartRect.left - _sgCanvasRect.left) / _sgScale - origX : 0;
-  const _originTop  = _sgCanvasRect ? (_sgStartRect.top  - _sgCanvasRect.top)  / _sgScale - origY : 0;
-  const _sgTargets = _sgCanvasRect ? _buildAlignTargets(new Set([seId]), _sgCanvasRect, _sgScale) : { x: [], y: [] };
+  const _originLeft = _sgCtx.cRect ? (_sgStartRect.left - _sgCtx.cRect.left) / _sgCtx.scale - origX : 0;
+  const _originTop  = _sgCtx.cRect ? (_sgStartRect.top  - _sgCtx.cRect.top)  / _sgCtx.scale - origY : 0;
 
   const onMove = ev => {
     const _sem_s = getCanvasScale();
@@ -3409,20 +3409,14 @@ function startSubElementMove(e, blockId, seId) {
       newX = Math.round(newX / sg) * sg;
       newY = Math.round(newY / sg) * sg;
     }
-    // #48 smart alignment snap: map tentative position → canvas-local edges,
-    // find nearest guide within threshold, nudge onto it, and draw the guides.
-    if (_sgCanvasRect) {
+    // #48 smart alignment snap: map tentative position → canvas-local top-left,
+    // snap onto the single nearest guide per axis (with hysteresis), reposition
+    // the persistent guide DIVs. No per-tick DOM churn — _sgUpdate just moves them.
+    if (_sgCtx.ok) {
       const w = seEl.offsetWidth, h = seEl.offsetHeight;
-      const ll = _originLeft + newX, tt = _originTop + newY;
-      const snap = _alignSnap(
-        [ll, ll + w / 2, ll + w],
-        [tt, tt + h / 2, tt + h],
-        _sgTargets, SMART_SNAP_PX
-      );
+      const snap = _sgUpdate(_sgCtx, _originLeft + newX, _originTop + newY, w, h);
       newX += Math.round(snap.dx);
       newY += Math.round(snap.dy);
-      clearSmartGuides();
-      drawSmartGuides(snap.guideXs, snap.guideYs);
     }
     se.x = newX;
     se.y = newY;
@@ -3439,7 +3433,7 @@ function startSubElementMove(e, blockId, seId) {
   const onUp = () => {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
-    clearSmartGuides(); // #48 remove transient alignment guides on drop
+    _sgEnd(); // #48 hide alignment guides on drop (DIVs persist, just display:none)
     if (moved) {
       // Mark the block as manually laid out so the post-render restack
       // (renderCanvas → fitBlockToSubElementsDOM(id, true)) does NOT reset this
@@ -3539,26 +3533,21 @@ function startGroupMove(e, clickBlockId, clickSeId) {
   const affectedBlocks = new Set(members.map(m => m.block.id));
   let moved = false;
 
-  // #48 smart-guide setup for group drag: capture the group's start bounding box
-  // in canvas-local coords and the static target lines (all sub-elements EXCEPT
-  // the selected members, plus canvas centres). The whole group snaps as one:
-  // the adjustment found for the bbox is applied to every member equally.
-  const _sgCanvas = document.getElementById('canvas');
-  const _sgScale = getCanvasScale();
-  const _sgCanvasRect = _sgCanvas ? _sgCanvas.getBoundingClientRect() : null;
+  // #48 smart-guide setup for group drag: build the drag context ONCE (targets
+  // exclude the selected members) and capture the group's start bounding box in
+  // canvas-local coords. The whole group snaps as one — the bbox nudge found by
+  // _sgUpdate is applied to every member equally.
+  const _sgCtx = _sgBegin(new Set(members.map(m => m.se.id)));
   let _grpL = Infinity, _grpT = Infinity, _grpR = -Infinity, _grpB = -Infinity;
-  if (_sgCanvasRect) {
+  if (_sgCtx.ok) {
     members.forEach(m => {
-      const r = _seCanvasLocalRect(m.el, _sgCanvasRect, _sgScale);
+      const r = _seCanvasLocalRect(m.el, _sgCtx.cRect, _sgCtx.scale);
       if (!r) return;
       _grpL = Math.min(_grpL, r.left); _grpT = Math.min(_grpT, r.top);
       _grpR = Math.max(_grpR, r.left + r.width); _grpB = Math.max(_grpB, r.top + r.height);
     });
   }
-  const _grpTargets = _sgCanvasRect
-    ? _buildAlignTargets(new Set(members.map(m => m.se.id)), _sgCanvasRect, _sgScale)
-    : { x: [], y: [] };
-  const _grpHasBox = !!_sgCanvasRect && _grpL !== Infinity;
+  const _grpHasBox = _sgCtx.ok && _grpL !== Infinity;
 
   const onMove = ev => {
     const s = getCanvasScale();
@@ -3573,14 +3562,12 @@ function startGroupMove(e, clickBlockId, clickSeId) {
       });
     }
     moved = true;
-    // #48 snap the group bbox onto alignment guides; apply the same nudge to all.
+    // #48 snap the group bbox onto the single nearest guide per axis (hysteresis);
+    // apply the same nudge to every member. _sgUpdate repositions the guide DIVs.
     let adx = dx, ady = dy;
     if (_grpHasBox) {
-      const bl = _grpL + dx, bt = _grpT + dy, br = _grpR + dx, bb = _grpB + dy;
-      const snap = _alignSnap([bl, (bl + br) / 2, br], [bt, (bt + bb) / 2, bb], _grpTargets, SMART_SNAP_PX);
+      const snap = _sgUpdate(_sgCtx, _grpL + dx, _grpT + dy, _grpR - _grpL, _grpB - _grpT);
       adx = dx + snap.dx; ady = dy + snap.dy;
-      clearSmartGuides();
-      drawSmartGuides(snap.guideXs, snap.guideYs);
     }
     members.forEach(m => {
       let nx = Math.round(m.origX + adx);
@@ -3595,7 +3582,7 @@ function startGroupMove(e, clickBlockId, clickSeId) {
   const onUp = () => {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
-    clearSmartGuides(); // #48 remove transient alignment guides on drop
+    _sgEnd(); // #48 hide alignment guides on drop (DIVs persist, just display:none)
     if (moved) {
       // Persist: mark blocks manual so the restack doesn't reset dragged Y, remeasure, save.
       members.forEach(m => { m.block.manualSize = true; });
@@ -3697,45 +3684,23 @@ function finishMarquee(mRect) {
 }
 
 // ═══════════════════════════════════════════════════════════
-//  #48 SMART ALIGNMENT GUIDES + SNAPPING (child drag / group drag)
-//  Transient guide lines appear while a child (or multi-selection) is dragged
-//  when its edges/centre line up with another element's left/centre/right or
-//  top/middle/bottom, or with the canvas centre lines. The dragged element
-//  snaps onto the target within SMART_SNAP_PX and releases past it. Everything
-//  works in CANVAS-LOCAL coordinates (unscaled px, same space the canvas is
-//  laid out in) so it stays correct at any zoom/fit-scale. Guides are removed
-//  on drop. No new libraries, no persisted state — purely visual during drag.
+//  #48 SMART ALIGNMENT GUIDES + SNAPPING (child drag / group drag)  [rewritten]
+//  Figma/Sketch-style guides while a child (or multi-selection) is dragged.
+//  Behaviour (fixing the old "flashes lines all over / glitchy" UX):
+//    • At most ONE vertical + ONE horizontal guide at a time — the single nearest
+//      snap target per axis, and only when the dragged element is actually snapped
+//      onto it (within threshold). No line for far/partial proximity.
+//    • Two PERSISTENT guide DIVs (#smart-guide-v / #smart-guide-h) created once and
+//      reused — each move only repositions + toggles their display. We never
+//      remove-and-re-append guide DOM per tick (that was the flicker source).
+//    • Hysteresis: once snapped to a target, we keep it until an edge drifts past
+//      SMART_RELEASE_PX, so the guide doesn't flip between near-equidistant targets.
+//    • Priority: element edge/centre first, canvas centre only as fallback.
+//  Everything is computed in CANVAS-LOCAL coords (unscaled px) so it stays correct
+//  at any zoom/fit-scale. Guides are hidden (not destroyed) on drop.
 // ═══════════════════════════════════════════════════════════
-const SMART_SNAP_PX = 6; // canvas-local px threshold for edge/centre snapping
-
-/** Removes any transient alignment guide lines from the canvas. */
-function clearSmartGuides() {
-  document.querySelectorAll('#canvas .smart-guide').forEach(el => el.remove());
-}
-
-/**
- * Draws transient vertical/horizontal alignment guides at the given
- * canvas-local coordinates. Lines are appended to #canvas (which is the scaled
- * offset parent) so a local X/Y renders exactly over the aligned element edge.
- * @param {number[]} xs - canvas-local X positions for vertical guides.
- * @param {number[]} ys - canvas-local Y positions for horizontal guides.
- */
-function drawSmartGuides(xs, ys) {
-  const canvas = document.getElementById('canvas');
-  if (!canvas) return;
-  (xs || []).forEach(x => {
-    const ln = document.createElement('div');
-    ln.className = 'smart-guide v';
-    ln.style.left = x + 'px';
-    canvas.appendChild(ln);
-  });
-  (ys || []).forEach(y => {
-    const ln = document.createElement('div');
-    ln.className = 'smart-guide h';
-    ln.style.top = y + 'px';
-    canvas.appendChild(ln);
-  });
-}
+const SMART_SNAP_PX = 6;    // canvas-local px: snap ONTO a target within this distance
+const SMART_RELEASE_PX = 9; // canvas-local px: stay snapped until an edge drifts past this (hysteresis)
 
 /**
  * Converts a DOM element's on-screen rect into canvas-local coords (unscaled).
@@ -3756,65 +3721,162 @@ function _seCanvasLocalRect(el, cRect, scale) {
 }
 
 /**
- * Builds the set of snap-target lines (canvas-local X and Y positions) from
- * every sub-element on the canvas except those in excludeSet, plus the canvas
- * centre lines. Each element contributes left/centre/right (X) and
- * top/middle/bottom (Y). Called ONCE at drag start (targets are static during a
- * drag) for performance.
+ * Ensures the two reusable guide DIVs exist inside #canvas and returns them.
+ * Idempotent: reuses existing ones by id (so there are ever only two), and
+ * re-attaches them if a canvas re-render orphaned them. Never creates per move.
+ */
+function _sgEnsureGuides() {
+  const canvas = document.getElementById('canvas');
+  if (!canvas) return null;
+  let v = document.getElementById('smart-guide-v');
+  if (!v) { v = document.createElement('div'); v.id = 'smart-guide-v'; v.className = 'smart-guide v'; v.style.display = 'none'; }
+  if (v.parentElement !== canvas) canvas.appendChild(v);
+  let h = document.getElementById('smart-guide-h');
+  if (!h) { h = document.createElement('div'); h.id = 'smart-guide-h'; h.className = 'smart-guide h'; h.style.display = 'none'; }
+  if (h.parentElement !== canvas) canvas.appendChild(h);
+  return { v, h };
+}
+
+/** Positions + shows the single vertical guide at canvas-local x, spanning [top, top+height]. */
+function _sgPlaceV(x, top, height) {
+  const v = document.getElementById('smart-guide-v');
+  if (!v) return;
+  v.style.left = x + 'px';
+  v.style.top = top + 'px';
+  v.style.height = Math.max(0, height) + 'px';
+  v.style.display = 'block';
+}
+/** Positions + shows the single horizontal guide at canvas-local y, spanning [left, left+width]. */
+function _sgPlaceH(y, left, width) {
+  const h = document.getElementById('smart-guide-h');
+  if (!h) return;
+  h.style.top = y + 'px';
+  h.style.left = left + 'px';
+  h.style.width = Math.max(0, width) + 'px';
+  h.style.display = 'block';
+}
+function _sgHideV() { const v = document.getElementById('smart-guide-v'); if (v) v.style.display = 'none'; }
+function _sgHideH() { const h = document.getElementById('smart-guide-h'); if (h) h.style.display = 'none'; }
+
+/**
+ * Builds the snap targets (canvas-local) from every sub-element except excludeSet,
+ * plus the canvas centre. Each target carries its perpendicular extent {min,max}
+ * so the drawn guide can span exactly the aligned element (element→element span)
+ * or the full canvas dimension (canvas-centre). Split into `el` (element edges/
+ * centres — preferred) and `canvas` (centre — fallback). Built ONCE per drag.
  * @param {Set<string>} excludeSet - sub-element ids to skip (the dragged one[s]).
  * @param {DOMRect} cRect - canvas getBoundingClientRect.
  * @param {number} scale - current canvas scale.
- * @returns {{x:number[], y:number[]}}
+ * @returns {{x:{el:Array,canvas:Array}, y:{el:Array,canvas:Array}}}
  */
-function _buildAlignTargets(excludeSet, cRect, scale) {
-  const xs = [], ys = [];
+function _sgBuildTargets(excludeSet, cRect, scale) {
+  const x = { el: [], canvas: [] }, y = { el: [], canvas: [] };
   const canvas = document.getElementById('canvas');
-  if (!canvas) return { x: xs, y: ys };
+  if (!canvas) return { x, y };
   canvas.querySelectorAll('.sub-element').forEach(el => {
     if (excludeSet.has(el.dataset.subId)) return;
     const r = _seCanvasLocalRect(el, cRect, scale);
     if (!r) return;
-    xs.push(r.left, r.left + r.width / 2, r.left + r.width);
-    ys.push(r.top,  r.top  + r.height / 2, r.top  + r.height);
+    const l = r.left, t = r.top, rr = r.left + r.width, b = r.top + r.height;
+    // vertical-guide targets (X positions); perpendicular span = element's Y extent
+    x.el.push({ pos: l, min: t, max: b }, { pos: (l + rr) / 2, min: t, max: b }, { pos: rr, min: t, max: b });
+    // horizontal-guide targets (Y positions); perpendicular span = element's X extent
+    y.el.push({ pos: t, min: l, max: rr }, { pos: (t + b) / 2, min: l, max: rr }, { pos: b, min: l, max: rr });
   });
   // Canvas centre lines (clientWidth/Height are layout px = canvas-local space).
-  xs.push(canvas.clientWidth / 2);
-  ys.push(canvas.clientHeight / 2);
-  return { x: xs, y: ys };
+  const cw = canvas.clientWidth, ch = canvas.clientHeight;
+  x.canvas.push({ pos: cw / 2, min: 0, max: ch });
+  y.canvas.push({ pos: ch / 2, min: 0, max: cw });
+  return { x, y };
 }
 
 /**
- * Given the dragged element/group's tentative moving edges (canvas-local) and
- * the static target lines, finds the closest target within SMART_SNAP_PX on
- * each axis independently. Returns the local-space adjustment (dx/dy) that lands
- * the nearest moving edge exactly on its target, plus the guide lines to draw
- * (every target that any moving edge coincides with after snapping).
- * @param {number[]} movingXs - tentative left/centre/right (canvas-local).
- * @param {number[]} movingYs - tentative top/middle/bottom (canvas-local).
- * @param {{x:number[], y:number[]}} targets - static target lines.
- * @param {number} thresh - snap threshold in canvas-local px.
- * @returns {{dx:number, dy:number, guideXs:number[], guideYs:number[]}}
+ * Finds the nearest target within `thresh` for any of the moving edges.
+ * @returns {{delta:number, tgt:Object}|null} delta = target.pos - matchedEdge.
  */
-function _alignSnap(movingXs, movingYs, targets, thresh) {
-  let dx = 0, snappedX = false, bestX = thresh;
-  movingXs.forEach(m => targets.x.forEach(t => {
-    const d = t - m, a = Math.abs(d);
-    if (a <= bestX) { bestX = a; dx = d; snappedX = true; }
-  }));
-  let dy = 0, snappedY = false, bestY = thresh;
-  movingYs.forEach(m => targets.y.forEach(t => {
-    const d = t - m, a = Math.abs(d);
-    if (a <= bestY) { bestY = a; dy = d; snappedY = true; }
-  }));
-  const guideXs = [], guideYs = [];
-  if (snappedX) movingXs.forEach(m => targets.x.forEach(t => {
-    if (Math.abs(t - (m + dx)) < 0.5 && !guideXs.some(g => Math.abs(g - t) < 0.5)) guideXs.push(t);
-  }));
-  if (snappedY) movingYs.forEach(m => targets.y.forEach(t => {
-    if (Math.abs(t - (m + dy)) < 0.5 && !guideYs.some(g => Math.abs(g - t) < 0.5)) guideYs.push(t);
-  }));
-  return { dx: snappedX ? dx : 0, dy: snappedY ? dy : 0, guideXs, guideYs };
+function _sgNearest(edges, list, thresh) {
+  let best = thresh, delta = 0, tgt = null;
+  for (let i = 0; i < list.length; i++) {
+    const t = list[i];
+    for (let j = 0; j < edges.length; j++) {
+      const d = t.pos - edges[j], a = d < 0 ? -d : d;
+      if (a <= best) { best = a; delta = d; tgt = t; }
+    }
+  }
+  return tgt ? { delta, tgt } : null;
 }
+
+/**
+ * Resolves ONE axis: returns the nudge (delta) + the single locked target (or
+ * null). Hysteresis first — if a target is already locked in `state`, keep it
+ * until every edge is past SMART_RELEASE_PX; otherwise search element targets
+ * (preferred) then canvas centre (fallback) within SMART_SNAP_PX.
+ * @param {number[]} edges - moving edges on this axis (e.g. left/centre/right).
+ * @param {{el:Array,canvas:Array}} axisTargets
+ * @param {{tgt:Object|null}} state - per-axis hysteresis state (mutated).
+ */
+function _sgAxis(edges, axisTargets, state) {
+  if (state.tgt) {
+    let best = Infinity, bestEdge = edges[0];
+    for (let j = 0; j < edges.length; j++) {
+      const a = Math.abs(state.tgt.pos - edges[j]);
+      if (a < best) { best = a; bestEdge = edges[j]; }
+    }
+    if (best <= SMART_RELEASE_PX) return { delta: state.tgt.pos - bestEdge, tgt: state.tgt };
+    state.tgt = null; // drifted off — release and re-search this tick
+  }
+  let pick = _sgNearest(edges, axisTargets.el, SMART_SNAP_PX);
+  if (!pick) pick = _sgNearest(edges, axisTargets.canvas, SMART_SNAP_PX);
+  if (pick) { state.tgt = pick.tgt; return pick; }
+  return { delta: 0, tgt: null };
+}
+
+/**
+ * Begins a smart-guide drag session: measures the canvas, builds static targets
+ * excluding the dragged element(s), ensures the two reusable guide DIVs exist and
+ * are hidden, and returns the drag context (also exposing cRect/scale for callers
+ * that need canvas-local origin maths). Targets are static for the whole drag.
+ * @param {Set<string>} excludeSet - sub-element ids being dragged.
+ */
+function _sgBegin(excludeSet) {
+  const canvas = document.getElementById('canvas');
+  const cRect = canvas ? canvas.getBoundingClientRect() : null;
+  const scale = getCanvasScale();
+  _sgEnsureGuides();
+  _sgHideV(); _sgHideH();
+  const empty = { x: { el: [], canvas: [] }, y: { el: [], canvas: [] } };
+  if (!cRect) return { ok: false, cRect: null, scale, targets: empty, sx: { tgt: null }, sy: { tgt: null } };
+  return { ok: true, cRect, scale, targets: _sgBuildTargets(excludeSet, cRect, scale), sx: { tgt: null }, sy: { tgt: null } };
+}
+
+/**
+ * Per-move update: given the dragged element/group's tentative canvas-local
+ * top-left + size, resolves one snap target per axis, repositions/toggles the two
+ * persistent guide DIVs (spanning target↔element, or full canvas for a centre
+ * target), and returns the local-space nudge to apply.
+ * @returns {{dx:number, dy:number}}
+ */
+function _sgUpdate(ctx, left, top, width, height) {
+  if (!ctx || !ctx.ok) return { dx: 0, dy: 0 };
+  const rx = _sgAxis([left, left + width / 2, left + width], ctx.targets.x, ctx.sx);
+  const ry = _sgAxis([top, top + height / 2, top + height], ctx.targets.y, ctx.sy);
+  const dx = rx.delta, dy = ry.delta;
+  if (rx.tgt) {
+    // vertical guide spans the union of the target's Y extent and the snapped element's Y extent
+    const eTop = top + dy, eBot = top + dy + height;
+    const gTop = Math.min(rx.tgt.min, eTop), gBot = Math.max(rx.tgt.max, eBot);
+    _sgPlaceV(rx.tgt.pos, gTop, gBot - gTop);
+  } else _sgHideV();
+  if (ry.tgt) {
+    const eL = left + dx, eR = left + dx + width;
+    const gL = Math.min(ry.tgt.min, eL), gR = Math.max(ry.tgt.max, eR);
+    _sgPlaceH(ry.tgt.pos, gL, gR - gL);
+  } else _sgHideH();
+  return { dx, dy };
+}
+
+/** Ends a smart-guide drag session: hide both guides (DIVs persist for reuse). */
+function _sgEnd() { _sgHideV(); _sgHideH(); }
 
 /**
  * Begins a right-edge drag to resize the width of a text sub-element.
