@@ -700,6 +700,48 @@ export const COVERAGE_MAPS_MANIFEST: PluginManifest = {
   ],
 }
 
+export const POLICIES_MANIFEST: PluginManifest = {
+  id: 'policies',
+  name: 'Policies',
+  description: 'Legal policy pages (Privacy, POPIA, AUP, Terms) with auto footer listing and internal link picking',
+  version: '1.0.0',
+  author: 'CMS Core',
+  icon: 'bi-file-earmark-text',
+  routes: {
+    admin: [
+      '/admin/features/policies',
+    ],
+    api: [
+      '/api/policies',
+      '/api/policies/[id]',
+    ],
+    public: [
+      '/policies',
+      '/policies/[slug]',
+    ],
+  },
+  sidebarItems: [{
+    parentId: 'features',
+    items: [
+      { id: 'policies', label: 'Policies', icon: 'bi-file-earmark-text', href: '/admin/features/policies' },
+    ],
+  }],
+  settingsTabs: [],
+  prismaModels: ['Policy'],
+  dependencies: [],
+  coreMinVersion: '1.0.0',
+  touchesFiles: [
+    'app/admin/features/policies/page.tsx',
+    'app/policies/page.tsx',
+    'app/policies/[slug]/page.tsx',
+  ],
+  touchesModels: ['Policy'],
+  touchesRoutes: ['/api/policies/**'],
+  tier: 'free',
+  canDisable: true,
+  defaultEnabled: true,
+}
+
 export const PROJECTS_MANIFEST: PluginManifest = {
   id: 'projects',
   name: 'Projects',
@@ -766,4 +808,5 @@ export const BUILTIN_MANIFESTS: PluginManifest[] = [
   CONCRETE_CALCULATOR_MANIFEST,
   COVERAGE_MAPS_MANIFEST,
   PROJECTS_MANIFEST,
+  POLICIES_MANIFEST,
 ]

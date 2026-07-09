@@ -387,6 +387,16 @@ function FooterRenderer({ section }: { section: FooterSection }) {
   useEffect(() => {
     fetch("/api/site-config").then((r) => r.json()).then((d) => { if (d?.data) setCfg(d.data); }).catch(() => {});
   }, []);
+
+  // Auto-list enabled policies in a "Legal" footer column (Policies plugin).
+  // Returns [] when the plugin is disabled, so the column simply doesn't appear.
+  const [policies, setPolicies] = useState<{ slug: string; title: string; navLabel: string | null }[]>([]);
+  useEffect(() => {
+    fetch("/api/policies?enabled=true")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => setPolicies(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }, []);
   const effLogo = content.logo || cfg.logoUrl || "";
   const effTagline = content.tagline || cfg.tagline || "";
   const cfgAddress = [cfg.address, cfg.city, cfg.postalCode].filter(Boolean).join(", ");
@@ -528,10 +538,22 @@ function FooterRenderer({ section }: { section: FooterSection }) {
     </div>
   ));
 
-  // Build columns element with even distribution using flexbox
-  const columnsElement = content.columns && content.columns.length > 0 && (
+  // Build columns element with even distribution using flexbox.
+  // Auto-append a "Legal" column of policy links when the Policies plugin is
+  // enabled and has ≥1 policy (additive — author columns are untouched).
+  const baseColumns = content.columns ?? [];
+  const legalColumn =
+    policies.length > 0
+      ? [{
+          id: "auto-legal",
+          title: "Legal",
+          links: policies.map((p) => ({ text: p.navLabel || p.title, href: `/policies/${p.slug}` })),
+        }]
+      : [];
+  const footerColumns = [...baseColumns, ...legalColumn];
+  const columnsElement = footerColumns.length > 0 && (
     <div className="d-flex gap-4 justify-content-between">
-      {content.columns.map((col, ci) => (
+      {footerColumns.map((col, ci) => (
         <div key={col.id || (col as any).heading || ci} style={{ flex: '1 1 0', minWidth: 0 }}>
           <h6 className={`fw-bold mb-3 ${textClass}`}>{(col as any).heading || col.title}</h6>
           <ul className="list-unstyled">

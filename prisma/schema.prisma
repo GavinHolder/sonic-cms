@@ -27,6 +27,7 @@ model User {
   volt3DAssets    Volt3DAsset[]
   voltElements   VoltElement[]
   contentEntries ContentEntry[]
+  policies       Policy[]
 
   @@map("users")
 }
@@ -864,4 +865,24 @@ model GbpToken {
   locationName String?
 
   @@map("gbp_tokens")
+}
+
+model Policy {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  title     String
+  body      String   @db.Text
+  navLabel  String?
+  order     Int      @default(0)
+  enabled   Boolean  @default(true)
+  metaTitle       String?
+  metaDescription String?
+  noindex   Boolean  @default(false)
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdByUser User @relation(fields: [createdBy], references: [id])
+
+  @@index([enabled, order])
+  @@map("policies")
 }
