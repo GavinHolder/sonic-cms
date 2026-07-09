@@ -69,14 +69,14 @@ export default function ConfirmDialog({
       <div
         className="modal-backdrop fade show"
         onClick={handleCancel}
-        style={{ zIndex: 1060 }}
+        style={{ zIndex: 5000 }}
       />
 
       {/* Modal */}
       <div
         className="modal fade show d-block"
         tabIndex={-1}
-        style={{ zIndex: 1065 }}
+        style={{ zIndex: 5005 }}
       >
         <div className="modal-dialog modal-dialog-centered">
           <div className="modal-content">
