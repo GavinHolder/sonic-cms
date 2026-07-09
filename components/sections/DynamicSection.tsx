@@ -954,9 +954,27 @@ function NormalRenderer({ section }: { section: NormalSection }) {
   const isImageLayout =
     content.layout === "text-image" || content.layout === "image-text";
 
-  // Build background styles for image/video backgrounds
+  // Background-image fade/MASK (#60). Fades the bg IMAGE to transparent along an alpha
+  // gradient so it blends into the section/page colour behind it (distinct from the
+  // gradient OVERLAY below, which tints with colour). Mirrors FlexibleSectionRenderer and
+  // is driven by the SAME content.bgMask* fields so authoring is consistent across section
+  // types. Default-off: unset/false → image drawn on the section as before (back-compat).
+  const bgMaskEnabled = (content as any).bgMaskEnabled === true;
+  const bgMaskCss: string | null = (() => {
+    if (!bgMaskEnabled || !content.backgroundImage) return null;
+    const DIR: Record<string, string> = { top: "to top", bottom: "to bottom", left: "to left", right: "to right" };
+    const dir   = DIR[((content as any).bgMaskDirection as string) || "bottom"] || "to bottom";
+    const start = Math.max(0, Math.min(100, (content as any).bgMaskStart ?? 0));
+    const end   = Math.max(0, Math.min(100, (content as any).bgMaskEnd   ?? 100));
+    return `linear-gradient(${dir}, black ${start}%, transparent ${end}%)`;
+  })();
+
+  // Build background styles for image/video backgrounds.
+  // When the mask is enabled the image renders as a dedicated absolute layer below (so the
+  // alpha mask clips only the image, not the section's text content) — so it is intentionally
+  // NOT set on the section itself in that case.
   const backgroundStyles: React.CSSProperties = {};
-  if (content.backgroundImage) {
+  if (content.backgroundImage && !bgMaskEnabled) {
     backgroundStyles.backgroundImage = `url(${content.backgroundImage})`;
     backgroundStyles.backgroundSize = "cover";
     backgroundStyles.backgroundPosition = "center";
@@ -1017,6 +1035,28 @@ function NormalRenderer({ section }: { section: NormalSection }) {
         ...(paddingBottomMobile != null && { "--section-pb-mobile": `${paddingBottomMobile}px` }),
       } as React.CSSProperties}
     >
+      {/* Background image layer with alpha MASK (#60) — dedicated absolute-fill layer,
+          rendered ONLY when the mask is enabled so the gradient fades just the image
+          (not the section's text). When the mask is off the image stays on the section
+          via backgroundStyles above (unchanged). Style props only — no innerHTML. */}
+      {bgMaskCss && content.backgroundImage && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 0,
+            backgroundImage: `url(${content.backgroundImage})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            backgroundRepeat: "no-repeat",
+            maskImage: bgMaskCss,
+            WebkitMaskImage: bgMaskCss,
+            pointerEvents: "none",
+          }}
+        />
+      )}
+
       {/* Animated background (if enabled) — stored in content.animBg */}
       {(content as any).animBg?.enabled && (
         <AnimBgRenderer config={(content as any).animBg} sectionId={section.id} />
