@@ -349,6 +349,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             ? {
                 ...item,
                 subItems: [
+                  { id: "plugin-manager", label: "Plugin Manager", icon: "bi-puzzle", href: "/admin/plugins" },
                   { id: "manage-features", label: "Manage Features", icon: "bi-sliders", href: "/admin/features" },
                   ...enabledFeatures
                     .filter((slug) => FEATURE_SUB_ITEMS[slug])
