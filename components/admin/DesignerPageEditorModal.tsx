@@ -40,13 +40,36 @@ export default function DesignerPageEditorModal({
 
       if (e.data.type === "FLEXIBLE_DESIGNER_READY") {
         // Send the current page data (or a blank multi-mode canvas)
-        const initPayload = designerData || JSON.stringify({
+        const basePayload = designerData || JSON.stringify({
           contentMode: "multi",
           layoutType: "preset",
           grid: { rows: 2, cols: 3, gap: 16 },
           preset: "2-col-split",
           blocks: [],
         });
+        // #68 — forward the page's configured section background so the designer canvas
+        // can preview it (view-only in the designer). Mirrors FlexibleSectionEditorModal:
+        // parse the payload, attach a normalized `sectionBackground` in the exact shape
+        // flexible-designer.html's readSectionBgFromPayload expects, then re-stringify. A
+        // designer page has no separate section object, so the bg fields are read off the
+        // persisted designer payload itself. No bg present → payload sent unchanged.
+        let initPayload = basePayload;
+        try {
+          const obj = JSON.parse(basePayload);
+          if (obj && !obj.sectionBackground &&
+              (obj.background != null || obj.bgImageUrl || obj.gradient)) {
+            obj.sectionBackground = {
+              background: obj.background,
+              bgImageUrl: obj.bgImageUrl || "",
+              bgImageSize: obj.bgImageSize,
+              bgImagePosition: obj.bgImagePosition,
+              bgImageRepeat: obj.bgImageRepeat,
+              bgImageOpacity: obj.bgImageOpacity,
+              gradient: obj.gradient,
+            };
+            initPayload = JSON.stringify(obj);
+          }
+        } catch { /* non-JSON payload — send as-is */ }
         iframeRef.current?.contentWindow?.postMessage(
           { type: "FLEXIBLE_DESIGNER_INIT", payload: initPayload },
           "*"
