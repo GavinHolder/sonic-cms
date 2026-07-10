@@ -453,8 +453,7 @@ const ILLUSTRATIONS: Record<string, React.ReactNode> = {
 
 // ─── Animation live previews ──────────────────────────────────────────────
 // Lightweight, self-contained CSS/@keyframes previews (no JS/canvas). Each
-// per-type preview is wrapped in AnimFig (framed stage + caption). The overview
-// topic renders a gallery showing every type in motion at a glance.
+// per-type preview is wrapped in AnimFig (framed stage + caption).
 // prefers-reduced-motion pauses all preview animation (see <style> below).
 
 function AnimFig({ caption, style, tag = "LIVE", children }: {
@@ -471,73 +470,7 @@ function AnimFig({ caption, style, tag = "LIVE", children }: {
   );
 }
 
-// Mini tiles for the overview gallery — each a small live version of a preset.
-const GALLERY_TILES: Array<{ name: string; cap: string; render: React.ReactNode }> = [
-  { name: "Floating Shapes", cap: "Blurred shapes drift & rotate", render: (
-      <div style={{ position:"absolute", inset:0, background:"linear-gradient(135deg,#1a1a2e,#16213e)" }}>
-        {[0,1,2,3].map(i => (
-          <div key={i} style={{ position:"absolute", width:`${10+i*7}px`, height:`${10+i*7}px`,
-            borderRadius: i%2 ? "50%" : "4px", background:["#60a5fa","#a78bfa","#34d399","#f472b6"][i],
-            opacity:0.7-i*0.1, top:["30%","55%","18%","60%"][i], left:["15%","55%","70%","32%"][i], filter:"blur(1px)",
-            animation:`floatAnim ${2.4+i*0.7}s ease-in-out infinite alternate`, animationDelay:`${i*0.3}s` }} />
-        ))}
-      </div>
-    ) },
-  { name: "Moving Gradient", cap: "Colours pan diagonally", render: (
-      <div style={{ position:"absolute", inset:0, backgroundSize:"400% 400%",
-        background:"linear-gradient(135deg,#667eea,#764ba2,#06b6d4,#10b981,#f59e0b)",
-        animation:"gradShift 3s ease infinite" }} />
-    ) },
-  { name: "Particle Field", cap: "Tiny dots float upward", render: (
-      <div style={{ position:"absolute", inset:0, background:"#0a0a1a" }}>
-        {[...Array(12)].map((_, i) => (
-          <div key={i} style={{ position:"absolute", width:2, height:2, borderRadius:"50%",
-            background:"#60a5fa", boxShadow:"0 0 4px #60a5fa", left:`${(i*29+7)%100}%`, bottom:"-4px",
-            animation:`particleRise ${2.4+(i%3)*0.8}s linear infinite`, animationDelay:`${i*0.28}s` }} />
-        ))}
-      </div>
-    ) },
-  { name: "Waves", cap: "Sine waves undulate", render: (
-      <div style={{ position:"absolute", inset:0, background:"linear-gradient(180deg,#0369a1,#0c4a6e)", overflow:"hidden" }}>
-        <svg viewBox="0 0 200 60" style={{ position:"absolute", bottom:0, width:"100%", height:"75%" }}>
-          <path d="M0,25 C50,10 100,40 150,25 C180,16 195,34 200,25 L200,60 L0,60 Z" fill="rgba(255,255,255,0.18)" style={{ animation:"waveDrift 2.4s ease-in-out infinite alternate" }} />
-          <path d="M0,35 C60,22 120,48 200,35 L200,60 L0,60 Z" fill="rgba(255,255,255,0.1)" style={{ animation:"waveDrift 3s ease-in-out infinite alternate-reverse" }} />
-        </svg>
-      </div>
-    ) },
-  { name: "Parallax Drift", cap: "Blobs drift at depths", render: (
-      <div style={{ position:"absolute", inset:0, background:"#111827", overflow:"hidden" }}>
-        {[{s:44,y:18,x:8,c:"#1e3a5f",sp:"6s"},{s:26,y:45,x:52,c:"#312e81",sp:"4s"},{s:14,y:30,x:74,c:"#60a5fa",sp:"2.6s"}].map((l,i)=>(
-          <div key={i} style={{ position:"absolute", width:l.s, height:l.s*0.62, top:`${l.y}%`, left:`${l.x}%`,
-            background:l.c, borderRadius:"50%", filter:"blur(1px)", opacity:0.7,
-            animation:`parallaxDrift ${l.sp} ease-in-out infinite alternate`, animationDelay:`${i*0.5}s` }} />
-        ))}
-      </div>
-    ) },
-  { name: "3D Tilt", cap: "Panel tips subtly in 3D", render: (
-      <div style={{ position:"absolute", inset:0, background:"linear-gradient(135deg,#1a1a2e,#16213e)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-        <div style={{ width:56, height:38, borderRadius:6, background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",
-          boxShadow:"0 10px 20px rgba(0,0,0,0.6)", animation:"tilt3d 3s ease-in-out infinite alternate" }} />
-      </div>
-    ) },
-];
-
-const ANIM_GALLERY = (
-  <div className="anim-gallery">
-    {GALLERY_TILES.map(t => (
-      <div key={t.name} className="anim-gallery-tile">
-        <div className="anim-gallery-stage">{t.render}</div>
-        <div className="anim-gallery-name">{t.name}</div>
-        <div className="anim-gallery-cap">{t.cap}</div>
-      </div>
-    ))}
-  </div>
-);
-
 const ANIM_PREVIEWS: Record<string, React.ReactNode> = {
-  // Overview topic (both ids share TAB_ANIMATION content) → whole-menu gallery
-  "tab-animation": ANIM_GALLERY,
-  "anim-overview": ANIM_GALLERY,
   "anim-floating": (
     <AnimFig caption="Soft, blurred geometric shapes drift and slowly rotate across the section."
       style={{ background: "linear-gradient(135deg,#1a1a2e,#16213e)" }}>
@@ -867,25 +800,9 @@ export default function DocumentsPage() {
         }
         .anim-fig-cap { font-size: 0.8rem; color: #6c757d; font-style: italic; line-height: 1.4; }
 
-        /* ── Anim overview gallery ── */
-        .anim-gallery {
-          display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-          gap: 0.75rem; margin: 0 0 1.75rem;
-        }
-        .anim-gallery-tile {
-          border: 1px solid #e9ecef; border-radius: 10px; overflow: hidden;
-          background: #fff; padding-bottom: 0.5rem;
-        }
-        .anim-gallery-stage {
-          position: relative; width: 100%; height: 72px; overflow: hidden;
-          border-bottom: 1px solid #f1f3f5; margin-bottom: 0.4rem;
-        }
-        .anim-gallery-name { font-size: 0.78rem; font-weight: 600; color: #212529; padding: 0 0.55rem; }
-        .anim-gallery-cap { font-size: 0.7rem; color: #868e96; padding: 0 0.55rem; line-height: 1.35; }
-
         /* Respect reduced-motion: freeze preview animation */
         @media (prefers-reduced-motion: reduce) {
-          .anim-preview *, .anim-preview, .anim-gallery-stage * { animation: none !important; }
+          .anim-preview *, .anim-preview { animation: none !important; }
         }
 
         /* ── Markdown ── */
