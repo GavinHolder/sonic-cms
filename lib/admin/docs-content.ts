@@ -4314,6 +4314,27 @@ Elements are stored as JSON and rendered natively in the browser — no raster i
 
 ---
 
+## Top Bar
+
+The persistent header. The left side identifies the element being edited; the right side holds the live canvas size, the responsive-breakpoint switcher, history, and the three commit actions. **Save / Done** post messages to the parent CMS window; a standalone window auto-saves to \`localStorage("volt_autosave")\`.
+
+<div class="fig map"><span class="tag">Interface map</span><div class="fig-body"><svg viewBox="0 0 640 74" font-family="system-ui" font-size="10"><rect x="8" y="10" width="624" height="30" rx="7" fill="#0f1626"/><text x="20" y="29" fill="#fff" font-weight="700" font-size="10">Volt <tspan fill="#8fb3ff">Designer</tspan></text><rect x="96" y="15" width="66" height="20" rx="5" fill="#243049"/><text x="129" y="29" text-anchor="middle" fill="#cdd7ee" font-size="8">New Design</text><rect x="168" y="15" width="66" height="20" rx="10" fill="#3a2f0a"/><text x="201" y="29" text-anchor="middle" fill="#f0c24b" font-size="8">● unsaved</text><text x="300" y="29" fill="#8a93a3" font-size="8">800×500px</text><text x="360" y="29" fill="#cdd7ee" font-size="9">🖥 ▭ 📱</text><text x="430" y="29" fill="#cdd7ee" font-size="9">↺ ↻</text><rect x="470" y="14" width="22" height="22" rx="5" fill="#3a1420"/><text x="481" y="29" text-anchor="middle" fill="#f08" font-size="9">🗑</text><rect x="498" y="14" width="46" height="22" rx="5" fill="#0d6efd"/><text x="521" y="29" text-anchor="middle" fill="#fff" font-size="8">💾 Save</text><rect x="550" y="14" width="74" height="22" rx="5" fill="#166534"/><text x="587" y="29" text-anchor="middle" fill="#dcfce7" font-size="8">← Library</text><g font-weight="700" font-size="8.5"><circle cx="129" cy="52" r="6.5" fill="#e2001a"/><text x="129" y="55" text-anchor="middle" fill="#fff">1</text><circle cx="201" cy="52" r="6.5" fill="#e2001a"/><text x="201" y="55" text-anchor="middle" fill="#fff">2</text><circle cx="300" cy="52" r="6.5" fill="#0d6efd"/><text x="300" y="55" text-anchor="middle" fill="#fff">3</text><circle cx="360" cy="52" r="6.5" fill="#0d6efd"/><text x="360" y="55" text-anchor="middle" fill="#fff">4</text><circle cx="430" cy="52" r="6.5" fill="#0d6efd"/><text x="430" y="55" text-anchor="middle" fill="#fff">5</text><circle cx="481" cy="52" r="6.5" fill="#e2001a"/><text x="481" y="55" text-anchor="middle" fill="#fff">6</text><circle cx="521" cy="52" r="6.5" fill="#e2001a"/><text x="521" y="55" text-anchor="middle" fill="#fff">7</text><circle cx="587" cy="52" r="6.5" fill="#e2001a"/><text x="587" y="55" text-anchor="middle" fill="#fff">8</text></g></svg></div><div class="fig-cap"><b>Callouts —</b> <b>1</b> element name badge · <b>2</b> unsaved indicator · <b>3</b> live canvas size · <b>4</b> breakpoint switcher · <b>5</b> undo/redo · <b>6</b> delete layer · <b>7</b> Save · <b>8</b> Done (← Library).</div></div>
+
+| Control | Function | Options / range | Default & use case |
+|---------|----------|-----------------|--------------------|
+| Element name badge | Displays current design name | text mirror of \`el-name\` | "New Design" · orient which element you're editing |
+| Unsaved indicator | Dirty-state flag | shown / hidden | hidden · know when a Save is pending |
+| Canvas size label | Live artboard dimensions | \`W×Hpx\` | 800×500px |
+| Breakpoint switcher | Desktop / Tablet / Mobile | \`data-bp\` desktop/tablet/mobile | hidden until breakpoints defined; swaps width + per-layer overrides |
+| Undo / Redo | Step through history | \`Ctrl+Z\` / \`Ctrl+Y\` · \`Ctrl+Shift+Z\` | 50-step ring buffer |
+| Delete layer | Remove selected layer | \`Del\` / \`Backspace\` | disabled without selection |
+| Save | Persist to parent CMS | postMessage \`VOLT_DESIGNER_SAVE\` | disabled unless dirty; marks clean |
+| Done (← Library) | Commit & exit to library | postMessage \`VOLT_DESIGNER_DONE\` | finish editing session |
+
+> **Note:** there is no explicit "mood" or "public" control in the top bar — those live in the left **Element Properties** panel. There is no separate "Code" button in this build; the top-bar right cluster is exactly the eight items above.
+
+---
+
 ## Canvas
 
 The canvas is a fixed-size artboard (default **800×500 px**). All coordinates are stored in **percentage space** (0–100) relative to canvas width/height, making elements resolution-independent.
@@ -4364,29 +4385,51 @@ The canvas is a fixed-size artboard (default **800×500 px**). All coordinates a
 const VOLT_TOOLS = `
 # Volt Designer — Drawing Tools
 
-## Toolbar
+A horizontal **tool palette** sits at the top of the canvas area. Primary drawing tools are on the left (each with a single-key shortcut), then a separator, then four **library** launchers (SHP / GRD / ICN / CMP). The **REST / HOVER** state switcher sits at the far right of the strip.
 
-| Key | Tool | Description |
-|-----|------|-------------|
-| **V** | Select | Move, resize, or enter vertex edit |
-| **R** | Rectangle | Draw rectangles |
-| **E** | Ellipse | Draw ellipses / circles |
-| **L** | Line | Draw straight lines |
-| **B** | Pen | Bezier pen tool — place anchor points |
-| **P** | Polygon | Click to place vertices, Enter/dblclick to close |
-| **S** | Slot | Define content slot regions |
-| **SHP** | Shape Presets | Drop a pre-built vector shape onto the canvas |
+<div class="fig map"><span class="tag">Interface map</span><div class="fig-body"><svg viewBox="0 0 640 96" font-family="system-ui" font-size="10"><rect x="8" y="10" width="624" height="34" rx="7" fill="#1c2333"/><g fill="#cdd7ee" font-size="11" font-weight="700"><rect x="16" y="16" width="22" height="22" rx="4" fill="#0d6efd"/><text x="27" y="31" text-anchor="middle" fill="#fff">▤</text><text x="52" y="31" text-anchor="middle">▭</text><text x="76" y="31" text-anchor="middle">◯</text><text x="100" y="31" text-anchor="middle">╱</text><text x="124" y="31" text-anchor="middle">⬠</text><text x="148" y="31" text-anchor="middle">✎</text><text x="172" y="31" text-anchor="middle">T</text></g><rect x="188" y="16" width="52" height="22" rx="4" fill="#2a3550"/><text x="214" y="31" text-anchor="middle" fill="#7ee0a8" font-size="8">▤ TIT ▾</text><line x1="248" y1="16" x2="248" y2="38" stroke="#3a475f"/><rect x="256" y="16" width="34" height="22" rx="4" fill="#2a3550"/><text x="273" y="31" text-anchor="middle" fill="#8fb3ff" font-size="8">SHP</text><rect x="294" y="16" width="34" height="22" rx="4" fill="#2a3550"/><text x="311" y="31" text-anchor="middle" fill="#f0b24b" font-size="8">GRD</text><rect x="332" y="16" width="32" height="22" rx="4" fill="#2a3550"/><text x="348" y="31" text-anchor="middle" fill="#4fd1a0" font-size="8">ICN</text><rect x="368" y="16" width="34" height="22" rx="4" fill="#2a3550"/><text x="385" y="31" text-anchor="middle" fill="#c4a8f5" font-size="8">CMP</text><rect x="520" y="16" width="46" height="22" rx="4" fill="#0d6efd"/><text x="543" y="31" text-anchor="middle" fill="#fff" font-size="8">REST</text><rect x="570" y="16" width="54" height="22" rx="4" fill="#2a3550"/><text x="597" y="31" text-anchor="middle" fill="#cdd7ee" font-size="8">HOVER</text><g font-weight="700"><circle cx="27" cy="54" r="7" fill="#e2001a"/><text x="27" y="57" text-anchor="middle" fill="#fff" font-size="9">1</text><circle cx="214" cy="54" r="7" fill="#e2001a"/><text x="214" y="57" text-anchor="middle" fill="#fff" font-size="9">2</text><circle cx="273" cy="54" r="7" fill="#0d6efd"/><text x="273" y="57" text-anchor="middle" fill="#fff" font-size="9">3</text><circle cx="311" cy="54" r="7" fill="#0d6efd"/><text x="311" y="57" text-anchor="middle" fill="#fff" font-size="9">4</text><circle cx="385" cy="54" r="7" fill="#0d6efd"/><text x="385" y="57" text-anchor="middle" fill="#fff" font-size="9">5</text><circle cx="543" cy="54" r="7" fill="#e2001a"/><text x="543" y="57" text-anchor="middle" fill="#fff" font-size="9">6</text></g></svg></div><div class="fig-cap"><b>Callouts —</b> <b>1</b> drawing tools (Select · Rect · Ellipse · Line · Polygon · Pen · Text); the Select caret ▾ toggles Auto-select / Sticky. <b>2</b> Slot tool + type caret (picks one of 8 slot types; tag shows current type). <b>3</b> SHP shape presets. <b>4</b> GRD gradient presets. <b>5</b> ICN Bootstrap-icon library / CMP saved components. <b>6</b> REST / HOVER state switcher (artboard gets an amber outline in HOVER).</div></div>
 
-### SHP — Shape Presets
+## Every tool & library launcher
 
-Click the **⭐ SHP** button in the toolbar to open a grid of 16 pre-built vector shapes. Clicking any shape drops it centred on the canvas at 40% of canvas size. All shapes are fully editable vector layers.
+| Tool | Key | What it does | Notes |
+|------|-----|--------------|-------|
+| Select & Move | \`V\` | Pick, move, resize, rotate; marquee multi-select | caret ▾ → Auto-select vs Sticky tool |
+| Rectangle | \`R\` | Drag a rectangle | \`Shift\` = square, \`Ctrl\` = snap to grid |
+| Ellipse | \`E\` | Drag an ellipse | \`Shift\` = circle |
+| Line | \`L\` | Drag a straight stroke (no fill) | 2px round-cap stroke, role = accent |
+| Polygon | \`P\` | Click to add points, close to commit | \`Enter\`/dblclick close, \`Backspace\` undo pt |
+| Pen / Bezier | \`B\` | Click = sharp anchor, drag = curve anchor | near start closes; \`Enter\` commits open path |
+| Text | \`T\` | Place a full CSS text layer | double-click on canvas to edit inline |
+| Slot | \`S\` | Draw a content placeholder region | caret ▾ picks type; default TITle |
+| SHP presets | — | Insert one of 23 preset shapes | centred, 40% of shorter dim, structure role |
+| GRD presets | — | Apply a curated gradient to fill | 12 presets with angle |
+| ICN library | — | Search + insert a Bootstrap icon | 6-col grid, live search box |
+| CMP components | — | Insert a saved reusable component | fetched from \`/api/volt-elements?type=component\` |
+| REST state | — | Edit base layer values | default active |
+| HOVER state | — | Edit hover-override values | writes to hover state; amber artboard outline |
 
-| Shape | Shape | Shape | Shape |
-|-------|-------|-------|-------|
-| Arrow Right | Arrow Left | Arrow ↔ | 5-Point Star |
+> **Select-tool behaviour caret:** **Auto-select** (default) returns to Select after each shape is drawn; **Sticky tool** keeps the current draw tool active for repeated shapes. The chosen mode persists on \`element.toolMode\`.
+
+<div class="fig-note">The palette also surfaces transient badges next to the tools: a <b>✂ Bool Edit Mode</b> pill (while moving a cutter), a green <b>👁 Preview</b> toggle (only when slot layers exist), and a <b>FACE: Front / Back</b> switcher (only when Flip Card is enabled on the element).</div>
+
+---
+
+### SHP — the 23 built-in shapes
+
+Click the **SHP** button to open the preset grid. Each is a normalised 0–100 path scaled to the canvas, dropped **centred at 40% of the shorter side** as a fully editable vector layer (structure role). Grouped roughly into directional, symbolic, geometric, and banner/label families:
+
+| | | | |
+|---|---|---|---|
+| Arrow Right | Arrow Left | Double Arrow | Star |
 | Heart | Diamond | Triangle Up | Triangle Down |
 | Chevron | Plus | Hexagon | Octagon |
-| Pentagon | Shield | Speech Bubble | Tag |
+| Pentagon | Shield | Callout | Tag |
+| Banner ↓ | Banner ↑ | Ribbon | Wave |
+| Pill | Badge | Speech Bubble | |
+
+### GRD — the 12 gradient presets
+
+Applied to the selected vector's fill (each carries an angle): **Indigo Violet · Aurora · Sunset · Ocean · Emerald · Rose Gold · Midnight · Solar · Candy · Forest · Flame (3-stop) · Arctic.**
 
 ---
 
@@ -4447,16 +4490,36 @@ A **status bar** below the toolbar shows all available keyboard shortcuts for th
 const VOLT_LAYERS = `
 # Volt Designer — Layers & Selection
 
-## Layer Panel
+## Left Sidebar Panels
 
-Every shape, slot, or 3D object is a **layer**. Layers are listed in the **Layers** panel (left sidebar).
+The left sidebar is a stack of collapsible accordion panels. Click a header to open/close; the whole sidebar collapses via the edge toggle.
 
-- **Drag** to reorder (higher in list = higher z-index)
-- Click a layer row to select it
-- **Double-click** the layer name to rename it
-- Click the **eye icon** to toggle visibility
-- Click the **lock icon** to lock (prevents selection/editing)
-- Click **🗑** to delete
+| Panel | What it holds |
+|-------|---------------|
+| **Element Properties** | Name, Type (Custom / Button / Input / Card / Badge / Icon / Divider / Hero Element), Mood (None / Energetic / Calm / Bold / Playful / Minimal / Immersive), and a **Public** switch |
+| **Canvas Size** | 10 presets, manual W/H (32–4096px), Apply Size, **Fit Layers** (scale all layers to fit + 5% pad), Grid Size (1–200px) |
+| **Layers** | Role-badged rows with visibility & lock toggles, drag-to-reorder, inline rename, Group button; count badge in header |
+| **Boolean Ops** | Union / Subtract / Intersect on 2+ selected shapes |
+| **3D Objects** | "Browse / Place 3D Object" — opens the GLB/GLTF/FBX/OBJ viewer modal |
+| **Images** | "Browse / Place Image" — opens the media picker (Library + Unsplash + paste-URL) |
+
+---
+
+## Layers Panel
+
+Every shape, slot, or 3D object is a **layer**. Layers are listed in the **Layers** panel with a role badge, an eye toggle, a lock toggle, an inline rename, and are draggable to reorder.
+
+<div class="fig map"><span class="tag">Interface map</span><div class="fig-body"><svg viewBox="0 0 420 150" font-family="system-ui" font-size="10"><rect x="8" y="8" width="404" height="30" rx="6" fill="#fff" stroke="#e4e8ef"/><text x="18" y="27" fill="#343a40" font-weight="700" font-size="10">☰ Layers</text><rect x="92" y="16" width="18" height="14" rx="7" fill="#64748b"/><text x="101" y="26" text-anchor="middle" fill="#fff" font-size="8">3</text><text x="398" y="27" text-anchor="end" fill="#8a93a3">▾</text><rect x="8" y="44" width="404" height="30" rx="6" fill="#eef2ff" stroke="#c7d2fe"/><rect x="16" y="52" width="26" height="14" rx="3" fill="#6366f1"/><text x="29" y="62" text-anchor="middle" fill="#fff" font-size="8">STR</text><text x="50" y="62" fill="#1c2333" font-size="9.5">Rectangle</text><text x="360" y="62" fill="#5b6472" font-size="10">👁</text><text x="388" y="62" fill="#f59e0b" font-size="10">🔒</text><rect x="8" y="80" width="404" height="30" rx="6" fill="#fff" stroke="#e4e8ef" opacity="0.5"/><rect x="16" y="88" width="26" height="14" rx="3" fill="#22c55e"/><text x="29" y="98" text-anchor="middle" fill="#fff" font-size="8">SLT</text><text x="50" y="98" fill="#1c2333" font-size="9.5">Title Slot</text><text x="360" y="98" fill="#5b6472" font-size="10">👁⃠</text><text x="388" y="98" fill="#5b6472" font-size="10">🔒</text><rect x="8" y="116" width="404" height="28" rx="6" fill="#fff" stroke="#e4e8ef"/><rect x="16" y="123" width="26" height="14" rx="3" fill="#f59e0b"/><text x="29" y="133" text-anchor="middle" fill="#fff" font-size="8">ACC</text><text x="50" y="133" fill="#1c2333" font-size="9.5">Accent Line</text><text x="360" y="133" fill="#5b6472" font-size="10">👁</text><text x="388" y="133" fill="#5b6472" font-size="10">🔒</text></svg></div><div class="fig-cap"><b>Top of the list renders in front (highest z).</b> Rows carry a role badge, an eye toggle (dims the row when hidden), an amber padlock lock, and an inline rename. A hidden row is shown dimmed (middle). The header count badge shows the layer total.</div></div>
+
+| Layers · control | Function | Options / range | Default |
+|------------------|----------|-----------------|---------|
+| Row | Select (works even when occluded on canvas) | click = select, dbl-click name = rename, drag = reorder | — |
+| Drag order | Reorder → z-order | **top of list = front** | — |
+| Visibility | Show / hide layer | eye toggle → \`layer.visible\`; hidden rows dim | visible |
+| Lock | Prevent canvas selection/edit | amber padlock → \`layer.locked\`; still reachable in this panel | unlocked |
+| Group | Group ≥2 selected layers | \`Ctrl+G\` | — |
+
+> **Role badges** (colour): background \`#64748b\` · structure \`#6366f1\` · accent \`#f59e0b\` · content \`#22c55e\` · overlay \`#ec4899\`. The header shows a short badge (STR/SLT/ACC…). Grouping folds layers into accordion group-rows; cutters are hidden except while their base is in Bool-Edit mode.
 
 ---
 
@@ -4465,11 +4528,16 @@ Every shape, slot, or 3D object is a **layer**. Layers are listed in the **Layer
 | Action | Result |
 |--------|--------|
 | Click shape on canvas | Select that layer |
-| Click layer row | Select that layer |
+| Click layer row | Select that layer (even if occluded on canvas) |
+| Click again, same spot | **Dig downward** — selects the next layer beneath (cycles round the stack) |
+| Click over locked/hidden | Ignored — the click passes through to what's beneath |
 | **Del** | Delete selected layer |
 | **Alt + drag** | Duplicate and drag |
-| **Ctrl+Z** | Undo |
-| **Ctrl+Y** | Redo |
+| **Ctrl+Z** / **Ctrl+Y** | Undo / Redo |
+
+### Occluded & pass-through selection
+
+Hit-testing skips both **hidden** and **locked** layers, so they never intercept a click — it falls through to whatever is beneath. When shapes stack, **repeated clicks at the same point cycle the selection downward** through the stack (tracked via \`_hitCyclePt\`, within ~4px). \`Alt\` is **not** used for this — it is reserved for vertex add/delete. To reach a locked layer, select its row in the Layers panel.
 
 ### Marquee Select
 
@@ -4536,6 +4604,8 @@ The canvas shows:
 - **Dashed indigo dots** — Bezier handle stubs (one per vertex side, pointing toward adjacent vertex)
 - A **dashed amber bounding box** around the shape
 - A **ROUND slider** at the bottom toolbar
+
+<div class="fig map"><span class="tag">Interface map</span><div class="fig-body"><svg viewBox="0 0 420 190" font-family="system-ui" font-size="10"><rect x="8" y="8" width="404" height="174" rx="8" fill="#dee2e6"/><polygon points="90,55 320,45 340,150 80,140" fill="#6366f1" fill-opacity="0.18" stroke="#6366f1" stroke-width="1.5"/><line x1="320" y1="45" x2="368" y2="28" stroke="#6366f1" stroke-width="1"/><circle cx="368" cy="28" r="6" fill="#fff" stroke="#6366f1" stroke-width="1.5"/><rect x="84" y="49" width="12" height="12" fill="#fff" stroke="#6366f1" stroke-width="1.5"/><rect x="314" y="39" width="12" height="12" fill="#0d6efd" stroke="#fff" stroke-width="1.5"/><rect x="334" y="144" width="12" height="12" fill="#fff" stroke="#6366f1" stroke-width="1.5"/><rect x="74" y="134" width="12" height="12" fill="#fff" stroke="#6366f1" stroke-width="1.5"/><rect x="120" y="150" width="180" height="24" rx="12" fill="#fff" stroke="#e4e8ef"/><text x="150" y="166" text-anchor="middle" fill="#64748b" font-size="9" font-weight="700">ROUND</text><rect x="185" y="160" width="70" height="4" rx="2" fill="#e4e8ef"/><text x="270" y="166" text-anchor="middle" fill="#6366f1" font-size="9" font-weight="700">0%</text><text x="295" y="166" fill="#64748b" font-size="10">↺</text><g font-weight="700" font-size="8.5"><circle cx="72" cy="42" r="7" fill="#e2001a"/><text x="72" y="45" text-anchor="middle" fill="#fff">1</text><circle cx="378" cy="20" r="7" fill="#e2001a"/><text x="378" y="23" text-anchor="middle" fill="#fff">2</text><circle cx="305" cy="162" r="7" fill="#e2001a"/><text x="305" y="165" text-anchor="middle" fill="#fff">3</text></g></svg></div><div class="fig-cap"><b>Callouts —</b> <b>1</b> anchor points (white squares; the active anchor is filled blue) · <b>2</b> Bezier handle (drag to curve; \`Shift\`+drag keeps handles symmetric) · <b>3</b> ROUND bar (slider 0–45 rounds all corners uniformly; ↺ resets to 0%). The path is stored as rich anchors that preserve \`cpIn/cpOut\` Bezier handles.</div></div>
 
 ---
 
@@ -4614,6 +4684,25 @@ Slots define **content regions** within a Volt element. When the Volt is used on
 | **Input** | INP | Input cursor | Text input field skin |
 | **Custom** | CUS | Puzzle | Any other content |
 
+The Slot tool's caret picks the type before you draw; each type carries a colour tag and a "maps to field" hint. Change the type after drawing from the **Slot Type** dropdown in Layer Properties.
+
+<div class="fig map"><span class="tag">Interface map</span><div class="fig-body"><svg viewBox="0 0 420 176" font-family="system-ui" font-size="10"><rect x="8" y="8" width="404" height="70" rx="8" fill="#fff" stroke="#e4e8ef"/><text x="20" y="26" fill="#8a93a3" font-size="8">SLOT TYPE MENU</text><rect x="16" y="32" width="388" height="20" rx="4" fill="#f0fdf4" stroke="#bbf7d0"/><text x="26" y="46" fill="#166534" font-size="9" font-weight="700">Title</text><text x="120" y="46" fill="#94a3b8" font-size="8.5">Heading or title text area</text><text x="392" y="46" text-anchor="end" fill="#22c55e" font-size="8" font-weight="700">TIT</text><text x="26" y="68" fill="#5b6472" font-size="8.5">Body · Image · Action · Badge · Icon · Input · Custom</text><rect x="8" y="86" width="404" height="82" rx="8" fill="#fff" stroke="#e4e8ef"/><text x="20" y="104" fill="#8a93a3" font-size="8">SLOT CONFIG (inspector)</text><rect x="16" y="110" width="388" height="16" rx="4" fill="#f6f8fb"/><text x="24" y="122" fill="#5b6472" font-size="8.5">Slot Type</text><text x="392" y="122" text-anchor="end" fill="#1c2333" font-size="8.5">action ▾</text><rect x="16" y="130" width="388" height="16" rx="4" fill="#f6f8fb"/><text x="24" y="142" fill="#5b6472" font-size="8.5">Slot Label</text><text x="392" y="142" text-anchor="end" fill="#1c2333" font-size="8.5">Buy Now</text><rect x="16" y="150" width="388" height="14" rx="4" fill="#f6f8fb"/><text x="24" y="160" fill="#5b6472" font-size="8.5">Skin Mode (input/action only)</text><text x="392" y="160" text-anchor="end" fill="#1c2333" font-size="8.5">Transparent ▾</text></svg></div><div class="fig-cap">The 8-type menu each has an icon + one-line description. <b>Skin Mode</b> (input/action only): Transparent = the vector shapes below are the visual skin; Custom = the slot styles itself.</div></div>
+
+### Maps-to-field reference
+
+| Slot type | Tag | Maps to (typical) | Purpose |
+|-----------|-----|-------------------|---------|
+| Title | \`TIT\` | heading | Heading / title text |
+| Body | \`BOD\` | body | Paragraph / body copy |
+| Image | \`IMG\` | imageUrl | Photo / illustration / graphic |
+| Action | \`ACT\` | actionLabel / actionHref | Call-to-action button |
+| Badge | \`BDG\` | badge | Tag / pill / label |
+| Icon | \`ICN\` | icon | Small icon / symbol |
+| Input | \`INP\` | — | Text-input field skin |
+| Custom | \`CUS\` | custom | Any other content |
+
+> The model also stores \`contentFieldHint\` ("maps to field"), font settings, image mode (fill/fit/crop) and button variant (filled/outline/ghost/dark) on \`VoltSlotData\`. Slots default to the **content** role.
+
 ---
 
 ## Preview Mode
@@ -4679,35 +4768,66 @@ Use the **Input** slot type to design a custom text-input skin. The slot defines
 `;
 
 const VOLT_EFFECTS = `
-# Volt Designer — Fill, Stroke & Shadow
+# Volt Designer — Layer Properties: Fill, Stroke & Shadow
 
-All effects are controlled in the **Layer Properties** panel (right sidebar) when a vector or slot layer is selected.
+The **right sidebar** is the layer inspector. With **no layer selected** it shows Element Settings (Flip Card, 3D Tilt, Artboard Background, Canvas Overflow, Carousel — see *Card Settings* and *Carousel*). With a layer selected it shows a **common core** (Name, Role, Opacity, Blend, Z Depth, Position/Size, Rotation) plus **type-specific** sections — fill / stroke / corners / effects for vectors, full typography for text, image fit, slot config, or 3D.
+
+<div class="fig map"><span class="tag">Interface map</span><div class="fig-body"><svg viewBox="0 0 300 300" font-family="system-ui" font-size="9"><rect x="8" y="8" width="284" height="284" rx="8" fill="#fff" stroke="#e4e8ef"/><text x="18" y="26" fill="#343a40" font-weight="700" font-size="10">☰ Layer Properties</text><g><rect x="16" y="34" width="268" height="18" rx="4" fill="#f6f8fb"/><text x="24" y="46" fill="#5b6472">Name</text><text x="276" y="46" text-anchor="end" fill="#1c2333">Rectangle</text><circle cx="150" cy="43" r="6" fill="#e2001a"/><text x="150" y="46" text-anchor="middle" fill="#fff" font-size="8" font-weight="700">1</text></g><g><rect x="16" y="55" width="268" height="18" rx="4" fill="#f6f8fb"/><text x="24" y="67" fill="#5b6472">Role</text><text x="276" y="67" text-anchor="end" fill="#1c2333">structure ▾</text><circle cx="150" cy="64" r="6" fill="#0d6efd"/><text x="150" y="67" text-anchor="middle" fill="#fff" font-size="8" font-weight="700">2</text></g><g><rect x="16" y="76" width="268" height="18" rx="4" fill="#f6f8fb"/><text x="24" y="88" fill="#5b6472">Opacity · Blend · Z</text><circle cx="150" cy="85" r="6" fill="#0d6efd"/><text x="150" y="88" text-anchor="middle" fill="#fff" font-size="8" font-weight="700">3</text></g><g><rect x="16" y="97" width="268" height="18" rx="4" fill="#f6f8fb"/><text x="24" y="109" fill="#5b6472">X · Y · W · H · Rotate</text><circle cx="150" cy="106" r="6" fill="#0d6efd"/><text x="150" y="109" text-anchor="middle" fill="#fff" font-size="8" font-weight="700">4</text></g><line x1="16" y1="122" x2="284" y2="122" stroke="#e4e8ef" stroke-dasharray="3 3"/><g><rect x="16" y="128" width="268" height="18" rx="4" fill="#eef2ff"/><rect x="24" y="132" width="12" height="12" rx="2" fill="#6366f1"/><text x="44" y="140" fill="#5b6472">Fill  #6366f1</text><circle cx="150" cy="137" r="6" fill="#e2001a"/><text x="150" y="140" text-anchor="middle" fill="#fff" font-size="8" font-weight="700">5</text></g><g><rect x="16" y="149" width="268" height="18" rx="4" fill="#f6f8fb"/><text x="24" y="161" fill="#5b6472">Corners  radius / style / mask</text><circle cx="150" cy="158" r="6" fill="#0d6efd"/><text x="150" y="161" text-anchor="middle" fill="#fff" font-size="8" font-weight="700">6</text></g><g><rect x="16" y="170" width="268" height="18" rx="4" fill="#f6f8fb"/><text x="24" y="182" fill="#5b6472">Stroke  colour / width / cap / dash</text><circle cx="150" cy="179" r="6" fill="#0d6efd"/><text x="150" y="182" text-anchor="middle" fill="#fff" font-size="8" font-weight="700">7</text></g><g><rect x="16" y="191" width="268" height="18" rx="4" fill="#f6f8fb"/><text x="24" y="203" fill="#5b6472">Effects  shadow / glow / blur</text><circle cx="150" cy="200" r="6" fill="#e2001a"/><text x="150" y="203" text-anchor="middle" fill="#fff" font-size="8" font-weight="700">8</text></g><line x1="16" y1="216" x2="284" y2="216" stroke="#e4e8ef" stroke-dasharray="3 3"/><rect x="16" y="222" width="86" height="16" rx="4" fill="#ece8fb"/><text x="59" y="234" text-anchor="middle" fill="#3a2d63" font-size="8">✧ Entrance</text><rect x="107" y="222" width="76" height="16" rx="4" fill="#fde8f9"/><text x="145" y="234" text-anchor="middle" fill="#831843" font-size="8">✦ Exit</text><rect x="188" y="222" width="96" height="16" rx="4" fill="#dcf5e8"/><text x="236" y="234" text-anchor="middle" fill="#0a5138" font-size="8">◈ Personality</text><text x="18" y="258" fill="#8a93a3" font-size="8">Text layers replace Fill/Stroke with full typography.</text><text x="18" y="272" fill="#8a93a3" font-size="8">Image layers show preview + Fit Mode + Alt text.</text><text x="18" y="286" fill="#8a93a3" font-size="8">3D layers show a 3D camera/lighting/animation panel.</text></svg></div><div class="fig-cap"><b>Callouts —</b> <b>1</b> Name · <b>2</b> Role · <b>3</b> Opacity / Blend / Z Depth · <b>4</b> Position & Size + Rotation · <b>5</b> Fill · <b>6</b> Corners · <b>7</b> Stroke · <b>8</b> Effects. Every layer type also gets ✧ Entrance, ✦ Exit and ◈ Personality below Effects.</div></div>
+
+## Common layer properties (all types)
+
+| Control | Function | Options / range | Default |
+|---------|----------|-----------------|---------|
+| Name | Layer label | text | tool-derived |
+| Role | Stagger order + badge | background / structure / accent / content / overlay | structure (shapes) / content (text, slot) |
+| Flip Card Face | Which face a layer belongs to | Front / Back | Front · only when Flip Card enabled |
+| Opacity | Layer alpha | 0–1 (shown %) | 1 |
+| Blend Mode | CSS mix-blend | all 16: normal, multiply, screen, overlay, darken, lighten, color-dodge, color-burn, hard-light, soft-light, difference, exclusion, hue, saturation, color, luminosity | normal |
+| Bleed | Render outside card | on/off (image/text/slot only) | off · needs overflow = visible |
+| Z Depth | Parallax translateZ; floats layer when 3D Tilt on | −80–120 px | 0 (flat) |
+| Position X/Y | Top-left in px | number | — |
+| Size W/H | Dimensions in px | number | — |
+| Rotation | Rotate layer | −180–180° | 0 |
 
 ---
 
 ## Fill
 
-| Control | Description |
-|---------|-------------|
-| **+ Add** | Add a solid fill to the layer |
-| **Color picker** | Click the swatch to open the native colour picker |
-| **Hex field** | Type a 6-digit hex code (e.g. \`#6366f1\`) |
-| **Opacity slider** | 0 = fully transparent, 1 = fully opaque |
-| **Remove** | Remove the fill (shape becomes transparent) |
+Four fill types: **Solid · Linear · Radial · Glass.**
+
+| Section · control | Function | Options / range | Default |
+|-------------------|----------|-----------------|---------|
+| Type | Fill style | Solid, Linear, Radial, Glass | Solid |
+| Solid | Colour + opacity | picker + hex + brand swatches + \`var(--theme-*)\` tokens (BG / Surface / Text / Muted / Border / Navy / Accent / Card BG / Card Border) | #6366f1 |
+| Gradient | Stop editor | 2+ stops (color / position 0–100), angle 0–360 (linear), live preview bar | 135°, 2 stops |
+| Glass | Frosted overlay | Blur 0–80px, Radius 0–200px, Tint color+opacity, Border opacity | blur 12, radius 12, tint 0.15, border 0.3 |
+| Opacity slider | Fill alpha | 0 = transparent, 1 = opaque | 1 |
+| Remove | Remove the fill | — | shape becomes transparent |
+
+---
+
+## Corners
+
+| Control | Function | Options / range | Default |
+|---------|----------|-----------------|---------|
+| Radius | Round corners | 0–200 px (number + slider) | 0 |
+| Style | Corner cut style | Round / Bevel | Round |
+| Mask | Per-corner enable | TL / TR / BL / BR toggles | all on |
 
 ---
 
 ## Stroke
 
-| Control | Description |
-|---------|-------------|
-| **+ Add** | Add a stroke outline |
-| **Color picker / Hex** | Stroke colour |
-| **Width** | Stroke width in canvas pixels |
-| **Cap** | Line cap: \`butt\`, \`round\`, or \`square\` |
-| **Remove** | Remove the stroke |
+| Control | Function | Options / range | Default |
+|---------|----------|-----------------|---------|
+| Colour | Outline colour | picker + hex | #000 |
+| Width | Outline weight | 0.5–50 px | varies |
+| Cap | Line-end shape | butt / round / square | butt |
+| Dash | Dash pattern | e.g. \`8,4\`; Solid resets | solid |
 
 > **Boolean shapes:** Stroke width is automatically doubled with \`paint-order: stroke fill\` so only the outer boundary is visible (inner intersection lines are covered by fill).
+
+<div class="fig-warn"><b>Model-vs-UI gap:</b> <code>VoltStroke.align</code> (inside/center/outside) and <code>join</code> (miter/round/bevel) exist in the data model and the React inspector, but the live HTML stroke section exposes only colour, width, cap and dash.</div>
 
 ---
 
@@ -4736,6 +4856,41 @@ When shadow is enabled, a **sun icon ☀** appears on the canvas at the layer ce
 
 - **Vector shapes:** SVG \`<filter><feDropShadow>\` applied to the shape group
 - **Slot overlays:** CSS \`box-shadow\` applied to the slot div
+
+---
+
+## Effects (collapsible)
+
+Each effect has its own enable toggle.
+
+| Effect | Function | Options / range | Default |
+|--------|----------|-----------------|---------|
+| Drop Shadow | Offset shadow | X, Y, Blur, Spread, colour, α; drag ☀ on canvas for direction | off (5/5/10/0, #000 @0.5) |
+| Outer Glow | Blurred halo | Blur, Spread, colour, α | off (20/5, #818cf8 @0.8) |
+| Layer Blur | CSS blur filter | 0–100 px | off (8) |
+
+---
+
+## Text layer typography
+
+When a **text** layer is selected, Fill/Stroke are replaced by full typography. Double-click the text on canvas to edit inline.
+
+| Control | Function | Options / range | Default |
+|---------|----------|-----------------|---------|
+| Content | The text | multiline textarea | "Text" |
+| Font Family | Typeface (Google Fonts on demand) | ~50 fonts across sans / serif / display / mono / system | Inter |
+| Size | Font size (px at canvas width) | 6–400 | 28 |
+| Weight | Font weight | Thin…Black (100–900) | SemiBold (600) |
+| Italic | Style toggle | normal / italic | normal |
+| Transform | Case | None / UPPER / lower / Title | None |
+| Color | Text colour | picker + hex + brand swatches | #ffffff |
+| Alignment | Horizontal align | left / center / right | left |
+| Vertical Align | Vertical placement | Top / Mid / Bottom | Top |
+| Line Height | Leading multiplier | 0.8–4 | 1.2 |
+| Letter Spacing | Tracking | −5–20 px | 0 |
+| Word Wrap | Wrap at layer width | on / off | on |
+
+> **Image layers** instead show: preview + Browse/Change, Fit Mode (Fill / Fit / Crop), Alt text. **Slot layers** show Slot Type, Slot Label, and — for input/action slots — Skin Mode + text colour/size.
 `;
 
 const VOLT_BOOLEAN = `
@@ -4758,6 +4913,18 @@ Boolean ops combine two vector shapes non-destructively into a composite shape.
 | **Isect** | Intersect | Only the overlapping region remains |
 
 There is **no base/cutter dropdown** — the canvas selection is the workflow.
+
+<div class="fig diagram"><span class="tag">Diagram</span><div class="fig-body"><svg viewBox="0 0 420 120" font-family="system-ui" font-size="11"><g transform="translate(20,10)"><path d="M6 6 h44 v44 h-44 Z M42 34 a20 20 0 1 0 40 0 a20 20 0 1 0 -40 0" fill="#6366f1" fill-opacity="0.75" fill-rule="nonzero"/><text x="46" y="92" text-anchor="middle" font-weight="700" fill="#1c2333">Union</text><text x="46" y="106" text-anchor="middle" fill="#5b6472" font-size="9">base + cutters</text></g><g transform="translate(160,10)"><path d="M6 6 h50 v50 h-50 Z M40 40 a16 16 0 1 0 32 0 a16 16 0 1 0 -32 0" fill="#6366f1" fill-opacity="0.75" fill-rule="evenodd"/><text x="46" y="92" text-anchor="middle" font-weight="700" fill="#1c2333">Subtract</text><text x="46" y="106" text-anchor="middle" fill="#5b6472" font-size="9">base − cutters</text></g><g transform="translate(300,10)"><path d="M40 6 h20 v34 h-20 Z" fill="#6366f1" fill-opacity="0.85"/><path d="M6 6 h54 v54 h-54 Z" fill="none" stroke="#c8cdd4" stroke-dasharray="3 3"/><circle cx="56" cy="40" r="22" fill="none" stroke="#c8cdd4" stroke-dasharray="3 3"/><text x="46" y="92" text-anchor="middle" font-weight="700" fill="#1c2333">Intersect</text><text x="46" y="106" text-anchor="middle" fill="#5b6472" font-size="9">overlap only</text></g></svg></div><div class="fig-cap">Ops are reachable from the left <b>Boolean Ops</b> panel <em>and</em> the floating action menu (disabled until 2+ shapes are selected). Double-click a composite to enter <b>Bool Edit Mode</b> and move the cutter; a ✂ badge + <b>Esc</b>-to-exit appears.</div></div>
+
+| Control | Function | Requires | Result |
+|---------|----------|----------|--------|
+| Union | Merge shapes | 2+ selected | combined outline (nonzero fill) |
+| Subtract | Base minus cutters | 2+ selected | holes via even-odd fill-rule |
+| Intersect | Keep overlap | 2+ selected | clipped to shared region |
+| Bool Edit Mode | Reposition a cutter | double-click composite | move cutter; recalc bounds on Esc |
+| Edit cutter | Reach a hidden cutter | select it in Layers panel | edit its vertices/props |
+
+> Stored as \`boolChildren:[{cutterId, op}]\` on the base layer (non-destructive), with cutters marked \`boolRole:'cutter'\` + \`boolParentId\`. Because it's non-destructive you can re-enter and adjust the cutter at any time.
 
 ---
 
@@ -4816,6 +4983,29 @@ Select a 3D object layer to access:
 | **Change / Preview** | Opens the 3D asset browser |
 | **Active Clip** | Select which animation clip plays |
 | **Trigger Events** | Fire system events when the animation ends |
+
+3D-object layers replace the fill/stroke sections with a dedicated **3D panel**:
+
+| Section · control | Function | Options |
+|-------------------|----------|---------|
+| Asset | Linked 3D asset name | GLB / GLTF / FBX / OBJ |
+| Camera | Framing | azimuth / elevation / distance |
+| Lighting | Scene light | ambient / key / angle |
+| Animation Trigger | What plays the clip | None / Hover / Auto |
+| Transition (when animated) | Timing | easing / duration / delay or period |
+| Start / End (State A / B) | Animated pose | position, scale, rotation |
+
+### 3D Object modal
+
+Opened from **3D Objects → Browse / Place 3D Object**:
+
+| Modal · control | Function | Options |
+|-----------------|----------|---------|
+| Assets list | Choose a 3D asset | rows of available GLB/GLTF/FBX/OBJ |
+| Clips | Pick animation clip | named tracks with durations |
+| Versions | Asset version history | version rows |
+| Format override | Force loader format | Auto / GLB / GLTF / FBX / OBJ |
+| Approve & Place | Insert into design | button |
 
 ---
 
@@ -4969,6 +5159,31 @@ const VOLT_ANIMATION = `
 # Volt Designer — Animation
 
 Each layer has a full **Animation** system covering entrance effects, exit effects, hover transitions, scroll-triggered states, and timeline keyframes.
+
+<div class="fig-note"><b>Three animation systems coexist:</b> the keyframe <b>Timeline</b> (precise), per-layer <b>Entrance / Exit</b> (viewport-triggered presets), and <b>Personality</b> (character-driven procedural motion with per-property "animates" flags). <b>Role</b> sets the stagger order across all three.</div>
+
+---
+
+## Timeline Panel
+
+A dockable panel below the canvas (toggle from the zoom bar or \`Ctrl+T\`). It holds a per-layer keyframe track. Global settings (duration, trigger, loop, loop-on-hover) live in the header; keyframes are diamonds you **double-click to add** (snaps to 50ms), drag to reposition, and click to open per-keyframe props.
+
+<div class="fig map"><span class="tag">Interface map</span><div class="fig-body"><svg viewBox="0 0 420 132" font-family="system-ui" font-size="9"><rect x="8" y="8" width="404" height="24" rx="6" fill="#1c2333"/><text x="18" y="24" fill="#cdd7ee" font-weight="700" font-size="9">🎬 TIMELINE</text><rect x="120" y="12" width="40" height="16" rx="4" fill="#14361f"/><text x="140" y="24" text-anchor="middle" fill="#7ee0a8" font-size="8">＋ Key</text><rect x="164" y="12" width="40" height="16" rx="4" fill="#3a1420"/><text x="184" y="24" text-anchor="middle" fill="#f08a8a" font-size="8">− Key</text><text x="214" y="24" fill="#7ee0a8" font-size="9">▶</text><text x="228" y="24" fill="#f08a8a" font-size="9">■</text><text x="248" y="24" fill="#8a93a3" font-size="8">3000ms</text><rect x="300" y="12" width="60" height="16" rx="4" fill="#2a3550"/><text x="330" y="24" text-anchor="middle" fill="#cdd7ee" font-size="7.5">Trigger ▾</text><text x="368" y="24" fill="#cdd7ee" font-size="8">☐Loop</text><rect x="8" y="36" width="70" height="88" fill="#fafafa" stroke="#e4e8ef"/><text x="16" y="52" fill="#8a93a3" font-size="7">ruler</text><text x="16" y="74" fill="#5b6472" font-size="8">Rectangle</text><rect x="8" y="84" width="70" height="18" fill="#eff6ff"/><text x="16" y="96" fill="#5b6472" font-size="8">Title</text><rect x="78" y="36" width="334" height="88" fill="#fff" stroke="#e4e8ef"/><text x="86" y="50" fill="#94a3b8" font-size="7">0ms   500   1s   1.5s   2s</text><line x1="78" y1="54" x2="412" y2="54" stroke="#eef1f6"/><rect x="120" y="64" width="9" height="9" fill="#6366f1" transform="rotate(45 124 68)" stroke="#fff"/><rect x="210" y="88" width="9" height="9" fill="#6366f1" transform="rotate(45 214 92)" stroke="#fff"/><line x1="250" y1="36" x2="250" y2="124" stroke="#e2001a" stroke-width="1.4"/></svg></div><div class="fig-cap"><b>Header:</b> ＋Key / −Key, Play / Stop, duration (500–30000ms), Trigger (Viewport / Hover-once), Loop / Loop-on-hover. <b>Tracks:</b> one per layer; diamonds are keyframes; the red line is the playhead. Timeline is opt-in per layer — a layer only animates once it has keyframes.</div></div>
+
+| Control | Function | Options / range | Default |
+|---------|----------|-----------------|---------|
+| ＋ Key / − Key | Add/remove keyframe | at current time / last kf | — |
+| Play / Stop | Preview timeline | playhead scrub | stopped |
+| Duration | Total timeline length | 500–30000 ms | 3000 |
+| Trigger | What fires the timeline | Viewport (IntersectionObserver) / Hover-once | Viewport |
+| Loop | Repeat forever | on / off | off |
+| Loop on hover | Loop only while hovered | on / off (excl. Loop) | off |
+| Keyframe time | Position on track | 0–duration, 50ms snap | — |
+| KF props | Animated values | opacity, translateX/Y, scaleX/Y, rotate | current layer state |
+| KF ease | Segment easing | anime.js ease string | — |
+| Entrance (inspector) | On-enter animation | Fade / Slide×4 / Scale / Rotate / Flip X/Y + duration/delay/distance/ease | none (600/0/40/easeOutCubic) |
+| Exit (inspector) | On-leave animation | Fade / Slide×4 / Scale / Rotate + duration/delay/distance | none |
+| Personality | Procedural feel | Character/Speed/Style 0–100, Delay 0–2000ms; Animates: opacity/scale/position/rotation/fill | 50/40/60/0, opacity on |
 
 ---
 
@@ -5155,6 +5370,30 @@ A complete reference for keyboard shortcuts, alignment tools, and advanced featu
 | \`Ctrl + Scroll wheel\` | Zoom in/out |
 | \`Escape\` | Cancel current tool / Exit vertex edit |
 
+### Full shortcut set, grouped by context
+
+Shortcuts are suppressed while typing in inputs, textareas and selects. The in-app key legend under the canvas toolbar shows the relevant subset per tool/mode.
+
+| Context | Keys | Action |
+|---------|------|--------|
+| Tools | \`V\` \`R\` \`E\` \`L\` \`P\` \`B\` \`T\` \`S\` | Select / Rect / Ellipse / Line / Polygon / Pen / Text / Slot |
+| History | \`Ctrl+Z\` · \`Ctrl+Y\` / \`Ctrl+Shift+Z\` | Undo · Redo |
+| Clipboard | \`Ctrl+C\` · \`Ctrl+V\` · \`Ctrl+D\` | Copy · Paste (+3/+3) · Duplicate |
+| Layers | \`Ctrl+G\` · \`Del\` / \`Backspace\` | Group selected · Delete selected |
+| Timeline | \`Ctrl+T\` | Toggle timeline panel |
+| Zoom | \`Ctrl+Wheel\` | Zoom toward cursor |
+| Nudge | \`←\` \`↑\` \`→\` \`↓\` · +\`Shift\` | Move 1% · 5% (Select tool) |
+| Drawing (all) | \`Ctrl\` (hold) · \`Esc\` | Snap to grid · Cancel |
+| Rect / Ellipse / Slot | \`Shift\` (hold) | Lock to square / circle |
+| Pen | Click · Click+Drag · \`Enter\` · dblclick · \`Backspace\` · \`Esc\` | Sharp anchor · Curve anchor · Commit · Commit+close · Remove last pt · Cancel |
+| Polygon | Click · \`Enter\` / dblclick · \`Backspace\` · \`Esc\` | Add pt · Close & commit · Remove pt · Cancel |
+| Selection | \`Alt\`+drag · dblclick · \`Shift\`+click | Duplicate · Vertex edit · Set bool base |
+| Vertex edit | drag · \`Shift\`+drag · \`Alt\`+click · \`Alt\`+dblclick · \`Ctrl\` · \`Esc\` | Move/curve · Symmetric · Add pt · Delete pt · Snap · Exit |
+| Bool edit | drag · dblclick cutter · \`Esc\` | Move cutter · Edit cutter vertices · Confirm & exit |
+| Context menu | \`Esc\` | Close menu |
+
+> Nudging only fires with the Select tool active; drawing shortcuts are per-tool.
+
 ---
 
 ## Copy & Paste
@@ -5273,6 +5512,195 @@ Clip an image or text layer to the shape of a vector layer below it.
 - Right-click the masked layer → **Release Mask**
 
 > The mask uses CSS \`clip-path\` with the vector's SVG path data.
+`;
+
+const VOLT_CANVAS_NAV = `
+# Volt Designer — Canvas & Navigation
+
+The artboard sits on a grey stage with a dot grid and (optionally) a dashed bleed zone. A floating **zoom bar** is docked bottom-left; a contextual key-legend strip and an empty-canvas hint help while drawing. Navigation is fully independent of the drawing tools.
+
+<div class="fig map"><span class="tag">Interface map</span><div class="fig-body"><svg viewBox="0 0 420 200" font-family="system-ui" font-size="9"><rect x="8" y="8" width="404" height="160" rx="8" fill="#dee2e6"/><rect x="120" y="40" width="180" height="112" rx="4" fill="#fff" stroke="#c8cdd4"/><rect x="108" y="28" width="204" height="136" rx="5" fill="none" stroke="#818cf8" stroke-opacity="0.55" stroke-dasharray="4 4"/><circle cx="140" cy="60" r="1.4" fill="#c8cdd4"/><circle cx="164" cy="60" r="1.4" fill="#c8cdd4"/><circle cx="188" cy="60" r="1.4" fill="#c8cdd4"/><circle cx="140" cy="84" r="1.4" fill="#c8cdd4"/><circle cx="164" cy="84" r="1.4" fill="#c8cdd4"/><circle cx="188" cy="84" r="1.4" fill="#c8cdd4"/><rect x="16" y="140" width="150" height="20" rx="8" fill="#fff" stroke="#e4e8ef"/><text x="26" y="154" fill="#5b6472" font-size="9">🎬 🔍−  100%  🔎+  ⌖  ↺</text><g font-weight="700" font-size="8.5"><circle cx="26" cy="152" r="6.5" fill="#e2001a"/><text x="26" y="155" text-anchor="middle" fill="#fff">1</text><circle cx="255" cy="55" r="6.5" fill="#e2001a"/><text x="255" y="58" text-anchor="middle" fill="#fff">2</text><circle cx="150" cy="72" r="6.5" fill="#0d6efd"/><text x="150" y="75" text-anchor="middle" fill="#fff">3</text><circle cx="112" cy="32" r="6.5" fill="#0d6efd"/><text x="112" y="35" text-anchor="middle" fill="#fff">5</text></g><rect x="8" y="172" width="404" height="20" rx="4" fill="#f8f9fa" stroke="#e4e8ef"/><text x="18" y="185" fill="#6b8cae" font-size="8" font-weight="700">TOOLS</text><text x="60" y="185" fill="#5b6472" font-size="8">V Select · R Rect · E Ellipse — legend swaps per tool/mode</text><circle cx="400" cy="182" r="6.5" fill="#e2001a"/><text x="400" y="185" text-anchor="middle" fill="#fff" font-size="8.5" font-weight="700">4</text></svg></div><div class="fig-cap"><b>Callouts —</b> <b>1</b> zoom bar (Timeline toggle, Zoom out, % label, Zoom in, Fit ⌖, Reset View ↺) · <b>2</b> zoom-to-cursor (plain scroll-wheel; point under cursor stays fixed) · <b>3</b> dot grid (sized to Grid Size) · <b>4</b> contextual key legend (swaps per tool/mode) · <b>5</b> bleed zone (dashed inset, shown when Canvas Overflow = visible).</div></div>
+
+## Zoom & pan controls
+
+| Control | Function | Options / range | Default |
+|---------|----------|-----------------|---------|
+| Timeline toggle | Show/hide the keyframe timeline | \`Ctrl+T\` | hidden |
+| Zoom out | ×0.83 about centre | button | — |
+| Zoom % label | Current zoom readout | 5%–800% | 100% |
+| Zoom in | ×1.2 about centre | button | — |
+| Fit | Pan=0 + scale to viewport | button (⌖) | — |
+| Reset View | Recentre: pan=0 + zoom-to-fit | \`#btn-reset-view\` (↺) | one-click restore |
+| Scroll wheel | Zoom toward cursor (point stays fixed) | plain *or* \`Ctrl\`+wheel; ×1.1 / ÷1.1 | — |
+| Middle-mouse drag | Free pan the artboard | any tool / any zoom; "grabbing" cursor | — |
+
+> **Pan & view:** pan is a screen-space translate applied *after* scale (\`translate(panX,panY) scale(zoom)\`), so the middle-drag delta is added in raw screen px and is never clamped. **Fit** and **Reset View** both set pan=0 and zoom-to-fit (40px pad). **View state (pan/zoom) is not persisted** — it is stripped from the save payload as navigation, not design data.
+
+---
+
+## Occluded selection — click-to-cycle
+
+Hit-testing skips both **hidden** and **locked** layers, so they never intercept a click — it falls through to whatever is beneath. When shapes stack, **repeated clicks at the same point cycle the selection downward** through the stack (tracked via \`_hitCyclePt\`, within ~4px). \`Alt\` is **not** used for this — it is reserved for vertex add/delete.
+
+| Behaviour | Gesture | Result |
+|-----------|---------|--------|
+| Select top layer | click a stack | picks the front-most selectable layer |
+| Dig downward | click again, same spot | selects the next layer beneath (cycles round) |
+| Locked / hidden | click over them | ignored — click passes through |
+| Reach a locked layer | Layers panel row | select there to unlock |
+
+> There is no dedicated 1:1 (100%) button in the zoom bar — use the % readout / wheel to reach 100%. Cycling and pass-through selection mean occluded and locked elements are always resolvable without keyboard modifiers.
+
+---
+
+## Overlays while drawing
+
+- **Dot grid** — radial-dot background sized to Grid Size; each dot sits on a snap point.
+- **Bleed zone** — dashed inset shown when Canvas Overflow = visible; layers flagged "Bleed" may extend past the card edge.
+- **Empty-canvas hint** — "Pick a tool and start drawing" card with the R/E/L/P/S key cheatsheet, shown while there are no layers.
+- **Contextual key legend** — status strip that swaps its shortcut list per tool / mode (idle, pen, drawing, vertex, bool).
+- **Vertex ROUND bar** — floats above the zoom bar only during vertex editing.
+`;
+
+const VOLT_ROLES = `
+# Volt Designer — Layer Roles
+
+Every layer carries a **role** — background / structure / accent / content / overlay. Role does two things today: it colours the layer-panel **badge**, and it sets the **animation stagger order** in the renderer. It does **not** change z-order and does **not** change fill.
+
+<div class="fig diagram"><span class="tag">Diagram</span><div class="fig-body"><div class="fig-grid2"><div><h4>Badge colour</h4><table><thead><tr><th>Role</th><th>Colour</th><th>Meaning</th></tr></thead><tbody><tr><td>background</td><td><code>#64748b</code></td><td>card base / backdrop</td></tr><tr><td>structure</td><td><code>#6366f1</code></td><td>primary shapes, frames (draw default)</td></tr><tr><td>accent</td><td><code>#f59e0b</code></td><td>highlights, lines, decoration</td></tr><tr><td>content</td><td><code>#22c55e</code></td><td>text & slots (their default)</td></tr><tr><td>overlay</td><td><code>#ec4899</code></td><td>top-layered effects (glows, sheens)</td></tr></tbody></table></div><div><h4>Animation stagger order</h4><p><code>ROLE_ORDER</code> sorts layers before the entrance/state animation so they cascade:</p><p><b>1</b> accent → <b>2</b> structure → <b>3</b> overlay → <b>4</b> background → <b>5</b> content</p><div class="fig-note" style="margin-top:8px"><b>Important:</b> role today affects only badge colour + stagger order. It does <b>not</b> reorder z-index and does <b>not</b> change fill. Text and Slot layers default to <b>content</b>.</div></div></div></div></div>
+
+## Role values reference
+
+| Role | Meaning | Badge | Stagger # |
+|------|---------|-------|-----------|
+| background | Card base / backdrop | \`#64748b\` | 4 |
+| structure | Primary shapes & frames (draw default) | \`#6366f1\` | 2 |
+| accent | Highlights, lines, decoration | \`#f59e0b\` | 1 |
+| content | Text & slots (their default) | \`#22c55e\` | 5 |
+| overlay | Top-layered effects | \`#ec4899\` | 3 |
+
+> The Role selector appears both in the right **Layer Properties** (per selected layer) and as the badge in the **Layers panel**. Options are the five values above, in the fixed dropdown order background → structure → accent → content → overlay.
+`;
+
+const VOLT_CARD_SETTINGS = `
+# Volt Designer — Card Settings (Flip · Tilt · Background)
+
+With **no layer selected**, the right sidebar shows **Element Settings** for the whole card: Flip Card, 3D Tilt, Artboard Background and Canvas Overflow. (Carousel is documented in its own topic; it is mutually exclusive with Flip Card.)
+
+---
+
+## Flip Card
+
+A hover/click flip to a second (back) face. Each layer then carries a **Face: Front / Back** property, and a FACE switcher appears in the tool palette.
+
+| Control | Function | Options / range | Default |
+|---------|----------|-----------------|---------|
+| Enable | Hover/click flip to a back face | on / off | off |
+| Animation | Flip style | 3D Flip / Slide / Fade / Swing | 3D Flip |
+| Trigger | What flips it | Hover / Click / Auto | Hover |
+| Auto Interval | Auto-flip period (Auto only) | 500–10000 ms | 3000 |
+| Direction | Slide/swing direction | ← → ↑ ↓ | → |
+| Axis | Flip axis | Horizontal (Y) / Vertical (X) | Y |
+| Perspective | 3D depth | 400–2400 px | 1200 |
+| Duration | Flip time | 100–3000 ms | 600 |
+| Easing | Curve | easeIn / easeOut / easeInOut / linear / spring | easeInOut |
+| Spring | Physics (ease = spring) | Mass 0.1–5, Stiffness 20–400, Damping 1–30, Velocity 0–20 | 1 / 180 / 12 / 0 |
+
+---
+
+## 3D Tilt
+
+| Control | Function | Options / range | Default |
+|---------|----------|-----------------|---------|
+| Enable | Cursor-tracking tilt | on / off | off |
+| Max Angle | Tilt amount | 2–20° | 8 |
+
+Layers with a non-zero **Z Depth** float toward the cursor when 3D Tilt is on (parallax).
+
+---
+
+## Artboard Background & Overflow
+
+| Control | Function | Options / range | Default |
+|---------|----------|-----------------|---------|
+| Artboard Background | Card background colour | picker + hex + None (transparent) | #ffffff |
+| Canvas Overflow | Allow bleed outside card | visible / hidden | hidden |
+
+> When **Canvas Overflow = visible**, a dashed bleed zone appears around the artboard and any image/text/slot layer with its **Bleed** flag on can extend past the card edge. See *Canvas Overflow & Bleed*.
+`;
+
+const VOLT_MENUS = `
+# Volt Designer — Floating & Context Menus
+
+Two menus act on the selected layer: an **element-anchored floating action menu** that tracks the selection, and a **right-click context menu** for z-order and layer actions.
+
+<div class="fig map"><span class="tag">Interface map</span><div class="fig-body"><svg viewBox="0 0 420 176" font-family="system-ui" font-size="9"><rect x="24" y="20" width="70" height="130" rx="6" fill="#eef4ff" stroke="#0d6efd" stroke-dasharray="4 4"/><text x="59" y="90" text-anchor="middle" fill="#0a4bc2" font-size="9">selected</text><rect x="104" y="20" width="34" height="130" rx="10" fill="#fff" stroke="#e4e8ef"/><text x="121" y="40" text-anchor="middle" fill="#5b6472" font-size="11">⬅</text><text x="121" y="60" text-anchor="middle" fill="#5b6472" font-size="11">⋮</text><text x="121" y="80" text-anchor="middle" fill="#5b6472" font-size="11">➡</text><text x="121" y="104" text-anchor="middle" fill="#5b6472" font-size="11">⌖</text><text x="121" y="124" text-anchor="middle" fill="#adb5bd" font-size="11">⤢</text><text x="121" y="144" text-anchor="middle" fill="#adb5bd" font-size="11">⧉</text><rect x="176" y="20" width="150" height="146" rx="8" fill="#fff" stroke="#e4e8ef"/><text x="188" y="38" fill="#1c2333" font-size="9">▲ Bring to Front</text><text x="188" y="54" fill="#1c2333" font-size="9">▲ Bring Forward</text><text x="188" y="70" fill="#1c2333" font-size="9">▼ Send Backward</text><text x="188" y="86" fill="#1c2333" font-size="9">▼ Send to Back</text><line x1="184" y1="94" x2="318" y2="94" stroke="#f1f5f9"/><text x="188" y="108" fill="#1c2333" font-size="9">⧉ Duplicate</text><text x="188" y="124" fill="#1c2333" font-size="9">📦 Save as Component</text><text x="188" y="140" fill="#1c2333" font-size="9">🔗 Set / Release Clip Mask</text><text x="188" y="158" fill="#dc3545" font-size="9">🗑 Delete</text><g font-weight="700" font-size="8.5"><circle cx="121" cy="16" r="6.5" fill="#e2001a"/><text x="121" y="19" text-anchor="middle" fill="#fff">1</text><circle cx="176" cy="16" r="6.5" fill="#e2001a"/><text x="176" y="19" text-anchor="middle" fill="#fff">2</text></g></svg></div><div class="fig-cap"><b>1</b> element-anchored floating menu — a collapsed pill just outside the layer's edge; hover expands it. <b>2</b> right-click context menu — z-order, duplicate, component, clip-mask, delete. Right-click auto-selects the layer under the cursor.</div></div>
+
+## Floating action menu
+
+Body-parented at runtime and positioned off the layer's on-screen rectangle (zoom/pan-aware), so it follows the selection as you move, zoom or pan. Shows as a collapsed pill that **expands on hover**; it flips to the layer's left edge near the properties panel and grows upward near the viewport bottom.
+
+| Floating menu | Action / enabled when |
+|---------------|-----------------------|
+| Align Left / H-Center / Right | horizontal align · always |
+| Align Top / V-Center / Bottom | vertical align · always |
+| Fill canvas | expand layer to 100% W×H |
+| Distribute H / V | even spacing · **greyed < 3 selected** |
+| Union / Subtract / Intersect | boolean · **greyed until base + ≥1 cutter** |
+| Collapse / expand | pill collapses; hover expands |
+
+## Right-click context menu
+
+| Context menu | Action |
+|--------------|--------|
+| Bring to Front | max z-index |
+| Bring Forward | swap up one |
+| Send Backward | swap down one |
+| Send to Back | min z-index |
+| Duplicate | copy +2/+2 offset (\`Ctrl+D\`) |
+| Save as Component | store reusable element |
+| Set / Release Clip Mask | clip to vector below |
+| Delete | remove layer |
+
+> **Clip Mask** clips a non-vector layer to the nearest vector shape below it in z-order. **Save as Component** POSTs the selected layer(s) to \`/api/volt-elements\` as a reusable \`elementType:"component"\`, later insertable from the CMP library.
+`;
+
+const VOLT_DATA_MODEL = `
+# Volt Designer — Data Model & Modals
+
+The controls throughout Volt bind to the \`types/volt.ts\` model. This is a quick reference for the key enums and the two full-screen pickers.
+
+---
+
+## Key enums
+
+<div class="fig diagram"><span class="tag">Diagram</span><div class="fig-body"><div class="fig-grid2"><div><h4>LayerType</h4><p>vector · image · gradient · slot · text · text-decoration · effect · group · 3d-object</p><h4>LayerRole</h4><p>background · structure · accent · content · overlay</p><h4>SlotType</h4><p>title · body · image · action · badge · icon · custom (UI adds <b>input</b>)</p><h4>VoltTool</h4><p>select · pen · line · rectangle · ellipse · polygon · star · slot · object3d · eyedropper · hand</p></div><div><h4>Fill type</h4><p>solid · linear-gradient · radial-gradient · angular-gradient · image · glass</p><h4>Entrance / Exit</h4><p>fadeIn/Out · slideIn/Out×4 · scaleIn/Out · rotateIn/Out · flipInX/Y</p><h4>Flip / Carousel</h4><p>FlipAnimType: flip3d · slide · scalefade · swing<br/>CarouselTransition: fade · slide-left · slide-right · scale · flip</p><h4>3D</h4><p>animTrigger: 3d-hover · 3d-auto · none · easing: linear / easeIn / easeOut / easeInOut / spring</p></div></div></div></div>
+
+<div class="fig-warn"><b>UI-vs-model deltas:</b> the UI adds an <b>input</b> slot type and a <b>glass</b> fill; the model lists <b>star / eyedropper / hand</b> tools not surfaced as palette buttons in this build, and a <b>gradient / angular-gradient / image</b> fill path only partially exposed in the HTML fill section.</div>
+
+---
+
+## 3D Object modal & Image picker
+
+| Modal · control | Function | Options |
+|-----------------|----------|---------|
+| 3D · Assets list | Choose a 3D asset | rows of available GLB / GLTF / FBX / OBJ |
+| 3D · Clips | Pick animation clip | named tracks with durations |
+| 3D · Versions | Asset version history | version rows |
+| 3D · Format override | Force loader format | Auto / GLB / GLTF / FBX / OBJ |
+| 3D · Approve & Place | Insert into design | button |
+| Image · Tabs | Source | Media Library / Unsplash |
+| Image · Search | Filter media / photos | text search |
+| Image · Paste URL | Insert by link | URL + Insert |
+
+---
+
+## Self-contained thumbnails & load gate
+
+- **Thumbnails:** \`captureThumbnail()\` clones the artboard SVG, paints a white background, and **inlines every same-origin raster image as a base64 data URI** so the serialized SVG resolves standalone. The result is a \`data:image/svg+xml\` stored on the payload's \`thumbnail\` field at save time — library cards render placed photos correctly instead of dropping external images. Fetch failures fall back to the original href and never block the save.
+- **Load gate:** opening a saved Volt shows \`#volt-load-overlay\` (a spinner) until the real element arrives, replacing the old flash of the default blank canvas. Shown only when running inside a parent iframe.
+
+> Both are correctness fixes rather than user-facing controls: thumbnails are captured automatically on Save; the load gate is automatic on open.
 `;
 
 // ─────────────────────────────────────────────
@@ -7218,18 +7646,23 @@ export const DOC_TOPICS: DocTopic[] = [
     label: "Volt Designer",
     icon: "bi-vector-pen",
     children: [
-      { id: "volt-overview", label: "Overview & Canvas", icon: "bi-info-circle", content: VOLT_OVERVIEW },
-      { id: "volt-tools", label: "Drawing Tools", icon: "bi-pencil", content: VOLT_TOOLS },
-      { id: "volt-layers", label: "Layers & Selection", icon: "bi-stack", content: VOLT_LAYERS },
+      { id: "volt-overview", label: "Overview, Top Bar & Canvas", icon: "bi-info-circle", content: VOLT_OVERVIEW },
+      { id: "volt-canvas-nav", label: "Canvas & Navigation", icon: "bi-arrows-move", content: VOLT_CANVAS_NAV },
+      { id: "volt-tools", label: "Tool Palette & Drawing", icon: "bi-pencil", content: VOLT_TOOLS },
+      { id: "volt-layers", label: "Layers Panel & Selection", icon: "bi-stack", content: VOLT_LAYERS },
+      { id: "volt-roles", label: "Layer Roles", icon: "bi-tags", content: VOLT_ROLES },
       { id: "volt-vertex", label: "Vertex & Bezier Editing", icon: "bi-bezier2", content: VOLT_VERTEX },
       { id: "volt-slots", label: "Slot System", icon: "bi-layout-text-window", content: VOLT_SLOTS },
-      { id: "volt-effects", label: "Fill, Stroke & Shadow", icon: "bi-palette", content: VOLT_EFFECTS },
+      { id: "volt-effects", label: "Layer Properties: Fill, Stroke & Shadow", icon: "bi-palette", content: VOLT_EFFECTS },
       { id: "volt-boolean", label: "Boolean Operations", icon: "bi-intersect", content: VOLT_BOOLEAN },
       { id: "volt-3d", label: "3D Objects", icon: "bi-box", content: VOLT_3D },
+      { id: "volt-card-settings", label: "Card Settings (Flip · Tilt)", icon: "bi-arrow-repeat", content: VOLT_CARD_SETTINGS },
       { id: "volt-overflow-bleed", label: "Canvas Overflow & Bleed", icon: "bi-fullscreen", content: VOLT_OVERFLOW_BLEED },
       { id: "volt-carousel", label: "Carousel / Multi-Slide", icon: "bi-collection-play", content: VOLT_CAROUSEL },
-      { id: "volt-animation", label: "Animation", icon: "bi-play-circle", content: VOLT_ANIMATION },
+      { id: "volt-animation", label: "Animation & Timeline", icon: "bi-play-circle", content: VOLT_ANIMATION },
+      { id: "volt-menus", label: "Floating & Context Menus", icon: "bi-menu-button-wide", content: VOLT_MENUS },
       { id: "volt-ux", label: "UX & Shortcuts", icon: "bi-keyboard", content: VOLT_UX_DOCS },
+      { id: "volt-data-model", label: "Data Model & Modals", icon: "bi-diagram-3", content: VOLT_DATA_MODEL },
     ],
   },
 ];
