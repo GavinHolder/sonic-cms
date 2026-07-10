@@ -126,6 +126,22 @@
     .v3d-clip-row{padding:4px 8px;border-radius:4px;cursor:pointer;font-size:11px;color:#495057;border:1px solid transparent;}
     .v3d-clip-row:hover{background:#f0f0ff;}
     .v3d-clip-row.active{background:#eef2ff;border-color:#6366f1;color:#4f46e5;font-weight:600;}
+    /* ── Floating element-anchored action menu (#92 floating-menu standard) ──
+       Collapsed round pill sits just OUTSIDE the selected layer's edge; hovering
+       expands the action column. position:fixed + parented to <body> so canvas
+       zoom/pan (a CSS transform on the artboard) never re-offsets it. */
+    #layer-actions{position:fixed;z-index:600;display:none;flex-direction:column;align-items:center;gap:0;}
+    #layer-actions.la-visible{display:flex;}
+    /* fm-flip-y (set by the anchor fn) grows the column UP instead of down —
+       the pill stays put via column-reverse */
+    #layer-actions.fm-flip-y{flex-direction:column-reverse;}
+    #layer-actions:hover{gap:4px;}
+    .la-toggle{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid #e2e8f0;border-radius:50%;background:#fff;color:#475569;font-size:14px;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,0.14);flex-shrink:0;transition:background 0.15s,color 0.15s,border-color 0.15s;}
+    #layer-actions:hover .la-toggle{background:#eef2ff;color:#4f46e5;border-color:#c7d2fe;}
+    .la-body{display:flex;flex-direction:column;align-items:center;gap:2px;background:#fff;border:0 solid #e2e8f0;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,0.12);padding:0 4px;max-height:0;opacity:0;overflow:hidden;transition:max-height 0.2s ease,opacity 0.15s ease,padding 0.2s ease,border-width 0.2s ease;}
+    #layer-actions:hover .la-body{max-height:400px;opacity:1;padding:4px;border-width:1px;}
+    .la-group{display:flex;flex-direction:column;align-items:center;gap:2px;}
+    .la-sep{height:1px;width:20px;background:#e2e8f0;margin:2px 0;flex-shrink:0;}
   </style>
 </head>
 <body>
@@ -354,23 +370,34 @@
           <div class="cdotgrid"></div>
           <svg id="artboard-svg" viewBox="0 0 800 500" width="800" height="500" style="cursor:default;user-select:none;"></svg>
         </div>
-        <!-- Floating context-aware action panel — appears next to selected layer -->
-        <div id="layer-actions" style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);z-index:20;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,0.12);padding:4px;flex-direction:column;gap:2px;">
-          <button id="btn-align-left" class="btn btn-sm btn-light px-2 py-1" title="Align left"><i class="bi bi-align-start"></i></button>
-          <button id="btn-align-hcenter" class="btn btn-sm btn-light px-2 py-1" title="Center horizontally"><i class="bi bi-align-center"></i></button>
-          <button id="btn-align-right" class="btn btn-sm btn-light px-2 py-1" title="Align right"><i class="bi bi-align-end"></i></button>
-          <div style="height:1px;background:#e2e8f0;margin:2px 0;"></div>
-          <button id="btn-align-top" class="btn btn-sm btn-light px-2 py-1" title="Align top"><i class="bi bi-align-top"></i></button>
-          <button id="btn-align-vcenter" class="btn btn-sm btn-light px-2 py-1" title="Center vertically"><i class="bi bi-align-middle"></i></button>
-          <button id="btn-align-bottom" class="btn btn-sm btn-light px-2 py-1" title="Align bottom"><i class="bi bi-align-bottom"></i></button>
-          <div style="height:1px;background:#e2e8f0;margin:2px 0;"></div>
-          <button id="btn-full-canvas" class="btn btn-sm btn-light px-2 py-1" title="Fill canvas"><i class="bi bi-fullscreen"></i></button>
-          <button id="btn-distribute-h" class="btn btn-sm btn-light px-2 py-1" title="Distribute H"><i class="bi bi-distribute-horizontal"></i></button>
-          <button id="btn-distribute-v" class="btn btn-sm btn-light px-2 py-1" title="Distribute V"><i class="bi bi-distribute-vertical"></i></button>
-          <div style="height:1px;background:#e2e8f0;margin:2px 0;"></div>
-          <button id="tb-bool-union" class="btn btn-sm btn-light px-2 py-1" title="Union (merge selected shapes)" disabled><i class="bi bi-union"></i></button>
-          <button id="tb-bool-subtract" class="btn btn-sm btn-light px-2 py-1" title="Subtract (base minus cutters)" disabled><i class="bi bi-subtract"></i></button>
-          <button id="tb-bool-intersect" class="btn btn-sm btn-light px-2 py-1" title="Intersect (overlap only)" disabled><i class="bi bi-intersect"></i></button>
+        <!-- Floating element-anchored action menu — a collapsed pill next to the
+             selected layer that expands on hover (#92 floating-menu standard).
+             Parented to <body> at runtime by _anchorLayerActions() so canvas
+             zoom/pan never distorts it. Content-aware: groups gate by selection. -->
+        <div id="layer-actions">
+          <button type="button" class="la-toggle fm-toggle" title="Layer actions (hover to expand)" onclick="event.stopPropagation()"><i class="bi bi-three-dots-vertical"></i></button>
+          <div class="la-body fm-body">
+            <div class="la-group" id="la-grp-align">
+              <button id="btn-align-left" class="btn btn-sm btn-light px-2 py-1" title="Align left"><i class="bi bi-align-start"></i></button>
+              <button id="btn-align-hcenter" class="btn btn-sm btn-light px-2 py-1" title="Center horizontally"><i class="bi bi-align-center"></i></button>
+              <button id="btn-align-right" class="btn btn-sm btn-light px-2 py-1" title="Align right"><i class="bi bi-align-end"></i></button>
+              <div class="la-sep"></div>
+              <button id="btn-align-top" class="btn btn-sm btn-light px-2 py-1" title="Align top"><i class="bi bi-align-top"></i></button>
+              <button id="btn-align-vcenter" class="btn btn-sm btn-light px-2 py-1" title="Center vertically"><i class="bi bi-align-middle"></i></button>
+              <button id="btn-align-bottom" class="btn btn-sm btn-light px-2 py-1" title="Align bottom"><i class="bi bi-align-bottom"></i></button>
+            </div>
+            <div class="la-sep"></div>
+            <button id="btn-full-canvas" class="btn btn-sm btn-light px-2 py-1" title="Fill canvas"><i class="bi bi-fullscreen"></i></button>
+            <div class="la-sep" id="la-sep-distribute"></div>
+            <button id="btn-distribute-h" class="btn btn-sm btn-light px-2 py-1" title="Distribute H"><i class="bi bi-distribute-horizontal"></i></button>
+            <button id="btn-distribute-v" class="btn btn-sm btn-light px-2 py-1" title="Distribute V"><i class="bi bi-distribute-vertical"></i></button>
+            <div class="la-sep" id="la-sep-bool"></div>
+            <div class="la-group" id="la-grp-bool">
+              <button id="tb-bool-union" class="btn btn-sm btn-light px-2 py-1" title="Union (merge selected shapes)" disabled><i class="bi bi-union"></i></button>
+              <button id="tb-bool-subtract" class="btn btn-sm btn-light px-2 py-1" title="Subtract (base minus cutters)" disabled><i class="bi bi-subtract"></i></button>
+              <button id="tb-bool-intersect" class="btn btn-sm btn-light px-2 py-1" title="Intersect (overlap only)" disabled><i class="bi bi-intersect"></i></button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -587,16 +614,118 @@
       if(bf)bf.className='btn btn-sm '+(state.activeFace==='front'?'btn-primary':'btn-outline-secondary');
       if(bb)bb.className='btn btn-sm '+(state.activeFace==='back'?'btn-info':'btn-outline-secondary');
     }
-    /** Show/hide the floating action panel based on whether a layer is selected */
+    // ── Element-anchored floating action menu (#92 floating-menu standard) ──────
+    // The action menu is a collapsed pill sitting just OUTSIDE the selected
+    // layer's on-screen edge; hovering expands the action column. It is parented
+    // to <body> and positioned with viewport coords so the canvas zoom/pan
+    // transform (a CSS transform on #artboard) never re-offsets or re-scales it.
+    var _laListenersWired=false;
+    function _laEnsureListeners(){
+      if(_laListenersWired)return;_laListenersWired=true;
+      // Re-anchor (not rebuild) on scroll/resize so the menu keeps tracking its
+      // layer. Drag & zoom already re-anchor via renderCanvas → _updateAlignTools.
+      var reanchor=function(){var p=document.getElementById('layer-actions');if(p&&p.classList.contains('la-visible'))_anchorLayerActions();};
+      window.addEventListener('scroll',reanchor,true);
+      window.addEventListener('resize',reanchor);
+    }
+    /** Compute the on-screen (viewport px) bounding rect of the current
+     *  selection, using the SAME artboard rect the canvas hit-testing uses so it
+     *  is zoom/pan-aware. Union of all multi-selected layers, else the single
+     *  selected layer. Returns null when nothing is selected. */
+    function _selectedScreenRect(){
+      if(typeof artboard==='undefined'||!artboard)return null;
+      var CW=state.element.canvasWidth,CH=state.element.canvasHeight;
+      var ids=(state.multiSelectIds&&state.multiSelectIds.length>0)
+        ? state.multiSelectIds
+        : (state.selectedLayerId?[state.selectedLayerId]:[]);
+      if(!ids.length)return null;
+      var minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity,found=false;
+      ids.forEach(function(id){
+        var l=state.element.layers.find(function(x){return x.id===id;});
+        if(!l)return;
+        // Respect hover-state overrides so the menu tracks the previewed bounds.
+        var ov=(state.activeStateName==='hover')?_getHoverOverride(l.id):{};
+        var lx=(ov.x!==undefined)?ov.x:l.x, ly=(ov.y!==undefined)?ov.y:l.y;
+        var lw=(ov.width!==undefined)?ov.width:l.width, lh=(ov.height!==undefined)?ov.height:l.height;
+        var bx=topx(lx,CW),by=topx(ly,CH),bw=topx(lw,CW),bh=topx(lh,CH);
+        found=true;
+        minX=Math.min(minX,bx);minY=Math.min(minY,by);
+        maxX=Math.max(maxX,bx+bw);maxY=Math.max(maxY,by+bh);
+      });
+      if(!found)return null;
+      var ar=artboard.getBoundingClientRect();
+      // canvas px (0..CW,0..CH) → screen px; ar already bakes in zoom & pan.
+      var sx=ar.left+(minX/CW)*ar.width, sy=ar.top+(minY/CH)*ar.height;
+      var sw=((maxX-minX)/CW)*ar.width, sh=((maxY-minY)/CH)*ar.height;
+      return {left:sx,top:sy,right:sx+sw,bottom:sy+sh,width:sw,height:sh};
+    }
+    /** Anchor the collapsed pill just outside the selection's RIGHT edge,
+     *  vertically centred; expand downward (flip up when the viewport bottom is
+     *  too close). Clamp so the expanded menu never covers the right properties
+     *  panel; flip to the LEFT edge of the layer when the sidebar is too close. */
+    function _anchorLayerActions(){
+      var panel=document.getElementById('layer-actions');
+      if(!panel)return;
+      // #83-class fix: parent to <body> so position:fixed means viewport, never
+      // relative to the transform-scaled #artboard containing block.
+      if(panel.parentElement!==document.body)document.body.appendChild(panel);
+      var rect=_selectedScreenRect();
+      if(!rect){panel.classList.remove('la-visible');return;}
+      var BTN=28,GAP=8,M=6;
+      var vw=window.innerWidth,vh=window.innerHeight;
+      var body=panel.querySelector('.fm-body');
+      // .fm-body is hidden via max-height:0 (not display:none) so scrollHeight
+      // still reports the full expanded height — clamp for the EXPANDED footprint.
+      var expH=BTN+4+((body&&body.scrollHeight)||220)+8;
+      var sb=document.getElementById('sidebar-right');
+      var maxRight=sb?sb.getBoundingClientRect().left-M:vw-M;
+      // Pill just OUTSIDE the layer's right edge; if that would collide with the
+      // properties panel, flip to just outside the LEFT edge instead.
+      var left=rect.right+GAP;
+      if(left+BTN>maxRight)left=rect.left-GAP-BTN;
+      if(left<M)left=M;
+      if(left+BTN>vw-M)left=vw-BTN-M;
+      panel.style.left=left+'px';panel.style.right='';
+      // Vertical: centre the pill on the layer's middle; grow DOWN by default,
+      // grow UP (fm-flip-y → column-reverse keeps the pill put) when the bottom
+      // would overflow AND there is headroom above.
+      var cy=rect.top+rect.height/2;
+      var growUp=(cy-BTN/2+expH)>(vh-M)&&(cy+BTN/2-expH)>=M;
+      panel.classList.toggle('fm-flip-y',growUp);
+      if(growUp){
+        panel.style.bottom=Math.max(M,vh-(cy+BTN/2))+'px';panel.style.top='';
+      }else{
+        panel.style.top=Math.min(Math.max(M,cy-BTN/2),Math.max(M,vh-expH-M))+'px';
+        panel.style.bottom='';
+      }
+    }
+    /** Show/hide + content-aware gate the floating action menu, then anchor it to
+     *  the selected layer. Called from renderCanvas (so it re-anchors on every
+     *  selection change, drag move, and zoom). */
     function _updateAlignTools(){
       var panel=document.getElementById('layer-actions');
       if(!panel)return;
-      if(state.selectedLayerId||state.multiSelectIds.length>0){
-        panel.style.display='flex';
-        panel.style.flexDirection='column';
-      } else {
-        panel.style.display='none';
-      }
+      _laEnsureListeners();
+      var hasSel=!!(state.selectedLayerId||state.multiSelectIds.length>0);
+      if(!hasSel){panel.classList.remove('la-visible');return;}
+      // Content-aware gating (preserve every existing action; just show the ones
+      // relevant to the current selection). Bool buttons keep their own
+      // enable/disable via renderBoolPanel(); we only gate group visibility.
+      var multi=state.multiSelectIds.length;
+      var showDistribute=multi>=3;   // distributing <3 items is a no-op
+      var showBool=multi>=2;         // boolean ops need a base + ≥1 cutter
+      var dh=document.getElementById('btn-distribute-h');
+      var dv=document.getElementById('btn-distribute-v');
+      var dsep=document.getElementById('la-sep-distribute');
+      if(dh)dh.style.display=showDistribute?'':'none';
+      if(dv)dv.style.display=showDistribute?'':'none';
+      if(dsep)dsep.style.display=showDistribute?'':'none';
+      var grpBool=document.getElementById('la-grp-bool');
+      var bsep=document.getElementById('la-sep-bool');
+      if(grpBool)grpBool.style.display=showBool?'':'none';
+      if(bsep)bsep.style.display=showBool?'':'none';
+      panel.classList.add('la-visible');
+      _anchorLayerActions();
     }
     /** Update state buttons to reflect activeStateName */
     function _updateStateButtons(){
@@ -2992,7 +3121,7 @@
       var loading=document.createElement('div');loading.style.cssText='color:#6c757d;font-size:11px;padding:12px;';loading.textContent='Loading...';grid.appendChild(loading);
       var url='/api/media?perPage=60'+(search?'&search='+encodeURIComponent(search):'');
       fetch(url).then(function(r){return r.ok?r.json():Promise.reject();}).then(function(data){
-        var items=(data.data&&data.data.assets)||data.data||data.assets||[];
+        var items=(data.data&&(data.data.media||data.data.assets))||data.media||data.assets||[];
         grid.textContent='';
         if(!items.length){var nm=document.createElement('div');nm.style.cssText='color:#6c757d;font-size:11px;padding:12px;';nm.textContent='No images found.';grid.appendChild(nm);return;}
         var added=0;
