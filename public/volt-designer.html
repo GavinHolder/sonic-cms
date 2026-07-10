@@ -1428,6 +1428,9 @@
     var _vxDblClick={id:null,vi:-1,time:0}; // tracks double-click on a vertex handle (to delete)
     // ── SVG pointer events ────────────────────────────────────────────────────
     svgEl.addEventListener('pointerdown',function(e){
+      // Middle mouse = free pan (handled on canvas-wrap below). Never start a
+      // draw / selection / marquee / vertex-edit on the middle button.
+      if(e.button===1)return;
       var tool=state.activeTool,pt=getSvgPt(e);
       if(tool==='pen'){
         svgEl.setPointerCapture(e.pointerId);
@@ -3851,9 +3854,41 @@
     // ── Flip card face preview ────────────────────────────────────────────────
     document.getElementById('btn-face-front').addEventListener('click',function(){state.activeFace='front';_updateFaceSwitcher();renderCanvas();renderLayers();});
     document.getElementById('btn-face-back').addEventListener('click',function(){state.activeFace='back';_updateFaceSwitcher();renderCanvas();renderLayers();});
-    // Ctrl/⌘+wheel to zoom toward the cursor (zoom-to-pointer). Single source of
-    // truth — the duplicate handler further down was removed to avoid double-zoom.
-    document.getElementById('canvas-wrap').addEventListener('wheel',function(e){if(!e.ctrlKey&&!e.metaKey)return;e.preventDefault();var f=_wrapFocal(e);zoomAtPoint(e.deltaY<0?state.zoom*1.1:state.zoom/1.1,f.ox,f.oy);},{passive:false});
+    // Wheel to zoom toward the cursor (zoom-to-pointer). Plain wheel and
+    // Ctrl/⌘+wheel both zoom; the focal point stays fixed under the cursor via
+    // zoomAtPoint(). Single source of truth — the duplicate handler further down
+    // was removed to avoid double-zoom. The +/- buttons zoom toward canvas center.
+    document.getElementById('canvas-wrap').addEventListener('wheel',function(e){e.preventDefault();var f=_wrapFocal(e);zoomAtPoint(e.deltaY<0?state.zoom*1.1:state.zoom/1.1,f.ox,f.oy);},{passive:false});
+    // ── Middle-mouse free pan ─────────────────────────────────────────────────
+    // Works regardless of the active tool. Records the start cursor + start pan,
+    // then moves the artboard by the raw screen-px cursor delta. Pan is a
+    // screen-space translate applied AFTER scale (transform: translate() scale()),
+    // so the delta is added directly — NOT divided by zoom. e.preventDefault() on
+    // the middle mousedown suppresses the browser's autoscroll. Pan is never
+    // clamped, so the design can be freely re-centered at any zoom level. The
+    // svgEl pointerdown handler early-returns on button 1 so this never draws/selects.
+    var _midPan=null; // {sx,sy,px,py} — start cursor + start pan (screen px)
+    (function(){
+      var _wrap=document.getElementById('canvas-wrap');
+      _wrap.addEventListener('mousedown',function(e){
+        if(e.button!==1)return;
+        e.preventDefault();
+        _midPan={sx:e.clientX,sy:e.clientY,px:state.panX||0,py:state.panY||0};
+        _wrap.style.setProperty('cursor','grabbing','important');
+      });
+      window.addEventListener('mousemove',function(e){
+        if(!_midPan)return;
+        e.preventDefault();
+        state.panX=_midPan.px+(e.clientX-_midPan.sx);
+        state.panY=_midPan.py+(e.clientY-_midPan.sy);
+        artboard.style.transform='translate('+state.panX+'px,'+state.panY+'px) scale('+state.zoom+')';
+      });
+      window.addEventListener('mouseup',function(){
+        if(!_midPan)return;
+        _midPan=null;
+        _wrap.style.removeProperty('cursor');
+      });
+    })();
     // ── Toolbar ───────────────────────────────────────────────────────────────
     document.getElementById('btn-undo').addEventListener('click',undo);
     document.getElementById('btn-redo').addEventListener('click',redo);
