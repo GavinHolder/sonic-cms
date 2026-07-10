@@ -365,6 +365,8 @@ const TAB_ANIMATION = `
 The Animation tab gives each section a **canvas-based animated background** layered beneath the content.
 Up to **3 layers** can be stacked and blended together.
 
+> 🎬 **The gallery above shows every animation type in motion.** Pick a type from the sidebar (Floating Shapes, Moving Gradient, Particle Field, Waves, Parallax Drift, 3D Tilt, Custom Code) to open its full reference with a matching live preview.
+
 ---
 
 > ♻️ **Performance:** Animations automatically **pause** when the section scrolls out of view and **resume** when it re-enters. This prevents off-screen canvas drawing.

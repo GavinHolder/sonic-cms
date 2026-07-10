@@ -452,49 +452,133 @@ const ILLUSTRATIONS: Record<string, React.ReactNode> = {
 };
 
 // ─── Animation live previews ──────────────────────────────────────────────
+// Lightweight, self-contained CSS/@keyframes previews (no JS/canvas). Each
+// per-type preview is wrapped in AnimFig (framed stage + caption). The overview
+// topic renders a gallery showing every type in motion at a glance.
+// prefers-reduced-motion pauses all preview animation (see <style> below).
+
+function AnimFig({ caption, style, tag = "LIVE", children }: {
+  caption: string; style?: React.CSSProperties; tag?: string; children?: React.ReactNode;
+}) {
+  return (
+    <figure className="anim-fig">
+      <div className="anim-preview" style={style}>
+        {children}
+        <span className="anim-preview-tag">{tag}</span>
+      </div>
+      <figcaption className="anim-fig-cap">{caption}</figcaption>
+    </figure>
+  );
+}
+
+// Mini tiles for the overview gallery — each a small live version of a preset.
+const GALLERY_TILES: Array<{ name: string; cap: string; render: React.ReactNode }> = [
+  { name: "Floating Shapes", cap: "Blurred shapes drift & rotate", render: (
+      <div style={{ position:"absolute", inset:0, background:"linear-gradient(135deg,#1a1a2e,#16213e)" }}>
+        {[0,1,2,3].map(i => (
+          <div key={i} style={{ position:"absolute", width:`${10+i*7}px`, height:`${10+i*7}px`,
+            borderRadius: i%2 ? "50%" : "4px", background:["#60a5fa","#a78bfa","#34d399","#f472b6"][i],
+            opacity:0.7-i*0.1, top:["30%","55%","18%","60%"][i], left:["15%","55%","70%","32%"][i], filter:"blur(1px)",
+            animation:`floatAnim ${2.4+i*0.7}s ease-in-out infinite alternate`, animationDelay:`${i*0.3}s` }} />
+        ))}
+      </div>
+    ) },
+  { name: "Moving Gradient", cap: "Colours pan diagonally", render: (
+      <div style={{ position:"absolute", inset:0, backgroundSize:"400% 400%",
+        background:"linear-gradient(135deg,#667eea,#764ba2,#06b6d4,#10b981,#f59e0b)",
+        animation:"gradShift 3s ease infinite" }} />
+    ) },
+  { name: "Particle Field", cap: "Tiny dots float upward", render: (
+      <div style={{ position:"absolute", inset:0, background:"#0a0a1a" }}>
+        {[...Array(12)].map((_, i) => (
+          <div key={i} style={{ position:"absolute", width:2, height:2, borderRadius:"50%",
+            background:"#60a5fa", boxShadow:"0 0 4px #60a5fa", left:`${(i*29+7)%100}%`, bottom:"-4px",
+            animation:`particleRise ${2.4+(i%3)*0.8}s linear infinite`, animationDelay:`${i*0.28}s` }} />
+        ))}
+      </div>
+    ) },
+  { name: "Waves", cap: "Sine waves undulate", render: (
+      <div style={{ position:"absolute", inset:0, background:"linear-gradient(180deg,#0369a1,#0c4a6e)", overflow:"hidden" }}>
+        <svg viewBox="0 0 200 60" style={{ position:"absolute", bottom:0, width:"100%", height:"75%" }}>
+          <path d="M0,25 C50,10 100,40 150,25 C180,16 195,34 200,25 L200,60 L0,60 Z" fill="rgba(255,255,255,0.18)" style={{ animation:"waveDrift 2.4s ease-in-out infinite alternate" }} />
+          <path d="M0,35 C60,22 120,48 200,35 L200,60 L0,60 Z" fill="rgba(255,255,255,0.1)" style={{ animation:"waveDrift 3s ease-in-out infinite alternate-reverse" }} />
+        </svg>
+      </div>
+    ) },
+  { name: "Parallax Drift", cap: "Blobs drift at depths", render: (
+      <div style={{ position:"absolute", inset:0, background:"#111827", overflow:"hidden" }}>
+        {[{s:44,y:18,x:8,c:"#1e3a5f",sp:"6s"},{s:26,y:45,x:52,c:"#312e81",sp:"4s"},{s:14,y:30,x:74,c:"#60a5fa",sp:"2.6s"}].map((l,i)=>(
+          <div key={i} style={{ position:"absolute", width:l.s, height:l.s*0.62, top:`${l.y}%`, left:`${l.x}%`,
+            background:l.c, borderRadius:"50%", filter:"blur(1px)", opacity:0.7,
+            animation:`parallaxDrift ${l.sp} ease-in-out infinite alternate`, animationDelay:`${i*0.5}s` }} />
+        ))}
+      </div>
+    ) },
+  { name: "3D Tilt", cap: "Panel tips subtly in 3D", render: (
+      <div style={{ position:"absolute", inset:0, background:"linear-gradient(135deg,#1a1a2e,#16213e)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+        <div style={{ width:56, height:38, borderRadius:6, background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",
+          boxShadow:"0 10px 20px rgba(0,0,0,0.6)", animation:"tilt3d 3s ease-in-out infinite alternate" }} />
+      </div>
+    ) },
+];
+
+const ANIM_GALLERY = (
+  <div className="anim-gallery">
+    {GALLERY_TILES.map(t => (
+      <div key={t.name} className="anim-gallery-tile">
+        <div className="anim-gallery-stage">{t.render}</div>
+        <div className="anim-gallery-name">{t.name}</div>
+        <div className="anim-gallery-cap">{t.cap}</div>
+      </div>
+    ))}
+  </div>
+);
+
 const ANIM_PREVIEWS: Record<string, React.ReactNode> = {
+  // Overview topic (both ids share TAB_ANIMATION content) → whole-menu gallery
+  "tab-animation": ANIM_GALLERY,
+  "anim-overview": ANIM_GALLERY,
   "anim-floating": (
-    <div className="anim-preview" style={{ background: "linear-gradient(135deg,#1a1a2e,#16213e)" }}>
+    <AnimFig caption="Soft, blurred geometric shapes drift and slowly rotate across the section."
+      style={{ background: "linear-gradient(135deg,#1a1a2e,#16213e)" }}>
       {[...Array(6)].map((_, i) => (
-        <div key={i} className={`float-shape float-shape-${i}`}
+        <div key={i}
           style={{ position:"absolute", width: `${14 + i * 6}px`, height: `${14 + i * 6}px`, opacity: 0.65 - i * 0.07,
             borderRadius: i % 3 === 0 ? "50%" : i % 3 === 1 ? "4px" : "50% 20%",
             background: ["#60a5fa","#a78bfa","#34d399","#fb923c","#f472b6","#38bdf8"][i],
-            top: ["20%","50%","15%","60%","35%","75%"][i], left: ["10%","25%","55%","70%","85%","40%"][i],
+            top: ["20%","50%","15%","60%","35%","75%"][i], left: ["10%","25%","55%","70%","85%","40%"][i], filter:"blur(1px)",
             animation: `floatAnim ${3 + i * 0.8}s ease-in-out infinite alternate`, animationDelay: `${i * 0.4}s` }} />
       ))}
-      <div style={{ position:"absolute",bottom:6,right:10,color:"rgba(255,255,255,0.4)",fontSize:"0.65rem" }}>LIVE PREVIEW</div>
-    </div>
+    </AnimFig>
   ),
   "anim-gradient": (
-    <div className="anim-preview" style={{ animation: "gradShift 3s ease infinite", backgroundSize: "400% 400%",
-      background: "linear-gradient(135deg,#667eea,#764ba2,#06b6d4,#10b981,#f59e0b,#ef4444)" }}>
-      <div style={{ position:"absolute",bottom:6,right:10,color:"rgba(255,255,255,0.5)",fontSize:"0.65rem" }}>LIVE PREVIEW</div>
-    </div>
+    <AnimFig caption="An animated colour gradient pans diagonally across the canvas, looping seamlessly."
+      style={{ animation: "gradShift 3s ease infinite", backgroundSize: "400% 400%",
+        background: "linear-gradient(135deg,#667eea,#764ba2,#06b6d4,#10b981,#f59e0b,#ef4444)" }} />
   ),
   "anim-particles": (
-    <div className="anim-preview" style={{ background: "#0a0a1a" }}>
-      {[...Array(24)].map((_, i) => (
+    <AnimFig caption="A field of small particles floats steadily upward; enable Connect Lines for a network look."
+      style={{ background: "#0a0a1a" }}>
+      {[...Array(28)].map((_, i) => (
         <div key={i} style={{ position:"absolute", width: `${1 + (i % 3)}px`, height: `${1 + (i % 3)}px`,
-          left: `${(i * 37 + 11) % 100}%`, top: `${(i * 53 + 7) % 100}%`, borderRadius:"50%",
-          background: "#60a5fa", opacity: 0.3 + (i % 4) * 0.17,
-          animation: `particleFade ${2 + (i % 3)}s ease-in-out infinite alternate`, animationDelay: `${i * 0.12}s` }} />
+          left: `${(i * 37 + 11) % 100}%`, bottom: "-6px", borderRadius:"50%",
+          background: "#60a5fa", boxShadow:"0 0 4px #60a5fa",
+          animation: `particleRise ${3 + (i % 4)}s linear infinite`, animationDelay: `${i * 0.18}s` }} />
       ))}
-      <div style={{ position:"absolute",bottom:6,right:10,color:"rgba(255,255,255,0.4)",fontSize:"0.65rem" }}>LIVE PREVIEW</div>
-    </div>
+    </AnimFig>
   ),
   "anim-waves": (
-    <div className="anim-preview" style={{ background: "linear-gradient(180deg,#0369a1,#0c4a6e)", overflow:"hidden" }}>
+    <AnimFig caption="Smooth stacked sine waves undulate horizontally along the bottom of the section."
+      style={{ background: "linear-gradient(180deg,#0369a1,#0c4a6e)", overflow:"hidden" }}>
       <svg viewBox="0 0 400 80" style={{ position:"absolute", bottom:0, width:"100%", height:"70%" }}>
         <path d="M0,30 C80,10 160,50 240,30 C320,10 360,50 400,30 L400,80 L0,80 Z" fill="rgba(255,255,255,0.18)" style={{ animation:"waveDrift 2.5s ease-in-out infinite alternate" }} />
         <path d="M0,40 C100,20 200,60 300,40 C350,28 380,50 400,40 L400,80 L0,80 Z" fill="rgba(255,255,255,0.12)" style={{ animation:"waveDrift 3s ease-in-out infinite alternate-reverse" }} />
         <path d="M0,50 C120,35 220,65 320,50 C360,42 385,58 400,50 L400,80 L0,80 Z" fill="rgba(255,255,255,0.08)" style={{ animation:"waveDrift 2s ease-in-out infinite alternate" }} />
       </svg>
-      <div style={{ position:"absolute",bottom:6,right:10,color:"rgba(255,255,255,0.5)",fontSize:"0.65rem" }}>LIVE PREVIEW</div>
-    </div>
+    </AnimFig>
   ),
   "anim-fibre": (
-    <div className="anim-preview" style={{ background:"#000" }}>
+    <AnimFig caption="Light pulses travel along fibre lines across the section." style={{ background:"#000" }}>
       <svg viewBox="0 0 300 80" style={{ width:"100%", height:"100%" }}>
         {[...Array(10)].map((_, i) => <line key={i} x1="0" y1={8 + i * 8} x2="300" y2={8 + i * 8} stroke={["#3b82f6","#8b5cf6","#06b6d4","#10b981","#f59e0b","#ef4444","#ec4899","#6366f1","#60a5fa","#a78bfa"][i]} strokeWidth="0.4" opacity="0.25" />)}
         {[0,1,2,3,4].map((i) => (
@@ -503,11 +587,10 @@ const ANIM_PREVIEWS: Record<string, React.ReactNode> = {
           </circle>
         ))}
       </svg>
-      <div style={{ position:"absolute",bottom:6,right:10,color:"rgba(255,255,255,0.4)",fontSize:"0.65rem" }}>LIVE PREVIEW</div>
-    </div>
+    </AnimFig>
   ),
   "anim-wifi": (
-    <div className="anim-preview" style={{ background:"linear-gradient(135deg,#1e3a5f,#0f172a)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+    <AnimFig caption="Signal arcs pulse outward from a source point." style={{ background:"linear-gradient(135deg,#1e3a5f,#0f172a)", display:"flex", alignItems:"center", justifyContent:"center" }}>
       <svg viewBox="0 0 120 90" style={{ width:"60%", height:"90%" }}>
         <circle cx="60" cy="78" r="5" fill="#3b82f6" />
         {[1,2,3,4].map((i) => (
@@ -516,34 +599,33 @@ const ANIM_PREVIEWS: Record<string, React.ReactNode> = {
             style={{ animation:`wifiPulse 1.8s ease-out infinite`, animationDelay:`${i*0.3}s`, opacity:0 }} />
         ))}
       </svg>
-      <div style={{ position:"absolute",bottom:6,right:10,color:"rgba(255,255,255,0.4)",fontSize:"0.65rem" }}>LIVE PREVIEW</div>
-    </div>
+    </AnimFig>
   ),
   "anim-parallax": (
-    <div className="anim-preview" style={{ background:"#111827", overflow:"hidden" }}>
+    <AnimFig caption="Large blurred shapes drift at different speeds, creating layered parallax depth."
+      style={{ background:"#111827", overflow:"hidden" }}>
       {[{s:70,y:15,x:10,c:"#1e3a5f",sp:"7s"},{s:50,y:35,x:55,c:"#312e81",sp:"5s"},{s:32,y:55,x:30,c:"#1e40af",sp:"3.5s"},{s:18,y:20,x:72,c:"#60a5fa",sp:"2.5s"},{s:12,y:65,x:82,c:"#a78bfa",sp:"2s"}].map((l,i)=>(
-        <div key={i} style={{ position:"absolute", width:l.s, height:l.s*0.6, top:`${l.y}%`, left:`${l.x}%`, background:l.c, borderRadius:"50%", animation:`parallaxDrift ${l.sp} ease-in-out infinite alternate`, animationDelay:`${i*0.6}s`, opacity:0.7 }} />
+        <div key={i} style={{ position:"absolute", width:l.s, height:l.s*0.6, top:`${l.y}%`, left:`${l.x}%`, background:l.c, borderRadius:"50%", filter:"blur(1px)", animation:`parallaxDrift ${l.sp} ease-in-out infinite alternate`, animationDelay:`${i*0.6}s`, opacity:0.7 }} />
       ))}
-      <div style={{ position:"absolute",bottom:6,right:10,color:"rgba(255,255,255,0.4)",fontSize:"0.65rem" }}>LIVE PREVIEW</div>
-    </div>
+    </AnimFig>
   ),
   "anim-tilt": (
-    <div className="anim-preview" style={{ background:"linear-gradient(135deg,#1a1a2e,#16213e)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+    <AnimFig caption="A subtle 3D perspective tilt rocks the whole section toward the cursor (auto-loops here)."
+      style={{ background:"linear-gradient(135deg,#1a1a2e,#16213e)", display:"flex", alignItems:"center", justifyContent:"center" }}>
       <div style={{ width:100, height:70, background:"linear-gradient(135deg,#3b82f6,#8b5cf6)", borderRadius:10,
         boxShadow:"0 20px 40px rgba(0,0,0,0.6)", animation:"tilt3d 3s ease-in-out infinite alternate", transformStyle:"preserve-3d" }} />
-      <div style={{ position:"absolute",bottom:6,right:10,color:"rgba(255,255,255,0.4)",fontSize:"0.65rem" }}>LIVE PREVIEW</div>
-    </div>
+    </AnimFig>
   ),
   "anim-custom": (
-    <div className="anim-preview" style={{ background:"#111827", display:"flex", alignItems:"center", justifyContent:"center" }}>
+    <AnimFig tag="YOUR JS" caption="Custom Code runs your own canvas animation via requestAnimationFrame — this is a representative snippet, not a live render."
+      style={{ background:"#111827", display:"flex", alignItems:"center", justifyContent:"center" }}>
       <div style={{ fontFamily:"monospace", fontSize:"0.7rem", color:"#60a5fa", lineHeight:1.6, padding:12 }}>
         <span style={{color:"#a78bfa"}}>ctx</span>.<span style={{color:"#34d399"}}>clearRect</span>(<span style={{color:"#f9a8d4"}}>0,0,w,h</span>);<br/>
         <span style={{color:"#a78bfa"}}>ctx</span>.<span style={{color:"#34d399"}}>arc</span>(<span style={{color:"#fbbf24"}}>x</span>, <span style={{color:"#fbbf24"}}>y</span>, <span style={{color:"#fbbf24"}}>r</span>);<br/>
         <span style={{color:"#a78bfa"}}>ctx</span>.<span style={{color:"#34d399"}}>fill</span>();<br/>
         <span style={{color:"#6b7280"}}>// ∞ requestAnimationFrame</span>
       </div>
-      <div style={{ position:"absolute",bottom:6,right:10,color:"rgba(255,255,255,0.4)",fontSize:"0.65rem" }}>CODE PREVIEW</div>
-    </div>
+    </AnimFig>
   ),
 };
 
@@ -623,6 +705,7 @@ export default function DocumentsPage() {
         @keyframes parallaxDrift { from{transform:translate(0,0)} to{transform:translate(10px,-8px)} }
         @keyframes tilt3d { 0%{transform:perspective(220px) rotateX(12deg) rotateY(-18deg)} 100%{transform:perspective(220px) rotateX(-12deg) rotateY(18deg)} }
         @keyframes fibrePulse { 0%{opacity:0} 40%{opacity:1} 100%{opacity:0} }
+        @keyframes particleRise { 0%{transform:translateY(0);opacity:0} 15%{opacity:0.9} 85%{opacity:0.9} 100%{transform:translateY(-124px);opacity:0} }
 
         /* ── Shell: fixed viewport height, internal scroll ── */
         .docs-shell {
@@ -770,10 +853,39 @@ export default function DocumentsPage() {
         .docs-md .fig-warn b{color:var(--accent)}
 
         /* ── Anim live preview ── */
+        .anim-fig { margin: 0 0 1.5rem; }
         .anim-preview {
           position: relative; width: 100%; height: 110px;
           border-radius: 10px; overflow: hidden; margin-bottom: 1.5rem;
           border: 1px solid rgba(255,255,255,0.08);
+        }
+        .anim-fig .anim-preview { margin-bottom: 0.45rem; }
+        .anim-preview-tag {
+          position: absolute; bottom: 6px; right: 10px;
+          color: rgba(255,255,255,0.55); font-size: 0.6rem; font-weight: 600;
+          letter-spacing: 0.09em; pointer-events: none;
+        }
+        .anim-fig-cap { font-size: 0.8rem; color: #6c757d; font-style: italic; line-height: 1.4; }
+
+        /* ── Anim overview gallery ── */
+        .anim-gallery {
+          display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+          gap: 0.75rem; margin: 0 0 1.75rem;
+        }
+        .anim-gallery-tile {
+          border: 1px solid #e9ecef; border-radius: 10px; overflow: hidden;
+          background: #fff; padding-bottom: 0.5rem;
+        }
+        .anim-gallery-stage {
+          position: relative; width: 100%; height: 72px; overflow: hidden;
+          border-bottom: 1px solid #f1f3f5; margin-bottom: 0.4rem;
+        }
+        .anim-gallery-name { font-size: 0.78rem; font-weight: 600; color: #212529; padding: 0 0.55rem; }
+        .anim-gallery-cap { font-size: 0.7rem; color: #868e96; padding: 0 0.55rem; line-height: 1.35; }
+
+        /* Respect reduced-motion: freeze preview animation */
+        @media (prefers-reduced-motion: reduce) {
+          .anim-preview *, .anim-preview, .anim-gallery-stage * { animation: none !important; }
         }
 
         /* ── Markdown ── */
