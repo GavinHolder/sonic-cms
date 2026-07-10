@@ -333,6 +333,7 @@
           <span id="zoom-label" style="font-size:10px;min-width:32px;text-align:center;color:#64748b;">100%</span>
           <button id="btn-zoom-in" class="btn btn-sm p-0 px-1" style="font-size:11px;border:none;background:none;color:#64748b;"><i class="bi bi-zoom-in"></i></button>
           <button id="btn-zoom-fit" class="btn btn-sm p-0 px-1" style="font-size:11px;border:none;background:none;color:#64748b;" title="Fit"><i class="bi bi-arrows-fullscreen"></i></button>
+          <button id="btn-reset-view" class="btn btn-sm p-0 px-1" style="font-size:11px;border:none;background:none;color:#64748b;" title="Reset view (position & zoom)"><i class="bi bi-arrow-counterclockwise"></i></button>
         </div>
         <div id="vx-round-bar" style="display:none;position:absolute;bottom:44px;left:50%;transform:translateX(-50%);z-index:25;background:rgba(255,255,255,0.96);border:1px solid #e2e8f0;border-radius:20px;padding:5px 14px;display:none;align-items:center;gap:8px;box-shadow:0 2px 8px rgba(0,0,0,0.12);pointer-events:auto;">
           <span style="font-size:10px;font-weight:700;color:#64748b;letter-spacing:0.5px;">ROUND</span>
@@ -3868,7 +3869,10 @@
     function _wrapFocal(e){var r=document.getElementById('canvas-wrap').getBoundingClientRect();return {ox:(e.clientX-r.left)-r.width/2, oy:(e.clientY-r.top)-r.height/2};}
     document.getElementById('btn-zoom-in').addEventListener('click',function(){zoomAtPoint(state.zoom*1.2,0,0);});
     document.getElementById('btn-zoom-out').addEventListener('click',function(){zoomAtPoint(state.zoom/1.2,0,0);});
-    document.getElementById('btn-zoom-fit').addEventListener('click',function(){var wrap=document.getElementById('canvas-wrap');state.panX=0;state.panY=0;var z=Math.min((wrap.clientWidth-40)/state.element.canvasWidth,(wrap.clientHeight-40)/state.element.canvasHeight);applyZoom(z);});
+    // resetView() = the designer's default open state: pan 0 + zoom-to-fit. View-only (panX/panY/zoom never persist — see buildPayload).
+    function resetView(){var wrap=document.getElementById('canvas-wrap');state.panX=0;state.panY=0;var z=Math.min((wrap.clientWidth-40)/state.element.canvasWidth,(wrap.clientHeight-40)/state.element.canvasHeight);applyZoom(z);}
+    document.getElementById('btn-zoom-fit').addEventListener('click',resetView);
+    document.getElementById('btn-reset-view').addEventListener('click',resetView);
     // ── State switcher ────────────────────────────────────────────────────────
     document.getElementById('btn-state-rest').addEventListener('click',function(){state.activeStateName='rest';_updateStateButtons();renderCanvas();renderProps();});
     document.getElementById('btn-state-hover').addEventListener('click',function(){_ensureStates();state.activeStateName='hover';_updateStateButtons();renderCanvas();renderProps();});
@@ -5027,6 +5031,7 @@
         return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(xml);
       }catch(e){return null;}
     }
+    // View-only state (state.panX/panY/zoom) is intentionally EXCLUDED from the payload — pan/zoom are navigation, not design data. Do NOT add them here.
     function buildPayload(){return {id:state.element.id,name:state.element.name,mood:state.element.mood,elementType:state.element.elementType,isPublic:state.element.isPublic,layers:state.element.layers,states:state.element.states||[],canvasWidth:state.element.canvasWidth,canvasHeight:state.element.canvasHeight,flipCard:state.element.flipCard||null,canvasOverflow:state.element.canvasOverflow||null,carousel:state.element.carousel||null,thumbnail:captureThumbnail()};}
     document.getElementById('btn-save').addEventListener('click',function(){if(window.parent&&window.parent!==window)window.parent.postMessage({type:'VOLT_DESIGNER_SAVE',payload:buildPayload()},'*');markClean();});
     document.getElementById('btn-done').addEventListener('click',function(){if(window.parent&&window.parent!==window)window.parent.postMessage({type:'VOLT_DESIGNER_DONE',payload:buildPayload()},'*');});
