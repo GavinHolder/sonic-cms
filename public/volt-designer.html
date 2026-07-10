@@ -809,7 +809,28 @@
     var svgEl=document.getElementById('artboard-svg');
     var artboard=document.getElementById('artboard');
     function svgNs(t){return document.createElementNS('http://www.w3.org/2000/svg',t);}
-    function getSvgPt(e){var r=artboard.getBoundingClientRect();return {x:(e.clientX-r.left)*(state.element.canvasWidth/r.width),y:(e.clientY-r.top)*(state.element.canvasHeight/r.height)};}
+    // Map a screen (client) point → SVG viewBox = canvas-pixel space using the SVG's
+    // OWN coordinate matrix. getScreenCTM() folds in the artboard's CSS transform
+    // (pan/zoom), every ancestor transform, the left tools-panel offset, any wrapper
+    // scroll, AND the viewBox↔element mapping — so the returned point always lands
+    // exactly under the cursor. This replaces the old artboard-rect ratio math, which
+    // subtracted the PARENT (#artboard) rect while shapes render into #artboard-svg and
+    // assumed the viewBox aligned 1:1 with that box — any deviation (preserveAspectRatio
+    // letterboxing, box mismatch, ancestor offset) produced a constant, zoom-independent
+    // horizontal error ≈ the panel width. CTM mapping is immune to all of it.
+    function getSvgPt(e){
+      if(svgEl.getScreenCTM&&typeof svgEl.createSVGPoint==='function'){
+        var _ctm=svgEl.getScreenCTM();
+        if(_ctm){
+          var _sp=svgEl.createSVGPoint();_sp.x=e.clientX;_sp.y=e.clientY;
+          var _lp=_sp.matrixTransform(_ctm.inverse());
+          return {x:_lp.x,y:_lp.y};
+        }
+      }
+      // Fallback (only if CTM unavailable): rect-ratio math against the SVG's own box.
+      var r=svgEl.getBoundingClientRect();
+      return {x:(e.clientX-r.left)*(state.element.canvasWidth/r.width),y:(e.clientY-r.top)*(state.element.canvasHeight/r.height)};
+    }
     function pct(v,total){return v/total*100;}
     function topx(v,total){return v/100*total;}
     // ── Hit-test: topmost layer at canvas-px point ─────────────────────────────
