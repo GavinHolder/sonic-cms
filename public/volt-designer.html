@@ -341,6 +341,10 @@
       </div>
       <div id="key-legend" style="display:none;"></div>
       <div class="canvas-wrap" id="canvas-wrap" style="position:relative;">
+        <!-- Load gate overlay: hides the default blank canvas until the real element arrives (#flash fix). Shown only inside a parent iframe. -->
+        <div id="volt-load-overlay" style="display:none;position:absolute;inset:0;z-index:60;background:#f1f5f9;align-items:center;justify-content:center;">
+          <div class="spinner-border text-secondary" role="status" style="width:2rem;height:2rem;"><span class="visually-hidden">Loading…</span></div>
+        </div>
         <!-- Floating zoom bar — bottom left of canvas -->
         <div style="position:absolute;bottom:8px;left:8px;z-index:20;background:rgba(255,255,255,0.92);border:1px solid #e2e8f0;border-radius:8px;padding:3px 6px;display:flex;align-items:center;gap:4px;box-shadow:0 1px 6px rgba(0,0,0,0.08);backdrop-filter:blur(4px);">
           <button id="btn-toggle-timeline" class="btn btn-sm p-0 px-1" style="font-size:12px;border:none;background:none;color:#64748b;" title="Timeline (Ctrl+T)"><i class="bi bi-film"></i></button>
@@ -5148,23 +5152,64 @@
       if(e.key==='Enter'){var q=this.value.trim();if(q)_searchUnsplash(q);}
     });
     // ── Save / Done ───────────────────────────────────────────────────────────
-    function captureThumbnail(){
+    // Only same-origin raster URLs get inlined; data:/blob: are already self-contained, cross-origin can't be read to a canvas/blob reliably.
+    function _isInlinableImageUrl(url){
+      if(!url)return false;
+      if(url.indexOf('data:')===0||url.indexOf('blob:')===0)return false;
+      if(url.charAt(0)==='/')return true; // root-relative → same origin (e.g. /api/media/...)
+      try{return new URL(url,window.location.href).origin===window.location.origin;}catch(e){return false;}
+    }
+    function _urlToDataUri(url){
+      return fetch(url).then(function(r){if(!r.ok)throw new Error('fetch '+r.status);return r.blob();}).then(function(blob){
+        return new Promise(function(resolve,reject){
+          var fr=new FileReader();
+          fr.onload=function(){resolve(fr.result);};
+          fr.onerror=function(){reject(fr.error);};
+          fr.readAsDataURL(blob);
+        });
+      });
+    }
+    function _imgHref(im){return im.getAttribute('href')||im.getAttributeNS('http://www.w3.org/1999/xlink','href')||'';}
+    // Async so external raster hrefs (media-library images) can be inlined as base64 data URIs, making the serialized SVG self-contained (otherwise the thumbnail loses placed photos). Fetch failures fall back to the original href — never block the save.
+    async function captureThumbnail(){
       try{
-        // Clone SVG, add white background rect, then serialize
+        // Clone SVG, add white background rect
         var clone=svgEl.cloneNode(true);
         var bg=svgNs('rect');
         var CW=state.element.canvasWidth,CH=state.element.canvasHeight;
         bg.setAttribute('x','0');bg.setAttribute('y','0');bg.setAttribute('width',CW);bg.setAttribute('height',CH);bg.setAttribute('fill','white');
         clone.insertBefore(bg,clone.firstChild);
+        // Inline every same-origin raster image so the serialized SVG resolves standalone
+        var imgs=Array.prototype.slice.call(clone.querySelectorAll('image'));
+        var uniq={};
+        imgs.forEach(function(im){var h=_imgHref(im);if(_isInlinableImageUrl(h))uniq[h]=true;});
+        var urls=Object.keys(uniq),map={};
+        await Promise.all(urls.map(function(u){
+          return _urlToDataUri(u).then(function(d){map[u]=d;}).catch(function(){/* leave unmapped → fall back to original href */});
+        }));
+        imgs.forEach(function(im){
+          var h=_imgHref(im),d=map[h];
+          if(!d)return;
+          im.setAttribute('href',d);
+          im.setAttributeNS('http://www.w3.org/1999/xlink','href',d);
+        });
         var xml=new XMLSerializer().serializeToString(clone);
         return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(xml);
       }catch(e){return null;}
     }
     // View-only state (state.panX/panY/zoom) is intentionally EXCLUDED from the payload — pan/zoom are navigation, not design data. Do NOT add them here.
-    function buildPayload(){return {id:state.element.id,name:state.element.name,mood:state.element.mood,elementType:state.element.elementType,isPublic:state.element.isPublic,layers:state.element.layers,states:state.element.states||[],canvasWidth:state.element.canvasWidth,canvasHeight:state.element.canvasHeight,flipCard:state.element.flipCard||null,canvasOverflow:state.element.canvasOverflow||null,carousel:state.element.carousel||null,thumbnail:captureThumbnail()};}
-    document.getElementById('btn-save').addEventListener('click',function(){if(window.parent&&window.parent!==window)window.parent.postMessage({type:'VOLT_DESIGNER_SAVE',payload:buildPayload()},'*');markClean();});
-    document.getElementById('btn-done').addEventListener('click',function(){if(window.parent&&window.parent!==window)window.parent.postMessage({type:'VOLT_DESIGNER_DONE',payload:buildPayload()},'*');});
+    // async: awaits captureThumbnail() so the posted payload carries the inlined-image thumbnail.
+    async function buildPayload(){
+      var thumbnail=await captureThumbnail();
+      return {id:state.element.id,name:state.element.name,mood:state.element.mood,elementType:state.element.elementType,isPublic:state.element.isPublic,layers:state.element.layers,states:state.element.states||[],canvasWidth:state.element.canvasWidth,canvasHeight:state.element.canvasHeight,flipCard:state.element.flipCard||null,canvasOverflow:state.element.canvasOverflow||null,carousel:state.element.carousel||null,thumbnail:thumbnail};
+    }
+    document.getElementById('btn-save').addEventListener('click',function(){buildPayload().then(function(payload){if(window.parent&&window.parent!==window)window.parent.postMessage({type:'VOLT_DESIGNER_SAVE',payload:payload},'*');markClean();});});
+    document.getElementById('btn-done').addEventListener('click',function(){buildPayload().then(function(payload){if(window.parent&&window.parent!==window)window.parent.postMessage({type:'VOLT_DESIGNER_DONE',payload:payload},'*');});});
     // ── Load from host ────────────────────────────────────────────────────────
+    // Load-gate state (#flash fix): in an iframe the initial render is held until the
+    // real element arrives; _loadReceived guards the fallback timer from racing the payload.
+    var _loadReceived=false,_loadFallbackTimer=null;
+    function _hideLoadOverlay(){var o=document.getElementById('volt-load-overlay');if(o)o.style.display='none';}
     window.addEventListener('message',function(e){
       if(e.data && e.data.type === 'VOLT3D_VIEWER_READY') {
         _v3dViewerReady = true;
@@ -5192,6 +5237,8 @@
         }
       }
       if(!e.data||e.data.type!=='VOLT_DESIGNER_LOAD')return;
+      // Real element arrived — cancel the empty-canvas fallback and reveal the canvas. Always applied, even if the fallback already fired (real data wins).
+      _loadReceived=true;if(_loadFallbackTimer){clearTimeout(_loadFallbackTimer);_loadFallbackTimer=null;}_hideLoadOverlay();
       var el=e.data.payload;state.element=Object.assign({},state.element,el);pushHistory();if(el.toolMode)applyToolMode(el.toolMode);
       document.getElementById('el-name').value=el.name||'New Design';document.getElementById('element-name-badge').textContent=el.name||'New Design';
       if(el.elementType)document.getElementById('el-type').value=el.elementType;
@@ -5203,16 +5250,27 @@
       svgEl.setAttribute('viewBox','0 0 '+w+' '+h);svgEl.setAttribute('width',w);svgEl.setAttribute('height',h);
       document.getElementById('canvas-size-label').textContent=w+'\u00d7'+h+'px';
       document.getElementById('canvas-w').value=w;document.getElementById('canvas-h').value=h;
-      markClean();renderAll();setTimeout(function(){document.getElementById('btn-zoom-fit').click();},100);
+      // Full first render with the real data (init's render is gated in iframe mode, so run the state/face/align/dot-grid updates here too).
+      markClean();_updateStateButtons();_updateFaceSwitcher();_updateAlignTools();renderAll();updateDotGrid();setTimeout(function(){document.getElementById('btn-zoom-fit').click();},100);
       // Sync bleed zone indicator to loaded element
       var bleedZoneEl=document.getElementById('artboard-bleed-zone');
       if(bleedZoneEl)bleedZoneEl.style.display=(el.canvasOverflow==='visible')?'block':'none';
     });
     // ── Init ──────────────────────────────────────────────────────────────────
     if(window.parent&&window.parent!==window){
+      // In a parent: gate the initial render so the default 800x500 canvas never flashes
+      // before VOLT_DESIGNER_LOAD arrives. Show a neutral loading overlay, announce READY,
+      // and let the load handler (or the fallback timer) do the first render.
+      var _lo=document.getElementById('volt-load-overlay');if(_lo)_lo.style.display='flex';
       window.parent.postMessage({type:'VOLT_DESIGNER_READY'},'*');
+      // Fallback: a genuinely new design gets no payload — render the empty canvas after a short wait rather than hanging on the spinner.
+      _loadFallbackTimer=setTimeout(function(){
+        if(_loadReceived)return;_loadReceived=true;_loadFallbackTimer=null;_hideLoadOverlay();
+        pushHistory();_updateStateButtons();_updateFaceSwitcher();_updateAlignTools();renderAll();updateDotGrid();
+        setTimeout(function(){document.getElementById('btn-zoom-fit').click();},60);
+      },1500);
     }else{
-      // Standalone mode — restore from localStorage autosave
+      // Standalone mode — restore from localStorage autosave (data is present at init → render immediately below)
       var restored=false;
       try{
         var saved=localStorage.getItem('volt_autosave');
@@ -5235,8 +5293,12 @@
       }catch(e){}
       if(!restored){state.element.id='preview';state.element.name='Test Design';document.getElementById('el-name').value='Test Design';document.getElementById('element-name-badge').textContent='Test Design';}
     }
-    pushHistory();_updateStateButtons();_updateFaceSwitcher();_updateAlignTools();renderAll();updateDotGrid();
-    setTimeout(function(){document.getElementById('btn-zoom-fit').click();},200);
+    // Standalone renders immediately (data ready at init). In an iframe the first render is
+    // gated above — it happens in the VOLT_DESIGNER_LOAD handler or the fallback timer.
+    if(!(window.parent&&window.parent!==window)){
+      pushHistory();_updateStateButtons();_updateFaceSwitcher();_updateAlignTools();renderAll();updateDotGrid();
+      setTimeout(function(){document.getElementById('btn-zoom-fit').click();},200);
+    }
   }());
   </script>
 </body>
