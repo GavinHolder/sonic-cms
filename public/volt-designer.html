@@ -712,22 +712,24 @@
       _laEnsureListeners();
       var hasSel=!!(state.selectedLayerId||state.multiSelectIds.length>0);
       if(!hasSel){panel.classList.remove('la-visible');return;}
-      // Content-aware gating (preserve every existing action; just show the ones
-      // relevant to the current selection). Bool buttons keep their own
-      // enable/disable via renderBoolPanel(); we only gate group visibility.
+      // ALWAYS show the full action set (align x6, fill-canvas, distribute x2,
+      // boolean x3). Actions that need more selection are DISABLED (greyed), not
+      // hidden — so users can always see the options exist. Distribute needs 3+;
+      // boolean enable/disable is owned by renderBoolPanel() (needs a base + ≥1
+      // cutter). Nothing is display:none'd here anymore.
       var multi=state.multiSelectIds.length;
-      var showDistribute=multi>=3;   // distributing <3 items is a no-op
-      var showBool=multi>=2;         // boolean ops need a base + ≥1 cutter
+      var canDistribute=multi>=3;   // distributing <3 items is a no-op
       var dh=document.getElementById('btn-distribute-h');
       var dv=document.getElementById('btn-distribute-v');
       var dsep=document.getElementById('la-sep-distribute');
-      if(dh)dh.style.display=showDistribute?'':'none';
-      if(dv)dv.style.display=showDistribute?'':'none';
-      if(dsep)dsep.style.display=showDistribute?'':'none';
+      if(dh)dh.disabled=!canDistribute;
+      if(dv)dv.disabled=!canDistribute;
+      if(dsep)dsep.style.display='';
       var grpBool=document.getElementById('la-grp-bool');
       var bsep=document.getElementById('la-sep-bool');
-      if(grpBool)grpBool.style.display=showBool?'':'none';
-      if(bsep)bsep.style.display=showBool?'':'none';
+      if(grpBool)grpBool.style.display='';
+      if(bsep)bsep.style.display='';
+      renderBoolPanel(); // keep tb-bool-* enabled/disabled in sync with selection
       panel.classList.add('la-visible');
       _anchorLayerActions();
     }
@@ -968,7 +970,17 @@
     function pct(v,total){return v/total*100;}
     function topx(v,total){return v/100*total;}
     // ── Hit-test: topmost layer at canvas-px point ─────────────────────────────
-    function hitTest(pt){var CW=state.element.canvasWidth,CH=state.element.canvasHeight;var sorted=state.element.layers.slice().sort(function(a,b){return b.zIndex-a.zIndex;});for(var i=0;i<sorted.length;i++){var l=sorted[i];if(!l.visible&&!(l.boolRole==='cutter'&&state.boolEditParentId===l.boolParentId))continue;if(l.boolRole==='cutter'&&state.boolEditParentId!==l.boolParentId)continue;var lx=topx(l.x,CW),ly=topx(l.y,CH),lw=topx(l.width,CW),lh=topx(l.height,CH);if(pt.x>=lx&&pt.x<=lx+lw&&pt.y>=ly&&pt.y<=ly+lh)return l;}return null;}
+    // Skips hidden layers (visible:false) AND locked layers so a locked/hidden
+    // element never intercepts a canvas click — clicks fall through to the layer
+    // beneath. Locked layers stay reachable via the Layers panel (to unlock).
+    function hitTest(pt){var CW=state.element.canvasWidth,CH=state.element.canvasHeight;var sorted=state.element.layers.slice().sort(function(a,b){return b.zIndex-a.zIndex;});for(var i=0;i<sorted.length;i++){var l=sorted[i];if(!l.visible&&!(l.boolRole==='cutter'&&state.boolEditParentId===l.boolParentId))continue;if(l.locked)continue;if(l.boolRole==='cutter'&&state.boolEditParentId!==l.boolParentId)continue;var lx=topx(l.x,CW),ly=topx(l.y,CH),lw=topx(l.width,CW),lh=topx(l.height,CH);if(pt.x>=lx&&pt.x<=lx+lw&&pt.y>=ly&&pt.y<=ly+lh)return l;}return null;}
+    // ── Hit-test stack: every selectable layer under a point, top→bottom ───────
+    // Used for occluded-selection cycling (repeated clicks at the same spot dig
+    // downward). Mirrors hitTest's skip rules: hidden, locked, groups, and
+    // non-edit cutters are excluded.
+    function hitTestStack(pt){var CW=state.element.canvasWidth,CH=state.element.canvasHeight;var sorted=state.element.layers.slice().sort(function(a,b){return b.zIndex-a.zIndex;});var out=[];for(var i=0;i<sorted.length;i++){var l=sorted[i];if(!l.visible)continue;if(l.locked)continue;if(l.type==='group')continue;if(l.boolRole==='cutter'&&state.boolEditParentId!==l.boolParentId)continue;var lx=topx(l.x,CW),ly=topx(l.y,CH),lw=topx(l.width,CW),lh=topx(l.height,CH);if(pt.x>=lx&&pt.x<=lx+lw&&pt.y>=ly&&pt.y<=ly+lh)out.push(l);}return out;}
+    // Last plain-click canvas point, for detecting repeated clicks at the same spot.
+    var _hitCyclePt=null;
     // ── Resize handles ────────────────────────────────────────────────────────
     var HNAMES=['nw','n','ne','e','se','s','sw','w'];
     var HCUR={nw:'nw-resize',n:'n-resize',ne:'ne-resize',e:'e-resize',se:'se-resize',s:'s-resize',sw:'sw-resize',w:'w-resize'};
@@ -1644,8 +1656,24 @@
         if(sel&&sel.type!=='slot'){var _rhcx2=topx(sel.x,CW)+topx(sel.width,CW)/2,_rhcy2=topx(sel.y,CH)-20/state.zoom;if(dist2(pt,{x:_rhcx2,y:_rhcy2})<=12/state.zoom){var _rcx=topx(sel.x,CW)+topx(sel.width,CW)/2,_rcy=topx(sel.y,CH)+topx(sel.height,CH)/2;rotateSt={layerId:sel.id,startAngle:Math.atan2(pt.y-_rcy,pt.x-_rcx)*180/Math.PI,origRotation:sel.rotation||0,cx:_rcx,cy:_rcy};return;}}
         // Check resize handles
         if(sel){var h=hitHandle(pt,sel);if(h){resizeSt={layerId:sel.id,handle:h,startPt:pt,origBounds:{x:sel.x,y:sel.y,w:sel.width,h:sel.height},origPath:sel.vectorData?sel.vectorData.pathData:null};return;}}
-        // Hit test
-        var hit=hitTest(pt);
+        // Hit test — with occluded-selection cycling. For a plain (non-shift)
+        // click outside bool-edit, repeated clicks at the SAME point step
+        // downward through overlapping layers so an element behind others can be
+        // reached on-canvas. Fresh clicks (point moved) select the topmost.
+        var hit;
+        if(e.shiftKey||state.boolEditParentId){
+          hit=hitTest(pt);
+        }else{
+          var _stack=hitTestStack(pt);
+          if(_stack.length===0){hit=null;}
+          else{
+            var _samePt=_hitCyclePt&&Math.abs(_hitCyclePt.x-pt.x)<=4/state.zoom&&Math.abs(_hitCyclePt.y-pt.y)<=4/state.zoom;
+            var _idx=0;
+            if(_samePt){var _cur=_stack.findIndex(function(l){return l.id===state.selectedLayerId;});_idx=_cur>=0?(_cur+1)%_stack.length:0;}
+            hit=_stack[_idx];
+          }
+          _hitCyclePt={x:pt.x,y:pt.y};
+        }
         if(hit&&!hit.locked){
           // Shift+click → multi-select (add/remove from selection)
           if(e.shiftKey&&hit.id){
@@ -2106,13 +2134,16 @@
     function renderLayerRow(layer,list,isChild){
       var isSelected=layer.id===state.selectedLayerId||state.multiSelectIds.indexOf(layer.id)>=0;
       var isCutterHidden=layer.boolRole==='cutter';
+      var _isHidden=layer.visible===false;
       var row=document.createElement('div');
-      row.className='layer-row'+(isSelected?' selected':'')+(isCutterHidden?' opacity-50':'')+(isChild?' layer-child':'');
+      row.className='layer-row'+(isSelected?' selected':'')+(isCutterHidden?' opacity-50':'')+(isChild?' layer-child':'')+(_isHidden?' layer-hidden':'')+(layer.locked?' layer-locked':'');
+      // Dim hidden rows so their hidden state is obvious at a glance.
+      if(_isHidden)row.style.opacity='0.45';
       row.draggable=true;row.dataset.layerId=layer.id;row.style.cursor='grab';
-      var eyeBtn=document.createElement('button');eyeBtn.className='lbtn';eyeBtn.dataset.a='eye';eyeBtn.dataset.id=layer.id;
+      var eyeBtn=document.createElement('button');eyeBtn.className='lbtn';eyeBtn.dataset.a='eye';eyeBtn.dataset.id=layer.id;eyeBtn.title=_isHidden?'Show layer':'Hide layer';
       eyeBtn.appendChild(mkI('bi bi-eye'+(layer.visible?'':'-slash')));if(!layer.visible)eyeBtn.style.opacity='0.4';
-      var lockBtn=document.createElement('button');lockBtn.className='lbtn';lockBtn.dataset.a='lock';lockBtn.dataset.id=layer.id;
-      lockBtn.appendChild(mkI('bi bi-lock'+(layer.locked?'-fill':'')));
+      var lockBtn=document.createElement('button');lockBtn.className='lbtn';lockBtn.dataset.a='lock';lockBtn.dataset.id=layer.id;lockBtn.title=layer.locked?'Unlock layer':'Lock layer (not selectable on canvas)';
+      var _lockI=mkI('bi bi-lock'+(layer.locked?'-fill':''));if(layer.locked)_lockI.style.color='#f59e0b';lockBtn.appendChild(_lockI);
       var badge=document.createElement('span');
       var badgeClass=layer.type==='slot'?'lb-slt':roleCls(layer.role);
       if(isCutterHidden)badgeClass='lb-acc';
