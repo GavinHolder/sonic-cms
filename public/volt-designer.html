@@ -675,24 +675,48 @@
       if(panel.parentElement!==document.body)document.body.appendChild(panel);
       var rect=_selectedScreenRect();
       if(!rect){panel.classList.remove('la-visible');return;}
-      var BTN=28,GAP=8,M=6;
+      var BTN=28,GAP=10,M=6;
       var vw=window.innerWidth,vh=window.innerHeight;
       var body=panel.querySelector('.fm-body');
       // .fm-body is hidden via max-height:0 (not display:none) so scrollHeight
       // still reports the full expanded height — clamp for the EXPANDED footprint.
       var expH=BTN+4+((body&&body.scrollHeight)||220)+8;
+      // Full horizontal footprint of the WHOLE menu (pill AND the wider expanded
+      // column, which is centred under the pill). #layer-actions is align-items:
+      // center, so its offsetWidth == the widest child == the body column; the
+      // body keeps its width while collapsed (max-height:0 clips height only).
+      // We size the menu OUT of the way using this real width, not the 28px pill
+      // — using the pill width let the column overflow back over the element.
+      // +2 covers the 1px borders the body gains on hover-expand.
+      var W=Math.max(panel.offsetWidth||0,(body&&body.offsetWidth)||0,40)+2;
       var sb=document.getElementById('sidebar-right');
-      var maxRight=sb?sb.getBoundingClientRect().left-M:vw-M;
-      // Pill just OUTSIDE the layer's right edge; if that would collide with the
-      // properties panel, flip to just outside the LEFT edge instead.
-      var left=rect.right+GAP;
-      if(left+BTN>maxRight)left=rect.left-GAP-BTN;
-      if(left<M)left=M;
-      if(left+BTN>vw-M)left=vw-BTN-M;
+      var rightBound=Math.min((sb?sb.getBoundingClientRect().left:vw)-M,vw-M);
+      // ── Horizontal: keep the ENTIRE menu beside the element, never over it. ──
+      // Prefer the RIGHT of the element's right edge (gap outside); flip FULLY to
+      // the LEFT of the left edge only if the whole width won't fit on the right.
+      // We test left+W (right side) / left>=M (left side) against the full width
+      // so the expanded column can never extend back across the element rect, and
+      // we never clamp horizontally back over the element to gain vertical fit.
+      var leftR=rect.right+GAP;            // whole menu sits right of the element
+      var fitsR=(leftR+W)<=rightBound;
+      var leftL=rect.left-GAP-W;           // whole menu sits left of the element
+      var fitsL=leftL>=M;
+      var left;
+      if(fitsR){left=leftR;}
+      else if(fitsL){left=leftL;}
+      else{
+        // Degenerate: element ~fills the width, no full room on either side. Hug
+        // the side with more room at the viewport edge — still the furthest from
+        // covering the element we can be without going off-screen.
+        var roomR=rightBound-rect.right,roomL=rect.left-M;
+        left=(roomR>=roomL)?(rightBound-W):M;
+        left=Math.max(M,left);
+      }
       panel.style.left=left+'px';panel.style.right='';
-      // Vertical: centre the pill on the layer's middle; grow DOWN by default,
+      // Vertical: centre the menu on the element's middle; grow DOWN by default,
       // grow UP (fm-flip-y → column-reverse keeps the pill put) when the bottom
-      // would overflow AND there is headroom above.
+      // would overflow AND there is headroom above. Clamp to the viewport top/
+      // bottom WITHOUT touching `left` — the horizontal side never moves.
       var cy=rect.top+rect.height/2;
       var growUp=(cy-BTN/2+expH)>(vh-M)&&(cy+BTN/2-expH)>=M;
       panel.classList.toggle('fm-flip-y',growUp);
