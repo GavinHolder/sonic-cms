@@ -842,6 +842,22 @@ const FLEXIBLE_OVERVIEW = `
 
 Flexible Sections use a **drag-and-drop visual designer** to create fully custom layouts. Unlike Normal Sections which have preset layouts, Flexible Sections give you complete control over every element. The Designer opens from the Flexible editor's Content tab and hands the layout back to the section as designer JSON.
 
+<div class="fig-warn"><b>⚠ Program rules that govern this tool.</b> <b>DESIGNER-FIRST</b> — all UI layout, content and section design is authored here in the Designer, never via hardcoded scripts, direct JSON, or renderer edits; seeding scripts must write \`designerData\` in this exact schema and every section must re-open editable here. <b>VOLT-FIRST for graphical elements</b> — cards, hover animations, 3D showcase cards and interactive graphical elements are built as Volt designs and dropped in via the \`volt\` block, not as hardcoded React. The canvas, sections and CSS are shared surfaces — every change is HIGH RISK and visually verified on deploy.</div>
+
+### This package is split across dedicated pages
+
+| Page | Covers |
+|------|--------|
+| **Designer Overview** (this page) | Orientation, how to open, content modes, positioning, media, responsive, rulers |
+| **Toolbar & Canvas** | Top action bar (Save/Done, FREE/GRID, SNAP, guides) + canvas toolbar (rulers, undo, device, zoom, preview) + canvas interactions |
+| **Section Configuration** | Content mode, the 3 layout engines (Grid / Preset / Mosaic), 11 preset skeletons, section header & footer |
+| **Block Library & Elements** | The 4 library tabs, all 14 container blocks, sub-elements, Volt, and 7 full layout templates |
+| **Properties Panel** | Exhaustive per-type control reference (block settings + sub-element props + animation + nav target) |
+| **Layers, Menus & Shortcuts** | Layers tree, context menus, the 3 floating toolbars, full keyboard map |
+| **Wrapper Modal & Save** | The section wrapper that hosts the iframe, its 8 chrome tabs, and the postMessage save protocol |
+
+**Figure types used throughout:** <span class="tag">Interface map</span> annotated panel mock with numbered callouts · <span class="tag">Control mockup</span> a group of controls reproduced · <span class="tag">Render preview</span> what the output looks like · <span class="tag">Diagram</span> flow / relationship. *(Reference built from source — not browser-verified.)*
+
 <div class="fig map"><span class="tag">Interface map</span><div class="fig-body"><svg viewBox="0 0 640 360" font-family="system-ui" font-size="11.5"><rect x="10" y="10" width="620" height="30" rx="6" fill="#1c2333"/><text x="24" y="30" fill="#fff" font-weight="700">Layout <tspan fill="#8fb3ff">Designer</tspan></text><rect x="150" y="16" width="86" height="18" rx="9" fill="#2a3550"/><text x="193" y="29" text-anchor="middle" fill="#cdd7ee" font-size="10">Single Section</text><text x="404" y="30" fill="#cdd7ee" font-size="10">⟜ FREE</text><rect x="446" y="16" width="30" height="18" rx="4" fill="#2a3550"/><text x="461" y="29" text-anchor="middle" fill="#cdd7ee" font-size="10">SNAP</text><rect x="536" y="15" width="42" height="20" rx="5" fill="#0d6efd"/><text x="557" y="29" text-anchor="middle" fill="#fff" font-size="10">Save</text><rect x="582" y="15" width="42" height="20" rx="5" fill="#198754"/><text x="603" y="29" text-anchor="middle" fill="#fff" font-size="10">Done</text><rect x="10" y="48" width="150" height="304" rx="7" fill="#fff" stroke="#e4e8ef"/><text x="20" y="66" fill="#8a93a3" font-size="10">SECTION CONFIG</text><rect x="20" y="72" width="130" height="16" rx="3" fill="#f6f8fb"/><text x="20" y="106" fill="#8a93a3" font-size="10">BLOCK LIBRARY</text><rect x="20" y="112" width="130" height="14" rx="3" fill="#eef2ff"/><text x="26" y="123" fill="#0a4bc2" font-size="9">Blocks · Sub-Els · ⚡Volt · Layouts</text><g fill="#f6f8fb" stroke="#e4e8ef"><rect x="20" y="132" width="62" height="34" rx="5"/><rect x="88" y="132" width="62" height="34" rx="5"/><rect x="20" y="172" width="62" height="34" rx="5"/><rect x="88" y="172" width="62" height="34" rx="5"/><rect x="20" y="212" width="62" height="34" rx="5"/><rect x="88" y="212" width="62" height="34" rx="5"/></g><text x="51" y="153" text-anchor="middle" font-size="9" fill="#5b6472">Hero</text><text x="119" y="153" text-anchor="middle" font-size="9" fill="#5b6472">Card</text><text x="51" y="193" text-anchor="middle" font-size="9" fill="#5b6472">Text</text><text x="119" y="193" text-anchor="middle" font-size="9" fill="#5b6472">Stats</text><text x="51" y="233" text-anchor="middle" font-size="9" fill="#5b6472">Image</text><text x="119" y="233" text-anchor="middle" font-size="9" fill="#5b6472">Video</text><rect x="168" y="48" width="316" height="304" rx="7" fill="#f6f8fb" stroke="#e4e8ef"/><rect x="168" y="48" width="316" height="24" rx="7" fill="#fff" stroke="#e4e8ef"/><text x="180" y="64" fill="#5b6472" font-size="10">Live Preview Canvas</text><text x="476" y="64" text-anchor="end" fill="#8a93a3" font-size="9">🖥 📱 · zoom · 🖼 bg · 👁</text><rect x="186" y="86" width="280" height="70" rx="6" fill="#fff" stroke="#cfe0ff"/><text x="326" y="125" text-anchor="middle" fill="#0a4bc2" font-size="10">Hero block</text><rect x="186" y="166" width="134" height="80" rx="6" fill="#fff" stroke="#e4e8ef"/><rect x="332" y="166" width="134" height="80" rx="6" fill="#fff" stroke="#e4e8ef"/><text x="253" y="210" text-anchor="middle" fill="#5b6472" font-size="10">Card</text><text x="399" y="210" text-anchor="middle" fill="#5b6472" font-size="10">Card</text><line x1="326" y1="86" x2="326" y2="330" stroke="#0d6efd" stroke-width="1" stroke-dasharray="3 3" opacity=".5"/><text x="330" y="330" fill="#0d6efd" font-size="8">align guide</text><rect x="492" y="48" width="138" height="304" rx="7" fill="#fff" stroke="#e4e8ef"/><text x="502" y="66" fill="#8a93a3" font-size="10">PROPERTIES</text><rect x="502" y="74" width="118" height="120" rx="5" fill="#f6f8fb"/><text x="502" y="214" fill="#8a93a3" font-size="10">LAYERS</text><rect x="502" y="222" width="118" height="16" rx="3" fill="#eef2ff"/><rect x="510" y="244" width="110" height="12" rx="2" fill="#f6f8fb"/><rect x="518" y="260" width="102" height="12" rx="2" fill="#f6f8fb"/><rect x="518" y="276" width="102" height="12" rx="2" fill="#f6f8fb"/></svg></div><div class="fig-cap"><b>Designer layout</b> — top action bar (mode, FREE/SNAP, Save/Done); left = Section Config + Block Library; centre = Live Preview Canvas with per-device toolbar; right = Properties + Layers tree.</div></div>
 
 ---
@@ -1842,6 +1858,556 @@ Each AnimBg layer supports:
 | **Blend Mode** | normal / screen / multiply / overlay / soft-light |
 
 The renderer auto-corrects invisible blend modes (e.g. \`screen\` on a light background becomes \`normal\`).
+`;
+
+const FLEXIBLE_TOOLBAR = `
+# Flexible Designer — Toolbar & Canvas
+
+The **Top Action Bar** and the **Live Preview Canvas** are the two chrome surfaces that frame every design session. The action bar (dark, pinned to the very top) sets global mode and holds Save/Done; the canvas toolbar (over the artboard) holds rulers, undo, device modes, zoom and preview.
+
+---
+
+## Top Action Bar
+
+Left side = identity + mode badges. Right side = position-mode toggle, guide/snap toggles, utilities, and the primary **Save / Done** actions. **Done** is hidden until the designer is embedded in the wrapper modal (it appears only after a \`FLEXIBLE_DESIGNER_INIT\` message arrives from the parent).
+
+<div class="fig map">
+  <div class="fig-head"><span class="tag">Interface map</span><span class="ttl">Top action bar</span></div>
+  <div class="fig-body"><div class="mbar">
+    <span class="brand">Layout <span>Designer</span></span>
+    <span class="cal">1</span>
+    <span class="pill">Single Section</span>
+    <span class="cal">2</span>
+    <span class="pill" style="background:#3a2e12;color:#ffd98a;border-color:#7a5a1a">&#9998; Editing: Card &times;</span>
+    <span class="cal">3</span>
+    <span class="spacer"></span>
+    <span class="cal">4</span><span class="pill free">&#10204; FREE</span>
+    <span class="cal">5</span><span class="mbtn">&#9638; grid</span>
+    <span class="cal">6</span><span class="mbtn">SNAP</span>
+    <span class="cal">7</span><span class="mbtn">&lt;/&gt;</span>
+    <span class="cal">8</span><span class="mbtn dgr">&#128465;</span>
+    <span class="cal">9</span><span class="mbtn pri">&#128190; Save</span>
+    <span class="cal">10</span><span class="mbtn ok">&#10003; Done</span>
+  </div></div>
+  <ul class="callout-list">
+    <li><span class="cal">1</span><span><b>Brand / title</b> — static "Layout Designer" identity.</span></li>
+    <li><span class="cal">2</span><span><b>Mode badge</b> — "Single Section" or "Multi Section", reflects Content Mode.</span></li>
+    <li><span class="cal">3</span><span><b>Editing indicator</b> — shows only inside a block's Edit-Content mode; &times; exits.</span></li>
+    <li><span class="cal">4</span><span><b>Position-mode toggle</b> — FREE &harr; GRID.</span></li>
+    <li><span class="cal">5</span><span><b>Guides toggle</b> — show/hide grid guide overlay.</span></li>
+    <li><span class="cal">6</span><span><b>SNAP</b> — pixel-grid snap on/off (free mode).</span></li>
+    <li><span class="cal">7</span><span><b>Code &lt;/&gt;</b> — opens the JSON output panel.</span></li>
+    <li><span class="cal">8</span><span><b>Clear (trash)</b> — clears the entire canvas (confirm modal).</span></li>
+    <li><span class="cal">9</span><span><b>Save</b> — persist draft + postMessage to parent.</span></li>
+    <li><span class="cal">10</span><span><b>Done</b> — save + close (embedded only).</span></li>
+  </ul>
+  <div class="fig-cap">All controls live in <code>#toolbar</code>. The editing indicator and Done button are display-toggled at runtime.</div>
+</div>
+
+| Control | Function | Options / default | Use case |
+|---------|----------|-------------------|----------|
+| **Position-mode badge** (⟜ FREE) | \`togglePositionMode()\` — switches free absolute positioning ↔ grid-cell snapping. Switching to Grid snaps every block to the nearest cell (colSpan/rowSpan reset to 1). | FREE / GRID · **default FREE** | FREE for pixel-exact art-boards; GRID for tidy row/column structures |
+| **Guides** (⊞) | \`toggleGuides()\` — show/hide the grid guide overlay. | on / off · **default ON** | Visual alignment aid while placing blocks |
+| **SNAP** | \`toggleSnapGrid()\` — pixel-grid snap while dragging in free mode (snaps to \`snapSize\`). Also the **S** key. | on / off, grid = 10px · **default OFF** | Keep free-mode drags on a tidy grid |
+| **Code** (&lt;/&gt;) | \`toggleJson()\` — opens the "Layout Configuration Output" panel (read-only JSON + Copy). | panel open/close | Inspect / copy the exact saved schema |
+| **Clear** (🗑) | \`clearAll()\` — removes all blocks after an in-app confirm. Undoable (Ctrl+Z, up to 10 steps). | — | Start a section over |
+| **Save** | \`saveLayout()\` — writes draft to \`localStorage\` and posts \`FLEXIBLE_DESIGNER_SAVE\` to the parent. Button flashes "Saved!". | — | Persist without leaving |
+| **Done** | \`doneAndClose()\` — saves and posts \`FLEXIBLE_DESIGNER_DONE\`; parent closes the iframe. Hidden until embedded. | — | Finish and return to the wrapper |
+
+---
+
+## Live Preview Canvas + per-device toolbar
+
+The centre column: a header/toolbar over the artboard. The canvas is a fixed **1440px** design width (scaled to fit). Blocks are dropped, dragged, resized and multi-selected here.
+
+<div class="fig map">
+  <div class="fig-head"><span class="tag">Interface map</span><span class="ttl">Canvas toolbar</span></div>
+  <div class="fig-body"><div class="mbar light">
+    <span class="brand" style="color:#334">&#128421; Live Preview Canvas</span>
+    <span style="color:#8a93a3;font-size:11px">1440 &times; 900</span>
+    <span class="spacer"></span>
+    <span class="cal b">1</span><span class="mbtn lt">&#8942; rulers</span>
+    <span class="cal b">2</span><span class="mbtn lt" style="color:#a33">&#10006; guides</span>
+    <span class="cal b">3</span><span class="mbtn lt">&#8634; undo</span>
+    <span class="cal b">4</span><span class="mbtn lt">&#128421;</span><span class="mbtn lt">&#128427;</span><span class="mbtn lt">&#128241;</span>
+    <span class="cal b">5</span><span class="mbtn lt">&#8722;</span><span style="font-size:11px;color:#345">100%</span><span class="mbtn lt">&#43;</span><span class="mbtn lt">1:1</span>
+    <span class="cal b">6</span><span class="mbtn lt">&#128444;</span>
+    <span class="cal b">7</span><span class="mbtn lt">&#128065;</span>
+  </div></div>
+  <ul class="callout-list">
+    <li><span class="cal b">1</span><span><b>Rulers</b> — toggle pixel rulers; drag from a ruler to create a guide line.</span></li>
+    <li><span class="cal b">2</span><span><b>Clear Guides</b> — remove all ruler guide lines.</span></li>
+    <li><span class="cal b">3</span><span><b>Undo</b> — Ctrl+Z; shows remaining step count (up to 10).</span></li>
+    <li><span class="cal b">4</span><span><b>Device modes</b> — Desktop / Tablet / Mobile.</span></li>
+    <li><span class="cal b">5</span><span><b>Zoom</b> — − / label / + / 1:1 reset.</span></li>
+    <li><span class="cal b">6</span><span><b>Section BG toggle</b> — show/hide the section's real background (view-only).</span></li>
+    <li><span class="cal b">7</span><span><b>Preview eye</b> — open a live preview of the section in a tab.</span></li>
+  </ul>
+  <div class="fig-cap">Canvas <code>#canvas</code> also hosts: section-bg layer, grid overlay, guide overlay, dimension display, empty hint, and the floating toolbars. A deliberate divider sits between device modes and zoom to prevent mis-clicks.</div>
+</div>
+
+| Control | Function | Options / default | Use case |
+|---------|----------|-------------------|----------|
+| **Rulers** (⋮) | \`toggleRulers()\` — pixel rulers on canvas edges; draggable to spawn guides. | on / off · **hidden** | Precise measurement + custom guides |
+| **Clear Guides** | \`clearGuidelines()\` — deletes all ruler guide lines. | — | Reset guide clutter |
+| **Undo** | \`undo()\` — step back through history; count shown; disabled when empty. | up to 10 steps · **Ctrl+Z** | Revert any edit |
+| **Desktop** | \`setDevicePreview('desktop')\` — full 1440px design width. | active by default | Design the master layout |
+| **Tablet** | 768px. Grid/mosaic = editable per-tablet positions; FREE = scaled-stage preview (read-only). | 768px | Check / adjust tablet |
+| **Mobile** | 375px. Same free-vs-grid behaviour as tablet. Resize handles hidden in mobile. | 375px | Check / adjust mobile |
+| **Reset (device)** | \`resetDevicePositions()\` — clears tablet/mobile overrides. Appears only in grid/mosaic tablet/mobile mode. | — | Discard responsive overrides |
+| **Zoom** − / + / 1:1 | \`adjustUserZoom(±0.1)\` / \`resetUserZoom()\`. Also Ctrl+scroll and Ctrl +/−/0. | 0.25–2.0 · **100%** | Zoom into detail work |
+| **Section BG toggle** (🖼) | \`toggleSectionBg()\` — overlays the section's configured background on the canvas. View-only, never saved. | on / off · **ON** | See contrast against the real BG |
+| **Preview eye** | \`previewSection()\` — saves + posts \`FLEXIBLE_DESIGNER_PREVIEW\` so the parent shows a live render. | — | See the true front-end output |
+
+---
+
+## FREE vs GRID behaviour
+
+<div class="two">
+  <div class="fig diagram" style="margin:0">
+    <div class="fig-head"><span class="tag">Diagram</span><span class="ttl">FREE mode</span></div>
+    <div class="fig-body" style="font-size:12.5px;color:var(--muted);align-items:flex-start;text-align:left">Absolute X/Y/W/H positioning. Blocks placed anywhere; Properties shows X/Y/W/H sliders + Full-Width / Full-Height / Center. Optional pixel <b>SNAP</b> (10px, key <b>S</b>). Tablet/mobile are scaled-stage previews (the desktop art-board shrunk), so per-block responsive controls are hidden.</div>
+  </div>
+  <div class="fig diagram" style="margin:0">
+    <div class="fig-head"><span class="tag">Diagram</span><span class="ttl">GRID mode</span></div>
+    <div class="fig-body" style="font-size:12.5px;color:var(--muted);align-items:flex-start;text-align:left">Blocks snap to cells. Properties shows Row / Column / Col Span / Row Span / V-Align + Full-Width / Full-Height / Reset 1×1. Dropping onto an occupied cell raises the <b>drop-conflict popup</b> (Replace / Stack / Cancel). Tablet/mobile allow real per-device positions + Reset.</div>
+  </div>
+</div>
+
+## Canvas interactions
+
+| Interaction | Behaviour |
+|-------------|-----------|
+| **Drag from library** | Drop a block/volt onto the canvas; sub-elements drop into a block being edited |
+| **Resize handles** | 8 handles on a selected/hovered block: 4 edges (N/S/E/W) + 4 corners. Hidden in mobile |
+| **Drag to move** | Blocks and sub-elements drag freely; arrow keys nudge 1px (10px with Shift) |
+| **Alignment guides** | Figma-style smart guides + snapping appear while dragging a child / multi-selection |
+| **Marquee select** | Drag on empty canvas to rubber-band select multiple sub-elements |
+| **Shift-click** | Add / remove a sub-element from the multi-selection (additive) |
+| **Group move** | A multi-selection drags together by one delta |
+| **Drop conflict (grid)** | Popup: **Replace** / **Stack** / **Cancel** when a target cell is occupied |
+| **Click empty canvas** | Deselects everything and exits edit mode |
+
+> Full keyboard shortcuts are on the **Layers, Menus & Shortcuts** page.
+`;
+
+const FLEXIBLE_CONFIG = `
+# Flexible Designer — Section Configuration
+
+The upper panel of the left sidebar (\`#section-config-header\`, collapsible). It sets whole-section behaviour: content height, the layout engine, its numeric config, and the optional section header & footer bands. Below it sits the Block Library.
+
+<div class="fig map">
+  <div class="fig-head"><span class="tag">Interface map</span><span class="ttl">Section Configuration panel</span></div>
+  <div class="fig-body two">
+    <div class="panelmock">
+      <div class="pm-head">&#9636; Section Configuration <span style="margin-left:auto">&#9662;</span></div>
+      <div class="pm-body">
+        <div class="cfgbox"><div class="lbl"><span class="cal">1</span> Content Mode</div>
+          <div class="field"><select class="fake-select"><option>Single Section (100vh)</option></select></div>
+          <div class="field" style="opacity:.6"><label>Height</label><div class="fake-range"></div><span class="fake-val">3&times;</span></div>
+        </div>
+        <div class="cfgbox"><div class="lbl"><span class="cal">2</span> Layout Type</div>
+          <div class="field"><select class="fake-select"><option>Grid Layout</option></select></div>
+        </div>
+        <div class="cfgbox"><div class="lbl"><span class="cal">3</span> Grid Configuration</div>
+          <div class="field"><label>Rows</label><div class="fake-range"></div><span class="fake-val">2</span></div>
+          <div class="field"><label>Cols</label><div class="fake-range"></div><span class="fake-val">3</span></div>
+          <div class="field"><label>Gap</label><div class="fake-range"></div><span class="fake-val">16px</span></div>
+          <div class="field"><label>Edge Pad</label><div class="fake-range"></div><span class="fake-val">0px</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="panelmock">
+      <div class="pm-head">&#9636; Section Configuration (cont.)</div>
+      <div class="pm-body">
+        <div class="cfgbox"><div class="lbl"><span class="cal">4</span> Section Header</div>
+          <div class="field"><label>Eyebrow</label><input class="fake-input" value="OUR SERVICES"></div>
+          <div class="field"><label>Heading</label><input class="fake-input" value="Three services."></div>
+          <div class="field"><label>Subhead</label><input class="fake-input" placeholder="optional"></div>
+          <div class="field"><span class="dchip pri">&#9632; Centered</span><span class="dchip">&#9632;&#9632; Split</span></div>
+        </div>
+        <div class="cfgbox"><div class="lbl"><span class="cal">5</span> Section Footer</div>
+          <div class="field"><label>Enable</label> <span class="pill on" style="color:#fff">switch</span></div>
+          <div class="field" style="opacity:.6"><label>Left text</label><input class="fake-input"></div>
+          <div class="field" style="opacity:.6"><label>Btn label</label><input class="fake-input"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <ul class="callout-list">
+    <li><span class="cal">1</span><span><b>Content Mode</b> — Single (100vh) or Multi (tall, scrollable). Multi reveals the Height slider (2–10 ×100vh).</span></li>
+    <li><span class="cal">2</span><span><b>Layout Type</b> — Grid / Preset / Mosaic. Swaps the config box below.</span></li>
+    <li><span class="cal">3</span><span><b>Layout config</b> — Grid, Mosaic or Preset controls (only the active one shows).</span></li>
+    <li><span class="cal">4</span><span><b>Section Header</b> — eyebrow / heading / subheading + Centered/Split; Split reveals a Lead-text box.</span></li>
+    <li><span class="cal">5</span><span><b>Section Footer</b> — toggle a footer band with left text (+ <code>[em]</code> accent) and a button.</span></li>
+  </ul>
+  <div class="fig-cap">The panel header is a collapse toggle (<code>toggleSectionConfig()</code>). Choosing Mosaic in Layout Type force-resets Content Mode to Single (mosaic can't be multi-section).</div>
+</div>
+
+## Content Mode & Layout Type
+
+| Control | Function | Options / default | Use case |
+|---------|----------|-------------------|----------|
+| **Content Mode** | \`#contentMode\` → \`onModeChange()\`. Single locks to one viewport; Multi grows and reveals Height. | Single (100vh) / Multi · **Single** | Multi for long scroll-stage sections |
+| **Height** (multi) | \`#multiLimit\` slider — number of viewport heights the multi section spans. | 2–10 · **3** ×100vh | Tall sections / scroll storytelling |
+| **Layout Type** | \`#layoutType\` → \`onLayoutChange()\` — chooses the layout engine and shows its config box. | Grid / Preset / Mosaic · **Grid** | See the three engines below |
+
+### The three Layout Types
+
+| Layout Type | What it does | Its config controls |
+|-------------|--------------|---------------------|
+| **Grid Layout** | Classic CSS grid — blocks occupy row/col cells and can span. Blocks get Row/Col/Span/V-Align in Properties. | Rows 1–10 (def 2), Cols 1–12 (def 3), Gap 0–50px (def 16), Edge Pad 0–60px (def 0) |
+| **Preset Layout** | Pick a canned column skeleton; drag blocks into its zones. Sets the grid shape for you. | 11 preset buttons (below) |
+| **Mosaic / Bento** | 12-column auto-flow bento grid; each block picks a size preset. No mobile preview — check mobile in live preview. | Row height 80–500px (def 200), Gap 0–32px (def 10) |
+
+### Preset Layout — all 11 zone skeletons
+
+| Preset | Shape | Preset | Shape |
+|--------|-------|--------|-------|
+| Full Width | 1 col | Sidebar + Main | 25 / 75 |
+| Two Column | 50 / 50 | Main + Sidebar | 75 / 25 |
+| Three Column | 33 / 33 / 33 | Hero + 2 Col | full row + 2 |
+| Asymmetric | 60 / 40 | Four Column | 25 × 4 |
+| Asymmetric | 40 / 60 | Banner + Content | banner + body |
+| Two Column Text | text / text | | |
+
+Chosen via \`selectPreset(id,el)\`; the active preset is highlighted. These Preset-Layout **zone skeletons** are distinct from the Block-Library **Layouts** tab, which applies full pre-built content templates.
+
+## Section Header & Footer
+
+| Control | Function | Options / default |
+|---------|----------|-------------------|
+| **Eyebrow** | \`#sectionEyebrow\` — small label above the heading. | free text |
+| **Heading** | \`#sectionHeading\` — multi-line section title (supports line breaks). | free text |
+| **Subheading** | \`#sectionSubheading\` — optional small text below heading. | free text (optional) |
+| **Header Style** | \`setHeaderVariant()\` — Centered vs Split. Split reveals the **Lead Text** textarea. | Centered / Split · **Centered** |
+| **Lead Text** | \`#sectionLead\` — only visible in Split style. | free text |
+| **Enable section footer** | \`#sectionFooterEnabled\` switch → \`toggleSectionFooter()\` reveals footer fields. | on / off · **off** |
+| **Footer left text** | \`#sectionFooterLeft\` — supports \`[em]accent[/em]\` syntax. | free text |
+| **Button label / href** | \`#sectionFooterBtnLabel\` / \`#sectionFooterBtnHref\`. | text / URL or #anchor |
+`;
+
+const FLEXIBLE_PROPERTIES = `
+# Flexible Designer — Properties Panel
+
+The right panel is **context-sensitive**: an empty prompt with nothing selected; **block-level** props when a block is selected; **sub-element** props when a sub-element is selected. Block props always start with Element Dimensions (read-only px), then Position (mode-dependent), then type-specific Settings, then Content (Edit-Content), Custom CSS and Remove.
+
+<div class="fig map">
+  <div class="fig-head"><span class="tag">Interface map</span><span class="ttl">Block properties — common frame</span></div>
+  <div class="fig-body">
+    <div class="panelmock" style="max-width:320px">
+      <div class="pm-head">&#9636; Properties</div>
+      <div class="pm-body">
+        <div class="cfgbox" style="background:#fdf6e3;border-color:#f0e0bd"><div class="lbl"><span class="cal">1</span> &#128241; Mobile Responsive Behavior</div>
+          <div class="field"><span class="dchip">Auto</span><span class="dchip">&#8596; Stretch</span><span class="dchip">&#10006; Hide</span></div>
+        </div>
+        <div class="cfgbox" style="background:var(--primary-soft);border-color:#b6d4fe"><div class="lbl"><span class="cal">2</span> &#128207; Element Dimensions</div>
+          <div class="field"><span style="font-size:15px;color:var(--primary);font-weight:700">360px</span> &times; <span style="font-size:15px;color:var(--primary);font-weight:700">240px</span></div>
+        </div>
+        <div class="cfgbox"><div class="lbl"><span class="cal">3</span> &#8597; Position &amp; Size <span style="color:#adb5bd;font-weight:400">free mode</span></div>
+          <div class="field"><label>X</label><div class="fake-range"></div><input class="fake-input" style="max-width:52px" value="40"></div>
+          <div class="field"><label>Y</label><div class="fake-range"></div><input class="fake-input" style="max-width:52px" value="60"></div>
+          <div class="field"><label>W</label><div class="fake-range"></div><input class="fake-input" style="max-width:52px" value="360"></div>
+          <div class="field"><label>H</label><div class="fake-range"></div><input class="fake-input" style="max-width:52px" value="240"></div>
+          <div class="field"><span class="dchip">&#10231; Full Width</span><span class="dchip">&#8597; Full Height</span><span class="dchip">&#8853; Center</span></div>
+        </div>
+        <div class="cfgbox"><div class="lbl"><span class="cal">4</span> &#9881; [Type] Settings</div><div style="color:#adb5bd;font-size:11px">type-specific rows &rarr;</div></div>
+        <div class="cfgbox"><div class="lbl"><span class="cal">5</span> &#128218; Content (n sub-elements)</div><div class="field"><span class="dchip pri">&#9998; Edit Content</span></div></div>
+        <div class="cfgbox"><div class="lbl"><span class="cal">6</span> &#128187; Custom CSS Override</div><div style="color:#adb5bd;font-size:11px">textarea</div></div>
+        <div class="field"><span class="dchip dgr">&#128465; Remove Block</span></div>
+      </div>
+    </div>
+  </div>
+  <ul class="callout-list" style="grid-template-columns:1fr">
+    <li><span class="cal">1</span><span><b>Responsive Behavior</b> — only in grid/mosaic tablet/mobile mode: Auto / Stretch / Hide per block.</span></li>
+    <li><span class="cal">2</span><span><b>Element Dimensions</b> — read-out of exact px W×H so you can design art to fit.</span></li>
+    <li><span class="cal">3</span><span><b>Position &amp; Size</b> — free: X/Y/W/H + Full-W/Full-H/Center. Grid: Row/Col/Spans/V-Align. Mosaic: size-preset picker.</span></li>
+    <li><span class="cal">4</span><span><b>Type Settings</b> — the per-type controls (tables below).</span></li>
+    <li><span class="cal">5</span><span><b>Content</b> — enter/exit Edit-Content to add sub-elements (non-volt blocks).</span></li>
+    <li><span class="cal">6</span><span><b>Custom CSS</b> — raw CSS override on the block; then a red Remove Block.</span></li>
+  </ul>
+  <div class="fig-cap">Grid-mode Position replaces callout 3 with Row / Column / Col Span / Row Span / V-Align (Top/Mid/Bot) + Full-Width / Full-Height / Reset 1×1. Mosaic replaces it with a Block-Size preset: Large 6×2, Medium 4×2, Small 4×1, Tall 4×2, Wide 8×1, Mid 6×1.</div>
+</div>
+
+> These tables are the exhaustive control reference. Prose usage guides for each block live on the **Block Library & Elements** page.
+
+## Type-specific block Settings
+
+### Hero
+
+| Control | Options / range | Default |
+|---------|-----------------|---------|
+| BG Type | Solid / Gradient / Image / Video | **color** |
+| Background / Gradient From-To + Angle | colors; angle 0–360° | **#1e3a5f→#312e81, 135°** |
+| BG Image / Video | media picker | — |
+| Overlay Opacity / Color | 0–80% ; color | **0% / #000** |
+| Text Color, Heading, Heading X/Y | color; text; 0–100% each | **#fff; X50 Y38** |
+| Subtext, Subtext X/Y | text; 0–100% | **X50 Y52** |
+| Show Button + Button X/Y | checkbox; 0–100% | **on; X50 Y67** |
+| Button Text / Color / Text Color / Style / Image | text; colors; Filled/Outline/Ghost; image | **Learn More, filled** |
+| Navigation Target (button) | nav dropdown + custom/tel/mailto | — |
+
+### Card
+
+| Control | Options / range | Default |
+|---------|-----------------|---------|
+| Eyebrow / Heading / Subheading / Body / Card Number / Chips | text; chips = comma list | — |
+| Bind to Package | network package dropdown; then \`{{pkg.name\\|price\\|period\\|speed\\|speedDown\\|speedUp\\|features}}\` tokens in fields | **None** |
+| Card Style | Shadow / Bordered / Flat / Elevated | **shadow** |
+| Height Mode | Fill (stretch to row) / Auto (wrap) | **fill** |
+| Background / Glass Effect | color; None / Light glass / Dark glass | **transparent / none** |
+| Inner Padding Top / Bottom / L-R / Sub-element Gap | 0–80 / 0–80 / 0–60 / 0–48 px | **16 / 16 / 20 / 12** |
+
+### Text / Text-block
+
+| Control | Options / range | Default |
+|---------|-----------------|---------|
+| Background / Glass Effect | color; None / Light / Dark glass | **transparent / none** |
+| Inner Padding Top / Bottom / L-R / Sub-element Gap | 0–100 / 0–100 / 0–80 / 0–64 px | **16 / 16 / 20 / 12** |
+
+### Banner · Stats · Image · Video · HTML · Divider
+
+| Block | Controls |
+|-------|----------|
+| **Banner** | Background, Text color, + Navigation Target (whole block links) |
+| **Stats** | Value, Label, Icon (bi-*), Background + BG Opacity 0–100%, Text Color, Animate Number (yes/no), Anim Speed 300–4000ms (def 1600) |
+| **Image** | Carousel-mode toggle. Single: Image Mode (Fill/Natural/Float-L/Float-R), Image, Alt. Carousel: Visible columns 1–3, Display mode (Static/Auto-rotate/Random), Transition (Slide/Fade/Ease/Snap), Auto-rotate interval 1–20s, editable image list |
+| **Video** | Video File + Poster Image (media pickers) |
+| **HTML** | HTML content textarea |
+| **Divider** | Thickness 1–10px (def 2), Color (def #dee2e6) |
+
+### Editorial · Steps · Photo Strip · Marquee · Packages
+
+| Block | Controls |
+|-------|----------|
+| **Editorial** | Body Text; Font Family (10 serif/sans, def Merriweather); Font Size 12–36 (def 18); Line Height 1.0–2.5 (def 1.6); Text Color; Background; **Obstacles** list — each: image (browse), Alpha-Hull toggle, X/Y 0–0.9, W/H 0.05–0.9, Padding 0–40px |
+| **Steps** | Steps list (Number / Heading / Subtext, add/remove); Number-column width 48–200px (def 100); Row dividers (def on); Last-row divider (def off) |
+| **Photo Strip** | Columns 1–8; Height 80–600px (def 220); Gap 0–32px (def 4); Hover-brightness (def on); Images list (URL / pick / remove) |
+| **Marquee** | Style (Town label / Stat value+label); Direction (Left/Right); Speed 8–80s (def 36); Separator (Star/Dot/Bar/None); Pause-on-hover (def on); Items textarea (\`value \\| label\` in stat style) |
+| **Packages** | Network (slug dropdown); Columns 1–4 (def 3); optional Heading. Renders live packages from Coverage Maps |
+
+### Volt block
+
+Volt is documented in its own package — here you only bind, slot-override and recolour layers. Volt blocks have **no sub-elements and no Edit-Content**; all content comes from the Volt design itself.
+
+| Control | Function |
+|---------|----------|
+| **Volt name + Change** | Shows the bound Volt design (name + short ID); **Change** opens Volt Studio (\`openVoltModal\`) |
+| **Content Slots** | Override Title, Body, Icon (bi-* / emoji), Image (media picker), Action label. Pushed live into the Volt preview iframe via URL params |
+| **Layer Colors** | Per vector layer: visibility checkbox + fill color; dot marks overrides; **Reset** clears all. Loaded from \`/api/public/volt/{id}\` |
+
+## Sub-element properties (per type)
+
+Selecting a sub-element shows: type-specific rows, then **Position within Block** (X/Y/W/H + "Re-stack All"), a Navigation Target (buttons only), Custom CSS, and Remove. Text types also get an Animation section and the floating format toolbar.
+
+| Sub-element | Type-specific controls |
+|-------------|------------------------|
+| **Heading** | Text; Level H1–H6; Color; Font Size 12–96 (def 22); Font Family; Align L/C/R; Weight 300–900 (def 700); Text Wrap (Wrap/Break-all/Nowrap); Line Height 0.8–2.5; Letter Spacing −3–15px; Outline rows; Animation |
+| **Paragraph** | Text; Color; Font Size 10–96 (def 14); Font Family; Align L/C/R/Justify; Text Wrap (pre-wrap/normal/nowrap); Line Height 1.0–3.0 (def 1.6); Letter Spacing; Outline; Animation |
+| **Eyebrow** | Text; Color (def #0d6efd); Font Size 9–28 (def 13); Font Family; Align; Case (UPPER/as-typed/lower/Capitalize); Letter Spacing 0–15 (def 2); Outline; Animation |
+| **Image** | Mode (Fill/Natural/Float-L/Float-R); Image (media picker) |
+| **Button** | Button Text; Variant (Filled/Outline/Ghost); Button Color; Text Color; Icon (bi-*); Animation; + Navigation Target |
+| **Badge** | Text; Background; Text Color; Animation |
+| **Divider** | Thickness 1–10px; Color |
+| **Icon** | Icon name (bi-*) + live preview; Size 16–96 (def 48); Colour; Align; Animation |
+
+### Sub-element Animation (text / button / badge / icon)
+
+| Control | Options | Notes |
+|---------|---------|-------|
+| **Effect** | None / Count Up / Zoom In / Pulse / Fade In / Slide Up / Bounce In / Blur In / Typewriter | Live page only |
+| **Duration / Delay** | 200–3000ms / 0–2000ms | Shown once an effect is chosen |
+| **Loop** | checkbox | Pulse only |
+
+### Navigation Target (banner, hero button, button sub-element)
+
+| Control | Function |
+|---------|----------|
+| **Link To** | Dropdown of nav options loaded from the CMS (pages/anchors). Selecting \`custom\`, \`tel\` or \`mailto\` reveals a free-text input for URL / tel: / mailto: |
+`;
+
+const FLEXIBLE_LAYERS_MENUS = `
+# Flexible Designer — Layers, Menus & Shortcuts
+
+Covers the **Layers tree** (right panel, bottom), the **context / right-click** behaviour, the three **floating toolbars** that attach to a selection, and the full **keyboard-shortcut** map.
+
+## Layers Tree
+
+A Figma-style hierarchy of the section. Blocks with children are collapsible groups; their sub-elements nest under them; childless blocks are leaf rows. Selecting a row syncs canvas selection; rows drag to reorder / re-nest.
+
+<div class="fig map">
+  <div class="fig-head"><span class="tag">Interface map</span><span class="ttl">Layers tree</span></div>
+  <div class="fig-body">
+    <div class="panelmock">
+      <div class="pm-head">&#9636; Layers <span style="margin-left:auto"><span class="cal">1</span> &#8645;</span></div>
+      <div class="pm-body" style="padding:6px">
+        <div class="layer sel"><span class="cal">2</span> &#9662; &#128194; <b>Hero Card</b> <span class="bdg">3</span><span class="acts"><span class="cal">4</span>&#128065; &#9998; &#10697; &#128465;</span></div>
+        <div class="layer child"><span style="visibility:hidden">&bull;</span> &#128196; "Big Title" <span class="acts">&#128065; &#10697; &#128465;</span></div>
+        <div class="layer child"><span style="visibility:hidden">&bull;</span> &#182; "Body copy" <span class="acts">&#128065; &#10697; &#128465;</span></div>
+        <div class="layer"><span class="cal">3</span> &bull; &#128444; <b>Image</b> <span class="acts">&#128065; &#9998; &#10697; &#128465;</span></div>
+      </div>
+    </div>
+  </div>
+  <ul class="callout-list" style="grid-template-columns:1fr">
+    <li><span class="cal">1</span><span><b>Collapse/expand all</b> — <code>toggleAllLayerGroups()</code> header button.</span></li>
+    <li><span class="cal">2</span><span><b>Group row</b> — caret collapses children; icon + name + child count. Double-click name to rename.</span></li>
+    <li><span class="cal">3</span><span><b>Leaf row</b> — a childless block.</span></li>
+    <li><span class="cal">4</span><span><b>Per-row actions</b> — Show/hide (eye), Rename (blocks only, pencil), Duplicate (copy), Delete (trash).</span></li>
+  </ul>
+  <div class="fig-cap">Drag a row to reorder; drag a sub-element onto a group to re-parent it. Rename writes <code>props.label</code>. Hidden rows dim; the eye toggles <code>block.hidden</code>/<code>se.hidden</code>.</div>
+</div>
+
+| Element / action | Function | Use case |
+|------------------|----------|----------|
+| **Caret** | Collapse / expand a group's children | Tame long trees |
+| **Row click** | Select the block or sub-element (syncs canvas + properties) | Navigate deep nesting |
+| **Double-click name** | Inline rename (blocks) → \`props.label\` | Name your blocks |
+| **Eye** | Show / hide element on canvas + render | Temporarily hide |
+| **Pencil** | Rename group / leaf block | Rename via button |
+| **Copy** | Duplicate block (fresh child IDs) or sub-element (offset +16px) | Clone quickly |
+| **Trash** | Delete the block or sub-element | Remove |
+| **Drag row** | Reorder siblings; drop a sub onto a group to re-nest | Restructure hierarchy |
+
+## Right-click / Context menus
+
+The designer intentionally uses **floating menus** rather than a canvas right-click menu — most per-element actions live on the mini action toolbar. The only genuine right-click (contextmenu) handler is on **ruler guide lines**.
+
+| Where | Right-click / context behaviour |
+|-------|---------------------------------|
+| **Ruler guide line** | Right-click (or double-click) a guide line → deletes that guide (\`deleteGuide\`). Guides are created by dragging from a ruler edge |
+| **Canvas & blocks** | No custom right-click menu — browser default appears. Element actions are on the floating toolbars. The grid drop-conflict popup (Replace/Stack/Cancel) is drop-triggered, not right-click |
+
+<div class="fig-warn"><b>Note:</b> there is no full canvas right-click menu (cut/copy/paste/bring-to-front). That surface is covered entirely by the floating toolbars below.</div>
+
+## Floating menus & toolbars
+
+Three floating surfaces attach to the current selection: the **mini action toolbar**, the **text-format toolbar**, and the **+ Add-element menu**. Each is a collapsed pill that expands on hover; both toolbars re-anchor to the selected element and clamp on-screen.
+
+<div class="two">
+  <div class="fig control" style="margin:0">
+    <div class="fig-head"><span class="tag">Control mockup</span><span class="ttl">Mini action toolbar</span></div>
+    <div class="fig-body">
+      <div style="display:inline-flex;flex-direction:column;gap:4px;border:1px solid var(--line);border-radius:9px;padding:6px;background:#fff">
+        <span class="dchip" style="justify-content:center">&#43; Add Sub-Element</span>
+        <span class="dchip" style="justify-content:center">&#9998; Edit Content</span>
+        <span class="dchip" style="justify-content:center">&#10697; Duplicate Block</span>
+        <span class="dchip" style="justify-content:center">&#128268; Snap sub-els (8px)</span>
+        <span class="dchip dgr" style="justify-content:center">&#128465; Delete Block</span>
+      </div>
+    </div>
+    <div class="fig-cap">Collapsed "+" pill off the block's right edge; expands downward. Add + Snap show only for card/text/banner/stats. <b>Edit</b> on a volt block opens Volt Studio instead.</div>
+  </div>
+  <div class="fig control" style="margin:0">
+    <div class="fig-head"><span class="tag">Control mockup</span><span class="ttl">Text-format toolbar</span></div>
+    <div class="fig-body">
+      <div style="display:inline-flex;gap:5px;align-items:center;border:1px solid var(--line);border-radius:9px;padding:6px 8px;background:#fff;flex-wrap:wrap;font-size:11.5px">
+        <span class="dchip" style="padding:3px 6px">Tt</span><span class="dchip" style="padding:3px 6px">AB</span><span class="dchip" style="padding:3px 6px">ab</span><span class="dchip" style="padding:3px 6px">Ab</span>
+        <span style="color:var(--line)">|</span>
+        <span class="dchip" style="padding:3px 6px">&#8676;</span><span class="dchip" style="padding:3px 6px">&#8596;</span><span class="dchip" style="padding:3px 6px">&#8677;</span><span class="dchip" style="padding:3px 6px">&#8801;</span>
+        <span style="color:var(--line)">|</span>
+        <span class="dchip" style="padding:3px 6px">Font &#9662;</span><span class="dchip" style="padding:3px 6px">18</span><span style="width:18px;height:16px;border-radius:3px;border:1px solid #0002;display:inline-block;background:#1c2333"></span>
+        <span style="color:var(--line)">|</span>
+        <span class="dchip" style="padding:3px 6px">&#84; outline</span>
+      </div>
+    </div>
+    <div class="fig-cap">Appears for heading / paragraph / eyebrow children. Collapsed round "A" pill above the element's top-right; hover expands. Hidden during multi-select. Outline toggle reveals outline colour + width when on.</div>
+  </div>
+</div>
+
+| Toolbar | Buttons |
+|---------|---------|
+| **Mini action toolbar** | **Add Sub-Element** (opens + menu), **Edit Content**, **Duplicate Block**, **Snap sub-elements to 8px** (toggle), **Delete Block**. Add/Snap conditional on block type |
+| **Text-format toolbar** | **Case** (As-typed / UPPERCASE / lowercase / Capitalize), **Align** (left/center/right/justify), **Font family** select, **Font size** number, **Text colour**, **Outline** toggle (+ outline colour & width 0.5–8px when on) |
+| **+ Add-element menu** | For text blocks, top = **Quick Presets** (Single/Two/Three-column skeletons). Then individual items: text blocks list H1–H6 + Eyebrow + Paragraph + Button; other blocks list Heading/Eyebrow/Paragraph/Button/Image/Icon/Badge/Divider |
+
+## Keyboard shortcuts
+
+| Key | Action |
+|-----|--------|
+| **Ctrl/Cmd + Z** | Undo (up to 10 steps) |
+| **Ctrl/Cmd + = / +** | Zoom in |
+| **Ctrl/Cmd + −** | Zoom out |
+| **Ctrl/Cmd + 0** | Reset zoom to 100% |
+| **Ctrl/Cmd + scroll** | Zoom canvas in/out |
+| **S** | Toggle pixel-grid snap (when not typing in a field) |
+| **Esc** | Clear current selection (single or multi); exit edit mode |
+| **Delete / Backspace** | Delete selected sub-element / block / whole multi-selection |
+| **← ↑ → ↓** | Nudge selected element 1px |
+| **Shift + arrows** | Nudge 10px |
+| **Shift + click** | Add / remove a sub-element in the multi-selection |
+| **Enter** (editing text) | Commit inline text edit (except paragraph, which keeps newlines); Esc also commits |
+`;
+
+const FLEXIBLE_WRAPPER = `
+# Flexible Designer — Wrapper Modal & Save
+
+The designer runs inside an iframe (\`/flexible-designer.html\`) launched full-screen from the **section wrapper modal** (\`FlexibleSectionEditorModal\`). The wrapper owns **section-level** config (background, animation, overlay, intro, lower-third, motion, spacing, scroll-stage) around the layout the designer produces. The layout itself is always authored in the designer iframe.
+
+<div class="fig map">
+  <div class="fig-head"><span class="tag">Interface map</span><span class="ttl">Wrapper modal shell</span></div>
+  <div class="fig-body">
+    <div class="panelmock" style="max-width:560px">
+      <div class="pm-head" style="text-transform:none;font-size:12px">&#9638; Edit Flexible Section <span style="margin-left:auto">&times;</span></div>
+      <div class="pm-body">
+        <div class="field"><label style="min-width:auto"><span class="cal">1</span> Section Name</label><input class="fake-input" value="Features Grid"></div>
+        <div class="libtabs" style="margin-top:10px">
+          <span class="cal">2</span>
+          <span class="libtab on">Content</span><span class="libtab">Background</span><span class="libtab">Animation</span>
+          <span class="libtab">Overlay</span><span class="libtab">Intro</span><span class="libtab">Lower Third</span>
+          <span class="libtab">Motion</span><span class="libtab">Spacing</span><span class="libtab">Scroll Stage*</span>
+        </div>
+        <div class="cfgbox" style="margin-top:10px"><div class="lbl"><span class="cal">3</span> Content Height Mode</div>
+          <div class="field"><span class="dchip pri">&#9974; Single (100vh)</span><span class="dchip">&#8597; Multi (&gt;100vh)</span></div>
+          <div class="field"><span class="cal">4</span> <span class="dchip pri">&#9998; Open / Edit in Designer</span> <span style="font-size:11px;color:var(--muted)">&rarr; launches the iframe</span></div>
+        </div>
+        <div class="field" style="justify-content:flex-end"><span class="cal">5</span><span class="dchip">Cancel</span><span class="dchip pri">Save Only</span><span class="dchip pri" style="background:var(--primary);color:#fff">Save &amp; Close</span></div>
+      </div>
+    </div>
+  </div>
+  <ul class="callout-list">
+    <li><span class="cal">1</span><span><b>Section Name</b> — admin-only label for the section.</span></li>
+    <li><span class="cal">2</span><span><b>Tabs</b> — 8 section tabs (+ Scroll Stage only in Multi mode).</span></li>
+    <li><span class="cal">3</span><span><b>Content Height Mode</b> — Single / Multi (mirrors the designer's Content Mode).</span></li>
+    <li><span class="cal">4</span><span><b>Open Designer</b> — launches the full-screen flexible-designer iframe.</span></li>
+    <li><span class="cal">5</span><span><b>Footer</b> — Cancel / Save Only / Save &amp; Close (unsaved-changes warning shown).</span></li>
+  </ul>
+  <div class="fig-cap">The designer's own Save/Done write a draft + postMessage; the wrapper's footer Save is what actually commits section data. An "Unsaved — designer changes aren't saved until you click Save here" banner appears when dirty.</div>
+</div>
+
+## Wrapper tabs (section chrome around the layout)
+
+These tabs configure **section-level** chrome — each is a deep feature documented on its own page. They are enumerated here for completeness; cross-references point to the authoritative topic.
+
+| Wrapper tab | Section-level purpose | See |
+|-------------|-----------------------|-----|
+| **Content** | Content Height Mode (Single/Multi) + **Open Designer** launcher + inline block list | This designer package |
+| **Background** | Solid / Gradient / Image background: palette + custom hex, harmony palette generator, image (size/position/repeat/opacity/parallax/gradient-mask fade), gradient (direction/opacity) | Section Editor → Background Tab |
+| **Animation** | Section entrance / scroll AnimBg settings | Section Animations (AnimBg) |
+| **Overlay** | Optional overlay heading/subheading band over the section | Section Editor → Text Overlay Tab |
+| **Intro (triangle)** | Section "Intro" shapes / reveal | Section Editor → Section Intro Tab |
+| **Lower Third** | Broadcast-style lower-third element at the section bottom | Animations & Motion → Lower Third Graphic |
+| **Motion** | Parallax motion-element overlay images | Animations & Motion → Motion & Parallax Elements |
+| **Spacing** | Section padding top / bottom | Section Editor → Spacing Tab |
+| **Scroll Stage** | Multi-mode only: scroll-stage zones (snap/free, side, per-zone visual & parallax) | Scroll Stage (Parallax Zones) |
+
+## iframe messaging protocol
+
+<div class="fig diagram">
+  <div class="fig-head"><span class="tag">Diagram</span><span class="ttl">postMessage handshake (wrapper ⇄ designer iframe)</span></div>
+  <div class="fig-body" style="align-items:stretch">
+    <div class="flow">
+      <span class="step">iframe loads</span><span class="arr">&rarr;</span>
+      <span class="step"><code>FLEXIBLE_DESIGNER_READY</code> (iframe→parent)</span><span class="arr">&rarr;</span>
+      <span class="step"><code>FLEXIBLE_DESIGNER_INIT</code> + payload (parent→iframe) · reveals <b>Done</b></span>
+    </div>
+    <div class="flow">
+      <span class="step">Save → <code>FLEXIBLE_DESIGNER_SAVE</code> + JSON</span>
+      <span class="step">Preview → <code>SAVE</code> then <code>FLEXIBLE_DESIGNER_PREVIEW</code></span>
+      <span class="step">Done → <code>FLEXIBLE_DESIGNER_DONE</code> (parent closes iframe)</span>
+    </div>
+  </div>
+  <div class="fig-cap">The INIT payload carries the existing layout (blocks, positionMode, layoutType, grid/mosaic config) plus the section background for the canvas BG preview. Drafts are mirrored to <code>localStorage['cms_layout_draft']</code>.</div>
+</div>
 `;
 
 const HERO_CAROUSEL = `
@@ -6525,8 +7091,13 @@ export const DOC_TOPICS: DocTopic[] = [
     icon: "bi-grid-1x2",
     children: [
       { id: "flex-overview", label: "Designer Overview", icon: "bi-info-circle", content: FLEXIBLE_OVERVIEW },
-      { id: "flex-elements", label: "Element Types", icon: "bi-collection", content: FLEXIBLE_ELEMENTS },
+      { id: "flex-toolbar", label: "Toolbar & Canvas", icon: "bi-tools", content: FLEXIBLE_TOOLBAR },
+      { id: "flex-config", label: "Section Configuration", icon: "bi-columns-gap", content: FLEXIBLE_CONFIG },
+      { id: "flex-elements", label: "Block Library & Elements", icon: "bi-collection", content: FLEXIBLE_ELEMENTS },
+      { id: "flex-properties", label: "Properties Panel", icon: "bi-sliders", content: FLEXIBLE_PROPERTIES },
       { id: "flex-styling", label: "Element Styling", icon: "bi-palette", content: FLEXIBLE_STYLING },
+      { id: "flex-layers", label: "Layers, Menus & Shortcuts", icon: "bi-list-nested", content: FLEXIBLE_LAYERS_MENUS },
+      { id: "flex-wrapper", label: "Wrapper Modal & Save", icon: "bi-window-stack", content: FLEXIBLE_WRAPPER },
       { id: "flex-animations", label: "Section Animations (AnimBg)", icon: "bi-layers", content: FLEXIBLE_ANIMATIONS },
       { id: "flex-scroll-stage", label: "Scroll Stage (Parallax Zones)", icon: "bi-layers-half", content: SCROLL_STAGE_DOCS },
     ],
