@@ -879,6 +879,72 @@ export default function DocumentsPage() {
         .docs-md blockquote { border-left: 4px solid #0d6efd; background: #f0f7ff; padding: 0.6rem 1rem; margin: 0.85rem 0; border-radius: 0 6px 6px 0; }
         .docs-md blockquote p { color: #084298; margin: 0; font-size: 0.85rem; }
 
+        /* ── Pages package — control-mockup, data-table, pill & note chrome (mirrors approved mockup) ── */
+        .docs-md .mk{width:100%;font-size:13px;color:var(--ink)}
+        .docs-md .mk-card{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;width:100%;box-shadow:0 1px 3px rgba(20,30,55,.06)}
+        .docs-md .mk-modalhead{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line);background:#fff}
+        .docs-md .mk-modalhead .t{font-weight:600;display:flex;align-items:center;gap:8px}
+        .docs-md .mk-x{color:var(--faint);font-weight:700}
+        .docs-md .mk-body{padding:16px}
+        .docs-md .mk-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid var(--line);background:#fbfcfe}
+        .docs-md .f{display:block;font-weight:600;font-size:12.5px;margin:0 0 5px;color:var(--ink)}
+        .docs-md .req{color:#dc3545}
+        .docs-md .inp{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #ced4da;border-radius:7px;padding:8px 11px;color:var(--muted);font-size:13px;width:100%}
+        .docs-md .inp .ph{color:var(--faint)}
+        .docs-md .help{font-size:11.5px;color:var(--faint);margin-top:5px}
+        .docs-md .grp{margin-bottom:15px}
+        .docs-md .btn{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;border-radius:7px;padding:7px 13px;border:1px solid transparent;white-space:nowrap}
+        .docs-md .btn.p{background:var(--primary);color:#fff}
+        .docs-md .btn.g{background:#fff;border-color:#ced4da;color:var(--muted)}
+        .docs-md .btn.w{background:#ca8a04;color:#fff}
+        .docs-md .btn.i{background:#0dcaf0;color:#053b44}
+        .docs-md .btn.sm{padding:5px 9px;font-size:11.5px}
+        .docs-md .opt{display:flex;gap:11px;align-items:flex-start;width:100%;text-align:left;border:1px solid #ced4da;border-radius:8px;padding:11px 13px;background:#fff;margin-bottom:8px}
+        .docs-md .opt.on{border-color:var(--primary);background:#f5f9ff;box-shadow:0 0 0 2px var(--primary-soft)}
+        .docs-md .opt .oi{font-size:16px;color:var(--primary);margin-top:1px}
+        .docs-md .opt strong{font-size:13px;color:var(--ink)}
+        .docs-md .opt .od{font-size:11.5px;color:var(--faint);margin-top:2px}
+        .docs-md .opt .chk{margin-left:auto;color:var(--primary)}
+        .docs-md .pill.blue,.docs-md .pill.red,.docs-md .pill.green,.docs-md .pill.info,.docs-md .pill.warn,.docs-md .pill.purple,.docs-md .pill.grey{border:1px solid transparent;padding:2px 8px;border-radius:999px;font-weight:600;font-size:11px}
+        .docs-md .pill.blue{background:var(--primary-soft);color:var(--primary-ink)}
+        .docs-md .pill.red{background:#fde2e4;color:#a01926}
+        .docs-md .pill.green{background:#e8f7ee;color:#12633f}
+        .docs-md .pill.info{background:#d6f5fb;color:#0a6b7d}
+        .docs-md .pill.warn{background:#fff2d8;color:#8a5a00}
+        .docs-md .pill.purple{background:#efeafe;color:#5a34c7}
+        .docs-md .pill.grey{background:#eef1f6;color:#5b6472}
+        .docs-md .toolbar-strip{display:flex;flex-wrap:wrap;gap:6px;width:100%}
+        .docs-md .tbtn{display:inline-flex;align-items:center;gap:5px;border:1px solid #ced4da;background:#fff;border-radius:6px;padding:5px 9px;font-size:11.5px;color:var(--muted)}
+        .docs-md .tbtn.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+        .docs-md .note{border-left:3px solid var(--primary);background:#f7faff;border-radius:0 8px 8px 0;padding:11px 14px;margin:16px 0;font-size:13px;color:var(--muted)}
+        .docs-md .note.warn{border-color:#ca8a04;background:#fffbf0}
+        .docs-md .note.xref{border-color:#7c3aed;background:#f9f7ff}
+        .docs-md .note b{color:var(--ink)}
+        .docs-md .callout{font-weight:600;font-size:11px}
+        .docs-md .scroll-x{overflow-x:auto}
+        .docs-md table.t{width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;border:0;border-radius:0;margin:0}
+        .docs-md table.t thead{background:#f2f5fa;color:inherit}
+        .docs-md table.t th{background:#f2f5fa;text-align:left;font-size:11px;letter-spacing:.03em;text-transform:uppercase;color:var(--faint);padding:8px 10px;border-bottom:1px solid var(--line);font-weight:600}
+        .docs-md table.t td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top;color:var(--muted);white-space:normal}
+        .docs-md table.t td:first-child{font-weight:inherit;white-space:normal;color:var(--muted)}
+        .docs-md table.t tbody tr{background:#fff}
+        .docs-md table.t tbody tr:hover{background:#f7faff}
+        .docs-md table.t tr:last-child td{border-bottom:none}
+        .docs-md table.t code{background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:1px 5px;font-size:11.5px}
+        .docs-md .tnote{font-size:11px;color:var(--faint)}
+        .docs-md .params{margin:16px 0}
+        .docs-md .params caption{caption-side:top;text-align:left;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:0 0 8px}
+        .docs-md .params table{width:100%;border-collapse:collapse;font-size:13px;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:0}
+        .docs-md .params thead{background:#f2f5fa;color:inherit}
+        .docs-md .params th{background:#f2f5fa;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);padding:9px 12px;border-bottom:1px solid var(--line);font-weight:600}
+        .docs-md .params td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top;color:var(--muted);white-space:normal}
+        .docs-md .params td:first-child{font-weight:600;white-space:nowrap;color:var(--ink)}
+        .docs-md .params tbody tr{background:#fff}
+        .docs-md .params tbody tr:hover{background:#f7faff}
+        .docs-md .params tr:last-child td{border-bottom:none}
+        .docs-md .params code{background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:1px 5px;font-size:12px}
+        .docs-md .params .def{color:var(--faint);font-size:12px}
+
         /* ── Mobile ── */
         @media (max-width: 767px) {
           .docs-shell { flex-direction: column; height: auto; overflow: visible; }

@@ -2512,97 +2512,118 @@ Click **"Switch to Classic"** to return to a single heading string (all row data
 const PAGES_SYSTEM = `
 # Pages System
 
-The Pages system lets you create additional routes beyond the landing page.
-Access via **Admin → Content → Pages**.
+The **Pages** area manages every standalone, navigable route on the site — everything that is *not* the landing page. One list, five page types, and per-page controls for publishing, SEO, and linking. Access via **Admin → Content → Pages**.
+
+A page is a row in the \`Page\` table with a unique **slug** (its URL), a **type** that decides how it is authored and rendered, and two independent state axes: **enabled** (is the route live at all) and **status** (DRAFT vs PUBLISHED). These two are often confused — the first figure separates them.
+
+<div class="fig diagram"><span class="tag">Diagram</span><div class="fig-body"><svg viewBox="0 0 720 250" role="img" aria-label="Page anatomy"><rect x="16" y="20" width="688" height="46" rx="8" fill="#fff" stroke="#e4e8ef"/><text x="30" y="40" font-size="11" font-weight="600" fill="#8a93a3">PUBLIC URL</text><text x="30" y="58" font-family="monospace" font-size="15" font-weight="700" fill="#1c2333">https://www.example.com<tspan fill="#0d6efd">/about-us</tspan></text><text x="560" y="52" font-size="11" font-weight="600" fill="#0a4bc2">← the slug</text><rect x="16" y="86" width="220" height="66" rx="8" fill="#e7f0ff" stroke="#cfe0ff"/><text x="30" y="108" font-size="11" font-weight="700" fill="#0a4bc2">TYPE</text><text x="30" y="128" font-size="13" font-weight="600" fill="#1c2333">full · designer · pdf</text><text x="30" y="144" font-size="13" font-weight="600" fill="#1c2333">form · standalone</text><rect x="250" y="86" width="220" height="66" rx="8" fill="#e8f7ee" stroke="#bfe6cf"/><text x="264" y="108" font-size="11" font-weight="700" fill="#12633f">ENABLED (boolean)</text><text x="264" y="128" font-size="13" font-weight="600" fill="#1c2333">Enabled → route live</text><text x="264" y="144" font-size="13" font-weight="600" fill="#5b6472">Disabled → 404 / hidden</text><rect x="484" y="86" width="220" height="66" rx="8" fill="#fff2d8" stroke="#ffe0a3"/><text x="498" y="108" font-size="11" font-weight="700" fill="#8a5a00">STATUS</text><text x="498" y="128" font-size="13" font-weight="600" fill="#1c2333">DRAFT → PUBLISHED</text><text x="498" y="144" font-size="13" font-weight="600" fill="#5b6472">(ARCHIVED)</text><rect x="16" y="172" width="688" height="62" rx="8" fill="#fbfcfe" stroke="#e4e8ef"/><text x="30" y="192" font-size="11" font-weight="600" fill="#8a93a3">ALSO ON THE ROW</text><text x="30" y="214" font-size="12" fill="#5b6472">SEO fields (metaTitle, metaDescription, og*, canonical, noindex/nofollow) · homepage flag</text><text x="30" y="230" font-size="12" fill="#5b6472">nav fields (showOnNavbar, navLabel, navOrder) · type payload (formConfig / customHtml+customCss / sections)</text></svg></div><div class="fig-cap"><b>Anatomy of a page</b> — one slug, one type, two independent state flags, plus SEO / nav / payload attached to the same row.</div></div>
+
+## The five page types
+
+<div class="params scroll-x"><table><caption>The five page types (types/page.ts · PageType)</caption><thead><tr><th>Type</th><th>List label</th><th>Authored with</th><th>Use it when…</th></tr></thead><tbody><tr><td><code>full</code></td><td>Full Page / Sections</td><td>Section editor + Flexible Designer (100vh snap sections)</td><td>A normal multi-section content page like the landing page.</td></tr><tr><td><code>designer</code></td><td>Designer Page</td><td>Full-screen Flexible Designer, unbounded canvas (no snap)</td><td>A free-form visual page taller than one screen, drag-and-drop.</td></tr><tr><td><code>pdf</code></td><td>PDF Document</td><td>PDF editor modal (URL + display mode)</td><td>You just need to show or hand out a PDF document.</td></tr><tr><td><code>form</code></td><td>Contact Form</td><td>Form editor modal (fields + submit action)</td><td>A contact / inquiry form that emails or webhooks submissions.</td></tr><tr><td><code>standalone</code></td><td>Standalone HTML</td><td>Monaco HTML/CSS editor, CMS variables</td><td>Pasting raw HTML/CSS from a design tool with zero CMS chrome.</td></tr></tbody></table></div>
+
+<div class="note"><b>Note.</b> The Prisma <code>PageType</code> enum also defines <code>LANDING</code>, <code>TAB_PAGE</code> and <code>GALLERY</code>; the Pages list only surfaces the five above (it filters to <code>full/pdf/form/designer/standalone</code>). Each type has its own topic in this section.</div>
+
+## The Pages list & stats
+
+The landing screen: seven stat tiles across the top, a pill filter bar (one pill per type plus Features and a right-aligned Submissions), and a table of every page with a compact action cluster on each row.
+
+<div class="fig map"><span class="tag">Interface map</span><div class="fig-body"><div class="mk"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div><div style="font-weight:700;font-size:16px">Pages</div><div style="font-size:11.5px;color:#8a93a3">Manage navigable pages (separate from landing page)</div></div><span class="btn p">＋ Create Page</span></div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:12px"><div class="mk-card" style="padding:9px 11px"><div style="font-size:10px;color:#8a93a3">Total Pages</div><div style="font-size:19px;font-weight:700">12</div></div><div class="mk-card" style="padding:9px 11px;border-left:3px solid #0d6efd"><div style="font-size:10px;color:#8a93a3">Section</div><div style="font-size:19px;font-weight:700;color:#0d6efd">3</div></div><div class="mk-card" style="padding:9px 11px"><div style="font-size:10px;color:#8a93a3">PDF</div><div style="font-size:19px;font-weight:700;color:#dc3545">2</div></div><div class="mk-card" style="padding:9px 11px"><div style="font-size:10px;color:#8a93a3">Form</div><div style="font-size:19px;font-weight:700;color:#198754">2</div></div><div class="mk-card" style="padding:9px 11px"><div style="font-size:10px;color:#8a93a3">Designer</div><div style="font-size:19px;font-weight:700;color:#0dcaf0">3</div></div><div class="mk-card" style="padding:9px 11px;border-left:3px solid #ca8a04"><div style="font-size:10px;color:#8a93a3">Standalone</div><div style="font-size:19px;font-weight:700;color:#ca8a04">1</div></div><div class="mk-card" style="padding:9px 11px;border-left:3px solid #7c3aed"><div style="font-size:10px;color:#8a93a3">Feature</div><div style="font-size:19px;font-weight:700;color:#7c3aed">2</div></div></div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center"><span class="tbtn on">All Pages (12)</span><span class="tbtn">▤ Sections (3)</span><span class="tbtn">▤ PDFs (2)</span><span class="tbtn">▤ Forms (2)</span><span class="tbtn">▤ Designer (3)</span><span class="tbtn" style="color:#ca8a04">▤ Standalone (1)</span><span class="tbtn" style="color:#7c3aed">▤ Features (2)</span><span class="tbtn" style="margin-left:auto;color:#0d6efd">✉ Submissions <span class="pill blue">4</span></span></div><div class="mk-card"><table class="t"><thead><tr><th style="width:34%">Page</th><th>Type</th><th>Status</th><th>Updated</th><th style="text-align:right">Actions</th></tr></thead><tbody><tr><td><div style="font-weight:600">About Us <span class="pill green">⌂ Homepage</span></div><code style="color:#0d6efd">/about-us</code> ↗</td><td><span class="pill blue">▤ Full Page</span></td><td><span class="pill green">Enabled</span></td><td class="tnote">2026-07-02</td><td><div style="display:flex;gap:4px;justify-content:flex-end"><span class="btn p sm">✎</span><span class="btn g sm" style="color:#0dcaf0">🔍</span><span class="btn g sm" style="color:#ca8a04">◐</span><span class="btn g sm">⧉</span><span class="btn g sm">⌂</span><span class="btn g sm" style="color:#dc3545">🗑</span></div></td></tr><tr><td><div style="font-weight:600">Brochure</div><code style="color:#0d6efd">/brochure</code> ↗</td><td><span class="pill red">▤ PDF Document</span></td><td><span class="pill green">Enabled</span></td><td class="tnote">2026-06-10</td><td><div style="display:flex;gap:4px;justify-content:flex-end;opacity:.85"><span class="btn p sm">✎</span><span class="btn g sm">🔍</span><span class="btn g sm">◐</span><span class="btn g sm">⧉</span><span class="btn g sm">⌂</span><span class="btn g sm">🗑</span></div></td></tr><tr style="opacity:.5"><td><div style="font-weight:600">Old Promo</div><code style="color:#0d6efd">/old-promo</code> ↗</td><td><span class="pill warn">▤ Standalone HTML</span></td><td><span class="pill grey">Disabled</span></td><td class="tnote">2026-05-09</td><td><div style="display:flex;gap:4px;justify-content:flex-end"><span class="btn w sm">&lt;/&gt;</span><span class="btn g sm">🔍</span><span class="btn g sm">◉</span><span class="btn g sm">⧉</span><span class="btn g sm">⌂</span><span class="btn g sm">🗑</span></div></td></tr></tbody></table></div></div></div><div class="fig-cap"><b>Pages list</b> — stat tiles ▸ type filter pills ▸ table. Disabled pages render at 50% opacity; the row's edit button colour and icon change with the page type.</div></div>
+
+<div class="params scroll-x"><table><caption>Row action cluster (right → left as coded)</caption><thead><tr><th>Icon</th><th>Action</th><th>Behaviour</th><th>Notes</th></tr></thead><tbody><tr><td>✎ / ▤ / &lt;/&gt;</td><td>Edit</td><td>Opens the type-specific editor</td><td>Full → route <code>/admin/page-editor/{slug}</code>; Designer → info ▤ icon; PDF/Form → blue modal; Standalone → warning &lt;/&gt; modal.</td></tr><tr><td>🔍</td><td>SEO settings</td><td>Opens the SEO modal for that page</td><td>Outline-info button. See <b>Publishing &amp; SEO</b>.</td></tr><tr><td>◐ / ◉</td><td>Enable / Disable</td><td>Toggles <code>enabled</code></td><td>Eye-slash (warning) when live, eye (success) when disabled.</td></tr><tr><td>⧉</td><td>Duplicate</td><td>Clones the page via <code>/duplicate</code></td><td>New slug auto-suffixed server-side.</td></tr><tr><td>⌂</td><td>Set as homepage</td><td>Points <code>/</code> at this page (site-config)</td><td>Filled house + green when active; click again clears → default landing page.</td></tr><tr><td>🗑</td><td>Delete</td><td>Confirm dialog, then removes the page</td><td>In-app confirm modal (never a native <code>confirm()</code>). Removes the page and all its sections.</td></tr></tbody></table></div>
+
+<div class="note"><b>Status column ≠ publish state.</b> The <b>Status</b> column shows the <code>enabled</code> flag (Enabled/Disabled), <i>not</i> DRAFT/PUBLISHED. Publish state lives in the section-page editor and is what gates linkability (see <b>Publishing &amp; SEO</b>).</div>
+
+## Creating a page: title → slug → type
+
+"Create Page" opens a small modal. You type a **title**, the **slug** is auto-generated from it, and you pick the page **type** from a stack of description cards. Type defaults to **Designer**. Plugin-provided page types append below the built-ins when any plugin registers them.
+
+<div class="fig control"><span class="tag">Control mockup</span><div class="fig-body"><div class="mk-card" style="max-width:460px"><div class="mk-modalhead"><span class="t">Create New Page</span><span class="mk-x">✕</span></div><div class="mk-body"><div class="grp"><label class="f">Page Title</label><div class="inp"><span class="ph">About Us</span></div><div class="help">URL slug will be generated automatically (e.g., "about-us")</div></div><div class="grp"><label class="f">Page Type</label><div class="opt on"><span class="oi">▤</span><div><strong>Designer Page</strong><div class="od">Visual drag-and-drop page builder — unlimited height, no snap constraints</div></div><span class="chk">✔</span></div><div class="opt"><span class="oi">&lt;/&gt;</span><div><strong>Standalone HTML</strong><div class="od">Paste raw HTML/CSS from design tools — no CMS constraints, full design freedom</div></div></div><div class="opt"><span class="oi">▤</span><div><strong>PDF Document</strong><div class="od">Display a PDF document with embed/download options</div></div></div><div class="opt"><span class="oi">☑</span><div><strong>Contact Form</strong><div class="od">Create a contact or inquiry form with custom fields</div></div></div><div style="text-align:center;margin:8px 0 4px"><span class="pill grey">Plugin Page Types</span></div><div class="opt"><span class="oi">◆</span><div><strong>Gallery</strong> <span class="pill grey">Media Plugin</span><div class="od">Registered by an installed plugin via /api/admin/plugins/page-types</div></div></div></div></div><div class="mk-foot"><span class="btn g">Cancel</span><span class="btn p">＋ Create Page</span></div></div></div><div class="fig-cap"><b>Create Page modal</b> — four built-in type cards (Designer selected by default) plus any plugin-registered types. Note: <b>Full/Section</b> pages are not offered here.</div></div>
+
+<div class="params scroll-x"><table><caption>Create fields &amp; slug rules (lib/page-manager.ts)</caption><thead><tr><th>Field</th><th>Function</th><th>Options / rules</th><th>Default</th></tr></thead><tbody><tr><td>Page Title</td><td>Admin display name; seeds the slug</td><td>Required, non-empty</td><td class="def">—</td></tr><tr><td>Slug (auto)</td><td>URL path <code>/{slug}</code></td><td>Lowercased, spaces→<code>-</code>, strips non <code>[a-z0-9-]</code>; must be unique</td><td class="def">from title</td></tr><tr><td>Page Type</td><td>Chooses author + render pipeline</td><td><code>designer</code> · <code>standalone</code> · <code>pdf</code> · <code>form</code> · <code>plugin:*</code></td><td class="def"><code>designer</code></td></tr><tr><td>enabled</td><td>Route live on creation</td><td>boolean</td><td class="def"><code>true</code></td></tr></tbody></table></div>
+
+<div class="fig diagram"><span class="tag">Diagram</span><div class="fig-body"><svg viewBox="0 0 700 150" role="img" aria-label="Slug generation"><rect x="10" y="20" width="150" height="44" rx="7" fill="#fff" stroke="#e4e8ef"/><text x="20" y="40" font-size="11" font-weight="600" fill="#8a93a3">TITLE</text><text x="20" y="57" font-size="13" font-weight="600" fill="#1c2333">"About Us!"</text><text x="172" y="47" fill="#8a93a3">→</text><rect x="190" y="20" width="200" height="44" rx="7" fill="#e7f0ff" stroke="#cfe0ff"/><text x="202" y="40" font-size="11" font-weight="600" fill="#0a4bc2">generateSlug()</text><text x="202" y="57" font-family="monospace" font-size="13" font-weight="600" fill="#0a4bc2">about-us</text><text x="400" y="47" fill="#8a93a3">→</text><rect x="418" y="20" width="272" height="44" rx="7" fill="#fff2d8" stroke="#ffe0a3"/><text x="430" y="40" font-size="11" font-weight="600" fill="#8a5a00">validateSlugFormat()</text><text x="430" y="57" font-size="12" fill="#8a5a00">unique · not a reserved slug</text><rect x="10" y="86" width="680" height="52" rx="7" fill="#fbfcfe" stroke="#e4e8ef"/><text x="22" y="105" font-size="11" font-weight="600" fill="#8a93a3">RESERVED (rejected)</text><text x="22" y="124" font-family="monospace" font-size="12" fill="#5b6472">admin · api · _next · images · uploads · home · index · landing-page · editor …</text></svg></div><div class="fig-cap"><b>Slug pipeline</b> — the title is slugified, then validated for format, uniqueness, and against the reserved-slug list before the page is created.</div></div>
+
+## Reserved Slugs
+
+These slugs cannot be used (they conflict with existing routes):
+
+\`admin\`, \`api\`, \`_next\`, \`images\`, \`uploads\`, \`home\`, \`index\`, \`landing-page\`, \`editor\`
 
 ---
 
-## Page Types
+## Where to go next
 
-### 1. Designer Pages ⭐ Default
+| Page type / task | Topic |
+|------------------|-------|
+| Full & Designer (section/canvas) pages | **Full & Designer Pages** |
+| PDF document pages | **PDF Pages** |
+| Contact / inquiry forms | **Form Pages** |
+| Raw HTML/CSS pages + \`{{cms.*}}\` variables | **Standalone HTML Pages** |
+| Feature routes & the submissions inbox | **Feature Pages & Submissions** |
+| Linking nav items / buttons to pages | **Linking to Pages (LinkPicker)** |
+| Publish state, noindex & per-page SEO | **Publishing & SEO** |
+`;
 
-Full-screen visual builder pages using the **Flexible Section Designer**.
+const PAGES_FULL_DESIGNER = `
+# Full & Designer Pages
 
-- Edit via full-screen designer overlay (opened from the edit button)
-- Content built with the same 11-element Flexible Section designer
-- Renders in **multi mode** — page grows to fit content (no 100vh scroll snap)
-- This is the **default type** when creating a new page
+Both of these are **section / canvas** pages authored through the CMS Designer — the same tooling as the landing page. They differ only in canvas mode.
 
----
+<div class="params scroll-x"><table><caption>Full vs Designer</caption><thead><tr><th>&nbsp;</th><th>Full Page (<code>full</code>)</th><th>Designer Page (<code>designer</code>)</th></tr></thead><tbody><tr><td>Canvas</td><td>Stacked <b>100vh</b> sections, scroll-snap</td><td>One <b>unbounded</b> canvas, no snap (<code>contentMode:"multi"</code>)</td></tr><tr><td>Opened via</td><td>Route <code>/admin/page-editor/{slug}</code></td><td>Full-screen modal (iframe <code>/flexible-designer.html</code>)</td></tr><tr><td>Saving</td><td>Per-section draft → publish flow</td><td>Auto-saved on every change (postMessage); "Done" closes</td></tr><tr><td>Storage</td><td><code>Section[]</code> rows (config / configDraft)</td><td>Designer JSON in <code>localStorage</code> key <code>cms_designer_{slug}</code></td></tr><tr><td>Create modal</td><td>Not offered (created elsewhere / seeded)</td><td>Default choice in Create modal</td></tr></tbody></table></div>
 
-### 2. PDF Pages
+<div class="fig map"><span class="tag">Interface map</span><div class="fig-body"><div class="mk" style="max-width:640px"><div style="background:#16213e;border-radius:8px 8px 0 0;padding:9px 14px;display:flex;justify-content:space-between;align-items:center"><div style="display:flex;gap:10px;align-items:center;color:#fff"><span style="color:#6a82fb">▤</span><b style="font-size:13px">Designer Page Editor</b><span style="color:rgba(255,255,255,.5);border-left:1px solid rgba(255,255,255,.2);padding-left:10px;font-size:12px">About Us</span></div><div style="display:flex;gap:10px;align-items:center"><span style="color:rgba(255,255,255,.4);font-size:11px">Changes auto-saved · Press Done in designer to close</span><span style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:6px;padding:3px 9px;font-size:12px">✕ Close</span></div></div><div style="background:#1a1a2e;border-radius:0 0 8px 8px;height:150px;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.35);font-size:12.5px;text-align:center"><div>Flexible Designer iframe (unbounded canvas)<br><span style="font-size:11px">blocks · Volt cards · section background · alignment guides</span></div></div></div></div><div class="fig-cap"><b>Designer overlay</b> — a dark full-viewport shell around the Flexible Designer iframe. The header carries only the title and Close; all authoring happens inside the iframe.</div></div>
 
-Embeds a PDF document in the page.
+<div class="note xref"><b>Cross-reference.</b> The Section Editor, the Flexible Designer, block types, Volt cards, section background and spacing controls are documented in full under <b>Section Editor</b>, <b>Flexible Sections</b> and <b>Volt Designer</b>. For a Full or Designer page, author it exactly as you author a landing-page section — this topic does not repeat that surface.</div>
+`;
 
-| Setting | Description |
-|---------|-------------|
-| **PDF URL** | Direct link to .pdf file |
-| **Display Mode** | embed / download / both |
-| **Description** | Text shown above the viewer |
+const PAGES_PDF = `
+# PDF Pages
 
----
+The simplest type: point at a PDF (a full URL or an uploaded \`/uploads/…\` path) and choose how it presents. Payload is stored in the row's \`formConfig\` JSON as \`{ pdfUrl, displayMode }\`.
 
-### 3. Full Pages (Legacy)
+<div class="fig control"><span class="tag">Control mockup</span><div class="fig-body"><div class="mk-card" style="max-width:520px"><div class="mk-modalhead"><span class="t">▤ Edit PDF Page</span><span class="mk-x">✕</span></div><div class="mk-body"><div class="grp"><label class="f">PDF Document URL <span class="req">*</span></label><div class="inp"><span class="ph">https://example.com/document.pdf or /uploads/document.pdf</span><span style="margin-left:auto" class="btn g sm">📂</span></div><div class="help">Enter a full URL or relative path to your PDF document</div></div><div class="grp"><label class="f">Display Mode</label><div class="opt on"><span class="oi">▤</span><div><strong>Embed in Page</strong><div class="od">Display PDF inline using browser viewer</div></div><span class="chk">✔</span></div><div class="opt"><span class="oi">⭳</span><div><strong>Download Only</strong><div class="od">Show download button (no inline viewer)</div></div></div><div class="opt"><span class="oi">▤⭳</span><div><strong>Both</strong><div class="od">Embed viewer + download button below</div></div></div></div><div class="grp"><label class="f">Description (Optional)</label><div class="inp" style="min-height:48px;align-items:flex-start"><span class="ph">Brief description of the document (shown above the PDF)</span></div></div></div><div class="mk-foot"><span class="btn g">Cancel</span><span class="btn p">✓ Save Changes</span></div></div></div><div class="fig-cap"><b>PDF editor</b> — URL with a media-library browse button, three display-mode cards, and an optional description shown above the document.</div></div>
 
-Full pages use the same section system as the landing page.
+<div class="params scroll-x"><table><caption>PDF page fields (PDFPageConfig)</caption><thead><tr><th>Field</th><th>Function</th><th>Options</th><th>Default</th></tr></thead><tbody><tr><td>pdfUrl <span class="req">*</span></td><td>Source of the document</td><td>Absolute URL or relative <code>/uploads/…</code> path; Save is disabled until non-empty</td><td class="def">""</td></tr><tr><td>displayMode</td><td>How the PDF is presented</td><td><code>embed</code> (inline viewer) · <code>download</code> (button only) · <code>both</code></td><td class="def"><code>embed</code></td></tr><tr><td>description</td><td>Intro text above the document</td><td>Free text, optional</td><td class="def">—</td></tr></tbody></table></div>
 
-- Edit sections at \`/admin/page-editor/{slug}\`
-- Same section types as landing page (HERO, NORMAL, CTA, FLEXIBLE, FOOTER)
-- New full pages cannot be created — use Designer Pages instead
-- Existing full pages continue to work
+<div class="note"><b>Note.</b> The media-library browse button currently opens a placeholder ("integration coming soon") — enter the URL manually for now.</div>
+`;
 
----
+const PAGES_FORM = `
+# Form Pages
 
-### 4. Form Pages
-
-Dedicated contact or inquiry form pages — visitors fill in fields and submit to reach you.
+A form page is a list of **fields** plus a **submit action**. Fields are added, reordered and deleted in the main modal; each field is edited in a secondary modal. Submissions go to an email address or a webhook, and land in the Submissions inbox. Payload stored as \`formConfig = { fields, submitAction, submitConfig }\`.
 
 **Create via:** Admin → Content → Pages → **Contact Form**
 
+<div class="fig map"><span class="tag">Interface map</span><div class="fig-body"><div class="mk-card" style="max-width:560px"><div class="mk-modalhead"><span class="t">☑ Edit Form Page</span><span class="mk-x">✕</span></div><div class="mk-body"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b style="font-size:13px">Form Fields</b><span class="btn p sm">＋ Add Field</span></div><div class="mk-card" style="padding:9px 11px;margin-bottom:6px;display:flex;align-items:center;gap:10px"><div style="flex:1"><div><b>Full Name</b> <span class="pill grey">text</span> <span class="pill red">Required</span></div><div class="tnote">Name: full_name</div></div><span class="btn g sm">↑</span><span class="btn g sm">↓</span><span class="btn g sm" style="color:#0d6efd">✎</span><span class="btn g sm" style="color:#dc3545">🗑</span></div><div class="mk-card" style="padding:9px 11px;margin-bottom:14px;display:flex;align-items:center;gap:10px"><div style="flex:1"><div><b>Email Address</b> <span class="pill grey">email</span> <span class="pill red">Required</span></div><div class="tnote">Name: email</div></div><span class="btn g sm">↑</span><span class="btn g sm">↓</span><span class="btn g sm" style="color:#0d6efd">✎</span><span class="btn g sm" style="color:#dc3545">🗑</span></div><b style="font-size:13px">Submission Settings</b><div style="margin-top:8px"><div class="opt on"><span class="oi">✉</span><div><strong>Send Email</strong><div class="od">Send form data to email address</div></div></div><div class="opt"><span class="oi">🔗</span><div><strong>Webhook</strong><div class="od">POST form data to webhook URL</div></div></div></div><div class="grp" style="margin-top:10px"><label class="f">Email Address <span class="req">*</span></label><div class="inp"><span class="ph">admin@example.com</span></div></div><div class="grp"><label class="f">Success Message</label><div class="inp"><span>Thank you! Your submission has been received.</span></div></div></div><div class="mk-foot"><span class="btn g">Cancel</span><span class="btn p">✓ Save Changes</span></div></div></div><div class="fig-cap"><b>Form editor</b> — reorderable field list (↑↓✎🗑 per field), then a submit-action choice that swaps the field below it (Email Address vs Webhook URL) and a success message.</div></div>
+
+<div class="fig control"><span class="tag">Control mockup</span><div class="fig-body"><div class="mk-card" style="max-width:460px"><div class="mk-modalhead"><span class="t">Edit Field</span><span class="mk-x">✕</span></div><div class="mk-body"><div class="grp"><label class="f">Field Type</label><div class="inp"><span>Dropdown</span><span style="margin-left:auto">▾</span></div></div><div class="grp"><label class="f">Label <span class="req">*</span></label><div class="inp"><span class="ph">Full Name</span></div></div><div class="grp"><label class="f">Field Name <span class="req">*</span></label><div class="inp"><span class="ph">full_name</span></div><div class="help">Used as the key in submission data (lowercase, no spaces)</div></div><div class="grp"><label class="f" style="display:inline-flex;gap:6px;align-items:center"><span>☑</span> Required field</label></div><div class="grp"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><label class="f" style="margin:0">Options</label><span class="btn p sm">＋ Add Option</span></div><div class="inp" style="margin-bottom:6px"><span class="ph">Value (e.g., option1)</span><span class="ph" style="margin-left:auto">Label (e.g., Option 1)</span><span style="color:#dc3545">🗑</span></div></div></div><div class="mk-foot"><span class="btn g">Cancel</span><span class="btn p">✓ Save Field</span></div></div></div><div class="fig-cap"><b>Field editor</b> — type, label, submission-key name, required toggle; a placeholder appears for text-like types, an options list appears only for Dropdown.</div></div>
+
+<div class="params scroll-x"><table><caption>Field types &amp; per-field options (FormField)</caption><thead><tr><th>Property</th><th>Function</th><th>Options / values</th><th>Default</th></tr></thead><tbody><tr><td>type</td><td>Input rendered on the public form</td><td><code>text</code> · <code>email</code> · <code>phone</code> · <code>textarea</code> · <code>select</code> · <code>checkbox</code></td><td class="def"><code>text</code></td></tr><tr><td>label <span class="req">*</span></td><td>Visible field label</td><td>Required</td><td class="def">"New Field"</td></tr><tr><td>name <span class="req">*</span></td><td>Key in the submission payload</td><td>Required, lowercase / no spaces</td><td class="def">auto <code>field_…</code></td></tr><tr><td>required</td><td>Field must be filled</td><td>boolean</td><td class="def"><code>false</code></td></tr><tr><td>placeholder</td><td>Hint text</td><td>Hidden for <code>checkbox</code> &amp; <code>select</code></td><td class="def">—</td></tr><tr><td>options</td><td>Dropdown choices</td><td><code>select</code> only; ≥1 required; <code>{value,label}</code> pairs</td><td class="def">[]</td></tr></tbody></table></div>
+
+<div class="params scroll-x"><table><caption>Submission settings (submitConfig)</caption><thead><tr><th>Field</th><th>Function</th><th>Options / rules</th><th>Default</th></tr></thead><tbody><tr><td>submitAction</td><td>Where submissions go</td><td><code>email</code> or <code>webhook</code></td><td class="def"><code>email</code></td></tr><tr><td>emailTo <span class="req">*</span></td><td>Recipient address</td><td>Required when action = email</td><td class="def">—</td></tr><tr><td>webhookUrl <span class="req">*</span></td><td>POST target (JSON body)</td><td>Required when action = webhook</td><td class="def">—</td></tr><tr><td>successMessage</td><td>Confirmation shown after submit</td><td>Free text</td><td class="def">"Thank you! …received."</td></tr></tbody></table></div>
+
+<div class="note"><b>Save is blocked</b> until at least one field exists and the required contact (email / webhook) for the chosen action is filled.</div>
+
 ---
 
-#### Field Types
+## Field Types
 
 | Type | Description | Notes |
 |------|-------------|-------|
 | **text** | Single-line text input | General purpose |
-| **email** | Email address input | Validated format; used for OTP delivery |
+| **email** | Email address input | Validated format; used for verification delivery |
 | **phone** | Phone number input | No format restriction |
 | **textarea** | Multi-line text area | For longer messages |
-| **select** | Dropdown with custom options | Enter options one per line |
+| **select** | Dropdown with custom options | Enter each option as a \`{value,label}\` pair |
 | **checkbox** | Yes/No toggle | Good for consent or opt-in |
 
-> ⚠️ Every form **must include an email field** for OTP verification to work. Without an email field, the form cannot send the verification code.
+> ⚠️ Every form **must include an email field** for verification and email delivery to work.
 
 ---
 
-#### Building Your Form
-
-1. Go to **Admin → Content → Pages** and click **Edit** (pencil) on a Form Page
-2. Click **Add Field** to add a new field
-3. For each field:
-   - Choose a **field type** from the dropdown
-   - Enter a **label** (shown to the visitor)
-   - Toggle **Required** if the field must be filled in
-   - For **select** type: enter each option on a new line
-4. Drag the **⠿ handle** on any field row to **reorder** fields
-5. Click the **trash icon** to delete a field
-6. Set a **Success Message** (shown after the form is submitted successfully)
-7. Set the **Submit Action** (Email or Webhook)
-8. Click **Save**
-
----
-
-#### Submit Actions
-
-| Action | Description |
-|--------|-------------|
-| **Email** | Sends form data to the Admin Notification Email (requires SMTP config) |
-| **Webhook** | POSTs form data as JSON to any URL (e.g. Zapier, Make, custom API) |
-
----
-
-#### Human Verification — Shuffled Keypad
+## Human Verification — Shuffled Keypad
 
 When the visitor clicks **Submit**, a compact **human check modal** appears before the form is sent:
 
@@ -2612,31 +2633,54 @@ When the visitor clicks **Submit**, a compact **human check modal** appears befo
 4. The visitor must enter that code using the **10-key pad** — digits are displayed in a random order
 5. A **countdown timer** (15 seconds) reshuffles the key positions when it expires
 6. Correct entry → form is submitted immediately; wrong entry → cleared and reshuffled
-7. On successful verification, the form data is forwarded to the Admin Notification Email
+7. On successful verification, the form data is forwarded per the submit action
 
-> No email or server-side OTP required — verification is fully client-side. ⚙️ Requires SMTP configured in **Admin → Settings → Email & SMTP** for form delivery.
-
----
-
-## Page Management
-
-| Action | Description |
-|--------|-------------|
-| Create | New page with auto-generated slug from title |
-| Edit | Opens settings panel for the page type |
-| Toggle | Enable/disable — disabled pages return 404 |
-| Duplicate | Clone a page (new slug auto-generated) |
-| Delete | Permanently removes page and all its sections |
+> Verification is fully client-side (no server-side OTP). ⚙️ Email delivery requires SMTP configured in **Admin → Settings → Email & SMTP**.
 
 ---
 
-## Reserved Slugs
+## Manual Form Integration (alternative to the field builder)
 
-These slugs cannot be used (they conflict with existing routes):
+If you need full control over the markup — for example inside a **Standalone HTML** page — use the \`data-cms-form\` approach directly:
 
-\`admin\`, \`api\`, \`_next\`, \`images\`, \`home\`, \`index\`
+\`\`\`html
+<script src="/cms-forms.js"></script>
 
----
+<form data-cms-form
+      data-source="Contact Us"
+      data-email-to="admin@example.com"
+      data-success="Thanks! We'll be in touch.">
+  <input type="text"  name="name"    data-label="Full Name"     required>
+  <input type="email" name="email"   data-label="Email Address" required>
+  <textarea           name="message" data-label="Message"></textarea>
+  <button type="submit">Send</button>
+</form>
+\`\`\`
+
+| Attribute | Effect |
+|-----------|--------|
+| \`data-source\` | Label in the admin email subject (default: page title) |
+| \`data-email-to\` | Override the admin notification email |
+| \`data-success\` | Success message shown after submission |
+| \`data-label\` (on field) | Friendly field name in the admin email |
+
+> Submissions from every form page collect in **Feature Pages & Submissions → the Submissions inbox** (and Content Types → Form Submissions Inbox).
+`;
+
+const PAGES_STANDALONE = `
+# Standalone HTML Pages
+
+A raw HTML/CSS canvas with no CMS chrome — for pasting design-tool output. A Monaco code editor with five tabs. CMS data is injected at render time through \`{{cms.*}}\` placeholders, so the page still shows live company details, links and images. Payload: \`customHtml\`, \`customCss\`, \`customCssUrls\`, \`mediaSlots\`.
+
+<div class="fig map"><span class="tag">Interface map</span><div class="fig-body"><div class="mk" style="max-width:660px"><div class="mk-card"><div class="mk-modalhead"><span class="t">&lt;/&gt; Standalone HTML Editor <span class="pill warn">old-promo</span></span><span class="mk-x">✕</span></div><div class="toolbar-strip" style="padding:8px 12px;border-bottom:1px solid #e4e8ef"><span class="tbtn on">▤ HTML</span><span class="tbtn">▤ CSS</span><span class="tbtn">🔗 CSS Files (2)</span><span class="tbtn">🖼 Media (3) ⚠</span><span class="tbtn">{ } Variables</span></div><div style="background:#1e1e1e;color:#9cdcfe;font-family:monospace;font-size:12px;line-height:1.7;padding:14px 16px;min-height:120px"><div style="color:#6a9955">&lt;!-- paste your HTML here --&gt;</div><div>&lt;section class=<span style="color:#ce9178">"hero"</span>&gt;</div><div>&nbsp;&nbsp;&lt;img src=<span style="color:#ce9178">"{{cms.media.hero-bg}}"</span>&gt;</div><div>&nbsp;&nbsp;&lt;h1&gt;<span style="color:#d4d4d4">{{cms.company}}</span>&lt;/h1&gt;</div><div>&lt;/section&gt;</div></div><div class="mk-foot" style="justify-content:space-between"><div style="display:flex;gap:6px"><span class="btn g sm">🔖 Load Template</span><span class="btn g sm">＋ Save as Template</span></div><div style="display:flex;gap:6px"><span class="btn g sm">Cancel</span><span class="btn g sm" style="color:#0d6efd">👁 Preview</span><span class="btn w sm">💾 Save All</span></div></div></div></div></div><div class="fig-cap"><b>Standalone editor</b> — Monaco with HTML / CSS / CSS Files / Media / Variables tabs. The ⚠ on Media flags detected <code>{{cms.media.*}}</code> slots that have no image assigned while the page is enabled.</div></div>
+
+<div class="params scroll-x"><table><caption>The five editor tabs</caption><thead><tr><th>Tab</th><th>What it edits</th><th>Injected as</th></tr></thead><tbody><tr><td>HTML</td><td><code>customHtml</code> — the page body</td><td>Rendered server-side at <code>/{slug}</code></td></tr><tr><td>CSS</td><td><code>customCss</code></td><td>A <code>&lt;style&gt;</code> block in <code>&lt;head&gt;</code>; supports <code>{{cms.*}}</code></td></tr><tr><td>CSS Files</td><td><code>customCssUrls[]</code> — external stylesheets, reorderable</td><td><code>&lt;link rel="stylesheet"&gt;</code> tags, in order; quick-add for Bootstrap / Icons / Tailwind / Animate.css / Font Awesome</td></tr><tr><td>Media</td><td><code>mediaSlots</code> — named image slots</td><td>Auto-detected from <code>{{cms.media.NAME}}</code> in HTML; assign a URL or pick from Media Library</td></tr><tr><td>Variables</td><td>Reference only (click-to-copy)</td><td>Site vars, page links, feature flags, media slots, form injection, JS API</td></tr></tbody></table></div>
+
+<div class="fig render"><span class="tag">Render preview</span><div class="fig-body"><div class="mk" style="max-width:600px;width:100%"><div style="display:grid;grid-template-columns:1fr 1fr;gap:16px"><div><div class="tnote" style="margin-bottom:6px">AUTHORED (in editor)</div><div style="background:#1e1e1e;color:#d4d4d4;font-family:monospace;font-size:11px;line-height:1.7;padding:10px 12px;border-radius:8px">&lt;h1&gt;{{cms.company}}&lt;/h1&gt;<br>&lt;a href=<span style="color:#ce9178">"{{cms.pages.contact}}"</span>&gt;Contact&lt;/a&gt;<br>&lt;img src=<span style="color:#ce9178">"{{cms.media.hero-bg}}"</span>&gt;</div></div><div><div class="tnote" style="margin-bottom:6px">RENDERED (public page)</div><div style="background:#fff;border:1px solid #e4e8ef;border-radius:8px;padding:12px 14px"><div style="font-weight:700;font-size:15px">Your Company</div><a style="font-size:12px;color:#0d6efd">Contact → /contact</a><div style="margin-top:8px;height:40px;border-radius:6px;background:linear-gradient(135deg,#0d6efd,#7c3aed)"></div></div></div></div></div></div><div class="fig-cap"><b>Variable substitution</b> — <code>{{cms.*}}</code> tokens are replaced at render time with live Site-Config values, resolved page URLs, and assigned slot images.</div></div>
+
+<div class="params scroll-x"><table><caption>Variable families available in Standalone HTML</caption><thead><tr><th>Family</th><th>Example token</th><th>Resolves to</th></tr></thead><tbody><tr><td>Site vars</td><td><code>{{cms.company}}</code>, <code>{{cms.phone}}</code>, <code>{{cms.logo}}</code>…</td><td>Values from Admin → Settings → Site Config (16 vars: company, tagline, phone, email, address, city, postal, country, copyright + 6 socials + logo)</td></tr><tr><td>Page links</td><td><code>{{cms.pages.about}}</code></td><td>The page URL (<code>/about</code>) or <code>#</code> if not published/enabled</td></tr><tr><td>Feature flags</td><td><code>{{cms.features.coverage-maps}}</code></td><td><code>"true"</code> / <code>"false"</code></td></tr><tr><td>Media slots</td><td><code>{{cms.media.hero-bg}}</code></td><td>The image URL assigned to that slot in the Media tab</td></tr><tr><td>Form injection</td><td><code>{{cms.form.contact}}</code></td><td>A complete verified CMS form (auto-includes <code>/cms-forms.js</code>)</td></tr><tr><td>JS API</td><td><code>window.__CMS_SITE</code></td><td>Live object: <code>logoUrl, companyName, phone, email, address, navLinks[]</code></td></tr></tbody></table></div>
+
+<div class="note"><b>Reusable.</b> Standalone content can be saved to / loaded from the Template Library (templateType <code>standalone</code>) for reuse across sites.</div>
 
 ## Standalone Pages
 
@@ -2897,6 +2941,46 @@ Even though standalone pages bypass the CMS layout, the **full site SEO pipeline
 **No double-injection:** if your template already contains a given tag (e.g. its own \`og:title\` or canonical), the template's version wins and the CMS skips that tag.
 
 **Sitemap:** when a standalone page is set as the homepage, the sitemap lists it only as \`/\` — the duplicate \`/{slug}\` entry is excluded automatically.
+`;
+
+const PAGES_FEATURES = `
+# Feature Pages & Submissions
+
+Two things share the Pages screen but aren't ordinary pages: **Feature pages** (code-backed routes provided by installed features) and the **Submissions** inbox (form entries collected from every form page).
+
+<div class="fig control"><span class="tag">Control mockup</span><div class="fig-body"><div class="mk-card" style="width:100%"><table class="t"><thead><tr><th>Page</th><th>Type</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead><tbody><tr><td><div style="font-weight:600">Concrete Calculator <span class="pill purple">⚙ Feature</span></div><code style="color:#0d6efd">/calculator</code> ↗</td><td><span class="pill purple">⚙ Feature Page</span></td><td><span class="pill green">Enabled</span></td><td><div style="display:flex;gap:4px;justify-content:flex-end"><span class="btn p sm">⚙</span><span class="btn g sm" style="color:#ca8a04">◐</span></div></td></tr><tr><td><div style="font-weight:600">Coverage Maps <span class="pill purple">⚙ Feature</span></div><code style="color:#0d6efd">/coverage</code> ↗</td><td><span class="pill purple">⚙ Feature Page</span></td><td><span class="pill green">Enabled</span></td><td><div style="display:flex;gap:4px;justify-content:flex-end"><span class="btn p sm">⚙</span><span class="btn g sm" style="color:#ca8a04">◐</span></div></td></tr></tbody></table></div></div><div class="fig-cap"><b>Feature pages</b> — purple-badged, code-backed routes. Actions are limited to a settings link (⚙, its own admin screen) and an enable/disable toggle; they cannot be edited, duplicated, or deleted here.</div></div>
+
+<div class="fig control"><span class="tag">Control mockup</span><div class="fig-body"><div class="mk-card" style="width:100%"><div style="padding:10px 14px;border-bottom:1px solid #e4e8ef;font-weight:600">✉ Form Submissions <span class="pill blue">4</span></div><table class="t"><thead><tr><th>Form</th><th>Email</th><th>Data</th><th>Status</th><th>Date</th><th></th></tr></thead><tbody><tr><td><b>Contact Us</b><div class="tnote">/contact</div></td><td class="tnote">jo@buyer.example</td><td class="tnote">name: Jo P<br>message: Please call…<br><span style="color:#8a93a3">+1 more</span></td><td><span class="pill green">sent</span></td><td class="tnote">2026-07-08<br>14:22</td><td><span class="btn g sm" style="color:#dc3545">🗑</span></td></tr><tr><td><b>Quote Request</b><div class="tnote">/quote</div></td><td class="tnote">—</td><td class="tnote">product: Fibre 100</td><td><span class="pill red">failed</span></td><td class="tnote">2026-07-07<br>09:03</td><td><span class="btn g sm" style="color:#dc3545">🗑</span></td></tr></tbody></table></div></div><div class="fig-cap"><b>Submissions inbox</b> — every form-page entry: originating form + slug, submitter email, a 3-key data preview, delivery status (sent / failed / pending), timestamp, and a delete action.</div></div>
+
+<div class="params scroll-x"><table><caption>Built-in feature pages (FEATURE_META)</caption><thead><tr><th>Feature</th><th>Public route</th><th>Settings screen</th></tr></thead><tbody><tr><td>concrete-calculator</td><td><code>/calculator</code></td><td><code>/admin/features/concrete-settings</code></td></tr><tr><td>coverage-maps</td><td><code>/coverage</code></td><td><code>/admin/features/coverage-maps</code></td></tr></tbody></table></div>
+
+<div class="note xref"><b>Cross-reference.</b> The full submissions list, filtering, and export live under <b>Content Types &amp; Blog → Form Submissions Inbox</b>.</div>
+`;
+
+const PAGES_LINKING = `
+# Linking to Pages (LinkPicker)
+
+Anywhere the CMS asks for a link target — nav items, buttons, cards — it uses the shared **LinkPicker**: one grouped dropdown of every internal target, plus a Custom escape hatch. Authors never hand-type a \`/slug\` or \`#anchor\`.
+
+<div class="fig control"><span class="tag">Control mockup</span><div class="fig-body"><div class="mk" style="max-width:420px;width:100%"><label class="f">Link target</label><div class="mk-card" style="padding:0;overflow:hidden"><div style="padding:8px 11px;border-bottom:1px solid #e4e8ef;color:#8a93a3;font-size:12.5px">Select a link… ▾</div><div style="padding:6px 0"><div style="padding:3px 12px;font-size:11px;color:#8a93a3">Home</div><div style="padding:4px 12px;font-size:10.5px;font-weight:700;color:#0a4bc2;background:#f5f9ff">PAGES</div><div style="padding:4px 18px;font-size:12.5px">About Us</div><div style="padding:4px 12px;font-size:10.5px;font-weight:700;color:#5a34c7;background:#f9f7ff">SECTIONS</div><div style="padding:4px 18px;font-size:12.5px">Home: Hero <span class="tnote">#hero-1</span></div><div style="padding:4px 12px;font-size:10.5px;font-weight:700;color:#12633f;background:#f4fbf6">FORMS</div><div style="padding:4px 18px;font-size:12.5px">Contact Us</div><div style="padding:4px 12px;font-size:10.5px;font-weight:700;color:#8a5a00;background:#fffbf0">DOCUMENTS &amp; PDFS</div><div style="padding:4px 18px;font-size:12.5px">Brochure.pdf</div><div style="padding:4px 12px;font-size:10.5px;font-weight:700;color:#5a34c7;background:#f9f7ff">FEATURES · POLICIES</div><div style="padding:4px 18px;font-size:12.5px;color:#8a93a3">Custom URL / anchor…</div></div></div></div></div><div class="fig-cap"><b>LinkPicker dropdown</b> — targets grouped by source. Empty groups are hidden; picking "Custom" reveals a free-text field. Any existing raw value round-trips (matched → preselected, else shown as Custom).</div></div>
+
+<div class="params scroll-x"><table><caption>LinkPicker groups &amp; what qualifies</caption><thead><tr><th>Group</th><th>Source</th><th>Inclusion rule</th></tr></thead><tbody><tr><td>Pages</td><td>/api/pages</td><td>enabled <b>and</b> status = PUBLISHED, excluding form/pdf types</td></tr><tr><td>Sections</td><td>/api/sections?pageSlug=/</td><td>Home-page section anchors (<code>#id</code>), enabled ≠ false</td></tr><tr><td>Forms</td><td>/api/pages</td><td>type = form <b>and</b> enabled (no publish requirement)</td></tr><tr><td>Documents &amp; PDFs</td><td>/api/pages + /api/media</td><td>PDF pages (enabled) + media library documents</td></tr><tr><td>Features</td><td>/api/features</td><td>enabled features</td></tr><tr><td>Policies</td><td>/api/policies?enabled=true</td><td>enabled policies (empty when plugin off)</td></tr></tbody></table></div>
+
+<div class="note"><b>Key asymmetry.</b> Content pages must be <b>PUBLISHED</b> to appear; forms and PDFs are linkable as soon as they're <b>enabled</b>. Every source degrades to an empty (hidden) group if its API is unavailable.</div>
+`;
+
+const PAGES_PUBLISHING_SEO = `
+# Publishing & SEO
+
+Every page (any type) has its own SEO panel, reached from the 🔍 row action. It writes SEO columns straight onto the \`Page\` row and shows live Google / Facebook / Twitter previews. Publishing — a separate axis — is what makes content pages linkable and public.
+
+<div class="fig map"><span class="tag">Interface map</span><div class="fig-body"><div class="mk-card" style="width:100%"><div class="mk-modalhead"><span class="t">🔍 SEO Settings — <span style="color:#8a93a3;font-weight:400">About Us</span></span><span class="mk-x">✕</span></div><div style="display:grid;grid-template-columns:1.4fr 1fr"><div style="padding:16px;border-right:1px solid #e4e8ef"><div class="grp"><label class="f">Meta Title</label><div class="inp"><span class="ph">Blank → use page title</span></div><div class="help" style="color:#198754">0/60 — leave blank to use page title</div></div><div class="grp"><label class="f">Meta Description</label><div class="inp" style="min-height:44px;align-items:flex-start"><span class="ph">Describe this page in 50–160 characters…</span></div><div class="help">0/160 — required for good CTR</div></div><div class="grp"><label class="f">Meta Keywords</label><div class="inp"><span class="ph">keyword1, keyword2</span></div></div><div class="grp"><span class="btn g sm" style="width:100%;justify-content:space-between">↔ Customise social sharing <span>▾</span></span></div><div class="tnote" style="letter-spacing:.05em;margin:6px 0">ADVANCED</div><div class="grp"><label class="f">Canonical URL Override</label><div class="inp"><span class="ph">auto: canonicalBase + /slug</span></div></div><div style="display:flex;gap:20px"><span style="font-size:12px"><b>◉</b> noindex <span class="tnote">hide from Google</span></span><span style="font-size:12px"><b>◉</b> nofollow <span class="tnote">no link authority</span></span></div></div><div style="padding:16px;background:#f6f8fb"><div class="tnote" style="letter-spacing:.05em;margin-bottom:8px">LIVE PREVIEW</div><div class="toolbar-strip" style="margin-bottom:8px"><span class="tbtn on" style="background:#1c2333;border-color:#1c2333">Google</span><span class="tbtn">Facebook</span><span class="tbtn">Twitter</span></div><div style="background:#fff;border:2px solid #198754;border-radius:8px;padding:11px"><div style="font-size:11px;color:#4d5156">yourcompany.example › about-us</div><div style="font-size:16px;color:#1a0dab">About Us</div><div style="font-size:12px;color:#4d5156">Add a meta description to preview it here…</div></div></div></div><div class="mk-foot"><span class="btn g">Close</span><span class="btn p">💾 Save SEO Settings</span></div></div></div><div class="fig-cap"><b>SEO modal</b> — inputs on the left with live character-count colouring, engine previews on the right. Collapsible "Customise social sharing" reveals OG title / description / image overrides.</div></div>
+
+<div class="params scroll-x"><table><caption>SEO fields (written to the Page row)</caption><thead><tr><th>Field</th><th>Function</th><th>Guidance</th><th>Default</th></tr></thead><tbody><tr><td>metaTitle</td><td>&lt;title&gt; / search headline</td><td>Ideal ≤ 60 (warn &gt;60, invalid &gt;70), max 80 chars; blank → page title</td><td class="def">—</td></tr><tr><td>metaDescription</td><td>Search snippet</td><td>50–160 ideal (warn &gt;160, invalid &gt;180), max 300</td><td class="def">—</td></tr><tr><td>metaKeywords</td><td>Comma-separated keywords</td><td>Low ranking impact; internal search</td><td class="def">—</td></tr><tr><td>ogTitle / ogDescription / ogImage</td><td>Social sharing overrides</td><td>Blank → falls back to meta / site-wide OG image</td><td class="def">—</td></tr><tr><td>canonicalUrl</td><td>Canonical override</td><td>Blank → auto <code>canonicalBase + /slug</code></td><td class="def">auto</td></tr><tr><td>noindex</td><td>Exclude from search index</td><td>Switch; shows a red warning when on</td><td class="def"><code>false</code></td></tr><tr><td>nofollow</td><td>Don't pass link authority</td><td>Switch</td><td class="def"><code>false</code></td></tr></tbody></table></div>
+
+<div class="note warn"><b>Only DB-backed pages.</b> The SEO modal refuses to load for a page not yet saved to the database — it shows a warning instead of the form.</div>
+
+<div class="fig diagram"><span class="tag">Diagram</span><div class="fig-body"><svg viewBox="0 0 700 170" role="img" aria-label="Draft to published flow"><rect x="20" y="30" width="150" height="52" rx="9" fill="#fff2d8" stroke="#ffe0a3"/><text x="95" y="52" text-anchor="middle" font-size="13" font-weight="700" fill="#8a5a00">DRAFT</text><text x="95" y="70" text-anchor="middle" font-size="11" fill="#8a5a00">editing sections</text><text x="230" y="52" text-anchor="middle" font-size="12" fill="#8a93a3">Publish ▶</text><text x="230" y="68" text-anchor="middle" font-size="10" font-weight="600" fill="#8a93a3">(PUBLISHER role)</text><rect x="290" y="30" width="150" height="52" rx="9" fill="#e8f7ee" stroke="#bfe6cf"/><text x="365" y="52" text-anchor="middle" font-size="13" font-weight="700" fill="#12633f">PUBLISHED</text><text x="365" y="70" text-anchor="middle" font-size="11" fill="#12633f">configDraft → config</text><rect x="470" y="30" width="210" height="52" rx="9" fill="#e7f0ff" stroke="#cfe0ff"/><text x="575" y="50" text-anchor="middle" font-size="12" font-weight="600" fill="#0a4bc2">public + linkable</text><text x="575" y="68" text-anchor="middle" font-size="11" fill="#0a4bc2">appears in LinkPicker "Pages"</text><path d="M170 56 H286" stroke="#8a93a3" stroke-width="1.5"/><path d="M286 56 l-7 -4 v8 z" fill="#8a93a3"/><path d="M440 56 H466" stroke="#8a93a3" stroke-width="1.5"/><path d="M466 56 l-7 -4 v8 z" fill="#8a93a3"/><rect x="20" y="110" width="660" height="44" rx="8" fill="#fbfcfe" stroke="#e4e8ef"/><text x="34" y="129" font-size="11" font-weight="600" fill="#8a93a3">SEPARATE AXIS</text><text x="34" y="146" font-size="12" fill="#5b6472">enabled toggle (row ◐) can hide a live route independently · homepage flag (⌂) points "/" at any page</text></svg></div><div class="fig-cap"><b>Publish flow</b> — publishing (PUBLISHER role) copies each section's draft config to live and makes a content page linkable. <code>enabled</code> and the homepage flag are independent controls.</div></div>
 `;
 
 const NAVIGATION = `
@@ -7578,7 +7662,14 @@ export const DOC_TOPICS: DocTopic[] = [
     label: "Pages System",
     icon: "bi-files",
     children: [
-      { id: "pages-overview", label: "Page Types (Full, PDF, Form, Standalone)", icon: "bi-file-earmark", content: PAGES_SYSTEM },
+      { id: "pages-overview", label: "Overview, Anatomy & Page Types", icon: "bi-diagram-3", content: PAGES_SYSTEM },
+      { id: "pages-full-designer", label: "Full & Designer Pages", icon: "bi-easel", content: PAGES_FULL_DESIGNER },
+      { id: "pages-pdf", label: "PDF Pages", icon: "bi-file-earmark-pdf", content: PAGES_PDF },
+      { id: "pages-form", label: "Form Pages", icon: "bi-input-cursor-text", content: PAGES_FORM },
+      { id: "pages-standalone", label: "Standalone HTML Pages", icon: "bi-code-slash", content: PAGES_STANDALONE },
+      { id: "pages-features", label: "Feature Pages & Submissions", icon: "bi-puzzle", content: PAGES_FEATURES },
+      { id: "pages-linking", label: "Linking to Pages (LinkPicker)", icon: "bi-link-45deg", content: PAGES_LINKING },
+      { id: "pages-seo", label: "Publishing & SEO", icon: "bi-search", content: PAGES_PUBLISHING_SEO },
     ],
   },
   {
