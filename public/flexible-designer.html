@@ -5087,6 +5087,11 @@ function _lyLeafRowHtml(block){
 function renderLayersPanel(){
   const host = document.getElementById('layers-content');
   if (!host) return;
+  // Preserve the sidebar scroll position across the innerHTML rebuild — the
+  // Layers panel shares its scroll container (.sidebar-scroll) with Properties,
+  // so a rebuild here would otherwise clamp scrollTop to 0 and jump to the top.
+  const scroller = host.closest('.sidebar-scroll');
+  const savedScroll = scroller ? scroller.scrollTop : 0;
   if (!state.blocks.length){
     host.innerHTML = '<div class="layers-empty">No elements yet.<br>Drag a block onto the canvas.</div>';
   } else {
@@ -5102,6 +5107,7 @@ function renderLayersPanel(){
     host.innerHTML = html;
   }
   _lyWire(host);
+  if (scroller) scroller.scrollTop = savedScroll;
 }
 
 function _lyClearDropCues(host){
@@ -5360,19 +5366,28 @@ function exitEditMode() {
  */
 function renderPropsPanel() {
   const panel=document.getElementById('props-content');
+  // Preserve the sidebar scroll position across the innerHTML rebuild below.
+  // Replacing innerHTML momentarily collapses the panel height, which clamps
+  // the scroll container's scrollTop to 0 — causing a scroll-jump to the top
+  // whenever a control (corner buttons, header-style toggle, etc.) re-renders
+  // this panel. Capture before, restore after.
+  const scroller = panel ? panel.closest('.sidebar-scroll') : null;
+  const savedScroll = scroller ? scroller.scrollTop : 0;
+  const restore = () => { if (scroller) scroller.scrollTop = savedScroll; };
   // A sub-element selection takes priority — show its type-specific props
   if (state.selectedSubId&&state.selectedBlockId) {
     const b=state.blocks.find(b=>b.id===state.selectedBlockId);
     const se=b?.subElements.find(s=>s.id===state.selectedSubId);
-    if (se) { panel.innerHTML=renderSubElementProps(b,se); return; }
+    if (se) { panel.innerHTML=renderSubElementProps(b,se); restore(); return; }
   }
   // Block selected — show block-level props (dimensions, type settings, content)
   if (state.selectedBlockId) {
     const b=state.blocks.find(b=>b.id===state.selectedBlockId);
-    if (b) { panel.innerHTML=renderBlockProps(b); return; }
+    if (b) { panel.innerHTML=renderBlockProps(b); restore(); return; }
   }
   // Nothing selected — show the empty-state placeholder
   panel.innerHTML=`<div class="no-selection"><i class="bi bi-cursor-text"></i><p>Click a block on the canvas to edit its properties, or drag a block from the library.</p></div>`;
+  restore();
 }
 
 /**
