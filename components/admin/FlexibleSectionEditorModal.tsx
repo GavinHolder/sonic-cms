@@ -46,6 +46,47 @@ interface FlexibleSectionEditorModalProps {
 
 type ActiveTab = "content" | "background" | "animation" | "overlay" | "triangle" | "lower-third" | "motion" | "spacing" | "scroll-stage";
 
+/**
+ * PreviewNavbarStandIn (#72)
+ * A faithful, side-effect-free static representation of the live site navbar for the
+ * section-editor preview. The real <Navbar/> is position:fixed and fetches nav/site
+ * config on mount, so mounting it inside the modal is impractical — this stand-in
+ * mirrors the scrolled navbar's dark-glass look (see .navbar-scrolled in globals.css)
+ * and the 100px --navbar-height, purely as a visual spacing reference. Rendered ONLY
+ * when the author enables the toggle; it never affects the previewed section itself.
+ */
+function PreviewNavbarStandIn() {
+  return (
+    <div
+      aria-hidden="true"
+      className="navbar-scrolled"
+      style={{
+        height: 56,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        position: "relative",
+        borderTopLeftRadius: 8,
+        borderTopRightRadius: 8,
+        marginBottom: -1,
+        gap: 24,
+        color: "#fff",
+        fontSize: 12,
+        letterSpacing: "0.08em",
+      }}
+      title="Static navbar reference — shows where the fixed site navbar sits above this section"
+    >
+      <span style={{ position: "absolute", left: 16, opacity: 0.55, fontSize: 18 }}>
+        <i className="bi bi-list" />
+      </span>
+      <span style={{ fontWeight: 700, textTransform: "uppercase" }}>Your Logo</span>
+      <span style={{ position: "absolute", right: 16, opacity: 0.55 }}>
+        <i className="bi bi-three-dots" />
+      </span>
+    </div>
+  );
+}
+
 export default function FlexibleSectionEditorModal({
   section,
   onSave,
@@ -60,6 +101,10 @@ export default function FlexibleSectionEditorModal({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   // Preview viewport toggle: "desktop" | "tablet" | "mobile"
   const [previewViewport, setPreviewViewport] = useState<"desktop" | "tablet" | "mobile">("desktop");
+  // #72 — optional navbar overlay in the preview pane. Default OFF = preview unchanged.
+  // When ON, a faithful static stand-in of the site navbar is shown above the previewed
+  // section so the author can gauge how the section's top spacing sits under the real nav.
+  const [previewNavbar, setPreviewNavbar] = useState(false);
   // Store raw designer JSON (mockup format) — sent to iframe on open, received on save
   // Prisma returns JSON columns as objects, not strings — normalise to string here
   const [designerData, setDesignerData] = useState<string | null>(() => {
@@ -1323,6 +1368,22 @@ export default function FlexibleSectionEditorModal({
               {/* ═══ LIVE PREVIEW COLUMN — always visible, sticky ══════════ */}
               <div className="col-12 col-xl-5">
                 <div style={{ position: "sticky", top: 0 }}>
+                  {/* #72 — navbar overlay toggle. Default OFF leaves the preview exactly as before. */}
+                  <div className="form-check form-switch mb-2 d-flex align-items-center gap-2">
+                    <input
+                      className="form-check-input"
+                      type="checkbox"
+                      role="switch"
+                      id="preview-navbar-toggle"
+                      checked={previewNavbar}
+                      onChange={(e) => setPreviewNavbar(e.target.checked)}
+                    />
+                    <label className="form-check-label small text-muted" htmlFor="preview-navbar-toggle">
+                      <i className="bi bi-window-dock me-1" />
+                      Show navbar above section
+                    </label>
+                  </div>
+                  {previewNavbar && <PreviewNavbarStandIn />}
                   <SectionLivePreview
                     section={designerSection}
                     viewport={previewViewport}
