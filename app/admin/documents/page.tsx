@@ -945,6 +945,85 @@ export default function DocumentsPage() {
         .docs-md .params code{background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:1px 5px;font-size:12px}
         .docs-md .params .def{color:var(--faint);font-size:12px}
 
+        /* ── SEO package — SERP/OG previews, cascade, threshold table, wizard steps, Google steps (mirrors approved mockup) ── */
+        .docs-md .lead{color:var(--muted);font-size:.9rem;line-height:1.7;margin:2px 0 10px}
+        .docs-md .bargroup{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;width:100%}
+        .docs-md .bargroup.end{justify-content:flex-end}
+        .docs-md .kv{font-size:12.5px;margin:3px 0;color:var(--muted)}
+        .docs-md .kv b{color:var(--ink);font-weight:650}
+        .docs-md .kv.ok{color:var(--ok)} .docs-md .kv.err{color:var(--accent)}
+        .docs-md .hint.ok{color:var(--ok)} .docs-md .hint.warn{color:#8a5a00} .docs-md .hint.err{color:var(--accent)}
+        .docs-md .inp.ph{color:var(--faint)}
+        .docs-md .inp.area{min-height:60px;align-items:flex-start}
+        .docs-md .inp.sm{width:auto;max-width:130px}
+        .docs-md .inp.mono{font-family:var(--fig-mono);font-size:11.5px}
+        .docs-md .btn.o{background:#fff;border-color:#ced4da;color:var(--muted)}
+        .docs-md .btn.grn{background:#fff;border-color:#b7dfc6;color:#12683f}
+        .docs-md .btn.ok{background:var(--ok);color:#fff}
+        .docs-md .toggle.danger{background:var(--accent)}
+        .docs-md .toggle.danger.off{background:#c3cbd6}
+        .docs-md .radio{display:inline-flex;align-items:center;gap:7px;margin-right:18px;font-size:12.5px;color:var(--ink)}
+        .docs-md .dot{width:15px;height:15px;border-radius:50%;border:2px solid #b9c2d0;flex:0 0 auto}
+        .docs-md .dot.on{border-color:var(--primary);box-shadow:inset 0 0 0 3px var(--primary)}
+        /* Google SERP preview */
+        .docs-md .serp{font-family:arial,sans-serif;border:2px solid var(--line);border-radius:9px;padding:13px 15px;max-width:560px;width:100%;background:#fff}
+        .docs-md .serp.g{border-color:#bcd8c4} .docs-md .serp.warn{border-color:#f0e0bd} .docs-md .serp.err{border-color:#f0c2c2}
+        .docs-md .serp .site{display:flex;align-items:center;gap:9px;margin-bottom:8px}
+        .docs-md .serp .fav{width:26px;height:26px;border-radius:50%;background:#e8eaed;display:flex;align-items:center;justify-content:center;color:#5f6368;font-size:12px;flex:0 0 auto}
+        .docs-md .serp .dom{font-size:14px;color:#202124;line-height:1.2}
+        .docs-md .serp .crumb{font-size:12px;color:#4d5156}
+        .docs-md .serp .ttl{font-size:19px;color:#1a0dab;line-height:1.3;margin-bottom:3px}
+        .docs-md .serp .desc{font-size:13.5px;color:#4d5156;line-height:1.55}
+        .docs-md .serp .sstat{display:flex;gap:16px;margin-top:10px;font-size:11px}
+        .docs-md .serp .sstat .ok{color:var(--ok)} .docs-md .serp .sstat .warn{color:#8a5a00} .docs-md .serp .sstat .err{color:var(--accent)}
+        /* Social share cards */
+        .docs-md .socialwrap{display:grid;grid-template-columns:1fr 1fr;gap:16px;width:100%}
+        @media(max-width:760px){.docs-md .socialwrap{grid-template-columns:1fr}}
+        .docs-md .og{border:1px solid #d9dde3;border-radius:10px;overflow:hidden;max-width:400px;width:100%}
+        .docs-md .og .img{aspect-ratio:1.91/1;background:#e4e6eb;display:flex;align-items:center;justify-content:center;color:#8a93a3;font-size:12px}
+        .docs-md .og .body{padding:10px 12px;background:#f0f2f5}
+        .docs-md .og.tw .body{background:#fff}
+        .docs-md .og .k{font-size:11px;text-transform:uppercase;color:#606770;margin-bottom:3px}
+        .docs-md .og.tw .k{text-transform:none}
+        .docs-md .og .h{font-size:14px;font-weight:650;color:#1c1e21;line-height:1.3;margin-bottom:3px}
+        .docs-md .og .p{font-size:13px;color:#606770;line-height:1.4;margin:0}
+        /* Metadata cascade diagram */
+        .docs-md .cascade{display:flex;flex-direction:column;width:100%}
+        .docs-md .casc-row{display:grid;grid-template-columns:170px 1fr;gap:14px;align-items:start;padding:11px 0;border-top:1px dashed var(--line)}
+        .docs-md .casc-row:first-child{border-top:0}
+        .docs-md .casc-k{font-weight:650;font-size:13px;color:var(--ink)}
+        .docs-md .casc-k .out{display:block;font-weight:400;font-size:11.5px;color:var(--faint);margin-top:2px;font-family:var(--fig-mono)}
+        .docs-md .casc-flow{font-family:var(--fig-mono);font-size:12.5px;color:var(--muted);line-height:1.95}
+        .docs-md .casc-flow .pri{background:var(--primary-soft);color:var(--primary-ink);border-radius:5px;padding:1px 6px;font-weight:600}
+        .docs-md .casc-flow .arw{color:var(--faint);margin:0 4px}
+        .docs-md .casc-flow .def{background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:1px 6px}
+        /* Wizard step cards */
+        .docs-md .stepgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;width:100%}
+        @media(max-width:760px){.docs-md .stepgrid{grid-template-columns:1fr 1fr}}
+        .docs-md .stp{border:1px solid var(--line);border-radius:10px;padding:12px;background:#fff}
+        .docs-md .stp .sn{width:24px;height:24px;border-radius:50%;background:var(--primary);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-bottom:8px}
+        .docs-md .stp .st{font-weight:650;font-size:13px;margin-bottom:3px;color:var(--ink)}
+        .docs-md .stp .sd{font-size:12px;color:var(--muted);line-height:1.45}
+        /* Interface map: pill tab-bar + numbered callouts */
+        .docs-md .imap{width:100%}
+        .docs-md .pillrow{display:flex;flex-wrap:wrap;gap:6px;padding:12px;background:var(--panel);border:1px solid var(--line);border-radius:10px;width:100%}
+        .docs-md .ptab{font-size:12px;padding:6px 11px;border-radius:20px;background:#fff;border:1px solid #d9dfe8;color:var(--muted);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+        .docs-md .ptab.on{background:var(--primary);border-color:var(--primary);color:#fff;font-weight:600}
+        .docs-md .callouts{list-style:none;padding:0;margin:14px 0 0;display:grid;gap:9px;width:100%}
+        .docs-md .callouts li{display:grid;grid-template-columns:22px 1fr;gap:10px;align-items:start;font-size:12.5px;color:var(--muted)}
+        .docs-md .callouts li b{color:var(--ink);font-weight:650}
+        .docs-md .callout-num.ok{background:var(--ok)} .docs-md .callout-num.b{background:var(--primary)} .docs-md .callout-num.grey{background:var(--faint)}
+        /* Google integration step rows + progress */
+        .docs-md .prog{height:8px;background:#e4e8ef;border-radius:5px;overflow:hidden;width:100%;margin:6px 0 12px}
+        .docs-md .prog > i{display:block;height:100%;background:var(--primary)}
+        .docs-md .gstep{display:flex;gap:10px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:9px 11px;width:100%;font-size:12.5px;color:var(--muted);margin:6px 0}
+        .docs-md .gstep b{color:var(--ink)}
+        /* Dark render block: syntax spans layered on existing .docs-md pre */
+        .docs-md pre .c1{color:#7fd1a6} .docs-md pre .c2{color:#7cc4ff} .docs-md pre .c3{color:#e2b877} .docs-md pre .cm{color:#8a97ad;font-style:italic}
+        /* Threshold status colours (used inside table.t) */
+        .docs-md .thr{font-weight:600;white-space:nowrap}
+        .docs-md .thr.ok{color:var(--ok)} .docs-md .thr.warn{color:#8a5a00} .docs-md .thr.err{color:var(--accent)}
+
         /* ── Mobile ── */
         @media (max-width: 767px) {
           .docs-shell { flex-direction: column; height: auto; overflow: visible; }

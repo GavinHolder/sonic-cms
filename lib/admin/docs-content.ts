@@ -3642,215 +3642,331 @@ Access via **Admin → Users**.
 `;
 
 const SEO_MANAGEMENT = `
-# SEO Management
-
-Access via **Admin → Content → SEO**.
-
-The SEO system gives you full control over how your website appears in search engines and on social media.
-
----
-
-## SEO Score & Automated Audits (Tab: Score)
-
-The **Score** tab gives you a single 0–100 health number plus three sub-scores. An audit runs **automatically every 24 hours** (configurable) and you can trigger one anytime with **Run Audit Now**.
-
-| Sub-score | What it measures | When it shows |
-|-----------|------------------|---------------|
-| **On-Page Health** | Meta titles/descriptions, duplicates, canonical, structured data, business NAP, GA4/Search Console connected, sitemap | Always |
-| **Content & Structure** | Live crawl of your published pages: exactly one H1, content depth (word count), mobile viewport, image alt text, internal linking | After a full audit runs |
-| **Performance** | Google Search Console data: pages indexed, average position, CTR, impressions (28 days) | Only when Search Console is connected |
-
-The overall score is a weighted blend of whichever sub-scores are available (On-Page 50%, Content 30%, Performance 20%).
-
-**Regression alerts:** if a scheduled audit detects the score dropping, fewer pages indexed, or more pages with issues, an email is sent to your admin address. Disable or tune the threshold in System Settings (\`seo_alert_enabled\`, \`seo_alert_score_drop\`).
-
-> 💡 The **Content & Structure** crawl needs a reachable **Canonical Base URL** — set it under Site Settings or the crawl is skipped.
-
----
-
-## Site-Wide Defaults (Tab: Site Settings)
-
-These apply to every page unless overridden at the page level.
-
-| Setting | Description |
-|---------|-------------|
-| **Site Name** | Appended to all page titles: "Page Title \| Site Name" |
-| **Title Separator** | Character between page title and site name (default: \`\|\`) |
-| **Default Description** | Fallback meta description for pages without their own |
-| **Canonical Base URL** | Full domain (e.g. \`https://www.yourcompany.co.za\`) — enables canonical tags and absolute sitemap URLs |
-
-> 💡 **SERP Preview** updates live as you type — shows exactly how the homepage will look in Google search results.
-
----
-
-## Social & Open Graph (Tab: Social & OG)
-
-Controls how pages look when shared on Facebook, LinkedIn, WhatsApp, Slack, and Twitter/X.
-
-| Setting | Description |
-|---------|-------------|
-| **Default OG Image** | Shown when pages are shared — recommended size **1200×630px** |
-| **Twitter Card** | \`summary_large_image\` (large preview) or \`summary\` (small thumbnail) |
-| **Twitter Handle** | Your \`@handle\` — shown as "Via @handle" under Twitter cards |
-
-> 💡 **Social Card Preview** shows a realistic WhatsApp/LinkedIn card preview.
-
----
-
-## Robots & Sitemap (Tab: Robots & Sitemap)
-
-Controls what search engines are allowed to crawl.
-
-| Setting | Description |
-|---------|-------------|
-| **Disallow Paths** | One path per line — crawlers will not index these |
-| **Include Sitemap** | Adds \`Sitemap:\` line to robots.txt pointing to \`/sitemap.xml\` |
-
-**Default disallowed paths:** \`/admin\` and \`/api\` — keep these blocked.
-
-> 💡 **Live robots.txt Preview** shows the exact content of \`/robots.txt\` based on your settings.
-
----
-
-## Structured Data / JSON-LD (Tab: Structured Data)
-
-LocalBusiness schema is injected into every page's \`<head>\` as JSON-LD.
-This is the most powerful SEO signal for local search results and Google Knowledge Panels.
-
-| Setting | Description |
-|---------|-------------|
-| **Enable** | Toggle structured data injection on/off |
-| **Business Type** | schema.org type (e.g. \`LocalBusiness\`, \`Plumber\`, \`Restaurant\`) |
-| **Business Name** | Exact trading name as registered |
-| **Street Address** | Physical address of the business |
-| **City** | Town or city |
-| **Country** | ISO 3166-1 alpha-2 code (e.g. \`ZA\`, \`US\`, \`GB\`) |
-| **Telephone** | In international format: \`+27 21 555 0100\` |
-| **Website URL** | Canonical homepage URL |
-
-> 💡 **JSON-LD Preview** shows the exact script tag that will be injected.
-
----
-
-## Per-Page SEO
-
-Set individual SEO metadata for any page via **Admin → Content → Pages → 🔍 SEO** button.
-
-| Field | Description |
-|-------|-------------|
-| **Meta Title** | Custom \`<title>\` tag — shown in browser tab and search results |
-| **Meta Description** | 50–160 char summary — shown under the link in search results |
-| **Meta Keywords** | Comma-separated keywords (low direct ranking impact) |
-| **OG Title** | Title for social sharing (defaults to Meta Title) |
-| **OG Image** | Image URL for social sharing (defaults to site default) |
-| **OG Description** | Description for social sharing (defaults to Meta Description) |
-| **Canonical URL** | Override the auto-generated canonical — leave blank in most cases |
-| **noindex** | Exclude this page from search engines entirely |
-| **nofollow** | Tell crawlers not to follow links on this page |
-
-> 💡 **SERP Preview** in the modal updates live as you type.
-
----
-
-## SEO Audit (Tab: SEO Audit)
-
-Runs automatically on the **1st of every month** via a Vercel cron job.
-You can also trigger it manually by clicking **Run Audit Now**.
-
-The audit checks:
-- Pages missing a meta title
-- Pages with descriptions that are too short (< 50 chars) or too long (> 160 chars)
-- Duplicate meta titles across pages
-- Duplicate meta descriptions across pages
-- Pages missing an OG image
-
-**Issue severity levels:**
-
-| Severity | Meaning |
-|----------|---------|
-| 🔴 error | Directly hurts SEO — fix immediately |
-| 🟡 warning | Suboptimal — fix when possible |
-| 🔵 info | Suggestion — nice to have |
-
----
-
-## Search Console (Tab: Search Console)
-
-Live index status for every published page, powered by the Google Search Console API.
-
-> ⚠️ **Requires Google OAuth credentials** — configure them first at **Settings → Google Integration** (see below).
-
-### Connecting Search Console
-
-1. Go to **Settings → Google Integration** and complete the 5-step wizard
-2. Return to **SEO → Search Console** and click **Connect Search Console**
-3. Sign in with the Google account that manages your Search Console property
-4. Grant permissions — you are redirected back to the CMS
-5. Select your **Search Console property** from the dropdown
-
-### What you can do after connecting
-
-| Feature | Description |
-|---------|-------------|
-| **Page index table** | All published pages with index status, last crawl date, clicks, impressions |
-| **Inspect URL** | Run a live Google index inspection on any individual page |
-| **Sitemaps panel** | List submitted sitemaps and their processing status |
-| **Disconnect** | Remove stored OAuth tokens at any time |
-
-### Index Status Meanings
-
-| Badge | Meaning |
-|-------|---------|
-| 🟢 Indexed | Page is in Google's index and ranking |
-| 🟡 Submitted, not indexed | Google knows the URL but hasn't fully indexed it yet |
-| 🔴 Not indexed | Page is blocked or hasn't been crawled |
-| ⚪ Unknown | Inspection not yet run |
-
----
-
-## Business Profile (Tab: Business Profile)
-
-Manage your Google Business Profile listing directly — read reviews, publish posts, and view insights. Requires the same Google OAuth credentials as Search Console.
-
----
-
-## Google Integration (Tab: Google)
-
-A checklist guiding you through manual Google setup steps (Analytics, Search Console verification, sitemap submission, etc.).
-
-### Google Analytics (GA4)
-
-When you enter a GA4 Measurement ID, the CMS automatically injects the Google Analytics tracking script on all public pages. No code editing required.
-
-1. Go to [Google Analytics](https://analytics.google.com)
-2. Create a GA4 property for your site
-3. Copy the Measurement ID (starts with \`G-\`)
-4. Paste it in the Google tab → GA4 field
-
-### Timeline
-
-After completing all setup steps, Google typically takes **1–4 weeks** to fully index a new site. Monitor progress in Google Search Console → Coverage → Pages.
-
----
-
-## SEO Overview Tab
-
-The **Overview** tab shows your SEO Engine status:
-- Last run timestamp and overall health score
-- Page classification breakdown (Protected / Monitored / New)
-- Issue groups with severity counts (errors, warnings, info)
-- **Run SEO Engine Now** button for an immediate analysis pass
-
----
-
-## Dynamic Files
-
-| URL | Description |
-|-----|-------------|
-| \`/sitemap.xml\` | Auto-generated from all published, indexable pages |
-| \`/robots.txt\` | Auto-generated from Robots & Sitemap settings |
-
-> Both update instantly when you save settings or publish/unpublish pages.
+<h4>Site Settings &amp; Per-Page SEO</h4>
+<p class="lead">The SEO area has two homes. <b>Site-wide defaults</b> live at <strong>Admin → Content → SEO</strong> (a tabbed page backed by <code>data/seo-config.json</code> via <code>GET|PATCH /api/seo</code>). <b>Per-page overrides</b> live in a modal editor (<code>SeoPageEditorModal</code>) that writes to the page record via <code>PUT /api/pages/{slug}</code>. At request time <code>metadata-generator.ts</code> merges page over site over hard defaults to emit the final <code>&lt;head&gt;</code> — see the <b>Metadata Generation</b> topic for that cascade.</p>
+
+<div class="note"><b>What this covers.</b> Core SEO authoring — site identity, social/OG, robots, structured data, and the per-page editor. The monitoring surfaces (Score, Audit, Go-Live Readiness, Propagation, Scorecard, and the connected Search Console / Business Profile dashboards) are documented separately in the SEO monitoring package.</div>
+
+<h5 class="mt-4">1 · Orientation — the SEO admin</h5>
+<p>The page opens on <b>Overview</b> and exposes twelve tabs plus three header actions. Two responsibility cards under the header make explicit what the system does automatically versus what a human still owns.</p>
+
+<div class="fig map">
+  <div class="fig-head"><span class="tag">Interface map</span><span class="ttl">SEO Settings page — tab bar &amp; header actions</span></div>
+  <div class="fig-body">
+    <div class="imap">
+      <div class="bargroup end">
+        <span class="btn o">✨ SEO Wizard</span>
+        <span class="btn o">📋 Run SEO Audit</span>
+        <span class="btn p">💾 Save Settings</span>
+      </div>
+      <div class="pillrow">
+        <span class="ptab on"><span class="callout-num b">1</span>Overview</span>
+        <span class="ptab"><span class="callout-num grey">2</span>Score</span>
+        <span class="ptab"><span class="callout-num">3</span>Site Settings</span>
+        <span class="ptab"><span class="callout-num">4</span>Social &amp; OG</span>
+        <span class="ptab"><span class="callout-num">5</span>Robots &amp; Sitemap</span>
+        <span class="ptab"><span class="callout-num">6</span>Structured Data</span>
+        <span class="ptab"><span class="callout-num">7</span>Google</span>
+        <span class="ptab"><span class="callout-num grey">8</span>Search Console</span>
+        <span class="ptab"><span class="callout-num grey">9</span>Business Profile</span>
+        <span class="ptab"><span class="callout-num grey">10</span>Audit</span>
+        <span class="ptab"><span class="callout-num grey">11</span>Propagation</span>
+        <span class="ptab"><span class="callout-num grey">12</span>Scorecard</span>
+      </div>
+      <ul class="callouts">
+        <li><span class="callout-num b">3</span><div><b>Site Settings</b> — site name, title separator, default description, canonical base. Hosts the <b>Bootstrap SEO</b> auto-fill button. (Section 2)</div></li>
+        <li><span class="callout-num b">4</span><div><b>Social &amp; OG</b> — default OG image, Twitter card type, handle. (Section 2)</div></li>
+        <li><span class="callout-num b">5</span><div><b>Robots &amp; Sitemap</b> — disallow paths, sitemap toggle, live <code>robots.txt</code> preview. (Section 2)</div></li>
+        <li><span class="callout-num b">6</span><div><b>Structured Data</b> — LocalBusiness JSON-LD builder with live preview. (Section 2)</div></li>
+        <li><span class="callout-num b">7</span><div><b>Google</b> — guided step checklist incl. GA4 measurement ID. See the <b>Google Integration Setup</b> topic.</div></li>
+        <li><span class="callout-num grey">2</span><div><b>Score / Audit / Propagation / Scorecard / Search Console / Business Profile</b> — monitoring &amp; dashboards, covered separately.</div></li>
+      </ul>
+    </div>
+  </div>
+  <div class="fig-cap"><b>Source:</b> <code>app/admin/content/seo/page.tsx</code> — tab list, header actions, and the "Done automatically / You need to do this" responsibility panel.</div>
+</div>
+
+<div class="fig render">
+  <div class="fig-head"><span class="tag">Render preview</span><span class="ttl">Responsibility panel (top of every SEO tab)</span></div>
+  <div class="fig-body">
+    <div class="two">
+      <div>
+        <div class="lbl" style="color:var(--ok)">✅ Done automatically by the system</div>
+        <ul>
+          <li>Sitemap generation (<code>/sitemap.xml</code>)</li>
+          <li>Canonical URL tag per page</li>
+          <li>OG tags from page data · Twitter cards</li>
+          <li><code>robots.txt</code></li>
+          <li>Structured data JSON-LD from config</li>
+          <li>Gallery &amp; standalone page metadata</li>
+          <li>GA4 tracking (if ID is set)</li>
+        </ul>
+      </div>
+      <div>
+        <div class="lbl" style="color:#8a5a00">👤 You need to do this</div>
+        <ul>
+          <li>GSC domain verification → <em>Google tab</em></li>
+          <li>Submit sitemap to Google → <em>Propagation</em></li>
+          <li>Google Business Profile (external)</li>
+          <li>Write quality meta descriptions</li>
+          <li>Choose target keywords</li>
+          <li>Add fresh content · get backlinks</li>
+          <li>Request indexing in GSC</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="fig-cap">Each right-hand item deep-links to the relevant tab or an external URL. Purely informational — no settings are stored here.</div>
+</div>
+
+<h5 class="mt-4">2 · Site-level SEO settings</h5>
+<p>The site-wide defaults every page inherits unless it sets its own value. The shape and defaults come from <code>defaultSeoConfig</code> in <code>lib/seo-config.ts</code>.</p>
+
+<h5>2.1 — Site identity</h5>
+<div class="fig control">
+  <div class="fig-head"><span class="tag">Control mockup</span><span class="ttl">Site Settings tab — Site Identity card</span></div>
+  <div class="fig-body">
+    <div style="width:100%">
+      <div class="bargroup end"><span class="btn grn">🚀 Bootstrap SEO</span></div>
+      <div class="grp"><span class="lbl">Site Name</span><div class="inp ph">Your Company</div><div class="hint">Appended to every page title: <em>Page Title | Your Company</em>. <b>Default:</b> <code>"Your Company"</code>.</div></div>
+      <div class="grp"><span class="lbl">Title Separator</span><div class="inp sm">|</div><div class="hint">Character(s) between page title and site name. <b>Max 5 chars. Default:</b> <code>"|"</code>.</div></div>
+      <div class="grp"><span class="lbl">Default Meta Description</span><div class="inp area ph">Professional services for your region.</div><div class="hint warn">0/160 characters — used for pages without a custom description. <b>Warn</b> &gt;130, <b>error</b> &gt;160. <b>Default:</b> <code>"Professional services for your region."</code></div></div>
+      <div class="grp"><span class="lbl">Canonical Base URL</span><div class="inp ph">https://www.yourcompany.co.za</div><div class="hint">No trailing slash (auto-stripped on blur). <b>Default:</b> empty. Required for correct <code>sitemap.xml</code>, canonical tags, and OG URLs.</div></div>
+    </div>
+  </div>
+  <div class="fig-cap"><b>Bootstrap SEO</b> (green button) auto-fills only <b>blank</b> fields: page meta titles (title + site name, sliced to 60), descriptions (sliced to 155), and structured-data name/phone/city from Site Config; existing values are never overwritten. <b>Source:</b> <code>page.tsx</code> Site tab + <code>handleBootstrapSeo</code>.</div>
+</div>
+
+<div class="fig render">
+  <div class="fig-head"><span class="tag">Render preview</span><span class="ttl">SERP preview (updates live beside the Site form)</span></div>
+  <div class="fig-body">
+    <div class="serp g">
+      <div class="crumb" style="margin-bottom:2px">https://www.yourcompany.co.za/page-slug</div>
+      <div class="ttl" style="font-size:18px">Page Title | Your Company</div>
+      <div class="desc">Professional services for your region.</div>
+    </div>
+  </div>
+  <div class="fig-cap">Site-tab preview composes <code>Page Title {separator} {siteName}</code> and the default description — the hard defaults an un-customised page would emit.</div>
+</div>
+
+<h5>2.2 — Social &amp; Open Graph defaults</h5>
+<div class="fig control">
+  <div class="fig-head"><span class="tag">Control mockup</span><span class="ttl">Social &amp; OG tab</span></div>
+  <div class="fig-body">
+    <div style="width:100%">
+      <div class="grp"><span class="lbl">Default OG Image URL</span>
+        <div style="display:flex;gap:8px"><div class="inp ph" style="flex:1">/images/og-default.jpg</div><span class="btn o">📁</span><span class="btn o">☁</span></div>
+        <div class="hint">Used when a page has no custom OG image. Recommended <b>1200×630px</b>, absolute URL. Buttons open Media Library / Upload. <b>Default:</b> <code>/images/logo-placeholder.svg</code>.</div>
+      </div>
+      <div class="grp"><span class="lbl">Twitter Card Type</span>
+        <div style="margin-top:4px"><span class="radio"><span class="dot"></span>Summary (small image)</span><span class="radio"><span class="dot on"></span>Summary Large Image</span></div>
+        <div class="hint"><b>Default:</b> <code>summary_large_image</code>.</div>
+      </div>
+      <div class="grp"><span class="lbl">Twitter / X Handle</span><div class="inp"><span class="ph">@</span>&nbsp;yourcompany</div><div class="hint">Shown in Twitter cards. Leave blank to omit. <b>Default:</b> empty.</div></div>
+    </div>
+  </div>
+  <div class="fig-cap"><b>Source:</b> <code>page.tsx</code> Social tab and <code>SeoSocialConfig</code>. A live OG card preview renders to the right of these fields.</div>
+</div>
+
+<h5>2.3 — Robots &amp; sitemap</h5>
+<div class="fig control">
+  <div class="fig-head"><span class="tag">Control mockup</span><span class="ttl">Robots &amp; Sitemap tab</span></div>
+  <div class="fig-body">
+    <div style="width:100%">
+      <div class="grp"><span class="lbl">Disallow Paths</span><div class="inp area mono">/admin<br>/api</div><div class="hint">One path per line; blocked from crawlers. <b>Default:</b> <code>["/admin", "/api"]</code>.</div></div>
+      <div class="grp"><div class="sw-row"><span class="toggle"></span><span>Include sitemap URL in <code>robots.txt</code></span></div><div class="hint">Requires Canonical Base URL to be set. <b>Default:</b> <code>true</code>.</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="fig render">
+  <div class="fig-head"><span class="tag">Render preview</span><span class="ttl">Live robots.txt output</span></div>
+  <div class="fig-body">
+    <div style="width:100%"><pre><span class="cm">User-agent: *</span>
+Allow: /
+Disallow: /admin
+Disallow: /api
+Sitemap: https://www.yourcompany.co.za/sitemap.xml</pre></div>
+  </div>
+  <div class="fig-cap">The <code>Sitemap:</code> line appears only when <b>Include sitemap</b> is on <b>and</b> a canonical base is set. Live at <code>/robots.txt</code> and <code>/sitemap.xml</code>. If canonical base is unset, a warning appears and the sitemap falls back to <code>NEXT_PUBLIC_API_URL</code>.</div>
+</div>
+
+<h5>2.4 — Structured data (LocalBusiness JSON-LD)</h5>
+<div class="fig control">
+  <div class="fig-head"><span class="tag">Control mockup</span><span class="ttl">Structured Data tab</span></div>
+  <div class="fig-body">
+    <div style="width:100%">
+      <div class="grp"><div class="sw-row"><span class="toggle off"></span><span>Enabled / Disabled</span></div><div class="hint">Master switch (header of card). <b>Default:</b> <code>false</code> — all fields below are disabled/greyed until on.</div></div>
+      <div class="two">
+        <div class="grp"><span class="lbl">Business Name</span><div class="inp ph">Your Company Ltd</div><div class="hint">Default empty.</div></div>
+        <div class="grp"><span class="lbl">Business Type(s)</span><div class="inp">LocalBusiness</div><div class="hint">Comma-separated schema.org types. <b>Default:</b> <code>["LocalBusiness"]</code>.</div></div>
+      </div>
+      <div class="grp"><span class="lbl">Street Address</span><div class="inp ph">123 Main Street</div></div>
+      <div class="two">
+        <div class="grp"><span class="lbl">City</span><div class="inp ph">Cape Town</div></div>
+        <div class="grp"><span class="lbl">Country Code</span><div class="inp sm">ZA</div><div class="hint">2 chars. <b>Default:</b> <code>ZA</code>.</div></div>
+      </div>
+      <div class="two">
+        <div class="grp"><span class="lbl">Phone</span><div class="inp ph">+27 21 000 0000</div></div>
+        <div class="grp"><span class="lbl">Website URL</span><div class="inp ph">https://www.yourcompany.co.za</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="fig-cap"><b>Source:</b> <code>SeoStructuredDataConfig</code> + <code>page.tsx</code> Schema tab. The SEO Wizard offers a guided type picker.</div>
+</div>
+
+<div class="fig render">
+  <div class="fig-head"><span class="tag">Render preview</span><span class="ttl">Emitted JSON-LD (injected into every page head when enabled)</span></div>
+  <div class="fig-body">
+    <div style="width:100%"><pre><span class="cm">// null unless enabled AND name is set AND name != "Your Company"</span>
+{
+  <span class="c2">"@context"</span>: <span class="c1">"https://schema.org"</span>,
+  <span class="c2">"@type"</span>: <span class="c1">"LocalBusiness"</span>,        <span class="cm">// array if multiple types</span>
+  <span class="c2">"name"</span>: <span class="c1">"Your Company Ltd"</span>,
+  <span class="c2">"telephone"</span>: <span class="c1">"+27 21 000 0000"</span>,
+  <span class="c2">"url"</span>: <span class="c1">"https://www.yourcompany.co.za"</span>,
+  <span class="c2">"address"</span>: {
+    <span class="c2">"@type"</span>: <span class="c1">"PostalAddress"</span>,
+    <span class="c2">"streetAddress"</span>: <span class="c1">"123 Main Street"</span>,
+    <span class="c2">"addressLocality"</span>: <span class="c1">"Cape Town"</span>,
+    <span class="c2">"addressCountry"</span>: <span class="c1">"ZA"</span>
+  }
+}</pre></div>
+  </div>
+  <div class="fig-cap"><b>Source:</b> <code>buildStructuredData()</code> in <code>metadata-generator.ts</code>. Returns <code>null</code> when disabled, when <code>name</code> is empty, or when <code>name === "Your Company"</code> (the placeholder guard). Any literal <code>&lt;/script&gt;</code> in values is escaped to prevent injection.</div>
+</div>
+
+<h5 class="mt-4">3 · Per-page SEO editor</h5>
+<p>Opened as a modal (<code>SeoPageEditorModal</code>) for a single page via <strong>Content → Pages → 🔍 SEO</strong>. Left column = inputs, right column = live Google / Facebook / Twitter previews. Saves to the page record via <code>PUT /api/pages/{slug}</code>. If the page is not yet in the database, the editor shows an amber warning and blocks editing.</p>
+
+<div class="fig map">
+  <div class="fig-head"><span class="tag">Interface map</span><span class="ttl">SEO Settings modal — two-column layout</span></div>
+  <div class="fig-body">
+    <div class="imap">
+      <div class="mk-card">
+        <div class="mk-modalhead"><span class="t">🔍 SEO Settings — <span style="color:var(--muted);font-weight:400">About Us</span></span><span class="mk-x">✕</span></div>
+        <div style="display:grid;grid-template-columns:1.4fr 1fr">
+          <div style="padding:14px;border-right:1px solid var(--line)">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="callout-num b">1</span><b style="font-size:13px">Inputs (60%)</b></div>
+            <div class="inp" style="margin-bottom:7px">Meta Title</div>
+            <div class="inp area" style="margin-bottom:7px">Meta Description</div>
+            <div class="inp" style="margin-bottom:7px">Meta Keywords</div>
+            <div class="btn o" style="width:100%;justify-content:space-between;margin-bottom:7px"><span>🔁 Customise social sharing</span><span>▾</span></div>
+            <div style="font-size:10.5px;color:var(--faint);letter-spacing:.05em;margin:4px 0">ADVANCED</div>
+            <div class="inp" style="margin-bottom:7px">Canonical URL Override</div>
+            <div style="display:flex;gap:16px"><span class="sw-row"><span class="toggle off"></span><span style="font-size:12px">noindex</span></span><span class="sw-row"><span class="toggle off"></span><span style="font-size:12px">nofollow</span></span></div>
+          </div>
+          <div style="padding:14px;background:var(--panel)">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="callout-num b">2</span><b style="font-size:13px">Live preview (40%)</b></div>
+            <div class="bargroup"><span class="ptab on" style="font-size:11px">Google</span><span class="ptab" style="font-size:11px">Facebook</span><span class="ptab" style="font-size:11px">Twitter</span></div>
+            <div class="serp g" style="padding:9px">
+              <div class="crumb">yourcompany.co.za › about</div>
+              <div class="ttl" style="font-size:13px">About Us | Your Company</div>
+              <div class="desc" style="font-size:11px">Meta description preview…</div>
+            </div>
+            <div style="margin-top:8px;font-size:11px;color:var(--accent)"><span class="callout-num" style="position:static">3</span> noindex warning appears here when toggled</div>
+          </div>
+        </div>
+        <div class="mk-foot"><span class="btn o">Close</span><span class="btn p">💾 Save SEO Settings</span></div>
+      </div>
+      <ul class="callouts">
+        <li><span class="callout-num b">1</span><div><b>Input column</b> — meta title, description, keywords; collapsible "Customise social sharing" accordion (OG title/description/image); Advanced (canonical override, noindex, nofollow).</div></li>
+        <li><span class="callout-num b">2</span><div><b>Preview column</b> — segmented Google / Facebook / Twitter tabs rendering the exact text with pixel-accurate truncation.</div></li>
+        <li><span class="callout-num">3</span><div><b>noindex warning</b> — a red inline alert appears under the preview whenever <code>noindex</code> is on.</div></li>
+      </ul>
+    </div>
+  </div>
+  <div class="fig-cap"><b>Source:</b> <code>components/admin/SeoPageEditorModal.tsx</code>. Not-in-DB pages show an amber warning instead of the form.</div>
+</div>
+
+<h5>3.1 — Fields, options &amp; character thresholds</h5>
+<div class="fig control">
+  <div class="fig-head"><span class="tag">Control mockup</span><span class="ttl">Input column — with threshold-coloured hints</span></div>
+  <div class="fig-body">
+    <div style="width:100%">
+      <div class="grp"><span class="lbl">Meta Title</span><div class="inp ph">Blank → use page title: "About Us"</div><div class="hint ok">0/60 — leave blank to use page title. <b>maxLength 80.</b> Border turns amber &gt;60, red &gt;70.</div></div>
+      <div class="grp"><span class="lbl">Meta Description</span><div class="inp area ph">Describe this page in 50–160 characters for search results…</div><div class="hint err">0/160 — required for good CTR. <b>maxLength 300.</b> Border amber &gt;160, red &gt;180.</div></div>
+      <div class="grp"><span class="lbl">Meta Keywords</span><div class="inp ph">keyword1, keyword2, keyword3</div><div class="hint">Comma-separated. Low ranking impact but useful for internal search.</div></div>
+      <div class="note"><b>Social overrides</b> (collapsed accordion "Customise social sharing"): <b>OG Title</b> (defaults to meta/page title), <b>OG Description</b> (defaults to meta description), <b>OG Image URL</b> (defaults to site-wide OG image).</div>
+      <div class="grp"><span class="lbl">Canonical URL Override <span class="tnote">advanced</span></span><div class="inp ph">https://www.yourcompany.co.za/about</div><div class="hint">Blank → auto-generated from Canonical Base + page slug.</div></div>
+      <div class="two">
+        <div class="grp"><div class="sw-row"><span class="toggle danger off"></span><b style="color:var(--accent)">noindex</b></div><div class="hint">Hide this page from Google search results. <b>Default:</b> off.</div></div>
+        <div class="grp"><div class="sw-row"><span class="toggle off"></span><span>nofollow</span></div><div class="hint">Don't pass link authority to outbound links. <b>Default:</b> off.</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="fig-cap">Hint text and border colour are computed from the live length. Thresholds are tabulated below.</div>
+</div>
+
+<div class="fig diagram">
+  <div class="fig-head"><span class="tag">Diagram</span><span class="ttl">Character-count thresholds &amp; status messages</span></div>
+  <div class="fig-body">
+    <div class="scroll-x" style="width:100%"><table class="t">
+      <thead><tr><th>Field</th><th>Length range</th><th>Status</th><th>Inline message</th></tr></thead>
+      <tbody>
+        <tr><td rowspan="4"><b>Meta Title</b><br><span class="tnote">counter /60, maxLength 80</span></td><td>0</td><td><span class="thr err">error</span></td><td>"leave blank to use page title"</td></tr>
+        <tr><td>1–60</td><td><span class="thr ok">good</span></td><td>"good length"</td></tr>
+        <tr><td>61–70</td><td><span class="thr warn">warning</span></td><td>"slightly over ideal"</td></tr>
+        <tr><td>&gt;70</td><td><span class="thr err">error</span></td><td>"too long, Google will truncate"</td></tr>
+        <tr><td rowspan="5"><b>Meta Description</b><br><span class="tnote">counter /160, maxLength 300</span></td><td>0</td><td><span class="thr err">error</span></td><td>"required for good CTR"</td></tr>
+        <tr><td>1–49</td><td><span class="thr warn">warning*</span></td><td>"too short"</td></tr>
+        <tr><td>50–160</td><td><span class="thr ok">good</span></td><td>"good length"</td></tr>
+        <tr><td>161–180</td><td><span class="thr warn">warning</span></td><td>"slightly over, may be cut"</td></tr>
+        <tr><td>&gt;180</td><td><span class="thr err">error</span></td><td>"too long, will be truncated"</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+  <div class="fig-cap"><b>Source:</b> <code>SeoPageEditorModal.tsx</code> (<code>charClass</code>/border logic) and <code>lib/seo-preview.ts</code> (<code>getTitleStatus</code>: error if 0 or &gt;70, warning &gt;60; <code>getDescStatus</code>: error if 0 or &gt;180, warning &gt;160). *"too short" text colour follows the &lt;50 branch; the pixel-preview status uses the two functions above.</div>
+</div>
+
+<h5>3.2 — Google result snippet preview</h5>
+<div class="fig render">
+  <div class="fig-head"><span class="tag">Render preview</span><span class="ttl">Google tab — SERP snippet with status row</span></div>
+  <div class="fig-body">
+    <div class="serp g">
+      <div class="site"><div class="fav">G</div><div><div class="dom">yourcompany.co.za</div><div class="crumb">yourcompany.co.za › about</div></div></div>
+      <div class="ttl">About Us | Your Company</div>
+      <div class="desc">Learn about our team, our history, and the professional services we provide across the region. Get in touch today.</div>
+      <div class="sstat"><span class="ok">Title: 24/60</span><span class="ok">Desc: 118/160</span></div>
+    </div>
+  </div>
+  <div class="fig-cap">Title truncates to <b>~600px</b>, description to <b>~920px</b> using real canvas text measurement (<code>truncateToWidth</code>), so the cut mirrors Google. Border tints the whole card red/amber/green by the worst of title/description status. <b>Source:</b> <code>GooglePreview</code> + <code>lib/seo-preview.ts</code> (<code>TITLE_MAX_PX=600</code>, <code>DESC_MAX_PX=920</code>).</div>
+</div>
+
+<div class="fig render">
+  <div class="fig-head"><span class="tag">Render preview</span><span class="ttl">Facebook &amp; Twitter share cards</span></div>
+  <div class="fig-body">
+    <div class="socialwrap">
+      <div>
+        <div class="og">
+          <div class="img">📷 No OG image set</div>
+          <div class="body"><div class="k">YOURCOMPANY.CO.ZA</div><div class="h">About Us | Your Company</div><p class="p">Learn about our team, our history…</p></div>
+        </div>
+        <div class="hint" style="margin-top:6px">Facebook — 1.91:1 image. Amber badge "Set an OG image for better engagement" when none.</div>
+      </div>
+      <div>
+        <div class="og tw">
+          <div class="img" style="background:#eff3f4">📷</div>
+          <div class="body"><div class="h" style="color:#0f1419">About Us | Your Company</div><p class="p" style="color:#536471">Learn about our team, our history…</p><div class="k" style="color:#536471;margin-top:4px">🔗 yourcompany.co.za</div></div>
+        </div>
+        <div class="hint" style="margin-top:6px">Twitter — large-image (stacked) vs summary (side-by-side 120px thumb), driven by the site-wide card type.</div>
+      </div>
+    </div>
+  </div>
+  <div class="fig-cap">OG title/description/image fall back to the meta values, then site-wide defaults. Twitter layout switches on <code>social.twitterCard</code> from site config. <b>Source:</b> <code>FacebookPreview</code>, <code>TwitterPreview</code>.</div>
+</div>
+
+<h5 class="mt-4">Dynamic files</h5>
+<table class="table table-sm">
+  <thead><tr><th>URL</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>/sitemap.xml</code></td><td>Auto-generated from all published, indexable pages.</td></tr>
+    <tr><td><code>/robots.txt</code></td><td>Auto-generated from Robots &amp; Sitemap settings.</td></tr>
+  </tbody>
+</table>
+<p>Both update instantly when you save settings or publish/unpublish pages.</p>
+
+<div class="note xref"><b>Related topics.</b> <b>SEO Wizard</b> — populate all site-wide config in one guided pass. <b>Metadata Generation</b> — the exact page → site → hard-default cascade that produces each page's <code>&lt;head&gt;</code>. <b>Google Integration Setup</b> — connect GA4, Search Console, and Business Profile. Monitoring (Score / Audit / Readiness / Propagation / Scorecard) is covered separately.</div>
 `;
 
 // ─────────────────────────────────────────────
@@ -6230,6 +6346,53 @@ Go to **Content → SEO → Business Profile** to connect your listing similarly
 
 ---
 
+## The SEO → Google tab
+
+Separate from this credentials wizard, the **Content → SEO → Google** tab (\`GoogleSetupTab\`) is a guided, server-driven checklist that walks you through the remaining Google steps — most importantly setting your **GA4 Measurement ID**, which auto-injects the analytics script on all public pages.
+
+<div class="fig map">
+  <div class="fig-head"><span class="tag">Interface map</span><span class="ttl">Google tab — GoogleSetupTab guided steps</span></div>
+  <div class="fig-body">
+    <div class="imap">
+      <div class="mk-card">
+        <div class="mk-body">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b style="font-size:13.5px">🔍 Google Integration Progress</b><span class="pill blue">3/6 steps</span></div>
+          <div class="prog"><i style="width:50%"></i></div>
+          <div class="gstep"><span class="callout-num ok">✓</span><div style="flex:1"><b>Canonical base set</b> <span class="pill grey">auto-detected</span><div class="tnote">shows current value + copy button</div></div></div>
+          <div class="gstep"><span class="callout-num b">4</span><div style="flex:1"><b>GA4 Measurement ID</b><div class="tnote">input <code>G-</code> prefix · Save → injects tracking on all public pages</div></div><span class="inp sm mono">G- XXXXXXXXXX</span></div>
+          <div class="gstep"><span class="callout-num b">5</span><div style="flex:1"><b>Manual step</b> <span style="color:var(--muted)">— checkbox toggle "Mark as done"</span></div><span class="toggle off"></span></div>
+        </div>
+      </div>
+      <ul class="callouts">
+        <li><span class="callout-num b">1</span><div><b>Progress header</b> — <code>doneCount/totalCount</code> and % bar; turns green at 100%. Data from <code>GET /api/admin/google-setup</code>.</div></li>
+        <li><span class="callout-num b">2</span><div><b>Auto-detected steps</b> — carry a hint (current value) with a copy button; a "Fix this" link when pending.</div></li>
+        <li><span class="callout-num b">4</span><div><b>GA4 step</b> (<code>id: ga4_setup</code>) — measurement-ID input; on Save (<code>PUT</code>) the tracking script is injected on all public pages; shows "Active: G-… — tracking script is injected".</div></li>
+        <li><span class="callout-num b">5</span><div><b>Manual steps</b> — a done/pending switch persisted via <code>PUT /api/admin/google-setup</code>.</div></li>
+      </ul>
+    </div>
+  </div>
+  <div class="fig-cap"><b>Source:</b> <code>components/admin/GoogleSetupTab.tsx</code>. The step list itself is server-driven — exact step count/labels are not hard-coded in this component.</div>
+</div>
+
+### What each Google surface does
+
+<div class="fig diagram">
+  <div class="fig-head"><span class="tag">Diagram</span><span class="ttl">Client capabilities — GA4 / Search Console / Business Profile</span></div>
+  <div class="fig-body">
+    <div class="scroll-x" style="width:100%"><table class="t">
+      <thead><tr><th>Surface</th><th>Purpose</th><th>Capabilities (exported client functions)</th><th>Auth / storage</th></tr></thead>
+      <tbody>
+        <tr><td><b>GA4</b><br><span class="tnote">Analytics</span></td><td>Traffic tracking. Set the measurement ID once; script auto-injects site-wide.</td><td>Measurement-ID field in Google tab (<code>ga4_setup</code> step). No dedicated API client — ID stored in config, script emitted per page.</td><td>ID only (no OAuth).</td></tr>
+        <tr><td><b>Search Console</b><br><span class="tnote">gsc-client.ts</span></td><td>Verify ownership, read search performance, inspect indexing, list sitemaps.</td><td><code>exchangeCodeForTokens</code>, <code>fetchSites</code>, <code>updateStoredSiteUrl</code>, <code>fetchSearchAnalytics</code>, <code>inspectUrl</code>, <code>fetchSitemaps</code>, <code>revokeToken</code>.</td><td>OAuth; encrypted token (<code>GSC_ENCRYPTION_KEY</code>); single row <code>SeoGscToken</code>; 429→quota, 401→disconnect.</td></tr>
+        <tr><td><b>Business Profile</b><br><span class="tnote">gbp-client.ts</span></td><td>Manage the Google listing: locations, business info, reviews, posts, insights.</td><td><code>exchangeGbpCodeForTokens</code> (PKCE), <code>fetchGbpLocations</code>, <code>fetchGbpBusinessInfo</code>, <code>fetchGbpReviews</code>, <code>fetchGbpPosts</code>, <code>createGbpPost</code>, <code>fetchGbpInsights</code>, <code>revokeGbpToken</code>.</td><td>OAuth PKCE; encrypted token; <code>gbpToken</code> table; spans 4 Google APIs; 429→quota, 401→disconnect.</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+  <div class="fig-cap"><b>Source:</b> exported functions in <code>lib/gsc-client.ts</code> and <code>lib/gbp-client.ts</code>. The <b>Search Console</b> and <b>Business Profile</b> dashboards themselves (index tables, reviews, insights, propagation) are documented in the SEO monitoring package — this table only names what connecting enables.</div>
+</div>
+
+---
+
 ## Troubleshooting
 
 | Problem | Solution |
@@ -6246,38 +6409,172 @@ Go to **Content → SEO → Business Profile** to connect your listing similarly
 // ─────────────────────────────────────────────
 
 export const SEO_WIZARD_DOCS = `
-<h4>SEO Wizard</h4>
-<p class="lead">Auto-populate all SEO fields from a short guided questionnaire — no SEO knowledge required.</p>
+<h4>SEO Setup Wizard</h4>
+<p class="lead">A five-step guided flow (<code>SeoSetupWizardModal</code>) that populates site-wide config in one pass. Launch it from the <strong>SEO Wizard</strong> button (top-right of Content → SEO). On finish it <code>PATCH</code>es <code>/api/seo</code> with site name, default description, canonical base, social defaults, and a fully-enabled structured-data block.</p>
 
-<h5 class="mt-4">How to Use</h5>
-<ol>
-  <li>Go to <strong>Content → SEO</strong></li>
-  <li>Click the <strong>SEO Wizard</strong> button (top right)</li>
-  <li>Complete the 4-step wizard:
-    <ul>
-      <li><strong>Business Info</strong> — name, type, optional tagline</li>
-      <li><strong>Location &amp; Contact</strong> — URL, phone, address, Twitter handle</li>
-      <li><strong>Keywords &amp; Description</strong> — comma-separated keywords; preview the generated meta description live</li>
-      <li><strong>Review &amp; Apply</strong> — SERP preview + field summary before committing</li>
-    </ul>
-  </li>
-  <li>Click <strong>Apply to SEO</strong> — all fields are populated in memory</li>
-  <li>Review the fields on each tab, then click <strong>Save Settings</strong></li>
-</ol>
+<div class="fig diagram">
+  <div class="fig-head"><span class="tag">Diagram</span><span class="ttl">Wizard flow — 5 steps, progress bar, validation gates</span></div>
+  <div class="fig-body">
+    <div style="width:100%">
+      <div class="stepgrid">
+        <div class="stp"><div class="sn">1</div><div class="st">Identity</div><div class="sd">Business name*, tagline, type(s), address, city, country, phone.</div></div>
+        <div class="stp"><div class="sn">2</div><div class="st">Canonical URL</div><div class="sd">Website URL, live-verified via <code>/api/seo/check-url</code>.</div></div>
+        <div class="stp"><div class="sn">3</div><div class="st">Defaults</div><div class="sd">Auto meta description, OG image, Twitter handle + card.</div></div>
+        <div class="stp"><div class="sn">4</div><div class="st">Verification</div><div class="sd">GSC tag + GA4 ID (informational only, not saved to config).</div></div>
+        <div class="stp"><div class="sn">5</div><div class="st">Go Live</div><div class="sd">Readiness checklist + GSC submission guide, then Save.</div></div>
+      </div>
+      <div style="margin-top:14px">
+        <div class="kv"><b>Gate 1 → 2:</b> business name ≥ 2 chars.</div>
+        <div class="kv"><b>Gate 2 → 3:</b> URL status not "error" and not mid-check (invalid URL blocks; HTTP only warns).</div>
+        <div class="kv"><b>Gate 3 → 4:</b> default description ≤ 160 chars.</div>
+        <div class="kv"><b>Steps 4 &amp; 5:</b> no gate — advisory only.</div>
+      </div>
+    </div>
+  </div>
+  <div class="fig-cap"><b>Source:</b> <code>SeoSetupWizardModal.tsx</code> — <code>STEP_LABELS</code>, <code>canAdvance()</code>, <code>buildPatch()</code>.</div>
+</div>
 
-<h5 class="mt-4">What Gets Populated</h5>
+<div class="fig control">
+  <div class="fig-head"><span class="tag">Control mockup</span><span class="ttl">Step 1 — Identity (business type multi-select)</span></div>
+  <div class="fig-body">
+    <div style="width:100%">
+      <div class="grp"><span class="lbl">Business Name<span class="req">*</span></span><div class="inp ph">Acme Corporation</div><div class="hint">Becomes site name and seeds all SEO fields.</div></div>
+      <div class="grp"><span class="lbl">Tagline <span class="tnote">(optional)</span></span><div class="inp ph">South Africa's most reliable ready-mix concrete supplier</div><div class="hint">Used to build the default meta description.</div></div>
+      <div class="grp"><span class="lbl">Business Type <span class="tnote">(select all that apply)</span></span>
+        <div>
+          <span class="chip blue">Local Business (general)</span> <span class="chip">Organization / Company</span>
+          <span class="chip">Store / Retail</span> <span class="chip">Restaurant / Food</span>
+          <span class="chip">Construction / Home Services</span> <span class="chip">Professional Services</span>
+          <span class="chip">Automotive</span> <span class="chip">Health &amp; Beauty</span>
+          <span class="chip">Travel &amp; Tourism</span> <span class="chip">Sports &amp; Recreation</span>
+        </div>
+        <div class="hint">Ten <code>schema.org</code> types. <b>Default selected:</b> <code>LocalBusiness</code>. Each type also carries suggested keywords (<code>TYPE_KEYWORDS</code>).</div>
+      </div>
+      <div class="two">
+        <div class="grp"><span class="lbl">Street Address <span class="tnote">(optional)</span></span><div class="inp ph">123 Main Road</div></div>
+        <div class="grp"><span class="lbl">City</span><div class="inp ph">Cape Town</div></div>
+      </div>
+      <div class="grp"><span class="lbl">Country</span><div class="inp sm">ZA</div></div>
+    </div>
+  </div>
+  <div class="fig-cap"><b>Source:</b> <code>BUSINESS_TYPES</code> constant. Phone field also present. Default country <code>ZA</code>.</div>
+</div>
+
+<div class="fig control">
+  <div class="fig-head"><span class="tag">Control mockup</span><span class="ttl">Steps 2–4 — condensed</span></div>
+  <div class="fig-body">
+    <div style="width:100%">
+      <h5 style="margin-top:0">Step 2 · Canonical URL</h5>
+      <div class="grp"><span class="lbl">Your Website URL<span class="req">*</span></span><div class="inp ph">https://www.yourcompany.co.za</div>
+        <div class="hint ok">✓ URL resolves correctly. <span style="color:var(--muted)">On blur, calls <code>/api/seo/check-url</code> (6s timeout). Invalid URL → error (blocks); HTTP → warn; unreachable → warn (can proceed).</span></div></div>
+      <div class="note">"What this enables" panel lists the resulting canonical, sitemap, OG, and structured-data URLs derived from the base.</div>
+      <h5>Step 3 · Defaults</h5>
+      <div class="grp"><span class="lbl">Default Meta Description <span class="tnote">(auto-generated, Regenerate button)</span></span><div class="inp area">Acme Corporation in Cape Town — South Africa's most reliable ready-mix concrete supplier.</div>
+        <div class="hint warn">/160 chars — <b>maxLength 200</b>; border amber &gt;140, red &gt;160.</div></div>
+      <div class="two">
+        <div class="grp"><span class="lbl">Default OG Image URL</span><div class="inp ph">/images/og-default.jpg</div><div class="hint">Recommended 1200×630px.</div></div>
+        <div class="grp"><span class="lbl">Twitter Card Type</span><div class="inp">Large Image (recommended)</div><div class="hint">or "Summary with small image".</div></div>
+      </div>
+      <h5>Step 4 · Verification <span class="tnote">(informational — NOT saved to config)</span></h5>
+      <div class="two">
+        <div class="grp"><span class="lbl">GSC Verification Tag <span class="pill green">optional</span></span><div class="inp mono ph">&lt;meta name="google-site-verification" content="…" /&gt;</div><div class="hint">Add via <b>Settings → Site Config → Head Tags</b>.</div></div>
+        <div class="grp"><span class="lbl">GA4 Measurement ID <span class="pill green">optional</span></span><div class="inp mono ph">G-XXXXXXXXXX</div><div class="hint">Validated <code>/^G-[A-Z0-9]+$/</code>. Add via <b>Settings → Analytics</b>.</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="fig-cap"><b>Key nuance:</b> Step 4 fields are display-only reference — the wizard's <code>buildPatch()</code> never writes them. Actual GA4 activation happens in the Google tab (see the Google Integration Setup topic).</div>
+</div>
+
+<div class="fig render">
+  <div class="fig-head"><span class="tag">Render preview</span><span class="ttl">Step 5 — Go Live checklist + GSC submission guide</span></div>
+  <div class="fig-body">
+    <div style="width:100%">
+      <div class="note">
+        <div class="kv ok">✅ Canonical base URL is set</div>
+        <div class="kv ok">✅ Default meta description present</div>
+        <div class="kv err">✗ Sitemap reachable <span style="color:var(--muted)">— submit once the site is live</span></div>
+        <div style="margin-top:8px"><span class="pill blue">3/4 checks passed</span></div>
+      </div>
+      <div class="mk-card" style="margin-top:12px">
+        <div class="mk-modalhead" style="background:var(--primary);color:#fff"><span class="t" style="color:#fff">🔍 Submit to Google Search Console</span></div>
+        <div class="mk-body">
+          <ol>
+            <li>Go to search.google.com/search-console</li>
+            <li>Add property → URL prefix → <code>https://www.yourcompany.co.za</code></li>
+            <li>Verify ownership via DNS TXT record</li>
+            <li>Submit sitemap: <code>…/sitemap.xml</code></li>
+            <li>URL Inspection → Request indexing for homepage</li>
+          </ol>
+          <div class="note">🕐 New sites typically take <b>1–4 weeks</b> to appear in Google results.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="fig-cap">Checklist is fetched from <code>/api/seo/readiness</code> (same source as the Audit tab's "Go Live Readiness"). "Save &amp; Finish" runs <code>buildPatch()</code> → <code>PATCH /api/seo</code> and applies the config.</div>
+</div>
+
+<h5 class="mt-4">What gets populated on finish</h5>
 <table class="table table-sm">
-  <thead class="table-light"><tr><th>Field</th><th>Source</th></tr></thead>
+  <thead class="table-light"><tr><th>Config field</th><th>Source (wizard step)</th></tr></thead>
   <tbody>
-    <tr><td>Site Name</td><td>Business Name</td></tr>
-    <tr><td>Default Meta Description</td><td>Auto-generated from tagline + keywords + location</td></tr>
-    <tr><td>Canonical Base URL</td><td>Website URL</td></tr>
-    <tr><td>Twitter Handle</td><td>Twitter / X Handle</td></tr>
-    <tr><td>Structured Data (JSON-LD)</td><td>All business fields (enabled automatically)</td></tr>
+    <tr><td>Site Name</td><td>Business Name (Step 1)</td></tr>
+    <tr><td>Default Meta Description</td><td>Auto-generated from tagline + type + city (Step 3)</td></tr>
+    <tr><td>Canonical Base URL</td><td>Website URL (Step 2)</td></tr>
+    <tr><td>Social defaults (OG image, Twitter handle + card)</td><td>Step 3</td></tr>
+    <tr><td>Structured Data (JSON-LD)</td><td>All Step 1 business fields — enabled automatically</td></tr>
   </tbody>
 </table>
+<p class="text-muted small">Step 4 verification fields (GSC tag, GA4 ID) are <strong>not</strong> written by the wizard — apply those via Settings. All populated fields can be edited on each tab before the final Save.</p>
+`;
 
-<p class="text-muted small">All fields can be manually edited after the wizard applies them. The wizard does not save automatically — you must click Save Settings.</p>
+// ─────────────────────────────────────────────
+// METADATA GENERATION (per route)
+// ─────────────────────────────────────────────
+
+export const METADATA_CASCADE_DOCS = `
+<h4>Metadata Generation (per route)</h4>
+<p class="lead">At request time <code>buildMetadata(page, seoConfig)</code> produces the Next.js <code>Metadata</code> object for a route. It reads site config from <code>data/seo-config.json</code> (falling back to <code>defaultSeoConfig</code> if missing or corrupt) and merges per-page fields over it with a strict cascade — <b>page-specific → site defaults → hard defaults</b>.</p>
+
+<div class="fig diagram">
+  <div class="fig-head"><span class="tag">Diagram</span><span class="ttl">Cascade — Page-specific → Site defaults → Hard defaults</span></div>
+  <div class="fig-body">
+    <div style="width:100%">
+      <div class="cascade">
+        <div class="casc-row"><div class="casc-k">title<span class="out">&lt;title&gt;</span></div><div class="casc-flow"><span class="pri">page.metaTitle</span><span class="arw">→</span><span class="pri">page.title</span><span class="arw">then</span> <code>\`\${pageTitle} \${sep} \${siteName}\`</code> <span class="arw">else</span> <span class="def">siteName</span></div></div>
+        <div class="casc-row"><div class="casc-k">description</div><div class="casc-flow"><span class="pri">page.metaDescription</span><span class="arw">→</span><span class="def">seoConfig.defaultDescription</span><span class="arw">→</span><span class="def">""</span></div></div>
+        <div class="casc-row"><div class="casc-k">openGraph.title</div><div class="casc-flow"><span class="pri">page.ogTitle</span><span class="arw">→</span><span class="pri">page.metaTitle</span><span class="arw">→</span><span class="pri">page.title</span><span class="arw">→</span><span class="def">siteName</span></div></div>
+        <div class="casc-row"><div class="casc-k">openGraph.description</div><div class="casc-flow"><span class="pri">page.ogDescription</span><span class="arw">→</span> description (above)</div></div>
+        <div class="casc-row"><div class="casc-k">openGraph.images</div><div class="casc-flow"><span class="pri">page.ogImage</span><span class="arw">→</span><span class="def">social.ogImage</span></div></div>
+        <div class="casc-row"><div class="casc-k">alternates.canonical</div><div class="casc-flow"><span class="pri">page.canonicalUrl</span><span class="arw">→</span> <code>\`\${base}/\${slug}\`</code> <span class="arw">(omitted if base empty)</span></div></div>
+        <div class="casc-row"><div class="casc-k">robots</div><div class="casc-flow"><code>page.noindex ? "noindex" : "index"</code> + <code>page.nofollow ? "nofollow" : "follow"</code></div></div>
+        <div class="casc-row"><div class="casc-k">twitter.card</div><div class="casc-flow"><span class="def">seoConfig.social.twitterCard</span> <span class="arw">(default</span> <code>summary_large_image</code><span class="arw">)</span></div></div>
+      </div>
+      <div class="note"><b>metadataBase</b> is set only when a canonical base exists; <code>keywords</code> is emitted only when <code>page.metaKeywords</code> is present. The base has any trailing slash stripped.</div>
+    </div>
+  </div>
+  <div class="fig-cap"><b>Source:</b> <code>buildMetadata()</code> in <code>lib/metadata-generator.ts</code>; site config shape in <code>lib/seo-config.ts</code>.</div>
+</div>
+
+<div class="fig render">
+  <div class="fig-head"><span class="tag">Render preview</span><span class="ttl">Resulting head for a typical page</span></div>
+  <div class="fig-body">
+    <div style="width:100%"><pre><span class="cm">&lt;!-- page: About Us · slug "about" · noindex off --&gt;</span>
+&lt;<span class="c3">title</span>&gt;About Us | Your Company&lt;/<span class="c3">title</span>&gt;
+&lt;<span class="c3">meta</span> name=<span class="c1">"description"</span> content=<span class="c1">"Learn about our team…"</span>&gt;
+&lt;<span class="c3">meta</span> name=<span class="c1">"robots"</span> content=<span class="c1">"index, follow"</span>&gt;
+&lt;<span class="c3">link</span> rel=<span class="c1">"canonical"</span> href=<span class="c1">"https://www.yourcompany.co.za/about"</span>&gt;
+&lt;<span class="c3">meta</span> property=<span class="c1">"og:title"</span> content=<span class="c1">"About Us"</span>&gt;
+&lt;<span class="c3">meta</span> property=<span class="c1">"og:description"</span> content=<span class="c1">"Learn about our team…"</span>&gt;
+&lt;<span class="c3">meta</span> property=<span class="c1">"og:image"</span> content=<span class="c1">"/images/og-default.jpg"</span>&gt;
+&lt;<span class="c3">meta</span> property=<span class="c1">"og:type"</span> content=<span class="c1">"website"</span>&gt;
+&lt;<span class="c3">meta</span> name=<span class="c1">"twitter:card"</span> content=<span class="c1">"summary_large_image"</span>&gt;
+&lt;<span class="c3">meta</span> name=<span class="c1">"twitter:site"</span> content=<span class="c1">"@yourcompany"</span>&gt;
+<span class="cm">&lt;!-- when noindex is ON: content="noindex, follow" and page is hidden --&gt;</span></pre></div>
+  </div>
+  <div class="fig-cap">Illustrative output assembled from the cascade — field values map 1:1 to the <code>Metadata</code> object Next.js serialises. <code>twitter:site</code> appears only when a handle is configured; JSON-LD (see Site Settings &amp; Per-Page SEO → Structured data) is injected separately when structured data is enabled.</div>
+</div>
+
+<div class="note xref"><b>Related topics.</b> <b>Site Settings &amp; Per-Page SEO</b> — the controls that feed each field above. <b>SEO Wizard</b> — populates the site-default half of the cascade in one pass.</div>
 `;
 
 // ─────────────────────────────────────────────
@@ -7900,6 +8197,7 @@ export const DOC_TOPICS: DocTopic[] = [
     children: [
       { id: "seo-overview", label: "Site Settings & Per-Page SEO", icon: "bi-search", content: SEO_MANAGEMENT },
       { id: "seo-wizard", label: "SEO Wizard", icon: "bi-magic", content: SEO_WIZARD_DOCS },
+      { id: "seo-metadata", label: "Metadata Generation", icon: "bi-file-code", content: METADATA_CASCADE_DOCS },
       { id: "google-integration", label: "Google Integration Setup", icon: "bi-google", content: GOOGLE_INTEGRATION_DOCS },
     ],
   },
