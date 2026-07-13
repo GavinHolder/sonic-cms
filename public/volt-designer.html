@@ -4840,6 +4840,33 @@
       if((e.ctrlKey||e.metaKey)&&e.key==='v'&&state._clipboard){e.preventDefault();pushHistory();var _pst=JSON.parse(JSON.stringify(state._clipboard));_pst.id=nanoid();_pst.name=_pst.name+' copy';_pst.x=_pst.x+3;_pst.y=_pst.y+3;_pst.zIndex=state.element.layers.reduce(function(m,x){return Math.max(m,x.zIndex||0);},0)+1;state.element.layers.push(_pst);state.selectedLayerId=_pst.id;state.multiSelectIds=[_pst.id];markDirty();renderAll();return;}
       // Duplicate (Ctrl+D)
       if((e.ctrlKey||e.metaKey)&&e.key==='d'&&state.selectedLayerId){e.preventDefault();ctxDuplicate();return;}
+      // Multi-select arrow nudge: shift EVERY selected layer by one shared delta so
+      // the group moves as a unit (mirrors the mouse multi-drag write). The delta is
+      // clamped to the selection's union bounds so the whole group stays on-canvas and
+      // relative offsets are preserved. Vectors translate their pathData (path geometry
+      // is absolute in 0–100 space), matching mouse-drag. Runs before the single branch
+      // because selectedLayerId is also set (the primary) while multi-selecting.
+      if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].indexOf(e.key)>=0&&state.multiSelectIds&&state.multiSelectIds.length>1&&state.activeTool==='select'){
+        e.preventDefault();
+        var _mstep=e.shiftKey?5:1;
+        var _mdx=(e.key==='ArrowLeft'?-_mstep:e.key==='ArrowRight'?_mstep:0);
+        var _mdy=(e.key==='ArrowUp'?-_mstep:e.key==='ArrowDown'?_mstep:0);
+        var _mls=state.multiSelectIds.map(function(id){return state.element.layers.find(function(l){return l.id===id;});}).filter(function(l){return !!l;});
+        if(_mls.length){
+          var _muL=Math.min.apply(null,_mls.map(function(l){return l.x;}));
+          var _muT=Math.min.apply(null,_mls.map(function(l){return l.y;}));
+          var _muR=Math.max.apply(null,_mls.map(function(l){return l.x+l.width;}));
+          var _muB=Math.max.apply(null,_mls.map(function(l){return l.y+l.height;}));
+          _mdx=Math.max(-_muL,Math.min(100-_muR,_mdx));
+          _mdy=Math.max(-_muT,Math.min(100-_muB,_mdy));
+          if(_mdx||_mdy){
+            if(!_nudgeTimer){pushHistory();}clearTimeout(_nudgeTimer);_nudgeTimer=setTimeout(function(){_nudgeTimer=null;},500);
+            _mls.forEach(function(l){var _op=l.vectorData?l.vectorData.pathData:null;l.x=l.x+_mdx;l.y=l.y+_mdy;if(_op&&l.vectorData)l.vectorData.pathData=translatePath(_op,_mdx,_mdy);});
+            markDirty();renderCanvas();renderProps();
+          }
+        }
+        return;
+      }
       // Arrow key nudging (1% per press, 5% with Shift)
       if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].indexOf(e.key)>=0&&state.selectedLayerId&&state.activeTool==='select'){
         e.preventDefault();var _ni=state.element.layers.findIndex(function(l){return l.id===state.selectedLayerId;});
