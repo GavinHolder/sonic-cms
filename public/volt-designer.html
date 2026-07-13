@@ -994,16 +994,50 @@
     }
     function pct(v,total){return v/total*100;}
     function topx(v,total){return v/100*total;}
+    // ── Precise path hit-test ──────────────────────────────────────────────────
+    // Selection must follow the ACTUAL rendered shape geometry, not its bounding
+    // box, so clicking empty space inside a reshaped (non-rectangular) shape does
+    // NOT select it, and overlapping bbox'd shapes resolve to the one truly under
+    // the cursor. Uses the live <path> node (tagged data-hit=layer.id during
+    // render) via SVGGeometryElement.isPointInFill / isPointInStroke. The point
+    // (in svg-viewport space, as getSvgPt returns) is converted into the path's
+    // own local coordinate space with node.getCTM().inverse(), so the element's
+    // transform incl. rotation is honoured against the LIVE node — no manual
+    // geometry. Returns true (over shape), false (definitely not), or null
+    // (cannot determine → caller falls back to the bbox test).
+    function _layerHitNode(layer){
+      if(!layer||layer.type!=='vector')return null;
+      try{return svgEl.querySelector('[data-hit="'+layer.id+'"]');}catch(e){return null;}
+    }
+    function _pathHitTest(layer,pt){
+      var node=_layerHitNode(layer);
+      if(!node)return null;
+      var canFill=typeof node.isPointInFill==='function';
+      var canStroke=typeof node.isPointInStroke==='function';
+      if(!canFill&&!canStroke)return null;
+      var m;try{m=node.getCTM();}catch(e){m=null;}
+      if(!m||typeof m.inverse!=='function')return null;
+      var lp;try{var vp=svgEl.createSVGPoint();vp.x=pt.x;vp.y=pt.y;lp=vp.matrixTransform(m.inverse());}catch(e){return null;}
+      var q={x:lp.x,y:lp.y};
+      try{
+        if(canFill&&node.isPointInFill(q))return true;
+        if(canStroke&&node.isPointInStroke(q))return true;
+        return false;
+      }catch(e){return null;}
+    }
     // ── Hit-test: topmost layer at canvas-px point ─────────────────────────────
     // Skips hidden layers (visible:false) AND locked layers so a locked/hidden
     // element never intercepts a canvas click — clicks fall through to the layer
     // beneath. Locked layers stay reachable via the Layers panel (to unlock).
-    function hitTest(pt){var CW=state.element.canvasWidth,CH=state.element.canvasHeight;var sorted=state.element.layers.slice().sort(function(a,b){return b.zIndex-a.zIndex;});for(var i=0;i<sorted.length;i++){var l=sorted[i];if(!l.visible&&!(l.boolRole==='cutter'&&state.boolEditParentId===l.boolParentId))continue;if(l.locked)continue;if(l.boolRole==='cutter'&&state.boolEditParentId!==l.boolParentId)continue;var lx=topx(l.x,CW),ly=topx(l.y,CH),lw=topx(l.width,CW),lh=topx(l.height,CH);if(pt.x>=lx&&pt.x<=lx+lw&&pt.y>=ly&&pt.y<=ly+lh)return l;}return null;}
+    // Vector layers hit-test by their real path geometry (see _pathHitTest); the
+    // axis-aligned bbox is only a fast-reject for un-rotated shapes (rotated
+    // shapes skip that reject since the path can extend past the unrotated bbox).
+    function hitTest(pt){var CW=state.element.canvasWidth,CH=state.element.canvasHeight;var sorted=state.element.layers.slice().sort(function(a,b){return b.zIndex-a.zIndex;});for(var i=0;i<sorted.length;i++){var l=sorted[i];if(!l.visible&&!(l.boolRole==='cutter'&&state.boolEditParentId===l.boolParentId))continue;if(l.locked)continue;if(l.boolRole==='cutter'&&state.boolEditParentId!==l.boolParentId)continue;var lx=topx(l.x,CW),ly=topx(l.y,CH),lw=topx(l.width,CW),lh=topx(l.height,CH);var inBox=pt.x>=lx&&pt.x<=lx+lw&&pt.y>=ly&&pt.y<=ly+lh;if(l.type==='vector'){if(!(l.rotation||0)&&!inBox)continue;var pc=_pathHitTest(l,pt);if(pc===true)return l;if(pc===false)continue;if(inBox)return l;continue;}if(inBox)return l;}return null;}
     // ── Hit-test stack: every selectable layer under a point, top→bottom ───────
     // Used for occluded-selection cycling (repeated clicks at the same spot dig
     // downward). Mirrors hitTest's skip rules: hidden, locked, groups, and
     // non-edit cutters are excluded.
-    function hitTestStack(pt){var CW=state.element.canvasWidth,CH=state.element.canvasHeight;var sorted=state.element.layers.slice().sort(function(a,b){return b.zIndex-a.zIndex;});var out=[];for(var i=0;i<sorted.length;i++){var l=sorted[i];if(!l.visible)continue;if(l.locked)continue;if(l.type==='group')continue;if(l.boolRole==='cutter'&&state.boolEditParentId!==l.boolParentId)continue;var lx=topx(l.x,CW),ly=topx(l.y,CH),lw=topx(l.width,CW),lh=topx(l.height,CH);if(pt.x>=lx&&pt.x<=lx+lw&&pt.y>=ly&&pt.y<=ly+lh)out.push(l);}return out;}
+    function hitTestStack(pt){var CW=state.element.canvasWidth,CH=state.element.canvasHeight;var sorted=state.element.layers.slice().sort(function(a,b){return b.zIndex-a.zIndex;});var out=[];for(var i=0;i<sorted.length;i++){var l=sorted[i];if(!l.visible)continue;if(l.locked)continue;if(l.type==='group')continue;if(l.boolRole==='cutter'&&state.boolEditParentId!==l.boolParentId)continue;var lx=topx(l.x,CW),ly=topx(l.y,CH),lw=topx(l.width,CW),lh=topx(l.height,CH);var inBox=pt.x>=lx&&pt.x<=lx+lw&&pt.y>=ly&&pt.y<=ly+lh;if(l.type==='vector'){if(!(l.rotation||0)&&!inBox)continue;var pc=_pathHitTest(l,pt);if(pc===true){out.push(l);continue;}if(pc===false)continue;if(inBox)out.push(l);continue;}if(inBox)out.push(l);}return out;}
     // Last plain-click canvas point, for detecting repeated clicks at the same spot.
     var _hitCyclePt=null;
     // ── Resize handles ────────────────────────────────────────────────────────
@@ -1087,6 +1121,7 @@
           // In bool-edit mode: cutter shows as dashed orange OUTLINE only (no fill)
           var isCutterEditVis=layer.boolRole==='cutter'&&state.boolEditParentId===layer.boolParentId;
           var path=svgNs('path');path.setAttribute('d',dispPath);
+          path.setAttribute('data-hit',layer.id); // tag for precise path hit-testing (isPointInFill)
           if(dispMaskId)path.setAttribute('mask','url(#'+dispMaskId+')');
           var _cvHovFills=state.activeStateName==='hover'?_getHoverOverride(layer.id).fills:null;
           var fill=(_cvHovFills&&_cvHovFills.length>0)?_cvHovFills[0]:(layer.vectorData.fills&&layer.vectorData.fills[0]);
@@ -4863,7 +4898,9 @@
         if(l.visible===false)continue; // only skip explicitly hidden
         if(l.boolRole==='cutter'&&state.boolEditParentId!==l.boolParentId)continue;
         var lx=topx(l.x,CW),ly=topx(l.y,CH),lw=topx(l.width,CW),lh=topx(l.height,CH);
-        if(pt.x>=lx&&pt.x<=lx+lw&&pt.y>=ly&&pt.y<=ly+lh)return l;
+        var inBox=pt.x>=lx&&pt.x<=lx+lw&&pt.y>=ly&&pt.y<=ly+lh;
+        if(l.type==='vector'){if(!(l.rotation||0)&&!inBox)continue;var pc=_pathHitTest(l,pt);if(pc===true)return l;if(pc===false)continue;if(inBox)return l;continue;}
+        if(inBox)return l;
       }
       return null;
     }
