@@ -1919,7 +1919,7 @@ function autoSave() {
   // Debounce localStorage write only (avoid thrashing storage on rapid actions)
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(() => {
-    localStorage.setItem(AUTOSAVE_KEY, snapshotState());
+    safeSetItem(AUTOSAVE_KEY, snapshotState());
   }, 500);
 }
 
@@ -6339,15 +6339,15 @@ function pickCarouselImage(bId, idx) {
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = 'image/*';
-  input.onchange = function() {
+  input.onchange = async function() {
     const file = input.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = function(ev) {
-      updateCarouselImage(bId, idx, 'url', ev.target.result);
-      renderPropsPanel();
-    };
-    reader.readAsDataURL(file);
+    // Upload to the media library and store the returned URL — never a base64
+    // data URI (which would balloon the layout JSON past the localStorage quota).
+    const url = await uploadMediaToLibrary(file);
+    if (!url) return;
+    updateCarouselImage(bId, idx, 'url', url);
+    renderPropsPanel();
   };
   input.click();
 }
@@ -6410,15 +6410,15 @@ function pickStripImage(bId, idx) {
   var input = document.createElement('input');
   input.type = 'file';
   input.accept = 'image/*';
-  input.onchange = function() {
+  input.onchange = async function() {
     var file = input.files[0];
     if (!file) return;
-    var reader = new FileReader();
-    reader.onload = function(ev) {
-      updateStripImage(bId, idx, 'src', ev.target.result);
-      renderPropsPanel();
-    };
-    reader.readAsDataURL(file);
+    // Upload to the media library and store the returned URL — never a base64
+    // data URI (which would balloon the layout JSON past the localStorage quota).
+    var url = await uploadMediaToLibrary(file);
+    if (!url) return;
+    updateStripImage(bId, idx, 'src', url);
+    renderPropsPanel();
   };
   input.click();
 }
@@ -6803,6 +6803,100 @@ window._mediaPickers = {};
 let _mediaPickerCounter = 0;
 
 /**
+ * Shows a brief, non-blocking toast at the bottom of the designer.
+ * Purely transient DOM — never persisted, never blocks Save/Done.
+ * @param {string} msg - Message to display.
+ * @param {string} [kind] - 'warn' (default) or 'error' for colour.
+ */
+function designerToast(msg, kind) {
+  try {
+    var el = document.createElement('div');
+    el.textContent = msg;
+    el.style.cssText =
+      'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:99999;' +
+      'max-width:80vw;padding:10px 16px;border-radius:8px;font-size:13px;line-height:1.4;' +
+      'color:#fff;box-shadow:0 4px 16px rgba(0,0,0,.35);pointer-events:none;' +
+      'background:' + (kind === 'error' ? '#b42318' : '#8a6d1a') + ';';
+    document.body.appendChild(el);
+    setTimeout(function () { el.remove(); }, 4000);
+  } catch (e) { /* toast is best-effort only */ }
+}
+
+/**
+ * Uploads a picked file to the media library and returns its stored URL.
+ *
+ * ASSUMPTIONS:
+ * 1. The designer runs inside an authenticated admin context, so the session
+ *    cookie is sent automatically with credentials:'include'.
+ * 2. POST /api/media/upload-simple accepts a multipart 'file' field and
+ *    returns { success:true, url } on success.
+ *
+ * FAILURE MODES:
+ * - Network/auth failure  → resolves null; caller must NOT persist base64.
+ * - Oversize / bad type   → server 400 → resolves null with a warning toast.
+ * - Missing url in body    → resolves null with a warning toast.
+ *
+ * Storing the returned URL (never a base64 data URI) keeps the layout JSON
+ * small enough for localStorage and the section record.
+ *
+ * @param {File} file - The file selected from the picker.
+ * @returns {Promise<string|null>} Stored URL, or null on any failure.
+ */
+async function uploadMediaToLibrary(file) {
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch('/api/media/upload-simple', {
+      method: 'POST',
+      credentials: 'include',
+      body: fd
+    });
+    if (!res.ok) {
+      let msg = 'Upload failed (' + res.status + ')';
+      try { const j = await res.json(); if (j && j.error) msg = j.error; } catch (e) { /* ignore */ }
+      console.warn('[flex-designer] media upload failed:', msg);
+      designerToast('Image upload failed: ' + msg + ' — not added.', 'error');
+      return null;
+    }
+    const data = await res.json();
+    if (!data || !data.url) {
+      console.warn('[flex-designer] media upload returned no url', data);
+      designerToast('Image upload failed: no URL returned — not added.', 'error');
+      return null;
+    }
+    return data.url;
+  } catch (err) {
+    console.warn('[flex-designer] media upload error:', err);
+    designerToast('Image upload failed: ' + ((err && err.message) || err) + ' — not added.', 'error');
+    return null;
+  }
+}
+
+/**
+ * Writes to localStorage, swallowing quota/security errors so a large layout
+ * can never crash the designer or block Save/Done. The design still persists
+ * to the server via the FLEXIBLE_DESIGNER_SAVE/_DONE postMessage regardless of
+ * whether the local write succeeds. Warns (once) on the first skipped write.
+ * @param {string} key
+ * @param {string} value
+ * @returns {boolean} true if written, false if the write was skipped.
+ */
+let _storageQuotaWarned = false;
+function safeSetItem(key, value) {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (err) {
+    if (!_storageQuotaWarned) {
+      _storageQuotaWarned = true;
+      console.warn('[flex-designer] localStorage write skipped (' + ((err && err.name) || 'error') + '); layout still saved to server.');
+      designerToast('Local backup skipped (browser storage full) — your design is still saved to the server.');
+    }
+    return false;
+  }
+}
+
+/**
  * Returns the inner HTML for a media picker widget: a thumbnail preview
  * (image tag, video tag, or placeholder icon) plus Browse/Change and Clear
  * buttons. The picker is identified by pid so triggerMediaPick/clearMediaPick
@@ -6886,25 +6980,24 @@ function triggerMediaPick(pid) {
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = m.accept;
-  input.onchange = function() {
+  input.onchange = async function() {
     const file = input.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = function(ev) {
-      const dataUrl = ev.target.result;
-      if (m.type === 'block') {
-        updateBlockProp(m.blockId, m.propKey, dataUrl);
-        if (m.rerender) renderCanvas();
-      } else if (m.type === 'sub') {
-        updateSubProp(m.blockId, m.seId, m.propKey, dataUrl);
-        renderCanvas();
-      } else if (m.type === 'editorialObstacle') {
-        editorialUpdateObstacle(m.blockId, m.obsId, 'src', dataUrl);
-        renderCanvas();
-      }
-      renderPropsPanel();
-    };
-    reader.readAsDataURL(file);
+    // Upload to the media library and store the returned URL — never a base64
+    // data URI (which would balloon the layout JSON past the localStorage quota).
+    const url = await uploadMediaToLibrary(file);
+    if (!url) return;
+    if (m.type === 'block') {
+      updateBlockProp(m.blockId, m.propKey, url);
+      if (m.rerender) renderCanvas();
+    } else if (m.type === 'sub') {
+      updateSubProp(m.blockId, m.seId, m.propKey, url);
+      renderCanvas();
+    } else if (m.type === 'editorialObstacle') {
+      editorialUpdateObstacle(m.blockId, m.obsId, 'src', url);
+      renderCanvas();
+    }
+    renderPropsPanel();
   };
   input.click();
 }
@@ -8126,7 +8219,7 @@ function buildJson() {
  */
 function saveLayout() {
   const json=buildJson();
-  localStorage.setItem('cms_layout_draft',json);
+  safeSetItem('cms_layout_draft',json);
   if(window.parent&&window.parent!==window){window.parent.postMessage({type:'FLEXIBLE_DESIGNER_SAVE',payload:json},'*');}
   const btn=event.target; const orig=btn.textContent;
   btn.textContent=' Saved!';
@@ -8140,7 +8233,7 @@ function saveLayout() {
  */
 function doneAndClose() {
   const json=buildJson();
-  localStorage.setItem('cms_layout_draft',json);
+  safeSetItem('cms_layout_draft',json);
   if(window.parent&&window.parent!==window){window.parent.postMessage({type:'FLEXIBLE_DESIGNER_DONE',payload:json},'*');}
 }
 /**
