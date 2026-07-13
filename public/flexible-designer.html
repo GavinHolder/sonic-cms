@@ -2128,6 +2128,28 @@ document.addEventListener('keydown', e => {
     if (e.key === 'ArrowRight') dx =  step;
     if (e.key === 'ArrowUp')    dy = -step;
     if (e.key === 'ArrowDown')  dy =  step;
+    // #89 Multi-selection → nudge every selected child together (mirrors startGroupMove:
+    // writes x/y on each member so buildJson persists, updates the DOM, then refits parents).
+    if (multiSelCount() > 1) {
+      const members = (state.multiSel || []).map(m => {
+        const block = state.blocks.find(b => b.id === m.b);
+        const se = block && block.subElements.find(s => s.id === m.s);
+        const el = document.querySelector(`.sub-element[data-sub-id="${m.s}"]`);
+        return (block && se && el) ? { block, se, el } : null;
+      }).filter(Boolean);
+      if (members.length) {
+        e.preventDefault();
+        members.forEach(m => {
+          m.se.x = Math.max(0, (m.se.x || 0) + dx);
+          m.se.y = Math.max(0, (m.se.y || 0) + dy);
+          m.el.style.left = m.se.x + 'px'; m.el.style.top = m.se.y + 'px';
+          m.block.manualSize = true; // keep nudged positions across re-render
+        });
+        new Set(members.map(m => m.block.id)).forEach(id => fitBlockToSubElementsDOM(id));
+        autoSave();
+      }
+      return;
+    }
     // A sub-element is selected → nudge it within its parent block
     if (state.selectedSubId && state.selectedBlockId) {
       const b = state.blocks.find(b => b.id === state.selectedBlockId);
