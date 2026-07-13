@@ -59,7 +59,8 @@ export interface VoltStroke {
   width: number
   align: 'inside' | 'center' | 'outside'
   cap: 'butt' | 'round' | 'square'
-  join: 'miter' | 'round' | 'bevel'
+  /** Stroke line-join. Optional — when absent the SVG default (miter) is used. */
+  join?: 'miter' | 'round' | 'bevel'
   dash?: number[]
   /** Base stroke-dashoffset (path-length units). Used as the resting offset for the stroke-race sweep. */
   dashOffset?: number
