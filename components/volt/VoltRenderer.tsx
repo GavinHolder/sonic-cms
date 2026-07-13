@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import type { VoltElementData, VoltSlots, VoltInstanceOverrides, VoltBreakpoint, VoltLayerStateOverride } from '@/types/volt'
+import type { VoltElementData, VoltSlots, VoltInstanceOverrides, VoltBreakpoint, VoltLayerStateOverride, VoltNumberData } from '@/types/volt'
 import { sortLayersByZ } from '@/lib/volt/volt-utils'
 import { personalityToAnimeConfig } from '@/lib/volt/personality-to-anime'
 import VoltSvgLayer from './VoltSvgLayer'
@@ -8,6 +8,26 @@ import VoltSlotRenderer from './VoltSlotRenderer'
 
 // Anime.js v4 animate() returns an Animation instance with a .cancel() method.
 type AnimeAnimation = { cancel: () => void }
+
+/** Format a ramp-number value with prefix/suffix/decimals. */
+function formatNumber(v: number, fmt?: VoltNumberData['format']): string {
+  const decimals = Math.max(0, Math.min(20, fmt?.decimals ?? 0))
+  const prefix = fmt?.prefix ?? ''
+  const suffix = fmt?.suffix ?? ''
+  return `${prefix}${v.toFixed(decimals)}${suffix}`
+}
+
+/**
+ * Ramp easing at progress p (0–1).
+ * 'overshoot' = easeOutBack (bursts past the target then settles back).
+ * 'snap'      = expo-out (decisive, locks straight onto the value, no overshoot).
+ */
+function rampEase(p: number, easing: 'overshoot' | 'snap'): number {
+  if (p >= 1) return 1
+  if (easing === 'snap') return 1 - Math.pow(2, -11 * p)
+  const c1 = 1.35, c3 = c1 + 1
+  return 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2)
+}
 
 interface Props {
   voltElement: VoltElementData
@@ -119,8 +139,11 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
     const systemFonts = new Set(['Arial', 'Georgia', 'Times New Roman', 'Helvetica', 'Courier New', 'system-ui', 'inherit'])
     const fonts = new Set<string>()
     for (const layer of layers) {
-      if (layer.type === 'text' && layer.textLayerData?.fontFamily) {
-        const family = layer.textLayerData.fontFamily.split(',')[0].trim().replace(/['"]/g, '')
+      let fam: string | undefined
+      if (layer.type === 'text' && layer.textLayerData?.fontFamily) fam = layer.textLayerData.fontFamily
+      else if (layer.type === 'number' && layer.numberData?.fontFamily) fam = layer.numberData.fontFamily
+      if (fam) {
+        const family = fam.split(',')[0].trim().replace(/['"]/g, '')
         if (family && !systemFonts.has(family)) fonts.add(family)
       }
     }
@@ -456,6 +479,78 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
       }
     }
 
+    // ── Ramp-number machinery (rAF count-up · hover + viewport triggers) ────────
+    // anime.js keyframes can't animate text content, so we write textContent each
+    // frame via requestAnimationFrame. rAF ids are tracked per-layer so a fresh
+    // hover cancels an in-flight ramp, and everything is cleaned up on unmount.
+    const numberLayers = layers.filter(l => l.type === 'number' && l.numberData)
+    const numberHoverLayers = numberLayers.filter(l => (l.numberData!.trigger ?? 'hover') === 'hover')
+    const numberViewportLayers = numberLayers.filter(l => l.numberData!.trigger === 'viewport')
+    let numberHoverArmed = true
+    const numberRafIds = new Map<string, number>()
+
+    function runRamp(layer: typeof layers[0]) {
+      const nd = layer.numberData!
+      const target = el!.querySelector<HTMLElement>(`#volt-layer-${layer.id} [data-volt-num-text]`)
+      if (!target) return
+      const existing = numberRafIds.get(layer.id)
+      if (existing) cancelAnimationFrame(existing)
+      const from = nd.from ?? 0
+      const to = nd.value
+      const easing = nd.easing ?? 'overshoot'
+      const dur = Math.max(1, nd.durationMs ?? (easing === 'snap' ? 380 : 1050))
+      const start = performance.now()
+      target.textContent = formatNumber(from, nd.format)
+      const step = (now: number) => {
+        const p = Math.min(1, (now - start) / dur)
+        const cur = from + (to - from) * rampEase(p, easing)
+        target.textContent = formatNumber(cur, nd.format)
+        if (p < 1) {
+          numberRafIds.set(layer.id, requestAnimationFrame(step))
+        } else {
+          target.textContent = formatNumber(to, nd.format)
+          numberRafIds.delete(layer.id)
+        }
+      }
+      numberRafIds.set(layer.id, requestAnimationFrame(step))
+    }
+    function cancelAllRamps() {
+      numberRafIds.forEach(id => cancelAnimationFrame(id))
+      numberRafIds.clear()
+    }
+
+    // ── Stroke-dash "race" machinery (loop the dash sweep while hovered) ────────
+    const raceLayers = layers.filter(l => l.type === 'vector' && l.vectorData?.strokeRace?.enabled)
+    const raceAnims: AnimeAnimation[] = []
+    async function startStrokeRace() {
+      if (raceLayers.length === 0) return
+      const { animate } = await import('animejs')
+      for (const layer of raceLayers) {
+        const sr = layer.vectorData!.strokeRace!
+        const pathEl = el!.querySelector<SVGPathElement>(`#volt-layer-${layer.id} path`)
+        if (!pathEl) continue
+        const period = (sr.dashLength ?? 22) + (sr.gap ?? 78)
+        const base = layer.vectorData!.stroke?.dashOffset ?? 0
+        const anim = animate(pathEl, {
+          strokeDashoffset: [base, base - period],
+          duration: Math.max(1, sr.speedMs ?? 1300),
+          loop: true,
+          ease: 'linear',
+        }) as AnimeAnimation
+        activeAnimationsRef.current.push(anim)
+        raceAnims.push(anim)
+      }
+    }
+    function stopStrokeRace() {
+      raceAnims.forEach(a => a.cancel())
+      raceAnims.length = 0
+      for (const layer of raceLayers) {
+        const pathEl = el!.querySelector<SVGPathElement>(`#volt-layer-${layer.id} path`)
+        if (!pathEl) continue
+        pathEl.style.strokeDashoffset = String(layer.vectorData!.stroke?.dashOffset ?? 0)
+      }
+    }
+
     // ── Event wiring ───────────────────────────────────────────────────────────
     const onEnter = () => {
       transitionToState('hover')
@@ -468,6 +563,13 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
       }
       // #4 loop-while-hover — start looping decorative layers
       if (loopHoverLayers.length > 0) startLoopWhileHover()
+      // Ramp-number — count up once per fresh hover, re-armed on leave
+      if (numberHoverLayers.length > 0 && numberHoverArmed) {
+        numberHoverArmed = false
+        numberHoverLayers.forEach(runRamp)
+      }
+      // Stroke-race — sweep the dash around the outline while hovered
+      if (raceLayers.length > 0) startStrokeRace()
     }
     const onLeave = () => {
       transitionToState('rest') // also cancels in-flight activeAnimationsRef (incl. hover timelines)
@@ -477,6 +579,10 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
       hoverTimelineArmed = true
       // #4 stop the loop and reset to base transform
       if (loopHoverLayers.length > 0) stopLoopWhileHover()
+      // Ramp-number — re-arm; in-flight rAF is left to settle on the final value
+      numberHoverArmed = true
+      // Stroke-race — stop and reset the dash offset to its base
+      if (raceLayers.length > 0) stopStrokeRace()
     }
     const onClick = () => {
       if (!isFlip || flipTrigger !== 'click') return
@@ -649,6 +755,20 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
       ;(el as HTMLElement & { _voltTimelineObs?: IntersectionObserver })._voltTimelineObs = timelineObserver
     }
 
+    // ── Ramp-number — viewport-triggered count-up (fires once on entry) ─────────
+    if (numberViewportLayers.length > 0) {
+      const numberObserver = new IntersectionObserver(
+        (entries) => {
+          if (!entries[0].isIntersecting) return
+          numberObserver.disconnect()
+          numberViewportLayers.forEach(runRamp)
+        },
+        { threshold: 0.3 }
+      )
+      numberObserver.observe(el)
+      ;(el as HTMLElement & { _voltNumberObs?: IntersectionObserver })._voltNumberObs = numberObserver
+    }
+
     // ── 3D Tilt + parallax depth ─────────────────────────────────────────────
     // Only active on non-flip cards (flip cards already have 3D perspective from the flip itself)
     let tiltRafId = 0
@@ -725,6 +845,7 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
       el.removeEventListener('focusout',   onBlur)
       activeAnimationsRef.current.forEach(anim => anim.cancel())
       activeAnimationsRef.current = []
+      cancelAllRamps()
       if (autoTimerRef.current) { clearInterval(autoTimerRef.current); autoTimerRef.current = null }
       if (tiltEnabled && !isFlip) {
         el.removeEventListener('mouseenter', onTiltEnter)
@@ -745,6 +866,9 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
       // Disconnect timeline (viewport autoplay) observer
       const tobs = (el as HTMLElement & { _voltTimelineObs?: IntersectionObserver })._voltTimelineObs
       if (tobs) tobs.disconnect()
+      // Disconnect ramp-number viewport observer
+      const nobs = (el as HTMLElement & { _voltNumberObs?: IntersectionObserver })._voltNumberObs
+      if (nobs) nobs.disconnect()
     }
   }, [voltElement, isFlip, flipAnimType, flipTrigger, flipAxis, flipDuration, flipEase, flipDirection, flipPerspective, flipAutoInterval, tiltEnabled, tiltMaxDeg, tiltPerspective, layers, states])
 
@@ -1041,6 +1165,68 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
       })
   }
 
+  /**
+   * Renders ramp-number layers as positioned HTML divs. At rest the final
+   * formatted `value` is shown; the hover/viewport count-up rewrites the inner
+   * [data-volt-num-text] span's textContent (see runRamp in the effect above).
+   */
+  function renderNumberLayers(layerList: typeof sortedLayers) {
+    return layerList
+      .filter(l => l.type === 'number' && l.visible !== false && l.numberData)
+      .map(layer => {
+        const nd = layer.numberData!
+        const safeCanvasWidth = Math.max(canvasWidth, 1)
+        const safeFontSize = Math.max(nd.fontSize ?? 48, 6)
+        const fontSizeCqw = `${Math.min((safeFontSize / safeCanvasWidth) * 100, 60)}cqw`
+        const alignItems =
+          nd.verticalAlign === 'center' ? 'center' :
+          nd.verticalAlign === 'bottom' ? 'flex-end' : 'flex-start'
+        const justifyContent =
+          nd.textAlign === 'center' ? 'center' :
+          nd.textAlign === 'right' ? 'flex-end' : 'flex-start'
+        return (
+          <div
+            key={layer.id}
+            id={`volt-layer-${layer.id}`}
+            data-volt-z={layer.translateZ && layer.translateZ !== 0 ? layer.translateZ : undefined}
+            data-volt-base-rot={layer.rotation ? `rotate(${layer.rotation}deg)` : undefined}
+            style={{
+              position: 'absolute',
+              left: `${layer.x}%`,
+              top: `${layer.y}%`,
+              width: `${layer.width}%`,
+              height: `${layer.height}%`,
+              opacity: layer.opacity ?? 1,
+              transform: layer.rotation ? `rotate(${layer.rotation}deg)` : undefined,
+              mixBlendMode: layer.blendMode as React.CSSProperties['mixBlendMode'],
+              display: 'flex',
+              alignItems,
+              justifyContent,
+              overflow: (layer.bleed && canvasOverflow === 'visible') ? 'visible' : 'hidden',
+              pointerEvents: 'none',
+              willChange: (layer.translateZ ?? 0) !== 0 ? 'transform' : undefined,
+              ...layerEffectStyles(layer),
+            }}
+          >
+            <span
+              data-volt-num-text
+              style={{
+                fontFamily: nd.fontFamily ?? 'Inter, system-ui, sans-serif',
+                fontSize: fontSizeCqw,
+                fontWeight: nd.fontWeight ?? 800,
+                color: nd.color ?? '#ffffff',
+                lineHeight: 1,
+                whiteSpace: 'nowrap',
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {formatNumber(nd.value, nd.format)}
+            </span>
+          </div>
+        )
+      })
+  }
+
   /** Renders image layers with optional parallax depth support. */
   function renderImageLayers(layerList: typeof sortedLayers) {
     return layerList
@@ -1122,6 +1308,7 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
 
         {renderImageLayers(faceLayers)}
         {renderTextLayers(faceLayers)}
+        {renderNumberLayers(faceLayers)}
       </>
     )
   }
@@ -1270,6 +1457,7 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
 
         {renderImageLayers(displayLayers)}
         {renderTextLayers(displayLayers)}
+        {renderNumberLayers(displayLayers)}
       </div>
 
       {/* Carousel arrows + dot indicators */}

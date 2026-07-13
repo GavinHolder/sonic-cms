@@ -293,6 +293,7 @@
           <button class="tool-btn-h" data-tool="polygon" title="Polygon (P)"><i class="bi bi-pentagon"></i></button>
           <button class="tool-btn-h" data-tool="pen" title="Pen/Bezier (B)"><i class="bi bi-pen"></i></button>
           <button class="tool-btn-h" data-tool="text" title="Text (T)" style="font-size:13px;font-weight:800;letter-spacing:-0.5px;">T</button>
+          <button class="tool-btn-h" data-tool="number" title="Ramp Number (N) — counts up on hover" style="font-size:13px;font-weight:800;letter-spacing:-0.5px;">#</button>
           <div class="slot-btn-grp" style="position:relative;display:inline-flex;align-items:stretch;z-index:1000;">
             <button class="tool-btn-h" data-tool="slot" id="btn-tool-slot" title="Slot (S)" style="width:auto;padding:0 6px;border:none;border-radius:5px 0 0 5px;gap:3px;background:transparent;"><i class="bi bi-layout-text-window"></i><span id="slot-type-tag" style="font-size:8px;font-weight:800;letter-spacing:0.3px;color:#22c55e;">TIT</span></button>
             <button id="btn-slot-type-caret" style="width:18px;padding:0 3px;border:none;background:transparent;cursor:pointer;border-radius:0 5px 5px 0;font-size:9px;color:#6c757d;line-height:1;transition:color 0.12s;border-left:1px solid rgba(0,0,0,0.08);" title="Choose slot type">&#9660;</button>
@@ -1029,7 +1030,7 @@
       var sorted=state.element.layers.slice().sort(function(a,b){return a.zIndex-b.zIndex;});
       // Compute max z-index for slots and non-slots (for DOM stacking order fix below)
       var _maxSlotZ=-Infinity,_maxVecZ=-Infinity;
-      state.element.layers.forEach(function(l){if(l.visible===false)return;var z=l.zIndex||0;if(l.type==='slot')_maxSlotZ=Math.max(_maxSlotZ,z);else if(l.type==='vector'||l.type==='3d-object'||l.type==='image'||l.type==='text')_maxVecZ=Math.max(_maxVecZ,z);});
+      state.element.layers.forEach(function(l){if(l.visible===false)return;var z=l.zIndex||0;if(l.type==='slot')_maxSlotZ=Math.max(_maxSlotZ,z);else if(l.type==='vector'||l.type==='3d-object'||l.type==='image'||l.type==='text'||l.type==='number')_maxVecZ=Math.max(_maxVecZ,z);});
       sorted.forEach(function(layer){
         // Cutter layers: visible:false normally, but show in bool-edit mode OR when showCutter=true
         var _isCutterEdit=layer.boolRole==='cutter'&&state.boolEditParentId===layer.boolParentId;
@@ -1334,6 +1335,27 @@
           _tContent.style.cssText='width:100%;font-family:'+((_td.fontFamily)||'system-ui,sans-serif')+';font-size:'+(_td.fontSize||28)+'px;font-weight:'+(_td.fontWeight||600)+';font-style:'+(_td.fontStyle||'normal')+';color:'+(_td.color||'#fff')+';text-align:'+(_td.textAlign||'left')+';line-height:'+(_td.lineHeight||1.2)+';letter-spacing:'+(_td.letterSpacing||0)+'px;text-transform:'+(_td.textTransform||'none')+';white-space:'+(_td.wordWrap!==false?'pre-wrap':'nowrap')+';word-break:'+(_td.wordWrap!==false?'break-word':'normal')+';user-select:none;';
           _tContent.textContent=_td.content||'Text';
           _tInner.appendChild(_tContent);_tDiv.appendChild(_tInner);artboard.appendChild(_tDiv);
+        }
+        if(layer.type==='number'&&layer.numberData){
+          var _nd=layer.numberData;
+          var _nx=topx(_lx,CW),_ny=topx(_ly,CH),_nw=topx(_lw,CW),_nh=topx(_lh,CH);
+          // Ghost rect on SVG for hit-testing + selection affordance (amber, dashed)
+          var _nRect=svgNs('rect');_nRect.setAttribute('x',_nx);_nRect.setAttribute('y',_ny);_nRect.setAttribute('width',_nw);_nRect.setAttribute('height',_nh);_nRect.setAttribute('fill','rgba(245,158,11,0.05)');_nRect.setAttribute('stroke','rgba(245,158,11,0.45)');_nRect.setAttribute('stroke-width',String(0.8/state.zoom));_nRect.setAttribute('stroke-dasharray',String(3/state.zoom));_nRect.setAttribute('rx','2');_nRect.id='number-hit-'+layer.id;svgEl.appendChild(_nRect);
+          // HTML overlay for the formatted value
+          var _nDec=Math.max(0,Math.min(20,(_nd.format&&_nd.format.decimals)||0));
+          var _nPre=(_nd.format&&_nd.format.prefix)||'',_nSuf=(_nd.format&&_nd.format.suffix)||'';
+          var _nStr=_nPre+((_nd.value!=null?_nd.value:0).toFixed(_nDec))+_nSuf;
+          var _nDiv=document.createElement('div');_nDiv.className='text-overlay';_nDiv.id='number-overlay-'+layer.id;
+          var _nAlignV=_nd.verticalAlign==='center'?'center':_nd.verticalAlign==='bottom'?'flex-end':'flex-start';
+          var _nAlignH=_nd.textAlign==='center'?'center':_nd.textAlign==='right'?'flex-end':'flex-start';
+          _nDiv.style.cssText='position:absolute;left:'+_nx+'px;top:'+_ny+'px;width:'+_nw+'px;height:'+_nh+'px;overflow:hidden;pointer-events:none;display:flex;align-items:'+_nAlignV+';justify-content:'+_nAlignH+';';
+          if(_lrot)_nDiv.style.transform='rotate('+_lrot+'deg)';_nDiv.style.transformOrigin='center center';
+          _nDiv.style.opacity=_lop!=null?_lop:1;
+          if(layer.blendMode&&layer.blendMode!=='normal')_nDiv.style.mixBlendMode=layer.blendMode;
+          var _nSpan=document.createElement('span');
+          _nSpan.style.cssText='font-family:'+((_nd.fontFamily)||'Inter,system-ui,sans-serif')+';font-size:'+(_nd.fontSize||48)+'px;font-weight:'+(_nd.fontWeight||800)+';color:'+(_nd.color||'#fff')+';line-height:1;white-space:nowrap;font-variant-numeric:tabular-nums;user-select:none;';
+          _nSpan.textContent=_nStr;
+          _nDiv.appendChild(_nSpan);artboard.appendChild(_nDiv);
         }
       });
       // CSS z-index stacking: if any vector has higher zIndex than all slots, raise SVG above slot divs.
@@ -2014,6 +2036,12 @@
         var _tw2=pw>2?pw:40,_th2=ph>2?ph:(28*1.2/state.element.canvasHeight*100+2);
         var _nid=(function(){var a='';for(var i=0;i<10;i++)a+=Math.random().toString(36)[2+i%8]||'x';return a;})();
         layer={id:_nid,name:'Text',type:'text',role:'content',x:px2,y:py2,width:_tw2,height:_th2,rotation:0,zIndex:maxZ+1,visible:true,locked:false,opacity:1,blendMode:'normal',textLayerData:{content:'Text',fontFamily:'Inter, system-ui, sans-serif',fontSize:28,fontWeight:600,fontStyle:'normal',color:'#ffffff',textAlign:'left',verticalAlign:'top',lineHeight:1.2,letterSpacing:0,textTransform:'none',wordWrap:true},animation:{character:50,speed:40,style:60,delay:0,animates:{opacity:true,scale:false,position:true,rotation:false,fill:false}}};
+      }
+      else if(tool==='number'){
+        // Ramp-number layer — counts up on hover. Uses drag bounds or a sensible default.
+        var _nw2=pw>2?pw:34,_nh2=ph>2?ph:(48*1.2/state.element.canvasHeight*100+2);
+        var _nnid=(function(){var a='';for(var i=0;i<10;i++)a+=Math.random().toString(36)[2+i%8]||'x';return a;})();
+        layer={id:_nnid,name:'Number',type:'number',role:'content',x:px2,y:py2,width:_nw2,height:_nh2,rotation:0,zIndex:maxZ+1,visible:true,locked:false,opacity:1,blendMode:'normal',numberData:{value:100,from:0,format:{prefix:'',suffix:'',decimals:0},easing:'overshoot',trigger:'hover',fontFamily:'Inter, system-ui, sans-serif',fontSize:48,fontWeight:800,color:'#ffffff',textAlign:'left',verticalAlign:'top'},animation:{character:50,speed:40,style:60,delay:0,animates:{opacity:true,scale:false,position:true,rotation:false,fill:false}}};
       }
       if(!layer)return;
       layer.zIndex=maxZ+1;state.element.layers.push(layer);state.selectedLayerId=layer.id;
@@ -2904,7 +2932,7 @@
       ['normal','multiply','screen','overlay','darken','lighten','color-dodge','color-burn','hard-light','soft-light','difference','exclusion','hue','saturation','color','luminosity'].forEach(function(bm){var opt=document.createElement('option');opt.value=bm;opt.textContent=bm.replace(/-/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();});if(layer.blendMode===bm)opt.selected=true;bmSel.appendChild(opt);});
       sBM.appendChild(bmSel);body.appendChild(sBM);
       // Bleed checkbox — only visible when canvas overflow is enabled
-      if(state.element.canvasOverflow==='visible'&&(layer.type==='image'||layer.type==='text'||layer.type==='slot')){
+      if(state.element.canvasOverflow==='visible'&&(layer.type==='image'||layer.type==='text'||layer.type==='number'||layer.type==='slot')){
         var sBleed=mkSec();
         var bleedRow=document.createElement('div');bleedRow.style.cssText='display:flex;align-items:center;justify-content:space-between;';
         var bleedLbl=document.createElement('label');bleedLbl.style.cssText='font-size:11px;color:#818cf8;cursor:pointer;font-weight:600;';bleedLbl.htmlFor='prop-layer-bleed';bleedLbl.textContent='Bleed (extends outside card)';
@@ -2921,7 +2949,7 @@
         });
       }
       // Z Depth (all layer types — drives parallax when tilt is enabled)
-      if(layer.type==='image'||layer.type==='slot'||layer.type==='vector'||layer.type==='text'){
+      if(layer.type==='image'||layer.type==='slot'||layer.type==='vector'||layer.type==='text'||layer.type==='number'){
         var sZ=mkSec();var zLblRow=document.createElement('div');zLblRow.className='d-flex justify-content-between align-items-center mb-1';
         var zLbl=document.createElement('span');zLbl.style.cssText='font-size:11px;font-weight:600;color:#818cf8;';zLbl.textContent='Z Depth (parallax)';
         var zVal=document.createElement('span');zVal.id='prop-z-val';zVal.style.cssText='font-size:10px;color:#818cf8;font-weight:700;';zVal.textContent=(layer.translateZ??0)+'px';
@@ -2959,8 +2987,82 @@
       else if(layer.type==='3d-object'){render3DPropsSec(body,layer);return;}
       else if(layer.type==='image'){renderImagePropsSec(body,layer);renderEffectsSec(body,layer);renderEntranceSec(body,layer);renderExitSec(body,layer);renderAnimPersonalitySec(body,layer);return;}
       else if(layer.type==='text'){renderTextPropsSec(body,layer);renderEffectsSec(body,layer);renderEntranceSec(body,layer);renderExitSec(body,layer);renderAnimPersonalitySec(body,layer);return;}
+      else if(layer.type==='number'){renderNumberPropsSec(body,layer);renderEffectsSec(body,layer);renderEntranceSec(body,layer);renderExitSec(body,layer);return;}
       else{renderSlotSec(body,layer);renderEffectsSec(body,layer);renderEntranceSec(body,layer);renderExitSec(body,layer);renderAnimPersonalitySec(body,layer);}
       bindProps(layer);
+    }
+    // ── Ramp-Number Layer Property Panel ──────────────────────────────────────
+    function renderNumberPropsSec(body,layer){
+      if(!layer.numberData)layer.numberData={value:100,from:0,format:{prefix:'',suffix:'',decimals:0},easing:'overshoot',trigger:'hover',fontFamily:'Inter, system-ui, sans-serif',fontSize:48,fontWeight:800,color:'#ffffff',textAlign:'left',verticalAlign:'top'};
+      var nd=layer.numberData;
+      function updN(k,v){var i=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i<0)return;if(!state.element.layers[i].numberData)state.element.layers[i].numberData={};state.element.layers[i].numberData[k]=v;markDirty();renderCanvas();}
+      function updNF(k,v){var i=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i<0)return;if(!state.element.layers[i].numberData)state.element.layers[i].numberData={};if(!state.element.layers[i].numberData.format)state.element.layers[i].numberData.format={};state.element.layers[i].numberData.format[k]=v;markDirty();renderCanvas();}
+      // Info banner
+      var infoSec=mkSec();var info=document.createElement('div');info.style.cssText='background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;padding:6px 10px;font-size:10px;color:#92400e;';info.textContent='Counts up from "From" to "Value" when triggered. At rest it shows the final value.';infoSec.appendChild(info);body.appendChild(infoSec);
+      // Value + From row
+      var vfSec=mkSec();vfSec.appendChild(mkLbl('Value & From'));
+      var vfG=document.createElement('div');vfG.className='d-flex gap-2';
+      var valInp=document.createElement('input');valInp.type='number';valInp.className='form-control form-control-sm';valInp.style.fontSize='11px';valInp.value=(nd.value!=null?nd.value:100);valInp.title='Target value (ramps up to this)';
+      var frInp=document.createElement('input');frInp.type='number';frInp.className='form-control form-control-sm';frInp.style.fontSize='11px';frInp.value=(nd.from!=null?nd.from:0);frInp.title='Start value (ramps up from this)';
+      valInp.addEventListener('input',function(){var n=parseFloat(valInp.value);if(!isNaN(n))updN('value',n);});
+      valInp.addEventListener('change',function(){pushHistory();markDirty();});
+      frInp.addEventListener('input',function(){var n=parseFloat(frInp.value);if(!isNaN(n))updN('from',n);});
+      frInp.addEventListener('change',function(){pushHistory();markDirty();});
+      vfG.appendChild(valInp);vfG.appendChild(frInp);vfSec.appendChild(vfG);body.appendChild(vfSec);
+      // Format: prefix / suffix / decimals
+      var fmtSec=mkSec();fmtSec.appendChild(mkLbl('Format (prefix / suffix / decimals)'));
+      var fmtG=document.createElement('div');fmtG.className='d-flex gap-2';
+      var fmt=nd.format||{};
+      var preInp=document.createElement('input');preInp.type='text';preInp.className='form-control form-control-sm';preInp.style.cssText='font-size:11px;width:56px;';preInp.value=fmt.prefix||'';preInp.placeholder='R';preInp.title='Prefix (e.g. R, $)';
+      var sufInp=document.createElement('input');sufInp.type='text';sufInp.className='form-control form-control-sm';sufInp.style.cssText='font-size:11px;flex:1;';sufInp.value=fmt.suffix||'';sufInp.placeholder='Mbps';sufInp.title='Suffix (e.g. Mbps, %)';
+      var decInp=document.createElement('input');decInp.type='number';decInp.className='form-control form-control-sm';decInp.style.cssText='font-size:11px;width:52px;';decInp.min='0';decInp.max='20';decInp.value=(fmt.decimals!=null?fmt.decimals:0);decInp.title='Decimal places';
+      preInp.addEventListener('input',function(){updNF('prefix',preInp.value);});preInp.addEventListener('change',function(){pushHistory();markDirty();});
+      sufInp.addEventListener('input',function(){updNF('suffix',sufInp.value);});sufInp.addEventListener('change',function(){pushHistory();markDirty();});
+      decInp.addEventListener('input',function(){var n=parseInt(decInp.value);if(!isNaN(n))updNF('decimals',Math.max(0,Math.min(20,n)));});decInp.addEventListener('change',function(){pushHistory();markDirty();});
+      fmtG.appendChild(preInp);fmtG.appendChild(sufInp);fmtG.appendChild(decInp);fmtSec.appendChild(fmtG);body.appendChild(fmtSec);
+      // Easing + Trigger row
+      var etSec=mkSec();etSec.appendChild(mkLbl('Ramp feel & trigger'));
+      var etG=document.createElement('div');etG.className='d-flex gap-2';
+      var easeSel=document.createElement('select');easeSel.className='form-select form-select-sm';easeSel.style.fontSize='11px';
+      [['overshoot','Overshoot (energetic)'],['snap','Snap (decisive)']].forEach(function(p){var o=document.createElement('option');o.value=p[0];o.textContent=p[1];if((nd.easing||'overshoot')===p[0])o.selected=true;easeSel.appendChild(o);});
+      easeSel.addEventListener('change',function(){pushHistory();updN('easing',easeSel.value);});
+      var trigSel=document.createElement('select');trigSel.className='form-select form-select-sm';trigSel.style.fontSize='11px';
+      [['hover','On hover'],['viewport','On scroll-in']].forEach(function(p){var o=document.createElement('option');o.value=p[0];o.textContent=p[1];if((nd.trigger||'hover')===p[0])o.selected=true;trigSel.appendChild(o);});
+      trigSel.addEventListener('change',function(){pushHistory();updN('trigger',trigSel.value);});
+      etG.appendChild(easeSel);etG.appendChild(trigSel);etSec.appendChild(etG);body.appendChild(etSec);
+      // Duration
+      var durSec=mkSec();durSec.appendChild(mkLbl('Duration (ms — blank = auto)'));
+      var durInp=document.createElement('input');durInp.type='number';durInp.className='form-control form-control-sm';durInp.style.fontSize='11px';durInp.min='0';durInp.step='50';durInp.value=(nd.durationMs!=null?nd.durationMs:'');durInp.placeholder='auto (1050 / 380)';
+      durInp.addEventListener('input',function(){var v=durInp.value.trim();if(v===''){updN('durationMs',undefined);}else{var n=parseInt(v);if(!isNaN(n)&&n>0)updN('durationMs',n);}});
+      durInp.addEventListener('change',function(){pushHistory();markDirty();});
+      durSec.appendChild(durInp);body.appendChild(durSec);
+      // Typography — size + weight
+      var szSec=mkSec();szSec.appendChild(mkLbl('Size & Weight'));
+      var szG=document.createElement('div');szG.className='d-flex gap-2';
+      var szInp=document.createElement('input');szInp.type='number';szInp.className='form-control form-control-sm';szInp.style.cssText='width:70px;font-size:11px;';szInp.min='6';szInp.max='400';szInp.value=nd.fontSize||48;
+      var wSel=document.createElement('select');wSel.className='form-select form-select-sm flex-1';wSel.style.fontSize='11px';
+      [['400','Regular'],['500','Medium'],['600','SemiBold'],['700','Bold'],['800','ExtraBold'],['900','Black']].forEach(function(p){var o=document.createElement('option');o.value=p[0];o.textContent=p[1];if((nd.fontWeight||800)==parseInt(p[0]))o.selected=true;wSel.appendChild(o);});
+      szInp.addEventListener('input',function(){updN('fontSize',parseFloat(szInp.value)||48);});szInp.addEventListener('change',function(){pushHistory();markDirty();});
+      wSel.addEventListener('change',function(){pushHistory();updN('fontWeight',parseInt(wSel.value));});
+      szG.appendChild(szInp);szG.appendChild(wSel);szSec.appendChild(szG);body.appendChild(szSec);
+      // Color
+      var colSec=mkSec();colSec.appendChild(mkLbl('Color'));
+      var colRow=document.createElement('div');colRow.className='d-flex align-items-center gap-2';
+      var colInp=document.createElement('input');colInp.type='color';colInp.className='form-control form-control-color';colInp.value=nd.color||'#ffffff';colInp.style.width='44px';
+      var colHex=document.createElement('input');colHex.type='text';colHex.className='form-control form-control-sm flex-1';colHex.value=nd.color||'#ffffff';colHex.style.fontSize='11px';
+      colInp.addEventListener('input',function(){colHex.value=colInp.value;updN('color',colInp.value);});
+      colInp.addEventListener('change',function(){pushHistory();markDirty();});
+      colHex.addEventListener('change',function(){if(/^#[0-9a-fA-F]{6}$/.test(colHex.value)){colInp.value=colHex.value;pushHistory();updN('color',colHex.value);}});
+      colRow.appendChild(colInp);colRow.appendChild(colHex);colSec.appendChild(colRow);body.appendChild(colSec);
+      // Alignment (horizontal)
+      var alSec=mkSec();alSec.appendChild(mkLbl('Alignment'));
+      var alRow=document.createElement('div');alRow.className='btn-group w-100';
+      [['left','bi bi-text-left'],['center','bi bi-text-center'],['right','bi bi-text-right']].forEach(function(p){
+        var ab=document.createElement('button');ab.type='button';ab.className='btn btn-sm '+((nd.textAlign||'left')===p[0]?'btn-primary':'btn-outline-secondary');ab.innerHTML='<i class="'+p[1]+'"></i>';
+        ab.addEventListener('click',function(){pushHistory();updN('textAlign',p[0]);renderProps();});
+        alRow.appendChild(ab);
+      });
+      alSec.appendChild(alRow);body.appendChild(alSec);
     }
     // ── Text Layer Property Panel ─────────────────────────────────────────────
     function renderTextPropsSec(body,layer){
@@ -3436,6 +3538,39 @@
         dashRow.appendChild(dashLbl);dashRow.appendChild(dashInp);dashRow.appendChild(dashClr);sec.appendChild(dashRow);
       }
       body.appendChild(sec);
+      renderStrokeRaceSec(body,layer);
+    }
+    // ── Stroke-Dash "Race" (dash sweeps the outline on hover) ─────────────────
+    function renderStrokeRaceSec(body,layer){
+      if(!layer.vectorData)return;
+      var race=layer.vectorData.strokeRace||{};
+      var on=!!race.enabled;
+      var idx=function(){return state.element.layers.findIndex(function(l){return l.id===layer.id;});};
+      function ensureRace(){var i=idx();if(i<0)return null;if(!state.element.layers[i].vectorData.strokeRace)state.element.layers[i].vectorData.strokeRace={enabled:false,speedMs:1300,dashLength:22,gap:78,trigger:'hover'};return state.element.layers[i].vectorData.strokeRace;}
+      var sec=mkSec();
+      var hdr=document.createElement('div');hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;';
+      var lb=document.createElement('label');lb.style.cssText='font-size:11px;color:#8b5cf6;cursor:pointer;font-weight:700;';lb.htmlFor='prop-stroke-race';lb.textContent='◈ Stroke Race (hover)';
+      var sw=document.createElement('div');sw.className='form-check form-switch mb-0';
+      var chk=document.createElement('input');chk.type='checkbox';chk.className='form-check-input';chk.id='prop-stroke-race';chk.style.cursor='pointer';chk.checked=on;
+      sw.appendChild(chk);hdr.appendChild(lb);hdr.appendChild(sw);sec.appendChild(hdr);
+      var hint=document.createElement('div');hint.style.cssText='font-size:10px;color:#6c757d;margin-top:3px;';hint.textContent='A dash segment races around the outline while hovered. Needs a stroke.';sec.appendChild(hint);
+      // Controls (shown when enabled)
+      var ctrls=document.createElement('div');ctrls.style.display=on?'block':'none';ctrls.style.marginTop='6px';
+      var g=document.createElement('div');g.className='d-flex gap-2';
+      function mkNum(lblTxt,val,ph,title){var wrap=document.createElement('div');wrap.style.flex='1';var l2=document.createElement('label');l2.style.cssText='font-size:9px;color:#6c757d;display:block;';l2.textContent=lblTxt;var inp=document.createElement('input');inp.type='number';inp.className='form-control form-control-sm';inp.style.fontSize='11px';inp.value=val;inp.min='1';inp.title=title||'';wrap.appendChild(l2);wrap.appendChild(inp);g.appendChild(wrap);return inp;}
+      var dlInp=mkNum('Dash',(race.dashLength!=null?race.dashLength:22),'','Length of the visible dash (0–100 of the outline)');
+      var gapInp=mkNum('Gap',(race.gap!=null?race.gap:78),'','Gap after the dash (0–100 of the outline)');
+      var spInp=mkNum('Speed ms',(race.speedMs!=null?race.speedMs:1300),'','Duration of one full lap in ms');
+      ctrls.appendChild(g);
+      var raceHint=document.createElement('div');raceHint.style.cssText='font-size:9px;color:#94a3b8;margin-top:3px;';raceHint.textContent='Dash + Gap = 100 → one segment chasing the whole outline.';ctrls.appendChild(raceHint);
+      sec.appendChild(ctrls);body.appendChild(sec);
+      chk.addEventListener('change',function(){var i=idx();if(i<0)return;pushHistory();var r=ensureRace();r.enabled=chk.checked;if(chk.checked&&!state.element.layers[i].vectorData.stroke){state.element.layers[i].vectorData.stroke={color:'#ffffff',opacity:1,width:2,cap:'round',join:'round',dash:[]};}markDirty();renderCanvas();renderProps();});
+      dlInp.addEventListener('input',function(){var r=ensureRace();var n=parseFloat(dlInp.value);if(!isNaN(n)&&n>=0)r.dashLength=n;markDirty();});
+      dlInp.addEventListener('change',function(){pushHistory();markDirty();});
+      gapInp.addEventListener('input',function(){var r=ensureRace();var n=parseFloat(gapInp.value);if(!isNaN(n)&&n>=0)r.gap=n;markDirty();});
+      gapInp.addEventListener('change',function(){pushHistory();markDirty();});
+      spInp.addEventListener('input',function(){var r=ensureRace();var n=parseInt(spInp.value);if(!isNaN(n)&&n>0)r.speedMs=n;markDirty();});
+      spInp.addEventListener('change',function(){pushHistory();markDirty();});
     }
     function renderEntranceSec(body,layer){
       if(!layer.entranceAnim)layer.entranceAnim={type:'none',duration:600,delay:0,ease:'easeOutCubic',distance:40};
@@ -4527,7 +4662,7 @@
     // ── Keyboard ──────────────────────────────────────────────────────────────
     document.addEventListener('keydown',function(e){
       if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;
-      var t={v:'select',r:'rectangle',e:'ellipse',l:'line',b:'pen',p:'polygon',s:'slot',t:'text'};
+      var t={v:'select',r:'rectangle',e:'ellipse',l:'line',b:'pen',p:'polygon',s:'slot',t:'text',n:'number'};
       if(t[e.key.toLowerCase()]){e.preventDefault();var tb=document.querySelector('.tool-btn-h[data-tool="'+t[e.key.toLowerCase()]+'"]');if(tb)tb.click();return;}
       if(e.key==='Enter'&&state.activeTool==='pen'){e.preventDefault();if(penState.verts.length>=2)commitPen(false);return;}
       if(e.key==='Enter'&&state.activeTool==='polygon'){e.preventDefault();if(polyState.verts.length>=3)commitPolygon();return;}

@@ -178,13 +178,21 @@ export default function VoltSvgLayer({ layer, canvasWidth, canvasHeight, instanc
     fillAttr = `url(#${patternId})`
   }
 
+  // Stroke-dash "race" — normalise pathLength to 100 so dashLength/gap are 0–100
+  // units, override the dash pattern, and seed the base offset. Default-off: when
+  // strokeRace is absent/disabled the stroke renders exactly as before.
+  const race = vectorData.strokeRace
+  const raceOn = !!(race && race.enabled && stroke)
   const strokeAttr = stroke ? {
     stroke: stroke.color,
     strokeOpacity: stroke.opacity,
     strokeWidth: stroke.width,
     strokeLinecap: stroke.cap,
     strokeLinejoin: stroke.join,
-    strokeDasharray: stroke.dash?.join(' ') ?? undefined,
+    strokeDasharray: raceOn
+      ? `${race!.dashLength ?? 22} ${race!.gap ?? 78}`
+      : (stroke.dash?.join(' ') ?? undefined),
+    strokeDashoffset: raceOn ? (stroke.dashOffset ?? 0) : undefined,
   } : {}
 
   // pathData coords are in % space (0-100); scale to canvas pixel space
@@ -331,6 +339,7 @@ export default function VoltSvgLayer({ layer, canvasWidth, canvasHeight, instanc
             <>
               <path
                 d={vectorData.pathData}
+                pathLength={raceOn ? 100 : undefined}
                 fill={fillIsVar ? undefined : fillAttr}
                 fillOpacity={primaryFill?.opacity ?? 1}
                 fillRule={fillRule}

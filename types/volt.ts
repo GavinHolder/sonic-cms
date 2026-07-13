@@ -9,7 +9,7 @@ export type BlendMode =
 
 export type LayerType =
   | 'vector' | 'image' | 'gradient' | 'slot'
-  | 'text' | 'text-decoration' | 'effect' | 'group' | '3d-object'
+  | 'text' | 'text-decoration' | 'effect' | 'group' | '3d-object' | 'number'
 
 export type LayerRole = 'background' | 'structure' | 'accent' | 'content' | 'overlay'
 
@@ -61,6 +61,27 @@ export interface VoltStroke {
   cap: 'butt' | 'round' | 'square'
   join: 'miter' | 'round' | 'bevel'
   dash?: number[]
+  /** Base stroke-dashoffset (path-length units). Used as the resting offset for the stroke-race sweep. */
+  dashOffset?: number
+}
+
+/**
+ * Stroke-dash "race" — a dash segment sweeps around the vector's outline on hover.
+ * Default-off (undefined/enabled:false → renders identically to before).
+ * The path is normalised with pathLength="100" so dashLength/gap are in 0–100 units
+ * (dashLength + gap = 100 → exactly one segment chasing the outline, matching the
+ * reference `.vrace` ring). Requires the layer to have a stroke to be visible.
+ */
+export interface VoltStrokeRace {
+  enabled: boolean
+  /** Duration of one full sweep in ms (default 1300) */
+  speedMs: number
+  /** Length of the visible dash segment in path-length units 0–100 (default 22) */
+  dashLength: number
+  /** Length of the gap between dashes in path-length units 0–100 (default 78) */
+  gap: number
+  /** What fires the race (default 'hover') */
+  trigger: 'hover'
 }
 
 export interface VoltLayerAnimation {
@@ -195,6 +216,8 @@ export interface VoltVectorData {
   closed: boolean
   /** SVG fill-rule for self-intersecting / composite paths */
   fillRule?: 'nonzero' | 'evenodd'
+  /** Stroke-dash "race" sweep on hover (opt-in per layer, default-off) */
+  strokeRace?: VoltStrokeRace
 }
 
 /** A non-destructive boolean relationship: a cutter shape combined into a base shape. */
@@ -259,6 +282,61 @@ export const DEFAULT_TEXT: VoltTextLayerData = {
   letterSpacing: 0,
   textTransform: 'none',
   wordWrap: true,
+}
+
+/**
+ * Ramp-number layer — a numeric value that counts up on hover (or viewport entry).
+ * At rest it displays the final formatted `value`; when triggered it resets to
+ * `from` and animates up via a requestAnimationFrame count-up (anime.js keyframes
+ * cannot animate text content, so the renderer writes textContent each frame).
+ *
+ * easing:
+ *   'overshoot' → energetic easeOutBack (bursts past the target, then settles back)
+ *   'snap'      → decisive expo-out (fast, locks straight onto the value, no overshoot)
+ */
+export interface VoltNumberFormat {
+  prefix?: string
+  suffix?: string
+  /** Decimal places (default 0) */
+  decimals?: number
+}
+
+export interface VoltNumberData {
+  /** Target value the number ramps to */
+  value: number
+  /** Starting value of the ramp (default 0) */
+  from?: number
+  /** Optional prefix/suffix/decimals wrapping the number */
+  format?: VoltNumberFormat
+  /** Ramp feel — energetic overshoot or decisive snap */
+  easing: 'overshoot' | 'snap'
+  /** What fires the count-up (default 'hover') */
+  trigger: 'hover' | 'viewport'
+  /** Ramp duration in ms (default: 1050 for overshoot, 380 for snap) */
+  durationMs?: number
+  // ── Typography (rendered like a text layer) ────────────────────────────────
+  fontFamily?: string
+  /** px at design canvas width — renderer scales proportionally with cqw */
+  fontSize?: number
+  fontWeight?: number
+  color?: string
+  textAlign?: 'left' | 'center' | 'right'
+  verticalAlign?: 'top' | 'center' | 'bottom'
+}
+
+export const DEFAULT_NUMBER: VoltNumberData = {
+  value: 100,
+  from: 0,
+  format: { prefix: '', suffix: '', decimals: 0 },
+  easing: 'overshoot',
+  trigger: 'hover',
+  durationMs: undefined,
+  fontFamily: 'Inter, system-ui, sans-serif',
+  fontSize: 48,
+  fontWeight: 800,
+  color: '#ffffff',
+  textAlign: 'left',
+  verticalAlign: 'top',
 }
 
 export interface VoltTextDecorationData {
@@ -412,6 +490,7 @@ export interface VoltLayer {
   imageData?: VoltImageData
   textLayerData?: VoltTextLayerData
   textData?: VoltTextDecorationData
+  numberData?: VoltNumberData
   object3DData?: VoltObject3DData
   children?: VoltLayer[]
   animation: VoltLayerAnimation
