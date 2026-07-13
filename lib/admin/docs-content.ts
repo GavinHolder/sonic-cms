@@ -4597,82 +4597,191 @@ Add a \`projects-gallery\` block inside any FLEXIBLE section:
 const GALLERY_DOCS = `
 # Photo Gallery
 
-The Gallery system organises images into **categories**, each with its own public URL at \`/gallery/[slug]\`.
-Visitors can browse all categories via the floating drawer on the right side of every gallery page.
+Content → **Gallery** is a two-panel manager that groups **Media Library images** into named, slugged **categories** and arranges them for a public, dark-themed lightbox gallery at \`/gallery\`.
+
+- **Admin route** — \`/admin/content/gallery\`
+- **Public route** — \`/gallery\` · \`/gallery/<slug>\`
+- **Data** — \`GalleryCategory\` · \`GalleryImage\` → \`MediaAsset\` (the Media Library row)
+
+The gallery has **no upload or file storage of its own**. Images are *picked from the Media Library* and referenced. The only things this screen creates are categories and their image order + optional caption/alt overrides.
+
+<div class="fig-warn"><b>Identity check — this is NOT the "Projects Gallery" or the "Gallery CTA" block.</b> This page is the <b>Photo Gallery</b> (models <code>GalleryCategory</code> / <code>GalleryImage</code>, public page <code>/gallery</code>). The separate <code>ProjectsGallery</code> section component and the <code>GalleryCtaBlock</code> flexible block (<code>/api/gallery/cta-images</code>) are different features — see <b>Related features</b> at the end.</div>
 
 ---
 
-## Admin: Content → Gallery
+## 1. The admin screen at a glance
 
-The Gallery admin has a two-panel layout:
+A single full-height screen split into a fixed **category rail** (left) and a fluid **image workspace** (right). Selecting a category on the left loads its images on the right.
 
-| Panel | What it does |
-|-------|-------------|
-| **Left: Categories** | Create, rename, show/hide, and delete categories |
-| **Right: Images** | Add, reorder (drag), caption, and remove images |
+<div class="fig map"><span class="tag">Interface map</span><div class="fig-body"><div style="width:100%;max-width:600px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff"><div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);background:#fbfcfe"><span><b style="font-size:14px">Gallery</b> <span class="callout-num">1</span> <span style="color:var(--faint);font-size:11px">Manage photo categories and images</span></span><span class="chip"><span class="callout-num">2</span>&nbsp;👁 View Gallery</span></div><div style="display:flex;min-height:180px"><div style="width:172px;flex:0 0 auto;border-right:1px solid var(--line);background:#f7f9fc"><div style="display:flex;justify-content:space-between;padding:8px 10px;border-bottom:1px solid var(--line);font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)"><span><span class="callout-num">3</span> Categories</span><span class="callout-num">4</span></div><div style="margin:6px;display:flex;flex-direction:column;gap:4px"><div style="display:flex;align-items:center;gap:6px;padding:7px 9px;border-radius:7px;background:var(--primary);color:#fff;font-size:12px">📁 <span style="flex:1">Kitchens</span><span class="chip" style="background:rgba(255,255,255,.25);color:#fff;border:0">12</span></div><div style="display:flex;align-items:center;gap:6px;padding:7px 9px;font-size:12px;color:var(--ink)">📁 <span style="flex:1">Bathrooms</span><span class="chip">7</span></div><div style="display:flex;align-items:center;gap:6px;padding:7px 9px;font-size:12px;color:var(--faint)">📁 <span style="flex:1">Drafts</span><span class="chip">3</span> <span class="callout-num">5</span> 🚫</div></div></div><div style="flex:1;padding:14px"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px"><div><b style="font-size:15px">Kitchens</b><div style="font-size:11px;color:var(--faint)"><span class="callout-num">6</span> /gallery/kitchens · 12 images</div></div><div style="display:flex;gap:6px"><span class="btno" style="padding:4px 9px;font-size:12px">Edit</span><span class="btnd" style="padding:4px 9px;font-size:12px">Delete</span><span class="btnp" style="padding:4px 9px;font-size:12px"><span class="callout-num">7</span>&nbsp;Add Images</span></div></div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px"><div style="border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff"><div style="aspect-ratio:4/3;background:linear-gradient(135deg,#dbe3ef,#eef2f8);position:relative"><span style="position:absolute;top:4px;left:4px;background:rgba(20,30,50,.55);color:#fff;border-radius:5px;padding:1px 5px;font-size:9px;font-weight:700">⠿</span></div><div style="display:flex;align-items:center;gap:4px;padding:5px 6px;font-size:10px;color:var(--muted)"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">island-01.jpg</span><span class="callout-num">8</span></div></div><div style="border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff"><div style="aspect-ratio:4/3;background:linear-gradient(135deg,#dbe3ef,#eef2f8)"></div><div style="padding:5px 6px;font-size:10px;color:var(--muted)">Marble worktop</div></div><div style="border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff"><div style="aspect-ratio:4/3;background:linear-gradient(135deg,#dbe3ef,#eef2f8)"></div><div style="padding:5px 6px;font-size:10px;color:var(--muted)">splashback.jpg</div></div><div style="border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff"><div style="aspect-ratio:4/3;background:linear-gradient(135deg,#dbe3ef,#eef2f8)"></div><div style="padding:5px 6px;font-size:10px;color:var(--muted)">cabinets.jpg</div></div></div></div></div></div></div><div class="fig-cap"><b>Figure 1 — the full page.</b> Left rail = categories; right workspace = the selected category's images. An empty right pane shows "Select a category to manage its images".</div></div>
 
-### Creating a category
-
-1. Click **New Category** (top-right or the + icon in the left panel).
-2. Fill in **Name** — the slug is auto-generated.
-3. Optionally add a **Description** (shown on the gallery page).
-4. Toggle **Visible on public gallery** to show/hide it.
-5. Click **Create Category**.
-
-### Adding images
-
-1. Select a category from the left panel.
-2. Click **Add Images**.
-3. The Media Picker opens in **multi-select mode** — click multiple images to select (blue tick appears).
-4. Click **Add N Images** to confirm.
-
-> Images must be uploaded to the Media Library first (**Admin → Media Library**).
-
-### Reordering images
-
-Drag any image tile to a new position. Order is saved automatically.
-
-### Editing captions & alt text
-
-Click the **pencil icon** on any image tile to edit:
-- **Caption** — displayed below the image in the masonry grid and lightbox.
-- **Alt text** — overrides the media library alt text for this gallery instance (important for accessibility).
+- <span class="callout-num">1</span> **Page header** — title "Gallery", subtitle "Manage photo categories and images".
+- <span class="callout-num">2</span> **View Gallery** — opens the public \`/gallery\` in a new tab. The only header action.
+- <span class="callout-num">3</span> **Category rail** — scrollable; lists **every** category (active and hidden), ordered by \`order\`.
+- <span class="callout-num">4</span> **+ New category** — opens the category modal (Figure 3).
+- <span class="callout-num">5</span> **Hidden marker** — an eye-slash icon appears when \`isActive = false\`; that category is dimmed and excluded from the public site.
+- <span class="callout-num">6</span> **Category meta line** — shows the live public path \`/gallery/<slug>\` and the image count.
+- <span class="callout-num">7</span> **Add Images** — opens the Media Library picker (multi-select, images only). Disabled while a save is in flight.
+- <span class="callout-num">8</span> **Image tile** — drag to reorder, pencil to edit caption/alt, × to remove from this category (§3).
 
 ---
 
-## Public Gallery (/gallery/[slug])
+## 2. Categories
 
-Each category renders at its own URL:
-- **Masonry grid** — responsive columns layout.
-- **Lightbox** — click any image to open a full-screen viewer. Navigate with arrow keys or on-screen buttons.
-- **Floating drawer** — click "Categories" tab on the right edge to jump to another category.
+Categories are the top-level unit — each becomes a URL segment \`/gallery/<slug>\` and a section on the public page. Create, edit, hide, and delete are driven from the left rail and one modal.
 
-The \`/gallery\` root URL automatically redirects to the first active category.
+<div class="fig control"><span class="tag">Control mockup</span><div class="fig-body"><div class="mock-panel" style="max-width:260px;padding:0;overflow:hidden"><div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--line);font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)"><span>Categories</span><span class="btno" style="padding:1px 8px;font-size:13px">+</span></div><div style="padding:6px;display:flex;flex-direction:column;gap:4px"><div style="display:flex;align-items:center;gap:6px;padding:7px 9px;border-radius:7px;background:var(--primary);color:#fff;font-size:12.5px">📁 <span style="flex:1">Kitchens</span><span class="chip" style="background:rgba(255,255,255,.25);color:#fff;border:0">12</span></div><div style="display:flex;align-items:center;gap:6px;padding:7px 9px;font-size:12.5px;color:var(--ink)">📁 <span style="flex:1">Bathrooms</span><span class="chip">7</span></div><div style="display:flex;align-items:center;gap:6px;padding:7px 9px;font-size:12.5px;color:var(--faint)">📁 <span style="flex:1">Drafts</span><span class="chip">3</span> 🚫</div></div></div></div><div class="fig-cap"><b>Figure 2 — category rail.</b> The selected row is filled blue; the count pill is \`_count.images\`, live after add/remove. Order follows the persisted \`order\` field (ascending). Empty state: "No categories yet. Create one" (the link opens the modal). <b>There is no drag-to-reorder for categories on this screen</b> — order is set by the create sequence / the \`order\` value via the API (§7).</div></div>
+
+<div class="fig control"><span class="tag">Control mockup</span><div class="fig-body"><div class="mock-panel" style="max-width:340px;padding:0;overflow:hidden"><div style="padding:11px 14px;border-bottom:1px solid var(--line);font-weight:700;font-size:13px;display:flex;justify-content:space-between">New Category <span style="color:var(--faint)">×</span></div><div style="padding:14px"><label class="lbl">Name *</label><div class="input">Kitchens</div><label class="lbl" style="margin-top:10px">Slug *</label><div class="input" style="font-family:var(--fig-mono);color:var(--primary-ink)">kitchens</div><div class="hint">/gallery/kitchens</div><label class="lbl" style="margin-top:10px">Description</label><div class="input" style="min-height:44px">Recent fitted-kitchen projects.</div><div class="sw-row" style="margin-top:12px"><span class="toggle"></span><span class="lbl" style="margin:0">Visible on public gallery</span></div></div><div style="padding:11px 14px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px"><span class="btno" style="padding:5px 12px;font-size:12.5px">Cancel</span><span class="btnp" style="padding:5px 12px;font-size:12.5px">Create Category</span></div></div></div><div class="fig-cap"><b>Figure 3 — one modal serves both create and edit.</b> In edit mode it pre-fills every field, the title becomes "Edit Category" and the button "Save Changes". Category <b>delete</b> is not in this modal — it lives on the workspace header (§3) and confirms via the in-app dialog ("Delete &lt;name&gt; and all its images?").</div></div>
+
+| Field | Rule / range | Default |
+|-------|--------------|---------|
+| **Name** * | Required, 1–100 chars | empty |
+| **Slug** * | Required, 1–100, regex \`^[a-z0-9-]+$\`. Auto-derived from Name on *new* categories; typed input is force-lowercased + stripped. Must be unique → duplicate returns \`409 CONFLICT\` | auto from name |
+| **Description** | Optional, ≤500 chars | empty |
+| **Visible on public gallery** | \`isActive\` toggle. When off, hidden from the public site but stays in admin | checked |
+| **order** | Not in the form; server assigns \`max(order)+1\` on create | next |
+| **coverImageId** | Accepted by the API but **no control exists in this modal** (§7) | null |
+
+> On **edit**, the slug is **not** auto-rewritten when the name changes — you edit it deliberately. Save validates required Name + Slug client-side (toast warning if blank).
+
+### Category lifecycle & the role each action needs
+
+<div class="fig diagram"><span class="tag">Diagram</span><div class="fig-body"><div style="display:flex;flex-wrap:wrap;align-items:stretch;gap:6px;width:100%;max-width:600px;font-size:11.5px"><div style="flex:1;min-width:120px;border:1px solid #bcd4ff;background:var(--primary-soft);border-radius:9px;padding:10px 12px"><b>Create</b><br>POST categories<br><span class="chip blue">EDITOR</span></div><div style="display:flex;align-items:center;color:var(--faint)">→</div><div style="flex:1;min-width:120px;border:1px solid var(--line);background:#fff;border-radius:9px;padding:10px 12px"><b>Edit / Hide</b><br>PUT categories/:id<br><span class="chip blue">EDITOR</span></div><div style="display:flex;align-items:center;color:var(--faint)">→</div><div style="flex:1;min-width:120px;border:1px solid var(--line);background:#fff;border-radius:9px;padding:10px 12px"><b>Fill / order images</b><br>add + reorder<br><span class="chip blue">EDITOR</span></div><div style="display:flex;align-items:center;color:var(--faint)">→</div><div style="flex:1;min-width:120px;border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:10px 12px"><b>Delete</b><br>DELETE categories/:id<br><span class="chip warn">PUBLISHER</span></div></div></div><div class="fig-cap"><b>Figure 3b — role gates come from <code>requireRole()</code> in each route.</b> Deleting a category is the <b>only</b> gallery step that needs more than EDITOR: it requires <span class="chip warn">PUBLISHER</span> and <b>cascade-deletes its <code>GalleryImage</code> rows</b> — but the underlying Media Library assets are untouched (§4). Reads (GET) require only <span class="chip info">VIEWER</span>.</div></div>
 
 ---
 
-## Gallery CTA Block (Flexible Designer)
+## 3. Images within a category
 
-The **Gallery CTA** block adds an eye-catching call-to-action section with a parallax photo collage background pulled live from your gallery.
+The right workspace shows the selected category's images as a responsive tile grid (\`auto-fill, minmax(160px, 1fr)\`). Images are **added from the Media Library**, reordered by drag, given per-image caption / alt, and removed one at a time.
 
-Add it in the **Flexible Designer** → palette → **Gallery CTA**.
+<div class="fig map"><span class="tag">Interface map</span><div class="fig-body"><div style="width:100%;max-width:600px"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:#fff"><div><span style="display:inline-flex;align-items:center;gap:8px"><b style="font-size:15px">Kitchens</b> <span class="chip warn">Hidden</span> <span class="callout-num">1</span></span><div style="font-size:11px;color:var(--faint)">/gallery/kitchens · 12 images</div></div><div style="display:flex;gap:6px"><span class="btno" style="padding:4px 9px;font-size:12px"><span class="callout-num">2</span>&nbsp;Edit</span><span class="btnd" style="padding:4px 9px;font-size:12px"><span class="callout-num">3</span>&nbsp;Delete</span><span class="btnp" style="padding:4px 9px;font-size:12px"><span class="callout-num">4</span>&nbsp;Add Images</span></div></div><div style="max-width:190px;margin:16px auto 0;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff"><div style="aspect-ratio:4/3;background:linear-gradient(135deg,#dbe3ef,#eef2f8);position:relative"><span style="position:absolute;top:5px;left:5px;background:rgba(20,30,50,.55);color:#fff;border-radius:5px;padding:1px 5px;font-size:9px;font-weight:700">⠿ <span class="callout-num">5</span></span></div><div style="display:flex;align-items:center;gap:5px;padding:6px 7px;font-size:10.5px;color:var(--muted)"><span style="flex:1">Marble island</span><span class="callout-num">6</span><span class="callout-num" style="background:#b02a37">7</span></div></div></div></div><div class="fig-cap"><b>Figure 4 — header actions + a single tile's controls.</b> Empty state (no images) shows an image icon, "No images in this category yet." and an "Add Images" button.</div></div>
 
-### Props
+- <span class="callout-num">1</span> **Category title + Hidden badge** — badge shows when the category is not active; the meta line repeats the public path and count.
+- <span class="callout-num">2</span> **Edit** — opens the category modal (Figure 3).
+- <span class="callout-num">3</span> **Delete** — confirm, then removes the category + its image rows (<span class="chip warn">PUBLISHER</span>).
+- <span class="callout-num">4</span> **Add Images** — opens the Media Library picker (§4). Disabled during save.
+- <span class="callout-num">5</span> **Drag handle** — the whole thumbnail is the grab area (cursor: grab). Drag to reorder; new order saves immediately.
+- <span class="callout-num">6</span> **Pencil** — edit caption + alt text (Figure 5).
+- <span class="callout-num">7</span> **× Remove** — removes the image from *this category only*; the media asset itself is not deleted.
 
-| Prop | Description |
-|------|-------------|
-| **Heading** | Main heading text |
-| **Accent word** | One word in the heading to highlight with the accent colour |
-| **Subtext** | Supporting paragraph |
-| **Button text** | CTA button label (default: "View Gallery") |
-| **Button URL** | Where the button links (default: /gallery) |
-| **Category slug** | Which category's images to use for the collage background |
-| **Stat 1 / Stat 2** | Two stat chips (value + label) shown above the heading |
-| **Accent colour** | Highlight colour for the accent word, stats, and button |
-| **Overlay opacity** | Darkness of the overlay on the collage (0–100) |
+> **Tile face:** thumbnail at ~4:3 with \`object-fit: cover\`, using the asset's \`thumbnailUrl\` (falls back to \`url\`). Footer text = the image's **caption** if set, otherwise the asset **filename**.
 
-> **Desktop:** Images drift with mouse parallax.
-> **Mobile:** Images auto-drift gently.
+<div class="fig control"><span class="tag">Control mockup</span><div class="fig-body"><div class="mock-panel" style="max-width:340px;padding:0;overflow:hidden"><div style="padding:11px 14px;border-bottom:1px solid var(--line);font-weight:700;font-size:13px;display:flex;justify-content:space-between">Edit Caption <span style="color:var(--faint)">×</span></div><div style="padding:14px"><div style="aspect-ratio:16/7;background:linear-gradient(135deg,#dbe3ef,#eef2f8);border-radius:8px;margin-bottom:12px"></div><label class="lbl">Caption</label><div class="input" style="color:var(--faint)">Optional caption shown below the image</div><label class="lbl" style="margin-top:10px">Alt text</label><div class="input" style="color:var(--faint)">Describe the image for accessibility</div></div><div style="padding:11px 14px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px"><span class="btno" style="padding:5px 12px;font-size:12.5px">Cancel</span><span class="btnp" style="padding:5px 12px;font-size:12.5px">Save</span></div></div></div><div class="fig-cap"><b>Figure 5 — per-image metadata is <code>caption</code> + <code>altText</code> only.</b> There is <b>no</b> per-image "tags" field here — tags live on the underlying media asset, not the gallery image (§7).</div></div>
+
+| Field | Function | Range / default |
+|-------|----------|-----------------|
+| **Caption** | Shown under the image in the lightbox; also becomes the admin tile label | ≤500 chars · default empty (null) |
+| **Alt text** | Accessibility text for the \`<img>\`. Per-image alt **overrides** the asset's own alt on the public page | ≤200 chars · default empty (null) |
+| **Preview** | Read-only thumbnail of the image being edited | — |
+
+> **Saved via** \`PATCH .../images/:imageId\` (<span class="chip blue">EDITOR</span>). Empty inputs are stored as \`null\`, not "". The same endpoint also accepts an \`order\` value, though this modal doesn't set it — ordering is handled by drag (§4).
+
+---
+
+## 4. Relationship to the Media Library
+
+The key architectural fact: **the gallery stores no files of its own.** A gallery image is a lightweight join row pointing at an existing \`MediaAsset\`. You never upload on this screen — you *reference*. (Uploads, folders, and tags live in **Media Library** — see that topic.)
+
+<div class="fig diagram"><span class="tag">Diagram</span><div class="fig-body"><div style="display:flex;flex-wrap:wrap;align-items:stretch;gap:6px;width:100%;max-width:600px;font-size:11.5px"><div style="flex:1;min-width:120px;border:1px solid var(--line);background:#fff;border-radius:9px;padding:10px 12px"><b>Media Library</b><br>Files uploaded &amp; stored (<code>MediaAsset</code>). Not on this page.</div><div style="display:flex;align-items:center;color:var(--faint)">→</div><div style="flex:1;min-width:120px;border:1px solid #bcd4ff;background:var(--primary-soft);border-radius:9px;padding:10px 12px"><b>Add Images</b><br>Opens <code>MediaPickerModal</code> — <b>multi</b>-select, <code>filterType="image"</code></div><div style="display:flex;align-items:center;color:var(--faint)">→</div><div style="flex:1;min-width:120px;border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:10px 12px"><b>Create rows</b><br>POST <code>{assetIds[]}</code> → one <code>GalleryImage</code> per asset, appended at end</div></div></div><div class="fig-cap"><b>Figure 6 — gallery images are references, not copies.</b> Deleting from the gallery is non-destructive to media; there is no cascade from asset → gallery image, so deleting the media asset elsewhere would break the reference.</div></div>
+
+- **Adding** creates a \`GalleryImage\` per selected asset in a single transaction, each with \`order = max+1, +2, …\`. Toast: "Added N image(s)"; the count pill and grid refresh.
+- **Removing** (× on a tile) deletes only the \`GalleryImage\` join row. The \`MediaAsset\` stays in the library and can be re-added or used elsewhere. The **same asset can appear in multiple categories**.
+- **Metadata layering** — public alt text = gallery image's \`altText\` → else asset's \`altText\` → else "". Caption is gallery-only (the asset's own caption is not used by the public gallery).
+
+### Reordering images (drag & persist)
+
+<div class="fig diagram"><span class="tag">Diagram</span><div class="fig-body"><div style="display:flex;flex-wrap:wrap;align-items:stretch;gap:6px;width:100%;max-width:600px;font-size:11.5px"><div style="flex:1;min-width:110px;border:1px solid var(--line);background:#fff;border-radius:9px;padding:10px 12px"><b>Drag tile</b><br>dnd-kit sensor</div><div style="display:flex;align-items:center;color:var(--faint)">→</div><div style="flex:1;min-width:110px;border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:10px 12px"><b>Optimistic</b><br><code>arrayMove</code> updates the grid instantly</div><div style="display:flex;align-items:center;color:var(--faint)">→</div><div style="flex:1;min-width:110px;border:1px solid #bcd4ff;background:var(--primary-soft);border-radius:9px;padding:10px 12px"><b>Persist</b><br>POST <code>reorder {imageIds[]}</code> → <code>order = index</code></div><div style="display:flex;align-items:center;color:var(--faint)">→</div><div style="flex:1;min-width:110px;border:1px solid var(--line);background:#fff;border-radius:9px;padding:10px 12px"><b>On failure</b><br>toast error + re-fetch to restore true order</div></div></div><div class="fig-cap"><b>Figure 7 — order is a per-category integer sequence.</b> Both the public page and the admin grid read images ordered by <code>order</code> ascending. Reorder is <span class="chip blue">EDITOR</span>. (Implementation note: dnd-kit uses <code>verticalListSortingStrategy</code> applied to a wrapping grid — it reorders and persists correctly.)</div></div>
+
+---
+
+## 5. Data model & API surface
+
+Two tables plus the shared media table. Every admin action maps to one of nine endpoints under \`/api/admin/gallery/…\`; the public site reads Prisma directly (**no public API**).
+
+<div class="fig diagram"><span class="tag">Diagram</span><div class="fig-body"><div style="display:flex;flex-wrap:wrap;align-items:stretch;gap:6px;width:100%;max-width:600px;font-size:11px"><div style="flex:1;min-width:150px;border:1px solid #bcd4ff;background:var(--primary-soft);border-radius:9px;padding:10px 12px"><b>GalleryCategory</b><br>id · name · <b>slug</b> (unique) · description? · <b>isActive</b> (def true) · <b>order</b> (def 0) · coverImageId? · timestamps</div><div style="display:flex;align-items:center;color:var(--faint)">1—&lt;</div><div style="flex:1;min-width:150px;border:1px solid #bcd4ff;background:var(--primary-soft);border-radius:9px;padding:10px 12px"><b>GalleryImage</b><br>id · categoryId · assetId · <b>caption?</b> · <b>altText?</b> · <b>order</b> (def 0) · timestamps</div><div style="display:flex;align-items:center;color:var(--faint)">&gt;—1</div><div style="flex:1;min-width:150px;border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:10px 12px"><b>MediaAsset</b><br>url · thumbnailUrl · altText · caption · tags · width/height · filename…</div></div></div><div class="fig-cap"><b>Figure 8 — the gallery owns only grouping + ordering + optional caption/alt overrides; pixels live in <code>MediaAsset</code>.</b> <code>GalleryCategory → GalleryImage</code> is <code>onDelete: Cascade</code>; <code>GalleryImage → MediaAsset</code> has <b>no cascade</b>. Indexed on <code>isActive</code> and on <code>(categoryId, order)</code>. <code>coverImageId</code> points a category at an asset via the <code>GalleryCover</code> relation, but nothing in the UI sets or renders it (§7).</div></div>
+
+| Method & path | Purpose | Role | Notes |
+|---------------|---------|------|-------|
+| \`GET /categories\` | List categories + counts + cover | <span class="chip info">VIEWER</span> | ordered by \`order\` |
+| \`POST /categories\` | Create category | <span class="chip blue">EDITOR</span> | slug unique → 409; auto \`order\` |
+| \`GET /categories/:id\` | Get one + its images | <span class="chip info">VIEWER</span> | 404 if missing |
+| \`PUT /categories/:id\` | Update name/slug/desc/active/order/cover | <span class="chip blue">EDITOR</span> | slug re-check → 409 |
+| \`DELETE /categories/:id\` | Delete category (cascade images) | <span class="chip warn">PUBLISHER</span> | privileged |
+| \`GET /categories/:id/images\` | List images in category | <span class="chip info">VIEWER</span> | ordered by \`order\` |
+| \`POST /categories/:id/images\` | Attach assets (\`assetIds[]\`) | <span class="chip blue">EDITOR</span> | appends; transaction |
+| \`PATCH /categories/:id/images/:imageId\` | Edit caption / altText / order | <span class="chip blue">EDITOR</span> | nulls allowed |
+| \`DELETE /categories/:id/images/:imageId\` | Detach image (join row only) | <span class="chip blue">EDITOR</span> | asset kept |
+| \`POST /categories/:id/reorder\` | Persist order from \`imageIds[]\` | <span class="chip blue">EDITOR</span> | \`order = index\` |
+
+> All under \`/api/admin/gallery/\`, using the shared \`{ success, data }\` / \`{ success, error }\` envelope. The adjacent route \`GET /api/gallery/cta-images\` exists but serves the flexible-section CTA block, not this page.
+
+---
+
+## 6. The public gallery render
+
+The visitor-facing gallery is a single **dark, scrolling page** that stacks **every active category** as a section with a 4-tile "bento" collage, a floating table-of-contents, and a full-screen lightbox. Route \`/gallery\` redirects to the first active category's slug.
+
+<div class="fig render"><span class="tag">Render preview</span><div class="fig-body"><div style="width:100%;max-width:420px;background:#0f0f0d;border-radius:12px;overflow:hidden;color:rgba(255,255,255,.82);font-family:system-ui,sans-serif"><div style="height:34px;background:#2e3033;border-bottom:2px solid #8DB63C;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#fff">Gallery — <span style="color:#A5CC52">Our Work</span><span style="color:rgba(255,255,255,.5);font-size:9px">← Back to site</span></div><div style="padding:18px 16px 20px;text-align:center"><div style="font-size:9px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:#8DB63C">Our Portfolio</div><div style="font-weight:800;font-size:20px;color:#fff;margin:5px 0 3px">Kitchens</div><div style="font-size:10px;color:rgba(255,255,255,.55);margin-bottom:8px">Recent fitted-kitchen projects.</div><span style="display:inline-block;font-size:9px;font-weight:800;color:#0f0f0d;background:#8DB63C;border-radius:999px;padding:3px 10px;text-transform:uppercase">12 Photos</span><div style="display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:52px;gap:6px;max-width:300px;margin:14px auto 0"><div style="background:linear-gradient(135deg,#3a3d33,#23251f);border-radius:7px;grid-row:span 2"></div><div style="background:linear-gradient(135deg,#3a3d33,#23251f);border-radius:7px"></div><div style="background:linear-gradient(135deg,#3a3d33,#23251f);border-radius:7px"></div><div style="background:rgba(141,182,60,.15);border-radius:7px;grid-column:span 2;display:flex;align-items:center;justify-content:center;flex-direction:column"><span style="font-weight:800;font-size:16px;color:#A5CC52">+8</span><span style="font-size:8px;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.7)">View all photos</span></div></div><div style="display:inline-flex;gap:6px;margin-top:14px;background:rgba(20,20,16,.8);border:1px solid rgba(141,182,60,.3);border-radius:999px;padding:5px 7px"><span style="font-size:9px;font-weight:700;color:#0f0f0d;background:#8DB63C;padding:3px 9px;border-radius:999px">Kitchens</span><span style="font-size:9px;font-weight:700;color:rgba(255,255,255,.6);padding:3px 9px">Bathrooms</span></div></div></div></div><div class="fig-cap"><b>Figure 10 — category section + bento collage.</b> Sticky topbar (<b>A</b>); category header with eyebrow "Our Portfolio", name, optional description, "<b>N Photos</b>" badge (<b>B</b>); bento shows the <b>first 4 images</b> (<code>BENTO_VISIBLE = 4</code>) with a hover zoom overlay (<b>C</b>); the 4th cell becomes a "<b>+N / View all photos</b>" tile when there are more than 4, opening the lightbox at image #4 (<b>D</b>); a floating TOC appears only with more than one category and jump-scrolls, active pill tracked by IntersectionObserver + <code>replaceState</code> (<b>E</b>).</div></div>
+
+> **All active categories render on one page** — \`/gallery/<slug>\` loads every active category and smooth-scrolls to the requested one. An empty category shows "No images yet — check back soon." When there are 0 active categories site-wide, a "busy uploading our project photos" placeholder shows instead.
+
+<div class="fig-warn"><b>Client-specific styling in the white-label repo.</b> <code>gallery.css</code> hardcodes a green accent (<code>#8DB63C</code>) and Montserrat/Inter fonts. Whether a client theme overrides these was not traced — flag for review before shipping to a differently-branded client.</div>
+
+<div class="fig render"><span class="tag">Render preview</span><div class="fig-body"><div style="width:100%;max-width:420px;background:rgba(8,8,6,.96);border-radius:12px;min-height:190px;display:flex;align-items:center;justify-content:center;position:relative;padding:22px"><span style="position:absolute;top:10px;right:14px;color:#fff;font-size:16px;opacity:.8">✕</span><span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#fff;font-size:20px;opacity:.7">‹</span><span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);color:#fff;font-size:20px;opacity:.7">›</span><div style="text-align:center"><div style="width:220px;height:120px;background:linear-gradient(135deg,#3a3d33,#23251f);border-radius:8px"></div><div style="color:#fff;font-size:11px;margin-top:10px">Marble island with waterfall edge</div><div style="color:rgba(255,255,255,.5);font-size:10px;margin-top:3px">4 / 12</div></div></div></div><div class="fig-cap"><b>Figure 11 — lightbox controls & behavior.</b> Keyboard Esc / ArrowLeft / ArrowRight are bound while open. Alt text on the full image = per-image alt → asset alt → "".</div></div>
+
+| Control | Action | Notes |
+|---------|--------|-------|
+| **Open** | Click any collage cell | Opens at that image's index |
+| **Close ✕ / backdrop / Esc** | Dismiss the lightbox | Clicking outside the image also closes |
+| **Prev ‹ / ArrowLeft** | Previous image (wraps to last) | Arrows only shown if more than 1 image |
+| **Next › / ArrowRight** | Next image (wraps to first) | — |
+| **Caption** | Shown under the image when it has one | from \`GalleryImage.caption\` |
+| **Counter** | "i / total" within the current category | — |
+
+> **Scope:** the lightbox cycles within the **current category's full image list** (not just the 4 visible cells, and not across categories). This is how the "+N / View all photos" cell exposes images beyond the first four — there is no separate "all photos" grid view.
+
+---
+
+## 7. Settings, gaps & things to verify
+
+There is **no separate "gallery settings" screen** — the only settings are per-category (name, slug, description, visibility). Below are model capabilities that have **no UI**, plus items flagged for a human to confirm.
+
+| Capability | In model / API? | In admin UI? | Effect |
+|------------|-----------------|--------------|--------|
+| **Category cover image** (\`coverImageId\`, \`GalleryCover\`) | Yes — create/update accept it; list returns it | **No control** | Never set or rendered; effectively dormant |
+| **Category reorder (drag)** | \`order\` field + PUT accepts \`order\` | **No drag UI** | Order fixed by create sequence unless changed via API |
+| **Per-image tags** | Tags live on \`MediaAsset\`, not \`GalleryImage\` | Not on this page | Gallery metadata = caption + alt only; tag the asset in Media Library |
+| **Image order (drag)** | Yes — reorder route | Yes (Figure 7) | Works & persists |
+| **Caption / alt override** | Yes | Yes (Figure 5) | Overrides asset values on public page |
+| **Visibility (hide category)** | \`isActive\` | Yes (modal toggle) | Hidden categories excluded from all public queries |
+
+### Role matrix (who can do what)
+
+| Action | VIEWER | EDITOR | PUBLISHER+ |
+|--------|:------:|:------:|:----------:|
+| View categories & images | ✓ | ✓ | ✓ |
+| Create / edit category, hide/show | — | ✓ | ✓ |
+| Add / remove / reorder images, edit caption+alt | — | ✓ | ✓ |
+| Delete a category (cascade its images) | — | — | ✓ |
+
+> Roles are enforced **server-side per route** via \`requireRole()\`. The client screen does not gate buttons by role — a lower-privileged user sees the button but gets an API error.
+
+### Could not verify from code / needs a human eye
+
+- **MediaPickerModal internals** — confirmed it is invoked with \`multi\` + \`filterType="image"\` and returns \`{id,url,altText}[]\`, but its own upload/browse UX is documented under the **Media Library** topic, not here.
+- **Actual public colours/fonts per deployment** — \`gallery.css\` hardcodes \`#8DB63C\` + Montserrat/Inter; whether a client theme overrides these was not traced.
+- **Cover image intent** — \`coverImageId\` is fully plumbed in schema + API but unused in both admin and public code; confirm whether it is planned or dead.
+- **Category-order editing path** — PUT accepts \`order\`, but no admin control sends it; confirm how category order is meant to be changed.
+- Not browser-verified — all figures are hand-built from source reading, not screenshots.
+
+---
+
+## Related features (separate — documented elsewhere)
+
+- **Media Library** — uploads, folders, tags, and the picker modal. This page depends on it but does not contain it. See the **Media Library** topic.
+- **Gallery CTA Block** (Flexible Designer) — a **distinct flexible block** (\`GalleryCtaBlock\`, \`/api/gallery/cta-images\`) that renders a call-to-action with a parallax collage pulled from a chosen category. Add it in **Flexible Designer → palette → Gallery CTA**. Its props: **Heading**, **Accent word**, **Subtext**, **Button text** (default "View Gallery"), **Button URL** (default \`/gallery\`), **Category slug**, **Stat 1 / Stat 2**, **Accent colour**, **Overlay opacity** (0–100). Desktop images drift with mouse parallax; mobile auto-drifts gently.
+- **Projects Gallery** (\`components/sections/ProjectsGallery.tsx\`) — an unrelated section component; see its own **Projects Gallery** topic.
 
 ---
 
