@@ -2573,7 +2573,15 @@
       return row;
     }
     function renderProps(){
-      var body=document.getElementById('props-body');clrEl(body);
+      var body=document.getElementById('props-body');
+      // Preserve inspector scroll across a full re-render. clrEl() empties the panel,
+      // collapsing its height so the browser clamps the scroll container's scrollTop
+      // to 0; re-appending the controls does not restore it. Capture scrollTop before
+      // the rebuild and restore it on the next frame — by then the panel is rebuilt to
+      // its real height, and a single rAF covers every early-return path below.
+      var _scEl=body?body.closest('.sidebar-scroll'):null;var _scTop=_scEl?_scEl.scrollTop:0;
+      if(_scEl)requestAnimationFrame(function(){_scEl.scrollTop=_scTop;});
+      clrEl(body);
       var layer=state.element.layers.find(function(l){return l.id===state.selectedLayerId;});
       if(!layer){
         // ── Element-level settings (no layer selected) ─────────────────────────
@@ -4939,7 +4947,18 @@
     document.getElementById('btn-slot-type-caret').addEventListener('click',function(e){
       e.stopPropagation();
       var menu=document.getElementById('slot-type-menu');
-      _slotMenuOpen=!_slotMenuOpen;menu.style.display=_slotMenuOpen?'block':'none';
+      _slotMenuOpen=!_slotMenuOpen;
+      if(_slotMenuOpen){
+        // The toolbar is overflow:hidden, so this menu's absolute position (containing
+        // block sits inside the toolbar) was clipped — display:block alone rendered it
+        // invisible, so the caret looked dead. Anchor it as position:fixed under the
+        // slot control: no transformed ancestor, so fixed = viewport and escapes the clip.
+        var grp=this.parentElement;var r=(grp||this).getBoundingClientRect();
+        menu.style.position='fixed';menu.style.top=(r.bottom+4)+'px';menu.style.left=r.left+'px';menu.style.right='auto';
+        menu.style.display='block';
+      }else{
+        menu.style.display='none';
+      }
     });
     // ── Slot preview mode ─────────────────────────────────────────────────────
     function updateSlotPreviewBtn(){
