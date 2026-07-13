@@ -2986,79 +2986,268 @@ Every page (any type) has its own SEO panel, reached from the 🔍 row action. I
 const NAVIGATION = `
 # Navigation — Navbar
 
-The navbar adapts its appearance based on scroll position and screen size.
+The public navbar renders on **every page**. It is \`position: fixed\` at the top (\`z-index: 1050\`) and layers **two independent behaviours**: a **scroll state** (transparent → opaque) and a **style variant** (Standard vs Tall). The bar publishes its own height to the page as the CSS variable \`--navbar-height\`, so every 100vh section offsets automatically.
+
+Edit it under **Admin → Content → Navbar** (\`/admin/content/navbar\`).
+
+<div class="fig-warn"><b>Shared / global surface.</b> The navbar reads from three separate config stores and appears on all page types. Any change to it is <b>HIGH RISK</b> — after editing, verify the navbar, footer, hero overlap, and every page type. Nav content is authored here; never hardcode links, logo, or CTA in the component.</div>
 
 ---
 
-## Desktop States
+## 1 · How the public navbar behaves (scroll states)
+
+Over the hero the bar is transparent and the logo is centered. Once you scroll past the hero it fades to an opaque background, the logo slides left, and the nav links + CTA reveal on the right.
+
+<div class="fig render">
+  <div class="fig-head"><span class="tag">Render preview</span><span class="ttl">Standard variant — scroll states</span></div>
+  <div class="fig-body">
+    <div class="mbar" style="max-width:600px">
+      <span class="mbtn lt">&#9776;</span>
+      <span class="spacer"></span>
+      <span class="brand" style="color:#fff">YOUR&nbsp;LOGO</span>
+      <span class="spacer"></span>
+      <span style="color:rgba(255,255,255,.55);font-style:italic;font-size:11px">links hidden</span>
+      <span class="pill on">Client Login</span>
+    </div>
+    <div class="mbar light" style="max-width:600px">
+      <span class="brand" style="color:#334">YOUR&nbsp;LOGO</span>
+      <span class="spacer"></span>
+      <span>Services</span><span>Coverage</span><span>Support</span>
+      <span class="mbtn pri">Client Login</span>
+    </div>
+  </div>
+  <div class="fig-cap"><b>Top (transparent):</b> logo centered, hamburger left, nav links hidden (opacity 0), white text. <b>Scrolled (opaque):</b> logo left, hamburger gone, links + optional Tools dropdown + CTA fade in on the right. Text colour is auto-chosen by sampling the element under the bar.</div>
+</div>
+
+<div class="fig diagram">
+  <div class="fig-head"><span class="tag">Diagram</span><span class="ttl">Scroll-state transition</span></div>
+  <div class="flow">
+    <span class="step"><b>Over hero</b> — \`scrolled = false\`. Transparent, centered logo, hamburger, links hidden.</span>
+    <span class="arr">&rarr;</span>
+    <span class="step"><b>Crossing threshold</b> — when \`scrollTop &gt; max(20, innerHeight − navbarHeight)\` the state flips (≈600ms ease).</span>
+    <span class="arr">&rarr;</span>
+    <span class="step"><b>Scrolled / opaque</b> — \`scrolled = true\`. Background fades in, logo left, links + CTA revealed.</span>
+  </div>
+  <div class="fig-cap"><b>Why a threshold, not scrollTop &gt; 0:</b> sections are 100vh with scroll-snap, so the bar must stay transparent for the whole hero and only go opaque once the hero has scrolled up behind it. Pages <b>without</b> a hero start already-opaque (\`effectiveScrolled = !heroPresent || scrolled\`). Scroll is tracked on \`#snap-container\` (falling back to \`window\`).</div>
+</div>
 
 ---
 
-## Mobile State
+## 2 · Two navbar styles
 
-On mobile, the hamburger menu opens a dropdown overlay with all nav links.
+The style is a single radio choice saved to **Site Config** (\`navbarStyle: "standard" | "tall"\`); it takes effect on the next live-site load.
 
----
+<div class="fig control">
+  <div class="fig-head"><span class="tag">Control mockup</span><span class="ttl">Navbar Style selector</span></div>
+  <div class="fig-body">
+    <div class="seg">
+      <button class="on">&#9673; Standard</button>
+      <button>&#9711; Tall + Contact</button>
+    </div>
+    <div class="hint">Standard = Logo · Nav links · CTA button &nbsp;|&nbsp; Tall = Logo · Links · Phone number + social icons</div>
+  </div>
+  <div class="fig-cap"><b>Default:</b> Standard. Selecting <b>Tall</b> while no phone number is set in Site Config shows an inline warning with a shortcut to <code>/admin/settings/site-config</code> — the tall bar's contact column stays empty until a phone is added.</div>
+</div>
 
-## Nav Links — Dynamic Loading
+<div class="fig render">
+  <div class="fig-head"><span class="tag">Render preview</span><span class="ttl">Tall + Contact variant</span></div>
+  <div class="fig-body">
+    <div class="mbar" style="max-width:600px">
+      <span class="brand" style="color:#fff">YOUR&nbsp;LOGO</span>
+      <span class="spacer"></span>
+      <span>Services</span><span>Coverage</span><span>Support</span>
+      <span class="spacer"></span>
+      <span style="text-align:right;line-height:1.2"><span style="font-size:9px;color:rgba(255,255,255,.6);text-transform:uppercase">Call Us</span><br><b>011 555 0100</b></span>
+    </div>
+  </div>
+  <div class="fig-cap"><b>Tall variant is always in "scrolled" behaviour</b> — links are permanently centered and visible. Logo pins left; a phone number + brand-coloured social icons occupy the right. Height 140px vs 100px for Standard. <b>Phone &amp; socials come from Site Config, not navbar config.</b></div>
+</div>
 
-Nav links are loaded from the **first 5 non-hero, non-footer sections** on the landing page, sorted by their \`order\` field.
-
-**Rules:**
-- Only sections with a \`navLabel\` OR a non-default \`displayName\` appear
-- Maximum **5 nav links** — hard limit
-- Nav label = **first word** of the label (e.g. "About Us" → "About")
-- Navbar polls for changes every **5 seconds** (auto-updates when admin reorders)
-
----
-
-## Background Color Detection
-
-The navbar automatically adjusts text/icon colors based on the background behind it:
-
-\`\`\`
-Dark background  → white logo + white hamburger icon
-Light background → dark logo + dark hamburger icon
-\`\`\`
-
----
-
-## Navbar Settings (Admin → Content → Navbar)
-
-| Setting | Description |
-|---------|-------------|
-| **Logo** | Upload or URL for the navbar logo |
-| **CTA Button Show** | Toggle — show or hide the CTA button entirely |
-| **CTA Button Text** | Label displayed on the button (e.g. "Client Login", "Get a Quote") |
-| **CTA Button URL** | Destination link — supports any page or external URL |
-| **CTA Button Style** | solid / outlined / ghost |
-| **Navbar Background** | Opaque color when scrolled (default: transparent) |
+| Property | Standard | Tall + Contact |
+|----------|----------|----------------|
+| Height | 100 px | 140 px |
+| Logo position | Centered at top → left when scrolled | Always left |
+| Links position | Right (hidden at top, shown scrolled) | Centered, always visible |
+| Right cluster | Tools dropdown + CTA button | Phone number + social icons |
+| Transparent over hero | Yes | Yes (but links always shown) |
 
 ---
 
-## Navbar Style
+## 3 · Mobile
 
-| Style | Description |
-|-------|-------------|
-| **Standard** | Single-row navbar — logo + navigation links |
-| **Tall** | Two-row navbar — phone number on top row, logo + nav on bottom row |
+On mobile (&lt;768px) both variants use a standard hamburger that toggles an **edge-to-edge dropdown** below the bar (Framer-Motion height animation, staggered items). Body scroll is locked while open.
 
-Toggle between styles at **Admin → Content → Navbar → Navbar Style**.
+- **Standard:** dropdown shows the nav links, the Tools list, and the CTA.
+- **Tall:** dropdown additionally shows the phone number + social icons.
 
-When **Tall** is selected, the phone number is pulled from **Admin → Settings → Site Config → Contact Details**. If no phone number is set, a warning appears with a link to Site Config.
+The hamburger/logo colour follows the same auto-contrast rule as desktop (white over dark, dark over light).
 
 ---
 
-## Navbar Links (Admin → Content → Navbar Links)
+## 4 · Auto text-contrast &amp; height publishing
 
-Manage which links appear in the navbar and in what order.
+<div class="fig diagram">
+  <div class="fig-head"><span class="tag">Diagram</span><span class="ttl">Contrast sampling &amp; height</span></div>
+  <div class="flow">
+    <span class="step"><b>Sample background</b> — on scroll, read the computed \`background-color\` of the element under the bar's centre.</span>
+    <span class="arr">&rarr;</span>
+    <span class="step"><b>Compute luminance</b> — \`0.299R + 0.587G + 0.114B\`. ≤ 0.5 ⇒ dark bg ⇒ light text; else dark text.</span>
+    <span class="arr">&rarr;</span>
+    <span class="step"><b>Publish height</b> — set \`--navbar-height\` (100 or 140px) on \`&lt;html&gt;\` so sections offset correctly.</span>
+  </div>
+  <div class="fig-cap"><b>Data refresh:</b> the navbar re-fetches links, CTA, and site-config every <b>5 seconds</b> (when the tab is visible), so admin edits appear on the live site without a manual reload.</div>
+</div>
 
-| Setting | Description |
-|---------|-------------|
-| **Show on Navbar** | Toggle — include or exclude this link from the navbar |
-| **Drag handle** | Reorder links by dragging (desktop only) |
+---
 
-Links can be section anchors (landing page sections) or custom pages. Order is saved live — the navbar polls for changes every 5 seconds.
+## 5 · Logo · CTA · Scrolled background
+
+These three groups live in the **navbar config** store (\`GET/PATCH /api/navbar\` → \`/data/navbar-config.json\`) and are saved together with the page's **Save Settings** button.
+
+### Logo
+
+<div class="fig control">
+  <div class="fig-head"><span class="tag">Control mockup</span><span class="ttl">Logo</span></div>
+  <div class="fig-body">
+    <div class="mock-panel">
+      <span class="lbl">Logo Image</span>
+      <div class="input">/images/logo-placeholder.svg &nbsp;·&nbsp; &#8679; Upload</div>
+      <span class="lbl" style="margin-top:10px">Alt Text</span>
+      <div class="input">Your Company</div>
+      <div class="two" style="margin-top:10px">
+        <div><span class="lbl">Display Height (px)</span><div class="input">44</div></div>
+        <div><span class="lbl">Display Width (px)</span><div class="input">0</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="fig-cap">Recommended source: an 80–120px-tall transparent PNG/SVG (2× for retina). Alt text is the screen-reader label.</div>
+</div>
+
+| Field | Function | Options / range | Default |
+|-------|----------|-----------------|---------|
+| \`logoSrc\` | Logo image (URL or upload) | path / URL | /images/logo-placeholder.svg |
+| \`logoAlt\` | Accessibility alt / text fallback | free text | Your Company |
+| \`logoHeight\` | Rendered height | 16–200 px | 44 |
+| \`logoWidth\` | Rendered width | 0–600 px (0 = auto) | 0 (auto) |
+
+### Navigation (CTA) button
+
+<div class="fig control">
+  <div class="fig-head"><span class="tag">Control mockup</span><span class="ttl">Navigation (CTA) button</span></div>
+  <div class="fig-body">
+    <div class="mock-panel">
+      <div class="sw-row"><span class="toggle"></span> <b>Show navigation button</b></div>
+      <span class="lbl" style="margin-top:8px">Button Text</span>
+      <div class="input">Client Login</div>
+      <span class="lbl" style="margin-top:10px">Button Style</span>
+      <div class="seg"><button class="on">Solid</button><button>Outlined</button><button>Ghost</button></div>
+      <span class="lbl" style="margin-top:10px">Link Target</span>
+      <div class="seg"><button class="on">&#128279; External URL</button><button># Page Section</button><button>&#9636; Page / PDF / Form</button></div>
+      <div class="input" style="margin-top:8px;color:var(--faint)">https://example.com or /client-login</div>
+      <div class="fig-note" style="margin:10px 0 0"><b>Resolved href:</b> <code>/client-login</code></div>
+    </div>
+  </div>
+  <div class="fig-cap">The CTA is the one navbar element that supports <b>three link modes</b>. The chosen mode is stored explicitly (<code>linkMode</code>) so the editor re-opens on the right tab.</div>
+</div>
+
+| Field | Function | Options / range | Default |
+|-------|----------|-----------------|---------|
+| \`cta.show\` | Render the button | on / off | on |
+| \`cta.text\` | Button label | free text, ≤ 40 chars | Client Login |
+| \`cta.style\` | Visual weight | solid (filled) / outlined (border) / ghost (text only) | solid |
+| \`cta.linkMode\` | Target kind | external / anchor / page | external |
+| \`cta.href\` | Resolved destination | URL · #sectionId · /slug | /client-login |
+
+**Link-mode detail:** **External URL** = free URL or internal path. **Page Section** = dropdown of landing sections, stored as \`#sectionId\`, scrolls on click. **Page / PDF / Form** = dropdown of enabled pages grouped by type (Designer / Full / PDF / Form), stored as \`/slug\`. Empty dropdowns show a warning with a shortcut to create content.
+
+### Scrolled background
+
+<div class="fig control">
+  <div class="fig-head"><span class="tag">Control mockup</span><span class="ttl">Scrolled background</span></div>
+  <div class="fig-body">
+    <div class="mock-panel">
+      <div class="two">
+        <div><span class="lbl">Background Color</span><div class="sw-row"><span class="swatch" style="background:#fff"></span><div class="input" style="flex:1">#ffffff</div></div></div>
+        <div><span class="lbl">Opacity — <b>100%</b></span><div class="slider"><span class="fill" style="width:100%"></span><span class="knob" style="left:100%"></span></div></div>
+      </div>
+      <div class="hint">Renders as <code>rgba(255,255,255,1)</code>. Lower opacity gives a frosted-glass bar over content.</div>
+    </div>
+  </div>
+  <div class="fig-cap"><b>Function:</b> the colour that fades in once the user scrolls past the hero. <b>Range:</b> hex colour + 0–100% opacity. <b>Default:</b> #ffffff @ 100%. The preview panel at the top of the admin page renders both scroll states live as you drag.</div>
+</div>
+
+---
+
+## 6 · Where each setting is stored (source of truth)
+
+Three distinct backends feed the navbar. Editing the wrong store is a common trap — this map shows the split.
+
+<div class="fig map">
+  <div class="fig-head"><span class="tag">Source map</span><span class="ttl">Config source-of-truth</span></div>
+  <div class="fig-body">
+    <div class="two">
+      <div class="mock-panel">
+        <span class="lbl" style="color:var(--primary-ink)">navbar config &nbsp;<span class="hint" style="display:inline">/api/navbar → /data/navbar-config.json</span></span>
+        <ul style="margin:6px 0 0;padding-left:16px;font-size:12.5px;color:var(--muted)">
+          <li>Logo (src, alt, height, width)</li>
+          <li>CTA button (show, text, style, href, linkMode)</li>
+          <li>Scrolled background (color, opacity)</li>
+        </ul>
+      </div>
+      <div class="mock-panel">
+        <span class="lbl" style="color:#7a2570">site config &nbsp;<span class="hint" style="display:inline">/api/site-config</span></span>
+        <ul style="margin:6px 0 0;padding-left:16px;font-size:12.5px;color:var(--muted)">
+          <li>Navbar style (standard / tall)</li>
+          <li>Company name &amp; logo URL (site-wide)</li>
+          <li>Phone number (tall variant)</li>
+          <li>Social URLs (facebook, instagram, tiktok, X, youtube, linkedin)</li>
+        </ul>
+      </div>
+    </div>
+    <div class="mock-panel" style="margin-top:12px;max-width:100%">
+      <span class="lbl" style="color:#0a6b52">navbar links &nbsp;<span class="hint" style="display:inline">/api/navbar-links → Section / Page records</span></span>
+      <div class="hint" style="margin-top:4px">The active link set lives on the content records themselves (<code>showOnNavbar</code>, <code>navOrder</code>, <code>navLabel</code>) — not in either JSON store. See the <b>Navbar Links</b> topic.</div>
+    </div>
+  </div>
+  <div class="fig-cap"><b>Practical note:</b> Phone &amp; socials for the Tall navbar are edited in <b>Settings → Site Config / Contact Details</b>, not on the Navigation page — the Navigation page only links out to them.</div>
+</div>
+
+### Social icons (Tall variant)
+
+Only platforms with a configured URL render, in this fixed order. They appear right-aligned under the phone number (desktop) or inside the mobile dropdown.
+
+| Order | Platform | Icon | Brand colour | Shown when |
+|-------|----------|------|--------------|------------|
+| 1 | Facebook | \`bi-facebook\` | #1877f2 | URL set in site config |
+| 2 | Instagram | \`bi-instagram\` | #e1306c | URL set |
+| 3 | TikTok | \`bi-tiktok\` | #010101 | URL set |
+| 4 | X / Twitter | \`bi-twitter-x\` | #000000 | URL set |
+| 5 | YouTube | \`bi-youtube\` | #ff0000 | URL set |
+| 6 | LinkedIn | \`bi-linkedin\` | #0a66c2 | URL set |
+
+### Tools dropdown (Standard variant, feature-flagged)
+
+When an enabled client feature maps to a route, a **Tools** dropdown appears in the scrolled Standard navbar. One mapping exists in code today: \`concrete-calculator → /calculator\` (\`bi-calculator\`). Tools show only if the matching feature flag is on; there is no per-link admin control for this beyond the feature toggle.
+
+---
+
+## Not authorable today
+
+<div class="fig-warn"><b>These are described in older project notes but have no code path in the current navbar.</b> Do not expect them in the editor:
+<ul style="margin:6px 0 0">
+<li><b>Full-screen tab-page overlays / nested nav menus</b> — scrolled links sit on the right (Standard) or centered (Tall); each link either scrolls to a section or navigates to a page. Links are a flat list of max 5, no sub-menus.</li>
+<li><b>Per-link external URLs</b> — external URLs are only available as a <b>CTA</b> target, not as a nav link.</li>
+<li><b>Hide-over-hero per-link mode</b> — a \`hideOverHero\` flag exists in code but is hard-defaulted to false and not exposed in the admin UI.</li>
+</ul></div>
+
+---
+
+## Quick reference
+
+- **Style:** Site Config → \`navbarStyle\` (standard / tall)
+- **Links:** Navigation → Navbar Links — max 5, sections + pages, drag-order, editable labels; empty ⇒ first-5-sections fallback
+- **Logo / CTA / scrolled bg:** navbar config (Save Settings button)
+- **Phone / socials / company name:** Site Config
 `;
 
 const SETTINGS_PAGE = `
@@ -7235,35 +7424,57 @@ When enabled, provides a portfolio gallery at \`/projects\`:
 const NAVBAR_LINKS_DOCS = `
 # Navbar Links
 
-Configure the navigation link structure for your site's top navigation bar.
+The **Navbar Links** editor decides which items appear as the top-level navigation, in what order, and with what label. It does **not** create new links out of thin air — it promotes existing **Sections** and **Pages** into the navbar and orders them.
+
+Found under the **Navbar Links** card on the Navbar page. Persisted by toggling \`showOnNavbar\` + \`navOrder\` + \`navLabel\` on the underlying Section and Page records (\`PUT /api/navbar-links\`) — not in a JSON store.
 
 ---
 
-## Accessing Navbar Links
+## The editor
 
-Go to **Settings → Navbar Links** in the admin sidebar, or use the **Navbar** editor under Content.
+<div class="fig map">
+  <div class="fig-head"><span class="tag">Interface map</span><span class="ttl">Navbar Links editor</span></div>
+  <div class="fig-body">
+    <div class="mbar light" style="max-width:600px">
+      <span class="cal">1</span><b>Active links — 3/5</b><span class="spacer"></span><span class="mbtn pri">&#10003; Save</span>
+    </div>
+    <div class="lrow" style="max-width:600px"><span class="grip"><span class="cal">2</span> &#8942;&#8942;</span><span class="ordn">1</span><span>Services</span><span class="chip blue">SECTION</span><span></span><span></span></div>
+    <div class="lrow" style="max-width:600px"><span class="grip">&#8942;&#8942;</span><span class="ordn">2</span><span><span class="cal">4</span> About</span><span class="chip info">PAGE</span><span style="color:var(--faint);font-size:11px">/about</span><span><span class="iconbtn d">&#10006;</span></span></div>
+    <div class="lrow" style="max-width:600px"><span class="grip">&#8942;&#8942;</span><span class="ordn">3</span><span>Coverage</span><span class="chip blue"><span class="cal">3</span> SECTION</span><span></span><span></span></div>
+    <div class="mbar light" style="max-width:600px;margin-top:6px"><span class="cal">5</span><b>Available to add</b></div>
+    <div class="lrow fixed" style="max-width:600px"><span></span><span></span><span>Testimonials</span><span class="chip">SECTION</span><span></span><span class="iconbtn p">+</span></div>
+    <div class="lrow fixed" style="max-width:600px"><span></span><span></span><span>Contact</span><span class="chip">PAGE</span><span style="color:var(--faint);font-size:11px">/contact</span><span class="iconbtn p">+</span></div>
+  </div>
+  <ul class="callout-list">
+    <li><span class="cal">1</span><span><b>Active-count &amp; Save</b> — shows N/5. Hard cap of 5 active links; Add disables at 5 with a toast. Save writes the whole set at once.</span></li>
+    <li><span class="cal">2</span><span><b>Drag handle</b> — rows are draggable; drop position sets \`navOrder\`, the exact left-to-right order on the live navbar.</span></li>
+    <li><span class="cal">3</span><span><b>Type badge</b> — SECTION (blue) scroll-links to a landing section; PAGE (teal) navigates to /slug.</span></li>
+    <li><span class="cal">4</span><span><b>Editable label + Remove</b> — free-text overrides the display name (\`navLabel\`); &#10006; returns the item to "Available".</span></li>
+    <li><span class="cal">5</span><span><b>Available pool</b> — every enabled section (excl. HERO / FOOTER / CTA_FOOTER) and every enabled page (excl. /) not already active. + Add promotes it.</span></li>
+  </ul>
+  <div class="fig-cap"><b>Fallback:</b> if zero links are configured, the live navbar auto-populates with the <b>first 5 landing sections</b> by order (using the first word of each display name). Configuring any link disables the fallback.</div>
+</div>
 
-## Link Types
+---
 
-| Type | Description |
-|------|-------------|
-| **Page Link** | Links to a CMS page by slug (e.g. \`/about\`) |
-| **Section Anchor** | Scrolls to a section on the homepage (e.g. \`#services\`) |
-| **External URL** | Links to any external website |
+## Link types &amp; fields
 
-## Managing Links
+| Link type | Badge | Behaviour on click | href stored | Source pool |
+|-----------|-------|--------------------|-------------|-------------|
+| **Section** | SECTION (blue) | Smooth-scrolls to that section on the landing page | none (scroll by id) | Enabled landing sections |
+| **Page** | PAGE (teal) | Navigates to the page route | /&lt;slug&gt; | Enabled pages (all types) |
+| **External URL** | — | Only available as a **CTA** target (see the Navbar topic), not as a nav link | — | — |
+| **Tab-page overlay** | — | Described in older project notes; **no code path** in the current navbar | — | — |
 
-- **Add Link** — create a new navigation link with label and destination
-- **Reorder** — drag and drop to rearrange link order
-- **Edit** — change label, destination, or link type
-- **Delete** — remove a link
+| Field / control | Function | Options / range | Default |
+|-----------------|----------|-----------------|---------|
+| Active links | The ordered navbar set | 0–5 items | empty → first-5-sections fallback |
+| Label | Text shown for the link | free text (\`navLabel\`) | section / page display name |
+| Order | Left-to-right sequence | drag to reorder | insertion order |
+| Add / Remove | Move item between Active ↔ Available | Add disabled at 5 | — |
+| Nesting / dropdowns | Sub-menus under a link | **Not supported** — flat list of max 5 | — |
 
-## CTA Button
-
-The navbar supports an optional call-to-action button:
-- **Label** — button text (e.g. "Contact Us")
-- **URL** — destination when clicked
-- **Variant** — button style (primary, outline, etc.)
+<div class="fig-note"><b>Where the CTA lives.</b> The call-to-action button is <b>not</b> part of the Navbar Links set — it is a separate control in the <b>navbar config</b> (Logo · CTA · Scrolled background). See the <b>Navigation — Navbar</b> topic for the full CTA control (text, style, and its three link modes: External URL / Page Section / Page-PDF-Form).</div>
 `;
 
 // ─────────────────────────────────────────────
