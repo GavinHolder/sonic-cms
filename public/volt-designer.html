@@ -586,6 +586,11 @@
       var sp=12/zoom;return {x:vax+(dx/len)*sp,y:vay+(dy/len)*sp};
     }
     function clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
+    // Minimum on-screen sliver (canvas px) a dragged layer's bounding rect must
+    // keep inside the canvas so a shape can be dragged to/past the edge (its
+    // content is clipped to the canvas) but never entirely off-canvas. Applied
+    // in the drag pointermove handler; disabled in bleed mode (canvasOverflow).
+    var CANVAS_KEEP_PX=8;
     // ── State Machine helpers ─────────────────────────────────────────────────
     function _ensureStates(){
       if(!state.element.states||!state.element.states.length){
@@ -702,29 +707,40 @@
       var fitsR=(leftR+W)<=rightBound;
       var leftL=rect.left-GAP-W;           // whole menu sits left of the element
       var fitsL=leftL>=M;
+      // LARGE element = no full room to sit the whole menu beside it on EITHER
+      // side (spans most/all of the canvas). The old degenerate branch parked the
+      // menu at the viewport edge but vertically CENTRED it on the element middle,
+      // which for a canvas-filling element floats it mid-canvas. Instead anchor to
+      // the element's VISIBLE top-right corner, clamped to the canvas viewport.
+      var bigEl=(!fitsR&&!fitsL);
+      var cwEl=document.querySelector('.canvas-wrap');
+      var cwr=cwEl?cwEl.getBoundingClientRect():null;
+      var vpT=cwr?Math.max(M,cwr.top):M;                 // canvas viewport top
+      var vpR=cwr?Math.min(rightBound,cwr.right):rightBound; // canvas viewport right
+      var visR=Math.min(rect.right,vpR);                 // element's visible right edge
+      var visT=Math.max(rect.top,vpT);                   // element's visible top edge
       var left;
       if(fitsR){left=leftR;}
       else if(fitsL){left=leftL;}
       else{
-        // Degenerate: element ~fills the width, no full room on either side. Hug
-        // the side with more room at the viewport edge — still the furthest from
-        // covering the element we can be without going off-screen.
-        var roomR=rightBound-rect.right,roomL=rect.left-M;
-        left=(roomR>=roomL)?(rightBound-W):M;
-        left=Math.max(M,left);
+        // Overlay the visible top-right corner: menu's right edge sits at the
+        // element's visible right, clamped fully on-screen.
+        left=Math.max(M,Math.min(visR-W,rightBound-W));
       }
       panel.style.left=left+'px';panel.style.right='';
-      // Vertical: centre the menu on the element's middle; grow DOWN by default,
-      // grow UP (fm-flip-y → column-reverse keeps the pill put) when the bottom
-      // would overflow AND there is headroom above. Clamp to the viewport top/
-      // bottom WITHOUT touching `left` — the horizontal side never moves.
+      // Vertical anchor. Normal element: centre the pill on the element's middle.
+      // Large element: pin the pill TOP to the element's visible top so the menu
+      // hugs the top-right corner instead of the middle. Either way grow DOWN by
+      // default, flip UP (fm-flip-y → column-reverse keeps the pill put) when the
+      // bottom would overflow AND there is headroom above. `left` never moves.
       var cy=rect.top+rect.height/2;
-      var growUp=(cy-BTN/2+expH)>(vh-M)&&(cy+BTN/2-expH)>=M;
+      var pillTop=bigEl?visT:(cy-BTN/2);
+      var growUp=(pillTop+expH)>(vh-M)&&(pillTop+BTN-expH)>=M;
       panel.classList.toggle('fm-flip-y',growUp);
       if(growUp){
-        panel.style.bottom=Math.max(M,vh-(cy+BTN/2))+'px';panel.style.top='';
+        panel.style.bottom=Math.max(M,vh-(pillTop+BTN))+'px';panel.style.top='';
       }else{
-        panel.style.top=Math.min(Math.max(M,cy-BTN/2),Math.max(M,vh-expH-M))+'px';
+        panel.style.top=Math.min(Math.max(M,pillTop),Math.max(M,vh-expH-M))+'px';
         panel.style.bottom='';
       }
     }
@@ -1393,6 +1409,25 @@
           _nDiv.appendChild(_nSpan);artboard.appendChild(_nDiv);
         }
       });
+      // ── Clip drawn content to the canvas bounds ────────────────────────────
+      // All layer content above was appended to svgEl. Wrap it in a group clipped
+      // to the canvas viewBox (0,0,CW,CH) so a shape's FILL never renders past the
+      // canvas edge — only the in-canvas portion shows. Selection UI (outline,
+      // handles, badges, marquee, guides) is appended AFTER this group, so it
+      // stays UNCLIPPED and can extend past the edge. Skipped when
+      // canvasOverflow==='visible' (intentional bleed mode). Defs moved into the
+      // group still resolve by id. (DOM overlays live on #artboard, not svgEl.)
+      if(state.element.canvasOverflow!=='visible'&&svgEl.firstChild){
+        var _ccId='artboard-content-clip';
+        var _ccDefs=svgNs('defs');
+        var _ccCp=svgNs('clipPath');_ccCp.setAttribute('id',_ccId);_ccCp.setAttribute('clipPathUnits','userSpaceOnUse');
+        var _ccR=svgNs('rect');_ccR.setAttribute('x','0');_ccR.setAttribute('y','0');_ccR.setAttribute('width',String(CW));_ccR.setAttribute('height',String(CH));
+        _ccCp.appendChild(_ccR);_ccDefs.appendChild(_ccCp);
+        var _ccG=svgNs('g');_ccG.setAttribute('clip-path','url(#'+_ccId+')');_ccG.setAttribute('data-content-clip','1');
+        while(svgEl.firstChild)_ccG.appendChild(svgEl.firstChild);
+        svgEl.appendChild(_ccDefs); // clip def sits OUTSIDE the clipped group
+        svgEl.appendChild(_ccG);
+      }
       // CSS z-index stacking: if any vector has higher zIndex than all slots, raise SVG above slot divs.
       // Use z-index instead of DOM reordering — moving svgEl in the DOM releases pointer capture mid-drag.
       svgEl.style.zIndex=(_maxVecZ>_maxSlotZ&&isFinite(_maxSlotZ))?'2':'';
@@ -1875,6 +1910,34 @@
           var snapped=snapPt({x:rawTx,y:rawTy},e.ctrlKey);
           var nx2=pct(snapped.x,CW),ny2=pct(snapped.y,CH);
           var ddx2=nx2-dragSt.startX,ddy2=ny2-dragSt.startY;
+          // ── Keep the selection at least ~8px inside the canvas (never fully off) ──
+          // Compute the union bounds of everything being dragged at the PROPOSED
+          // delta, then nudge the shared delta so that union keeps a CANVAS_KEEP_PX
+          // sliver inside each canvas edge. Draggable to the edge (content clips)
+          // but never entirely outside. Preserves relative offsets (delta is
+          // shared). Disabled in bleed mode. x/y/w/h are canvas-percent (0..100).
+          if(state.element.canvasOverflow!=='visible'){
+            var _mgx=CANVAS_KEEP_PX/CW*100,_mgy=CANVAS_KEEP_PX/CH*100;
+            var _clIds=(state.multiSelectIds.length>1&&state.multiSelectIds.indexOf(dragSt.layerId)>=0)?state.multiSelectIds:[dragSt.layerId];
+            var _uL=Infinity,_uT=Infinity,_uR=-Infinity,_uB=-Infinity;
+            _clIds.forEach(function(mid){
+              var ml=state.element.layers.find(function(l){return l.id===mid;});if(!ml)return;
+              // Origin (pre-drag) position: prefer captured multi-origins, else the
+              // primary layer's start, else the layer's current (unmoved) position.
+              var _mo=dragSt._multiOrigPositions&&dragSt._multiOrigPositions[mid];
+              var ox=_mo?_mo.x:(mid===dragSt.layerId?dragSt.startX:ml.x);
+              var oy=_mo?_mo.y:(mid===dragSt.layerId?dragSt.startY:ml.y);
+              var px=ox+ddx2,py=oy+ddy2;
+              _uL=Math.min(_uL,px);_uT=Math.min(_uT,py);_uR=Math.max(_uR,px+ml.width);_uB=Math.max(_uB,py+ml.height);
+            });
+            if(isFinite(_uL)){
+              if(_uR<_mgx)ddx2+=(_mgx-_uR);              // fully off left → pull right
+              else if(_uL>100-_mgx)ddx2-=(_uL-(100-_mgx)); // fully off right → pull left
+              if(_uB<_mgy)ddy2+=(_mgy-_uB);              // fully off top → pull down
+              else if(_uT>100-_mgy)ddy2-=(_uT-(100-_mgy)); // fully off bottom → pull up
+              nx2=dragSt.startX+ddx2;ny2=dragSt.startY+ddy2;
+            }
+          }
           // Multi-select drag: move ALL selected layers by the same delta
           if(state.multiSelectIds.length>1&&state.multiSelectIds.indexOf(dragSt.layerId)>=0){
             if(!dragSt._multiOrigPositions){
