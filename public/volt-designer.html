@@ -4834,7 +4834,7 @@
       if((e.ctrlKey||e.metaKey)&&(e.key==='y'||(e.shiftKey&&e.key==='z'))){e.preventDefault();redo();return;}
       if((e.ctrlKey||e.metaKey)&&e.key==='g'){e.preventDefault();groupSelectedLayers();return;}
       if((e.ctrlKey||e.metaKey)&&e.key==='t'){e.preventDefault();toggleTimeline();return;}
-      if((e.key==='Delete'||e.key==='Backspace')&&state.selectedLayerId)document.getElementById('btn-delete-layer').click();
+      if((e.key==='Delete'||e.key==='Backspace')&&!(e.target&&e.target.isContentEditable)&&(state.selectedLayerId||(state.multiSelectIds&&state.multiSelectIds.length))){e.preventDefault();var _delIds=(state.multiSelectIds&&state.multiSelectIds.length)?state.multiSelectIds.slice():[state.selectedLayerId];pushHistory();state.element.layers=state.element.layers.filter(function(l){return _delIds.indexOf(l.id)<0;});state.selectedLayerId=null;state.multiSelectIds=[];document.getElementById('btn-delete-layer').disabled=true;markDirty();renderAll();return;}
       // Copy/Paste (Ctrl+C / Ctrl+V)
       if((e.ctrlKey||e.metaKey)&&e.key==='c'&&state.selectedLayerId){e.preventDefault();var _cl=state.element.layers.find(function(l){return l.id===state.selectedLayerId;});if(_cl)state._clipboard=JSON.parse(JSON.stringify(_cl));return;}
       if((e.ctrlKey||e.metaKey)&&e.key==='v'&&state._clipboard){e.preventDefault();pushHistory();var _pst=JSON.parse(JSON.stringify(state._clipboard));_pst.id=nanoid();_pst.name=_pst.name+' copy';_pst.x=_pst.x+3;_pst.y=_pst.y+3;_pst.zIndex=state.element.layers.reduce(function(m,x){return Math.max(m,x.zIndex||0);},0)+1;state.element.layers.push(_pst);state.selectedLayerId=_pst.id;state.multiSelectIds=[_pst.id];markDirty();renderAll();return;}
