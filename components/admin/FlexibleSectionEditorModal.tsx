@@ -436,6 +436,14 @@ export default function FlexibleSectionEditorModal({
   const designerSection: FlexibleSection = {
     ...section,
     displayName,
+    // #71 — carry the LIVE spacing state (not the stale section.* values) so the
+    // live preview pane reflects paddingTop/paddingBottom (desktop + mobile) as the
+    // sliders move. Without these, the serialised preview object never changes and
+    // the preview iframe is never re-posted, so spacing looked frozen.
+    paddingTop,
+    paddingBottom,
+    paddingTopMobile,
+    paddingBottomMobile,
     content: { ...section.content, contentMode, elements, layout, designerData } as any,
   };
 
