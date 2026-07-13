@@ -6888,25 +6888,127 @@ The green **"Saved in database"** badge in the Brand Colors header confirms the 
 const SECTION_TEMPLATES_DOCS = `
 # Template Library
 
-The Template Library (**Admin → Content → Templates**) stores reusable templates that you build and save over time. Templates are not pre-built — you create them from your own pages and sections, then reuse them across the site.
+The Template Library (**Admin → Content → Templates**, route \`/admin/content/templates\`, model \`CmsTemplate\`) stores reusable templates that you build and save over time. Templates are not pre-built — you create them from your own pages and sections, then reuse them across the site.
 
 You can also **import** an external HTML or ZIP file directly into the library — the CMS auto-uploads images, bundles JS/CSS, and guides you through wiring up forms, phone numbers, emails, and media.
+
+"Templates" is **one page** backed by a single database model. A template stores a **name**, a **type**, and an opaque **data** payload — the actual reusable content. There are three types, distinguished by what lives in \`data\`.
+
+<div class="fig-note"><b>Two different "template" surfaces exist.</b> This topic documents the <b>database-backed Template Library</b> (user-saved, editable, at <code>/admin/content/templates</code>). Separately, the Flexible Designer offers two <b>hardcoded starter galleries</b> — <code>PresetsGalleryModal</code> ("Choose a Layout") and <code>SectionTemplateGallery</code> ("Choose a Template") — which are code-defined and never read or write <code>CmsTemplate</code>. Those belong to the Flexible Designer and are disambiguated at the bottom of this page.</div>
 
 ---
 
 ## Template Types
 
-| Type | What it stores | Where to use |
-|------|---------------|-------------|
-| **Standalone** | Full HTML + CSS + linked CSS files | Standalone page editor — Load Template |
-| **Section** | Full section config (background, blocks, spacing, overlays) | Landing page — bookmark icon on any section row |
-| **Page** | Full page config (future use) | — |
+<div class="fig diagram"><span class="tag">Diagram</span><div class="fig-body"><div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;width:100%"><div style="flex:1;min-width:150px;border:1px solid #f0e0bd;background:#fdf6e3;border-radius:10px;padding:12px 13px"><b style="color:#8a5a00">Standalone</b><div style="font-size:11.5px;color:var(--muted);margin-top:3px">full HTML page</div><div style="font-family:var(--fig-mono);font-size:10.5px;color:var(--faint);margin-top:7px">customHtml · customCss<br>customCssUrls[] · mediaSlots{}</div></div><div style="flex:1;min-width:150px;border:1px solid #bcd4ff;background:var(--primary-soft);border-radius:10px;padding:12px 13px"><b style="color:var(--primary-ink)">Section</b><div style="font-size:11.5px;color:var(--muted);margin-top:3px">one section's Designer JSON</div><div style="font-family:var(--fig-mono);font-size:10.5px;color:var(--faint);margin-top:7px">designerData / content<br>tagged sectionType</div></div><div style="flex:1;min-width:150px;border:1px solid #bfe6da;background:#e4f7f0;border-radius:10px;padding:12px 13px"><b style="color:#0a6b52">Page</b><div style="font-size:11.5px;color:var(--muted);margin-top:3px">page layout payload</div><div style="font-family:var(--fig-mono);font-size:10.5px;color:var(--faint);margin-top:7px">page-level data</div></div></div></div><div class="fig-cap"><b>Type sets everything downstream:</b> the badge colour (Standalone = amber, Section = blue, Page = green), which card actions appear, and how "Use as Page" reconstructs a live page. <b>Section</b> templates additionally carry a <code>sectionType</code> (HERO / NORMAL / CTA / FOOTER / FLEXIBLE). A section template <i>is</i> Flexible-Designer JSON — see the Flexible Sections docs for the payload shape.</div></div>
+
+| Type | What it stores | Where you save it |
+|------|---------------|-------------------|
+| **Standalone** | Full HTML + CSS + linked CSS files + media slots | Standalone page editor — **Save as Template** |
+| **Section** | One section's Designer JSON (background, blocks, spacing, overlays) | Landing page — bookmark icon on any section row |
+| **Page** | Full page layout payload | (built-in / page-level) |
+
+---
+
+## The Template Library Page
+
+The landing screen has a header with one action (**Import**), a row of four clickable **stat cards** that double as type filters, a **search + tab** filter strip, and a responsive **grid of template cards**. Everything reads from \`GET /api/templates\` with the current filters as query params.
+
+<div class="fig map"><span class="tag">Interface map</span><div class="fig-body"><div class="mock-panel"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px"><div><b>★ Template Library ①</b><div class="hint">Reusable templates for standalone pages, sections, and page layouts.</div></div><button class="btnp">⬆ Import Template ②</button></div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px"><div style="border:2px solid var(--primary);border-radius:8px;padding:8px;background:#fff"><b style="font-size:16px">7</b><div class="hint">All ③</div></div><div style="border:1px solid var(--line);border-radius:8px;padding:8px;background:#fff"><b style="font-size:16px">3</b><div class="hint">Standalone</div></div><div style="border:1px solid var(--line);border-radius:8px;padding:8px;background:#fff"><b style="font-size:16px">3</b><div class="hint">Section</div></div><div style="border:1px solid var(--line);border-radius:8px;padding:8px;background:#fff"><b style="font-size:16px">1</b><div class="hint">Page</div></div></div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><span class="input" style="width:auto;flex:1;color:var(--faint)">🔍 Search templates… ④</span><button class="btnp" style="padding:4px 10px">All ⑤</button><button class="btno" style="padding:4px 10px">Standalone</button><button class="btno" style="padding:4px 10px">Section</button><button class="btno" style="padding:4px 10px">Page</button></div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px"><div style="border:1px solid var(--line);border-radius:9px;overflow:hidden"><div style="height:38px;background:#f3f4f6"></div><div style="padding:8px"><b style="font-size:12px">OVB Landing ⑥</b><div style="margin-top:4px"><span class="chip warn">Standalone</span></div><div style="margin-top:6px;display:flex;gap:3px"><span class="btnp" style="padding:3px 7px;font-size:11px">🚀 ⑦</span><span class="btno" style="padding:3px 7px;font-size:11px">⟨⟩</span><span class="btno" style="padding:3px 7px;font-size:11px">📈</span><span class="btnd" style="padding:3px 7px;font-size:11px">🗑</span></div></div></div><div style="border:1px solid var(--line);border-radius:9px;overflow:hidden"><div style="height:38px;background:#f3f4f6"></div><div style="padding:8px"><b style="font-size:12px">Modern Hero</b><div style="margin-top:4px"><span class="chip blue">Section</span> <span class="chip blue">HERO</span></div></div></div><div style="border:1px solid var(--line);border-radius:9px;overflow:hidden"><div style="height:38px;background:#f3f4f6"></div><div style="padding:8px"><b style="font-size:12px">Services Layout</b><div style="margin-top:4px"><span class="chip info">Page</span> <span class="chip">Built-in</span></div></div></div></div></div></div><div class="fig-cap"><b>Empty state:</b> when nothing matches, a centred bookmark-star reads "No templates yet — go to any standalone page editor or section editor and click <b>Save as Template</b>." <b>Loading:</b> centred spinner "Loading templates…".</div></div>
+
+**Callouts:** ① static "Template Library" heading · ② **Import** — the only control on this page that *creates* a template, and it produces **standalone** templates only (see Import below) · ③ **stat cards** — live counts computed client-side; clicking one sets the type filter (active card gets a coloured border) · ④ **search** — filters by name (\`?search=\`, case-insensitive contains) · ⑤ **type tabs** — All / Standalone / Section / Page (mirror the stat cards); a section sub-filter appears only when Section is active · ⑥ **card grid** — 1 / 2 / 3 columns (mobile / md / lg); order is built-in first, then most-used, then newest · ⑦ **action footer** — per-card buttons that vary by type.
+
+### Card actions by type
+
+| Control | Function | Shown for | Disabled when |
+|---------|----------|-----------|---------------|
+| 🚀 **Use as Page** | Create a live page from the template (Use-as-Page modal) | all types | — |
+| ⟨⟩ **Edit HTML** | Open the standalone HTML/CSS/media-slot editor on the template in place | **standalone only** | — |
+| 📈 **Analyse** | Re-check CMS integration (forms, images, contact links, slots) | **standalone only** | — |
+| ✎ **Rename** | Inline edit of name + description (\`PUT /api/templates/{id}\`) | all types | \`isBuiltIn\` |
+| 🗑 **Delete** | \`DELETE /api/templates/{id}\` (confirm first; 403 for built-ins) | all types | \`isBuiltIn\` |
+
+**Card badges:** type label (amber / blue / green) · \`sectionType\` (blue pill, section templates) · **Built-in** (grey) · **N× used** (\`usageCount\`, hidden at 0). Below the badges: created date.
+
+### Filters & the section sub-filter
+
+<div class="fig control"><span class="tag">Control mockup</span><div class="fig-body"><div class="mock-panel"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><span class="input" style="width:auto;flex:1;color:var(--faint)">🔍 Search templates…</span><button class="btno" style="padding:4px 10px">All</button><button class="btno" style="padding:4px 10px">Standalone</button><button class="btnp" style="padding:4px 10px">Section ◂ active</button><button class="btno" style="padding:4px 10px">Page</button></div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px"><span class="hint" style="margin:0">Section type →</span><button class="btnp" style="padding:3px 9px">All types</button><button class="btno" style="padding:3px 9px">HERO</button><button class="btno" style="padding:3px 9px">NORMAL</button><button class="btno" style="padding:3px 9px">CTA</button><button class="btno" style="padding:3px 9px">FOOTER</button><button class="btno" style="padding:3px 9px">FLEXIBLE</button></div></div></div><div class="fig-cap"><b>The second row renders only when the Section tab is active</b> — it maps to <code>?sectionType=</code> and is ignored for other types. Values: <code>HERO · NORMAL · CTA · FOOTER · FLEXIBLE</code>. Search + type + sectionType compose into one query on each change.</div></div>
+
+---
+
+## Saving a Template
+
+You never create a template *on* the library page (except by Import). Templates are born elsewhere — from the Flexible Designer / section list, or from the Standalone page editor — via a shared **Save as Template** modal that \`POST\`s to \`/api/templates\`. The new record then appears in the library.
+
+<div class="fig control"><span class="tag">Control mockup</span><div class="fig-body"><div class="mock-panel" style="max-width:440px"><div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:12px"><b>🔖 Save as Template</b><span style="color:#b3bccb">✕</span></div><div style="margin-bottom:10px"><span class="chip warn">HERO Section</span> <span class="hint" style="display:inline">Will be saved to the Template Library</span></div><label class="lbl">Template name *</label><input class="input" placeholder="e.g. Modern Hero, Dark Landing, Contact Section" style="margin-bottom:10px"><label class="lbl">Description (optional)</label><textarea class="input" rows="2" placeholder="Describe what this template is for…"></textarea><div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px"><button class="btno">Cancel</button><button class="btnp">🔖 Save Template</button></div></div></div><div class="fig-cap"><b>The caller fixes the type and payload</b> — the modal only collects the human-facing <b>name</b> (required; Save disabled while empty) and <b>description</b> (optional; sent as <code>null</code> if blank). A section save passes the section's <code>content</code> / <code>designerData</code>; a standalone save passes <code>{ customHtml, customCss, customCssUrls, mediaSlots }</code>. There is no "New blank template" button on the library page.</div></div>
+
+### From a Standalone Page
+
+1. Go to **Admin → Content → Pages**, click **Edit** on a Standalone page
+2. In the HTML Editor modal, click **Save as Template** (bottom of the modal footer)
+3. Enter a name and optional description, then click **Save Template**
+
+### From a Landing Page Section
+
+1. Go to **Admin → Content → Landing Page**
+2. Click the **bookmark icon** in the action column of any section row
+3. Enter a name and optional description — the full section config is captured automatically
+
+> **API:** \`POST /api/templates\` body = \`{ name, description, templateType, sectionType, data }\`, validated by a Zod schema (name 1–120 chars, description ≤ 500). Requires the **PUBLISHER** role.
+
+---
+
+## Applying & Using a Template
+
+Two consumption paths. **Apply into an existing section** — from the Designer, via the template picker, replacing that section's content. Or **Use as Page** — from a library card, spinning up a brand-new live page. Both bump \`usageCount\`.
+
+### Apply into a section (Designer)
+
+<div class="fig control"><span class="tag">Control mockup</span><div class="fig-body"><div class="mock-panel"><div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:12px"><b>▤ Load HERO Template</b><span style="color:#b3bccb">✕</span></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div style="border:2px solid var(--primary);border-radius:9px;overflow:hidden;position:relative"><span class="chip blue" style="position:absolute;top:5px;right:5px">✓ Selected</span><div style="height:44px;background:#f3f4f6"></div><div style="padding:8px"><b style="font-size:12px">Modern Hero</b><div class="hint">Full-bleed hero with CTA.</div><span class="chip blue">HERO</span></div></div><div style="border:1px solid var(--line);border-radius:9px;overflow:hidden"><div style="height:44px;background:#f3f4f6"></div><div style="padding:8px"><b style="font-size:12px">Split Hero</b><div class="hint">Text left, image right.</div><span class="chip blue">HERO</span></div></div></div><div style="display:flex;align-items:center;border-top:1px solid var(--line);padding-top:10px;margin-top:12px"><span class="hint" style="margin:0">2 templates</span><span style="flex:1"></span><button class="btno">Cancel</button> <button class="btnp">⚡ Apply Template</button></div></div></div><div class="fig-cap"><b>Opened by the Designer</b>, filtered to a type (and <code>sectionType</code>): <code>GET /api/templates?type=section&amp;sectionType=HERO</code>. Click a card to select (border + "Selected" badge); <b>Apply Template</b> is disabled until one is picked. Apply is a two-step: bump usage (<code>PATCH /api/templates/{id}</code>, EDITOR), then hand the template's <code>data</code> to the section (<code>updateSection</code>). The <code>data</code> <b>overwrites the target section's content</b> — the section keeps its identity and position; its design is replaced. This is why a Section template <i>is</i> Designer JSON: it drops straight back into a section.</div></div>
+
+### Use as Page — launch any template as a live page
+
+**Standalone**, **Section**, and **Page** templates all have a **Use as Page** button (yellow rocket on the card). This creates a live, published page in one step.
+
+<div class="fig control"><span class="tag">Control mockup</span><div class="fig-body"><div class="mock-panel" style="max-width:460px"><div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:12px"><b>🚀 Use as Page</b><span style="color:#b3bccb">✕</span></div><div class="hint" style="margin-bottom:10px">Creates a new page pre-filled with <i>OVB Landing</i>. Live immediately at the URL below.</div><label class="lbl">Page Title</label><input class="input" value="Services" style="margin-bottom:10px"><label class="lbl">URL Slug</label><input class="input" value="services" style="font-family:var(--fig-mono);margin-bottom:4px"><div class="hint">Live at: <code>/services</code></div><div style="border:1px solid var(--primary);background:var(--primary-soft);border-radius:8px;padding:10px;margin-top:10px"><label class="lbl" style="margin:0">☑ 🏠 Set as website homepage</label><div class="hint">Visitors going to <code>/</code> will see this page. The URL stays <code>/</code>.</div></div><div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px"><button class="btno">Cancel</button><button class="btnp">🚀 Create Page</button></div></div></div><div class="fig-cap"><b>Title</b> auto-fills the slug until the slug is hand-edited; slug is sanitised to <code>[a-z0-9-]</code>. <b>Set as website homepage</b> is <b>checked by default</b> and points <code>/</code> at the new page (<code>PATCH /api/site-config</code>). Create is disabled until title + slug are both non-empty; on success a toast offers a <b>View</b> link to <code>/{slug}</code>.</div></div>
+
+**What gets created, by template type:**
+
+| Template type | Page created | Extra steps |
+|---------------|--------------|-------------|
+| **Standalone** | \`POST /api/pages\` — \`type: "standalone"\`, PUBLISHED; carries customHtml / customCss / customCssUrls / mediaSlots straight from \`data\` | — |
+| **Section** | \`POST /api/pages\` — \`type: "full"\`, PUBLISHED | \`POST /api/sections\` adds the template's section to the new page |
+| **Page** | \`POST /api/pages\` — \`type: "full"\`, PUBLISHED | ready to add sections |
+
+If **Set as homepage** is ticked, a final \`PATCH /api/site-config\` points \`/\` at the new slug. The new page appears in **Admin → Content → Pages** and is live immediately.
 
 ---
 
 ## Importing a Template (HTML or ZIP)
 
-Click **Import Template** on the Templates page to bring in a design from outside the CMS.
+Click **Import Template** on the Templates page to bring in a design from outside the CMS. **Import always yields a Standalone template** — there is no section/page importer. On upload the server analyses the markup, auto-handles what it can, and surfaces an interactive checklist of things to wire to live CMS data before saving.
+
+<div class="fig map"><span class="tag">Interface map</span><div class="fig-body"><div class="mock-panel"><div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:10px"><b>⬆ Import Template</b><span style="color:#b3bccb">✕</span></div><div style="border:2px dashed #bfe6da;background:#e4f7f0;border-radius:9px;padding:12px;text-align:center;font-size:12px;color:#0a6b52">✓ <b>ovb-landing.zip</b> (84.2 KB) — click to change file ①</div><div style="border:1px solid #bfe6da;border-radius:8px;margin-top:10px;overflow:hidden"><div style="background:#e4f7f0;padding:6px 10px;font-size:11.5px;color:#0a6b52;font-weight:700">✓ Auto-handled (3) ②</div><div class="hint" style="padding:7px 10px">🖼 6 images uploaded &amp; wired as media slots · 🎨 2 CSS files inlined · JS appended before &lt;/body&gt;</div></div><div style="font-size:11.5px;color:#8a5a00;font-weight:700;margin-top:10px">⚠ Fix before saving (3 items) ③</div><div style="border:1px solid #f0e0bd;background:#fdf6e3;border-radius:7px;padding:8px 10px;margin-top:5px;font-size:11.5px;display:flex;align-items:center;gap:8px">☎ Phone links found<span style="flex:1"></span><span class="chip warn">↻ Replace all with {{cms.phone}}</span></div><div style="font-size:11.5px;font-weight:700;margin-top:10px">Media Slots (6) <span class="chip info">auto-wired</span> ④</div><div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px"><span class="chip info" style="font-family:var(--fig-mono)">{{cms.media.hero-bg}}</span><span class="chip info" style="font-family:var(--fig-mono)">{{cms.media.logo}}</span></div><label class="lbl" style="margin-top:10px">Template Name *</label><input class="input" value="OVB Landing Page" style="max-width:320px">⑤<div style="background:#212529;color:#9ff0c4;border-radius:7px;padding:8px 10px;font-family:var(--fig-mono);font-size:10.5px;margin-top:10px">&lt;section class="hero"&gt;…  <span style="color:#6b7a99">HTML preview ⑥</span></div><div style="display:flex;align-items:center;margin-top:12px"><span class="hint" style="margin:0">ⓘ Saved as a Standalone template.</span><span style="flex:1"></span><button class="btno">Cancel</button> <button class="btnp">🔖 Save to Library ⑦</button></div></div></div><div class="fig-cap"><b>Callouts:</b> ① drop zone — drag/drop or click, accepts <code>.html</code>, <code>.htm</code>, <code>.zip</code> (POSTs to <code>/api/templates/import</code>) · ② auto-handled panel — images uploaded &amp; slotted, CSS inlined, JS appended (ZIP only) · ③ fix-before-saving checklist — one interactive row per detected issue · ④ media-slots panel — every auto-wired <code>{{cms.media.*}}</code> token · ⑤ name (auto-derived from filename; required) · ⑥ HTML preview (first ~600 chars) · ⑦ Save — <code>POST /api/templates</code> as <code>templateType:"standalone"</code> with all applied fixes baked in.</div></div>
+
+### The integration checklist
+
+Each detected item is an interactive row; fixing it rewrites the underlying HTML in place (a token swap — no external calls) and turns the row green with a "✓ Fixed / Slotted" badge. Fixes are counted in the modal header ("N fixes applied") and persisted on Save.
+
+| Detected item | What it means | Inline fix → token |
+|---------------|---------------|--------------------|
+| PHONE | \`tel:\` links to a hardcoded number | one-click → \`{{cms.phone}}\` |
+| EMAIL | \`mailto:\` links | one-click → \`{{cms.email}}\` |
+| LOGO | hardcoded logo images | one-click → \`{{cms.logo}}\` |
+| LOCAL_IMG / BACKGROUND | local image path or CSS background | Pick / Upload → \`{{cms.media.SLOT}}\` |
+| VIDEO | local video source | Pick / Upload → media slot |
+| FORM | a raw \`<form>\` | select a CMS form → \`{{cms.form.SLUG}}\` |
+| COVERAGE_MAP_SLOT | a media slot meant to be a coverage map | select a map → \`{{cms.coverageMap.SLUG}}\` |
+| CDN | external CDN asset reference | informational only |
+| ADDRESS | hardcoded postal address | suggestion → \`{{cms.address}}\`, \`{{cms.city}}\` |
+
+Detection lives in \`lib/template-import-utils.ts\` (\`analyzeHtml\`).
+
+> **Note:** \`/api/templates/import\` (EDITOR) only **extracts & analyses** — it does not persist. The actual template is created by the subsequent \`POST /api/templates\` when you click **Save to Library**. A raw \`.html\` import returns just the analysis; a \`.zip\` is the full-service path where images are uploaded and paths auto-rewritten to \`{{cms.media.*}}\`.
 
 ### HTML file import
 
@@ -6930,7 +7032,9 @@ After import, a checklist shows what was auto-handled (green) and what still nee
 
 ## CMS Integration Analyser
 
-Every **Standalone** template card has an **Analyse** button (pulse icon). Open it any time to scan the template HTML and fix integration issues inline.
+Every **Standalone** template card has an **Analyse** button (pulse icon). Open it any time to scan the template HTML and fix integration issues inline — the same detection the importer runs, applied to an already-saved template so you can finish or revise the wiring later.
+
+<div class="fig control"><span class="tag">Control mockup</span><div class="fig-body"><div class="mock-panel"><div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:12px"><b>📈 Analyse — OVB Landing</b><span style="color:#b3bccb">✕</span></div><div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:6px">⚙ Configure Slots (2)</div><div style="border:1px solid #bcd4ff;background:var(--primary-soft);border-radius:8px;padding:8px 10px;font-size:11.5px;display:flex;align-items:center;gap:8px;margin-bottom:6px">🖼 Assign image for <code>{{cms.media.hero-bg}}</code><span style="flex:1"></span><button class="btno" style="padding:3px 9px">📂 Pick Image</button></div><div style="border:1px solid #bcd4ff;background:var(--primary-soft);border-radius:8px;padding:8px 10px;font-size:11.5px;display:flex;align-items:center;gap:8px">🗺 Coverage map slot<span style="flex:1"></span><span class="input" style="width:auto;color:var(--faint)">— Select map —</span><button class="btnp" style="padding:3px 9px">🔗 Apply</button></div><div style="border:1px dashed var(--line);background:var(--panel);border-radius:8px;padding:10px;margin-top:10px"><div style="font-size:12px;font-weight:700;color:var(--primary)">↻ Re-import from ZIP</div><div class="hint">Drop a ZIP to re-upload images, replace all local paths, and update this template in place.</div><div style="border:1px dashed #ccd3de;border-radius:7px;padding:9px;text-align:center;font-size:11px;color:var(--faint);background:#fff;margin-top:6px">⬆ Drop <code>.zip</code> or click to browse</div></div><div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px"><button class="btnp">💾 Save changes</button><button class="btno">Close</button></div></div></div><div class="fig-cap"><b>Loads via</b> <code>GET /api/templates/{id}/analyze</code> (EDITOR) — re-runs analysis and pulls forms, media assets, and coverage maps. <b>Configure Slots</b> assigns images / links maps / sets the logo. <b>ZIP re-import</b> (<code>POST …/analyze</code>) rewires everything from fresh design files. <b>Save changes</b> → <code>PATCH …/analyze</code> with <code>{ customHtml, mediaSlots }</code>. Save appears only when something changed.</div></div>
 
 ### What the analyser detects
 
@@ -6957,7 +7061,7 @@ The analyser shows **all** image and video sources — including CDN/external UR
 
 ### Saving fixes
 
-A **Save N fixes** button appears as soon as you make any change. Fixes are applied live in memory — click Save to persist them to the database. The modal stays open so you can keep working.
+A **Save N fixes** button appears as soon as you make any change. Fixes are applied live in memory — click Save to persist them to the database (\`PATCH /api/templates/{id}/analyze\`, EDITOR). The modal stays open so you can keep working.
 
 ### Re-linking later
 
@@ -6969,37 +7073,9 @@ The bottom of the Analyse modal has a **Re-import from ZIP** drop zone. Drop a n
 
 ---
 
-## Saving a Template
-
-### From a Standalone Page
-
-1. Go to **Admin → Content → Pages**, click **Edit** on a Standalone page
-2. In the HTML Editor modal, click **Save as Template** (bottom of the modal footer)
-3. Enter a name and optional description, then click **Save Template**
-
-### From a Landing Page Section
-
-1. Go to **Admin → Content → Landing Page**
-2. Click the **bookmark icon** in the action column of any section row
-3. Enter a name and optional description — the full section config is captured automatically
-
----
-
-## Using a Template
-
-### In the Standalone Editor
-
-Click **Load Template** in the HTML Editor modal footer. The picker shows only standalone templates. Selecting one populates the HTML, CSS, and CSS Files tabs — it does **not** change the page slug, type, or any structural setting.
-
-### On the Landing Page
-
-Click the **bookmark icon** on a section to load a saved section template into it.
-
----
-
 ## Built-in Templates
 
-Some templates are marked **Built-in** — these ship with the CMS and cannot be deleted. They are seeded automatically on fresh installs via \`npm run db:seed\`.
+Some templates are marked **Built-in** — these ship with the CMS and cannot be deleted or renamed (\`isBuiltIn:true\`; the API rejects deletion with 403). They are seeded automatically on fresh installs via \`npm run db:seed\`.
 
 Current built-ins:
 - **Blank Standalone** — empty starting point for a standalone page
@@ -7007,22 +7083,85 @@ Current built-ins:
 
 ---
 
-## Use as Page — Launch Any Template as a Live Page
+## Data Model, JSON Format & API
 
-**Standalone**, **Section**, and **Page** templates all have a **Use as Page** button (yellow rocket button on the card). This creates a live page in one step.
+A template is one \`CmsTemplate\` row. The reusable payload is the opaque \`data\` JSON column — its shape depends on the type. This is also the closest thing to a "template file format": the \`data\` blob plus the create-body fields.
 
-1. Go to **Admin → Content → Templates**
-2. Click **Use as Page** on any template
-3. Enter a **title** and **URL slug** (auto-generated from title, editable)
-4. Choose whether to **Set as website homepage** (checkbox, on by default)
-5. Click **Create Page** — the page is created and published immediately
+### CmsTemplate schema (\`cms_templates\`)
 
-**What gets created by template type:**
-- **Standalone template** → A Standalone HTML page with the template's HTML/CSS pre-loaded.
-- **Section template** → A full landing-style page with the template's section pre-added.
-- **Page template** → A full page, ready to add sections.
+| Field | Type | Notes / default |
+|-------|------|-----------------|
+| \`id\` | String (uuid) | primary key |
+| \`name\` | String | display name (1–120) |
+| \`description\` | String? | optional (≤ 500) |
+| \`templateType\` | String | \`standalone\`, \`section\`, or \`page\` |
+| \`sectionType\` | String? | HERO / NORMAL / CTA / FOOTER / FLEXIBLE (section templates) |
+| \`thumbnail\` | String? | optional preview image URL |
+| \`data\` | Json | **the reusable payload** (shape by type) |
+| \`tags\` | String | JSON-encoded array, default \`"[]"\` (no UI on the library page) |
+| \`isBuiltIn\` | Boolean | default \`false\`; blocks rename/delete |
+| \`usageCount\` | Int | default \`0\`; +1 on every apply |
+| \`createdAt\` / \`updatedAt\` | DateTime | auto |
 
-The new page appears in **Admin → Content → Pages** and is live immediately.
+Indexed on \`templateType\`. List order: \`isBuiltIn desc → usageCount desc → createdAt desc\`.
+
+<div class="fig-note"><b>Templates are not versioned.</b> There is no <code>version</code> column on <code>CmsTemplate</code>. (Section <i>edits</i> are versioned separately via the unrelated <code>SectionVersion</code> model — that is not template history.)</div>
+
+### The \`data\` payload — by type
+
+**Standalone** \`data\` is self-contained HTML + CSS + slots:
+
+\`\`\`json
+{
+  "customHtml": "<section class=…>…",
+  "customCss": "/* inlined + merged */",
+  "customCssUrls": [],
+  "mediaSlots": { "hero-bg": "/media/hero.webp", "logo": "/media/logo.webp" }
+}
+\`\`\`
+
+**Section** \`data\` is the section's Designer JSON — the same shape the Flexible Designer produces and consumes:
+
+\`\`\`json
+{
+  "designerData": "{…}",
+  "content": { "…": "…" },
+  "displayName": "Modern Hero"
+}
+\`\`\`
+
+<div class="fig-note"><b>Sharing / delivery format.</b> A template travels as its <code>data</code> blob. There is <b>no dedicated JSON export/import endpoint</b> for a <code>CmsTemplate</code> record — the only importer is the HTML/ZIP path above, which produces standalone templates. Delivering section/page templates between instances is done via the broader <b>Template Library JSON / page-template</b> mechanism, not from this page.</div>
+
+### API routes & required roles
+
+Read = **EDITOR**, write = **PUBLISHER**. Usage counting (PATCH) is intentionally a read-tier action so an EDITOR applying a template can still bump its count.
+
+| Route | Method | Purpose | Role |
+|-------|--------|---------|------|
+| \`/api/templates\` | GET | list (filters: type, sectionType, search) | EDITOR |
+| \`/api/templates\` | POST | create a template | **PUBLISHER** |
+| \`/api/templates/{id}\` | GET | fetch one | EDITOR |
+| \`/api/templates/{id}\` | PUT | update name / description / thumbnail / tags / data | **PUBLISHER** |
+| \`/api/templates/{id}\` | DELETE | delete (403 if built-in) | **PUBLISHER** |
+| \`/api/templates/{id}\` | PATCH | increment \`usageCount\` (on apply) | EDITOR |
+| \`/api/templates/import\` | POST | extract + analyse HTML/ZIP (no persist) | EDITOR |
+| \`/api/templates/{id}/analyze\` | GET | re-analyse stored template | EDITOR |
+| \`/api/templates/{id}/analyze\` | POST | ZIP re-import in place | EDITOR |
+| \`/api/templates/{id}/analyze\` | PATCH | save re-wired customHtml / mediaSlots | EDITOR |
+
+---
+
+## How Templates Relates to the Designer, Pages & the Preset Galleries
+
+The Template Library sits between the authoring tools (Designer, page editors) and the live site (Pages). It is a shelf of reusable payloads — it never renders anything itself. It is populated from three authoring inputs and consumed two ways.
+
+<div class="fig map"><span class="tag">Interface map</span><div class="fig-body"><div style="display:flex;gap:10px;align-items:stretch;flex-wrap:wrap;width:100%"><div style="flex:1;min-width:180px;border:1px dashed var(--line);border-radius:10px;padding:11px;background:#fff"><b style="font-size:12px">Authoring → Library</b><div class="hint" style="margin-top:6px">Flexible Designer / section list → <b>Section</b> template</div><div class="hint">Standalone page editor → <b>Standalone</b> template</div><div class="hint">External design file → Import (HTML/ZIP) → <b>Standalone</b> template</div></div><div style="flex:1;min-width:170px;border:1px solid #bcd4ff;background:var(--primary-soft);border-radius:10px;padding:11px"><b style="font-size:12px;color:var(--primary-ink)">📚 Template Library</b><div class="hint" style="margin-top:6px">stored templates:<br>standalone · section · page</div></div><div style="flex:1;min-width:180px;border:1px dashed var(--line);border-radius:10px;padding:11px;background:#fff"><b style="font-size:12px">Library → Live site</b><div class="hint" style="margin-top:6px">Apply into a section → <code>updateSection</code></div><div class="hint">Use as Page → new Page (<code>/{slug}</code>), optional homepage</div></div></div></div><div class="fig-cap">Section payloads round-trip through the Flexible Designer; standalone payloads render as raw-HTML pages with <code>{{cms.*}}</code> resolution.</div></div>
+
+<div class="fig-warn"><b>The "preset galleries" are a different system.</b> <code>PresetsGalleryModal</code> and <code>SectionTemplateGallery</code> are <b>hardcoded starter galleries in the Flexible Designer</b>, not part of the Template Library:
+<ul><li><code>PresetsGalleryModal</code> ("Choose a Layout") → reads <code>SECTION_PRESETS</code> from <code>lib/designer-presets.ts</code> (layout presets like about-grid, services-grid) to seed a <b>new FLEXIBLE section</b>.</li><li><code>SectionTemplateGallery</code> ("Choose a Template") → reads <code>SECTION_TEMPLATES</code> from <code>lib/section-templates/</code> (Blank + categorised starter sections).</li></ul>
+Both are code-defined and never touch <code>CmsTemplate</code> or <code>/api/templates</code>. They belong to the Flexible Designer — mentioned here only to disambiguate the word "template."</div>
+
+> **Cross-references:** the **Flexible Sections** docs own the Section-template \`data\` shape and the preset/starter galleries above. The **Pages** docs own what "Use as Page" creates (standalone vs full pages, homepage config). The **CMS Variables** and **Designer Handoff** docs cover the \`{{cms.*}}\` tokens that make imported standalone templates dynamic.
 
 ---
 
@@ -7031,7 +7170,7 @@ The new page appears in **Admin → Content → Pages** and is live immediately.
 Visit **Admin → Content → Templates** to:
 - Browse all templates (filter by type, section type, search by name)
 - See usage counts
-- **Import** — bring in an external HTML or ZIP file
+- **Import** — bring in an external HTML or ZIP file (produces standalone templates)
 - **Analyse** — wire up CMS integration for any standalone template
 - **Use as Page** — launch any template as a live page instantly
 - Rename or delete user-created templates (built-ins cannot be deleted)
@@ -7181,6 +7320,26 @@ When any \`{{cms.form.*}}\` variable is used, \`/cms-forms.js\` is automatically
 
 ---
 
+## 6. Handoff Tokens — wired by Template Import & Analyse
+
+When you **import** a hand-built HTML/ZIP design (or run **Analyse** on a saved standalone template), the CMS scans the markup and offers one-click fixes that swap hardcoded values for the tokens below. This is the "designer handoff" surface: a designer delivers static markup, Import/Analyse wires it to *this* instance's live data. Each fix is a pure token swap — no external calls — so the saved template resolves per-request at render time.
+
+| Token | Resolves to | Wired by (import/Analyse fix) |
+|-------|-------------|-------------------------------|
+| \`{{cms.phone}}\` | site contact phone | PHONE fix |
+| \`{{cms.email}}\` | site contact email | EMAIL fix |
+| \`{{cms.logo}}\` | site logo (Site Config → Branding) | LOGO fix |
+| \`{{cms.address}}\` · \`{{cms.city}}\` | site postal address parts | ADDRESS suggestion |
+| \`{{cms.media.SLOT}}\` | an uploaded media-library asset | image / background / video slot assignment |
+| \`{{cms.form.SLUG}}\` | a live CMS form page | FORM fix |
+| \`{{cms.coverageMap.SLUG}}\` | a coverage map component | COVERAGE_MAP_SLOT fix |
+
+Detection lives in \`lib/template-import-utils.ts\`; resolution for rendering lives in \`lib/cms-site-data.ts\`. Tokens survive in the stored \`customHtml\` and are substituted per request.
+
+<div class="fig-note"><b>These handoff tokens apply to <u>standalone</u> templates and pages only.</b> Section templates carry Flexible-Designer JSON, which binds data differently — see the Flexible Sections docs. The full import/Analyse walkthrough lives in <b>Using Templates</b>.</div>
+
+---
+
 ## Where Variables Work
 
 | Location | Variables supported | When replaced |
@@ -7224,6 +7383,8 @@ const DESIGNER_HANDOFF_DOCS = `
 # Designer Handoff — Wiring a Custom HTML Page into the CMS
 
 When a graphic designer delivers a completed HTML/CSS page, use this guide to wire it into the CMS fully — images managed, forms working, feature links connected, and the page live at \`/\`.
+
+<div class="fig-note"><b>Two ways to wire a handoff — automated or manual.</b> The fastest route is <b>Template Import</b>: on the Templates page, click <b>Import Template</b> and drop the designer's <code>.html</code> or <code>.zip</code>. The CMS auto-uploads images to media slots, inlines CSS/JS, and hands you a one-click checklist for phones, emails, logos, forms, and maps — producing a <b>standalone</b> template you can then <b>Use as Page</b>. See <b>Using Templates → Importing a Template</b>. This page documents the <b>manual</b> path via a Standalone page — use it when you want to paste and wire by hand, or to understand exactly what Import automates.</div>
 
 ---
 
