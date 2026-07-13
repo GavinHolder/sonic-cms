@@ -11,7 +11,7 @@ const Busboy = require("busboy") as (opts: { headers: Record<string, string> }) 
 };
 import { Readable } from "stream";
 import prisma from "@/lib/prisma";
-import { authenticate } from "@/lib/api-middleware";
+import { authenticate, requireRole } from "@/lib/api-middleware";
 import { auditLog } from "@/lib/audit-log";
 
 /**
@@ -124,6 +124,9 @@ function parseMultipart(request: NextRequest): Promise<{
 
 export async function POST(request: NextRequest) {
   try {
+    const authUser = requireRole(request, "EDITOR");
+    if (authUser instanceof Response) return authUser;
+
     await ensureUploadDir();
 
     const { filename, originalName, mimeType, filePath, size } = await parseMultipart(request);

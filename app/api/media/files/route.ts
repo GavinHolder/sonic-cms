@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { readdir, stat, unlink } from "fs/promises";
 import { existsSync } from "fs";
 import { join } from "path";
+import { requireRole } from "@/lib/api-middleware";
 
 const UPLOAD_DIRS = [
   { dir: join(process.cwd(), "public", "images", "uploads"), urlPrefix: "/images/uploads", excludePrefix: null },
@@ -51,8 +52,11 @@ function isSafeFilename(name: string): boolean {
 // GET /api/media/files
 // ============================================
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const user = requireRole(request, "VIEWER");
+    if (user instanceof Response) return user;
+
     const allFiles: Array<{
       name: string;
       url: string;
@@ -113,6 +117,9 @@ export async function GET() {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const user = requireRole(request, "EDITOR");
+    if (user instanceof Response) return user;
+
     const { searchParams } = new URL(request.url);
     const name = searchParams.get("name");
 

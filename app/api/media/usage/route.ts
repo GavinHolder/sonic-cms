@@ -5,8 +5,9 @@
  * Returns a map of { filename: usageCount } for files in /images/uploads/ and /uploads/.
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { requireRole } from "@/lib/api-middleware";
 
 function extractFilenames(text: string): string[] {
   const matches: string[] = [];
@@ -19,8 +20,11 @@ function extractFilenames(text: string): string[] {
   return matches;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const user = requireRole(request, "VIEWER");
+    if (user instanceof Response) return user;
+
     const sections = await prisma.section.findMany({
       select: {
         content: true,

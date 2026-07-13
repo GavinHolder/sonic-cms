@@ -30,6 +30,10 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    // Require VIEWER role
+    const user = requireRole(request, "VIEWER");
+    if (user instanceof Response) return user;
+
     const media = await prisma.mediaAsset.findUnique({
       where: { id },
       include: {
