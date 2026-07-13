@@ -33,7 +33,14 @@ export async function GET(
   })
 
   if (!record) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 })
+    // Graceful miss: the block references a volt that is deleted or not public.
+    // Return 200 with `volt: null` instead of a 404 so the browser does NOT log
+    // repeated "Failed to load resource: 404" console errors for stale/private
+    // references (a network 404 is logged by the browser and cannot be silenced
+    // by the client's .catch()). Nothing is leaked — private/missing volts still
+    // resolve to null. Consumers (VoltBlock, designer layer cache) treat a null
+    // volt as "unavailable" and render a clean placeholder.
+    return NextResponse.json({ volt: null })
   }
 
   let volt: Record<string, unknown>

@@ -24,10 +24,20 @@ export default function VoltBlock({ voltId, slots = {}, instanceOverrides, fitMo
 
   useEffect(() => {
     if (!voltId) return;
+    // Fetch once per voltId. The public route now returns 200 with `volt: null`
+    // for missing/not-public references (instead of 404), so a stale reference
+    // resolves cleanly to a placeholder with no repeated failed requests and no
+    // browser console 404 spam. A genuine network failure still falls to .catch().
+    let active = true;
     fetch(`/api/public/volt/${voltId}`)
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then(data => setVolt(data.volt as VoltElementData))
-      .catch(() => setError(true));
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => {
+        if (!active) return;
+        if (data && data.volt) setVolt(data.volt as VoltElementData);
+        else setError(true); // missing / not public → clean "unavailable" placeholder
+      })
+      .catch(() => { if (active) setError(true); });
+    return () => { active = false; };
   }, [voltId]);
 
   if (error) {
