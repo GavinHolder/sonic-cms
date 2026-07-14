@@ -4872,10 +4872,12 @@
         e.preventDefault();var _ni=state.element.layers.findIndex(function(l){return l.id===state.selectedLayerId;});
         if(_ni>=0){var _step=e.shiftKey?5:1;var _nl=state.element.layers[_ni];
         if(!_nudgeTimer){pushHistory();}clearTimeout(_nudgeTimer);_nudgeTimer=setTimeout(function(){_nudgeTimer=null;},500);
+        var _oPx=_nl.x,_oPy=_nl.y;
         if(e.key==='ArrowLeft')_nl.x=Math.max(0,_nl.x-_step);
         if(e.key==='ArrowRight')_nl.x=Math.min(100-_nl.width,_nl.x+_step);
         if(e.key==='ArrowUp')_nl.y=Math.max(0,_nl.y-_step);
         if(e.key==='ArrowDown')_nl.y=Math.min(100-_nl.height,_nl.y+_step);
+        if(_nl.vectorData&&_nl.vectorData.pathData)_nl.vectorData.pathData=translatePath(_nl.vectorData.pathData,_nl.x-_oPx,_nl.y-_oPy);
         markDirty();renderCanvas();renderProps();}return;}
     });
     // Alt key capture — intercept before browser opens menu (Windows)
