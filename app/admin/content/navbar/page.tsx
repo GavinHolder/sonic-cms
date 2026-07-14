@@ -511,6 +511,39 @@ export default function NavbarEditorPage() {
           </div>
         </div>
 
+        {/* ── Color-Matched Navbar ─────────────────────────────────────────── */}
+        <div className="col-12">
+          <div className="card shadow-sm">
+            <div className="card-header d-flex align-items-center gap-2 py-2">
+              <i className="bi bi-palette text-primary" />
+              <strong className="small">Color-Matched Navbar</strong>
+            </div>
+            <div className="card-body">
+              <div className="form-check form-switch mb-2">
+                <input
+                  className="form-check-input"
+                  type="checkbox"
+                  role="switch"
+                  id="colorMatchTopSection"
+                  checked={config.colorMatchTopSection ?? false}
+                  onChange={(e) => setField("colorMatchTopSection", e.target.checked)}
+                />
+                <label className="form-check-label fw-semibold" htmlFor="colorMatchTopSection">
+                  Match navbar to the top section&apos;s color
+                </label>
+              </div>
+              <p className="text-muted small mb-0" style={{ lineHeight: 1.6 }}>
+                When enabled, if the <strong>first section</strong> on a page has a{" "}
+                <strong>solid color background</strong> (not an image, gradient, or animated
+                background), the navbar adopts that exact color while it sits over that section,
+                and its text and icons switch to a readable contrasting color automatically.
+                Pages whose first section uses an image or gradient are unaffected. Leave off to
+                keep the standard transparent-over-hero behaviour.
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* ── Logo ─────────────────────────────────────────────────────────── */}
         <div className="col-12">
           <div className="card shadow-sm">

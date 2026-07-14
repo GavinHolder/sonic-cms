@@ -99,6 +99,9 @@ export async function PATCH(request: NextRequest) {
           }),
         },
       }),
+      ...(body.colorMatchTopSection !== undefined && {
+        colorMatchTopSection: Boolean(body.colorMatchTopSection),
+      }),
       updatedAt: new Date().toISOString(),
     };
 

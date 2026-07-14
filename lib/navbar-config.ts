@@ -59,6 +59,15 @@ export interface NavbarConfig {
   cta: NavbarCtaButton;
   /** Background style when user has scrolled */
   scrolledBackground: NavbarScrolledBackground;
+  /**
+   * Color-matched navbar (opt-in, default false).
+   * When true AND the top-most section of the current page has a SOLID color
+   * background (no image / gradient / animated bg), the navbar adopts that exact
+   * color while it sits over that first section, with auto-contrasting text/icons.
+   * When false, or when the top section is not a solid color, navbar behaviour is
+   * unchanged (byte-for-byte identical to the pre-feature default).
+   */
+  colorMatchTopSection?: boolean;
   /** ISO timestamp of last save */
   updatedAt: string;
 }
@@ -79,5 +88,6 @@ export const defaultNavbarConfig: NavbarConfig = {
     color: "#ffffff",
     opacity: 100,
   },
+  colorMatchTopSection: false,
   updatedAt: new Date().toISOString(),
 };
