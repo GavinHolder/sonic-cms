@@ -12,8 +12,8 @@ interface VoltBlockProps {
   slots?: VoltSlots;
   /** Per-instance layer overrides — applied without modifying the master Volt design */
   instanceOverrides?: VoltInstanceOverrides;
-  /** Fit behaviour inside the block cell. "contain" (default) or "fill" */
-  fitMode?: "contain" | "fill";
+  /** Fit behaviour inside the block cell. "contain" (default), "fill", or "cover" (full-bleed background) */
+  fitMode?: "contain" | "fill" | "cover";
 }
 
 export default function VoltBlock({ voltId, slots = {}, instanceOverrides, fitMode = "contain" }: VoltBlockProps) {
@@ -59,7 +59,10 @@ export default function VoltBlock({ voltId, slots = {}, instanceOverrides, fitMo
   const allowOverflow = volt.canvasOverflow === 'visible'
 
   const containerStyle: React.CSSProperties =
-    fitMode === "fill"
+    fitMode === "cover"
+      // Full-bleed background: fill the cell in BOTH axes and crop overflow.
+      ? { width: "100%", height: "100%", position: "relative", overflow: allowOverflow ? 'visible' : 'hidden' }
+      : fitMode === "fill"
       ? { width: "100%", height: "100%", position: "relative", overflow: allowOverflow ? 'visible' : undefined }
       : { width: "100%", maxWidth: "100%", position: "relative", overflow: allowOverflow ? 'visible' : undefined };
 
@@ -69,7 +72,7 @@ export default function VoltBlock({ voltId, slots = {}, instanceOverrides, fitMo
 
   return (
     <div ref={containerRef} style={containerStyle}>
-      <VoltRenderer voltElement={volt} slots={slots} instanceOverrides={instanceOverrides} style={{ borderRadius: "inherit" }} onHoverChange={setIsHovered} />
+      <VoltRenderer voltElement={volt} slots={slots} instanceOverrides={instanceOverrides} style={{ borderRadius: "inherit" }} onHoverChange={setIsHovered} fitMode={fitMode} />
       {layers3D.map(l => (
         <Volt3DRenderer
           key={l.id}

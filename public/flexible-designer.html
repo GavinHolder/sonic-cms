@@ -6209,6 +6209,32 @@ function loadVoltLayersForBlock(bId) {
     });
 }
 
+// ── Volt full-bleed (background) detection ─────────────────────────────────────
+// Signal for "render this volt as a full-bleed section background": the block spans
+// the FULL canvas width AND full canvas height (i.e. the user hit both Full Width and
+// Full Height). Works in grid mode (spans the whole grid) and free mode (block box
+// covers the canvas, with a small tolerance). No explicit "background" flag exists yet
+// — this geometric signal is the closest reliable proxy. Returns false safely if the
+// canvas can't be measured, so the default aspect-locked ("contain") render is kept.
+function isVoltFullBleed(b) {
+  try {
+    if (state.positionMode !== 'free') {
+      return b.gridCol === 1 && b.gridRow === 1
+        && (b.colSpan || 1) >= state.gridCols
+        && (b.rowSpan || 1) >= state.gridRows;
+    }
+    const canvas = document.getElementById('canvas');
+    const cw = canvas ? canvas.offsetWidth  : DESKTOP_CANVAS_W;
+    const ch = canvas ? canvas.offsetHeight : 0;
+    if (!ch) return false;
+    const dp = getDisplayPos(b);
+    const TOL = 3; // px tolerance for rounding
+    const coversW = dp.x <= TOL && (dp.x + dp.w) >= cw - TOL;
+    const coversH = dp.y <= TOL && (dp.y + dp.h) >= ch - TOL;
+    return coversW && coversH;
+  } catch (e) { return false; }
+}
+
 // ── Volt preview URL builder ───────────────────────────────────────────────────
 function buildVoltPreviewUrl(b) {
   if (!b.props.voltId) return '';
@@ -6223,6 +6249,8 @@ function buildVoltPreviewUrl(b) {
   if (overrides && Object.keys(overrides).length > 0) {
     try { sp.set('overrides', btoa(JSON.stringify(overrides))); } catch(e) { /* ignore */ }
   }
+  // Full-bleed background block → cover fit (fills the cell edge-to-edge, no letterbox).
+  if (isVoltFullBleed(b)) sp.set('fit', 'cover');
   return '/volt-preview/' + b.props.voltId + (sp.toString() ? '?' + sp.toString() : '');
 }
 

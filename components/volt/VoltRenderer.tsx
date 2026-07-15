@@ -38,9 +38,17 @@ interface Props {
   style?: React.CSSProperties
   /** Called whenever hover state changes — lets VoltBlock drive 3D hover animations */
   onHoverChange?: (hovered: boolean) => void
+  /**
+   * How the volt fills its cell:
+   * "contain" (default) — aspect-locked, may letterbox; the original behaviour.
+   * "fill"    — stretch to fill the cell (may distort).
+   * "cover"   — scale the design to cover the cell with no letterbox bands (crops overflow).
+   * "cover"/"fill" are used when a volt is placed as a full-bleed section background.
+   */
+  fitMode?: 'contain' | 'fill' | 'cover'
 }
 
-export default function VoltRenderer({ voltElement, slots = {}, instanceOverrides, className, style, onHoverChange }: Props) {
+export default function VoltRenderer({ voltElement, slots = {}, instanceOverrides, className, style, onHoverChange, fitMode = 'contain' }: Props) {
   const containerRef  = useRef<HTMLDivElement>(null)
   const flipInnerRef  = useRef<HTMLDivElement>(null)  // flip3d preserve-3d container
   const frontFaceRef  = useRef<HTMLDivElement>(null)  // front face div (all types)
@@ -71,6 +79,18 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
     observer.observe(containerRef.current)
     return () => observer.disconnect()
   }, [breakpoints])
+
+  // Cover mode: measure the cell so the stage can be scaled to COVER it (no bands).
+  const [coverBox, setCoverBox] = useState({ w: 0, h: 0 })
+  useEffect(() => {
+    if (fitMode !== 'cover' || !containerRef.current) return
+    const el = containerRef.current
+    const measure = () => setCoverBox({ w: el.clientWidth, h: el.clientHeight })
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [fitMode])
 
   // Apply breakpoint overrides to layers
   const layers = rawLayers.map(layer => {
@@ -1439,6 +1459,86 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
           }}
         >
           {renderFaceContent(backLayers)}
+        </div>
+      </div>
+    )
+  }
+
+  // ── Full-bleed background mode (cover / fill) ────────────────────────────────
+  // Used when a volt block is placed as a section background (full-width + full-height).
+  // Unlike the default aspect-locked "contain" render, these fill the whole cell with
+  // NO letterbox bands. "fill" stretches; "cover" scales-to-cover and crops overflow.
+  if (fitMode === 'cover' || fitMode === 'fill') {
+    const bgLayers = isCarousel ? carouselLayers : sortedLayers
+    const bgSlots  = isCarousel ? effectiveSlots : slots
+    const clip = canvasOverflow === 'visible' ? 'visible' : 'hidden'
+
+    const innerContent = (
+      <>
+        <div
+          ref={carouselContentRef}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+        >
+          {renderGlassOverlays(bgLayers)}
+          {renderLayersInterleaved(bgLayers, bgSlots)}
+        </div>
+        {renderCarouselControls()}
+      </>
+    )
+
+    if (fitMode === 'fill') {
+      // Stretch the design to fill the cell (layers are %-based, so this may distort).
+      return (
+        <div
+          ref={containerRef}
+          className={className}
+          style={{
+            position: 'relative', width: '100%', height: '100%',
+            overflow: clip,
+            containerType: 'inline-size',   // cqw source for text scaling
+            background: voltElement.canvasBackground ?? undefined,
+            ...style,
+          }}
+        >
+          {innerContent}
+        </div>
+      )
+    }
+
+    // cover: keep the canvas aspect, scale the stage so it COVERS the cell (max scale
+    // that covers both axes), centre it, and let the frame's overflow:hidden crop it.
+    const measured = coverBox.w > 0 && coverBox.h > 0
+    const a = Math.max(canvasWidth, 1) / Math.max(canvasHeight, 1)   // canvas aspect ratio
+    const baseW = coverBox.w                 // stage laid out at cell width…
+    const baseH = baseW / a                  // …with aspect-correct height
+    const coverScale = measured && baseH > 0 ? Math.max(1, coverBox.h / baseH) : 1
+    const stageStyle: React.CSSProperties = measured
+      ? {
+          position: 'absolute', top: '50%', left: '50%',
+          width: `${baseW}px`, height: `${baseH}px`,
+          transform: `translate(-50%, -50%) scale(${coverScale})`,
+          transformOrigin: 'center center',
+          containerType: 'inline-size',   // cqw source for text scaling
+        }
+      : {
+          // pre-measurement fallback: aspect-locked, avoids a distorted first paint
+          position: 'absolute', top: 0, left: 0, width: '100%', aspectRatio,
+          containerType: 'inline-size',
+        }
+
+    return (
+      <div
+        ref={containerRef}
+        className={className}
+        style={{
+          position: 'relative', width: '100%', height: '100%',
+          overflow: clip,
+          background: voltElement.canvasBackground ?? undefined,
+          ...style,
+        }}
+      >
+        <div style={stageStyle}>
+          {innerContent}
         </div>
       </div>
     )

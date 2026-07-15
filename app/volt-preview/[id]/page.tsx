@@ -3,7 +3,7 @@
  * Used as an iframe source in the Flexible Designer canvas
  * so Volt blocks show their actual design, not a placeholder.
  *
- * URL: /volt-preview/[id]?title=...&body=...&icon=...&image=...&action=...&overrides=<base64JSON>
+ * URL: /volt-preview/[id]?title=...&body=...&icon=...&image=...&action=...&overrides=<base64JSON>&fit=cover
  *
  * The `overrides` param is a base64-encoded JSON string of VoltInstanceOverrides,
  * mapping layerId → { fill?, visible? }. Applied at render time without modifying
@@ -40,5 +40,8 @@ export default async function VoltPreviewPage({ params, searchParams }: PageProp
     }
   }
 
-  return <VoltPreviewClient voltId={id} slots={slots} instanceOverrides={instanceOverrides} />;
+  // Fit mode: "cover"/"fill" render the volt as a full-bleed background; default "contain".
+  const fit = sp.fit === "cover" || sp.fit === "fill" ? sp.fit : "contain";
+
+  return <VoltPreviewClient voltId={id} slots={slots} instanceOverrides={instanceOverrides} fit={fit} />;
 }
