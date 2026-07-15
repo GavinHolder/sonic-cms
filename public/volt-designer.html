@@ -5059,8 +5059,19 @@
     document.getElementById('ctx-delete').addEventListener('click',function(){closeCtxMenu();ctxDelete();});
     // ── Component Library panel ──────────────────────────────────────────────
     var _cmpPanel=null;
+    // #83: toolbar preset popups (SHP/GRD/ICN/CMP) + slot menu are mutually exclusive —
+    // close every one (and reset its open flag) so only the just-clicked panel stays open.
+    function closeAllPresetPanels(){
+      _shapesMenuOpen=false;var _pp1=document.getElementById('shapes-preset-panel');if(_pp1)_pp1.style.display='none';
+      _gradMenuOpen=false;var _pp2=document.getElementById('grad-presets-panel');if(_pp2)_pp2.style.display='none';
+      _iconMenuOpen=false;var _pp3=document.getElementById('icon-picker-panel');if(_pp3)_pp3.style.display='none';
+      _slotMenuOpen=false;var _pp4=document.getElementById('slot-type-menu');if(_pp4)_pp4.style.display='none';
+      if(_cmpPanel){_cmpPanel.remove();_cmpPanel=null;}
+    }
     document.getElementById('btn-component-lib').addEventListener('click',function(){
-      if(_cmpPanel){_cmpPanel.remove();_cmpPanel=null;return;}
+      var _wasCmpOpen=!!_cmpPanel;
+      closeAllPresetPanels();       // close the other three first
+      if(_wasCmpOpen)return;        // same-button click = toggle off
       _cmpPanel=document.createElement('div');
       // Fixed positioning escapes the toolbar's overflow:hidden clip (absolute panels were clipped invisible).
       _cmpPanel.style.cssText='position:fixed;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,0.14);z-index:9999;padding:10px;width:280px;max-height:400px;overflow-y:auto;';
@@ -5237,7 +5248,7 @@
     })();
     var _btnShapes=document.getElementById('btn-shapes-preset');
     var _shapePanel=document.getElementById('shapes-preset-panel');
-    _btnShapes.addEventListener('click',function(e){e.stopPropagation();_shapesMenuOpen=!_shapesMenuOpen;if(_shapesMenuOpen){var r=_btnShapes.getBoundingClientRect();_shapePanel.style.position='fixed';_shapePanel.style.top=(r.bottom+4)+'px';_shapePanel.style.left=r.left+'px';_shapePanel.style.right='auto';_shapePanel.style.display='block';}else{_shapePanel.style.display='none';}});
+    _btnShapes.addEventListener('click',function(e){e.stopPropagation();var _was=_shapesMenuOpen;closeAllPresetPanels();if(!_was){_shapesMenuOpen=true;var r=_btnShapes.getBoundingClientRect();_shapePanel.style.position='fixed';_shapePanel.style.top=(r.bottom+4)+'px';_shapePanel.style.left=r.left+'px';_shapePanel.style.right='auto';_shapePanel.style.display='block';}});
     // ── Gradient Presets ─────────────────────────────────────────────────────
     var GRAD_PRESETS=[
       {name:'Indigo Violet',stops:[{color:'#6366f1',opacity:1,position:0},{color:'#8b5cf6',opacity:1,position:100}],angle:135},
@@ -5280,7 +5291,7 @@
     })();
     var _gradMenuOpen=false;
     var _btnGrad=document.getElementById('btn-grad-presets');var _gradPanel=document.getElementById('grad-presets-panel');
-    _btnGrad.addEventListener('click',function(e){e.stopPropagation();_gradMenuOpen=!_gradMenuOpen;if(_gradMenuOpen){var r=_btnGrad.getBoundingClientRect();_gradPanel.style.position='fixed';_gradPanel.style.top=(r.bottom+4)+'px';_gradPanel.style.left=r.left+'px';_gradPanel.style.right='auto';_gradPanel.style.display='block';}else{_gradPanel.style.display='none';}});
+    _btnGrad.addEventListener('click',function(e){e.stopPropagation();var _was=_gradMenuOpen;closeAllPresetPanels();if(!_was){_gradMenuOpen=true;var r=_btnGrad.getBoundingClientRect();_gradPanel.style.position='fixed';_gradPanel.style.top=(r.bottom+4)+'px';_gradPanel.style.left=r.left+'px';_gradPanel.style.right='auto';_gradPanel.style.display='block';}});
     // ── Icon Picker ───────────────────────────────────────────────────────────
     var LUCIDE_ICONS=[
       {name:'star',d:'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z'},
@@ -5388,7 +5399,7 @@
     _renderIconGrid('');
     var _iconMenuOpen=false;
     var _btnIcon=document.getElementById('btn-icon-picker');var _iconPanel=document.getElementById('icon-picker-panel');
-    _btnIcon.addEventListener('click',function(e){e.stopPropagation();_iconMenuOpen=!_iconMenuOpen;if(_iconMenuOpen){var r=_btnIcon.getBoundingClientRect();_iconPanel.style.position='fixed';_iconPanel.style.top=(r.bottom+4)+'px';_iconPanel.style.left=r.left+'px';_iconPanel.style.right='auto';_iconPanel.style.display='block';}else{_iconPanel.style.display='none';}});
+    _btnIcon.addEventListener('click',function(e){e.stopPropagation();var _was=_iconMenuOpen;closeAllPresetPanels();if(!_was){_iconMenuOpen=true;var r=_btnIcon.getBoundingClientRect();_iconPanel.style.position='fixed';_iconPanel.style.top=(r.bottom+4)+'px';_iconPanel.style.left=r.left+'px';_iconPanel.style.right='auto';_iconPanel.style.display='block';}});
     var _iconSearchEl=document.getElementById('icon-search');
     if(_iconSearchEl)_iconSearchEl.addEventListener('input',function(e){_renderIconGrid(e.target.value);});
     // close on outside click (handled in existing global click listener — extend it)
