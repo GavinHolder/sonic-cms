@@ -1269,46 +1269,90 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
       })
   }
 
-  /** Renders a single face's layers (vectors, slots, images). */
-  function renderFaceContent(faceLayers: typeof sortedLayers) {
-    return (
-      <>
-        {renderGlassOverlays(faceLayers)}
+  /**
+   * Render every non-glass layer in a SINGLE zIndex-ordered pass so paint order
+   * matches the authoring canvas (public/volt-designer.html renders all layer types
+   * — vector / image / text / number / slot — in one `sort((a,b)=>a.zIndex-b.zIndex)`
+   * loop into one SVG/DOM stream). Previously VoltRenderer painted ALL vectors first
+   * and ALL images/text/numbers afterwards, forcing every image to sit ABOVE every
+   * vector regardless of zIndex — which dropped shape masks + strokes that a design
+   * places OVER a photo (they rendered behind the bare image). Consecutive vector
+   * layers are grouped into one <svg> so boolean masks, gradients and corner-radius
+   * clips keep working exactly as before; image/text/number/slot layers are emitted
+   * inline at their z-position. `faceLayers` is pre-sorted ascending by zIndex.
+   */
+  function renderLayersInterleaved(faceLayers: typeof sortedLayers, slotsForFace: VoltSlots) {
+    const nodes: React.ReactNode[] = []
+    let vectorRun: typeof sortedLayers = []
+    const flushVectors = () => {
+      if (vectorRun.length === 0) return
+      const run = vectorRun
+      vectorRun = []
+      nodes.push(
         <svg
+          key={`volt-vec-svg-${run[0].id}`}
           viewBox={`0 0 ${canvasWidth} ${canvasHeight}`}
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
           aria-hidden="true"
         >
-          {faceLayers
-            .filter(l => l.type === 'vector')
-            .map(layer => (
-              <VoltSvgLayer
-                key={layer.id}
-                layer={layer}
-                canvasWidth={canvasWidth}
-                canvasHeight={canvasHeight}
-                instanceOverride={instanceOverrides?.[layer.id]}
-                siblingLayers={faceLayers}
-              />
-            ))}
+          {run.map(layer => (
+            <VoltSvgLayer
+              key={layer.id}
+              layer={layer}
+              canvasWidth={canvasWidth}
+              canvasHeight={canvasHeight}
+              instanceOverride={instanceOverrides?.[layer.id]}
+              siblingLayers={faceLayers}
+            />
+          ))}
         </svg>
-
-        {faceLayers
-          .filter(l => l.type === 'slot')
-          .map(layer => (
+      )
+    }
+    for (const layer of faceLayers) {
+      switch (layer.type) {
+        case 'vector':
+          vectorRun.push(layer)
+          break
+        case 'image':
+          flushVectors()
+          nodes.push(...renderImageLayers([layer]))
+          break
+        case 'text':
+          flushVectors()
+          nodes.push(...renderTextLayers([layer]))
+          break
+        case 'number':
+          flushVectors()
+          nodes.push(...renderNumberLayers([layer]))
+          break
+        case 'slot':
+          flushVectors()
+          nodes.push(
             <VoltSlotRenderer
               key={layer.id}
               layer={layer}
               canvasWidth={canvasWidth}
               canvasHeight={canvasHeight}
-              slots={slots}
+              slots={slotsForFace}
               canvasOverflow={canvasOverflow}
             />
-          ))}
+          )
+          break
+        default:
+          // 3d-object is rendered by Volt3DRenderer (in VoltBlock); groups have no direct paint.
+          break
+      }
+    }
+    flushVectors()
+    return nodes
+  }
 
-        {renderImageLayers(faceLayers)}
-        {renderTextLayers(faceLayers)}
-        {renderNumberLayers(faceLayers)}
+  /** Renders a single face's layers (glass behind, then all layers in z-order). */
+  function renderFaceContent(faceLayers: typeof sortedLayers) {
+    return (
+      <>
+        {renderGlassOverlays(faceLayers)}
+        {renderLayersInterleaved(faceLayers, slots)}
       </>
     )
   }
@@ -1423,41 +1467,7 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
       >
         {renderGlassOverlays(displayLayers)}
-        <svg
-          viewBox={`0 0 ${canvasWidth} ${canvasHeight}`}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
-          aria-hidden="true"
-        >
-          {displayLayers
-            .filter(l => l.type === 'vector')
-            .map(layer => (
-              <VoltSvgLayer
-                key={layer.id}
-                layer={layer}
-                canvasWidth={canvasWidth}
-                canvasHeight={canvasHeight}
-                instanceOverride={instanceOverrides?.[layer.id]}
-                siblingLayers={displayLayers}
-              />
-            ))}
-        </svg>
-
-        {displayLayers
-          .filter(l => l.type === 'slot')
-          .map(layer => (
-            <VoltSlotRenderer
-              key={layer.id}
-              layer={layer}
-              canvasWidth={canvasWidth}
-              canvasHeight={canvasHeight}
-              slots={displaySlots}
-              canvasOverflow={canvasOverflow}
-            />
-          ))}
-
-        {renderImageLayers(displayLayers)}
-        {renderTextLayers(displayLayers)}
-        {renderNumberLayers(displayLayers)}
+        {renderLayersInterleaved(displayLayers, displaySlots)}
       </div>
 
       {/* Carousel arrows + dot indicators */}
