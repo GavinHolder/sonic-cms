@@ -2109,9 +2109,14 @@ function DesignerBlock({ block, darkBg }: {
           badge:       (p.slotBadge as string)       || nested.badge       || undefined,
           icon:        (p.slotIcon as string)        || nested.icon        || undefined,
         };
+        // Full-bleed background volt → cover fit + full box (no flex centering) so it
+        // fills the cell edge-to-edge, matching the designer preview. Off → unchanged.
+        const voltFullBleed = !!p.fullBleed;
         return (
-          <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <VoltBlock voltId={voltId} slots={voltSlots} fitMode="contain" />
+          <div style={voltFullBleed
+            ? { height: "100%", width: "100%" }
+            : { height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <VoltBlock voltId={voltId} slots={voltSlots} fitMode={voltFullBleed ? "cover" : "contain"} />
           </div>
         );
       }

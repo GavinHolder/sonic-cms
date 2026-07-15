@@ -5765,6 +5765,11 @@ function renderTypeProps(block) {
         </div>
         <button class="action-btn" style="width:auto;margin-bottom:0;flex-shrink:0;background:#1e1b4b;color:#a5b4fc;border-color:#4f46e5;font-size:11px;padding:4px 8px;" onclick="openVoltModal('${block.id}')"><i class="bi bi-pencil"></i> Change</button>
       </div>`;
+      // Use-as-background (full-bleed) toggle — authoritative signal for cover fit.
+      h+=`<div class="form-check form-switch" style="font-size:12px;margin:0 0 10px;">
+        <input class="form-check-input" type="checkbox" role="switch" id="volt-fullbleed-${block.id}" ${p.fullBleed ? 'checked' : ''} onchange="setVoltFullBleed('${block.id}',this.checked)">
+        <label class="form-check-label" for="volt-fullbleed-${block.id}" style="color:#6c757d;">Use as background (full-bleed)</label>
+      </div>`;
       // Slot overrides
       h+=`<div style="margin-bottom:6px;">
         <div style="font-size:11px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Content Slots</div>`;
@@ -6250,7 +6255,11 @@ function buildVoltPreviewUrl(b) {
     try { sp.set('overrides', btoa(JSON.stringify(overrides))); } catch(e) { /* ignore */ }
   }
   // Full-bleed background block → cover fit (fills the cell edge-to-edge, no letterbox).
-  if (isVoltFullBleed(b)) sp.set('fit', 'cover');
+  // Explicit toggle is authoritative: true → cover, false → contain (geometry ignored).
+  // When the flag was never set (undefined), fall back to the #82 geometry heuristic.
+  const fb = b.props.fullBleed;
+  const isFullBleed = fb === true || (fb === undefined && isVoltFullBleed(b));
+  if (isFullBleed) sp.set('fit', 'cover');
   return '/volt-preview/' + b.props.voltId + (sp.toString() ? '?' + sp.toString() : '');
 }
 
@@ -6271,6 +6280,16 @@ function updateVoltSlot(bId, key, val) {
   const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
   if (!b) return;
   b.props[key] = val;
+  autoSave();
+  refreshVoltIframe(bId);
+}
+
+// Persist the explicit "use as background (full-bleed)" flag on the volt block.
+// This is the authoritative signal for cover fit (wins over the geometry heuristic).
+function setVoltFullBleed(bId, checked) {
+  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
+  if (!b) return;
+  b.props.fullBleed = !!checked;
   autoSave();
   refreshVoltIframe(bId);
 }
