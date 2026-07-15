@@ -139,4 +139,20 @@ export async function register() {
   } catch (e) {
     console.error("[Plugins] Failed to seed plugin registry:", e);
   }
+
+  // Backfill: make existing volt designs available as blocks + live.
+  // Volts used to be created isPublic:false, so pre-existing designs render
+  // "Volt element unavailable". Flip any still-private rows to public.
+  // Idempotent — a no-op once every row is already public.
+  try {
+    const { count } = await prisma.voltElement.updateMany({
+      where: { isPublic: false },
+      data: { isPublic: true },
+    });
+    if (count > 0) {
+      console.log(`[Volt] Backfilled ${count} volt element(s) to isPublic:true`);
+    }
+  } catch (e) {
+    console.error("[Volt] Failed to backfill volt isPublic:", e);
+  }
 }

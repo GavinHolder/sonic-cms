@@ -90,7 +90,10 @@ export async function PUT(
         ...(description !== undefined && { description }),
         ...(mood !== undefined && { mood }),
         ...(elementType !== undefined && { elementType }),
-        ...(isPublic !== undefined && { isPublic }),
+        // Default available on save: an absent isPublic resolves to true so a
+        // saved volt is usable as a block + live. An explicit isPublic:false
+        // is still honoured if a caller deliberately sends it.
+        isPublic: isPublic ?? true,
         ...(layers !== undefined && { layers }),
         ...(slots !== undefined && { slots }),
         ...(states !== undefined && { states }),
