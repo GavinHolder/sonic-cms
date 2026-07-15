@@ -34,49 +34,61 @@ const STANDARD_HEIGHT = 100; // px — matches globals.css --navbar-height defau
 const TALL_HEIGHT     = 140; // px
 
 // ── Color-matched navbar (opt-in feature) ───────────────────────────────────
-// Maps the section `background` preset names to their hex values (mirrors the
-// BG_PRESETS table in DynamicSection). Used only when the colorMatchTopSection
-// flag is on — has no effect on the default navbar.
-const NAV_BG_PRESETS: Record<string, string> = {
-  white: "#ffffff",
-  gray: "#f8f9fa",
-  blue: "#1e3a5f",
-  lightblue: "#e8f4fd",
-  transparent: "transparent",
-};
+// v2: DOM-based CONTINUOUS color match. Instead of resolving a single section's
+// stored bg fields (v1, which no-op'd because backgrounds are authored many
+// different ways), we sample the live rendered pixel-owner directly beneath the
+// navbar on every scroll frame and adopt its color if — and only if — it is a
+// fully-opaque solid. Fully inert unless the colorMatchTopSection flag is on.
 
 /**
- * Detect the SOLID background color of the top-most section, or null.
- *
- * Returns a concrete color string ONLY when the section's background is a plain
- * solid color with no competing background treatment. Returns null (→ no color
- * match) when the section has a background image, gradient overlay, animated
- * background, a theme-token background, or a transparent/unset background.
- *
- * ASSUMPTIONS:
- * 1. `section.background` is a preset name or a hex/rgb string (BackgroundColor).
- * 2. Image bg lives at `section.bgImageUrl` or `section.content.backgroundImage`.
- * 3. Gradient overlay at `section.content.gradient.enabled`.
- * 4. Animated bg at `section.content.animBg.enabled`.
+ * If `bg` (a CSS `backgroundColor` computed value) is a FULLY-OPAQUE color,
+ * return it; otherwise return null (transparent / semi-transparent).
+ * getComputedStyle returns `rgb(...)` when opaque and `rgba(..., a)` otherwise,
+ * so a missing 4th component means alpha === 1.
  */
-function detectTopSectionSolidColor(section: any): string | null {
-  if (!section) return null;
-  const content = section.content || {};
-  const hasImage = !!section.bgImageUrl || !!content.backgroundImage;
-  const hasGradient = !!(content.gradient && content.gradient.enabled);
-  const hasAnimBg = !!(content.animBg && content.animBg.enabled);
-  if (hasImage || hasGradient || hasAnimBg) return null;
+function opaqueColorOrNull(bg: string | null | undefined): string | null {
+  if (!bg) return null;
+  const m = bg.match(/rgba?\(([^)]+)\)/);
+  if (!m) return null;
+  const parts = m[1].split(",").map((s) => s.trim());
+  const alpha = parts.length >= 4 ? parseFloat(parts[3]) : 1;
+  if (!(alpha >= 1)) return null; // rgba(...,0) / semi-transparent → not solid
+  return bg;
+}
 
-  const bg = section.background;
-  if (!bg || typeof bg !== "string") return null;
-  if (bg === "transparent") return null;
-  if (bg.indexOf("var(") === 0) return null; // theme token — flips with light/dark, not a fixed solid
-
-  const resolved = NAV_BG_PRESETS[bg] ?? bg;
-  if (resolved === "transparent") return null;
-  if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(resolved)) return resolved;
-  if (resolved.indexOf("rgb") === 0) return resolved;
-  return null;
+/**
+ * Given a resolved `.cms-section` element, return the color the navbar should
+ * adopt — its EFFECTIVE background — or null if the section is genuinely NON-solid
+ * (image / gradient / animated bg / transparent) and the navbar should fall back
+ * to its normal treatment.
+ *
+ * Why section-based (not point-based): sampling a single point under the navbar
+ * can land on a transparent child and miss a solid section ("nip one, slip one").
+ * Resolving the whole section and reading its effective bg guarantees EVERY solid
+ * section matches consistently as it passes under the bar — no gaps.
+ *
+ * A section's solid color is painted via `background-color: var(--section-bg)` on
+ * the `.cms-section` element itself. A NON-solid treatment always manifests as
+ * either (a) a `background-image` on the section element (image-on-section), or
+ * (b) a full-bleed background LAYER child — every one of those (gradient overlay,
+ * masked-image layer, AnimBgRenderer container) is rendered `position:absolute`
+ * with `z-index:0`, which content (`.section-content-wrapper`, z20), text overlays
+ * (z5) and 3D layers never are. So the presence of any absolute z-0 child ⇒ the
+ * section has a covering non-solid background ⇒ fall back.
+ */
+function sectionEffectiveSolidColor(section: Element, navEl: Element | null): string | null {
+  const scs = window.getComputedStyle(section);
+  // (a) Image painted directly on the section (unmasked backgroundImage) → non-solid.
+  if (scs.backgroundImage && scs.backgroundImage !== "none") return null;
+  // (b) Any full-bleed background LAYER (gradient / masked image / animated bg) → non-solid.
+  for (const child of Array.from(section.children)) {
+    if (navEl && navEl.contains(child)) continue; // never let the nav count as a layer
+    const ccs = window.getComputedStyle(child);
+    const positioned = ccs.position === "absolute" || ccs.position === "fixed";
+    if (positioned && ccs.zIndex === "0") return null;
+  }
+  // No covering treatment → the section's own solid color is what's visible.
+  return opaqueColorOrNull(scs.backgroundColor);
 }
 
 /** Contrasting text color (dark on light bg, light on dark bg) via relative luminance. */
@@ -128,9 +140,11 @@ export default function Navbar() {
   const [socials, setSocials]             = useState<Record<string, string>>({});
   // Color-matched navbar (opt-in). All default-off → these stay inert.
   const [colorMatchEnabled, setColorMatchEnabled] = useState(false);
-  const [topSectionColor, setTopSectionColor]     = useState<string | null>(null);
-  const [atPageTop, setAtPageTop]                 = useState(true);
+  // v2: the live opaque solid color currently rendered under the navbar (null =
+  // transparent / gradient / image / hero → no match, render normally).
+  const [matchedColor, setMatchedColor]           = useState<string | null>(null);
   const toolsRef = useRef<HTMLDivElement>(null);
+  const navRef   = useRef<HTMLElement>(null);
 
   const isTall = navbarStyle === "tall";
   const navbarHeight = isTall ? TALL_HEIGHT : STANDARD_HEIGHT;
@@ -241,45 +255,60 @@ export default function Navbar() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // ── Color-matched navbar: resolve the top section's solid color ─────────────
-  // Only runs when the flag is on. Reads the first enabled section of the current
-  // page and stores its solid color (or null). Fully inert when the flag is off.
+  // ── Color-matched navbar (v2): continuous DOM sampling ──────────────────────
+  // When the flag is on, on every scroll frame sample the element sitting under
+  // the navbar's bottom edge and adopt its color IF it is a fully-opaque solid;
+  // otherwise clear the match so the navbar reverts to its normal treatment.
+  // Applies at ALL scroll positions (the v1 first-section-only limit is gone).
+  // Listeners attach ONLY when the flag is on and are cleaned up on unmount/off.
   useEffect(() => {
-    if (!colorMatchEnabled) { setTopSectionColor(null); return; }
-    let cancelled = false;
-    const slug = pathname === "/" ? "/" : pathname;
-    getSections(slug)
-      .then((secs) => {
-        if (cancelled) return;
-        const top = (secs as any[])
-          .filter((s) => s.enabled)
-          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))[0];
-        setTopSectionColor(detectTopSectionSolidColor(top));
-      })
-      .catch(() => { if (!cancelled) setTopSectionColor(null); });
-    return () => { cancelled = true; };
-  }, [colorMatchEnabled, pathname]);
-
-  // ── Color-matched navbar: track whether we're still over the first section ──
-  // Separate from the main scroll effect (which early-returns without a hero) so
-  // the color match applies only while the navbar sits over the top section. The
-  // listeners are attached ONLY when the flag is on.
-  useEffect(() => {
-    if (!colorMatchEnabled) { setAtPageTop(true); return; }
+    if (!colorMatchEnabled) { setMatchedColor(null); return; }
     const container = document.getElementById("snap-container");
-    const check = () => {
-      const top = container ? container.scrollTop : window.scrollY;
-      // Within roughly the first section (sections are ~100vh) → still "at top".
-      setAtPageTop(top < window.innerHeight * 0.6);
+    let rafId = 0;
+
+    const sample = () => {
+      rafId = 0;
+      const navEl = navRef.current;
+      if (!navEl) return;
+      const navBottom = navEl.getBoundingClientRect().bottom;
+      // Sample just BELOW the navbar's bottom edge, horizontally centered. Disable
+      // the nav's pointer-events for the hit-test so the bar can never be returned
+      // (which would feed its own matched color back in).
+      const prevPE = navEl.style.pointerEvents;
+      navEl.style.pointerEvents = "none";
+      // elementsFromPoint (plural) returns the full stack top→bottom; walk it to the
+      // first element that lives inside a .cms-section. This transparently skips any
+      // motion/lower-third overlay layers that sit above the section content, so we
+      // always resolve the SECTION under the bar (not a stray transparent child).
+      const stack = document.elementsFromPoint(window.innerWidth / 2, navBottom + 2);
+      navEl.style.pointerEvents = prevPE;
+
+      let section: Element | null = null;
+      for (const e of stack) {
+        if (navEl.contains(e)) continue;
+        const sec = e.closest(".cms-section");
+        if (sec) { section = sec; break; }
+      }
+      // Could not resolve a section (empty hit / nav-only / non-section area):
+      // KEEP the previous decision rather than flicker to unmatched.
+      if (!section) return;
+      setMatchedColor(sectionEffectiveSolidColor(section, navEl));
     };
-    check();
-    container?.addEventListener("scroll", check, { passive: true });
-    window.addEventListener("scroll", check, { passive: true });
+
+    const onScroll = () => {
+      if (rafId) return; // rAF-throttle: coalesce bursts into one sample per frame
+      rafId = requestAnimationFrame(sample);
+    };
+
+    sample(); // initial position
+    container?.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
-      container?.removeEventListener("scroll", check);
-      window.removeEventListener("scroll", check);
+      if (rafId) cancelAnimationFrame(rafId);
+      container?.removeEventListener("scroll", onScroll);
+      window.removeEventListener("scroll", onScroll);
     };
-  }, [colorMatchEnabled]);
+  }, [colorMatchEnabled, pathname]);
 
   // Scroll + background detection
   useEffect(() => {
@@ -335,12 +364,13 @@ export default function Navbar() {
   // on scroll. When the flag is off this is always false → default behaviour unchanged.
   const navHiddenOverHero = hideOverHero && heroPresent && !pastRevealDelta;
 
-  // Color-matched navbar (opt-in). Active only for the standard variant while the
-  // navbar sits over a solid-color first section. When inactive, every value below
-  // is null/false and the navbar renders exactly as before.
+  // Color-matched navbar (opt-in). v2: active for the standard variant whenever an
+  // opaque solid color is currently sampled under the bar — at ANY scroll position.
+  // When inactive, every value below is null/false and the navbar renders exactly
+  // as before (identical to the flag being off).
   const colorMatchActive =
-    colorMatchEnabled && !isTall && !!topSectionColor && atPageTop;
-  const matchTextColor = colorMatchActive ? contrastTextColor(topSectionColor as string) : null;
+    colorMatchEnabled && !isTall && !!matchedColor;
+  const matchTextColor = colorMatchActive ? contrastTextColor(matchedColor as string) : null;
 
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -352,6 +382,7 @@ export default function Navbar() {
 
   return (
     <nav
+      ref={navRef}
       className={`navbar fixed-top ${effectiveScrolled ? "navbar-scrolled" : "navbar-transparent"}`}
       style={{
         padding: isTall ? "0" : "1rem 0", zIndex: 1050, overflow: "visible", height: `${navbarHeight}px`,
@@ -365,13 +396,13 @@ export default function Navbar() {
               transition: "transform 400ms cubic-bezier(0.4,0,0.2,1), opacity 400ms cubic-bezier(0.4,0,0.2,1)",
             }
           : {}),
-        // Color-matched navbar (opt-in). Overrides the bar background to the top
-        // section's solid color and scopes --theme-text to a contrasting color, which
-        // the nav links / tools / mobile hamburger inherit in the opaque state. Empty
-        // object when inactive → default inline style is byte-for-byte unchanged.
+        // Color-matched navbar (opt-in). Overrides the bar background to the color
+        // currently sampled under the navbar and scopes --theme-text to a contrasting
+        // color, which the nav links / tools / mobile hamburger inherit in the opaque
+        // state. Empty object when inactive → default inline style is byte-for-byte unchanged.
         ...(colorMatchActive
           ? ({
-              backgroundColor: topSectionColor as string,
+              backgroundColor: matchedColor as string,
               "--theme-text": matchTextColor as string,
               transition: "background-color 300ms ease, color 300ms ease",
             } as React.CSSProperties)
