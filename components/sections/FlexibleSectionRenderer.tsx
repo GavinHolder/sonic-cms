@@ -422,6 +422,21 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   // Designer data (mockup format) — used when elements array is empty
   const designerData = (content as any).designerData as string | Record<string, unknown> | null | undefined;
 
+  // Full-bleed volt blocks (props.fullBleed) are lifted out of the in-grid flow and
+  // drawn as section-level background layers BELOW the content wrapper (see the render
+  // below + FullBleedVoltLayer). Parsed once here (guarded) so the layer can be a direct
+  // child of <section> and cover it edge-to-edge; DesignerBlocksRenderer skips the same
+  // blocks in-grid (isFullBleedVolt) so they render exactly once, behind the other blocks.
+  const fullBleedVolts = useMemo<Array<{ id: number | string; props: Record<string, unknown> }>>(() => {
+    if (!designerData) return [];
+    try {
+      const d = typeof designerData === "string" ? JSON.parse(designerData) : designerData;
+      return ((d?.blocks as Array<{ id: number | string; type?: string; props?: Record<string, unknown> }>) || [])
+        .filter((b) => isFullBleedVolt(b))
+        .map((b) => ({ id: b.id, props: (b.props || {}) as Record<string, unknown> }));
+    } catch { return []; }
+  }, [designerData]);
+
   // Scroll Stage config — only active when contentMode === "multi" and enabled
   const scrollStage = (content as any).scrollStage as import("./scroll-stage/types").ScrollStageConfig | undefined;
   const scrollStageActive = contentMode === "multi" && scrollStage?.enabled === true && (scrollStage.zones?.length ?? 0) > 0;
@@ -545,6 +560,16 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
       {gradCss && (
         <div aria-hidden="true" style={{ position: "absolute", inset: 0, zIndex: bgImageUrl ? 1 : 0, background: gradCss, pointerEvents: "none" }} />
       )}
+
+      {/* Full-bleed volt background layer(s) — a volt block flagged props.fullBleed is
+          hoisted out of the in-grid flow (DesignerBlocksRenderer skips it) and drawn here
+          as a SECTION-LEVEL background: absolute inset:0 over the whole section at
+          z-index 2 — ABOVE the section bg (0/1), BELOW the z-11 content wrapper — so the
+          other blocks automatically render on top. Multiple full-bleed volts stack in
+          block order. Default-off: sections without a full-bleed volt render unchanged. */}
+      {fullBleedVolts.map((fb) => (
+        <FullBleedVoltLayer key={fb.id} props={fb.props} />
+      ))}
 
       {/* Animated background layers — rendered below content (z-index 0–10).
           Disabled when a background image is set (bgImageUrl takes priority). */}
@@ -1283,6 +1308,44 @@ function resolveBlockTokens<T extends { props?: Record<string, unknown>; subElem
   };
 }
 
+// ── Full-bleed volt background ──────────────────────────────────────────────
+// A volt block flagged props.fullBleed is a decorative full-section background:
+// it is lifted OUT of the in-grid block flow and drawn once by the section body as
+// a section-level layer BELOW the z-11 content wrapper (see FullBleedVoltLayer), so
+// the section's other blocks automatically sit on top with no manual z-index.
+// The same predicate is used to (a) collect these blocks in the section body and
+// (b) skip them in DesignerBlocksRenderer, so they render exactly once. voltId is
+// required — a full-bleed volt with no voltId stays in-grid (shows its placeholder).
+function isFullBleedVolt(b: { type?: string; props?: Record<string, unknown> } | undefined): boolean {
+  return !!b && b.type === "volt" && !!b.props?.fullBleed && !!b.props?.voltId;
+}
+
+// Renders a full-bleed volt as a section-level background layer: absolute, covering
+// the whole <section> (inset:0), pointerEvents:none so content above stays clickable
+// (decorative background — matches the section bg image/gradient layers). Uses
+// VoltBlock fitMode="cover" (#85) to fill the section box. Slot-building mirrors the
+// in-grid volt case (kept inline to leave that case byte-for-byte unchanged).
+function FullBleedVoltLayer({ props: p }: { props: Record<string, unknown> }) {
+  const voltId = p.voltId as string | undefined;
+  if (!voltId) return null;
+  const nested = (p.slots && typeof p.slots === "object" ? p.slots : {}) as Record<string, string>;
+  const voltSlots = {
+    title:       (p.slotTitle as string)       || nested.title       || undefined,
+    body:        (p.slotBody as string)        || nested.body        || undefined,
+    imageUrl:    (p.slotImageUrl as string)    || nested.imageUrl    || undefined,
+    imageAlt:    (p.slotImageAlt as string)    || nested.imageAlt    || undefined,
+    actionLabel: (p.slotActionLabel as string) || nested.actionLabel || undefined,
+    actionHref:  (p.slotActionHref as string)  || nested.actionHref  || undefined,
+    badge:       (p.slotBadge as string)       || nested.badge       || undefined,
+    icon:        (p.slotIcon as string)        || nested.icon        || undefined,
+  };
+  return (
+    <div aria-hidden="true" style={{ position: "absolute", inset: 0, zIndex: 2, pointerEvents: "none" }}>
+      <VoltBlock voltId={voltId} slots={voltSlots} fitMode="cover" />
+    </div>
+  );
+}
+
 function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { designerData: string | Record<string, unknown>; darkBg: boolean; scrollStageZone?: number }) {
   // Hooks must be called before any conditional returns
   const [screenW, setScreenW] = useState(typeof window !== "undefined" ? window.innerWidth : 1440);
@@ -1429,10 +1492,15 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
     // (which enforces min 100px navbar clearance via max(--section-pt, --navbar-height)).
     // Without this, the grid is taller than available space and content spills out.
     const containerH = isScrollStage ? "100%" : (isMulti ? `${multiLimit * 100}vh` : "calc(100vh - max(var(--section-pt, 100px), var(--navbar-height, 100px)) - var(--section-pb, 80px))");
+    // Full-bleed volt blocks are promoted to section-level background layers by the
+    // parent section body (FullBleedVoltLayer); drop them from the in-grid flow here so
+    // they render once — behind the other blocks — instead of twice. Non-full-bleed
+    // volts and every other block type are untouched.
+    const gridBlocks = blocks.filter(b => !isFullBleedVolt(b));
     // Filter blocks to active zone when in scroll stage desktop mode
     const filteredBlocks = isScrollStage
-      ? blocks.filter(b => (b.position?.section ?? 0) === scrollStageZone)
-      : blocks;
+      ? gridBlocks.filter(b => (b.position?.section ?? 0) === scrollStageZone)
+      : gridBlocks;
 
     // ── Mosaic layout mode (legacy parity) ────────────────────────────────
     // designerData authored in mosaic mode — including payloads synthesised from a

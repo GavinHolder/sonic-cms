@@ -2694,7 +2694,13 @@ function createBlockElement(block) {
             : _resolvedBg;
   // Use device-specific display position (auto-scaled for tablet/mobile)
   const _dp = getDisplayPos(block);
-  el.style.cssText = `left:${_dp.x}px;top:${_dp.y}px;width:${_dp.w}px;height:${_dp.h}px;z-index:${block.zIndex||1};background:${_bg};${_glass !== 'none' ? 'backdrop-filter:blur(12px);' : ''}`;
+  // Full-bleed volt → render BEHIND other blocks on the canvas (auto z-index 0, below
+  // the default z-index 1) to mirror the live section, where a full-bleed volt is a
+  // section background beneath the content. The block stays in the DOM and selectable
+  // (clickable in any area not covered by a block above it, and via the Layers panel);
+  // toggling full-bleed OFF restores its normal stacking (block.zIndex||1).
+  const _zIndex = block.props.fullBleed ? 0 : (block.zIndex || 1);
+  el.style.cssText = `left:${_dp.x}px;top:${_dp.y}px;width:${_dp.w}px;height:${_dp.h}px;z-index:${_zIndex};background:${_bg};${_glass !== 'none' ? 'backdrop-filter:blur(12px);' : ''}`;
   // Apply selection / editing visual states.
   const _hasChildren = block.subElements?.length > 0;
   // Organizational-parent model: a block WITH children renders no canvas box or
@@ -6292,6 +6298,11 @@ function setVoltFullBleed(bId, checked) {
   b.props.fullBleed = !!checked;
   autoSave();
   refreshVoltIframe(bId);
+  // Reflect the new stacking immediately: full-bleed → z-index 0 (behind other blocks),
+  // off → restore normal stacking (block.zIndex||1). Updates the wrapper directly so the
+  // volt iframe is NOT reloaded (no full re-render). Mirrors createBlockElement's rule.
+  const _el = document.querySelector('.container-block[data-block-id="' + bId + '"]');
+  if (_el) _el.style.zIndex = checked ? '0' : String(b.zIndex || 1);
 }
 
 // ── Volt layer override helpers ────────────────────────────────────────────────
