@@ -75,6 +75,56 @@ interface SectionLivePreviewProps {
   onViewportChange?: (v: Viewport) => void;
   /** Width budget the scaled device is fit into (px). Defaults to 640. */
   panelWidth?: number;
+  /**
+   * #72 — when true, overlays a static navbar stand-in pinned to the TOP of the
+   * preview viewport (inside the browser-chrome frame), so the section is shown as it
+   * appears on the real page beneath the site's fixed navbar. Default false → nothing
+   * is rendered and the preview is byte-for-byte unchanged.
+   */
+  showNavbar?: boolean;
+}
+
+/**
+ * PreviewNavbarStandIn (#72)
+ * Static, side-effect-free stand-in for the live site's fixed navbar. Rendered as an
+ * absolute overlay pinned to the TOP of the preview viewport (spanning the full scaled
+ * viewport width) so the previewed section is shown exactly as on the real page — a
+ * fixed navbar sitting over the hero. Mirrors the scrolled navbar's dark-glass look
+ * (see .navbar-scrolled in globals.css). pointer-events:none so it never interferes
+ * with scrolling or interacting with the section beneath it.
+ */
+function PreviewNavbarStandIn() {
+  return (
+    <div
+      aria-hidden="true"
+      className="navbar-scrolled"
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 2,
+        height: 56,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 24,
+        color: "#fff",
+        fontSize: 12,
+        letterSpacing: "0.08em",
+        pointerEvents: "none",
+      }}
+      title="Static navbar reference — shows where the fixed site navbar sits above this section"
+    >
+      <span style={{ position: "absolute", left: 16, opacity: 0.55, fontSize: 18 }}>
+        <i className="bi bi-list" />
+      </span>
+      <span style={{ fontWeight: 700, textTransform: "uppercase" }}>Your Logo</span>
+      <span style={{ position: "absolute", right: 16, opacity: 0.55 }}>
+        <i className="bi bi-three-dots" />
+      </span>
+    </div>
+  );
 }
 
 function SectionLivePreviewInner({
@@ -82,6 +132,7 @@ function SectionLivePreviewInner({
   viewport: controlledViewport,
   onViewportChange,
   panelWidth = 640,
+  showNavbar = false,
 }: SectionLivePreviewProps) {
   const [uncontrolledViewport, setUncontrolledViewport] = useState<Viewport>("desktop");
   const viewport = controlledViewport ?? uncontrolledViewport;
@@ -271,6 +322,8 @@ function SectionLivePreviewInner({
                 }}
               />
             </div>
+            {/* #72 — navbar overlay, pinned to the top of the scaled viewport, over the section */}
+            {showNavbar && <PreviewNavbarStandIn />}
           </div>
         </div>
 

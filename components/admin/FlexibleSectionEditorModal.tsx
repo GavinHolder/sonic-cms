@@ -46,47 +46,6 @@ interface FlexibleSectionEditorModalProps {
 
 type ActiveTab = "content" | "background" | "animation" | "overlay" | "triangle" | "lower-third" | "motion" | "spacing" | "scroll-stage";
 
-/**
- * PreviewNavbarStandIn (#72)
- * A faithful, side-effect-free static representation of the live site navbar for the
- * section-editor preview. The real <Navbar/> is position:fixed and fetches nav/site
- * config on mount, so mounting it inside the modal is impractical — this stand-in
- * mirrors the scrolled navbar's dark-glass look (see .navbar-scrolled in globals.css)
- * and the 100px --navbar-height, purely as a visual spacing reference. Rendered ONLY
- * when the author enables the toggle; it never affects the previewed section itself.
- */
-function PreviewNavbarStandIn() {
-  return (
-    <div
-      aria-hidden="true"
-      className="navbar-scrolled"
-      style={{
-        height: 56,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        position: "relative",
-        borderTopLeftRadius: 8,
-        borderTopRightRadius: 8,
-        marginBottom: -1,
-        gap: 24,
-        color: "#fff",
-        fontSize: 12,
-        letterSpacing: "0.08em",
-      }}
-      title="Static navbar reference — shows where the fixed site navbar sits above this section"
-    >
-      <span style={{ position: "absolute", left: 16, opacity: 0.55, fontSize: 18 }}>
-        <i className="bi bi-list" />
-      </span>
-      <span style={{ fontWeight: 700, textTransform: "uppercase" }}>Your Logo</span>
-      <span style={{ position: "absolute", right: 16, opacity: 0.55 }}>
-        <i className="bi bi-three-dots" />
-      </span>
-    </div>
-  );
-}
-
 export default function FlexibleSectionEditorModal({
   section,
   onSave,
@@ -1383,11 +1342,11 @@ export default function FlexibleSectionEditorModal({
                       Show navbar above section
                     </label>
                   </div>
-                  {previewNavbar && <PreviewNavbarStandIn />}
                   <SectionLivePreview
                     section={designerSection}
                     viewport={previewViewport}
                     onViewportChange={setPreviewViewport}
+                    showNavbar={previewNavbar}
                   />
                 </div>
               </div>
