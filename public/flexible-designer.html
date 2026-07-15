@@ -2970,11 +2970,6 @@ function createBlockPreview(block) {
         vIframe.style.cssText = 'width:100%;height:100%;border:none;pointer-events:none;';
         vIframe.loading = 'lazy';
         wrap.appendChild(vIframe);
-        // Name badge overlay
-        const vBadge = document.createElement('div');
-        vBadge.style.cssText = 'position:absolute;top:4px;left:4px;background:rgba(30,27,75,0.85);color:#a5b4fc;font-size:10px;padding:2px 7px;border-radius:10px;pointer-events:none;white-space:nowrap;max-width:90%;overflow:hidden;text-overflow:ellipsis;';
-        vBadge.textContent = '⚡ ' + (p.voltName || 'Volt');
-        wrap.appendChild(vBadge);
       } else {
         const vContainer = document.createElement('div');
         vContainer.style.cssText = 'width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;';
