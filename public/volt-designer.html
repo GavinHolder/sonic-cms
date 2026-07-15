@@ -5051,7 +5051,8 @@
       if(!layers.length)return;
       var name=prompt('Component name:','My Component');if(!name)return;
       var compData={name:name,elementType:'component',isPublic:false,canvasWidth:state.element.canvasWidth,canvasHeight:state.element.canvasHeight,layers:JSON.parse(JSON.stringify(layers)),states:JSON.parse(JSON.stringify(state.element.states))};
-      fetch('/api/volt-elements',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(compData)})
+      // Real route is /api/volt (not the 404 /api/volt-elements) — else the CMP library is always empty.
+      fetch('/api/volt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(compData)})
         .then(function(r){return r.json();})
         .then(function(d){if(d.success||d.data)alert('Component "'+name+'" saved!');else alert('Error: '+(d.error||'Unknown'));})
         .catch(function(){alert('Failed to save component');});
@@ -5077,32 +5078,43 @@
       _cmpPanel.style.cssText='position:fixed;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,0.14);z-index:9999;padding:10px;width:280px;max-height:400px;overflow-y:auto;';
       var hdr=document.createElement('div');hdr.style.cssText='font-size:10px;font-weight:700;color:#374151;margin-bottom:8px;letter-spacing:0.5px;text-transform:uppercase;';hdr.textContent='Components';_cmpPanel.appendChild(hdr);
       var loading=document.createElement('div');loading.style.cssText='text-align:center;padding:20px;color:#94a3b8;font-size:11px;';loading.textContent='Loading...';_cmpPanel.appendChild(loading);
-      // Fetch components
-      fetch('/api/volt-elements?type=component')
+      // Fetch components — the real route is /api/volt (the old /api/volt-elements 404'd,
+      // whose HTML body broke r.json() → the "Failed to load" catch). Same-origin fetch sends
+      // the admin auth cookie. Response shape: { data: { volts: [...] } }; components are volts
+      // saved with elementType==='component'. public=true also surfaces shared components.
+      fetch('/api/volt?public=true')
         .then(function(r){return r.json();})
         .then(function(d){
           loading.remove();
-          var items=(d.data||d||[]).filter(function(e){return e.elementType==='component';});
+          var items=((d&&d.data&&d.data.volts)||[]).filter(function(e){return e.elementType==='component';});
           if(!items.length){var empty=document.createElement('div');empty.style.cssText='text-align:center;padding:20px;color:#94a3b8;font-size:11px;';empty.textContent='No components yet. Right-click layers → Save as Component.';_cmpPanel.appendChild(empty);return;}
           items.forEach(function(comp){
             var card=document.createElement('div');card.style.cssText='padding:8px;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:6px;cursor:pointer;transition:background 0.1s;';
             card.addEventListener('mouseenter',function(){card.style.background='#f0f4ff';});
             card.addEventListener('mouseleave',function(){card.style.background='';});
             var nm=document.createElement('div');nm.style.cssText='font-size:11px;font-weight:600;color:#334155;';nm.textContent=comp.name;
-            var info=document.createElement('div');info.style.cssText='font-size:9px;color:#94a3b8;';info.textContent=(comp.layers||[]).length+' layers';
+            var info=document.createElement('div');info.style.cssText='font-size:9px;color:#94a3b8;';info.textContent=(comp.canvasWidth||0)+'×'+(comp.canvasHeight||0);
             card.appendChild(nm);card.appendChild(info);
             card.addEventListener('click',function(){
-              // Insert component layers as copies
-              pushHistory();
-              var maxZ=state.element.layers.reduce(function(m,x){return Math.max(m,x.zIndex||0);},0);
-              (comp.layers||[]).forEach(function(l,i){
-                var copy=JSON.parse(JSON.stringify(l));
-                copy.id=nanoid();copy.zIndex=maxZ+1+i;
-                copy.componentRef={componentId:comp.id};
-                state.element.layers.push(copy);
-              });
-              markDirty();renderAll();
-              _cmpPanel.remove();_cmpPanel=null;
+              // The list endpoint omits `layers` for payload size — fetch the full component
+              // by id, then insert its layers as copies.
+              fetch('/api/volt/'+comp.id)
+                .then(function(r){return r.json();})
+                .then(function(cd){
+                  var full=cd&&cd.data&&cd.data.volt;var compLayers=(full&&full.layers)||[];
+                  if(!compLayers.length)return;
+                  pushHistory();
+                  var maxZ=state.element.layers.reduce(function(m,x){return Math.max(m,x.zIndex||0);},0);
+                  compLayers.forEach(function(l,i){
+                    var copy=JSON.parse(JSON.stringify(l));
+                    copy.id=nanoid();copy.zIndex=maxZ+1+i;
+                    copy.componentRef={componentId:comp.id};
+                    state.element.layers.push(copy);
+                  });
+                  markDirty();renderAll();
+                })
+                .catch(function(){});
+              if(_cmpPanel){_cmpPanel.remove();_cmpPanel=null;}
             });
             _cmpPanel.appendChild(card);
           });
