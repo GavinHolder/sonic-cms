@@ -1195,6 +1195,39 @@
     .xyslider-row input[type=number] { width:58px; font-size:12px; font-weight:700; color:#0d6efd; border:1px solid #dee2e6; border-radius:4px; padding:2px 5px; text-align:right; -moz-appearance:textfield; }
     .xyslider-row input[type=number]::-webkit-outer-spin-button, .xyslider-row input[type=number]::-webkit-inner-spin-button { -webkit-appearance:none; }
 
+    /* ── RIGHT-PANEL PROPERTY-INSPECTOR OVERFLOW FIX (#68) ───────────────
+       Every property row + control must fit inside the fixed-width side panel.
+       Root causes fixed: (1) width:100%/padding controls (css-editor, action-btn,
+       inputs) lacked box-sizing:border-box so padding pushed them past the edge;
+       (2) flex rows (slider + number/value pairs, colour row) had children with
+       the default min-width:auto, so the slider refused to shrink and its
+       trailing input/value was clipped off the right edge.
+       Fix = scope box-sizing:border-box to the panel, let the SLIDER shrink
+       (min-width:0), and pin the trailing number/value at its small fixed size.
+       CSS-only; no control behaviour, values or JS touched. */
+    .right-sidebar, .right-sidebar * { box-sizing: border-box; }
+    .right-sidebar .props-section { max-width: 100%; }
+    .props-row, .xyslider-row, .color-row { min-width: 0; max-width: 100%; }
+    /* The range slider / text / select is the flexible element — allow it to
+       shrink below its content width instead of overflowing the row. */
+    .props-row .props-input,
+    .props-row .props-select,
+    .props-row .hex-in,
+    .color-row .props-input,
+    .color-row .hex-in,
+    .xyslider-row input[type=range] { min-width: 0; flex-shrink: 1; }
+    /* Trailing numeric companion + value read-out keep their small fixed size. */
+    .props-row .props-num,
+    .props-row .val,
+    .xyslider-row input[type=number] { flex-shrink: 0; }
+    /* Colour swatch stays a fixed square; hex field takes the remaining width. */
+    .color-row input[type="color"],
+    .color-null-swatch,
+    .color-token-swatch { flex-shrink: 0; }
+    /* Full-width controls honour the padded container instead of spilling over. */
+    .right-sidebar .css-editor,
+    .right-sidebar .action-btn { max-width: 100%; }
+
     /* ── SECTION CONFIG COLLAPSE ───────────── */
     #section-config-header { cursor:pointer; user-select:none; }
     #section-config-header .sc-chevron { transition:transform 0.2s; font-size:10px; color:#adb5bd; }
