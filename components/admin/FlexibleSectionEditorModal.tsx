@@ -184,6 +184,17 @@ export default function FlexibleSectionEditorModal({
   const [bgMaskStart, setBgMaskStart] = useState<number>(contentAny?.bgMaskStart ?? 0);
   const [bgMaskEnd, setBgMaskEnd] = useState<number>(contentAny?.bgMaskEnd ?? 100);
 
+  // Background VOLT ("Volt Type = Background", Phase 2c) — id of a background-type
+  // VoltElement selected as this section's background. Persisted inside content JSONB
+  // at content.backgroundVoltId (round-trips via save, no API/schema change). null = none.
+  // Distinct from voltElementId (full-bleed Volt block). Rendering is Phase 2d.
+  const [backgroundVoltId, setBackgroundVoltId] = useState<string | null>(
+    contentAny?.backgroundVoltId ?? null
+  );
+  const [bgVolts, setBgVolts] = useState<Array<{ id: string; name: string; thumbnail?: string | null }>>([]);
+  const [bgVoltsLoading, setBgVoltsLoading] = useState(false);
+  const [bgVoltsError, setBgVoltsError] = useState(false);
+
   // ── Motion Elements + Lower Third ────────────────────────────
   const [motionElements, setMotionElements] = useState<MotionElement[]>(
     (section as any).motionElements ?? []
@@ -284,6 +295,8 @@ export default function FlexibleSectionEditorModal({
         bgMaskDirection,
         bgMaskStart,
         bgMaskEnd,
+        // Background VOLT reference (#Phase 2c) — round-trips via content JSONB
+        backgroundVoltId,
         ...(overlayEnabled ? { overlay: { heading: overlayHeading, subheading: overlaySubheading, animation: overlayAnimation, position: overlayPosition } } : {}),
         animBg,
         scrollStage,
@@ -357,6 +370,25 @@ export default function FlexibleSectionEditorModal({
     window.addEventListener("message", handleDesignerMessage);
     return () => window.removeEventListener("message", handleDesignerMessage);
   }, [handleDesignerMessage]);
+
+  // ── Background Volt picker (#Phase 2c) — fetch background-type volts once ──
+  useEffect(() => {
+    let cancelled = false;
+    setBgVoltsLoading(true);
+    setBgVoltsError(false);
+    fetch("/api/volt?public=true")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("volt fetch failed"))))
+      .then(({ data }) => {
+        if (cancelled) return;
+        const list = (data?.volts ?? [])
+          .filter((v: any) => v?.voltType === "background")
+          .map((v: any) => ({ id: v.id, name: v.name, thumbnail: v.thumbnail }));
+        setBgVolts(list);
+      })
+      .catch(() => { if (!cancelled) setBgVoltsError(true); })
+      .finally(() => { if (!cancelled) setBgVoltsLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   // ── Designer block helpers ─────────────────────────────────────
   const toggleBlockExpand = (id: string | number) => {
@@ -946,6 +978,71 @@ export default function FlexibleSectionEditorModal({
                       )}
                     </>
                   )}
+
+                  {/* Section Background Volt (#Phase 2c) — pick a background-type Volt as the section bg */}
+                  <hr className="my-4" />
+                  <h6 className="fw-bold mb-2">
+                    <i className="bi bi-stars me-2" />Section Background Volt
+                  </h6>
+                  <p className="text-muted small mb-3">
+                    Use a Volt design (Volt Type = Background) as this section&apos;s background layer.
+                    Only Volts saved with the <strong>Background</strong> type are shown.
+                  </p>
+                  {bgVoltsLoading ? (
+                    <div className="text-muted small mb-3"><i className="bi bi-hourglass-split me-2" />Loading background Volts…</div>
+                  ) : bgVoltsError ? (
+                    <div className="alert alert-warning small py-2 mb-3">
+                      <i className="bi bi-exclamation-triangle me-2" />Could not load Volts. Try reopening this tab.
+                    </div>
+                  ) : (
+                    <div className="d-flex flex-wrap gap-2 mb-2">
+                      {/* None / clear option */}
+                      <button
+                        type="button"
+                        onClick={() => setBackgroundVoltId(null)}
+                        title="No background Volt"
+                        className="border rounded d-flex flex-column align-items-center justify-content-center p-0 bg-light"
+                        style={{ width: 110, height: 92, cursor: "pointer", outline: backgroundVoltId == null ? "3px solid #2563eb" : "1px solid #dee2e6", outlineOffset: 2 }}
+                      >
+                        <i className="bi bi-slash-circle fs-4 text-muted" />
+                        <span className="small text-muted mt-1">None</span>
+                      </button>
+                      {bgVolts.map((v) => (
+                        <button
+                          key={v.id}
+                          type="button"
+                          onClick={() => setBackgroundVoltId(v.id)}
+                          title={v.name}
+                          className="border rounded d-flex flex-column align-items-center justify-content-end p-0 overflow-hidden position-relative"
+                          style={{ width: 110, height: 92, cursor: "pointer", outline: backgroundVoltId === v.id ? "3px solid #2563eb" : "1px solid #dee2e6", outlineOffset: 2, backgroundColor: "#0b1020" }}
+                        >
+                          {v.thumbnail ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={v.thumbnail} alt={v.name} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                          ) : (
+                            <i className="bi bi-stars position-absolute top-50 start-50 translate-middle fs-4 text-light opacity-50" />
+                          )}
+                          <span className="small text-white text-truncate w-100 px-1 py-1" style={{ background: "linear-gradient(transparent, rgba(0,0,0,0.75))", position: "relative", zIndex: 1 }}>
+                            {v.name}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {!bgVoltsLoading && !bgVoltsError && bgVolts.length === 0 && (
+                    <div className="text-muted small mb-2">
+                      <i className="bi bi-info-circle me-2" />No background Volts yet. Create one in Volt Studio with Volt Type set to <strong>Background</strong>.
+                    </div>
+                  )}
+                  {backgroundVoltId && (
+                    <div className="small text-success mb-2">
+                      <i className="bi bi-check-circle me-1" />Background Volt selected.
+                      <button type="button" className="btn btn-link btn-sm p-0 ms-2 align-baseline" onClick={() => setBackgroundVoltId(null)}>Clear</button>
+                    </div>
+                  )}
+                  <div className="alert alert-info small py-2 mb-0">
+                    <i className="bi bi-info-circle me-2" />Live rendering of the background Volt arrives in a later phase — the selection is saved now.
+                  </div>
 
                   {/* Gradient */}
                   {backgroundType === "gradient" && (
