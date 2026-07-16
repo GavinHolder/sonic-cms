@@ -7322,8 +7322,8 @@ function fontFamilyRow(label, currentVal, bId, sId) {
     <label style="margin-bottom:2px;">${label}</label>
     <select id="ff-sel-${safeId}" class="props-select" onchange="onDesignerFontChange('${bId}','${sId}','${safeId}',this.value)">${opts}</select>
     <div style="display:flex;gap:4px;">
-      <input id="ff-in-${safeId}" class="props-input" type="text" placeholder="Install any Google Font name..." style="flex:1;font-size:11px;">
-      <button class="action-btn" style="padding:3px 8px;font-size:11px;white-space:nowrap;" onclick="installDesignerFont('${bId}','${sId}','${safeId}')">+ Install</button>
+      <input id="ff-in-${safeId}" class="props-input" type="text" placeholder="Install any Google Font name..." style="flex:1 1 auto;min-width:80px;font-size:11px;">
+      <button class="action-btn" style="flex:0 0 auto;width:auto;padding:3px 8px;font-size:11px;white-space:nowrap;" onclick="installDesignerFont('${bId}','${sId}','${safeId}')">+ Install</button>
     </div>
   </div>`;
 }
