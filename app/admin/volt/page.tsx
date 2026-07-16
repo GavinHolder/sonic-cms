@@ -140,13 +140,14 @@ function VoltLibrary() {
           isPublic: element.isPublic,
           mood: element.mood,
           elementType: element.elementType,
+          voltType: element.voltType ?? "standard",
           thumbnail: element.thumbnail,
           flipCard: element.flipCard ?? null,
           designerData: element,
         }),
       });
       if (!res.ok) { toast.error("Failed to save Volt"); return; }
-      setVolts(v => v.map(x => x.id === element.id ? { ...x, name: element.name, isPublic: element.isPublic, mood: element.mood ?? null, elementType: element.elementType, thumbnail: element.thumbnail ?? x.thumbnail } : x));
+      setVolts(v => v.map(x => x.id === element.id ? { ...x, name: element.name, isPublic: element.isPublic, mood: element.mood ?? null, elementType: element.elementType, voltType: element.voltType ?? "standard", thumbnail: element.thumbnail ?? x.thumbnail } : x));
     } catch { toast.error("Failed to save Volt"); }
   }
 
