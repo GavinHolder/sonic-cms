@@ -489,8 +489,17 @@
        ONLY to volt blocks with the "use as background" toggle ON (class added in
        createBlockElement); all other blocks are untouched. Geometry (absolute inset:0,
        100%x100%) is set inline in createBlockElement. */
-    .container-block.cb-fullbleed { border: 0; border-radius: 0; }
+    .container-block.cb-fullbleed { border: 0; border-radius: 0; box-shadow: none; outline: 0; }
     .container-block.cb-fullbleed > .cb-content { padding: 0; border-radius: 0; }
+    /* Selection/hover box-shadow ring would sit at the canvas edge (clipped) and read as a
+       uniform gap around the volt — suppress it for the full-bleed background layer. */
+    .container-block.cb-fullbleed:hover,
+    .container-block.cb-fullbleed.selected,
+    .container-block.cb-fullbleed.editing { box-shadow: none; }
+    /* Header chrome overlays the top edge (absolute) instead of consuming flex-column
+       height, so the volt content starts at the very top canvas edge (no top gap).
+       It still appears on hover/selection as the drag handle + remove button. */
+    .container-block.cb-fullbleed > .cb-header { position: absolute; top: 0; left: 0; right: 0; width: 100%; z-index: 3; }
     /* + add sub-element button in header */
     .cb-add-sub {
       margin-left: auto;
