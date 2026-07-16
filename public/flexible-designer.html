@@ -483,6 +483,14 @@
     .container-block.type-text-block:hover { border: 2px dashed rgba(13,110,253,0.35); box-shadow: none; }
     .container-block.type-text-block.selected { border: 2px dashed #20c997; box-shadow: 0 0 0 3px rgba(32,201,151,0.15); }
     .container-block.type-text-block.editing  { border: 2px dashed #ffc107; box-shadow: 0 0 0 3px rgba(255,193,7,0.2); }
+    /* Full-bleed volt background layer: strip the block frame + content padding so the
+       volt iframe reaches the canvas edges (cover-crop, no gaps), mirroring the live page
+       where a full-bleed volt is a section child at inset:0 behind the content. Applied
+       ONLY to volt blocks with the "use as background" toggle ON (class added in
+       createBlockElement); all other blocks are untouched. Geometry (absolute inset:0,
+       100%x100%) is set inline in createBlockElement. */
+    .container-block.cb-fullbleed { border: 0; border-radius: 0; }
+    .container-block.cb-fullbleed > .cb-content { padding: 0; border-radius: 0; }
     /* + add sub-element button in header */
     .cb-add-sub {
       margin-left: auto;
@@ -2733,7 +2741,19 @@ function createBlockElement(block) {
   // (clickable in any area not covered by a block above it, and via the Layers panel);
   // toggling full-bleed OFF restores its normal stacking (block.zIndex||1).
   const _zIndex = block.props.fullBleed ? 0 : (block.zIndex || 1);
-  el.style.cssText = `left:${_dp.x}px;top:${_dp.y}px;width:${_dp.w}px;height:${_dp.h}px;z-index:${_zIndex};background:${_bg};${_glass !== 'none' ? 'backdrop-filter:blur(12px);' : ''}`;
+  // Full-bleed volt breaks OUT of its grid cell AND section/content padding to cover the
+  // WHOLE canvas content box (absolute inset:0, 100%x100%) as a background layer, exactly
+  // like the live page where the volt is a section child at inset:0 behind the content
+  // (cover fit, ignores paddingTop/paddingBottom). The .cb-fullbleed class strips the block
+  // frame + content padding so the iframe reaches the canvas edges with no gaps. It stays a
+  // real, selectable/editable block (click any uncovered area, Layers panel, drag handles).
+  // Non-full-bleed blocks keep their exact grid-cell geometry (_dp) — byte-for-byte as before.
+  const _isFullBleed = !!block.props.fullBleed;
+  if (_isFullBleed) el.classList.add('cb-fullbleed');
+  const _geom = _isFullBleed
+    ? 'left:0;top:0;width:100%;height:100%;'
+    : `left:${_dp.x}px;top:${_dp.y}px;width:${_dp.w}px;height:${_dp.h}px;`;
+  el.style.cssText = `${_geom}z-index:${_zIndex};background:${_bg};${_glass !== 'none' ? 'backdrop-filter:blur(12px);' : ''}`;
   // Apply selection / editing visual states.
   const _hasChildren = block.subElements?.length > 0;
   // Organizational-parent model: a block WITH children renders no canvas box or
@@ -6331,11 +6351,26 @@ function setVoltFullBleed(bId, checked) {
   b.props.fullBleed = !!checked;
   autoSave();
   refreshVoltIframe(bId);
-  // Reflect the new stacking immediately: full-bleed → z-index 0 (behind other blocks),
-  // off → restore normal stacking (block.zIndex||1). Updates the wrapper directly so the
-  // volt iframe is NOT reloaded (no full re-render). Mirrors createBlockElement's rule.
+  // Reflect the new stacking AND geometry immediately (no full re-render → iframe already
+  // reloaded by refreshVoltIframe above to swap fit=contain/cover). Mirrors createBlockElement:
+  //  • ON  → z-index 0 (behind other blocks) + .cb-fullbleed frame strip + cover the WHOLE
+  //          canvas (inset:0, 100%x100%), so the volt fills edge-to-edge like the live page.
+  //  • OFF → restore normal stacking (block.zIndex||1) + drop the class + snap back to the
+  //          block's grid-cell geometry (getDisplayPos), i.e. a normal in-grid volt.
   const _el = document.querySelector('.container-block[data-block-id="' + bId + '"]');
-  if (_el) _el.style.zIndex = checked ? '0' : String(b.zIndex || 1);
+  if (_el) {
+    _el.style.zIndex = checked ? '0' : String(b.zIndex || 1);
+    if (checked) {
+      _el.classList.add('cb-fullbleed');
+      _el.style.left = '0'; _el.style.top = '0';
+      _el.style.width = '100%'; _el.style.height = '100%';
+    } else {
+      _el.classList.remove('cb-fullbleed');
+      const _dp = getDisplayPos(b);
+      _el.style.left = _dp.x + 'px'; _el.style.top = _dp.y + 'px';
+      _el.style.width = _dp.w + 'px'; _el.style.height = _dp.h + 'px';
+    }
+  }
 }
 
 // ── Volt layer override helpers ────────────────────────────────────────────────
