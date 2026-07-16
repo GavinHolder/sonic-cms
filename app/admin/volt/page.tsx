@@ -23,11 +23,27 @@ interface VoltListItem {
   name: string;
   mood?: string | null;
   elementType: string;
+  voltType?: string | null;
   isPublic: boolean;
   authorId: string;
   thumbnail?: string | null;
   updatedAt: string;
 }
+
+// ── Volt Type badge/filter metadata (Phase 2b) ───────────────────────────────
+// voltType values: 'standard' | 'background' | 'card' | 'banner' (absent = 'standard')
+const VOLT_TYPE_META: Record<string, { label: string; className: string }> = {
+  standard: { label: "Standard", className: "text-secondary border border-secondary-subtle" },
+  background: { label: "Background", className: "text-primary border border-primary-subtle" },
+  card: { label: "Card", className: "text-info border border-info-subtle" },
+  banner: { label: "Banner", className: "text-warning border border-warning-subtle" },
+};
+
+function normVoltType(t?: string | null): string {
+  return t && VOLT_TYPE_META[t] ? t : "standard";
+}
+
+const VOLT_TYPE_FILTERS = ["all", "background", "card", "banner", "standard"] as const;
 
 // Shell: AdminLayout provides ToastProvider + sidebar
 export default function VoltAdminPage() {
@@ -52,6 +68,7 @@ function VoltLibrary() {
   const [userId, setUserId] = useState("");
   const [loading, setLoading] = useState(true);
   const [editingElement, setEditingElement] = useState<VoltElementData | null>(null);
+  const [typeFilter, setTypeFilter] = useState<string>("all");
 
   useEffect(() => {
     async function load() {
@@ -157,9 +174,25 @@ function VoltLibrary() {
   }
 
   // ── Library view ─────────────────────────────────────────────────────────────
+  const filteredVolts = typeFilter === "all"
+    ? volts
+    : volts.filter(v => normVoltType(v.voltType) === typeFilter);
+
   return (
     <div>
-      <div className="d-flex justify-content-end mb-4">
+      <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+        <div className="btn-group btn-group-sm" role="group" aria-label="Filter by Volt type">
+          {VOLT_TYPE_FILTERS.map(key => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setTypeFilter(key)}
+              className={`btn ${typeFilter === key ? "btn-primary" : "btn-outline-secondary"}`}
+            >
+              {key === "all" ? "All" : VOLT_TYPE_META[key].label}
+            </button>
+          ))}
+        </div>
         <button onClick={handleNew} className="btn btn-primary btn-sm">
           <i className="bi bi-plus-lg me-1" />New Design
         </button>
@@ -181,9 +214,17 @@ function VoltLibrary() {
             </button>
           </div>
         </div>
+      ) : filteredVolts.length === 0 ? (
+        <div className="card shadow-sm">
+          <div className="card-body text-center py-5">
+            <i className="bi bi-funnel display-4 text-muted" style={{ opacity: 0.3 }} />
+            <h6 className="mt-3">No {VOLT_TYPE_META[typeFilter]?.label ?? ""} designs</h6>
+            <p className="text-muted small mb-0">Try a different type filter</p>
+          </div>
+        </div>
       ) : (
         <div className="row g-3">
-          {volts.map(volt => (
+          {filteredVolts.map(volt => (
             <div key={volt.id} className="col-md-4 col-lg-3">
               <div className="card h-100 shadow-sm">
                 <div className="card-img-top d-flex align-items-center justify-content-center overflow-hidden" style={{ height: 130, background: "#f8f9fa", position: "relative" }}>
@@ -206,6 +247,9 @@ function VoltLibrary() {
                         {volt.mood}
                       </span>
                     )}
+                    <span className={`badge rounded-pill ${VOLT_TYPE_META[normVoltType(volt.voltType)].className}`} style={{ fontSize: "0.6875rem" }}>
+                      {VOLT_TYPE_META[normVoltType(volt.voltType)].label}
+                    </span>
                     <span className={`badge rounded-pill ${volt.isPublic ? "text-success border border-success-subtle" : "text-secondary border border-secondary-subtle"}`} style={{ fontSize: "0.6875rem" }}>
                       {volt.isPublic ? "Public" : "Private"}
                     </span>
