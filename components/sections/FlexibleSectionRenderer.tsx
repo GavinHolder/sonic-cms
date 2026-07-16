@@ -461,6 +461,12 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   const bgImageRepeat   = (section as any).bgImageRepeat   as string | undefined;
   const bgImageOpacity  = (section as any).bgImageOpacity  as number | undefined;
 
+  // Background VOLT (Volt Type = Background, Phase 1 data at content.backgroundVoltId) —
+  // a volt chosen in the Background tab, drawn as a section-level background layer below.
+  // Distinct from voltElementId/SectionVolt (whole-section volt) and from the per-block
+  // props.fullBleed volt — this is purely the section's background surface.
+  const backgroundVoltId = (content as any).backgroundVoltId as string | undefined;
+
   // Inject shared card/animation CSS once — avoids duplicate <style> tags on re-renders
   useEffect(() => {
     if (styleInjected) return;
@@ -559,6 +565,20 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           stays on the image layer above, untouched. */}
       {gradCss && (
         <div aria-hidden="true" style={{ position: "absolute", inset: 0, zIndex: bgImageUrl ? 1 : 0, background: gradCss, pointerEvents: "none" }} />
+      )}
+
+      {/* Background VOLT layer (Volt Type = Background) — the volt selected in the Background
+          tab (content.backgroundVoltId) drawn as a SECTION-LEVEL background: absolute inset:0
+          over the whole section at z-index 2 — ABOVE the section bg colour/gradient/image (0/1),
+          BELOW the z-11 content wrapper — so content blocks automatically sit on top. VoltBlock
+          fitMode "cover" fills it edge-to-edge (mirrors FullBleedVoltLayer). Same code path for
+          the live page, the /admin/section-preview (DynamicSection) preview, and the designer,
+          so all three match. Default-off: sections without content.backgroundVoltId are unchanged.
+          Distinct from the per-block props.fullBleed volt layer below and from voltElementId. */}
+      {backgroundVoltId && (
+        <div aria-hidden="true" style={{ position: "absolute", inset: 0, overflow: "hidden", zIndex: 2, pointerEvents: "none" }}>
+          <VoltBlock voltId={backgroundVoltId} fitMode="cover" />
+        </div>
       )}
 
       {/* Full-bleed volt background layer(s) — a volt block flagged props.fullBleed is
