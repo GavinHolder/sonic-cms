@@ -332,6 +332,7 @@ model VoltElement {
   description  String?
   mood         String?
   elementType  String      @default("custom")
+  voltType     String?     @default("standard")
   isPublic     Boolean     @default(false)
   authorId     String
   layers       Json        @default("[]")

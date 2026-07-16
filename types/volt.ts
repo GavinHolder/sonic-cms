@@ -593,6 +593,13 @@ export interface VoltElementData {
   description?: string
   mood?: VoltMood
   elementType: string
+  /**
+   * Whole-volt designation used by the Library to filter volts by purpose.
+   * 'background' volts can be selected as a section background layer.
+   * Undefined/absent is treated as 'standard'. Persisted in the
+   * VoltElement.voltType column (nullable, defaults to 'standard').
+   */
+  voltType?: 'standard' | 'background' | 'card' | 'banner'
   isPublic: boolean
   authorId: string
   thumbnail?: string | null

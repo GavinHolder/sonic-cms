@@ -251,6 +251,14 @@ export interface BaseSectionConfig {
   bgMaskStart?: number; // 0-100, % where the image is still fully opaque (black stop). Default 0
   bgMaskEnd?: number; // 0-100, % where the image is fully transparent. Default 100
 
+  // Background VOLT reference ("Volt Type = Background" feature) — id of a VoltElement
+  // (voltType === "background") selected as this section's background layer. Rendered
+  // as the section bg by Phase 2. Persisted inside `content` JSONB at
+  // `content.backgroundVoltId` (no schema column — round-trips via body.content,
+  // same pattern as bgMask*). Undefined/null = no background volt (back-compat).
+  // NOTE: distinct from the full-bleed Volt block (Section.voltElementId column).
+  backgroundVoltId?: string | null;
+
   // Section color theme / palette
   colorPalette?: string[]; // Array of 5 hex colors
   colorPaletteHarmony?: string; // Harmony type used to generate

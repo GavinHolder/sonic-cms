@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
         description: true,
         mood: true,
         elementType: true,
+        voltType: true,
         isPublic: true,
         authorId: true,
         thumbnail: true,
@@ -71,6 +72,7 @@ export async function POST(request: NextRequest) {
       description,
       mood,
       elementType,
+      voltType,
       isPublic,
       layers,
       slots,
@@ -90,6 +92,7 @@ export async function POST(request: NextRequest) {
         description: description ?? null,
         mood: mood ?? null,
         elementType: elementType ?? "custom",
+        voltType: voltType ?? "standard",
         // Volts are available everywhere (blocks + live site) by default so a
         // freshly-created design renders immediately. Only an explicit
         // isPublic:false from the caller keeps it private.
