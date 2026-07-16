@@ -557,7 +557,7 @@
     'use strict';
     // ── State ─────────────────────────────────────────────────────────────────
     var state={
-      element:{id:'',name:'New Design',mood:null,elementType:'custom',isPublic:false,authorId:'',layers:[],states:[],tags:[],canvasWidth:800,canvasHeight:500},
+      element:{id:'',name:'New Design',mood:null,elementType:'custom',voltType:'standard',isPublic:false,authorId:'',layers:[],states:[],tags:[],canvasWidth:800,canvasHeight:500},
       activeTool:'select',selectedLayerId:null,boolBaseId:null,vertexEditLayerId:null,
       boolEditParentId:null,   // composite layer being edited (shows/moves its cutters)
       multiSelectIds:[],       // layers selected by marquee
@@ -2851,6 +2851,25 @@
         tiltSec.appendChild(tiltControls);body.appendChild(tiltSec);
         // Bind flip card events
         tiltChk.addEventListener('change',function(){pushHistory();state.element.tiltEnabled=tiltChk.checked;markDirty();renderProps();});
+        // ── Volt Type section ──────────────────────────────────────────────────
+        // Whole-volt type controls how this volt composes on a page (Standard/Background/Card/Banner).
+        // Bound to state.element.voltType (absent = 'standard'). Persisted via buildPayload; loaded via Object.assign in the LOAD handler.
+        var vtSec=mkSec();
+        var vtHdr=document.createElement('div');vtHdr.style.cssText='font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;';vtHdr.textContent='Volt Type';
+        vtSec.appendChild(vtHdr);
+        var vtSel=document.createElement('select');vtSel.className='form-select form-select-sm';vtSel.id='volt-type';
+        var _curVt=state.element.voltType||'standard';
+        [['standard','Standard'],['background','Background'],['card','Card'],['banner','Banner']].forEach(function(pair){var o=document.createElement('option');o.value=pair[0];o.textContent=pair[1];if(_curVt===pair[0])o.selected=true;vtSel.appendChild(o);});
+        vtSec.appendChild(vtSel);
+        var vtHint=document.createElement('div');vtHint.style.cssText='font-size:10px;color:#6c757d;margin-top:4px;';vtHint.textContent='How this volt composes on a page. "Background" clears the artboard to None so it fills behind content.';vtSec.appendChild(vtHint);
+        body.appendChild(vtSec);
+        vtSel.addEventListener('change',function(){
+          pushHistory();
+          var _v=vtSel.value;state.element.voltType=_v;
+          // Only auto-clear on switching TO Background; never fight the user if they later change the artboard bg back.
+          if(_v==='background'){state.element.canvasBackground='transparent';var _abvt=document.getElementById('artboard');if(_abvt)_abvt.style.background='transparent';}
+          markDirty();renderProps();
+        });
         // ── Artboard Background section ────────────────────────────────────────
         var bgSec=mkSec();
         var bgHdr=document.createElement('div');bgHdr.style.cssText='font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;';bgHdr.textContent='Artboard Background';
@@ -5625,7 +5644,7 @@
     // async: awaits captureThumbnail() so the posted payload carries the inlined-image thumbnail.
     async function buildPayload(){
       var thumbnail=await captureThumbnail();
-      return {id:state.element.id,name:state.element.name,mood:state.element.mood,elementType:state.element.elementType,isPublic:state.element.isPublic,layers:state.element.layers,states:state.element.states||[],canvasWidth:state.element.canvasWidth,canvasHeight:state.element.canvasHeight,flipCard:state.element.flipCard||null,canvasOverflow:state.element.canvasOverflow||null,carousel:state.element.carousel||null,thumbnail:thumbnail};
+      return {id:state.element.id,name:state.element.name,mood:state.element.mood,elementType:state.element.elementType,voltType:state.element.voltType||'standard',isPublic:state.element.isPublic,layers:state.element.layers,states:state.element.states||[],canvasWidth:state.element.canvasWidth,canvasHeight:state.element.canvasHeight,flipCard:state.element.flipCard||null,canvasOverflow:state.element.canvasOverflow||null,carousel:state.element.carousel||null,thumbnail:thumbnail};
     }
     document.getElementById('btn-save').addEventListener('click',function(){buildPayload().then(function(payload){if(window.parent&&window.parent!==window)window.parent.postMessage({type:'VOLT_DESIGNER_SAVE',payload:payload},'*');markClean();});});
     document.getElementById('btn-done').addEventListener('click',function(){buildPayload().then(function(payload){if(window.parent&&window.parent!==window)window.parent.postMessage({type:'VOLT_DESIGNER_DONE',payload:payload},'*');});});
