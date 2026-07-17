@@ -386,6 +386,13 @@ const MOSAIC_PRESETS: Record<string, [number, number]> = {
 let styleInjected = false;
 
 /**
+ * Fixed design-box height (px) for NEW free-mode sections — the vertical half of the
+ * 1440×DESIGN_H cover plate (mirrors flexible-designer.html's DESKTOP_CANVAS_W / DESIGN_H).
+ * EXISTING sections keep their own saved `designerCanvasH`; this is only the fallback.
+ */
+const DESIGN_H = 900;
+
+/**
  * FlexibleSectionRenderer — top-level section component for the FLEXIBLE section type.
  *
  * Responsibilities:
@@ -437,9 +444,29 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
     } catch { return []; }
   }, [designerData]);
 
+  // ── Free-mode cover-plate detection (Option C) ─────────────────────────────
+  // A free-mode designer section is rendered as ONE cover plate: the bg image + all
+  // blocks live inside a single fixed-px stage that is scaled to COVER the section box
+  // (max(sectionW/1440, sectionH/ch)) — so the live crop equals the designer crop and text
+  // stays registered over the image. Detected here so the parent can (a) skip the separate
+  // section-level bg-image layer and (b) mount the plate as a section-level absolute layer.
+  // Mirrors DesignerBlocksRenderer's own isFreeMode test; mosaic/empty are excluded.
+  const isFreeDesigner = useMemo(() => {
+    if (!designerData) return false;
+    try {
+      const d = typeof designerData === "string" ? JSON.parse(designerData) : designerData;
+      const free    = d?.positionMode === "free" || d?.layoutType === "free";
+      const mosaic  = (d?.layout as { layoutMode?: string } | undefined)?.layoutMode === "mosaic" || d?.layoutType === "mosaic";
+      const hasBlk  = Array.isArray(d?.blocks) && d.blocks.length > 0;
+      return !!(free && !mosaic && hasBlk);
+    } catch { return false; }
+  }, [designerData]);
+
   // Scroll Stage config — only active when contentMode === "multi" and enabled
   const scrollStage = (content as any).scrollStage as import("./scroll-stage/types").ScrollStageConfig | undefined;
   const scrollStageActive = contentMode === "multi" && scrollStage?.enabled === true && (scrollStage.zones?.length ?? 0) > 0;
+  // Free cover-plate is active only outside scroll-stage (scroll-stage owns its own layout).
+  const freePlateActive = isFreeDesigner && !scrollStageActive;
   // Tracks the current scroll stage zone so content column shows only the active zone's blocks
   const [scrollStageZone, setScrollStageZone] = useState(0);
 
@@ -539,8 +566,10 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
         <span aria-hidden="true" className="cms-section-watermark">{watermarkText}</span>
       )}
 
-      {/* Background image layer — absolute fill, z-index 0, below everything */}
-      {bgImageUrl && (
+      {/* Background image layer — absolute fill, z-index 0, below everything.
+          In free cover-plate mode the bg image is drawn INSIDE the plate instead (so
+          image + text share one scaled box and crop identically), so it is skipped here. */}
+      {bgImageUrl && !freePlateActive && (
         <div
           aria-hidden="true"
           style={{
@@ -554,6 +583,29 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
             opacity: (bgImageOpacity ?? 100) / 100,
             ...(bgMaskCss ? { maskImage: bgMaskCss, WebkitMaskImage: bgMaskCss } : {}),
             pointerEvents: "none",
+          }}
+        />
+      )}
+
+      {/* Free-mode COVER PLATE (Option C) — section-level layer holding the bg image +
+          every block in one fixed-px stage, scaled to COVER the section box. Mounted here
+          (a direct child of the position:relative <section>) so it fills the true 100vh —
+          NOT inside the padded .section-content-wrapper — which is what makes the live crop
+          equal the designer canvas crop. Desktop only; on mobile this instance renders null
+          and the in-wrapper instance below owns the mobile reading-stack reflow (untouched).
+          pointerEvents are re-enabled on the inner stage so links/buttons stay clickable. */}
+      {freePlateActive && (
+        <DesignerBlocksRenderer
+          designerData={designerData!}
+          darkBg={darkBg}
+          plateMode
+          bgImage={{
+            url: bgImageUrl,
+            size: bgImageSize,
+            position: bgImagePosition,
+            repeat: bgImageRepeat,
+            opacity: bgImageOpacity,
+            maskCss: bgMaskCss,
           }}
         />
       )}
@@ -1366,7 +1418,18 @@ function FullBleedVoltLayer({ props: p }: { props: Record<string, unknown> }) {
   );
 }
 
-function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { designerData: string | Record<string, unknown>; darkBg: boolean; scrollStageZone?: number }) {
+function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMode, bgImage }: {
+  designerData: string | Record<string, unknown>;
+  darkBg: boolean;
+  scrollStageZone?: number;
+  // plateMode: this is the SECTION-LEVEL free cover-plate instance (desktop). It owns the
+  // desktop free render (bg image + blocks in one COVER-scaled box) and returns null on
+  // mobile. The default (plateMode falsy) in-wrapper instance is the inverse: null on
+  // desktop free, mobile reading-stack on mobile. Together they never double-render.
+  plateMode?: boolean;
+  // bgImage: section background image fields, drawn INSIDE the plate (free cover-plate only).
+  bgImage?: { url?: string; size?: string; position?: string; repeat?: string; opacity?: number; maskCss?: string | null };
+}) {
   // Hooks must be called before any conditional returns
   const [screenW, setScreenW] = useState(typeof window !== "undefined" ? window.innerWidth : 1440);
   // Update screen width on resize so responsive positions re-calculate
@@ -1379,12 +1442,16 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
   // live section is a pixel-exact scaled copy of the designer canvas (see free-mode branch).
   const stageRef = useRef<HTMLDivElement>(null);
   const [stageW, setStageW] = useState(0);
+  // stageH is only consumed by the free cover-plate (plateMode) — it measures the SECTION
+  // box height so the plate can be COVER-scaled (max of width/height ratios), not width-only.
+  const [stageH, setStageH] = useState(0);
   useEffect(() => {
     const el = stageRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(() => setStageW(el.clientWidth));
+    const ro = new ResizeObserver(() => { setStageW(el.clientWidth); setStageH(el.clientHeight); });
     ro.observe(el);
     setStageW(el.clientWidth);
+    setStageH(el.clientHeight);
     return () => ro.disconnect();
   }, []);
   // Mount gate — the free-mode mobile reflow (screenW <= 768) must only apply AFTER
@@ -1554,13 +1621,14 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
     // was the recurring "designer ≠ live" bug.)
     if (isFreeMode) {
       const cw = data.designerCanvasW || 1440;
-      const ch = data.designerCanvasH || 900;
+      const ch = data.designerCanvasH || DESIGN_H;
 
       // ── Mobile: smart, readable reflow (≤768px, post-mount) ─────────────────
-      // Replaces the tiny scaled photograph with a single-column reading-order stack
-      // whose inter-element gaps mirror the design's grouping (adjacent/overlapping
-      // elements stay tight; far-apart ones get a normal gap). See FreeReflowStack.
+      // Single-column reading-order stack — MOBILE IS UNCHANGED by the cover-plate work.
+      // Only the in-wrapper instance (plateMode falsy) owns it; the section-level plate
+      // instance renders nothing on mobile so the stack is never duplicated or clipped.
       if (mounted && screenW <= 768) {
+        if (plateMode) return null;
         return (
           <FreeReflowStack
             blocks={filteredBlocks}
@@ -1571,21 +1639,48 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
         );
       }
 
-      // ── Desktop: 1:1 scaled stage — pixel-exact copy of the designer canvas ─────
-      const scale = (stageW || screenW || cw) / cw;
+      // ── Desktop free = COVER PLATE (Option C) ───────────────────────────────
+      // The section-level plateMode instance draws on desktop; the in-wrapper instance draws
+      // nothing (the plate lives at section level so it fills the true 100vh box, not the
+      // padded content wrapper — that is what makes the live crop equal the designer crop).
+      if (!plateMode) return null;
+      // Scale the fixed cw×ch plate to COVER the measured SECTION box (max of the two axis
+      // ratios), centered + clipped — so the visible crop equals background-size:cover AND the
+      // designer canvas crop. ch = this section's saved designerCanvasH (or DESIGN_H) — the
+      // SAME value the designer authored at, used on BOTH sides → pixel-identical crop.
+      const sw = stageW || (typeof window !== "undefined" ? window.innerWidth : cw);
+      const sh = stageH || (typeof window !== "undefined" ? window.innerHeight : ch);
+      const scale = Math.max(sw / cw, sh / ch);
       return (
         <div ref={stageRef} style={{
-          position: "relative",
-          width: "100%",
-          height: Math.round(ch * scale),
+          position: "absolute",
+          inset: 0,
+          zIndex: 12,
           overflow: "hidden",
+          pointerEvents: "none",
         }}>
           <div style={{
-            position: "absolute", top: 0, left: 0,
+            position: "absolute", left: "50%", top: "50%",
             width: cw, height: ch,
-            transform: `scale(${scale})`,
-            transformOrigin: "top left",
+            transform: `translate(-50%, -50%) scale(${scale})`,
+            transformOrigin: "center center",
+            pointerEvents: "auto",
           }}>
+            {/* Background image — INSIDE the plate (inset:0 of the cw×ch box) so image + text
+                share one scaled box and crop identically. Mirrors the section-level bg layer
+                this replaces (size / position / repeat / opacity / mask). */}
+            {bgImage?.url && (
+              <div aria-hidden="true" style={{
+                position: "absolute", inset: 0, zIndex: 0,
+                backgroundImage: `url(${bgImage.url})`,
+                backgroundSize: bgImage.size || "cover",
+                backgroundPosition: bgImage.position || "center",
+                backgroundRepeat: bgImage.repeat || "no-repeat",
+                opacity: (bgImage.opacity ?? 100) / 100,
+                ...(bgImage.maskCss ? { maskImage: bgImage.maskCss, WebkitMaskImage: bgImage.maskCss } : {}),
+                pointerEvents: "none",
+              }} />
+            )}
             {filteredBlocks.map((block) => {
               // Always the DESKTOP design layout — the whole stage scales, so there is no
               // per-breakpoint reflow by default (exact 1:1). Per-breakpoint mobile layouts

@@ -313,6 +313,50 @@
       pointer-events: none;
     }
 
+    /* Option C — FRAME GUIDES. Non-interactive overlay that shows the real live-page frame
+       around the free-mode cover plate: the fixed navbar band, the padding-safe boundaries,
+       side gutters, and the next-section into-wave silhouette. Drawn in DESIGN px inside
+       #canvas, so it scales with the canvas transform. Sits behind blocks (z1). */
+    #canvas-frame-guides {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      overflow: hidden;
+      display: none;
+    }
+    #canvas-frame-guides .cfg-navband {
+      position: absolute; top: 0; left: 0; right: 0;
+      background: rgba(13,110,253,0.06);
+      border-bottom: 1px dashed rgba(13,110,253,0.45);
+    }
+    #canvas-frame-guides .cfg-label {
+      position: absolute; top: 4px; left: 8px;
+      font-size: 11px; font-weight: 600; color: rgba(13,110,253,0.75);
+      background: rgba(255,255,255,0.65); padding: 0 5px; border-radius: 3px;
+    }
+    #canvas-frame-guides .cfg-hline {
+      position: absolute; left: 0; right: 0;
+      border-top: 1px dashed rgba(111,66,193,0.5);
+    }
+    #canvas-frame-guides .cfg-hlabel {
+      position: absolute; left: 8px; transform: translateY(-50%);
+      font-size: 10px; font-weight: 600; color: rgba(111,66,193,0.8);
+      background: rgba(255,255,255,0.65); padding: 0 5px; border-radius: 3px;
+    }
+    #canvas-frame-guides .cfg-vline {
+      position: absolute; top: 0; bottom: 0;
+      border-left: 1px dashed rgba(111,66,193,0.35);
+    }
+    #canvas-frame-guides .cfg-wave {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      background: linear-gradient(to top, rgba(108,117,125,0.12), rgba(108,117,125,0));
+      border-top: 1px dashed rgba(108,117,125,0.45);
+    }
+    #canvas-frame-guides .cfg-wave .cfg-label {
+      color: rgba(108,117,125,0.9); background: rgba(255,255,255,0.6);
+    }
+
     /* Grid guides */
     #grid-overlay {
       position: absolute;
@@ -1752,6 +1796,7 @@
         onmousedown="onCanvasMouseDown(event)"
         onclick="onCanvasClick(event)">
         <div id="canvas-section-bg" aria-hidden="true"></div>
+        <div id="canvas-frame-guides" aria-hidden="true"></div>
         <div id="grid-overlay"></div>
         <div id="guide-overlay"></div>
         <div id="dim-display">—</div>
@@ -1854,6 +1899,8 @@ function toggleRight() {
 //  STATE
 // ═══════════════════════════════════════════════════════════
 const DESKTOP_CANVAS_W = 1440; // fixed design width — canvas is always this many px wide
+const DESIGN_H = 900;          // fixed design-box HEIGHT for NEW free-mode designs (Option C
+                               // cover plate). Existing designs keep their saved designerCanvasH.
 const state = {
   contentMode: 'single',
   multiLimit: 3,
@@ -1866,6 +1913,9 @@ const state = {
   positionMode: 'free',   // 'free' | 'grid'  — default: free-form absolute positioning
   devicePreview: 'desktop', // 'mobile'|'tablet'|'desktop'
   _desktopCanvasW: null,    // cached desktop canvas width for responsive scaling
+  designerCanvasH: null,    // AUTHORED free-mode design-box height (Option C). null = new design
+                            // → DESIGN_H. Existing designs load their saved value; preserved on save.
+  showFrameGuides: true,    // Option C — draw navbar/padding/gutter/wave frame guides on the canvas
   userZoom: 1,              // manual zoom multiplier (0.25–2.0), applied on top of auto-fit scale
   blocks: [],
   selectedBlockId: null,
@@ -1950,6 +2000,7 @@ function snapshotState() {
     multiLimit:   state.multiLimit,
     preset:       state.preset,
     positionMode: state.positionMode,
+    designerCanvasH: state.designerCanvasH,  // Option C — preserve authored free-mode box height across undo/redo + autosave
     nextId:       state.nextId,
     mosaicRowH:   parseInt(document.getElementById('mosaicRowH')?.value||'200'),
     mosaicGap:    parseInt(document.getElementById('mosaicGap')?.value||'10'),
@@ -2050,6 +2101,7 @@ function applySnapshot(snap, addToHistory) {
   state.nextId        = s.nextId;
   state.preset        = s.preset || 'full-width';
   state.positionMode  = s.positionMode || 'free';
+  state.designerCanvasH = s.designerCanvasH || null;  // Option C — restore authored free-mode box height (null = new → DESIGN_H)
   // Sync DOM controls so sliders and selects match the restored state
   document.getElementById('contentMode').value  = s.contentMode;
   document.getElementById('layoutType').value   = s.layoutType;
@@ -2383,8 +2435,19 @@ function renderCanvas() {
     // Fix: canvas-with-rulers must not clip the taller canvas in multi mode
     const cwRulers = canvasArea ? canvasArea.querySelector('.canvas-with-rulers') : null;
     if (cwRulers) cwRulers.classList.add('multi-mode');
+  } else if (state.positionMode === 'free') {
+    // Single + FREE (Option C cover plate): LOCK the design box to an explicit authored
+    // height instead of letting flex:1 fill the operator's leftover window height. The saved
+    // designerCanvasH then becomes a stable constant (existing designs keep their loaded
+    // value; new designs use DESIGN_H). getCanvasScale() letterboxes this fixed box to fit.
+    const boxH = state.designerCanvasH || DESIGN_H;
+    canvas.style.height = boxH + 'px';
+    canvas.style.minHeight = boxH + 'px';
+    if (canvasArea) { canvasArea.classList.remove('multi-scroll', 'single-scroll'); }
+    const cwRulers = canvasArea ? canvasArea.querySelector('.canvas-with-rulers') : null;
+    if (cwRulers) cwRulers.classList.remove('multi-mode');
   } else {
-    // Single mode: flex:1 fills to availH naturally — no inline height needed.
+    // Single + grid/preset/mosaic: flex:1 fills to availH naturally — UNCHANGED.
     canvas.style.height = '';
     canvas.style.minHeight = '';
     if (canvasArea) { canvasArea.classList.remove('multi-scroll', 'single-scroll'); }
@@ -2468,6 +2531,7 @@ function renderCanvas() {
   }
 
   renderGridOverlay();
+  renderFrameGuides();
   renderBlocks();
   renderGuideOverlay();
   renderLayersPanel();
@@ -2505,6 +2569,58 @@ function renderCanvas() {
       }
     }
   });
+}
+
+/**
+ * Option C — draws the FRAME GUIDES overlay (#canvas-frame-guides) so the operator sees the
+ * real live-page frame around the free-mode cover plate: the fixed navbar band, the
+ * padding-safe top/bottom boundaries, the side gutters, and the next-section into-wave
+ * silhouette. Purely visual (pointer-events:none). Drawn in DESIGN px so it scales with the
+ * canvas transform. Only shown for free + single + desktop (the cover-plate context); every
+ * other mode clears/hides it. Fed by sensible constants (navbar 100px, gutter 12px, wave
+ * 200px, padding 80px) — no new postMessage plumbing in this phase.
+ */
+function renderFrameGuides() {
+  const layer = document.getElementById('canvas-frame-guides');
+  if (!layer) return;
+  const on = state.showFrameGuides !== false
+    && state.positionMode === 'free'
+    && state.contentMode === 'single'
+    && state.devicePreview === 'desktop';
+  if (!on) { layer.style.display = 'none'; layer.replaceChildren(); return; }
+  const W = DESKTOP_CANVAS_W;                    // 1440 design px
+  const H = state.designerCanvasH || DESIGN_H;   // design-box height
+  const NAV = 100, PAD_T = 80, PAD_B = 80, WAVE = 200, GUT = 12;
+  const safeTop = Math.max(PAD_T, NAV);          // content never slides under the fixed navbar
+  const kids = [];
+  const mk = (cls, styles, text) => {
+    const el = document.createElement('div');
+    el.className = cls;
+    for (const k in styles) el.style[k] = styles[k];
+    if (text) {
+      const lbl = document.createElement('span');
+      lbl.className = 'cfg-label';
+      lbl.textContent = text;
+      el.appendChild(lbl);
+    }
+    return el;
+  };
+  // Fixed navbar band (top 100px)
+  kids.push(mk('cfg-navband', { height: NAV + 'px' }, 'navbar 100px'));
+  // Content-safe top boundary (max(paddingTop, navbar))
+  const ptLine = mk('cfg-hline', { top: safeTop + 'px' });
+  const ptLbl = document.createElement('span'); ptLbl.className = 'cfg-hlabel'; ptLbl.style.top = safeTop + 'px'; ptLbl.textContent = 'content top';
+  // Content-safe bottom boundary (height − paddingBottom)
+  const pbTop = Math.max(0, H - PAD_B);
+  const pbLine = mk('cfg-hline', { top: pbTop + 'px' });
+  const pbLbl = document.createElement('span'); pbLbl.className = 'cfg-hlabel'; pbLbl.style.top = pbTop + 'px'; pbLbl.textContent = 'content bottom';
+  // Side gutters
+  const gl = mk('cfg-vline', { left: GUT + 'px' });
+  const gr = mk('cfg-vline', { left: (W - GUT) + 'px' });
+  // Next-section into-wave silhouette (bottom ~200px)
+  const wave = mk('cfg-wave', { height: WAVE + 'px' }, 'next section ↴');
+  layer.replaceChildren(...kids, ptLine, ptLbl, pbLine, pbLbl, gl, gr, wave);
+  layer.style.display = 'block';
 }
 
 /**
@@ -8205,6 +8321,15 @@ function getCanvasScale() {
   if (!cwrap) return state.userZoom || 1;
   const rulerW = cwrap.classList.contains('rulers-hidden') ? 0 : 20;
   const availW = cwrap.clientWidth - rulerW - 2;
+  // Free + single (Option C): LETTERBOX the fixed 1440×boxH design box within the available
+  // area on BOTH axes, so the canvas keeps the authored design aspect (not the window's
+  // leftover height). Grid/preset/mosaic + multi keep the width-only fit (UNCHANGED).
+  if (state.positionMode === 'free' && state.contentMode === 'single') {
+    const availH = cwrap.clientHeight - rulerW - 2;
+    const boxH = state.designerCanvasH || DESIGN_H;
+    const fit = Math.min(1, availW / DESKTOP_CANVAS_W, boxH > 0 ? availH / boxH : 1);
+    return fit * (state.userZoom || 1);
+  }
   const fitScale = Math.min(1, availW / DESKTOP_CANVAS_W);
   return fitScale * (state.userZoom || 1);
 }
@@ -8240,7 +8365,14 @@ function resetUserZoom() {
   if (state.devicePreview === 'desktop' && cwrap) {
     const rulerW = cwrap.classList.contains('rulers-hidden') ? 0 : 20;
     const availW = cwrap.clientWidth - rulerW - 2;
-    const fitScale = Math.min(1, availW / DESKTOP_CANVAS_W);
+    let fitScale = Math.min(1, availW / DESKTOP_CANVAS_W);
+    // Mirror the free+single letterbox fit so "reset zoom" lands on a true 100% of the
+    // authored 1440×boxH box (not the width-only fit).
+    if (state.positionMode === 'free' && state.contentMode === 'single') {
+      const availH = cwrap.clientHeight - rulerW - 2;
+      const boxH = state.designerCanvasH || DESIGN_H;
+      fitScale = Math.min(1, availW / DESKTOP_CANVAS_W, boxH > 0 ? availH / boxH : 1);
+    }
     // userZoom = 1/fitScale makes getCanvasScale() return exactly 1.0 (100%)
     state.userZoom = fitScale > 0 ? 1 / fitScale : 1;
   } else {
@@ -8328,7 +8460,13 @@ function buildJson() {
   const designerCanvasW = (state.devicePreview !== 'desktop' && state._desktopCanvasW)
     ? state._desktopCanvasW
     : (canvas ? canvas.offsetWidth : 1200);
-  const designerCanvasH = canvas ? canvas.offsetHeight : 800;
+  // Option C: for FREE designs store the AUTHORED design-box height (a stable constant), NOT
+  // the current window-derived offsetHeight — so re-saving never re-captures the operator's
+  // leftover window height. Existing designs keep their loaded value (state.designerCanvasH);
+  // new designs get DESIGN_H. Grid/preset/mosaic keep the offsetHeight behaviour (UNCHANGED).
+  const designerCanvasH = state.positionMode === 'free'
+    ? (state.designerCanvasH || DESIGN_H)
+    : (canvas ? canvas.offsetHeight : 800);
   return JSON.stringify({
     contentMode:   state.contentMode,
     positionMode:  state.positionMode,
@@ -8640,6 +8778,13 @@ window.addEventListener('message', function(e) {
       }), false);
       // Cache desktop canvas width for responsive auto-scaling
       state._desktopCanvasW = layout.designerCanvasW || null;
+      // Option C — adopt the section's AUTHORED free-mode design-box height. EXISTING designs
+      // carry a saved designerCanvasH (an old window height); PRESERVE and use it on BOTH the
+      // designer (canvas lock + letterbox) and the live renderer, so the crop is identical and
+      // the layout does not jump. NEW / non-free designs leave it null → DESIGN_H fallback.
+      state.designerCanvasH = (typeof layout.designerCanvasH === 'number' && layout.designerCanvasH > 0)
+        ? layout.designerCanvasH
+        : null;
       // Restore section header/footer fields
       if (layout.sectionEyebrow)    { const el = document.getElementById('sectionEyebrow');    if (el) el.value = layout.sectionEyebrow; }
       if (layout.sectionHeading)    { const el = document.getElementById('sectionHeading');    if (el) el.value = layout.sectionHeading; }
