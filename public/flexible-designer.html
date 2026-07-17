@@ -775,6 +775,21 @@
     .se-preset-chip i { font-size: 12px; color: #0d6efd; flex-shrink: 0; }
     .se-menu-sep { height: 1px; background: #e9ecef; margin: 4px 0; }
 
+    /* #28 Right-click context menu (reuses .se-add-menu container look) */
+    #flex-ctx-menu { min-width: 188px; padding: 6px; }
+    #flex-ctx-menu .fcx-item {
+      display: flex; align-items: center; gap: 9px; padding: 7px 12px;
+      border-radius: 6px; cursor: pointer; font-size: 12px; line-height: 1.2;
+      border: 1px solid transparent; background: white; white-space: nowrap;
+      width: 100%; text-align: left; color: #212529; transition: all 0.1s;
+    }
+    #flex-ctx-menu .fcx-item i { font-size: 13px; width: 15px; text-align: center; color: #6c757d; flex-shrink: 0; }
+    #flex-ctx-menu .fcx-item:hover { background: #f0f4ff; border-color: #0d6efd; color: #0d6efd; }
+    #flex-ctx-menu .fcx-item:hover i { color: #0d6efd; }
+    #flex-ctx-menu .fcx-item.fcx-danger:hover { background: #fff5f5; border-color: #dc3545; color: #dc3545; }
+    #flex-ctx-menu .fcx-item.fcx-danger:hover i { color: #dc3545; }
+    #flex-ctx-menu .fcx-hint { padding: 6px 12px; font-size: 11px; color: #adb5bd; font-style: italic; cursor: default; }
+
     /* Media upload picker */
     .media-picker { display:flex; flex-direction:column; gap:6px; }
     .media-thumb { width:100%; height:80px; border-radius:6px; overflow:hidden; background:#f0f4ff; border:1px dashed #b6d4fe; display:flex; align-items:center; justify-content:center; font-size:11px; color:#6c757d; position:relative; }
@@ -9086,6 +9101,164 @@ window.addEventListener('message', function(e) {
     }
   }
 });
+
+// ═══════════════════════════════════════════════════════════
+//  #28 — RIGHT-CLICK CONTEXT MENU (flexible canvas)
+//  Self-contained: a body-level menu, a `contextmenu` handler on #canvas, and
+//  wiring that DELEGATES every action to existing functions — _lyAction() for
+//  duplicate/hide/delete (blocks + subs), selectBlock/selectSubElement for
+//  selection, and the app's single z-order mechanism (array order + zIndex=i+1,
+//  mirroring the block reorder in _lyHandleDrop ~line 5320-5332). No new
+//  duplicate/delete/hide logic and no clipboard/lock logic is invented.
+// ═══════════════════════════════════════════════════════════
+(function () {
+  let _fcxMenu = null;
+
+  function _fcxEnsureMenu() {
+    if (_fcxMenu) return _fcxMenu;
+    const m = document.createElement('div');
+    m.id = 'flex-ctx-menu';
+    m.className = 'se-add-menu';          // reuse the fixed/white/shadowed menu shell
+    m.style.display = 'none';
+    m.addEventListener('mousedown', e => e.stopPropagation());
+    m.addEventListener('click', e => e.stopPropagation());
+    document.body.appendChild(m);
+    _fcxMenu = m;
+    return m;
+  }
+
+  function _fcxIsOpen() { return !!_fcxMenu && _fcxMenu.style.display !== 'none'; }
+  function closeFlexCtxMenu() { if (_fcxMenu) _fcxMenu.style.display = 'none'; }
+
+  function _fcxItem(icon, label, handler, opts) {
+    opts = opts || {};
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'fcx-item' + (opts.danger ? ' fcx-danger' : '');
+    const i = document.createElement('i'); i.className = 'bi ' + icon;
+    const s = document.createElement('span'); s.textContent = label;
+    b.appendChild(i); b.appendChild(s);
+    b.addEventListener('click', () => { closeFlexCtxMenu(); handler(); });
+    return b;
+  }
+  function _fcxSep() { const d = document.createElement('div'); d.className = 'se-menu-sep'; return d; }
+  function _fcxHint(text) { const d = document.createElement('div'); d.className = 'fcx-hint'; d.textContent = text; return d; }
+
+  // z-order — mirrors the block reorder in _lyHandleDrop (~line 5320-5332), the
+  // app's ONLY z-order mechanism (state.blocks array order + zIndex = i+1).
+  function _fcxReorder(blockId, mode) {
+    const from = state.blocks.findIndex(b => b.id === blockId);
+    if (from < 0) return;
+    pushHistory();
+    const moved = state.blocks.splice(from, 1)[0];
+    let to;
+    if (mode === 'front') to = state.blocks.length;
+    else if (mode === 'back') to = 0;
+    else if (mode === 'forward') to = Math.min(state.blocks.length, from + 1);
+    else to = Math.max(0, from - 1); // backward
+    state.blocks.splice(to, 0, moved);
+    state.blocks.forEach((b, i) => b.zIndex = i + 1);
+    renderCanvas(); autoSave();
+  }
+
+  function _fcxBuildForBlock(menu, blockId) {
+    const b = state.blocks.find(x => x.id === blockId);
+    if (!b) return false;
+    menu.appendChild(_fcxItem('bi-copy', 'Duplicate', () => _lyAction('dup', 'block', blockId)));
+    menu.appendChild(_fcxItem(b.hidden ? 'bi-eye' : 'bi-eye-slash', b.hidden ? 'Show' : 'Hide', () => _lyAction('hide', 'block', blockId)));
+    menu.appendChild(_fcxSep());
+    menu.appendChild(_fcxItem('bi-front', 'Bring to front', () => _fcxReorder(blockId, 'front')));
+    menu.appendChild(_fcxItem('bi-arrow-up-short', 'Bring forward', () => _fcxReorder(blockId, 'forward')));
+    menu.appendChild(_fcxItem('bi-arrow-down-short', 'Send backward', () => _fcxReorder(blockId, 'backward')));
+    menu.appendChild(_fcxItem('bi-back', 'Send to back', () => _fcxReorder(blockId, 'back')));
+    menu.appendChild(_fcxSep());
+    menu.appendChild(_fcxItem('bi-trash3', 'Delete', () => _lyAction('del', 'block', blockId), { danger: true }));
+    return true;
+  }
+
+  function _fcxBuildForSub(menu, blockId, seId) {
+    const b = state.blocks.find(x => x.id === blockId);
+    const se = b && b.subElements && b.subElements.find(s => s.id === seId);
+    if (!se) return false;
+    menu.appendChild(_fcxItem('bi-copy', 'Duplicate', () => _lyAction('dup', 'sub', blockId, seId)));
+    menu.appendChild(_fcxItem(se.hidden ? 'bi-eye' : 'bi-eye-slash', se.hidden ? 'Show' : 'Hide', () => _lyAction('hide', 'sub', blockId, seId)));
+    menu.appendChild(_fcxSep());
+    menu.appendChild(_fcxItem('bi-trash3', 'Delete', () => _lyAction('del', 'sub', blockId, seId), { danger: true }));
+    return true;
+  }
+
+  function _fcxBuildForMultiSub(menu) {
+    const members = (state.multiSel || []).slice();
+    const n = members.length;
+    menu.appendChild(_fcxItem('bi-copy', 'Duplicate ' + n + ' elements', () => {
+      members.forEach(m => _lyDuplicateSub(m.b, m.s));
+    }));
+    menu.appendChild(_fcxSep());
+    // Mirrors the multi-select delete in the keydown handler: snapshot, clear, remove each.
+    menu.appendChild(_fcxItem('bi-trash3', 'Delete ' + n + ' elements', () => {
+      clearMultiSel();
+      state.selectedBlockId = null; state.selectedSubId = null;
+      members.forEach(m => removeSubElement(m.b, m.s));
+    }, { danger: true }));
+    return true;
+  }
+
+  function onFlexCanvasContextMenu(e) {
+    // Guide lines own their own contextmenu (delete) and stopPropagation, so this
+    // handler will not normally see them — bail defensively regardless.
+    if (e.target.closest && e.target.closest('.guide-line')) return;
+    const menu = _fcxEnsureMenu();
+    const subEl = e.target.closest ? e.target.closest('.sub-element') : null;
+    const blockEl = e.target.closest ? e.target.closest('[data-block-id]') : null;
+    menu.innerHTML = '';
+
+    if (subEl && blockEl) {
+      const seId = subEl.dataset.subId;
+      const blockId = blockEl.dataset.blockId;
+      // Honour an active multi-selection when the right-clicked child is part of it.
+      if (multiSelCount() > 1 && isInMultiSel(seId)) {
+        _fcxBuildForMultiSub(menu);
+      } else {
+        if (state.selectedSubId !== seId) selectSubElement(blockId, seId);
+        if (!_fcxBuildForSub(menu, blockId, seId)) return;
+      }
+    } else if (blockEl) {
+      const blockId = blockEl.dataset.blockId;
+      if (state.selectedBlockId !== blockId || state.selectedSubId) selectBlock(blockId);
+      if (!_fcxBuildForBlock(menu, blockId)) return;
+    } else {
+      // Empty canvas — no existing clipboard / select-all to wire, so just hint.
+      menu.appendChild(_fcxHint('Right-click an element for actions'));
+    }
+
+    e.preventDefault();
+    // Show, measure, then clamp to the viewport so it never overflows.
+    menu.style.left = '0px'; menu.style.top = '0px'; menu.style.display = 'flex';
+    const mw = menu.offsetWidth, mh = menu.offsetHeight;
+    const vw = window.innerWidth, vh = window.innerHeight, M = 6;
+    let x = e.clientX, y = e.clientY;
+    if (x + mw > vw - M) x = Math.max(M, vw - M - mw);
+    if (y + mh > vh - M) y = Math.max(M, vh - M - mh);
+    menu.style.left = x + 'px'; menu.style.top = y + 'px';
+  }
+
+  function _fcxSetup() {
+    const canvas = document.getElementById('canvas');
+    if (canvas) canvas.addEventListener('contextmenu', onFlexCanvasContextMenu);
+    // Close on: click/press elsewhere, scroll, or Escape. Escape is swallowed in
+    // capture so it does not also reach the deselect keydown while the menu is open.
+    document.addEventListener('mousedown', e => {
+      if (_fcxIsOpen() && !(_fcxMenu && _fcxMenu.contains(e.target))) closeFlexCtxMenu();
+    });
+    window.addEventListener('scroll', () => { if (_fcxIsOpen()) closeFlexCtxMenu(); }, true);
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && _fcxIsOpen()) { e.stopPropagation(); closeFlexCtxMenu(); }
+    }, true);
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _fcxSetup);
+  else _fcxSetup();
+})();
 </script>
 <div id="drop-conflict-popup">
   <div class="dcp-title">⚠️ Cell is occupied</div>
