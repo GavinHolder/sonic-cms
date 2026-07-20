@@ -429,6 +429,22 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   // Designer data (mockup format) — used when elements array is empty
   const designerData = (content as any).designerData as string | Record<string, unknown> | null | undefined;
 
+  // ── Free-mode section-height scoping (desktop only) ────────────────────────
+  // The 1:1 free-mode section height override (below) must apply ONLY on desktop.
+  // On mobile the FLEXIBLE section keeps its own CSS height model (height:auto +
+  // min-height:100vh via !important, section reflows to a reading stack) untouched.
+  // These mirror DesignerBlocksRenderer's own screenW/mounted so both agree on the
+  // desktop/mobile boundary. Pre-mount is treated as desktop so SSR and the first
+  // client paint render the same section style (no hydration mismatch).
+  const [screenW, setScreenW] = useState(typeof window !== "undefined" ? window.innerWidth : 1440);
+  useEffect(() => {
+    const onResize = () => setScreenW(window.innerWidth);
+    window.addEventListener("resize", onResize, { passive: true });
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   // Full-bleed volt blocks (props.fullBleed) are lifted out of the in-grid flow and
   // drawn as section-level background layers BELOW the content wrapper (see the render
   // below + FullBleedVoltLayer). Parsed once here (guarded) so the layer can be a direct
@@ -467,6 +483,19 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   const scrollStageActive = contentMode === "multi" && scrollStage?.enabled === true && (scrollStage.zones?.length ?? 0) > 0;
   // Free cover-plate is active only outside scroll-stage (scroll-stage owns its own layout).
   const freePlateActive = isFreeDesigner && !scrollStageActive;
+  // The saved designer canvas dimensions for a free section — the EXACT cw×ch box the
+  // designer authored at (designerCanvasW/H, same fallbacks as DesignerBlocksRenderer).
+  // Used to drive the section's true-1:1 height via aspect-ratio (height = width·ch/cw).
+  const freeCanvas = useMemo(() => {
+    if (!freePlateActive || !designerData) return null;
+    try {
+      const d = typeof designerData === "string" ? JSON.parse(designerData) : designerData;
+      return { cw: Number((d as any)?.designerCanvasW) || 1440, ch: Number((d as any)?.designerCanvasH) || DESIGN_H };
+    } catch { return null; }
+  }, [freePlateActive, designerData]);
+  // True only when the free-mode 1:1 section-height override should apply: free plate is
+  // active AND we're on desktop. Pre-mount counts as desktop (SSR-safe, no hydration flip).
+  const freePlateDesktop = freePlateActive && (!mounted || screenW > 768) && !!freeCanvas;
   // Tracks the current scroll stage zone so content column shows only the active zone's blocks
   const [scrollStageZone, setScrollStageZone] = useState(0);
 
@@ -559,6 +588,20 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
         position: "relative",
         ...(isBgGrad ? { background: bgColor } : {}),
         ...(diagonalSlab ? { clipPath: "polygon(0 4%, 100% 0, 100% 96%, 0 100%)", overflow: "hidden" } : {}),
+        ...(freePlateDesktop && freeCanvas ? {
+          // TRUE 1:1 free-mode height — the section is exactly as tall as the design scaled
+          // to the viewport WIDTH (height = width · ch/cw), so the WHOLE design shows with
+          // NO cover-zoom and NO crop. aspect-ratio derives that height in pure CSS
+          // (SSR/no-JS safe — no measurement, no zero-height flash); height:auto + min/max
+          // release the 100vh + min/max-height pins from globals.css (the desktop
+          // `#snap-container section:not(.hero-carousel)` rule has NO !important, so this
+          // inline style wins). Scoped to freePlateDesktop → applied on desktop ONLY; on
+          // mobile no inline height is emitted, so the mobile CSS height model is byte-identical.
+          aspectRatio: `${freeCanvas.cw} / ${freeCanvas.ch}`,
+          height: "auto",
+          minHeight: 0,
+          maxHeight: "none",
+        } : {}),
       } as React.CSSProperties}
     >
       {/* Decorative watermark — oversized faded number/word, top-right */}
@@ -1639,18 +1682,23 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
         );
       }
 
-      // ── Desktop free = COVER PLATE (Option C) ───────────────────────────────
+      // ── Desktop free = TRUE 1:1 PLATE (width-only scale) ────────────────────
       // The section-level plateMode instance draws on desktop; the in-wrapper instance draws
-      // nothing (the plate lives at section level so it fills the true 100vh box, not the
-      // padded content wrapper — that is what makes the live crop equal the designer crop).
+      // nothing (the plate lives at section level so it fills the section box, not the padded
+      // content wrapper — that is what keeps the live render registered with the design box).
       if (!plateMode) return null;
-      // Scale the fixed cw×ch plate to COVER the measured SECTION box (max of the two axis
-      // ratios), centered + clipped — so the visible crop equals background-size:cover AND the
-      // designer canvas crop. ch = this section's saved designerCanvasH (or DESIGN_H) — the
-      // SAME value the designer authored at, used on BOTH sides → pixel-identical crop.
+      // WIDTH-ONLY scale = a truthful 1:1 render. Plate width after scale = cw·(stageW/cw) =
+      // stageW = the section content width, so the plate fills the width EXACTLY — no
+      // horizontal crop, no centering math. The section is separately sized to the SCALED
+      // design height (aspect-ratio on the <section>, above), so the WHOLE design is visible:
+      // there is nothing to crop and no zoom. (The OLD Math.max(sw/cw, sh/ch) was COVER scale
+      // — it zoomed to fill height and cropped the design; that was the "designer ≠ live
+      // zoomed crop" bug this fixes.) ch = this section's saved designerCanvasH (or DESIGN_H)
+      // — the SAME value the designer authored at, used on both sides → identical box. stageH
+      // is intentionally no longer read. Pre-measure (stageW 0) falls back to window width,
+      // matching the file's existing pre-measure pattern; resize re-derives scale via stageW.
       const sw = stageW || (typeof window !== "undefined" ? window.innerWidth : cw);
-      const sh = stageH || (typeof window !== "undefined" ? window.innerHeight : ch);
-      const scale = Math.max(sw / cw, sh / ch);
+      const scale = sw / cw;
       return (
         <div ref={stageRef} style={{
           position: "absolute",
@@ -1660,17 +1708,16 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
           pointerEvents: "none",
         }}>
           <div style={{
-            // TOP-ANCHORED cover plate. The design is authored top-left (navbar band
-            // at the TOP of the cw×ch box), so pin the plate's TOP edge to the section
-            // top and center it horizontally. Same cover scale as before — only the
-            // anchor changed from center to top-center. With transform-origin at the top
-            // edge, the scale grows the plate downward/outward, so vertical overflow crops
-            // at the BOTTOM only (header/navbar band never shifts up under the fixed
-            // navbar); horizontal overflow still crops centered left/right.
-            position: "absolute", left: "50%", top: 0,
+            // TOP-LEFT anchored 1:1 plate. The design is authored top-left (navbar band at the
+            // TOP of the cw×ch box), so pin the plate's top-left to the section's top-left and
+            // scale from there. With width-only scale the plate is exactly stageW wide (fills
+            // width, no left/right crop) and ch·scale tall (= the section's aspect-ratio height
+            // above), so it fills the section exactly — the navbar band sits under the fixed
+            // 100px navbar and everything else shows in full. No translate, no centering.
+            position: "absolute", left: 0, top: 0,
             width: cw, height: ch,
-            transform: `translateX(-50%) scale(${scale})`,
-            transformOrigin: "top center",
+            transform: `scale(${scale})`,
+            transformOrigin: "top left",
             pointerEvents: "auto",
           }}>
             {/* Background image — INSIDE the plate (inset:0 of the cw×ch box) so image + text
