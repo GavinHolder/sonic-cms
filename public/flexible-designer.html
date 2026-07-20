@@ -1780,6 +1780,8 @@
           <button class="btn btn-sm btn-outline-secondary" onclick="adjustUserZoom(0.1)" title="Zoom in (Ctrl+=)"><i class="bi bi-plus-lg"></i></button>
           <button class="btn btn-sm btn-outline-secondary" onclick="resetUserZoom()" title="Reset zoom (Ctrl+0)">1:1</button>
         </div>
+        <!-- Frame guides toggle — show/hide the navbar/padding/gutter/wave frame guides (free+single+desktop). Persisted in localStorage. -->
+        <button id="guides-toggle-btn" class="btn btn-sm btn-outline-secondary active" aria-pressed="true" onclick="toggleFrameGuides()" title="Toggle frame guides"><i class="bi bi-bounding-box"></i></button>
         <!-- #68 — Show/hide the section's configured background on the canvas (view only; does not change saved data) -->
         <button id="section-bg-toggle-btn" class="btn btn-sm btn-outline-secondary active" aria-pressed="true" onclick="toggleSectionBg()" title="Show section background on canvas (view only)"><i class="bi bi-image"></i></button>
         <button class="btn btn-sm btn-outline-secondary" onclick="previewSection()" title="Preview section in tab"><i class="bi bi-eye"></i></button>
@@ -2373,6 +2375,12 @@ document.addEventListener('DOMContentLoaded', () => {
   if (window.parent === window) {
     loadAutoSave();
   }
+  // Restore the frame-guides preference (designer-wide, localStorage). Default ON when unset.
+  try {
+    const _fg = localStorage.getItem(FRAME_GUIDES_KEY);
+    if (_fg !== null) state.showFrameGuides = _fg !== '0';
+  } catch (e) {}
+  syncFrameGuidesBtn();
   // Desktop canvas is always a fixed design width — set it before first render
   const _initCanvas = document.getElementById('canvas');
   if (_initCanvas && state.devicePreview === 'desktop') _initCanvas.style.width = DESKTOP_CANVAS_W + 'px';
@@ -8715,6 +8723,26 @@ function toggleSectionBg() {
   if (!state.sectionBg) return;
   state.showSectionBg = !state.showSectionBg;
   applySectionBgToCanvas();
+}
+
+// Toggle the free-mode frame guides (navbar/padding/gutter/wave) on the canvas.
+// Persists the choice as a designer-wide UI preference (not per-section) so it
+// survives reloads. Guides only actually render in free+single+desktop — in any
+// other mode this is a harmless no-op (renderFrameGuides gates itself).
+var FRAME_GUIDES_KEY = 'flexDesignerShowGuides';
+function toggleFrameGuides() {
+  state.showFrameGuides = !state.showFrameGuides;
+  try { localStorage.setItem(FRAME_GUIDES_KEY, state.showFrameGuides ? '1' : '0'); } catch (e) {}
+  syncFrameGuidesBtn();
+  renderFrameGuides();
+}
+// Reflect state.showFrameGuides on the toolbar button (active = guides on).
+function syncFrameGuidesBtn() {
+  const btn = document.getElementById('guides-toggle-btn');
+  if (!btn) return;
+  const on = state.showFrameGuides !== false;
+  btn.classList.toggle('active', on);
+  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
 }
 
 // ═══════════════════════════════════════════════════════════

@@ -1660,10 +1660,17 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
           pointerEvents: "none",
         }}>
           <div style={{
-            position: "absolute", left: "50%", top: "50%",
+            // TOP-ANCHORED cover plate. The design is authored top-left (navbar band
+            // at the TOP of the cw×ch box), so pin the plate's TOP edge to the section
+            // top and center it horizontally. Same cover scale as before — only the
+            // anchor changed from center to top-center. With transform-origin at the top
+            // edge, the scale grows the plate downward/outward, so vertical overflow crops
+            // at the BOTTOM only (header/navbar band never shifts up under the fixed
+            // navbar); horizontal overflow still crops centered left/right.
+            position: "absolute", left: "50%", top: 0,
             width: cw, height: ch,
-            transform: `translate(-50%, -50%) scale(${scale})`,
-            transformOrigin: "center center",
+            transform: `translateX(-50%) scale(${scale})`,
+            transformOrigin: "top center",
             pointerEvents: "auto",
           }}>
             {/* Background image — INSIDE the plate (inset:0 of the cw×ch box) so image + text
