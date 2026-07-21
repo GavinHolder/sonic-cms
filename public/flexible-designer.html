@@ -3368,6 +3368,17 @@ function outlineStyleFrag(p) {
   return `color:${col};filter:url(#${ensureOutlineErodeFilter(p.outlineWidth || 1)});`;
 }
 
+/** Inline style fragment for opt-in text shadow — keeps text legible over busy backgrounds.
+ * Empty unless enabled, so existing sections render unchanged. 1:1 with FlexibleSectionRenderer. */
+function shadowStyleFrag(p) {
+  if (!p.textShadow) return '';
+  const x = p.shadowX !== undefined ? p.shadowX : 0;
+  const y = p.shadowY !== undefined ? p.shadowY : 2;
+  const b = p.shadowBlur !== undefined ? p.shadowBlur : 4;
+  const col = p.shadowColor || '#000000';
+  return `text-shadow:${x}px ${y}px ${b}px ${col};`;
+}
+
 function createSubElementDOM(se, blockId) {
   const el = document.createElement('div');
   el.className = 'sub-element' + (se.id === state.selectedSubId ? ' selected' : '');
@@ -3384,15 +3395,15 @@ function createSubElementDOM(se, blockId) {
   switch(se.type) {
     case 'heading':
       if (p.fontFamily && p.fontFamily !== 'inherit') { const _m=p.fontFamily.match(/'([^']+)'/); if(_m) injectGoogleFont(_m[1]); }
-      preview.innerHTML = `<div class="se-heading ${p.level||'h2'}" style="color:${p.color||''};font-size:${p.fontSize||22}px;font-family:${p.fontFamily||'inherit'};font-weight:${p.fontWeight||'700'};text-align:${p.textAlign||'left'};white-space:${p.textWrap||'normal'};line-height:${p.lineHeight||1.2};letter-spacing:${p.letterSpacing||0}px;text-transform:${p.textTransform||'none'};${outlineStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">' + (p.level||'h2').toUpperCase() + ' — double-click to edit</span>')}</div>`;
+      preview.innerHTML = `<div class="se-heading ${p.level||'h2'}" style="color:${p.color||''};font-size:${p.fontSize||22}px;font-family:${p.fontFamily||'inherit'};font-weight:${p.fontWeight||'700'};text-align:${p.textAlign||'left'};white-space:${p.textWrap||'normal'};line-height:${p.lineHeight||1.2};letter-spacing:${p.letterSpacing||0}px;text-transform:${p.textTransform||'none'};${outlineStyleFrag(p)}${shadowStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">' + (p.level||'h2').toUpperCase() + ' — double-click to edit</span>')}</div>`;
       break;
     case 'eyebrow':
       if (p.fontFamily && p.fontFamily !== 'inherit') { const _m=p.fontFamily.match(/'([^']+)'/); if(_m) injectGoogleFont(_m[1]); }
-      preview.innerHTML = `<div class="se-eyebrow" style="color:${p.color||'#0d6efd'};font-size:${p.fontSize||13}px;font-family:${p.fontFamily||'inherit'};font-weight:${p.fontWeight||'700'};text-align:${p.textAlign||'left'};text-transform:${p.textTransform||'uppercase'};letter-spacing:${p.letterSpacing??2}px;line-height:${p.lineHeight||1.4};${outlineStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">EYEBROW — double-click to edit</span>')}</div>`;
+      preview.innerHTML = `<div class="se-eyebrow" style="color:${p.color||'#0d6efd'};font-size:${p.fontSize||13}px;font-family:${p.fontFamily||'inherit'};font-weight:${p.fontWeight||'700'};text-align:${p.textAlign||'left'};text-transform:${p.textTransform||'uppercase'};letter-spacing:${p.letterSpacing??2}px;line-height:${p.lineHeight||1.4};${outlineStyleFrag(p)}${shadowStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">EYEBROW — double-click to edit</span>')}</div>`;
       break;
     case 'paragraph':
       if (p.fontFamily && p.fontFamily !== 'inherit') { const _m=p.fontFamily.match(/'([^']+)'/); if(_m) injectGoogleFont(_m[1]); }
-      preview.innerHTML = `<div class="se-paragraph" style="color:${p.color||''};font-size:${p.fontSize||14}px;font-family:${p.fontFamily||'inherit'};text-align:${p.textAlign||'left'};white-space:${p.textWrap||'pre-wrap'};line-height:${p.lineHeight||1.6};letter-spacing:${p.letterSpacing||0}px;text-transform:${p.textTransform||'none'};${outlineStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">Paragraph — double-click to edit</span>')} </div>`;
+      preview.innerHTML = `<div class="se-paragraph" style="color:${p.color||''};font-size:${p.fontSize||14}px;font-family:${p.fontFamily||'inherit'};text-align:${p.textAlign||'left'};white-space:${p.textWrap||'pre-wrap'};line-height:${p.lineHeight||1.6};letter-spacing:${p.letterSpacing||0}px;text-transform:${p.textTransform||'none'};${outlineStyleFrag(p)}${shadowStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">Paragraph — double-click to edit</span>')} </div>`;
       break;
     case 'image':
       preview.innerHTML = p.src
@@ -6279,6 +6290,7 @@ function renderSubTypeProps(bId, se) {
       h+=`<div class="props-row"><label>Line Height</label><input class="props-input" type="range" min="0.8" max="2.5" step="0.1" value="${p.lineHeight||1.2}" oninput="updateSubProp('${bId}','${se.id}','lineHeight',parseFloat(this.value));renderCanvas();this.nextElementSibling.textContent=this.value"><span class="val">${p.lineHeight||1.2}</span></div>`;
       h+=`<div class="props-row"><label>Letter Spacing</label><input class="props-input" type="range" min="-3" max="15" step="0.5" value="${p.letterSpacing||0}" oninput="updateSubProp('${bId}','${se.id}','letterSpacing',parseFloat(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.letterSpacing||0}px</span></div>`;
       h+=outlineRows(bId,se.id,p);
+      h+=textShadowRows(bId,se.id,p);
       h+=subAnimSection(bId,se.id,p);
       break;
     case 'paragraph':
@@ -6292,6 +6304,7 @@ function renderSubTypeProps(bId, se) {
       h+=`<div class="props-row"><label>Line Height</label><input class="props-input" type="range" min="1.0" max="3.0" step="0.1" value="${p.lineHeight||1.6}" oninput="updateSubProp('${bId}','${se.id}','lineHeight',parseFloat(this.value));renderCanvas();this.nextElementSibling.textContent=this.value"><span class="val">${p.lineHeight||1.6}</span></div>`;
       h+=`<div class="props-row"><label>Letter Spacing</label><input class="props-input" type="range" min="-3" max="15" step="0.5" value="${p.letterSpacing||0}" oninput="updateSubProp('${bId}','${se.id}','letterSpacing',parseFloat(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.letterSpacing||0}px</span></div>`;
       h+=outlineRows(bId,se.id,p);
+      h+=textShadowRows(bId,se.id,p);
       h+=subAnimSection(bId,se.id,p);
       break;
     case 'eyebrow':
@@ -7085,6 +7098,28 @@ function outlineRows(bId, seId, p) {
   if (on) {
     h += `<div class="props-row"><label>Outline Width</label><input class="props-input" type="range" min="0.5" max="8" step="0.5" value="${p.outlineWidth||1}" oninput="updateSubProp('${bId}','${seId}','outlineWidth',parseFloat(this.value)||1);renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.outlineWidth||1}px</span></div>`;
     h += colorRow('Outline Colour', p.outlineColor||'#000000', `updateSubProp('${bId}','${seId}','outlineColor',this.value);renderCanvas()`);
+  }
+  return h;
+}
+
+/**
+ * Text-shadow controls for text sub-elements (heading / paragraph / eyebrow).
+ * Opt-in — OFF by default so existing sections are visually unchanged. Keeps text
+ * legible over busy/photographic backgrounds. Emits the same `text-shadow` the live
+ * renderer builds from these props: `{x}px {y}px {blur}px {color}`.
+ */
+function textShadowRows(bId, seId, p) {
+  const on = !!p.textShadow;
+  let h = `<div class="props-row"><label>Text Shadow</label><input type="checkbox" ${on?'checked':''} onchange="updateSubProp('${bId}','${seId}','textShadow',this.checked);renderCanvas();renderPropsPanel()"></div>`;
+  if (on) {
+    const sc = p.shadowColor||'#000000';
+    const sb = p.shadowBlur!==undefined ? p.shadowBlur : 4;
+    const sx = p.shadowX!==undefined ? p.shadowX : 0;
+    const sy = p.shadowY!==undefined ? p.shadowY : 2;
+    h += colorRow('Shadow Colour', sc, `updateSubProp('${bId}','${seId}','shadowColor',this.value);renderCanvas()`);
+    h += `<div class="props-row"><label>Shadow Blur</label><input class="props-input" type="range" min="0" max="40" step="1" value="${sb}" oninput="updateSubProp('${bId}','${seId}','shadowBlur',parseInt(this.value)||0);renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${sb}px</span></div>`;
+    h += `<div class="props-row"><label>Offset X</label><input class="props-input" type="range" min="-20" max="20" step="1" value="${sx}" oninput="updateSubProp('${bId}','${seId}','shadowX',parseInt(this.value)||0);renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${sx}px</span></div>`;
+    h += `<div class="props-row"><label>Offset Y</label><input class="props-input" type="range" min="-20" max="20" step="1" value="${sy}" oninput="updateSubProp('${bId}','${seId}','shadowY',parseInt(this.value)||0);renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${sy}px</span></div>`;
   }
   return h;
 }

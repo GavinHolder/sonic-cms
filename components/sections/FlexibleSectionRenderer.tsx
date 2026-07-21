@@ -2693,6 +2693,14 @@ function DesignerSubElement({ sub, pkg, mobile, exact, darkBg }: { sub: SubEl; p
   const outlinedStyle: React.CSSProperties = p.outlined
     ? { color: outlineColor, filter: `url(#${outlineFilterId})` }
     : {};
+  // Text shadow (opt-in) — keeps text legible over busy/photographic backgrounds.
+  // OFF by default so existing sections are visually unchanged. Mirrors the designer
+  // canvas's `text-shadow: {x}px {y}px {blur}px {color}` emitted from the same props.
+  const textShadowStyle: React.CSSProperties = p.textShadow
+    ? {
+        textShadow: `${Number(p.shadowX) || 0}px ${p.shadowY !== undefined ? Number(p.shadowY) : 2}px ${p.shadowBlur !== undefined ? Number(p.shadowBlur) : 4}px ${(p.shadowColor as string) || "#000000"}`,
+      }
+    : {};
   // Hidden SVG carrying the filter def the CSS filter above references (only when outlined).
   const outlineDefs = p.outlined ? (
     <svg aria-hidden="true" focusable="false" width={0} height={0}
@@ -2855,6 +2863,7 @@ function DesignerSubElement({ sub, pkg, mobile, exact, darkBg }: { sub: SubEl; p
             // Designer heading: `white-space: p.textWrap||'normal'` + .se-heading break-word.
             ...(exact ? { whiteSpace: (p.textWrap as React.CSSProperties["whiteSpace"]) || ("normal" as const), overflowWrap: "break-word" as const } : {}),
             ...outlinedStyle,
+            ...textShadowStyle,
             marginBottom:  hasShell ? 0 : mb,
             marginTop:     0,
           }}>
@@ -2899,6 +2908,7 @@ function DesignerSubElement({ sub, pkg, mobile, exact, darkBg }: { sub: SubEl; p
             // differs from overflow-wrap, which can change where lines break.
             ...(exact ? { whiteSpace: (p.textWrap as React.CSSProperties["whiteSpace"]) || "pre-wrap", overflowWrap: "break-word" as const } : {}),
             ...outlinedStyle,
+            ...textShadowStyle,
             marginBottom:  hasShell ? 0 : mb,
             marginTop:     0,
           }}>
