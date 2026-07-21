@@ -42,14 +42,34 @@ export default function MediaPickerModal({
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   const fetchMedia = async () => {
     setIsLoading(true);
+    setSessionExpired(false);
     try {
-      const [dbRes, fsRes] = await Promise.all([
-        fetch("/api/media?perPage=500"),
-        fetch("/api/media/files"),
-      ]);
+      const loadMedia = () =>
+        Promise.all([
+          fetch("/api/media?perPage=500", { credentials: "include" }),
+          fetch("/api/media/files", { credentials: "include" }),
+        ]);
+
+      let [dbRes, fsRes] = await loadMedia();
+
+      // Self-heal on stale admin token: if either endpoint is unauthorized,
+      // refresh the access token ONCE and retry the media fetches ONCE.
+      const isAuthErr = (r: Response) => r.status === 401 || r.status === 403;
+      if (isAuthErr(dbRes) || isAuthErr(fsRes)) {
+        await fetch("/api/auth/refresh", { method: "POST", credentials: "include" });
+        [dbRes, fsRes] = await loadMedia();
+        // Still unauthorized after refresh+retry → surface an explicit message.
+        if (isAuthErr(dbRes) || isAuthErr(fsRes)) {
+          setSessionExpired(true);
+          setFiles([]);
+          setIsLoading(false);
+          return;
+        }
+      }
 
       // Build URL → DB-backed file map
       const dbByUrl = new Map<string, MediaFile>();
@@ -252,6 +272,27 @@ export default function MediaPickerModal({
                     <span className="visually-hidden">Loading...</span>
                   </div>
                   <p className="mt-3 text-muted">Loading media...</p>
+                </div>
+              ) : sessionExpired ? (
+                <div className="alert alert-warning text-center my-4" role="alert">
+                  <i className="bi bi-shield-lock mb-2 d-block" style={{ fontSize: "2rem" }} />
+                  <p className="mb-1 fw-semibold">Your session expired</p>
+                  <p className="small mb-3">
+                    Your admin session timed out while this tab was in the background,
+                    so the media library couldn&apos;t load.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn btn-warning btn-sm"
+                    onClick={fetchMedia}
+                    disabled={isLoading}
+                  >
+                    <i className="bi bi-arrow-clockwise me-1" />
+                    Refresh session
+                  </button>
+                  <p className="small text-muted mt-2 mb-0">
+                    If this keeps happening, reload the page to sign back in.
+                  </p>
                 </div>
               ) : paginatedFiles.length === 0 ? (
                 <div className="text-center py-5 text-muted">
