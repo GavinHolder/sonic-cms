@@ -2690,16 +2690,22 @@ function DesignerSubElement({ sub, pkg, mobile, exact, darkBg }: { sub: SubEl; p
   const outlineColor    = (p.outlineColor as string) || "#000000";
   const outlineRadius   = Number(p.outlineWidth) || 1;
   const outlineFilterId = `dsub-outline-${scopeClass}`;
-  const outlinedStyle: React.CSSProperties = p.outlined
-    ? { color: outlineColor, filter: `url(#${outlineFilterId})` }
-    : {};
   // Text shadow (opt-in) — keeps text legible over busy/photographic backgrounds.
-  // OFF by default so existing sections are visually unchanged. Mirrors the designer
-  // canvas's `text-shadow: {x}px {y}px {blur}px {color}` emitted from the same props.
-  const textShadowStyle: React.CSSProperties = p.textShadow
-    ? {
-        textShadow: `${Number(p.shadowX) || 0}px ${p.shadowY !== undefined ? Number(p.shadowY) : 2}px ${p.shadowBlur !== undefined ? Number(p.shadowBlur) : 4}px ${(p.shadowColor as string) || "#000000"}`,
-      }
+  // OFF by default so existing sections are visually unchanged.
+  // For OUTLINED (hollow) text a plain text-shadow fills the transparent glyph body with a
+  // solid ghost, so instead the shadow is emitted as filter: drop-shadow(...) — which traces
+  // the rendered outline stroke — and merged into the same filter that carries the outline
+  // erode (never clobbering it). Non-outlined text keeps a normal text-shadow.
+  const shadowX     = Number(p.shadowX) || 0;
+  const shadowY     = p.shadowY    !== undefined ? Number(p.shadowY)    : 2;
+  const shadowBlur  = p.shadowBlur !== undefined ? Number(p.shadowBlur) : 4;
+  const shadowColor = (p.shadowColor as string) || "#000000";
+  const dropShadow  = `drop-shadow(${shadowX}px ${shadowY}px ${shadowBlur}px ${shadowColor})`;
+  const outlinedStyle: React.CSSProperties = p.outlined
+    ? { color: outlineColor, filter: `url(#${outlineFilterId})${p.textShadow ? ` ${dropShadow}` : ""}` }
+    : {};
+  const textShadowStyle: React.CSSProperties = p.textShadow && !p.outlined
+    ? { textShadow: `${shadowX}px ${shadowY}px ${shadowBlur}px ${shadowColor}` }
     : {};
   // Hidden SVG carrying the filter def the CSS filter above references (only when outlined).
   const outlineDefs = p.outlined ? (

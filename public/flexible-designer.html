@@ -3365,18 +3365,31 @@ function outlineStyleFrag(p) {
   // Must NOT fall back to p.color: a white heading toggled outlined without choosing a colour
   // would inherit white and paint an invisible white outline on a light bg (#95). 1:1 with renderer.
   const col = p.outlineColor || '#000000';
-  return `color:${col};filter:url(#${ensureOutlineErodeFilter(p.outlineWidth || 1)});`;
+  // When text shadow is also enabled, append drop-shadow so the shadow traces the outlined
+  // stroke shape (not the glyph body). Merged into the single filter — never clobbered.
+  let filter = `url(#${ensureOutlineErodeFilter(p.outlineWidth || 1)})`;
+  if (p.textShadow) { const s = shadowValues(p); filter += ` drop-shadow(${s.x}px ${s.y}px ${s.b}px ${s.col})`; }
+  return `color:${col};filter:${filter};`;
+}
+
+/** {x,y,blur,color} for the opt-in text shadow, with defaults. */
+function shadowValues(p) {
+  return {
+    x:   p.shadowX    !== undefined ? p.shadowX    : 0,
+    y:   p.shadowY    !== undefined ? p.shadowY    : 2,
+    b:   p.shadowBlur !== undefined ? p.shadowBlur : 4,
+    col: p.shadowColor || '#000000',
+  };
 }
 
 /** Inline style fragment for opt-in text shadow — keeps text legible over busy backgrounds.
- * Empty unless enabled, so existing sections render unchanged. 1:1 with FlexibleSectionRenderer. */
+ * Empty unless enabled, so existing sections render unchanged. For OUTLINED text the shadow
+ * is emitted as filter: drop-shadow via outlineStyleFrag (tracing the hollow stroke) instead
+ * of a text-shadow that would fill the transparent glyph body. 1:1 with FlexibleSectionRenderer. */
 function shadowStyleFrag(p) {
-  if (!p.textShadow) return '';
-  const x = p.shadowX !== undefined ? p.shadowX : 0;
-  const y = p.shadowY !== undefined ? p.shadowY : 2;
-  const b = p.shadowBlur !== undefined ? p.shadowBlur : 4;
-  const col = p.shadowColor || '#000000';
-  return `text-shadow:${x}px ${y}px ${b}px ${col};`;
+  if (!p.textShadow || p.outlined) return '';
+  const s = shadowValues(p);
+  return `text-shadow:${s.x}px ${s.y}px ${s.b}px ${s.col};`;
 }
 
 function createSubElementDOM(se, blockId) {
