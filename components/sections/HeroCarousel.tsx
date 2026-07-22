@@ -565,7 +565,11 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                             // Solid words inherit this text-shadow; outlined words handle it
                             // via a CSS filter on their wrapper (see below). Undefined = current look (none).
                             textShadow: buildTextShadow(slide.overlay?.textShadow),
-                          }}
+                            WebkitFontSmoothing: "antialiased",
+                            MozOsxFontSmoothing: "grayscale",
+                            fontSynthesis: "none",
+                            backfaceVisibility: "hidden",
+                          } as React.CSSProperties}
                         >
                           {renderRowInner(row, slide.overlay?.textShadow)}
                         </motion.span>
@@ -589,7 +593,11 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                         marginBottom: `${slide.overlay.spacing.betweenHeadingSubheading}px`,
                         textShadow: buildTextShadow(slide.overlay.textShadow, BAKED_HEADING_SHADOW),
                         lineHeight: 1.2,
-                      }}
+                        WebkitFontSmoothing: "antialiased",
+                        MozOsxFontSmoothing: "grayscale",
+                        fontSynthesis: "none",
+                        backfaceVisibility: "hidden",
+                      } as React.CSSProperties}
                     >
                       {slide.overlay.heading.text}
                     </motion.h1>
@@ -728,7 +736,11 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                             whiteSpace: isMobile ? "normal" : "nowrap",
                             textAlign: "center",
                             textShadow: buildTextShadow(slide.overlay?.textShadow),
-                          }}
+                            WebkitFontSmoothing: "antialiased",
+                            MozOsxFontSmoothing: "grayscale",
+                            fontSynthesis: "none",
+                            backfaceVisibility: "hidden",
+                          } as React.CSSProperties}
                         >
                           {renderRowInner(row, slide.overlay?.textShadow)}
                         </motion.h1>
@@ -753,7 +765,11 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                             lineHeight: 1.2,
                             whiteSpace: isMobile ? "normal" : "nowrap",
                             textAlign: "center",
-                          }}
+                            WebkitFontSmoothing: "antialiased",
+                            MozOsxFontSmoothing: "grayscale",
+                            fontSynthesis: "none",
+                            backfaceVisibility: "hidden",
+                          } as React.CSSProperties}
                         >
                           {slide.overlay.heading.text}
                         </motion.h1>
