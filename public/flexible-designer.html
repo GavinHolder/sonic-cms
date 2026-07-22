@@ -1915,8 +1915,12 @@ const state = {
   positionMode: 'free',   // 'free' | 'grid'  — default: free-form absolute positioning
   devicePreview: 'desktop', // 'mobile'|'tablet'|'desktop'
   _desktopCanvasW: null,    // cached desktop canvas width for responsive scaling
-  designerCanvasH: null,    // AUTHORED free-mode design-box height (Option C). null = new design
-                            // → DESIGN_H. Existing designs load their saved value; preserved on save.
+  designerCanvasH: 810,     // AUTHORED free-mode design-box height. NEW free designs default to
+                            // 810 (16:9 of 1440 → fills a 16:9 viewport edge-to-edge, no letterbox)
+                            // and PERSIST that value. Existing designs load their saved value (which
+                            // may be null → DESIGN_H 900 fallback) via applySnapshot / the INIT load
+                            // path, so legacy null-canvas designs stay byte-identical. DESIGN_H (900)
+                            // remains the fallback for any design whose designerCanvasH is null/0.
   showFrameGuides: true,    // Option C — draw navbar/padding/gutter/wave frame guides on the canvas
   userZoom: 1,              // manual zoom multiplier (0.25–2.0), applied on top of auto-fit scale
   blocks: [],

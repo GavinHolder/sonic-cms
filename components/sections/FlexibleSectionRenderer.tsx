@@ -588,8 +588,8 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
         position: "relative",
         ...(isBgGrad ? { background: bgColor } : {}),
         ...(diagonalSlab ? { clipPath: "polygon(0 4%, 100% 0, 100% 96%, 0 100%)", overflow: "hidden" } : {}),
-        ...(freePlateDesktop && freeCanvas ? {
-          // TRUE 1:1 free-mode height — the section is exactly as tall as the design scaled
+        ...(freePlateDesktop && freeCanvas && contentMode === "multi" ? {
+          // MULTI free-mode height — the section is exactly as tall as the design scaled
           // to the viewport WIDTH (height = width · ch/cw), so the WHOLE design shows with
           // NO cover-zoom and NO crop. aspect-ratio derives that height in pure CSS
           // (SSR/no-JS safe — no measurement, no zero-height flash); height:auto + min/max
@@ -597,6 +597,9 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           // `#snap-container section:not(.hero-carousel)` rule has NO !important, so this
           // inline style wins). Scoped to freePlateDesktop → applied on desktop ONLY; on
           // mobile no inline height is emitted, so the mobile CSS height model is byte-identical.
+          // SINGLE mode intentionally emits NONE of these overrides — the section keeps its
+          // globals.css 100vh pin so a single free section is exactly one screen and never
+          // scrolls; the plate contain-fits the design inside that fixed 100vh box instead.
           aspectRatio: `${freeCanvas.cw} / ${freeCanvas.ch}`,
           height: "auto",
           minHeight: 0,
@@ -1682,23 +1685,39 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
         );
       }
 
-      // ── Desktop free = TRUE 1:1 PLATE (width-only scale) ────────────────────
+      // ── Desktop free = TRUE 1:1 PLATE ───────────────────────────────────────
       // The section-level plateMode instance draws on desktop; the in-wrapper instance draws
       // nothing (the plate lives at section level so it fills the section box, not the padded
       // content wrapper — that is what keeps the live render registered with the design box).
       if (!plateMode) return null;
-      // WIDTH-ONLY scale = a truthful 1:1 render. Plate width after scale = cw·(stageW/cw) =
-      // stageW = the section content width, so the plate fills the width EXACTLY — no
-      // horizontal crop, no centering math. The section is separately sized to the SCALED
-      // design height (aspect-ratio on the <section>, above), so the WHOLE design is visible:
-      // there is nothing to crop and no zoom. (The OLD Math.max(sw/cw, sh/ch) was COVER scale
-      // — it zoomed to fill height and cropped the design; that was the "designer ≠ live
-      // zoomed crop" bug this fixes.) ch = this section's saved designerCanvasH (or DESIGN_H)
-      // — the SAME value the designer authored at, used on both sides → identical box. stageH
-      // is intentionally no longer read. Pre-measure (stageW 0) falls back to window width,
-      // matching the file's existing pre-measure pattern; resize re-derives scale via stageW.
+      // Two render modes, branched cleanly on isMulti:
+      //
+      // MULTI: WIDTH-ONLY scale = a truthful 1:1 render. Plate width after scale = cw·(stageW/cw)
+      //   = stageW = the section content width, so the plate fills the width EXACTLY. The section
+      //   is separately grown to the SCALED design height (aspect-ratio on the <section>, above),
+      //   so the WHOLE design is visible with no crop and no zoom. Top-left anchored, no centering.
+      //
+      // SINGLE: CONTAIN-FIT scale = Math.min(sw/cw, sh/ch) inside the fixed 100vh section box
+      //   (single mode emits NO aspect-ratio override, so the section keeps its globals.css 100vh
+      //   pin and never scrolls). The whole design fits with no crop; any letterbox sits at the
+      //   sides/bottom. Horizontally centred (offsetX) but TOP-anchored (offsetY 0) to preserve
+      //   the existing navbar-clearance assumption — the navbar band stays under the fixed navbar.
       const sw = stageW || (typeof window !== "undefined" ? window.innerWidth : cw);
-      const scale = sw / cw;
+      let plateTransform: string;
+      if (isMulti) {
+        // MULTI: width-only scale — exactly as before (transform string byte-identical).
+        const scale = sw / cw;
+        plateTransform = `scale(${scale})`;
+      } else {
+        // SINGLE: contain-fit — Math.min(sw/cw, sh/ch) so the whole design fits the fixed 100vh
+        // section box with no crop, then centre horizontally (offsetX) while staying top-anchored
+        // (offsetY 0). Pre-measure guard: stageW/stageH may be 0 before the ResizeObserver fires —
+        // fall back to the viewport so there is no zero-scale flash (mirrors the width-fallback above).
+        const sh = stageH || (typeof window !== "undefined" ? window.innerHeight : ch);
+        const scale = Math.min(sw / cw, sh / ch);
+        const offsetX = Math.max(0, (sw - cw * scale) / 2);
+        plateTransform = `translate(${offsetX}px, 0px) scale(${scale})`;
+      }
       return (
         <div ref={stageRef} style={{
           position: "absolute",
@@ -1708,15 +1727,14 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
           pointerEvents: "none",
         }}>
           <div style={{
-            // TOP-LEFT anchored 1:1 plate. The design is authored top-left (navbar band at the
-            // TOP of the cw×ch box), so pin the plate's top-left to the section's top-left and
-            // scale from there. With width-only scale the plate is exactly stageW wide (fills
-            // width, no left/right crop) and ch·scale tall (= the section's aspect-ratio height
-            // above), so it fills the section exactly — the navbar band sits under the fixed
-            // 100px navbar and everything else shows in full. No translate, no centering.
+            // TOP-LEFT anchored plate. The design is authored top-left (navbar band at the TOP of
+            // the cw×ch box), so pin the plate's top-left to the section's top-left and transform
+            // from there. MULTI: width-only scale, no translate. SINGLE: contain-fit scale with a
+            // horizontal-centre translate and offsetY 0 (top-anchored) so the design is centred
+            // across the width while the navbar band stays under the fixed 100px navbar.
             position: "absolute", left: 0, top: 0,
             width: cw, height: ch,
-            transform: `scale(${scale})`,
+            transform: plateTransform,
             transformOrigin: "top left",
             pointerEvents: "auto",
           }}>
