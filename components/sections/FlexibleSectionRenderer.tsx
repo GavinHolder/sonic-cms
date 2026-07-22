@@ -1697,11 +1697,12 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
       //   is separately grown to the SCALED design height (aspect-ratio on the <section>, above),
       //   so the WHOLE design is visible with no crop and no zoom. Top-left anchored, no centering.
       //
-      // SINGLE: CONTAIN-FIT scale = Math.min(sw/cw, sh/ch) inside the fixed 100vh section box
-      //   (single mode emits NO aspect-ratio override, so the section keeps its globals.css 100vh
-      //   pin and never scrolls). The whole design fits with no crop; any letterbox sits at the
-      //   sides/bottom. Horizontally centred (offsetX) but TOP-anchored (offsetY 0) to preserve
-      //   the existing navbar-clearance assumption — the navbar band stays under the fixed navbar.
+      // SINGLE: WIDTH-FILL (cover) scale = sw/cw so the background fills the section edge-to-edge
+      //   (no letterbox bars). Single mode emits NO aspect-ratio override, so the section keeps its
+      //   globals.css 100vh pin with overflow:hidden and never scrolls — the design's empty BOTTOM
+      //   simply crops off-screen like background-size:cover. The design is authored top-left (text
+      //   at the TOP of the box) so it is top-left anchored with no horizontal offset, keeping the
+      //   text fully visible and registered under the fixed navbar.
       const sw = stageW || (typeof window !== "undefined" ? window.innerWidth : cw);
       let plateTransform: string;
       if (isMulti) {
@@ -1709,14 +1710,13 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
         const scale = sw / cw;
         plateTransform = `scale(${scale})`;
       } else {
-        // SINGLE: contain-fit — Math.min(sw/cw, sh/ch) so the whole design fits the fixed 100vh
-        // section box with no crop, then centre horizontally (offsetX) while staying top-anchored
-        // (offsetY 0). Pre-measure guard: stageW/stageH may be 0 before the ResizeObserver fires —
-        // fall back to the viewport so there is no zero-scale flash (mirrors the width-fallback above).
-        const sh = stageH || (typeof window !== "undefined" ? window.innerHeight : ch);
-        const scale = Math.min(sw / cw, sh / ch);
-        const offsetX = Math.max(0, (sw - cw * scale) / 2);
-        plateTransform = `translate(${offsetX}px, 0px) scale(${scale})`;
+        // SINGLE: WIDTH-FILL (cover) — scale section width so the background fills edge-to-edge
+        // (no letterbox bars). The section stays pinned 100vh (single mode emits no aspect-ratio
+        // override) with overflow:hidden, so the design's empty BOTTOM crops off-screen like
+        // background-size:cover; the design is top-anchored so the text is never cut. No horizontal
+        // offset. Pre-measure guard on sw above falls back to the viewport (no zero-scale flash).
+        const scale = sw / cw;
+        plateTransform = `scale(${scale})`;
       }
       return (
         <div ref={stageRef} style={{
