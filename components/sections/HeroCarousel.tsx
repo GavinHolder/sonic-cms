@@ -475,16 +475,14 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
         </div>
       ))}
 
-      <AnimatePresence>
-        <motion.div
-          key={currentSlide}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: transitionDuration / 1000 }}
-          className="position-absolute top-0 start-0 w-100 h-100"
-          style={{ zIndex: 1 }}
-        >
+      <motion.div
+        key={currentSlide}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: transitionDuration / 1000 }}
+        className="position-absolute top-0 start-0 w-100 h-100"
+        style={{ zIndex: 1 }}
+      >
           {/* Background is handled by the always-mounted stack above; this
               AnimatePresence layer now carries ONLY the text/overlay content so
               the media never mounts/unmounts on a swap. */}
@@ -843,8 +841,7 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
               </AnimatePresence>
             </div>
           )}
-        </motion.div>
-      </AnimatePresence>
+      </motion.div>
 
       {/* Bottom controls — dots, slide counter, meta lines */}
       <div
