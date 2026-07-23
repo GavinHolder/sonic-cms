@@ -475,7 +475,7 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
         </div>
       ))}
 
-      <AnimatePresence mode="wait">
+      <AnimatePresence>
         <motion.div
           key={currentSlide}
           initial={{ opacity: 0 }}
