@@ -505,7 +505,9 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                   maxWidth: isMobile ? "100%" : "860px",
                   width: isMobile ? "100%" : undefined,
                   zIndex: 10,
-                  transform: getOverlayTransform(slide.overlay),
+                  // Mobile: the block is already full-width and centered, so skip the desktop
+                  // pixel overlay-offset translate (it would shove content off a phone screen). (mobile-gated)
+                  transform: isMobile ? undefined : getOverlayTransform(slide.overlay),
                   padding: isMobile
                     ? "0 20px"
                     : (slide.overlay.position || "").toLowerCase().includes("left") ? "0 0 60px 60px"
@@ -554,7 +556,12 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                           }}
                           style={{
                             display: "block",
-                            fontSize: `clamp(40px, 9vw, ${row.fontSize}px)`,
+                            // Mobile: lower the floor and cap the ceiling so slide 1's large
+                            // display heading fits a phone. The old hard 40px floor won on narrow
+                            // viewports (9vw < 40 at ≤430px), rendering the heading oversized. (mobile-gated)
+                            fontSize: isMobile
+                              ? `clamp(22px, 8vw, ${Math.min(row.fontSize, 48)}px)`
+                              : `clamp(40px, 9vw, ${row.fontSize}px)`,
                             fontWeight: row.fontWeight,
                             fontFamily: row.fontFamily || "inherit",
                             color: row.color,
@@ -584,7 +591,10 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                       }}
                       className="hero-heading"
                       style={{
-                        fontSize: `clamp(28px, 7vw, ${slide.overlay.heading.fontSize}px)`,
+                        // Mobile: cap the legacy heading so it fits a phone. (mobile-gated)
+                        fontSize: isMobile
+                          ? `clamp(22px, 7vw, ${Math.min(slide.overlay.heading.fontSize, 44)}px)`
+                          : `clamp(28px, 7vw, ${slide.overlay.heading.fontSize}px)`,
                         fontWeight: slide.overlay.heading.fontWeight,
                         fontFamily: slide.overlay.heading.fontFamily,
                         color: slide.overlay.heading.color,
@@ -725,7 +735,10 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                           style={{
                             margin: 0,
                             padding: 0,
-                            fontSize: `clamp(32px, 8vw, ${row.fontSize}px)`,
+                            // Mobile: lower floor + cap ceiling so the freeform display heading fits. (mobile-gated)
+                            fontSize: isMobile
+                              ? `clamp(20px, 7.5vw, ${Math.min(row.fontSize, 44)}px)`
+                              : `clamp(32px, 8vw, ${row.fontSize}px)`,
                             fontWeight: row.fontWeight,
                             fontFamily: row.fontFamily || "inherit",
                             color: row.color,
@@ -755,7 +768,10 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                           className="hero-heading"
                           style={{
                             margin: 0,
-                            fontSize: `clamp(28px, 7vw, ${slide.overlay.heading.fontSize}px)`,
+                            // Mobile: cap the freeform legacy heading so it fits a phone. (mobile-gated)
+                            fontSize: isMobile
+                              ? `clamp(20px, 7vw, ${Math.min(slide.overlay.heading.fontSize, 44)}px)`
+                              : `clamp(28px, 7vw, ${slide.overlay.heading.fontSize}px)`,
                             fontWeight: slide.overlay.heading.fontWeight,
                             fontFamily: slide.overlay.heading.fontFamily,
                             color: slide.overlay.heading.color,
