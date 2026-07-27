@@ -364,6 +364,8 @@
           <input id="vx-round-range" type="range" min="0" max="45" value="0" step="1" style="width:90px;accent-color:#6366f1;">
           <span id="vx-round-val" style="font-size:10px;font-weight:700;color:#6366f1;min-width:24px;">0%</span>
           <button id="vx-round-reset" style="font-size:10px;padding:1px 7px;border-radius:10px;border:1px solid #6366f1;color:#6366f1;background:transparent;cursor:pointer;font-weight:700;">↺</button>
+          <span style="width:1px;height:16px;background:#e2e8f0;margin:0 1px;"></span>
+          <button id="vx-node-toggle" title="Toggle selected point: corner ⇄ smooth (press C)" disabled style="font-size:10px;padding:2px 9px;border-radius:10px;border:1px solid #6366f1;color:#6366f1;background:transparent;cursor:default;font-weight:700;white-space:nowrap;opacity:0.45;">◆ Point</button>
         </div>
         <div id="canvas-empty-hint" class="canvas-empty-hint">
           <div class="canvas-empty-hint-card">
@@ -558,7 +560,7 @@
     // ── State ─────────────────────────────────────────────────────────────────
     var state={
       element:{id:'',name:'New Design',mood:null,elementType:'custom',voltType:'standard',isPublic:false,authorId:'',layers:[],states:[],tags:[],canvasWidth:800,canvasHeight:500},
-      activeTool:'select',selectedLayerId:null,boolBaseId:null,vertexEditLayerId:null,
+      activeTool:'select',selectedLayerId:null,boolBaseId:null,vertexEditLayerId:null,vertexSelIdx:-1,
       boolEditParentId:null,   // composite layer being edited (shows/moves its cutters)
       multiSelectIds:[],       // layers selected by marquee
       isDirty:false,history:[],historyIndex:-1,zoom:1,panX:0,panY:0,gridSize:10,
@@ -805,7 +807,7 @@
       drawing_line: {ctx:'Drawing Line',     keys:[['Drag','Draw line'],['Ctrl (hold)','⊙ Snap to grid'],['Esc','Cancel']]},
       drawing_slot: {ctx:'Drawing Slot',     keys:[['Drag','Draw slot'],['Shift (hold)','Lock to square'],['Ctrl (hold)','⊙ Snap to grid'],['Esc','Cancel']]},
       drawing_polygon:{ctx:'Polygon Tool',   keys:[['Click','Add point'],['Ctrl (hold)','⊙ Snap to grid'],['Enter','Close & commit'],['dblclick','Close & commit'],['Backspace','Remove last point'],['Esc','Cancel']]},
-      vertex_edit:  {ctx:'Vertex Edit',      keys:[['Ctrl (hold drag)','⊙ Snap to grid'],['Drag vertex','Move point'],['Drag handle','Curve handle'],['Shift+drag handle','Symmetric curve'],['Alt+click edge','Add point'],['Alt+dblclick vertex','Delete point'],['Esc','Exit']]},
+      vertex_edit:  {ctx:'Vertex Edit',      keys:[['Ctrl (hold drag)','⊙ Snap to grid'],['Drag vertex','Move point'],['Click outline','Add point'],['C','Corner ⇄ Smooth'],['Drag handle','Curve handle'],['Shift+drag handle','Symmetric curve'],['Alt+click edge','Add point'],['Alt+dblclick vertex','Delete point'],['Esc','Exit']]},
       bool_edit:    {ctx:'Bool Edit',        keys:[['Ctrl (hold drag)','⊙ Snap to grid'],['Drag','Move cutter'],['dblclick cutter','Edit cutter vertices'],['Esc','Confirm & exit']]},
     };
     function renderKeyLegend(){
@@ -1074,6 +1076,7 @@
       var hint=document.getElementById('canvas-empty-hint');if(hint){var _hshow=state.element.layers.length===0&&state.activeTool==='select'&&penState.verts.length===0&&polyState.verts.length===0&&!drawSt;hint.style.display=_hshow?'flex':'none';}
       var beb=document.getElementById('bool-edit-badge');if(beb)beb.style.display=state.boolEditParentId?'inline-flex':'none';
       var _vrb=document.getElementById('vx-round-bar');if(_vrb)_vrb.style.display=state.vertexEditLayerId?'flex':'none';
+      if(typeof updateNodeToggleBtn==='function')updateNodeToggleBtn();
       while(svgEl.firstChild)svgEl.removeChild(svgEl.firstChild);
       artboard.querySelectorAll('.slot-overlay').forEach(function(e){e.remove();});
       artboard.querySelectorAll('.text-overlay').forEach(function(e){e.remove();});
@@ -1509,8 +1512,9 @@
             var vcx2=topx(vp.x,CW),vcy2=topx(vp.y,CH);
             var _onThis=_vxMousePt&&dist2(_vxMousePt,{x:vcx2,y:vcy2})<=_vhit_r;
             var vc=svgNs('circle');vc.setAttribute('cx',vcx2);vc.setAttribute('cy',vcy2);vc.setAttribute('r',vr);
-            var _vFill=(_altHeld&&_onThis)?'#ef4444':'white';
-            var _vStroke=_altHeld?'#ef4444':'#f59e0b';
+            var _vSel=(vi===state.vertexSelIdx);
+            var _vFill=(_altHeld&&_onThis)?'#ef4444':(_vSel?'#6366f1':'white');
+            var _vStroke=_altHeld?'#ef4444':(_vSel?'#4338ca':'#f59e0b');
             vc.setAttribute('fill',_vFill);vc.setAttribute('stroke',_vStroke);vc.setAttribute('stroke-width',(1.5/state.zoom).toFixed(3));
             vc.setAttribute('pointer-events','none');vc.setAttribute('data-vi',vi);svgEl.appendChild(vc);
           });
@@ -1550,6 +1554,16 @@
               if(_epBest.pt){var _epDot=svgNs('circle');_epDot.setAttribute('cx',topx(_epBest.pt.x,CW));_epDot.setAttribute('cy',topx(_epBest.pt.y,CH));_epDot.setAttribute('r',(vr*0.7).toFixed(2));_epDot.setAttribute('fill','#22c55e');_epDot.setAttribute('stroke','white');_epDot.setAttribute('stroke-width',(1/state.zoom).toFixed(3));_epDot.setAttribute('pointer-events','none');svgEl.appendChild(_epDot);}
             }
           }
+          // Add-point preview dot (no Alt): shown only when hovering directly on the outline
+          if(!_altHeld&&_vxMousePt&&vanch.length>=2){
+            var _apOnVert=vanch.some(function(vp){return dist2(_vxMousePt,{x:topx(vp.x,CW),y:topx(vp.y,CH)})<=_vhit_r;});
+            if(!_apOnVert){
+              var _apClosed=vel.vectorData.closed!==false,_apSeg=_apClosed?vanch.length:vanch.length-1,_apBest={d:Infinity,pt:null};
+              for(var _api=0;_api<_apSeg;_api++){var _apa=vanch[_api],_apb=vanch[(_api+1)%vanch.length];var _apdx=_apb.x-_apa.x,_apdy=_apb.y-_apa.y;var _apl2=_apdx*_apdx+_apdy*_apdy;var _ck2={x:pct(_vxMousePt.x,CW),y:pct(_vxMousePt.y,CH)};var _apt=_apl2>0?Math.max(0,Math.min(1,((_ck2.x-_apa.x)*_apdx+(_ck2.y-_apa.y)*_apdy)/_apl2)):0;var _apcp={x:_apa.x+_apt*_apdx,y:_apa.y+_apt*_apdy};var _apd=dist2(_vxMousePt,{x:topx(_apcp.x,CW),y:topx(_apcp.y,CH)});if(_apd<_apBest.d){_apBest={d:_apd,pt:_apcp};}}
+              var _apth=8/state.zoom;
+              if(_apBest.pt&&_apBest.d<=_apth*_apth){var _apDot=svgNs('circle');_apDot.setAttribute('cx',topx(_apBest.pt.x,CW));_apDot.setAttribute('cy',topx(_apBest.pt.y,CH));_apDot.setAttribute('r',(vr*0.7).toFixed(2));_apDot.setAttribute('fill','#6366f1');_apDot.setAttribute('stroke','white');_apDot.setAttribute('stroke-width',(1/state.zoom).toFixed(3));_apDot.setAttribute('pointer-events','none');svgEl.appendChild(_apDot);}
+            }
+          }
           // Vertex edit hint is shown in the key legend status bar — no canvas annotation needed
         }
       }
@@ -1581,6 +1595,8 @@
     }
     // ── Polygon drawing ───────────────────────────────────────────────────────
     var polyState={verts:[],cursorPt:null};
+    // Shift-drag straight polygon sides: snap the pending screen point to 45° steps off the last vertex
+    function _polyAngleSnap(sp){if(polyState.verts.length===0)return sp;var CW=state.element.canvasWidth,CH=state.element.canvasHeight;var lv=polyState.verts[polyState.verts.length-1];var ax=topx(lv.x,CW),ay=topx(lv.y,CH);var dx=sp.x-ax,dy=sp.y-ay;var len=Math.sqrt(dx*dx+dy*dy);if(len<0.0001)return sp;var snap=Math.round(Math.atan2(dy,dx)/(Math.PI/4))*(Math.PI/4);return{x:ax+Math.cos(snap)*len,y:ay+Math.sin(snap)*len};}
     function renderPolyGhost(){
       var old=svgEl.querySelector('#poly-ghost');if(old)old.remove();
       if(state.activeTool!=='polygon'||polyState.verts.length===0)return;
@@ -1733,16 +1749,18 @@
                   var _hhx,_hhy;
                   if(_hh.dx===0&&_hh.dy===0){var _hs=vxStubPos(vanch2,_hvi,_hk,vCW,vCH,state.zoom);_hhx=_hs.x;_hhy=_hs.y;}
                   else{_hhx=_hvx+topx(_hh.dx,vCW);_hhy=_hvy+topx(_hh.dy,vCH);}
-                  if(dist2(pt,{x:_hhx,y:_hhy})<=vhit){vxDragSt={layerId:vel.id,vertIdx:_hvi,handleKey:_hk,startPt:pt,origAnchors:vanch2.map(cloneAnchor)};break _hdLoop;}
+                  if(dist2(pt,{x:_hhx,y:_hhy})<=vhit){state.vertexSelIdx=_hvi;vxDragSt={layerId:vel.id,vertIdx:_hvi,handleKey:_hk,startPt:pt,origAnchors:vanch2.map(cloneAnchor)};break _hdLoop;}
                 }
               }
               if(vxDragSt)return;
             }
             // 2. Check vertex circles
-            for(var vi2=0;vi2<vanch2.length;vi2++){var vcx=topx(vanch2[vi2].x,vCW),vcy=topx(vanch2[vi2].y,vCH);if(dist2(pt,{x:vcx,y:vcy})<=vhit){if(_altHeld){var _dvdNow=Date.now();if(_vxDblClick.id===vel.id&&_vxDblClick.vi===vi2&&_dvdNow-_vxDblClick.time<400){_vxDblClick={id:null,vi:-1,time:0};if(vanch2.length>3){pushHistory();var _dvpts=vanch2.slice();_dvpts.splice(vi2,1);var _dveli=state.element.layers.findIndex(function(l){return l.id===state.vertexEditLayerId;});if(_dveli>=0){state.element.layers[_dveli].vectorData.pathData=anchorsToPath(_dvpts,_isClosed);recalcLayerBounds(state.element.layers[_dveli]);markDirty();}renderCanvas();}}else{_vxDblClick={id:vel.id,vi:vi2,time:_dvdNow};}return;}vxDragSt={layerId:vel.id,vertIdx:vi2,handleKey:null,startPt:pt,origAnchors:vanch2.map(cloneAnchor)};return;}}
+            for(var vi2=0;vi2<vanch2.length;vi2++){var vcx=topx(vanch2[vi2].x,vCW),vcy=topx(vanch2[vi2].y,vCH);if(dist2(pt,{x:vcx,y:vcy})<=vhit){if(_altHeld){var _dvdNow=Date.now();if(_vxDblClick.id===vel.id&&_vxDblClick.vi===vi2&&_dvdNow-_vxDblClick.time<400){_vxDblClick={id:null,vi:-1,time:0};if(vanch2.length>3){pushHistory();var _dvpts=vanch2.slice();_dvpts.splice(vi2,1);var _dveli=state.element.layers.findIndex(function(l){return l.id===state.vertexEditLayerId;});if(_dveli>=0){state.element.layers[_dveli].vectorData.pathData=anchorsToPath(_dvpts,_isClosed);recalcLayerBounds(state.element.layers[_dveli]);markDirty();}renderCanvas();}}else{_vxDblClick={id:vel.id,vi:vi2,time:_dvdNow};}return;}state.vertexSelIdx=vi2;vxDragSt={layerId:vel.id,vertIdx:vi2,handleKey:null,startPt:pt,origAnchors:vanch2.map(cloneAnchor)};return;}}
             // 3. Alt+click on empty area: insert vertex on nearest edge
-            if(_altHeld&&vanch2.length>=2){var _vck={x:pct(pt.x,vCW),y:pct(pt.y,vCH)},_best={d:Infinity,idx:-1,pt:null};for(var _vi=0;_vi<vanch2.length;_vi++){var _va=vanch2[_vi],_vb=vanch2[(_vi+1)%vanch2.length];var _vdx=_vb.x-_va.x,_vdy=_vb.y-_va.y;var _vl2=_vdx*_vdx+_vdy*_vdy;var _vt=_vl2>0?Math.max(0,Math.min(1,((_vck.x-_va.x)*_vdx+(_vck.y-_va.y)*_vdy)/_vl2)):0;var _vcp={x:_va.x+_vt*_vdx,y:_va.y+_vt*_vdy};var _vd=(_vck.x-_vcp.x)*(_vck.x-_vcp.x)+(_vck.y-_vcp.y)*(_vck.y-_vcp.y);if(_vd<_best.d){_best={d:_vd,idx:_vi+1,pt:_vcp};}}if(_best.idx>=0){pushHistory();var _vapts2=vanch2.slice();_vapts2.splice(_best.idx,0,{x:_best.pt.x,y:_best.pt.y,cpIn:{dx:0,dy:0},cpOut:{dx:0,dy:0}});var _veli=state.element.layers.findIndex(function(l){return l.id===state.vertexEditLayerId;});if(_veli>=0){state.element.layers[_veli].vectorData.pathData=anchorsToPath(_vapts2,_isClosed);recalcLayerBounds(state.element.layers[_veli]);markDirty();}vxDragSt={layerId:vel.id,vertIdx:_best.idx,handleKey:null,startPt:pt,origAnchors:_vapts2.map(cloneAnchor)};renderCanvas();return;}}
+            if(_altHeld&&vanch2.length>=2){var _vck={x:pct(pt.x,vCW),y:pct(pt.y,vCH)},_best={d:Infinity,idx:-1,pt:null};for(var _vi=0;_vi<vanch2.length;_vi++){var _va=vanch2[_vi],_vb=vanch2[(_vi+1)%vanch2.length];var _vdx=_vb.x-_va.x,_vdy=_vb.y-_va.y;var _vl2=_vdx*_vdx+_vdy*_vdy;var _vt=_vl2>0?Math.max(0,Math.min(1,((_vck.x-_va.x)*_vdx+(_vck.y-_va.y)*_vdy)/_vl2)):0;var _vcp={x:_va.x+_vt*_vdx,y:_va.y+_vt*_vdy};var _vd=(_vck.x-_vcp.x)*(_vck.x-_vcp.x)+(_vck.y-_vcp.y)*(_vck.y-_vcp.y);if(_vd<_best.d){_best={d:_vd,idx:_vi+1,pt:_vcp};}}if(_best.idx>=0){pushHistory();var _vapts2=vanch2.slice();_vapts2.splice(_best.idx,0,{x:_best.pt.x,y:_best.pt.y,cpIn:{dx:0,dy:0},cpOut:{dx:0,dy:0}});var _veli=state.element.layers.findIndex(function(l){return l.id===state.vertexEditLayerId;});if(_veli>=0){state.element.layers[_veli].vectorData.pathData=anchorsToPath(_vapts2,_isClosed);recalcLayerBounds(state.element.layers[_veli]);markDirty();}state.vertexSelIdx=_best.idx;vxDragSt={layerId:vel.id,vertIdx:_best.idx,handleKey:null,startPt:pt,origAnchors:_vapts2.map(cloneAnchor)};renderCanvas();return;}}
           }
+            // Click ON the outline (no Alt) inserts a corner point there and drags it immediately
+            if(!_altHeld&&vanch2.length>=2){var _ock={x:pct(pt.x,vCW),y:pct(pt.y,vCH)},_obest={d:Infinity,idx:-1,pt:null},_oseg=_isClosed?vanch2.length:vanch2.length-1;for(var _oi=0;_oi<_oseg;_oi++){var _oa=vanch2[_oi],_ob=vanch2[(_oi+1)%vanch2.length];var _odx=_ob.x-_oa.x,_ody=_ob.y-_oa.y;var _ol2=_odx*_odx+_ody*_ody;var _ot=_ol2>0?Math.max(0,Math.min(1,((_ock.x-_oa.x)*_odx+(_ock.y-_oa.y)*_ody)/_ol2)):0;var _ocp={x:_oa.x+_ot*_odx,y:_oa.y+_ot*_ody};var _od=dist2(pt,{x:topx(_ocp.x,vCW),y:topx(_ocp.y,vCH)});if(_od<_obest.d){_obest={d:_od,idx:_oi+1,pt:_ocp};}}var _oth=8/state.zoom;if(_obest.idx>=0&&_obest.d<=_oth*_oth){pushHistory();var _oapts=vanch2.slice();_oapts.splice(_obest.idx,0,{x:_obest.pt.x,y:_obest.pt.y,cpIn:{dx:0,dy:0},cpOut:{dx:0,dy:0}});var _oeli=state.element.layers.findIndex(function(l){return l.id===state.vertexEditLayerId;});if(_oeli>=0){state.element.layers[_oeli].vectorData.pathData=anchorsToPath(_oapts,_isClosed);recalcLayerBounds(state.element.layers[_oeli]);markDirty();}state.vertexSelIdx=_obest.idx;vxDragSt={layerId:vel.id,vertIdx:_obest.idx,handleKey:null,startPt:pt,origAnchors:_oapts.map(cloneAnchor)};renderCanvas();return;}}
           // Clicked outside vertex handles — exit vertex edit
           var _vexL=state.element.layers.find(function(l){return l.id===state.vertexEditLayerId;});
           state.vertexEditLayerId=null;
@@ -2018,7 +2036,7 @@
         renderPenGhost();return;
       }
       // Polygon ghost
-      if(state.activeTool==='polygon'){polyState.cursorPt=snapPt(pt,e.ctrlKey);if(polyState.verts.length>=3){var fp={x:topx(polyState.verts[0].x,CW),y:topx(polyState.verts[0].y,CH)};svgEl.style.cursor=dist2(polyState.cursorPt,fp)<12?'cell':'crosshair';}renderPolyGhost();return;}
+      if(state.activeTool==='polygon'){polyState.cursorPt=snapPt(pt,e.ctrlKey);if(e.shiftKey)polyState.cursorPt=_polyAngleSnap(polyState.cursorPt);if(polyState.verts.length>=3){var fp={x:topx(polyState.verts[0].x,CW),y:topx(polyState.verts[0].y,CH)};svgEl.style.cursor=dist2(polyState.cursorPt,fp)<12?'cell':'crosshair';}renderPolyGhost();return;}
       // Draw ghost
       if(!drawSt)return;
       var spt2=snapPt(pt,e.ctrlKey);drawSt.curX=spt2.x;drawSt.curY=spt2.y;
@@ -2132,6 +2150,7 @@
       if(state.activeTool==='polygon'){
         var pt=getSvgPt(e);var CW=state.element.canvasWidth,CH=state.element.canvasHeight;
         var spt=snapPt(pt,e.ctrlKey);
+        if(e.shiftKey)spt=_polyAngleSnap(spt);
         if(polyState.verts.length>=3){var fp={x:topx(polyState.verts[0].x,CW),y:topx(polyState.verts[0].y,CH)};if(dist2(spt,fp)<12){commitPolygon();return;}}
         polyState.verts.push({x:pct(spt.x,CW),y:pct(spt.y,CH)});renderPolyGhost();return;
       }
@@ -4848,6 +4867,8 @@
     document.addEventListener('keydown',function(e){
       if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;
       var t={v:'select',r:'rectangle',e:'ellipse',l:'line',b:'pen',p:'polygon',s:'slot',t:'text',n:'number'};
+      // Corner ⇄ smooth toggle for the selected vertex (vertex-edit mode only)
+      if((e.key==='c'||e.key==='C')&&!(e.ctrlKey||e.metaKey||e.altKey)&&state.vertexEditLayerId&&state.vertexSelIdx>=0){e.preventDefault();toggleNodeType();return;}
       if(t[e.key.toLowerCase()]){e.preventDefault();var tb=document.querySelector('.tool-btn-h[data-tool="'+t[e.key.toLowerCase()]+'"]');if(tb)tb.click();return;}
       if(e.key==='Enter'&&state.activeTool==='pen'){e.preventDefault();if(penState.verts.length>=2)commitPen(false);return;}
       if(e.key==='Enter'&&state.activeTool==='polygon'){e.preventDefault();if(polyState.verts.length>=3)commitPolygon();return;}
@@ -5436,7 +5457,7 @@
     // close on outside click (handled in existing global click listener — extend it)
     // ── Corner rounding bar ───────────────────────────────────────────────────
     var _origRoundPath=null; // original path before rounding — set fresh on vertex edit entry
-    function resetRoundBar(){var r=document.getElementById('vx-round-range');if(r)r.value=0;var v=document.getElementById('vx-round-val');if(v)v.textContent='0%';_origRoundPath=null;}
+    function resetRoundBar(){state.vertexSelIdx=-1;var r=document.getElementById('vx-round-range');if(r)r.value=0;var v=document.getElementById('vx-round-val');if(v)v.textContent='0%';_origRoundPath=null;if(typeof updateNodeToggleBtn==='function')updateNodeToggleBtn();}
     function applyCornerRound(t){
       if(!state.vertexEditLayerId)return;
       var li=state.element.layers.findIndex(function(l){return l.id===state.vertexEditLayerId;});
@@ -5480,6 +5501,11 @@
     document.getElementById('vx-round-reset').addEventListener('click',function(){
       var rng=document.getElementById('vx-round-range');rng.value=0;document.getElementById('vx-round-val').textContent='0%';applyCornerRound(0);pushHistory();
     });
+    // ── Per-point corner ⇄ smooth node toggle ─────────────────────────────────
+    function _nodeIsSmooth(a){return Math.abs(a.cpIn.dx)>0.001||Math.abs(a.cpIn.dy)>0.001||Math.abs(a.cpOut.dx)>0.001||Math.abs(a.cpOut.dy)>0.001;}
+    function updateNodeToggleBtn(){var btn=document.getElementById('vx-node-toggle');if(!btn)return;var ok=false,smooth=false;if(state.vertexEditLayerId&&state.vertexSelIdx>=0){var l=state.element.layers.find(function(x){return x.id===state.vertexEditLayerId;});if(l&&l.vectorData){var a=parseAnchors(l.vectorData.pathData);if(state.vertexSelIdx<a.length){ok=true;smooth=_nodeIsSmooth(a[state.vertexSelIdx]);}}}btn.disabled=!ok;btn.style.opacity=ok?'1':'0.45';btn.style.cursor=ok?'pointer':'default';btn.textContent=ok?(smooth?'● Smooth':'◆ Corner'):'◆ Point';}
+    function toggleNodeType(){if(!state.vertexEditLayerId||state.vertexSelIdx<0)return;var li=state.element.layers.findIndex(function(l){return l.id===state.vertexEditLayerId;});if(li<0)return;var l=state.element.layers[li];if(!l.vectorData)return;var isClosed=l.vectorData.closed!==false;var a=parseAnchors(l.vectorData.pathData),n=a.length,i=state.vertexSelIdx;if(i<0||i>=n)return;var vi=a[i];pushHistory();if(_nodeIsSmooth(vi)){vi.cpIn={dx:0,dy:0};vi.cpOut={dx:0,dy:0};}else{var _hasP=isClosed||i>0,_hasN=isClosed||i<n-1;var vp=_hasP?a[(i-1+n)%n]:null,vn=_hasN?a[(i+1)%n]:null;var tx,ty;if(vp&&vn){tx=vn.x-vp.x;ty=vn.y-vp.y;}else if(vn){tx=vn.x-vi.x;ty=vn.y-vi.y;}else if(vp){tx=vi.x-vp.x;ty=vi.y-vp.y;}else{tx=1;ty=0;}var tl=Math.sqrt(tx*tx+ty*ty)||1;tx/=tl;ty/=tl;var dP=vp?Math.sqrt(Math.pow(vi.x-vp.x,2)+Math.pow(vi.y-vp.y,2)):0,dN=vn?Math.sqrt(Math.pow(vn.x-vi.x,2)+Math.pow(vn.y-vi.y,2)):0;var refs=[dP,dN].filter(function(d){return d>0;});var mag=(refs.length?Math.min.apply(null,refs):10)*0.33;vi.cpOut={dx:tx*mag,dy:ty*mag};vi.cpIn={dx:-tx*mag,dy:-ty*mag};}l.vectorData.pathData=anchorsToPath(a,isClosed);recalcLayerBounds(l);markDirty();renderCanvas();updateNodeToggleBtn();}
+    var _vxNodeBtn=document.getElementById('vx-node-toggle');if(_vxNodeBtn)_vxNodeBtn.addEventListener('click',function(){toggleNodeType();});
     // ── Sidebar toggles ───────────────────────────────────────────────────────
     document.getElementById('toggle-left').addEventListener('click',function(){var s=document.getElementById('sidebar-left'),ic=document.getElementById('toggle-left-icon');s.classList.toggle('collapsed');ic.className=s.classList.contains('collapsed')?'bi bi-chevron-right':'bi bi-chevron-left';});
     document.getElementById('toggle-right').addEventListener('click',function(){var s=document.getElementById('sidebar-right'),ic=document.getElementById('toggle-right-icon');s.classList.toggle('collapsed');ic.className=s.classList.contains('collapsed')?'bi bi-chevron-left':'bi bi-chevron-right';});
