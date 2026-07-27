@@ -2494,8 +2494,15 @@ function renderCanvas() {
       b.gridCol  = Math.max(1, Math.min(b.gridCol  || 1, state.gridCols));
       b.colSpan  = Math.max(1, Math.min(b.colSpan  || 1, state.gridCols - b.gridCol + 1));
       b.rowSpan  = Math.max(1, Math.min(b.rowSpan  || 1, state.gridRows - b.gridRow + 1));
-      if (state.devicePreview !== 'mobile') {
-        // Desktop / tablet: recalculate pixel position from clamped grid coordinates.
+      if (state.devicePreview === 'tablet' && b.tabletPos) {
+        // TABLET FIX: this block was deliberately placed/sized on tablet (has a saved
+        // tabletPos). Keep its tablet coordinates instead of re-snapping to the grid on
+        // every re-render — otherwise adjusting anything on tablet would fling the block
+        // back to its grid cell. Rendering already reads tabletPos via getDisplayPos();
+        // syncing the canonical fields here keeps drag/resize math consistent.
+        b.x = b.tabletPos.x; b.y = b.tabletPos.y; b.w = b.tabletPos.w; b.h = b.tabletPos.h;
+      } else if (state.devicePreview !== 'mobile') {
+        // Desktop / tablet (auto-flow): recalculate pixel position from clamped grid coordinates.
         // Preserve w/h if the user manually resized the block via drag handles.
         const { cx, cy, cw, ch } = getCellRect(b.gridRow, b.gridCol, b.colSpan, b.rowSpan, b.section);
         b.x = cx; b.y = cy;
@@ -4930,9 +4937,18 @@ function getCellMetrics() {
   // Section height = available canvas area height for both single and multi modes.
   // Single: canvas.offsetHeight (naturally fills available space).
   // Multi: canvas.offsetHeight / multiLimit (each stacked section = same available height).
-  const sectionH = state.contentMode === 'multi'
+  let sectionH = state.contentMode === 'multi'
     ? Math.round(canvas.offsetHeight / state.multiLimit)
     : canvas.offsetHeight;
+  // TABLET FIX: on tablet the canvas WIDTH is halved (768 vs desktop 1440) while its
+  // HEIGHT stays desktop-tall, so horizontal spacing compresses but vertical row gaps
+  // stay desktop-tall — an accent word on the next grid row ends up far below its heading.
+  // Scale the vertical basis (sectionH → cellH) by the SAME width ratio the horizontal
+  // axis already uses so cellH compresses in lockstep with cellW. Tablet-only, grid-only
+  // (free-mode is a uniformly-scaled stage; mosaic positions itself independently).
+  if (state.devicePreview === 'tablet' && state.positionMode !== 'free' && state.layoutType !== 'mosaic') {
+    sectionH = sectionH * (rawCw / DESKTOP_CANVAS_W);
+  }
   const gap = state.gridGap;
   return { cw, sectionH, gap,
     cellW: (cw - gap*(state.gridCols-1)) / state.gridCols,
