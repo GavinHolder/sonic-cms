@@ -3904,6 +3904,11 @@ function onCanvasMouseDown(e) {
 function startMarquee(e) {
   const canvas = document.getElementById('canvas');
   if (!canvas) return;
+  // Suppress the browser's native text-selection drag (same as startSubElementMove /
+  // startGroupMove do). Without this, dragging on empty canvas highlights the whole
+  // page and the native selection repaints/flickers as the cursor sweeps over content.
+  e.preventDefault();
+  const _prevUserSelect = document.body.style.userSelect;
   const rect = canvas.getBoundingClientRect();
   const s = getCanvasScale();
   const startLX = (e.clientX - rect.left) / s, startLY = (e.clientY - rect.top) / s;
@@ -3912,6 +3917,7 @@ function startMarquee(e) {
 
   const onMove = ev => {
     if (!active && Math.abs(ev.clientX - startCX) < 4 && Math.abs(ev.clientY - startCY) < 4) return;
+    if (!active) { document.body.style.userSelect = 'none'; } // belt-and-suspenders once drag begins
     active = true;
     if (!box) { box = document.createElement('div'); box.className = 'marquee-box'; canvas.appendChild(box); }
     const curLX = (ev.clientX - rect.left) / s, curLY = (ev.clientY - rect.top) / s;
@@ -3923,6 +3929,7 @@ function startMarquee(e) {
   const onUp = ev => {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    document.body.style.userSelect = _prevUserSelect; // always restore, even on plain click
     if (box) box.remove();
     if (!active) return; // plain click → let onCanvasClick handle deselect
     _suppressCanvasClick = true;
