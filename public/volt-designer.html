@@ -4034,6 +4034,13 @@
       var ts=mkSec();ts.appendChild(mkLbl('Slot Type'));var tsel=document.createElement('select');tsel.id='prop-slot-type';tsel.className='form-select form-select-sm';
       ['title','body','image','action','badge','icon','input','custom'].forEach(function(t){var o=document.createElement('option');o.value=t;o.textContent=t;if(sd.slotType===t)o.selected=true;tsel.appendChild(o);});ts.appendChild(tsel);body.appendChild(ts);
       var ls=mkSec();ls.appendChild(mkLbl('Slot Label'));var li=document.createElement('input');li.type='text';li.id='prop-slot-label';li.className='form-control form-control-sm';li.value=sd.slotLabel||'Slot';ls.appendChild(li);body.appendChild(ls);
+      // Data binding: tag this slot to a linked product field. Values map 1:1 to the
+      // pkg.-prefixed keys emitted by lib/packages/format.ts (packageSlotValues), which
+      // VoltSlotRenderer resolves via slotData.contentFieldHint. So a linked product card
+      // auto-fills this slot from the chosen field; 'None' leaves it as manual slot text.
+      var fh=mkSec();fh.appendChild(mkLbl('Bind to Product Field'));var fhs=document.createElement('select');fhs.id='prop-slot-field-hint';fhs.className='form-select form-select-sm';
+      [{v:'',l:'None (manual)'},{v:'pkg.name',l:'Name'},{v:'pkg.speed',l:'Speed'},{v:'pkg.price',l:'Price'},{v:'pkg.options',l:'Options'},{v:'pkg.period',l:'Period'}].forEach(function(o){var op=document.createElement('option');op.value=o.v;op.textContent=o.l;if((sd.contentFieldHint||'')===o.v)op.selected=true;fhs.appendChild(op);});fh.appendChild(fhs);body.appendChild(fh);
+      var fhh=document.createElement('div');fhh.style.cssText='font-size:9px;color:#94a3b8;margin:-4px 0 6px;';fhh.textContent='A linked product card auto-fills this slot from the chosen field';body.appendChild(fhh);
       // Input/action slot skin controls
       if(_st==='input'||_st==='action'){
         var ss=mkSec();ss.appendChild(mkLbl('Skin Mode'));
@@ -4271,6 +4278,8 @@
       }
       var slt=document.getElementById('prop-slot-type');if(slt)slt.addEventListener('change',function(e){var i=idx();if(i<0)return;pushHistory();if(!state.element.layers[i].slotData)state.element.layers[i].slotData={};var nt=e.target.value;state.element.layers[i].slotData.slotType=nt;state.element.layers[i].slotData.slotLabel=nt.charAt(0).toUpperCase()+nt.slice(1);markDirty();renderCanvas();renderLayers();var sl2=document.getElementById('prop-slot-label');if(sl2)sl2.value=state.element.layers[i].slotData.slotLabel;});
       var sll=document.getElementById('prop-slot-label');if(sll){sll.addEventListener('input',function(e){var i=idx();if(i<0)return;if(!state.element.layers[i].slotData)state.element.layers[i].slotData={};state.element.layers[i].slotData.slotLabel=e.target.value;markDirty();renderCanvas();});sll.addEventListener('change',function(){pushHistory();});}
+      // Slot -> product field binding (contentFieldHint)
+      var _sfh=document.getElementById('prop-slot-field-hint');if(_sfh)_sfh.addEventListener('change',function(e){var i=idx();if(i<0)return;pushHistory();if(!state.element.layers[i].slotData)state.element.layers[i].slotData={};state.element.layers[i].slotData.contentFieldHint=e.target.value;markDirty();renderCanvas();});
       // Slot skin mode
       var _smd=document.getElementById('prop-slot-skin-mode');
       if(_smd)_smd.addEventListener('change',function(e){var i=idx();if(i<0)return;pushHistory();if(!state.element.layers[i].slotData)state.element.layers[i].slotData={};state.element.layers[i].slotData.skinMode=e.target.value;markDirty();renderCanvas();var cs=document.getElementById('prop-slot-custom-sec');if(cs)cs.style.display=e.target.value==='custom'?'':'none';});
