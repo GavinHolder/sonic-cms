@@ -43,5 +43,9 @@ export default async function VoltPreviewPage({ params, searchParams }: PageProp
   // Fit mode: "cover"/"fill" render the volt as a full-bleed background; default "contain".
   const fit = sp.fit === "cover" || sp.fit === "fill" ? sp.fit : "contain";
 
-  return <VoltPreviewClient voltId={id} slots={slots} instanceOverrides={instanceOverrides} fit={fit} />;
+  // Optional linked product — VoltBlock fetches it and auto-populates pkg.* slots so
+  // the designer preview reflects the live product's values.
+  const productId = sp.productId || undefined;
+
+  return <VoltPreviewClient voltId={id} slots={slots} instanceOverrides={instanceOverrides} fit={fit} productId={productId} />;
 }

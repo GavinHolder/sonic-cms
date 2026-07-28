@@ -5,14 +5,30 @@ export const dynamic = "force-dynamic";
 
 /**
  * Public, read-only package fetch for the site + designer preview.
+ *   ?all=1            → all active packages (id, name, network) for the designer product picker
  *   ?ids=a,b,c        → those active packages (for per-card bindings)
  *   ?network=<slug>   → an active network's active packages (for the Packages block)
  * Returns only safe display fields, each with its network name/category/colour.
  */
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
+  const allParam = sp.get("all");
   const idsParam = sp.get("ids");
   const networkSlug = sp.get("network");
+
+  // List-all mode: minimal fields to enumerate products in the designer picker.
+  if (allParam) {
+    const rows = await prisma.package.findMany({
+      where: { isActive: true },
+      orderBy: [{ network: { name: "asc" } }, { order: "asc" }, { createdAt: "asc" }],
+      select: { id: true, name: true, network: { select: { name: true, slug: true } } },
+    });
+    const packages = rows.map((p) => {
+      const net = (p.network ?? null) as { name?: string; slug?: string } | null;
+      return { id: p.id, name: p.name, networkName: net?.name ?? null, networkSlug: net?.slug ?? null };
+    });
+    return NextResponse.json({ packages });
+  }
 
   const select = {
     id: true, name: true, speedDown: true, speedUp: true, price: true, period: true,

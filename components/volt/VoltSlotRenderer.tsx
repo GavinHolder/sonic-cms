@@ -1,5 +1,6 @@
 'use client'
 import Image from 'next/image'
+import { useEffect, useRef, useState } from 'react'
 import type { VoltLayer, VoltSlots } from '@/types/volt'
 
 interface Props {
@@ -10,10 +11,60 @@ interface Props {
   canvasOverflow?: 'visible' | 'hidden'
 }
 
-export default function VoltSlotRenderer({ layer, canvasWidth, canvasHeight, slots, canvasOverflow }: Props) {
-  if (!layer.visible || layer.type !== 'slot' || !layer.slotData) return null
+/**
+ * Overflow-fit strategy for a bound value that may be longer than its fixed box.
+ * Read defensively off slotData so it works whether or not the type carries it.
+ *   'clip'     → current behaviour (overflow hidden, hard clip). Default.
+ *   'ellipsis' → single line, trailing … when it overflows.
+ *   'shrink'   → uniformly scale the text down so it fits inside its own box.
+ * Because slot layers are absolutely positioned, none of these ever reflow siblings.
+ */
+type OverflowFit = 'clip' | 'ellipsis' | 'shrink'
 
-  const { slotData, x, y, width, height, opacity } = layer
+function originForAlign(align?: 'left' | 'center' | 'right'): string {
+  if (align === 'center') return 'center'
+  if (align === 'right') return 'right center'
+  return 'left center'
+}
+
+export default function VoltSlotRenderer({ layer, canvasWidth, canvasHeight, slots, canvasOverflow }: Props) {
+  const slotData = layer.slotData
+  const overflowFit: OverflowFit =
+    (slotData as { overflowFit?: OverflowFit } | undefined)?.overflowFit ?? 'clip'
+
+  const textRef = useRef<HTMLDivElement>(null)
+  const [shrinkScale, setShrinkScale] = useState(1)
+
+  // Resolve the slot content (safe when slotData is absent → undefined).
+  // Use explicit undefined checks — empty string "" is valid content (not a fallback trigger).
+  const content = slotData
+    ? (slots[layer.id] !== undefined
+        ? slots[layer.id]
+        : slots[slotData.slotType] !== undefined
+        ? slots[slotData.slotType]
+        : slots[slotData.contentFieldHint])
+    : undefined
+
+  // Shrink-to-fit: measure natural text size vs. the fixed box and derive a scale.
+  // transform:scale doesn't affect scrollWidth/clientWidth, so measurement is stable
+  // (no feedback loop). Runs only for the 'shrink' strategy.
+  useEffect(() => {
+    if (overflowFit !== 'shrink') { setShrinkScale(1); return }
+    const el = textRef.current
+    const box = el?.parentElement
+    if (!el || !box) return
+    const cw = box.clientWidth
+    const ch = box.clientHeight
+    const sw = el.scrollWidth
+    const sh = el.scrollHeight
+    if (!cw || !ch || !sw || !sh) return
+    const k = Math.min(1, cw / sw, ch / sh)
+    setShrinkScale(k > 0 && k < 1 ? k : 1)
+  }, [content, overflowFit, layer.width, layer.height, slotData?.fontSize])
+
+  if (!layer.visible || layer.type !== 'slot' || !slotData) return null
+
+  const { x, y, width, height, opacity } = layer
 
   const style: React.CSSProperties = {
     position: 'absolute',
@@ -31,11 +82,6 @@ export default function VoltSlotRenderer({ layer, canvasWidth, canvasHeight, slo
     display: 'flex',
     alignItems: 'center',
   }
-
-  // Use explicit undefined checks — empty string "" is valid content (not a fallback trigger)
-  const content = slots[layer.id] !== undefined ? slots[layer.id]
-    : slots[slotData.slotType] !== undefined ? slots[slotData.slotType]
-    : slots[slotData.contentFieldHint]
 
   if (slotData.slotType === 'image') {
     const imageUrl = content ?? slots.imageUrl
@@ -70,5 +116,29 @@ export default function VoltSlotRenderer({ layer, canvasWidth, canvasHeight, slo
   }
 
   if (!content) return null
+
+  // Overflow-fit strategies keep long bound values inside the slot's own box.
+  if (overflowFit === 'ellipsis') {
+    return (
+      <div style={style}>
+        <span style={{ display: 'block', width: '100%', minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {content}
+        </span>
+      </div>
+    )
+  }
+  if (overflowFit === 'shrink') {
+    return (
+      <div style={style}>
+        <div
+          ref={textRef}
+          style={{ whiteSpace: 'nowrap', transform: `scale(${shrinkScale})`, transformOrigin: originForAlign(slotData.textAlign) }}
+        >
+          {content}
+        </div>
+      </div>
+    )
+  }
+  // Default 'clip' — byte-for-byte the original render.
   return <div style={style}>{content}</div>
 }

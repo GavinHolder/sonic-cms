@@ -1457,9 +1457,10 @@ function FullBleedVoltLayer({ props: p }: { props: Record<string, unknown> }) {
     badge:       (p.slotBadge as string)       || nested.badge       || undefined,
     icon:        (p.slotIcon as string)        || nested.icon        || undefined,
   };
+  const productId = (p.productId as string) || undefined;
   return (
     <div aria-hidden="true" style={{ position: "absolute", inset: 0, zIndex: 2, pointerEvents: "none" }}>
-      <VoltBlock voltId={voltId} slots={voltSlots} fitMode="cover" />
+      <VoltBlock voltId={voltId} slots={voltSlots} fitMode="cover" productId={productId} />
     </div>
   );
 }
@@ -2367,11 +2368,14 @@ function DesignerBlock({ block, darkBg }: {
         // Full-bleed background volt → cover fit + full box (no flex centering) so it
         // fills the cell edge-to-edge, matching the designer preview. Off → unchanged.
         const voltFullBleed = !!p.fullBleed;
+        // Optional data-bound product: VoltBlock fetches the package and auto-populates
+        // slots bound to pkg.* field hints. Undefined → manual slot text only (unchanged).
+        const voltProductId = (p.productId as string) || undefined;
         return (
           <div style={voltFullBleed
             ? { height: "100%", width: "100%" }
             : { height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <VoltBlock voltId={voltId} slots={voltSlots} fitMode={voltFullBleed ? "cover" : "contain"} />
+            <VoltBlock voltId={voltId} slots={voltSlots} fitMode={voltFullBleed ? "cover" : "contain"} productId={voltProductId} />
           </div>
         );
       }

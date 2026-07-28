@@ -2369,9 +2369,23 @@ function loadNetworks() {
     .catch(() => {});
 }
 
+// All active packages (id, name, networkName) for the volt "Linked Product" picker.
+window.__allPackages = [];
+function loadAllPackages() {
+  fetch('/api/packages?all=1', { credentials: 'include' })
+    .then(r => r.ok ? r.json() : { packages: [] })
+    .then(d => {
+      window.__allPackages = (d && Array.isArray(d.packages)) ? d.packages : [];
+      // If a volt block is currently selected, re-render so the picker is populated.
+      try { if (state.selectedBlockId) renderPropsPanel(); } catch (e) { /* ignore */ }
+    })
+    .catch(() => {});
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   loadNavOptions();
   loadNetworks();
+  loadAllPackages();
   // Only restore autosave when running standalone (not embedded in admin iframe).
   // When embedded, FLEXIBLE_DESIGNER_INIT provides the correct per-section data —
   // loading the shared autosave here would briefly flash stale data from the last
@@ -6031,6 +6045,27 @@ function renderTypeProps(block) {
       // Slot overrides
       h+=`<div style="margin-bottom:6px;">
         <div style="font-size:11px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Content Slots</div>`;
+      // Linked Product picker — bind this card to a coverage-plugin Package so slots
+      // whose field hint is pkg.name/pkg.price/pkg.speed… auto-populate from the product.
+      {
+        const _prods = window.__allPackages || [];
+        const _curProd = p.productId || '';
+        const _byNet = {};
+        _prods.forEach(function(pr){ const k = pr.networkName || 'Other'; (_byNet[k] = _byNet[k] || []).push(pr); });
+        let _prodOpts = `<option value="">— None (manual text) —</option>`;
+        Object.keys(_byNet).forEach(function(net){
+          _prodOpts += `<optgroup label="${escHtml(net)}">`;
+          _byNet[net].forEach(function(pr){
+            _prodOpts += `<option value="${escHtml(pr.id)}"${pr.id===_curProd?' selected':''}>${escHtml(pr.name)}</option>`;
+          });
+          _prodOpts += `</optgroup>`;
+        });
+        h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;margin-bottom:8px;">
+          <label style="margin-bottom:3px;font-size:12px;font-weight:600;"><i class="bi bi-box-seam me-1"></i>Linked Product</label>
+          <select class="props-input" style="font-size:12px;" onchange="updateVoltProduct('${block.id}',this.value)">${_prodOpts}</select>
+          <div style="font-size:10px;color:#9ca3af;margin-top:4px;line-height:1.5;">Binds slots with field hints <code>pkg.name</code>, <code>pkg.price</code>, <code>pkg.speed</code>, <code>pkg.period</code>, <code>pkg.options</code>&hellip; to this product's live values.${_prods.length?'':'<br><em>No packages loaded yet.</em>'}</div>
+        </div>`;
+      }
       h+=inputRow('Title', p.slotTitle||'', `updateVoltSlot('${block.id}','slotTitle',this.value)`, 'Override title…');
       h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;margin-bottom:8px;">
         <label style="margin-bottom:3px;font-size:12px;">Body</label>
@@ -6510,6 +6545,8 @@ function buildVoltPreviewUrl(b) {
   if (b.props.slotImageUrl)    sp.set('imageUrl', b.props.slotImageUrl);
   if (b.props.slotImageAlt)    sp.set('imageAlt', b.props.slotImageAlt);
   if (b.props.slotActionLabel) sp.set('actionLabel', b.props.slotActionLabel);
+  // Linked product → preview resolves its live values into pkg.* slots.
+  if (b.props.productId) sp.set('productId', b.props.productId);
   const overrides = b.props.voltLayerOverrides;
   if (overrides && Object.keys(overrides).length > 0) {
     try { sp.set('overrides', btoa(JSON.stringify(overrides))); } catch(e) { /* ignore */ }
@@ -6540,6 +6577,16 @@ function updateVoltSlot(bId, key, val) {
   const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
   if (!b) return;
   b.props[key] = val;
+  autoSave();
+  refreshVoltIframe(bId);
+}
+
+// Bind (or unbind) this volt block to a coverage-plugin Package. An empty value
+// clears the link so the card falls back to its manual slot text.
+function updateVoltProduct(bId, val) {
+  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
+  if (!b) return;
+  if (val) b.props.productId = val; else delete b.props.productId;
   autoSave();
   refreshVoltIframe(bId);
 }

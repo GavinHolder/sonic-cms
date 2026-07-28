@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type { VoltElementData, VoltSlots, VoltInstanceOverrides } from "@/types/volt";
+import { packageSlotValues, type PackageLike } from "@/lib/packages/format";
 
 const VoltRenderer = dynamic(() => import("@/components/volt/VoltRenderer"), { ssr: false });
 const Volt3DRenderer = dynamic(() => import("./Volt3DRenderer"), { ssr: false });
@@ -14,13 +15,39 @@ interface VoltBlockProps {
   instanceOverrides?: VoltInstanceOverrides;
   /** Fit behaviour inside the block cell. "contain" (default), "fill", or "cover" (full-bleed background) */
   fitMode?: "contain" | "fill" | "cover";
+  /**
+   * Optional coverage-plugin Package id. When set, the package's live values
+   * (name, price, speed, options…) are fetched and merged into the slots, so a
+   * slot whose contentFieldHint is `pkg.name`/`price`/`speed`… auto-populates
+   * from the product. Manual slot text is preserved when no product is linked
+   * or a field isn't bound.
+   */
+  productId?: string;
 }
 
-export default function VoltBlock({ voltId, slots = {}, instanceOverrides, fitMode = "contain" }: VoltBlockProps) {
+export default function VoltBlock({ voltId, slots = {}, instanceOverrides, fitMode = "contain", productId }: VoltBlockProps) {
   const [volt, setVolt] = useState<VoltElementData | null>(null);
   const [error, setError] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [productSlots, setProductSlots] = useState<Record<string, string>>({});
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Data-bound product: fetch the linked package and derive its slot values.
+  // Graceful degradation — any failure/empty result leaves productSlots empty,
+  // so the card falls back to whatever manual slot text was authored.
+  useEffect(() => {
+    if (!productId) { setProductSlots({}); return; }
+    let active = true;
+    fetch(`/api/packages?ids=${encodeURIComponent(productId)}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => {
+        if (!active) return;
+        const pkg = data && Array.isArray(data.packages) ? (data.packages[0] as PackageLike | undefined) : undefined;
+        setProductSlots(pkg ? packageSlotValues(pkg) : {});
+      })
+      .catch(() => { if (active) setProductSlots({}); });
+    return () => { active = false; };
+  }, [productId]);
 
   useEffect(() => {
     if (!voltId) return;
@@ -70,9 +97,13 @@ export default function VoltBlock({ voltId, slots = {}, instanceOverrides, fitMo
     l => l.type === "3d-object" && l.visible !== false && l.object3DData?.assetUrl
   );
 
+  // Merge live product values over the authored slots. Keys are disjoint from the
+  // base slots, so this is additive — manual title/body/etc. stay intact.
+  const mergedSlots: VoltSlots = Object.keys(productSlots).length ? { ...slots, ...productSlots } : slots;
+
   return (
     <div ref={containerRef} style={containerStyle}>
-      <VoltRenderer voltElement={volt} slots={slots} instanceOverrides={instanceOverrides} style={{ borderRadius: "inherit" }} onHoverChange={setIsHovered} fitMode={fitMode} />
+      <VoltRenderer voltElement={volt} slots={mergedSlots} instanceOverrides={instanceOverrides} style={{ borderRadius: "inherit" }} onHoverChange={setIsHovered} fitMode={fitMode} />
       {layers3D.map(l => (
         <Volt3DRenderer
           key={l.id}
