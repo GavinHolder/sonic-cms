@@ -1112,6 +1112,17 @@
         if(layer.type==='vector'&&layer.vectorData){
           var g=svgNs('g');g.setAttribute('opacity',_lop);g.style.mixBlendMode=layer.blendMode;
           var tf='scale('+(CW/100)+','+(CH/100)+')';
+          // C1.5: vector pathData is baked at the BASE position/size, so in hover state
+          // apply a delta transform (translate+scale in 0-100 path space) so the vector
+          // visibly follows its hover x/y/width/height override in the DESIGNER preview —
+          // matching how image/text/slot layers already move. Designer-only; rest state
+          // and the runtime renderers are untouched.
+          if(state.activeStateName==='hover'&&_hasOv){
+            var _dsx=(layer.width?_lw/layer.width:1),_dsy=(layer.height?_lh/layer.height:1);
+            if(_lx!==layer.x||_ly!==layer.y||_dsx!==1||_dsy!==1){
+              tf+=' translate('+_lx+','+_ly+') scale('+_dsx+','+_dsy+') translate('+(-layer.x)+','+(-layer.y)+')';
+            }
+          }
           if(_lrot){var cx=topx(_lx,CW)+topx(_lw,CW)/2,cy=topx(_ly,CH)+topx(_lh,CH)/2;tf='rotate('+_lrot+' '+cx+' '+cy+') '+tf;}
           g.setAttribute('transform',tf);
           // Composite layers: non-destructive boolean result rendered via SVG masking
