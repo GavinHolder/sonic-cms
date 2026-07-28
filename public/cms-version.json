@@ -1,18 +1,21 @@
 {
-  "version": "1.70.0",
-  "date": "2026-06-30",
+  "version": "1.71.0",
+  "date": "2026-07-28",
   "changelog": {
     "features": [
-      "SEO Intelligence System with Search Console integration",
-      "Google Business Profile OAuth integration",
-      "Guided Google wizard (Search Console, Analytics, GBP)",
-      "Brand Pantone color + auto-detect from favicon",
-      "SEO Overview, Scorecard, and Propagation tabs",
-      "In-app Google Integration documentation"
+      "Volt Studio: editable vector/polygon points — add anchor points anywhere, corner/smooth node toggle, 45° straight-side snap",
+      "Volt Studio: per-state on-canvas editing — drag/resize/rotate shapes independently per hover state",
+      "Volt Studio: per-state shape outline morph on hover (instant swap)",
+      "Volt Studio: vector point-edit constraints — Shift axis-lock, Ctrl inline anchor sliding, select + Delete to remove a single point",
+      "Volt Studio: always-visible context hint bar for vertex/polygon/pen tools",
+      "Data-bound product cards — link Volt cards to coverage packages; auto-populate name, speed, price and options from live product data"
     ],
     "bugfixes": [
-      "GSC status uses PUBLISHED instead of non-existent isPublished",
-      "SEO Wizard crash from hooks rules violation"
+      "Hero carousel: slide text isolated per slide (no outlined-word bleed during transitions)",
+      "Hero carousel: mobile slide sizing — slide 1 no longer oversized on phones",
+      "Flexible Designer: stable marquee drag-select (no full-page text highlight or selection flicker)",
+      "Flexible Designer: tablet preview vertical spacing matches design ratio",
+      "Volt: polygon/pen no longer curves a straight-clicked side"
     ],
     "breaking": []
   }
