@@ -1878,7 +1878,7 @@
         return;
       }
       // Rotate
-      if(rotateSt){var _ri=state.element.layers.findIndex(function(l){return l.id===rotateSt.layerId;});if(_ri>=0){var _ra2=Math.atan2(pt.y-rotateSt.cy,pt.x-rotateSt.cx)*180/Math.PI;var _rdeg=rotateSt.origRotation+(_ra2-rotateSt.startAngle);if(e.shiftKey)_rdeg=Math.round(_rdeg/15)*15;state.element.layers[_ri].rotation=parseFloat(_rdeg.toFixed(2));renderCanvas();var _rpEl=document.getElementById('prop-rotation');if(_rpEl)_rpEl.value=state.element.layers[_ri].rotation;}return;}
+      if(rotateSt){var _ri=state.element.layers.findIndex(function(l){return l.id===rotateSt.layerId;});if(_ri>=0){var _ra2=Math.atan2(pt.y-rotateSt.cy,pt.x-rotateSt.cx)*180/Math.PI;var _rdeg=rotateSt.origRotation+(_ra2-rotateSt.startAngle);if(e.shiftKey)_rdeg=Math.round(_rdeg/15)*15;var _rval=parseFloat(_rdeg.toFixed(2));if(state.activeStateName==='hover'){_setHoverOverride(rotateSt.layerId,'rotation',_rval);}else{state.element.layers[_ri].rotation=_rval;}renderCanvas();var _rpEl=document.getElementById('prop-rotation');if(_rpEl)_rpEl.value=_rval;}return;}
       // Resize
       if(resizeSt){
         var idx=state.element.layers.findIndex(function(l){return l.id===resizeSt.layerId;});if(idx<0){resizeSt=null;return;}
@@ -1891,7 +1891,15 @@
         if(h==='ne'||h==='se'||h==='e'){nw=clamp(ob.w+ddx,0.1,100-ob.x);}
         if(h==='nw'||h==='ne'||h==='n'){ny=clamp(ob.y+ddy,0,ob.y+ob.h-0.1);nh=ob.h+ob.y-ny;}
         if(h==='sw'||h==='se'||h==='s'){nh=clamp(ob.h+ddy,0.1,100-ob.y);}
-        var l=state.element.layers[idx];l.x=nx;l.y=ny;l.width=nw;l.height=nh;
+        var l=state.element.layers[idx];
+        // Per-state resize: in a non-rest state, write the new bounds to the active
+        // state's override and leave base geometry (incl. pathData) untouched (C1).
+        if(state.activeStateName==='hover'){
+          _setHoverOverride(l.id,'x',nx);_setHoverOverride(l.id,'y',ny);
+          _setHoverOverride(l.id,'width',Math.max(0.1,nw));_setHoverOverride(l.id,'height',Math.max(0.1,nh));
+          renderCanvas();return;
+        }
+        l.x=nx;l.y=ny;l.width=nw;l.height=nh;
         if(l.vectorData&&l.vectorData.pathData){
           if(/\bA\b/.test(l.vectorData.pathData)){l.vectorData.pathData=ellipsePath(nx,ny,nw,nh);}
           else{
@@ -1972,10 +1980,20 @@
               var ml=state.element.layers.find(function(l){return l.id===mid;});
               var orig=dragSt._multiOrigPositions[mid];
               if(ml&&orig){
-                ml.x=orig.x+ddx2;ml.y=orig.y+ddy2;
-                if(ml.vectorData&&orig.path)ml.vectorData.pathData=translatePath(orig.path,ddx2,ddy2);
+                if(state.activeStateName==='hover'){
+                  // Per-state multi-drag: redirect each layer's position to its active-state
+                  // override; base geometry (incl. pathData) untouched (C1).
+                  _setHoverOverride(mid,'x',orig.x+ddx2);_setHoverOverride(mid,'y',orig.y+ddy2);
+                }else{
+                  ml.x=orig.x+ddx2;ml.y=orig.y+ddy2;
+                  if(ml.vectorData&&orig.path)ml.vectorData.pathData=translatePath(orig.path,ddx2,ddy2);
+                }
               }
             });
+          } else if(state.activeStateName==='hover'){
+            // Per-state single drag: redirect position to the active-state override;
+            // base geometry (incl. pathData) and bool cutters untouched (C1).
+            _setHoverOverride(dragSt.layerId,'x',nx2);_setHoverOverride(dragSt.layerId,'y',ny2);
           } else {
             var _dl=state.element.layers[idx2];
             _dl.x=nx2;_dl.y=ny2;
