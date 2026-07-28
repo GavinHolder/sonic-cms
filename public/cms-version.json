@@ -1,5 +1,5 @@
 {
-  "version": "1.71.0",
+  "version": "1.71.1",
   "date": "2026-07-28",
   "changelog": {
     "features": [
@@ -15,7 +15,8 @@
       "Hero carousel: mobile slide sizing — slide 1 no longer oversized on phones",
       "Flexible Designer: stable marquee drag-select (no full-page text highlight or selection flicker)",
       "Flexible Designer: tablet preview vertical spacing matches design ratio",
-      "Volt: polygon/pen no longer curves a straight-clicked side"
+      "Volt: polygon/pen no longer curves a straight-clicked side",
+      "Volt Studio: image, slot and 3D-object layers can now be rotated (rotation applied on canvas + live render)"
     ],
     "breaking": []
   }

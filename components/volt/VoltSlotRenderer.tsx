@@ -73,6 +73,9 @@ export default function VoltSlotRenderer({ layer, canvasWidth, canvasHeight, slo
     width: `${width}%`,
     height: `${height}%`,
     opacity,
+    // Rotation: only emit a transform when non-zero so un-rotated slots render byte-identically.
+    transform: layer.rotation ? `rotate(${layer.rotation}deg)` : undefined,
+    transformOrigin: layer.rotation ? 'center center' : undefined,
     fontFamily: slotData.fontFamily ?? 'inherit',
     fontSize: slotData.fontSize ?? 'inherit',
     fontWeight: slotData.fontWeight ?? 'inherit',

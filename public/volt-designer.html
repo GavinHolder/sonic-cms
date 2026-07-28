@@ -1323,6 +1323,8 @@
           }
           div.style.opacity=_lop!=null?_lop:1;
           if(layer.blendMode&&layer.blendMode!=='normal')div.style.mixBlendMode=layer.blendMode;
+          // Rotation: slot div uses left/top/width/height % so center-origin rotation matches its own box.
+          if(_lrot){div.style.transform='rotate('+_lrot+'deg)';div.style.transformOrigin='center center';}
           artboard.appendChild(div);
         }
         if(layer.type==='3d-object'){
@@ -1370,6 +1372,8 @@
             lbl3d.textContent=layer.name||'3D Object';
             g3d.appendChild(lbl3d);
           }
+          // Rotation: rotate the whole 3d-object group about its center (rx/ry/rw/rh in user space).
+          if(_lrot){g3d.setAttribute('transform','rotate('+_lrot+' '+(rx+rw/2)+' '+(ry+rh/2)+')');}
           svgEl.appendChild(g3d);
         }
         if(layer.type==='image'){
@@ -1386,9 +1390,12 @@
             var imgMode=(layer.imageData&&layer.imageData.mode)||'fill';
             imgEl.setAttribute('preserveAspectRatio',imgMode==='fit'?'xMidYMid meet':'xMidYMid slice');
             imgEl.setAttribute('clip-path','url(#'+clipImgId+')');imgEl.setAttribute('opacity',layer.opacity!=null?layer.opacity:1);
+            // Rotation: rotate the image group about its center (clip rect rotates with it).
+            if(_lrot){gImg.setAttribute('transform','rotate('+_lrot+' '+(rx+rw/2)+' '+(ry+rh/2)+')');}
             gImg.appendChild(imgEl);svgEl.appendChild(gImg);
           } else {
             var gImgPh=svgNs('g');
+            if(_lrot){gImgPh.setAttribute('transform','rotate('+_lrot+' '+(rx+rw/2)+' '+(ry+rh/2)+')');}
             var rImgPh=svgNs('rect');rImgPh.setAttribute('x',rx);rImgPh.setAttribute('y',ry);rImgPh.setAttribute('width',rw);rImgPh.setAttribute('height',rh);
             rImgPh.setAttribute('fill','rgba(16,185,129,0.12)');rImgPh.setAttribute('stroke','#10b981');rImgPh.setAttribute('stroke-width',String(1/state.zoom));rImgPh.setAttribute('stroke-dasharray',String(4/state.zoom));rImgPh.setAttribute('rx','4');
             gImgPh.appendChild(rImgPh);
@@ -1512,8 +1519,8 @@
             hc.setAttribute('class','resize-handle');hc.setAttribute('stroke-width',(1/state.zoom).toFixed(3));hc.setAttribute('rx',(1/state.zoom).toFixed(3));hc.setAttribute('data-handle',h);hc.style.cursor=HCUR[h];hc.setAttribute('pointer-events','none');
             svgEl.appendChild(hc);
           });
-          // Rotation handle — circle above top-center (not for slots or cutter mode)
-          if(!isCutterMode&&sel.type!=='slot'){
+          // Rotation handle — circle above top-center (not in cutter mode). Slots now support rotation too.
+          if(!isCutterMode){
             var _rhArm=20/state.zoom,_rhcx=rx+rw/2,_rhcy=ry-_rhArm;
             var _rhLine=svgNs('line');_rhLine.setAttribute('x1',_rhcx);_rhLine.setAttribute('y1',ry);_rhLine.setAttribute('x2',_rhcx);_rhLine.setAttribute('y2',_rhcy);
             _rhLine.setAttribute('stroke','#0d6efd');_rhLine.setAttribute('stroke-width',(1/state.zoom).toFixed(3));_rhLine.setAttribute('pointer-events','none');svgEl.appendChild(_rhLine);
@@ -1799,7 +1806,7 @@
         var sel=state.selectedLayerId?state.element.layers.find(function(l){return l.id===state.selectedLayerId;}):null;
         var CW=state.element.canvasWidth,CH=state.element.canvasHeight;
         // Check rotation handle
-        if(sel&&sel.type!=='slot'){var _rhcx2=topx(sel.x,CW)+topx(sel.width,CW)/2,_rhcy2=topx(sel.y,CH)-20/state.zoom;if(dist2(pt,{x:_rhcx2,y:_rhcy2})<=12/state.zoom){var _rcx=topx(sel.x,CW)+topx(sel.width,CW)/2,_rcy=topx(sel.y,CH)+topx(sel.height,CH)/2;rotateSt={layerId:sel.id,startAngle:Math.atan2(pt.y-_rcy,pt.x-_rcx)*180/Math.PI,origRotation:sel.rotation||0,cx:_rcx,cy:_rcy};return;}}
+        if(sel){var _rhcx2=topx(sel.x,CW)+topx(sel.width,CW)/2,_rhcy2=topx(sel.y,CH)-20/state.zoom;if(dist2(pt,{x:_rhcx2,y:_rhcy2})<=12/state.zoom){var _rcx=topx(sel.x,CW)+topx(sel.width,CW)/2,_rcy=topx(sel.y,CH)+topx(sel.height,CH)/2;rotateSt={layerId:sel.id,startAngle:Math.atan2(pt.y-_rcy,pt.x-_rcx)*180/Math.PI,origRotation:sel.rotation||0,cx:_rcx,cy:_rcy};return;}}
         // Check resize handles
         if(sel){var h=hitHandle(pt,sel);if(h){resizeSt={layerId:sel.id,handle:h,startPt:pt,origBounds:{x:sel.x,y:sel.y,w:sel.width,h:sel.height},origPath:sel.vectorData?sel.vectorData.pathData:null};return;}}
         // Hit test — with occluded-selection cycling. For a plain (non-shift)
