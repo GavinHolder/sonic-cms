@@ -495,7 +495,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   }, [freePlateActive, designerData]);
   // True only when the free-mode 1:1 section-height override should apply: free plate is
   // active AND we're on desktop. Pre-mount counts as desktop (SSR-safe, no hydration flip).
-  const freePlateDesktop = freePlateActive && (!mounted || screenW > 768) && !!freeCanvas;
+  const freePlateDesktop = freePlateActive && (!mounted || screenW >= 768) && !!freeCanvas;
   // Tracks the current scroll stage zone so content column shows only the active zone's blocks
   const [scrollStageZone, setScrollStageZone] = useState(0);
 
@@ -1501,7 +1501,7 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
     setStageH(el.clientHeight);
     return () => ro.disconnect();
   }, []);
-  // Mount gate — the free-mode mobile reflow (screenW <= 768) must only apply AFTER
+  // Mount gate — the free-mode mobile reflow (screenW < 768) must only apply AFTER
   // hydration, otherwise SSR (which has no window) and the first client paint disagree
   // and React throws a hydration mismatch. Desktop scaled-stage renders identically on
   // both, so it stays the pre-mount default.
@@ -1670,11 +1670,11 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
       const cw = data.designerCanvasW || 1440;
       const ch = data.designerCanvasH || DESIGN_H;
 
-      // ── Mobile: smart, readable reflow (≤768px, post-mount) ─────────────────
+      // ── Mobile: smart, readable reflow (<768px, post-mount) ─────────────────
       // Single-column reading-order stack — MOBILE IS UNCHANGED by the cover-plate work.
       // Only the in-wrapper instance (plateMode falsy) owns it; the section-level plate
       // instance renders nothing on mobile so the stack is never duplicated or clipped.
-      if (mounted && screenW <= 768) {
+      if (mounted && screenW < 768) {
         if (plateMode) return null;
         return (
           <FreeReflowStack

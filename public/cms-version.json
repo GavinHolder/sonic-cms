@@ -1,5 +1,5 @@
 {
-  "version": "1.72.0",
+  "version": "1.72.1",
   "date": "2026-07-28",
   "changelog": {
     "features": [
@@ -17,7 +17,8 @@
       "Flexible Designer: stable marquee drag-select (no full-page text highlight or selection flicker)",
       "Flexible Designer: tablet preview vertical spacing matches design ratio",
       "Volt: polygon/pen no longer curves a straight-clicked side",
-      "Volt Studio: image, slot and 3D-object layers can now be rotated (rotation applied on canvas + live render)"
+      "Volt Studio: image, slot and 3D-object layers can now be rotated (rotation applied on canvas + live render)",
+      "Flexible Designer: tablet/live 768px boundary reconciled (iPad-portrait renders as tablet, not mobile); hardened autoScalePos vertical scaling"
     ],
     "breaking": []
   }
