@@ -825,7 +825,7 @@
       drawing_line: {ctx:'Drawing Line',     keys:[['Drag','Draw line'],['Ctrl (hold)','⊙ Snap to grid'],['Esc','Cancel']]},
       drawing_slot: {ctx:'Drawing Slot',     keys:[['Drag','Draw slot'],['Shift (hold)','Lock to square'],['Ctrl (hold)','⊙ Snap to grid'],['Esc','Cancel']]},
       drawing_polygon:{ctx:'Polygon Tool',   keys:[['Click','Add point'],['Shift (hold)','45° angle snap'],['Ctrl (hold)','⊙ Snap to grid'],['Click 1st point','Close'],['Enter','Close & commit'],['dblclick','Close & commit'],['Backspace','Remove last point'],['Esc','Cancel']]},
-      vertex_edit:  {ctx:'Vertex Edit',      keys:[['Ctrl (hold drag)','⊙ Snap to grid'],['Drag vertex','Move point'],['Click outline','Add point'],['C','Corner ⇄ Smooth'],['Drag handle','Curve handle'],['Shift+drag handle','Symmetric curve'],['Alt+click edge','Add point'],['Alt+dblclick vertex','Delete point'],['Esc','Exit']]},
+      vertex_edit:  {ctx:'Vertex Edit',      keys:[['Ctrl (hold drag)','⊙ Snap to grid'],['Drag vertex','Move point'],['Shift','Lock to axis (straight)'],['Ctrl','Slide along edge'],['Select point + Del','Delete point'],['Click outline','Add point'],['C','Corner ⇄ Smooth'],['Drag handle','Curve handle'],['Shift+drag handle','Symmetric curve'],['Alt+click edge','Add point'],['Alt+dblclick vertex','Delete point'],['Esc','Exit']]},
       bool_edit:    {ctx:'Bool Edit',        keys:[['Ctrl (hold drag)','⊙ Snap to grid'],['Drag','Move cutter'],['dblclick cutter','Edit cutter vertices'],['Esc','Confirm & exit']]},
     };
     function renderKeyLegend(){
@@ -1893,7 +1893,45 @@
             if(e.shiftKey){var opp=vxDragSt.handleKey==='cpOut'?'cpIn':'cpOut';nanch[vi][opp]={dx:-hdx,dy:-hdy};}
           } else {
             // Dragging a vertex point
-            nanch[vi].x=pct(rpt.x,CW);nanch[vi].y=pct(rpt.y,CH);
+            var _oaV=vxDragSt.origAnchors[vi];
+            var _isMeta=e.ctrlKey||e.metaKey;
+            if(_isMeta){
+              // Amendment 3: inline anchor sliding — constrain the point's motion to
+              // slide ALONG its adjacent edge direction so the shape's silhouette is
+              // preserved. Curved node → slide along local tangent (cpIn→cpOut);
+              // straight segment → project drag onto the line through prev→next anchors.
+              var _dirx=0,_diry=0;
+              if(_oaV.cpIn.dx||_oaV.cpIn.dy||_oaV.cpOut.dx||_oaV.cpOut.dy){
+                _dirx=_oaV.cpOut.dx-_oaV.cpIn.dx;_diry=_oaV.cpOut.dy-_oaV.cpIn.dy;
+              }
+              if(!_dirx&&!_diry){
+                var _vClosed=state.element.layers[vxi].vectorData.closed!==false;
+                var _nA=vxDragSt.origAnchors.length,_pv=null,_nx=null;
+                if(_vClosed){_pv=vxDragSt.origAnchors[(vi-1+_nA)%_nA];_nx=vxDragSt.origAnchors[(vi+1)%_nA];}
+                else{if(vi>0)_pv=vxDragSt.origAnchors[vi-1];if(vi<_nA-1)_nx=vxDragSt.origAnchors[vi+1];}
+                if(_pv&&_nx){_dirx=_nx.x-_pv.x;_diry=_nx.y-_pv.y;}
+                else if(_pv){_dirx=_oaV.x-_pv.x;_diry=_oaV.y-_pv.y;}
+                else if(_nx){_dirx=_nx.x-_oaV.x;_diry=_nx.y-_oaV.y;}
+              }
+              var _dl2=_dirx*_dirx+_diry*_diry;
+              if(_dl2>0){
+                var _mpx=pct(pt.x,CW),_mpy=pct(pt.y,CH);
+                var _tS=((_mpx-_oaV.x)*_dirx+(_mpy-_oaV.y)*_diry)/_dl2;
+                nanch[vi].x=_oaV.x+_tS*_dirx;nanch[vi].y=_oaV.y+_tS*_diry;
+              } else {
+                nanch[vi].x=pct(rpt.x,CW);nanch[vi].y=pct(rpt.y,CH);
+              }
+            } else {
+              var _tx=pct(rpt.x,CW),_ty=pct(rpt.y,CH);
+              // Amendment 1: Shift locks movement to a single axis (keeps straight edges
+              // straight). Axis chosen by whichever way the pointer has travelled further
+              // since drag start — recomputed each move so the user can flip axis.
+              if(e.shiftKey){
+                var _dTx=pt.x-vxDragSt.startPt.x,_dTy=pt.y-vxDragSt.startPt.y;
+                if(Math.abs(_dTx)>=Math.abs(_dTy)){_ty=_oaV.y;}else{_tx=_oaV.x;}
+              }
+              nanch[vi].x=_tx;nanch[vi].y=_ty;
+            }
           }
           var _isCl=state.element.layers[vxi].vectorData.closed!==false;
           // C2: in hover state, the vertex drag writes the morphed outline to the
@@ -4927,6 +4965,28 @@
       if((e.ctrlKey||e.metaKey)&&(e.key==='y'||(e.shiftKey&&e.key==='z'))){e.preventDefault();redo();return;}
       if((e.ctrlKey||e.metaKey)&&e.key==='g'){e.preventDefault();groupSelectedLayers();return;}
       if((e.ctrlKey||e.metaKey)&&e.key==='t'){e.preventDefault();toggleTimeline();return;}
+      // Amendment 2: in vertex-edit mode with a point selected, Delete/Backspace removes
+      // ONLY that anchor point (re-stitches the outline) — never the whole layer. Routes
+      // through _writeAnchors/_getEditPath so it respects rest vs hover state (C2). If the
+      // shape is already at its minimum (polygon: 3, open path: 2) the delete is ignored.
+      if((e.key==='Delete'||e.key==='Backspace')&&!(e.target&&e.target.isContentEditable)&&state.vertexEditLayerId&&state.vertexSelIdx>=0){
+        e.preventDefault();
+        var _vdL=state.element.layers.find(function(l){return l.id===state.vertexEditLayerId;});
+        if(_vdL&&_vdL.vectorData){
+          var _vdAnch=parseAnchors(_getEditPath(_vdL));
+          var _vdClosed=_vdL.vectorData.closed!==false;
+          var _vdMin=_vdClosed?3:2;
+          if(_vdAnch.length>_vdMin&&state.vertexSelIdx<_vdAnch.length){
+            pushHistory();
+            _vdAnch.splice(state.vertexSelIdx,1);
+            _writeAnchors(_vdL,_vdAnch,_vdClosed);
+            state.vertexSelIdx=-1;
+            if(typeof updateNodeToggleBtn==='function')updateNodeToggleBtn();
+            markDirty();renderCanvas();
+          }
+        }
+        return;
+      }
       if((e.key==='Delete'||e.key==='Backspace')&&!(e.target&&e.target.isContentEditable)&&(state.selectedLayerId||(state.multiSelectIds&&state.multiSelectIds.length))){e.preventDefault();var _delIds=(state.multiSelectIds&&state.multiSelectIds.length)?state.multiSelectIds.slice():[state.selectedLayerId];pushHistory();state.element.layers=state.element.layers.filter(function(l){return _delIds.indexOf(l.id)<0;});state.selectedLayerId=null;state.multiSelectIds=[];document.getElementById('btn-delete-layer').disabled=true;markDirty();renderAll();return;}
       // Copy/Paste (Ctrl+C / Ctrl+V)
       if((e.ctrlKey||e.metaKey)&&e.key==='c'&&state.selectedLayerId){e.preventDefault();var _cl=state.element.layers.find(function(l){return l.id===state.selectedLayerId;});if(_cl)state._clipboard=JSON.parse(JSON.stringify(_cl));return;}
