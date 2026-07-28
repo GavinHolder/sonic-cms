@@ -510,6 +510,13 @@ export interface VoltLayerStateOverride {
   translateY?: number
   fills?: VoltFill[]
   stroke?: VoltStroke
+  /**
+   * Per-state outline geometry. When present on a hover state, the layer's SVG
+   * path `d` is instant-swapped to this value on hover (no morph animation) and
+   * restored to the base pathData at rest. Optional — layers without it render
+   * byte-identically to before.
+   */
+  pathData?: string
 }
 
 export interface VoltState {

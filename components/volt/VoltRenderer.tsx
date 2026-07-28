@@ -213,9 +213,17 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
           if (o && (o.width !== undefined || o.height !== undefined)) { sizeOv = o; break }
         }
         const animatesSize = !!sizeOv
-        const anyAnimates = animates.opacity || animates.scale || animates.position || animates.rotation || animatesSize
+        // Per-state outline geometry (C2): a layer participates in the pathData
+        // instant-swap only if some state defines a `pathData` override for it.
+        // Layers without any pathData override are completely unaffected.
+        let animatesPath = false
+        for (const s of states) {
+          const o = s.layerOverrides?.[layer.id]
+          if (o && o.pathData !== undefined) { animatesPath = true; break }
+        }
+        const anyAnimates = animates.opacity || animates.scale || animates.position || animates.rotation || animatesSize || animatesPath
 
-        if (!override && !isRest && !animatesSize) continue
+        if (!override && !isRest && !animatesSize && !animatesPath) continue
         if (!override && isRest && !anyAnimates) continue
 
         const layerEl = el?.querySelector(`#volt-layer-${layer.id}`)
@@ -271,6 +279,15 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
                 setFill(activeFill.color)
                 pathEl.setAttribute('fill-opacity', String(activeFill.opacity ?? 1))
               }
+            }
+            // Per-state outline geometry (C2): instant-swap the path `d` — base at
+            // rest, hover override on hover. No morph animation, mirroring the fill
+            // swap above. Guarded by animatesPath so layers without a pathData
+            // override never touch `d` and render byte-identically to before.
+            if (animatesPath) {
+              const basePath = layer.vectorData.pathData
+              const activePath = isRest ? basePath : (override?.pathData ?? basePath)
+              if (activePath) pathEl.setAttribute('d', activePath)
             }
           }
         }

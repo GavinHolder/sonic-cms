@@ -620,6 +620,24 @@
       if(!hs.layerOverrides[layerId])hs.layerOverrides[layerId]={};
       hs.layerOverrides[layerId][prop]=val;
     }
+    // ── C2: per-state outline geometry ─────────────────────────────────────────
+    // In hover state, anchor-point edits (vertex drag, point add/delete, corner
+    // round, node smooth/corner toggle) write to the hover-state `pathData`
+    // override instead of mutating the base outline — so the base shape is
+    // preserved and the morphed outline is a hover-only override. In rest state
+    // these helpers fall through to the base pathData exactly as before.
+    /** Effective editable pathData: hover override (if set) else base. */
+    function _getEditPath(layer){
+      if(state.activeStateName==='hover'){var ov=_getHoverOverride(layer.id);if(ov&&ov.pathData!==undefined)return ov.pathData;}
+      return layer.vectorData?layer.vectorData.pathData:null;
+    }
+    /** Commit an anchor-edit result: rest → base pathData + recalc bounds;
+     *  hover → pathData override only (base geometry left untouched). */
+    function _writeAnchors(layer,anchors,closed){
+      var _p=anchorsToPath(anchors,closed);
+      if(state.activeStateName==='hover'){_setHoverOverride(layer.id,'pathData',_p);return;}
+      layer.vectorData.pathData=_p;recalcLayerBounds(layer);
+    }
     /** Show/hide flip card face switcher and sync button styles */
     function _updateFaceSwitcher(){
       var fcs=document.getElementById('flip-face-switcher');
@@ -1128,7 +1146,7 @@
           // Composite layers: non-destructive boolean result rendered via SVG masking
           // (subtract/intersect) + co-rendered sibling paths (union). Robust for any
           // shape incl. curves & concave — no fragile polygon clipping math.
-          var dispPath=layer.vectorData.pathData,dispFillRule=layer.vectorData.fillRule||'nonzero';
+          var dispPath=(state.activeStateName==='hover'&&_ov.pathData!==undefined)?_ov.pathData:layer.vectorData.pathData,dispFillRule=layer.vectorData.fillRule||'nonzero';
           var dispMaskId=null;var _boolUnionPaths=[];
           if(layer.boolChildren&&layer.boolChildren.length){
             var _bcCutter=function(bc){return state.element.layers.find(function(l){return l.id===bc.cutterId;});};
@@ -1512,7 +1530,7 @@
       if(state.vertexEditLayerId){
         var vel=state.element.layers.find(function(l){return l.id===state.vertexEditLayerId;});
         if(vel&&vel.vectorData){
-          var vanch=parseAnchors(vel.vectorData.pathData);var vr=VX_RAD/state.zoom;
+          var vanch=parseAnchors(_getEditPath(vel));var vr=VX_RAD/state.zoom;
           var vbx=topx(vel.x,CW),vby=topx(vel.y,CH),vbw=topx(vel.width,CW),vbh=topx(vel.height,CH);
           var vbox=svgNs('rect');vbox.setAttribute('x',vbx);vbox.setAttribute('y',vby);vbox.setAttribute('width',vbw);vbox.setAttribute('height',vbh);
           vbox.setAttribute('fill','none');vbox.setAttribute('stroke','#f59e0b');vbox.setAttribute('stroke-width',(1/state.zoom).toFixed(3));
@@ -1748,7 +1766,7 @@
         if(state.vertexEditLayerId){
           var vel=state.element.layers.find(function(l){return l.id===state.vertexEditLayerId;});
           if(vel&&vel.vectorData){
-            var vanch2=parseAnchors(vel.vectorData.pathData);var vhit=VX_RAD*2/state.zoom;var vCW=state.element.canvasWidth,vCH=state.element.canvasHeight;
+            var vanch2=parseAnchors(_getEditPath(vel));var vhit=VX_RAD*2/state.zoom;var vCW=state.element.canvasWidth,vCH=state.element.canvasHeight;
             var _isClosed=vel.vectorData.closed!==false;
             // 1. Check Bezier handle dots (only when not in alt-delete mode)
             if(!_altHeld){
@@ -1766,12 +1784,12 @@
               if(vxDragSt)return;
             }
             // 2. Check vertex circles
-            for(var vi2=0;vi2<vanch2.length;vi2++){var vcx=topx(vanch2[vi2].x,vCW),vcy=topx(vanch2[vi2].y,vCH);if(dist2(pt,{x:vcx,y:vcy})<=vhit){if(_altHeld){var _dvdNow=Date.now();if(_vxDblClick.id===vel.id&&_vxDblClick.vi===vi2&&_dvdNow-_vxDblClick.time<400){_vxDblClick={id:null,vi:-1,time:0};if(vanch2.length>3){pushHistory();var _dvpts=vanch2.slice();_dvpts.splice(vi2,1);var _dveli=state.element.layers.findIndex(function(l){return l.id===state.vertexEditLayerId;});if(_dveli>=0){state.element.layers[_dveli].vectorData.pathData=anchorsToPath(_dvpts,_isClosed);recalcLayerBounds(state.element.layers[_dveli]);markDirty();}renderCanvas();}}else{_vxDblClick={id:vel.id,vi:vi2,time:_dvdNow};}return;}state.vertexSelIdx=vi2;vxDragSt={layerId:vel.id,vertIdx:vi2,handleKey:null,startPt:pt,origAnchors:vanch2.map(cloneAnchor)};return;}}
+            for(var vi2=0;vi2<vanch2.length;vi2++){var vcx=topx(vanch2[vi2].x,vCW),vcy=topx(vanch2[vi2].y,vCH);if(dist2(pt,{x:vcx,y:vcy})<=vhit){if(_altHeld){var _dvdNow=Date.now();if(_vxDblClick.id===vel.id&&_vxDblClick.vi===vi2&&_dvdNow-_vxDblClick.time<400){_vxDblClick={id:null,vi:-1,time:0};if(vanch2.length>3){pushHistory();var _dvpts=vanch2.slice();_dvpts.splice(vi2,1);var _dveli=state.element.layers.findIndex(function(l){return l.id===state.vertexEditLayerId;});if(_dveli>=0){_writeAnchors(state.element.layers[_dveli],_dvpts,_isClosed);markDirty();}renderCanvas();}}else{_vxDblClick={id:vel.id,vi:vi2,time:_dvdNow};}return;}state.vertexSelIdx=vi2;vxDragSt={layerId:vel.id,vertIdx:vi2,handleKey:null,startPt:pt,origAnchors:vanch2.map(cloneAnchor)};return;}}
             // 3. Alt+click on empty area: insert vertex on nearest edge
-            if(_altHeld&&vanch2.length>=2){var _vck={x:pct(pt.x,vCW),y:pct(pt.y,vCH)},_best={d:Infinity,idx:-1,pt:null};for(var _vi=0;_vi<vanch2.length;_vi++){var _va=vanch2[_vi],_vb=vanch2[(_vi+1)%vanch2.length];var _vdx=_vb.x-_va.x,_vdy=_vb.y-_va.y;var _vl2=_vdx*_vdx+_vdy*_vdy;var _vt=_vl2>0?Math.max(0,Math.min(1,((_vck.x-_va.x)*_vdx+(_vck.y-_va.y)*_vdy)/_vl2)):0;var _vcp={x:_va.x+_vt*_vdx,y:_va.y+_vt*_vdy};var _vd=(_vck.x-_vcp.x)*(_vck.x-_vcp.x)+(_vck.y-_vcp.y)*(_vck.y-_vcp.y);if(_vd<_best.d){_best={d:_vd,idx:_vi+1,pt:_vcp};}}if(_best.idx>=0){pushHistory();var _vapts2=vanch2.slice();_vapts2.splice(_best.idx,0,{x:_best.pt.x,y:_best.pt.y,cpIn:{dx:0,dy:0},cpOut:{dx:0,dy:0}});var _veli=state.element.layers.findIndex(function(l){return l.id===state.vertexEditLayerId;});if(_veli>=0){state.element.layers[_veli].vectorData.pathData=anchorsToPath(_vapts2,_isClosed);recalcLayerBounds(state.element.layers[_veli]);markDirty();}state.vertexSelIdx=_best.idx;vxDragSt={layerId:vel.id,vertIdx:_best.idx,handleKey:null,startPt:pt,origAnchors:_vapts2.map(cloneAnchor)};renderCanvas();return;}}
+            if(_altHeld&&vanch2.length>=2){var _vck={x:pct(pt.x,vCW),y:pct(pt.y,vCH)},_best={d:Infinity,idx:-1,pt:null};for(var _vi=0;_vi<vanch2.length;_vi++){var _va=vanch2[_vi],_vb=vanch2[(_vi+1)%vanch2.length];var _vdx=_vb.x-_va.x,_vdy=_vb.y-_va.y;var _vl2=_vdx*_vdx+_vdy*_vdy;var _vt=_vl2>0?Math.max(0,Math.min(1,((_vck.x-_va.x)*_vdx+(_vck.y-_va.y)*_vdy)/_vl2)):0;var _vcp={x:_va.x+_vt*_vdx,y:_va.y+_vt*_vdy};var _vd=(_vck.x-_vcp.x)*(_vck.x-_vcp.x)+(_vck.y-_vcp.y)*(_vck.y-_vcp.y);if(_vd<_best.d){_best={d:_vd,idx:_vi+1,pt:_vcp};}}if(_best.idx>=0){pushHistory();var _vapts2=vanch2.slice();_vapts2.splice(_best.idx,0,{x:_best.pt.x,y:_best.pt.y,cpIn:{dx:0,dy:0},cpOut:{dx:0,dy:0}});var _veli=state.element.layers.findIndex(function(l){return l.id===state.vertexEditLayerId;});if(_veli>=0){_writeAnchors(state.element.layers[_veli],_vapts2,_isClosed);markDirty();}state.vertexSelIdx=_best.idx;vxDragSt={layerId:vel.id,vertIdx:_best.idx,handleKey:null,startPt:pt,origAnchors:_vapts2.map(cloneAnchor)};renderCanvas();return;}}
           }
             // Click ON the outline (no Alt) inserts a corner point there and drags it immediately
-            if(!_altHeld&&vanch2.length>=2){var _ock={x:pct(pt.x,vCW),y:pct(pt.y,vCH)},_obest={d:Infinity,idx:-1,pt:null},_oseg=_isClosed?vanch2.length:vanch2.length-1;for(var _oi=0;_oi<_oseg;_oi++){var _oa=vanch2[_oi],_ob=vanch2[(_oi+1)%vanch2.length];var _odx=_ob.x-_oa.x,_ody=_ob.y-_oa.y;var _ol2=_odx*_odx+_ody*_ody;var _ot=_ol2>0?Math.max(0,Math.min(1,((_ock.x-_oa.x)*_odx+(_ock.y-_oa.y)*_ody)/_ol2)):0;var _ocp={x:_oa.x+_ot*_odx,y:_oa.y+_ot*_ody};var _od=dist2(pt,{x:topx(_ocp.x,vCW),y:topx(_ocp.y,vCH)});if(_od<_obest.d){_obest={d:_od,idx:_oi+1,pt:_ocp};}}var _oth=8/state.zoom;if(_obest.idx>=0&&_obest.d<=_oth*_oth){pushHistory();var _oapts=vanch2.slice();_oapts.splice(_obest.idx,0,{x:_obest.pt.x,y:_obest.pt.y,cpIn:{dx:0,dy:0},cpOut:{dx:0,dy:0}});var _oeli=state.element.layers.findIndex(function(l){return l.id===state.vertexEditLayerId;});if(_oeli>=0){state.element.layers[_oeli].vectorData.pathData=anchorsToPath(_oapts,_isClosed);recalcLayerBounds(state.element.layers[_oeli]);markDirty();}state.vertexSelIdx=_obest.idx;vxDragSt={layerId:vel.id,vertIdx:_obest.idx,handleKey:null,startPt:pt,origAnchors:_oapts.map(cloneAnchor)};renderCanvas();return;}}
+            if(!_altHeld&&vanch2.length>=2){var _ock={x:pct(pt.x,vCW),y:pct(pt.y,vCH)},_obest={d:Infinity,idx:-1,pt:null},_oseg=_isClosed?vanch2.length:vanch2.length-1;for(var _oi=0;_oi<_oseg;_oi++){var _oa=vanch2[_oi],_ob=vanch2[(_oi+1)%vanch2.length];var _odx=_ob.x-_oa.x,_ody=_ob.y-_oa.y;var _ol2=_odx*_odx+_ody*_ody;var _ot=_ol2>0?Math.max(0,Math.min(1,((_ock.x-_oa.x)*_odx+(_ock.y-_oa.y)*_ody)/_ol2)):0;var _ocp={x:_oa.x+_ot*_odx,y:_oa.y+_ot*_ody};var _od=dist2(pt,{x:topx(_ocp.x,vCW),y:topx(_ocp.y,vCH)});if(_od<_obest.d){_obest={d:_od,idx:_oi+1,pt:_ocp};}}var _oth=8/state.zoom;if(_obest.idx>=0&&_obest.d<=_oth*_oth){pushHistory();var _oapts=vanch2.slice();_oapts.splice(_obest.idx,0,{x:_obest.pt.x,y:_obest.pt.y,cpIn:{dx:0,dy:0},cpOut:{dx:0,dy:0}});var _oeli=state.element.layers.findIndex(function(l){return l.id===state.vertexEditLayerId;});if(_oeli>=0){_writeAnchors(state.element.layers[_oeli],_oapts,_isClosed);markDirty();}state.vertexSelIdx=_obest.idx;vxDragSt={layerId:vel.id,vertIdx:_obest.idx,handleKey:null,startPt:pt,origAnchors:_oapts.map(cloneAnchor)};renderCanvas();return;}}
           // Clicked outside vertex handles — exit vertex edit
           var _vexL=state.element.layers.find(function(l){return l.id===state.vertexEditLayerId;});
           state.vertexEditLayerId=null;
@@ -1878,6 +1896,9 @@
             nanch[vi].x=pct(rpt.x,CW);nanch[vi].y=pct(rpt.y,CH);
           }
           var _isCl=state.element.layers[vxi].vectorData.closed!==false;
+          // C2: in hover state, the vertex drag writes the morphed outline to the
+          // hover pathData override and leaves base geometry untouched.
+          if(state.activeStateName==='hover'){_setHoverOverride(state.element.layers[vxi].id,'pathData',anchorsToPath(nanch,_isCl));renderCanvas();return;}
           state.element.layers[vxi].vectorData.pathData=anchorsToPath(nanch,_isCl);
           var vxs=nanch.map(function(a){return a.x;}),vys=nanch.map(function(a){return a.y;});
           var vbx2=Math.min.apply(null,vxs);state.element.layers[vxi].x=vbx2;
@@ -5493,9 +5514,9 @@
       if(li<0)return;
       var l=state.element.layers[li];
       // Capture original path the first time rounding is applied
-      if(!_origRoundPath)_origRoundPath=l.vectorData.pathData;
+      if(!_origRoundPath)_origRoundPath=_getEditPath(l);
       // Always apply rounding from the ORIGINAL path, not the already-rounded one
-      if(t<=0){l.vectorData.pathData=_origRoundPath;recalcLayerBounds(l);markDirty();renderCanvas();return;}
+      if(t<=0){if(state.activeStateName==='hover'){_setHoverOverride(l.id,'pathData',_origRoundPath);}else{l.vectorData.pathData=_origRoundPath;recalcLayerBounds(l);}markDirty();renderCanvas();return;}
       var a=parseAnchors(_origRoundPath),n=a.length;
       if(n<2)return;
       // Build new anchor list: replace each sharp corner with two new points on adjacent edges
@@ -5519,8 +5540,7 @@
         newAnch.push({x:sp.x,y:sp.y,cpIn:{dx:0,dy:0},cpOut:{dx:(vi.x-sp.x)*k,dy:(vi.y-sp.y)*k}});
         newAnch.push({x:ep.x,y:ep.y,cpIn:{dx:(vi.x-ep.x)*k,dy:(vi.y-ep.y)*k},cpOut:{dx:0,dy:0}});
       }
-      l.vectorData.pathData=anchorsToPath(newAnch,isClosed);
-      recalcLayerBounds(l);markDirty();renderCanvas();
+      _writeAnchors(l,newAnch,isClosed);markDirty();renderCanvas();
     }
     document.getElementById('vx-round-range').addEventListener('input',function(){
       document.getElementById('vx-round-val').textContent=this.value+'%';
@@ -5532,8 +5552,8 @@
     });
     // ── Per-point corner ⇄ smooth node toggle ─────────────────────────────────
     function _nodeIsSmooth(a){return Math.abs(a.cpIn.dx)>0.001||Math.abs(a.cpIn.dy)>0.001||Math.abs(a.cpOut.dx)>0.001||Math.abs(a.cpOut.dy)>0.001;}
-    function updateNodeToggleBtn(){var btn=document.getElementById('vx-node-toggle');if(!btn)return;var ok=false,smooth=false;if(state.vertexEditLayerId&&state.vertexSelIdx>=0){var l=state.element.layers.find(function(x){return x.id===state.vertexEditLayerId;});if(l&&l.vectorData){var a=parseAnchors(l.vectorData.pathData);if(state.vertexSelIdx<a.length){ok=true;smooth=_nodeIsSmooth(a[state.vertexSelIdx]);}}}btn.disabled=!ok;btn.style.opacity=ok?'1':'0.45';btn.style.cursor=ok?'pointer':'default';btn.textContent=ok?(smooth?'● Smooth':'◆ Corner'):'◆ Point';}
-    function toggleNodeType(){if(!state.vertexEditLayerId||state.vertexSelIdx<0)return;var li=state.element.layers.findIndex(function(l){return l.id===state.vertexEditLayerId;});if(li<0)return;var l=state.element.layers[li];if(!l.vectorData)return;var isClosed=l.vectorData.closed!==false;var a=parseAnchors(l.vectorData.pathData),n=a.length,i=state.vertexSelIdx;if(i<0||i>=n)return;var vi=a[i];pushHistory();if(_nodeIsSmooth(vi)){vi.cpIn={dx:0,dy:0};vi.cpOut={dx:0,dy:0};}else{var _hasP=isClosed||i>0,_hasN=isClosed||i<n-1;var vp=_hasP?a[(i-1+n)%n]:null,vn=_hasN?a[(i+1)%n]:null;var tx,ty;if(vp&&vn){tx=vn.x-vp.x;ty=vn.y-vp.y;}else if(vn){tx=vn.x-vi.x;ty=vn.y-vi.y;}else if(vp){tx=vi.x-vp.x;ty=vi.y-vp.y;}else{tx=1;ty=0;}var tl=Math.sqrt(tx*tx+ty*ty)||1;tx/=tl;ty/=tl;var dP=vp?Math.sqrt(Math.pow(vi.x-vp.x,2)+Math.pow(vi.y-vp.y,2)):0,dN=vn?Math.sqrt(Math.pow(vn.x-vi.x,2)+Math.pow(vn.y-vi.y,2)):0;var refs=[dP,dN].filter(function(d){return d>0;});var mag=(refs.length?Math.min.apply(null,refs):10)*0.33;vi.cpOut={dx:tx*mag,dy:ty*mag};vi.cpIn={dx:-tx*mag,dy:-ty*mag};}l.vectorData.pathData=anchorsToPath(a,isClosed);recalcLayerBounds(l);markDirty();renderCanvas();updateNodeToggleBtn();}
+    function updateNodeToggleBtn(){var btn=document.getElementById('vx-node-toggle');if(!btn)return;var ok=false,smooth=false;if(state.vertexEditLayerId&&state.vertexSelIdx>=0){var l=state.element.layers.find(function(x){return x.id===state.vertexEditLayerId;});if(l&&l.vectorData){var a=parseAnchors(_getEditPath(l));if(state.vertexSelIdx<a.length){ok=true;smooth=_nodeIsSmooth(a[state.vertexSelIdx]);}}}btn.disabled=!ok;btn.style.opacity=ok?'1':'0.45';btn.style.cursor=ok?'pointer':'default';btn.textContent=ok?(smooth?'● Smooth':'◆ Corner'):'◆ Point';}
+    function toggleNodeType(){if(!state.vertexEditLayerId||state.vertexSelIdx<0)return;var li=state.element.layers.findIndex(function(l){return l.id===state.vertexEditLayerId;});if(li<0)return;var l=state.element.layers[li];if(!l.vectorData)return;var isClosed=l.vectorData.closed!==false;var a=parseAnchors(_getEditPath(l)),n=a.length,i=state.vertexSelIdx;if(i<0||i>=n)return;var vi=a[i];pushHistory();if(_nodeIsSmooth(vi)){vi.cpIn={dx:0,dy:0};vi.cpOut={dx:0,dy:0};}else{var _hasP=isClosed||i>0,_hasN=isClosed||i<n-1;var vp=_hasP?a[(i-1+n)%n]:null,vn=_hasN?a[(i+1)%n]:null;var tx,ty;if(vp&&vn){tx=vn.x-vp.x;ty=vn.y-vp.y;}else if(vn){tx=vn.x-vi.x;ty=vn.y-vi.y;}else if(vp){tx=vi.x-vp.x;ty=vi.y-vp.y;}else{tx=1;ty=0;}var tl=Math.sqrt(tx*tx+ty*ty)||1;tx/=tl;ty/=tl;var dP=vp?Math.sqrt(Math.pow(vi.x-vp.x,2)+Math.pow(vi.y-vp.y,2)):0,dN=vn?Math.sqrt(Math.pow(vn.x-vi.x,2)+Math.pow(vn.y-vi.y,2)):0;var refs=[dP,dN].filter(function(d){return d>0;});var mag=(refs.length?Math.min.apply(null,refs):10)*0.33;vi.cpOut={dx:tx*mag,dy:ty*mag};vi.cpIn={dx:-tx*mag,dy:-ty*mag};}_writeAnchors(l,a,isClosed);markDirty();renderCanvas();updateNodeToggleBtn();}
     var _vxNodeBtn=document.getElementById('vx-node-toggle');if(_vxNodeBtn)_vxNodeBtn.addEventListener('click',function(){toggleNodeType();});
     // ── Sidebar toggles ───────────────────────────────────────────────────────
     document.getElementById('toggle-left').addEventListener('click',function(){var s=document.getElementById('sidebar-left'),ic=document.getElementById('toggle-left-icon');s.classList.toggle('collapsed');ic.className=s.classList.contains('collapsed')?'bi bi-chevron-right':'bi bi-chevron-left';});
