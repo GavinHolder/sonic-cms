@@ -513,6 +513,15 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                     : (slide.overlay.position || "").toLowerCase().includes("left") ? "0 0 60px 60px"
                     : (slide.overlay.position || "").toLowerCase().includes("right") ? "0 60px 60px 0"
                     : undefined,
+                  // Mobile: cap the content block to the space between the fixed navbar and
+                  // the bottom controls (~80px reserved each side of the centered block) and
+                  // scroll WITHIN the slide when a tall stack (eyebrow + many heading rows +
+                  // subheading + buttons) would otherwise overflow the fixed 100dvh hero and
+                  // clip at top/bottom. Short content stays centered (block shorter than the
+                  // cap, so no scrollbar). Desktop is untouched. (mobile-gated)
+                  maxHeight: isMobile ? "calc(100dvh - 160px)" : undefined,
+                  overflowY: isMobile ? "auto" : undefined,
+                  WebkitOverflowScrolling: isMobile ? "touch" : undefined,
                 }}
               >
                 <AnimatePresence>
@@ -693,7 +702,12 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
               overflow: "hidden",
               // Mobile: stack the freeform elements in a centered column that clears the fixed nav,
               // instead of honouring their desktop absolute coords (which clip off-edge). (#72)
-              ...(isMobile ? { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "104px 20px 64px" } : {}),
+              // Short content stays vertically centered; a tall stack top-aligns and scrolls
+              // WITHIN the slide instead of clipping — `safe center` falls back to start on
+              // overflow, and overflowY:auto makes the extra content reachable. The top/bottom
+              // padding keeps content clear of the fixed navbar and the bottom controls.
+              // (overflow-y overrides the base `overflow: hidden` on mobile; x stays hidden.) (mobile-gated)
+              ...(isMobile ? { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "safe center", overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "104px 20px 64px" } : {}),
             }}>
               <AnimatePresence>
                 {/* Eyebrow */}

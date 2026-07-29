@@ -1,5 +1,5 @@
 {
-  "version": "1.72.2",
+  "version": "1.72.3",
   "date": "2026-07-28",
   "changelog": {
     "features": [
@@ -13,6 +13,7 @@
       "Data-bound product cards — link Volt cards to coverage packages; auto-populate name, speed, price and options from live product data"
     ],
     "bugfixes": [
+      "Hero carousel: tall slide content on mobile now scrolls within the slide instead of clipping",
       "Hero carousel: slide text isolated per slide (no outlined-word bleed during transitions)",
       "Hero carousel: mobile slide sizing — slide 1 no longer oversized on phones",
       "Flexible Designer: stable marquee drag-select (no full-page text highlight or selection flicker)",
