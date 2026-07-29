@@ -786,6 +786,13 @@ export interface FlexibleElement {
     height?: string;
     zIndex?: number; // Layering (0-100)
   };
+  /**
+   * When true, this element renders IN FRONT of the section's Lower Third band
+   * (painted above the lower third, below motion elements). Opt-in; missing/false keeps
+   * the current behaviour (element stays behind the lower third). Honoured for free-mode
+   * designer sections in FlexibleSectionRenderer.
+   */
+  aboveLowerThird?: boolean;
   // Styling
   styling?: {
     backgroundColor?: string;

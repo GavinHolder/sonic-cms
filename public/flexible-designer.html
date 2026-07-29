@@ -5787,6 +5787,10 @@ function renderBlockProps(block) {
         <button class="action-btn full-h mb-0" style="flex:1;" onclick="setBlockPosFull('${block.id}','fullHeight')">↕ Full Height</button>
       </div>
       <button class="action-btn reset mt-2" onclick="setBlockPosFull('${block.id}','center')">⊕ Center on Canvas</button>
+      <div class="props-row" style="align-items:center;margin-top:8px;">
+        <label style="flex:1;" title="Render this element in front of the section's Lower Third band (opt-in). Off = stays behind it.">In front of Lower Third</label>
+        <input type="checkbox" style="width:18px;height:18px;cursor:pointer;" ${block.aboveLowerThird ? 'checked' : ''} onchange="setBlockAboveLowerThird('${block.id}',this.checked)">
+      </div>
     </div>`;
   } else if (state.layoutType === 'mosaic') {
     // ── Mosaic mode: size preset picker ───────────────────────────────────
@@ -6484,6 +6488,18 @@ function showCustomNav(el, id) {
  * @param {*} v - New value to assign.
  */
 function updateBlockProp(bId,k,v) { const b=state.blocks.find(b=>b.id==bId); if(b) { b.props[k]=v; autoSave(); } } // eslint-disable-line eqeqeq
+
+// Persist the per-block "render in front of the Lower Third" flag (top-level on the block,
+// like block.zIndex/hidden). ON → the live renderer re-draws this block in a plate that sits
+// above the section's Lower Third band; OFF (default) → deletes the flag so the block keeps
+// its normal stacking (behind the lower third). Undo-able (pushHistory) + autosaved.
+function setBlockAboveLowerThird(bId, checked) {
+  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
+  if (!b) return;
+  pushHistory();
+  if (checked) b.aboveLowerThird = true; else delete b.aboveLowerThird;
+  renderCanvas(); renderPropsPanel(); autoSave();
+}
 
 // ── Volt layer cache ──────────────────────────────────────────────────────────
 // Maps voltId → { layers: VoltLayer[], loading: bool }

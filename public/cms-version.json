@@ -1,8 +1,9 @@
 {
-  "version": "1.72.1",
+  "version": "1.72.2",
   "date": "2026-07-28",
   "changelog": {
     "features": [
+      "Flexible Designer: per-element toggle to render an element in front of the section Lower Third (opt-in, default off)",
       "Volt Studio: bind a slot to a product field (Name/Speed/Price/Options/Period) so linked product cards auto-populate the slot end-to-end",
       "Volt Studio: editable vector/polygon points — add anchor points anywhere, corner/smooth node toggle, 45° straight-side snap",
       "Volt Studio: per-state on-canvas editing — drag/resize/rotate shapes independently per hover state",

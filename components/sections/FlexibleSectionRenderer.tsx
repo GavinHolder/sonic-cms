@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useEffect, useRef, useState, useCallback, useId, useMemo } from "react";
+import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
 import type { FlexibleSection, FlexibleElement, FlexibleAnimationType } from "@/types/section";
 import type { AnimBgConfig } from "@/lib/anim-bg/types";
@@ -532,6 +533,47 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
     styleInjected = true;
   }, []);
 
+  // ── "In front of the Lower Third" per-element promotion (free-mode) ──────────
+  // A section's Lower Third band is drawn by wrapSection() in DynamicSection as a z-index-10
+  // SIBLING of this section's z-index-10 content wrapper — so it ALWAYS paints on top of the
+  // whole flexible subtree (a plain z-index bump on a block cannot escape that content-wrapper
+  // stacking context). To let a block opt IN FRONT of the lower third, its blocks are split out
+  // and re-drawn in a SECOND cover-plate that is PORTALED to the wrapSection root (the lower
+  // third's own sibling) at z-index 14 — above the lower third (z-10), below motion element
+  // layers (z-15 / z-25), mirroring how MotionElementRenderer sits above the lower third.
+  // Opt-in: with no promoted block the split never activates and the section renders
+  // byte-identically (and it stays inactive pre-hydration + on SSR, so no hydration mismatch).
+  const hasLowerThird = (section as { lowerThird?: { enabled?: boolean } }).lowerThird?.enabled === true;
+  const { baseDesignerData, promotedDesignerData, hasPromotedAlt } = useMemo(() => {
+    if (!freePlateActive || !designerData) {
+      return { baseDesignerData: designerData, promotedDesignerData: null as unknown, hasPromotedAlt: false };
+    }
+    try {
+      const d = typeof designerData === "string" ? JSON.parse(designerData) : designerData;
+      const blocks = Array.isArray((d as { blocks?: unknown[] }).blocks) ? (d as { blocks: Array<{ aboveLowerThird?: boolean }> }).blocks : [];
+      const promoted = blocks.filter((b) => b?.aboveLowerThird === true);
+      if (promoted.length === 0) {
+        return { baseDesignerData: designerData, promotedDesignerData: null as unknown, hasPromotedAlt: false };
+      }
+      const base = blocks.filter((b) => b?.aboveLowerThird !== true);
+      return {
+        baseDesignerData: { ...(d as Record<string, unknown>), blocks: base } as Record<string, unknown>,
+        promotedDesignerData: { ...(d as Record<string, unknown>), blocks: promoted } as Record<string, unknown>,
+        hasPromotedAlt: true,
+      };
+    } catch {
+      return { baseDesignerData: designerData, promotedDesignerData: null as unknown, hasPromotedAlt: false };
+    }
+  }, [freePlateActive, designerData]);
+  // Portal host = the wrapSection root (section → z-10 content wrapper → root), which is the
+  // Lower Third's sibling. Resolved once after mount (ref is populated by then); null in
+  // contexts without that structure → the split simply never activates.
+  const [altEscapeHost, setAltEscapeHost] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setAltEscapeHost(sectionRef.current?.parentElement?.parentElement ?? null);
+  }, []);
+  const altLayerActive = mounted && freePlateActive && hasLowerThird && hasPromotedAlt && !!altEscapeHost;
+
   // Resolve the background to a CSS color/gradient string and determine text contrast
   const bgColor  = resolveBgColor(background);
   const darkBg   = isDarkBackground(background);
@@ -642,7 +684,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           pointerEvents are re-enabled on the inner stage so links/buttons stay clickable. */}
       {freePlateActive && (
         <DesignerBlocksRenderer
-          designerData={designerData!}
+          designerData={(altLayerActive ? baseDesignerData : designerData!) as string | Record<string, unknown>}
           darkBg={darkBg}
           plateMode
           bgImage={{
@@ -655,6 +697,36 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           }}
         />
       )}
+
+      {/* "In front of the Lower Third" overlay — promoted free-mode blocks re-drawn in a
+          second cover-plate PORTALED to the wrapSection root (sibling of the Lower Third) at
+          z-index 14: above the lower third (z-10), below motion layers (z-15 / z-25). No bg
+          image (transparent overlay); the base plate above owns the background. Mounts only
+          after hydration and only when ≥1 block opted in AND the section has a lower third,
+          so the default render (and SSR) is byte-identical. Section colour vars are copied
+          onto the wrapper so promoted blocks keep their contrast text outside the <section>. */}
+      {altLayerActive && altEscapeHost && promotedDesignerData
+        ? createPortal(
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                zIndex: 14,
+                pointerEvents: "none",
+                "--section-text": sectionText,
+                "--section-muted": sectionMuted,
+                "--section-bg": isBgGrad ? "#0f0c29" : bgColor,
+              } as React.CSSProperties}
+            >
+              <DesignerBlocksRenderer
+                designerData={promotedDesignerData as string | Record<string, unknown>}
+                darkBg={darkBg}
+                plateMode
+              />
+            </div>,
+            altEscapeHost
+          )
+        : null}
 
       {/* Gradient layer (content.gradient) — colour/direction/opacity from the Background tab.
           WITH a bg image it's a scrim OVER the image (z-index 1, #59). With NO image it renders
