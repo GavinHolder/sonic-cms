@@ -1321,10 +1321,22 @@
             // Preview type label (top-left corner) — skip for input (it has its own rendered element)
             if(_st!=='input'){var plbl=document.createElement('div');plbl.style.cssText='position:absolute;top:3px;left:3px;background:rgba(34,197,94,0.9);color:#fff;font-size:8px;font-weight:800;padding:1px 5px;border-radius:3px;letter-spacing:0.4px;text-transform:uppercase;';plbl.textContent=_st;div.appendChild(plbl);}
           } else {
-            // Design mode: dashed outline with type tag
-            div.style.cssText='position:absolute;left:'+_lx+'%;top:'+_ly+'%;width:'+_lw+'%;height:'+_lh+'%;border:2px dashed #22c55e88;border-radius:4px;pointer-events:none;display:flex;align-items:center;justify-content:center;box-sizing:border-box;'+_slotShadow;
-            var lbl=document.createElement('span');lbl.style.cssText='background:#22c55e;color:white;font-size:9px;font-weight:700;padding:2px 5px;border-radius:3px;text-transform:uppercase;';
-            lbl.textContent=(_sd.slotLabel||'Slot')+' ('+_st+')';div.appendChild(lbl);
+            // Design mode: lighter, less-obstructive data-placeholder affordance.
+            // Bound slots get a distinct indigo accent + a "→ Field" pill so the
+            // author can see WHAT the slot is bound to; unbound stay green.
+            var _bound=!!(_sd.contentFieldHint);
+            var _slotSel=(state.selectedLayerId===layer.id)||(state.multiSelectIds&&state.multiSelectIds.indexOf(layer.id)>-1);
+            var _accent=_bound?'#6366f1':'#22c55e';
+            var _fillA=_slotSel?'22':'0d'; // faint tint at rest, stronger when selected
+            div.style.cssText='position:absolute;left:'+_lx+'%;top:'+_ly+'%;width:'+_lw+'%;height:'+_lh+'%;border:1px dashed '+_accent+(_slotSel?'':'66')+';border-radius:4px;pointer-events:none;display:flex;flex-wrap:wrap;align-content:flex-start;align-items:flex-start;justify-content:flex-start;gap:2px;padding:2px;box-sizing:border-box;background:'+_accent+_fillA+';'+_slotShadow;
+            var lbl=document.createElement('span');lbl.style.cssText='background:'+_accent+'cc;color:#fff;font-size:8px;font-weight:700;padding:1px 4px;border-radius:3px;text-transform:uppercase;line-height:1.4;white-space:nowrap;';
+            lbl.textContent=_bound?_st:((_sd.slotLabel||'Slot')+' ('+_st+')');div.appendChild(lbl);
+            if(_bound){
+              var _blMap={'pkg.name':'Name','pkg.speed':'Speed','pkg.price':'Price','pkg.options':'Options','pkg.period':'Period'};
+              var _bl=_blMap[_sd.contentFieldHint]||String(_sd.contentFieldHint).replace(/^pkg\./,'').replace(/^\w/,function(c){return c.toUpperCase();});
+              var bpill=document.createElement('span');bpill.style.cssText='background:#fff;color:#6366f1;border:1px solid #6366f1;font-size:8px;font-weight:800;padding:1px 4px;border-radius:3px;line-height:1.4;white-space:nowrap;';
+              bpill.textContent='→ '+_bl;div.appendChild(bpill);
+            }
           }
           div.style.opacity=_lop!=null?_lop:1;
           if(layer.blendMode&&layer.blendMode!=='normal')div.style.mixBlendMode=layer.blendMode;
@@ -4050,6 +4062,12 @@
       var fh=mkSec();fh.appendChild(mkLbl('Bind to Product Field'));var fhs=document.createElement('select');fhs.id='prop-slot-field-hint';fhs.className='form-select form-select-sm';
       [{v:'',l:'None (manual)'},{v:'pkg.name',l:'Name'},{v:'pkg.speed',l:'Speed'},{v:'pkg.price',l:'Price'},{v:'pkg.options',l:'Options'},{v:'pkg.period',l:'Period'}].forEach(function(o){var op=document.createElement('option');op.value=o.v;op.textContent=o.l;if((sd.contentFieldHint||'')===o.v)op.selected=true;fhs.appendChild(op);});fh.appendChild(fhs);body.appendChild(fh);
       var fhh=document.createElement('div');fhh.style.cssText='font-size:9px;color:#94a3b8;margin:-4px 0 6px;';fhh.textContent='A linked product card auto-fills this slot from the chosen field';body.appendChild(fhh);
+      // Overflow fit: how bound text behaves when longer than the slot box.
+      // Values map 1:1 to slotData.overflowFit which VoltSlotRenderer already honors
+      // ('clip' = default/unset = current behavior, 'ellipsis' = …, 'shrink' = scale to fit).
+      var ofsec=mkSec();ofsec.appendChild(mkLbl('Overflow Fit'));var ofsel=document.createElement('select');ofsel.id='prop-slot-overflow-fit';ofsel.className='form-select form-select-sm';
+      [{v:'clip',l:'Clip (default)'},{v:'ellipsis',l:'Ellipsis (…)'},{v:'shrink',l:'Shrink to fit'}].forEach(function(o){var op=document.createElement('option');op.value=o.v;op.textContent=o.l;if((sd.overflowFit||'clip')===o.v)op.selected=true;ofsel.appendChild(op);});ofsec.appendChild(ofsel);body.appendChild(ofsec);
+      var ofh=document.createElement('div');ofh.style.cssText='font-size:9px;color:#94a3b8;margin:-4px 0 6px;';ofh.textContent='How bound text behaves when longer than the slot';body.appendChild(ofh);
       // Input/action slot skin controls
       if(_st==='input'||_st==='action'){
         var ss=mkSec();ss.appendChild(mkLbl('Skin Mode'));
@@ -4289,6 +4307,8 @@
       var sll=document.getElementById('prop-slot-label');if(sll){sll.addEventListener('input',function(e){var i=idx();if(i<0)return;if(!state.element.layers[i].slotData)state.element.layers[i].slotData={};state.element.layers[i].slotData.slotLabel=e.target.value;markDirty();renderCanvas();});sll.addEventListener('change',function(){pushHistory();});}
       // Slot -> product field binding (contentFieldHint)
       var _sfh=document.getElementById('prop-slot-field-hint');if(_sfh)_sfh.addEventListener('change',function(e){var i=idx();if(i<0)return;pushHistory();if(!state.element.layers[i].slotData)state.element.layers[i].slotData={};state.element.layers[i].slotData.contentFieldHint=e.target.value;markDirty();renderCanvas();});
+      // Slot overflow fit (contentFieldHint sibling — same mutation path)
+      var _sof=document.getElementById('prop-slot-overflow-fit');if(_sof)_sof.addEventListener('change',function(e){var i=idx();if(i<0)return;pushHistory();if(!state.element.layers[i].slotData)state.element.layers[i].slotData={};state.element.layers[i].slotData.overflowFit=e.target.value;markDirty();renderCanvas();});
       // Slot skin mode
       var _smd=document.getElementById('prop-slot-skin-mode');
       if(_smd)_smd.addEventListener('change',function(e){var i=idx();if(i<0)return;pushHistory();if(!state.element.layers[i].slotData)state.element.layers[i].slotData={};state.element.layers[i].slotData.skinMode=e.target.value;markDirty();renderCanvas();var cs=document.getElementById('prop-slot-custom-sec');if(cs)cs.style.display=e.target.value==='custom'?'':'none';});

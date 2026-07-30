@@ -86,6 +86,15 @@ export default function VoltSlotRenderer({ layer, canvasWidth, canvasHeight, slo
     alignItems: 'center',
   }
 
+  // Body/paragraph slots render as multi-line copy: top-aligned, comfortable
+  // line-height, natural wrapping. Every other slot type keeps its original
+  // vertically-centered render byte-for-byte (backward-compatible).
+  if (slotData.slotType === 'body') {
+    style.alignItems = 'flex-start'
+    style.whiteSpace = 'normal'
+    style.lineHeight = (slotData as { lineHeight?: number } | undefined)?.lineHeight ?? 1.5
+  }
+
   if (slotData.slotType === 'image') {
     const imageUrl = content ?? slots.imageUrl
     if (!imageUrl) return null
