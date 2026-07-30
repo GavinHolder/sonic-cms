@@ -143,6 +143,12 @@ function VoltLibrary() {
           voltType: element.voltType ?? "standard",
           thumbnail: element.thumbnail,
           flipCard: element.flipCard ?? null,
+          // Persist the chosen canvas size to the DB columns. The public/live route
+          // (app/api/public/volt/[id]) overrides designerData.canvasWidth/Height with
+          // these column values, so omitting them here left every saved volt rendering
+          // at the default 800x500 regardless of the size set in the designer.
+          canvasWidth: element.canvasWidth,
+          canvasHeight: element.canvasHeight,
           designerData: element,
         }),
       });

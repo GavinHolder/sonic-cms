@@ -1084,7 +1084,12 @@
     var HCUR={nw:'nw-resize',n:'n-resize',ne:'ne-resize',e:'e-resize',se:'se-resize',s:'s-resize',sw:'sw-resize',w:'w-resize'};
     var HSIZ_SCREEN=5; // target handle size in screen px — scales inversely with zoom
     function getHsiz(){return Math.max(2,HSIZ_SCREEN/state.zoom);}
-    function handlePos(sel,h){var CW=state.element.canvasWidth,CH=state.element.canvasHeight;var x=topx(sel.x,CW),y=topx(sel.y,CH),w=topx(sel.width,CW),ht=topx(sel.height,CH);if(h==='nw')return{x:x,y:y};if(h==='n')return{x:x+w/2,y:y};if(h==='ne')return{x:x+w,y:y};if(h==='e')return{x:x+w,y:y+ht/2};if(h==='se')return{x:x+w,y:y+ht};if(h==='s')return{x:x+w/2,y:y+ht};if(h==='sw')return{x:x,y:y+ht};return{x:x,y:y+ht/2};}
+    // Rotate point (px,py) around centre (cx,cy) by deg degrees. Keeps the selection
+    // outline + resize/rotation handles glued to a rotated shape: shapes render with a
+    // rotate() transform, but the axis-aligned overlay used to stay put and no longer
+    // matched them. deg===0 returns the point unchanged (unrotated behaviour unchanged).
+    function _rotPt(px,py,cx,cy,deg){if(!deg)return{x:px,y:py};var a=deg*Math.PI/180,ca=Math.cos(a),sa=Math.sin(a),dx=px-cx,dy=py-cy;return{x:cx+dx*ca-dy*sa,y:cy+dx*sa+dy*ca};}
+    function handlePos(sel,h){var CW=state.element.canvasWidth,CH=state.element.canvasHeight;var x=topx(sel.x,CW),y=topx(sel.y,CH),w=topx(sel.width,CW),ht=topx(sel.height,CH);var p;if(h==='nw')p={x:x,y:y};else if(h==='n')p={x:x+w/2,y:y};else if(h==='ne')p={x:x+w,y:y};else if(h==='e')p={x:x+w,y:y+ht/2};else if(h==='se')p={x:x+w,y:y+ht};else if(h==='s')p={x:x+w/2,y:y+ht};else if(h==='sw')p={x:x,y:y+ht};else p={x:x,y:y+ht/2};if(sel.rotation)p=_rotPt(p.x,p.y,x+w/2,y+ht/2,sel.rotation);return p;}
     function hitHandle(pt,sel){if(!sel)return null;var hs=getHsiz()+2/state.zoom;for(var i=0;i<HNAMES.length;i++){var hp=handlePos(sel,HNAMES[i]);if(dist2(pt,hp)<=hs)return HNAMES[i];}return null;}
     // ── Render canvas ─────────────────────────────────────────────────────────
     function renderCanvas(){
@@ -1494,6 +1499,10 @@
         var sel=state.element.layers.find(function(l){return l.id===state.selectedLayerId;});
         if(sel){
           var rx=topx(sel.x,CW),ry=topx(sel.y,CH),rw=topx(sel.width,CW),rh=topx(sel.height,CH);
+          // Rotate the whole overlay (box, tint, rotation-handle arm) around the shape's
+          // own centre so it tracks a rotated shape. Resize-handle squares are placed at
+          // rotated positions via handlePos (so they stay grabbable). Empty when rotation 0.
+          var _selRot=sel.rotation||0,_selTf=_selRot?('rotate('+_selRot+' '+(rx+rw/2)+' '+(ry+rh/2)+')'):'';
           // When bool base is chosen, show cutter in orange; otherwise normal blue
           // Never show cutter mode for slot layers or when multi-slot selection is active
           var isCutterMode=!!(state.boolBaseId&&state.boolBaseId!==state.selectedLayerId&&sel.type!=='slot'&&!hasSlotInMultiSel());
@@ -1501,10 +1510,10 @@
           var sw1=((isCutterMode?2.5:0.75)/state.zoom).toFixed(3);var dd=(5/state.zoom).toFixed(1)+' '+(3/state.zoom).toFixed(1);
           if(isCutterMode){
             // Orange fill tint for cutter
-            var ctint=svgNs('rect');ctint.setAttribute('x',String(rx));ctint.setAttribute('y',String(ry));ctint.setAttribute('width',String(rw));ctint.setAttribute('height',String(rh));ctint.setAttribute('fill','rgba(249,115,22,0.15)');ctint.setAttribute('pointer-events','none');svgEl.appendChild(ctint);
+            var ctint=svgNs('rect');ctint.setAttribute('x',String(rx));ctint.setAttribute('y',String(ry));ctint.setAttribute('width',String(rw));ctint.setAttribute('height',String(rh));ctint.setAttribute('fill','rgba(249,115,22,0.15)');ctint.setAttribute('pointer-events','none');if(_selTf)ctint.setAttribute('transform',_selTf);svgEl.appendChild(ctint);
           }
           var box=svgNs('rect');box.setAttribute('x',String(rx));box.setAttribute('y',String(ry));box.setAttribute('width',String(rw));box.setAttribute('height',String(rh));
-          box.setAttribute('fill','none');box.setAttribute('stroke',selColor);box.setAttribute('stroke-width',sw1);if(!isCutterMode)box.setAttribute('stroke-dasharray',dd);box.setAttribute('pointer-events','none');
+          box.setAttribute('fill','none');box.setAttribute('stroke',selColor);box.setAttribute('stroke-width',sw1);if(!isCutterMode)box.setAttribute('stroke-dasharray',dd);box.setAttribute('pointer-events','none');if(_selTf)box.setAttribute('transform',_selTf);
           svgEl.appendChild(box);
           if(isCutterMode){
             // "CUTTER ✂" pill — drawn INSIDE the shape at top-left (never clips outside viewBox)
@@ -1523,11 +1532,11 @@
           if(!isCutterMode){
             var _rhArm=20/state.zoom,_rhcx=rx+rw/2,_rhcy=ry-_rhArm;
             var _rhLine=svgNs('line');_rhLine.setAttribute('x1',_rhcx);_rhLine.setAttribute('y1',ry);_rhLine.setAttribute('x2',_rhcx);_rhLine.setAttribute('y2',_rhcy);
-            _rhLine.setAttribute('stroke','#0d6efd');_rhLine.setAttribute('stroke-width',(1/state.zoom).toFixed(3));_rhLine.setAttribute('pointer-events','none');svgEl.appendChild(_rhLine);
+            _rhLine.setAttribute('stroke','#0d6efd');_rhLine.setAttribute('stroke-width',(1/state.zoom).toFixed(3));_rhLine.setAttribute('pointer-events','none');if(_selTf)_rhLine.setAttribute('transform',_selTf);svgEl.appendChild(_rhLine);
             var _rhr=5/state.zoom;
             var _rhCirc=svgNs('circle');_rhCirc.setAttribute('cx',_rhcx);_rhCirc.setAttribute('cy',_rhcy);_rhCirc.setAttribute('r',_rhr);
             _rhCirc.setAttribute('fill','white');_rhCirc.setAttribute('stroke','#0d6efd');_rhCirc.setAttribute('stroke-width',(1.5/state.zoom).toFixed(3));
-            _rhCirc.setAttribute('pointer-events','none');_rhCirc.setAttribute('data-rotate-handle','1');svgEl.appendChild(_rhCirc);
+            _rhCirc.setAttribute('pointer-events','none');_rhCirc.setAttribute('data-rotate-handle','1');if(_selTf)_rhCirc.setAttribute('transform',_selTf);svgEl.appendChild(_rhCirc);
           }
           // Shadow direction is now set via the radial dial in the property panel
           // (canvas sun-drag removed \u2014 the panel dial is the single control).
@@ -1806,7 +1815,7 @@
         var sel=state.selectedLayerId?state.element.layers.find(function(l){return l.id===state.selectedLayerId;}):null;
         var CW=state.element.canvasWidth,CH=state.element.canvasHeight;
         // Check rotation handle
-        if(sel){var _rhcx2=topx(sel.x,CW)+topx(sel.width,CW)/2,_rhcy2=topx(sel.y,CH)-20/state.zoom;if(dist2(pt,{x:_rhcx2,y:_rhcy2})<=12/state.zoom){var _rcx=topx(sel.x,CW)+topx(sel.width,CW)/2,_rcy=topx(sel.y,CH)+topx(sel.height,CH)/2;rotateSt={layerId:sel.id,startAngle:Math.atan2(pt.y-_rcy,pt.x-_rcx)*180/Math.PI,origRotation:sel.rotation||0,cx:_rcx,cy:_rcy};return;}}
+        if(sel){var _rcx=topx(sel.x,CW)+topx(sel.width,CW)/2,_rcy=topx(sel.y,CH)+topx(sel.height,CH)/2;var _rhP=_rotPt(_rcx,topx(sel.y,CH)-20/state.zoom,_rcx,_rcy,sel.rotation||0);if(dist2(pt,{x:_rhP.x,y:_rhP.y})<=12/state.zoom){rotateSt={layerId:sel.id,startAngle:Math.atan2(pt.y-_rcy,pt.x-_rcx)*180/Math.PI,origRotation:sel.rotation||0,cx:_rcx,cy:_rcy};return;}}
         // Check resize handles
         if(sel){var h=hitHandle(pt,sel);if(h){resizeSt={layerId:sel.id,handle:h,startPt:pt,origBounds:{x:sel.x,y:sel.y,w:sel.width,h:sel.height},origPath:sel.vectorData?sel.vectorData.pathData:null};return;}}
         // Hit test — with occluded-selection cycling. For a plain (non-shift)
@@ -4969,7 +4978,7 @@
 
     // ── Keyboard ──────────────────────────────────────────────────────────────
     document.addEventListener('keydown',function(e){
-      if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;
+      if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT'||(e.target&&e.target.isContentEditable))return;
       var t={v:'select',r:'rectangle',e:'ellipse',l:'line',b:'pen',p:'polygon',s:'slot',t:'text',n:'number'};
       // Corner ⇄ smooth toggle for the selected vertex (vertex-edit mode only)
       if((e.key==='c'||e.key==='C')&&!(e.ctrlKey||e.metaKey||e.altKey)&&state.vertexEditLayerId&&state.vertexSelIdx>=0){e.preventDefault();toggleNodeType();return;}
@@ -5006,7 +5015,7 @@
       if((e.key==='Delete'||e.key==='Backspace')&&!(e.target&&e.target.isContentEditable)&&(state.selectedLayerId||(state.multiSelectIds&&state.multiSelectIds.length))){e.preventDefault();var _delIds=(state.multiSelectIds&&state.multiSelectIds.length)?state.multiSelectIds.slice():[state.selectedLayerId];pushHistory();state.element.layers=state.element.layers.filter(function(l){return _delIds.indexOf(l.id)<0;});state.selectedLayerId=null;state.multiSelectIds=[];document.getElementById('btn-delete-layer').disabled=true;markDirty();renderAll();return;}
       // Copy/Paste (Ctrl+C / Ctrl+V)
       if((e.ctrlKey||e.metaKey)&&e.key==='c'&&state.selectedLayerId){e.preventDefault();var _cl=state.element.layers.find(function(l){return l.id===state.selectedLayerId;});if(_cl)state._clipboard=JSON.parse(JSON.stringify(_cl));return;}
-      if((e.ctrlKey||e.metaKey)&&e.key==='v'&&state._clipboard){e.preventDefault();pushHistory();var _pst=JSON.parse(JSON.stringify(state._clipboard));_pst.id=nanoid();_pst.name=_pst.name+' copy';_pst.x=_pst.x+3;_pst.y=_pst.y+3;_pst.zIndex=state.element.layers.reduce(function(m,x){return Math.max(m,x.zIndex||0);},0)+1;state.element.layers.push(_pst);state.selectedLayerId=_pst.id;state.multiSelectIds=[_pst.id];markDirty();renderAll();return;}
+      if((e.ctrlKey||e.metaKey)&&e.key==='v'&&state._clipboard){e.preventDefault();pushHistory();var _pst=JSON.parse(JSON.stringify(state._clipboard));_pst.id=nanoid();_pst.name=_pst.name+' copy';_pst.x=_pst.x+3;_pst.y=_pst.y+3;if(_pst.vectorData&&_pst.vectorData.pathData)_pst.vectorData.pathData=translatePath(_pst.vectorData.pathData,3,3);_pst.zIndex=state.element.layers.reduce(function(m,x){return Math.max(m,x.zIndex||0);},0)+1;state.element.layers.push(_pst);state.selectedLayerId=_pst.id;state.multiSelectIds=[_pst.id];markDirty();renderAll();return;}
       // Duplicate (Ctrl+D)
       if((e.ctrlKey||e.metaKey)&&e.key==='d'&&state.selectedLayerId){e.preventDefault();ctxDuplicate();return;}
       // Multi-select arrow nudge: shift EVERY selected layer by one shared delta so
@@ -5136,6 +5145,10 @@
       var copy=JSON.parse(JSON.stringify(l));
       copy.id=nanoid();copy.name=l.name+' copy';
       copy.x=l.x+2;copy.y=l.y+2;
+      // Vector geometry lives in absolute 0–100 path space (independent of x/y), so the
+      // pathData must shift by the SAME offset — otherwise the copy renders exactly on top
+      // of the original while only its selection outline moves (duplicate outline offset bug).
+      if(copy.vectorData&&copy.vectorData.pathData)copy.vectorData.pathData=translatePath(copy.vectorData.pathData,2,2);
       copy.zIndex=state.element.layers.reduce(function(m,x){return Math.max(m,x.zIndex||0);},0)+1;
       state.element.layers.push(copy);
       state.selectedLayerId=copy.id;state.multiSelectIds=[copy.id];

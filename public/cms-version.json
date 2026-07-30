@@ -1,5 +1,5 @@
 {
-  "version": "1.72.3",
+  "version": "1.72.4",
   "date": "2026-07-28",
   "changelog": {
     "features": [
@@ -13,6 +13,7 @@
       "Data-bound product cards — link Volt cards to coverage packages; auto-populate name, speed, price and options from live product data"
     ],
     "bugfixes": [
+      "Volt Studio: canvas size presets/custom now apply, persist, render saved size; selection outline tracks rotated & duplicated shapes; arrow-key nudging selected layers",
       "Hero carousel: tall slide content on mobile now scrolls within the slide instead of clipping",
       "Hero carousel: slide text isolated per slide (no outlined-word bleed during transitions)",
       "Hero carousel: mobile slide sizing — slide 1 no longer oversized on phones",
