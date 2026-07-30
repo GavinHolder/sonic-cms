@@ -1,5 +1,5 @@
 {
-  "version": "1.72.5",
+  "version": "1.72.6",
   "date": "2026-07-30",
   "changelog": {
     "features": [
@@ -22,6 +22,7 @@
       "Flexible Designer: tablet preview vertical spacing matches design ratio",
       "Volt: polygon/pen no longer curves a straight-clicked side",
       "Volt Studio: image, slot and 3D-object layers can now be rotated (rotation applied on canvas + live render)",
+      "Volt Studio: resize-dragging a rotated shape now resizes along the shape's own axes with the opposite corner anchored (was axis-aligned)",
       "Flexible Designer: tablet/live 768px boundary reconciled (iPad-portrait renders as tablet, not mobile); hardened autoScalePos vertical scaling"
     ],
     "breaking": []

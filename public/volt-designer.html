@@ -1983,12 +1983,30 @@
         var ob=resizeSt.origBounds,h=resizeSt.handle;
         var rpt=snapPt(pt,e.ctrlKey);
         var dpx=rpt.x-resizeSt.startPt.x,dpy=rpt.y-resizeSt.startPt.y;
-        var ddx=pct(dpx,CW),ddy=pct(dpy,CH);
+        // Rotation-aware resize: for a rotated shape, express the screen-space pointer
+        // delta in the shape's LOCAL (unrotated) frame (inverse of handlePos's +rotation
+        // local->screen map) so w/h grow along the shape's own axes. rotation===0 -> _rot
+        // falsy -> identical values to the previous axis-aligned path.
+        var _rot=_activeVal(state.element.layers[idx],'rotation')||0;
+        var ddx,ddy;
+        if(_rot){var _ld=_rotPt(dpx,dpy,0,0,-_rot);ddx=pct(_ld.x,CW);ddy=pct(_ld.y,CH);}
+        else{ddx=pct(dpx,CW);ddy=pct(dpy,CH);}
         var nx=ob.x,ny=ob.y,nw=ob.w,nh=ob.h;
         if(h==='nw'||h==='sw'||h==='w'){nx=clamp(ob.x+ddx,0,ob.x+ob.w-0.1);nw=ob.w+ob.x-nx;}
         if(h==='ne'||h==='se'||h==='e'){nw=clamp(ob.w+ddx,0.1,100-ob.x);}
         if(h==='nw'||h==='ne'||h==='n'){ny=clamp(ob.y+ddy,0,ob.y+ob.h-0.1);nh=ob.h+ob.y-ny;}
         if(h==='sw'||h==='se'||h==='s'){nh=clamp(ob.h+ddy,0.1,100-ob.y);}
+        if(_rot){
+          // Keep the opposite corner/edge fixed on screen. Changing w/h moves the box's
+          // centre by dC (local); since the shape rotates about its centre, the anchor
+          // drifts on screen by (I-R)*dC, so translate the box by t=(R-I)*dC to cancel it.
+          // Work in px so non-square canvases rotate correctly.
+          var _cx0=topx(ob.x,CW)+topx(ob.w,CW)/2,_cy0=topx(ob.y,CH)+topx(ob.h,CH)/2;
+          var _cx1=topx(nx,CW)+topx(nw,CW)/2,_cy1=topx(ny,CH)+topx(nh,CH)/2;
+          var _dcx=_cx1-_cx0,_dcy=_cy1-_cy0;
+          var _rc=_rotPt(_dcx,_dcy,0,0,_rot);
+          nx+=pct(_rc.x-_dcx,CW);ny+=pct(_rc.y-_dcy,CH);
+        }
         var l=state.element.layers[idx];
         // Per-state resize: in a non-rest state, write the new bounds to the active
         // state's override and leave base geometry (incl. pathData) untouched (C1).
