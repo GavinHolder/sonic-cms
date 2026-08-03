@@ -80,17 +80,41 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
     return () => observer.disconnect()
   }, [breakpoints])
 
-  // Cover mode: measure the cell so the stage can be scaled to COVER it (no bands).
+  /**
+   * Bug fix (block preview vertical crop): a caller that wants the OLD
+   * stretch-to-fill behaviour (e.g. DynamicSection's whole-section volt) always
+   * passes an explicit `style.height` alongside `style.width` — that caller's
+   * box is force-sized to exactly match the section regardless of the design's
+   * own aspect ratio, so it must keep the untouched width:100%+CSS-aspectRatio
+   * path below (`hasExplicitHeight` branch), unaffected by this fix.
+   * Every other default "contain" caller (VoltBlock's block/embed usage,
+   * /volt-preview's iframe) does NOT pass an explicit height, so it opts into
+   * `useMeasuredContain`: the same measure+scale technique already used for
+   * fitMode="cover" below, but scaling to CONTAIN (never crop) instead of cover.
+   * ASSUMPTION: the immediate parent supplies a real (non-zero) height once
+   * painted — true today for VoltBlock's "contain" container (height:"100%",
+   * see VoltBlock.tsx) and VoltPreviewClient's flex wrapper (height:100vh).
+   * FAILURE MODE: if some future caller renders the default fitMode with no
+   * explicit style.height AND no definite-height ancestor at all, coverBox
+   * measures {0,0} and containScale falls back to the pre-measurement
+   * width:100%+aspectRatio box (see `measured` below) — i.e. it degrades to
+   * today's behaviour rather than collapsing to zero height.
+   */
+  const hasExplicitHeight = style?.height !== undefined
+  const useMeasuredContain = fitMode === 'contain' && !hasExplicitHeight
+
+  // Cover/contain mode: measure the cell so the stage can be scaled to fit it
+  // (COVER = scale-to-cover, crops overflow; CONTAIN = scale-to-contain, never crops).
   const [coverBox, setCoverBox] = useState({ w: 0, h: 0 })
   useEffect(() => {
-    if (fitMode !== 'cover' || !containerRef.current) return
+    if ((fitMode !== 'cover' && !useMeasuredContain) || !containerRef.current) return
     const el = containerRef.current
     const measure = () => setCoverBox({ w: el.clientWidth, h: el.clientHeight })
     measure()
     const ro = new ResizeObserver(measure)
     ro.observe(el)
     return () => ro.disconnect()
-  }, [fitMode])
+  }, [fitMode, useMeasuredContain])
 
   // Apply breakpoint overrides to layers
   const layers = rawLayers.map(layer => {
@@ -1564,6 +1588,60 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
   // ── Standard (non-flip) mode ──────────────────────────────────────────────────
   const displayLayers = isCarousel ? carouselLayers : sortedLayers
   const displaySlots  = isCarousel ? effectiveSlots : slots
+
+  // ── Measured-contain: fits the WHOLE design inside the parent-given box,
+  // scaling down (never cropping) when the design's aspect ratio would otherwise
+  // make it taller than the available height. Mirrors the fitMode="cover" stage
+  // math above (baseW/baseH/scale + centred transform), swapping Math.max→Math.min
+  // so the stage shrinks-to-fit instead of growing-to-cover. See useMeasuredContain
+  // ASSUMPTIONS/FAILURE MODES doc above the coverBox effect.
+  if (useMeasuredContain) {
+    const clip = canvasOverflow === 'visible' ? 'visible' : 'hidden'
+    const measured = coverBox.w > 0 && coverBox.h > 0
+    const a = Math.max(canvasWidth, 1) / Math.max(canvasHeight, 1)   // canvas aspect ratio
+    const baseW = coverBox.w                 // stage laid out at cell width…
+    const baseH = baseW / a                  // …with aspect-correct height
+    const containScale = measured && baseH > 0 ? Math.min(1, coverBox.h / baseH) : 1
+    const stageStyle: React.CSSProperties = measured
+      ? {
+          position: 'absolute', top: '50%', left: '50%',
+          width: `${baseW}px`, height: `${baseH}px`,
+          transform: `translate(-50%, -50%) scale(${containScale})`,
+          transformOrigin: 'center center',
+          containerType: 'inline-size',
+        }
+      : {
+          // pre-measurement fallback: identical to the original aspect-locked
+          // width:100% box, avoids a distorted/oversized first paint.
+          position: 'absolute', top: 0, left: 0, width: '100%', aspectRatio,
+          containerType: 'inline-size',
+        }
+
+    return (
+      <div
+        ref={containerRef}
+        className={className}
+        style={{
+          position: 'relative', width: '100%', height: '100%',
+          overflow: clip,
+          willChange: tiltEnabled ? 'transform' : undefined,
+          background: voltElement.canvasBackground ?? undefined,
+          ...style,
+        }}
+      >
+        <div style={stageStyle}>
+          <div
+            ref={carouselContentRef}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+          >
+            {renderGlassOverlays(displayLayers)}
+            {renderLayersInterleaved(displayLayers, displaySlots)}
+          </div>
+          {renderCarouselControls()}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div

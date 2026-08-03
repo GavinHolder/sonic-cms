@@ -91,7 +91,11 @@ export default function VoltBlock({ voltId, slots = {}, instanceOverrides, fitMo
       ? { width: "100%", height: "100%", position: "relative", overflow: allowOverflow ? 'visible' : 'hidden' }
       : fitMode === "fill"
       ? { width: "100%", height: "100%", position: "relative", overflow: allowOverflow ? 'visible' : undefined }
-      : { width: "100%", maxWidth: "100%", position: "relative", overflow: allowOverflow ? 'visible' : undefined };
+      // "contain": height:"100%" propagates the parent-given cell height down to
+      // VoltRenderer's measured-contain fit (see VoltRenderer.tsx useMeasuredContain) —
+      // without it the renderer never learns the cell's real height and falls back to
+      // its pre-measurement aspect-locked box.
+      : { width: "100%", height: "100%", maxWidth: "100%", position: "relative", overflow: allowOverflow ? 'visible' : undefined };
 
   const layers3D = volt.layers.filter(
     l => l.type === "3d-object" && l.visible !== false && l.object3DData?.assetUrl

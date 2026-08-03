@@ -5838,6 +5838,32 @@
           im.setAttribute('href',d);
           im.setAttributeNS('http://www.w3.org/1999/xlink','href',d);
         });
+        // Text/number/slot layers render as HTML overlay <div>s appended directly to
+        // #artboard — siblings of svgEl, NOT children of it (see renderCanvas()'s own
+        // comment: "DOM overlays live on #artboard, not svgEl."). The clone above only
+        // ever captured svgEl, so thumbnails showed shapes but never text/slot content.
+        // Fix: clone those overlay divs too and embed them via <foreignObject>, sized
+        // to the same CWxCH box the shapes use — their existing left/top/width/height
+        // inline styles (already authored in raw canvas-unit px/%, see topx()) line up
+        // with the shape coordinates with no extra math. Appended LAST (after the
+        // shape content), matching how overlays already paint above every shape on the
+        // live artboard (svgEl is a single static child; overlay divs are always
+        // appended after it). Best-effort: any failure here still leaves the
+        // shape-only thumbnail from the try block above, never blocking the save.
+        try{
+          var artboardEl=document.getElementById('artboard');
+          var overlays=artboardEl?Array.prototype.slice.call(artboardEl.querySelectorAll('.text-overlay, .slot-overlay')):[];
+          if(overlays.length){
+            var fo=svgNs('foreignObject');
+            fo.setAttribute('x','0');fo.setAttribute('y','0');fo.setAttribute('width',CW);fo.setAttribute('height',CH);
+            var foWrap=document.createElement('div');
+            foWrap.setAttribute('xmlns','http://www.w3.org/1999/xhtml');
+            foWrap.style.cssText='position:relative;width:'+CW+'px;height:'+CH+'px;';
+            overlays.forEach(function(ov){foWrap.appendChild(ov.cloneNode(true));});
+            fo.appendChild(foWrap);
+            clone.appendChild(fo);
+          }
+        }catch(eOverlay){/* overlay capture is best-effort — shape-only thumbnail still returns below */}
         var xml=new XMLSerializer().serializeToString(clone);
         return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(xml);
       }catch(e){return null;}
