@@ -225,13 +225,51 @@ export default function VoltSvgLayer({ layer, canvasWidth, canvasHeight, instanc
   const crRx = crVal / canvasWidth * 100
   const crRy = crVal / canvasHeight * 100
   const cornerStyle = vectorData.cornerStyle ?? 'round'
-  // Bevel chamfer: 8-point polygon with corners cut by crRx (x) / crRy (y)
+  // Per-corner mask: a corner defaults to rounded/beveled (true) unless explicitly set to
+  // false, so shapes with no cornerMask (or a partial one) keep the legacy uniform behavior.
+  const tlOn = vectorData.cornerMask?.tl !== false
+  const trOn = vectorData.cornerMask?.tr !== false
+  const brOn = vectorData.cornerMask?.br !== false
+  const blOn = vectorData.cornerMask?.bl !== false
+  // Round style: per-corner rx/ry — 0 on a masked-off corner degenerates its elliptical
+  // arc to a straight line, i.e. a sharp corner (see roundedRectPath below).
+  const tlRx = tlOn ? crRx : 0, tlRy = tlOn ? crRy : 0
+  const trRx = trOn ? crRx : 0, trRy = trOn ? crRy : 0
+  const brRx = brOn ? crRx : 0, brRy = brOn ? crRy : 0
+  const blRx = blOn ? crRx : 0, blRy = blOn ? crRy : 0
+  const roundedRectPath =
+    `M ${x + tlRx} ${y} ` +
+    `L ${x + width - trRx} ${y} ` +
+    `A ${trRx} ${trRy} 0 0 1 ${x + width} ${y + trRy} ` +
+    `L ${x + width} ${y + height - brRy} ` +
+    `A ${brRx} ${brRy} 0 0 1 ${x + width - brRx} ${y + height} ` +
+    `L ${x + blRx} ${y + height} ` +
+    `A ${blRx} ${blRy} 0 0 1 ${x} ${y + height - blRy} ` +
+    `L ${x} ${y + tlRy} ` +
+    `A ${tlRx} ${tlRy} 0 0 1 ${x + tlRx} ${y}` +
+    ` Z`
+  // Bevel chamfer: 8-point polygon with corners cut by crRx (x) / crRy (y). A masked-off
+  // corner collapses its 2 chamfer points into a single sharp point at the true corner.
   const bvx = Math.min(crRx, width / 2)
   const bvy = Math.min(crRy, height / 2)
-  const bevelPoints = [
-    [x + bvx, y], [x + width - bvx, y], [x + width, y + bvy], [x + width, y + height - bvy],
-    [x + width - bvx, y + height], [x + bvx, y + height], [x, y + height - bvy], [x, y + bvy],
-  ].map(p => `${p[0].toFixed(3)},${p[1].toFixed(3)}`).join(' ')
+  const tlBx = tlOn ? bvx : 0, tlBy = tlOn ? bvy : 0
+  const trBx = trOn ? bvx : 0, trBy = trOn ? bvy : 0
+  const brBx = brOn ? bvx : 0, brBy = brOn ? bvy : 0
+  const blBx = blOn ? bvx : 0, blBy = blOn ? bvy : 0
+  const bevelPts: [number, number][] = [
+    ...(tlOn ? [[x + tlBx, y]] as [number, number][] : [[x, y]] as [number, number][]),
+    ...(trOn
+      ? [[x + width - trBx, y], [x + width, y + trBy]] as [number, number][]
+      : [[x + width, y]] as [number, number][]),
+    ...(brOn
+      ? [[x + width, y + height - brBy], [x + width - brBx, y + height]] as [number, number][]
+      : [[x + width, y + height]] as [number, number][]),
+    ...(blOn
+      ? [[x + blBx, y + height], [x, y + height - blBy]] as [number, number][]
+      : [[x, y + height]] as [number, number][]),
+    ...(tlOn ? [[x, y + tlBy]] as [number, number][] : []),
+  ]
+  const bevelPoints = bevelPts.map(p => `${p[0].toFixed(3)},${p[1].toFixed(3)}`).join(' ')
 
   // ── Boolean composite (non-destructive) ───────────────────────────────────
   // subtract/intersect render via an SVG <mask>; union via co-rendered fill paths.
@@ -325,7 +363,7 @@ export default function VoltSvgLayer({ layer, canvasWidth, canvasHeight, instanc
           <clipPath id={crClipId!}>
             {cornerStyle === 'bevel'
               ? <polygon points={bevelPoints} />
-              : <rect x={x} y={y} width={width} height={height} rx={crRx} ry={crRy} />}
+              : <path d={roundedRectPath} />}
           </clipPath>
         </defs>
       )}

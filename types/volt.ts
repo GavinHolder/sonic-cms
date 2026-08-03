@@ -214,6 +214,8 @@ export interface VoltVectorData {
   cornerSmoothing?: number
   /** How corners are cut when cornerRadius > 0: rounded (default) or beveled (straight chamfer) */
   cornerStyle?: 'round' | 'bevel'
+  /** Per-corner opt-out of rounding/beveling. Undefined/missing corner defaults to true (rounded), preserving legacy uniform-rounding behavior. */
+  cornerMask?: { tl?: boolean; tr?: boolean; bl?: boolean; br?: boolean }
   closed: boolean
   /** SVG fill-rule for self-intersecting / composite paths */
   fillRule?: 'nonzero' | 'evenodd'
