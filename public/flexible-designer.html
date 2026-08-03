@@ -1923,6 +1923,8 @@ const state = {
                             // remains the fallback for any design whose designerCanvasH is null/0.
   showFrameGuides: true,    // Option C — draw navbar/padding/gutter/wave frame guides on the canvas
   userZoom: 1,              // manual zoom multiplier (0.25–2.0), applied on top of auto-fit scale
+  panX: 0, panY: 0,         // VIEW-ONLY canvas pan offset (screen px), middle-mouse-drag. Never
+                             // persisted — excluded from buildJson() same as userZoom/showGuides.
   blocks: [],
   selectedBlockId: null,
   selectedSubId: null,
@@ -2194,6 +2196,38 @@ document.addEventListener('wheel', e => {
     adjustUserZoom(e.deltaY < 0 ? 0.1 : -0.1);
   }
 }, { passive: false });
+
+// ── Middle-mouse-button drag-to-pan ─────────────────────────────────────────
+// Matches Volt Studio's navigation pattern (public/volt-designer.html ~4573-4594):
+// records the start cursor + start pan, then moves the canvas by the raw
+// screen-px cursor delta. Pan is a screen-space translate applied BEFORE scale
+// (transform: translate() scale()), so the delta is added directly — not
+// divided by zoom. e.preventDefault() on the middle mousedown suppresses the
+// browser's native autoscroll. Left-click (button 0) is untouched — that's
+// handled entirely by onCanvasMouseDown/startMarquee/block-drag elsewhere.
+(function() {
+  let _midPan = null; // {sx, sy, px, py} — start cursor + start pan (screen px)
+  const cwrap = document.querySelector('.canvas-with-rulers');
+  if (!cwrap) return;
+  cwrap.addEventListener('mousedown', e => {
+    if (e.button !== 1) return;
+    e.preventDefault();
+    _midPan = { sx: e.clientX, sy: e.clientY, px: state.panX || 0, py: state.panY || 0 };
+    cwrap.style.setProperty('cursor', 'grabbing', 'important');
+  });
+  window.addEventListener('mousemove', e => {
+    if (!_midPan) return;
+    e.preventDefault();
+    state.panX = _midPan.px + (e.clientX - _midPan.sx);
+    state.panY = _midPan.py + (e.clientY - _midPan.sy);
+    applyCanvasScale();
+  });
+  window.addEventListener('mouseup', () => {
+    if (!_midPan) return;
+    _midPan = null;
+    cwrap.style.removeProperty('cursor');
+  });
+})();
 
 document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
@@ -8494,9 +8528,12 @@ function applyCanvasScale() {
   const canvas = document.getElementById('canvas');
   if (!canvas) return;
   const scale = getCanvasScale();
-  if (scale !== 1) {
+  const panX = state.panX || 0, panY = state.panY || 0;
+  if (scale !== 1 || panX !== 0 || panY !== 0) {
     canvas.style.transformOrigin = 'top left';
-    canvas.style.transform = 'scale(' + scale + ')';
+    // translate() first/outer, scale() second/inner — pan happens in screen-space
+    // before the zoom, matching Volt Studio's applyZoom() composition.
+    canvas.style.transform = 'translate(' + panX + 'px,' + panY + 'px) scale(' + scale + ')';
   } else {
     canvas.style.transform = '';
     canvas.style.transformOrigin = '';
@@ -8531,6 +8568,8 @@ function resetUserZoom() {
   } else {
     state.userZoom = 1;
   }
+  state.panX = 0;
+  state.panY = 0;
   applyCanvasScale();
 }
 /**
