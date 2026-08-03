@@ -183,6 +183,11 @@ export default function VoltSvgLayer({ layer, canvasWidth, canvasHeight, instanc
   // strokeRace is absent/disabled the stroke renders exactly as before.
   const race = vectorData.strokeRace
   const raceOn = !!(race && race.enabled && stroke)
+  // vectorEffect: 'non-scaling-stroke' keeps stroke width (and dasharray) rendering
+  // at the authored screen-pixel size regardless of the non-uniform scale(canvasWidth/100,
+  // canvasHeight/100) ancestor transform below (path `d` coords are authored in 0-100%
+  // space, so a plain strokeWidth would otherwise be inflated by the Y-axis scale factor
+  // for non-square canvases — most visible on stroke-only shapes like the Line tool).
   const strokeAttr = stroke ? {
     stroke: stroke.color,
     strokeOpacity: stroke.opacity,
@@ -193,6 +198,7 @@ export default function VoltSvgLayer({ layer, canvasWidth, canvasHeight, instanc
       ? `${race!.dashLength ?? 22} ${race!.gap ?? 78}`
       : (stroke.dash?.join(' ') ?? undefined),
     strokeDashoffset: raceOn ? (stroke.dashOffset ?? 0) : undefined,
+    vectorEffect: 'non-scaling-stroke' as const,
   } : {}
 
   // pathData coords are in % space (0-100); scale to canvas pixel space
