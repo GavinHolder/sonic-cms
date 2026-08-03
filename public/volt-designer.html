@@ -1001,7 +1001,7 @@
     function mkLine(x1,y1,x2,y2){var mx=Math.min(x1,x2),my=Math.min(y1,y2),mw=Math.max(x1,x2)-mx||0.01,mh=Math.max(y1,y2)-my||0.01;var l=baseVec('Line','accent',mx,my,mw,mh,'M '+x1+' '+y1+' L '+x2+' '+y2,'#212529');l.vectorData.fills=[];l.vectorData.stroke={color:'#212529',opacity:1,width:2,cap:'round',join:'round',dash:[]};l.vectorData.closed=false;return l;}
     function mkPolygon(verts){var xs=verts.map(function(v){return v.x;}),ys=verts.map(function(v){return v.y;});var bx=Math.min.apply(null,xs),by=Math.min.apply(null,ys);return baseVec('Polygon','structure',bx,by,Math.max.apply(null,xs)-bx||0.01,Math.max.apply(null,ys)-by||0.01,polyPath(verts),nextColor());}
     var _pendingSlotType='title';
-    var _slotTypeLabels={title:'Title',body:'Body',image:'Image',action:'Action',badge:'Badge',icon:'Icon',input:'Input',custom:'Custom'};
+    var _slotTypeLabels={title:'Title',body:'Paragraph',image:'Image',action:'Action',badge:'Badge',icon:'Icon',input:'Input',custom:'Custom'};
     var _slotTypeTags={title:'TIT',body:'BOD',image:'IMG',action:'ACT',badge:'BDG',icon:'ICN',input:'INP',custom:'CUS'};
     var _slotPreviewMode=false;
     function mkSlot(x,y,w,h){var t=_pendingSlotType;var lbl=_slotTypeLabels[t]||'Slot';return {id:nanoid(),name:lbl+' Slot',type:'slot',role:'content',x:x,y:y,width:w,height:h,rotation:0,zIndex:10,visible:true,locked:false,opacity:1,blendMode:'normal',slotData:{slotType:t,slotLabel:lbl},animation:{delay:0,speed:40,style:60,character:50,animates:{fill:false,scale:false,opacity:false,position:false,rotation:false}}};}
@@ -5852,7 +5852,7 @@
         // shape-only thumbnail from the try block above, never blocking the save.
         try{
           var artboardEl=document.getElementById('artboard');
-          var overlays=artboardEl?Array.prototype.slice.call(artboardEl.querySelectorAll('.text-overlay, .slot-overlay')):[];
+          var overlays=artboardEl?Array.prototype.slice.call(artboardEl.querySelectorAll('.text-overlay')):[];
           if(overlays.length){
             var fo=svgNs('foreignObject');
             fo.setAttribute('x','0');fo.setAttribute('y','0');fo.setAttribute('width',CW);fo.setAttribute('height',CH);

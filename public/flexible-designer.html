@@ -4804,7 +4804,10 @@ function onCanvasDrop(e) {
     const _drop_scale = getCanvasScale();
     const x = (e.clientX - rect.left) / _drop_scale;
     const y = (e.clientY - rect.top)  / _drop_scale;
-    const blockW = 300, blockH = 200;
+    const _voltCW = state.dragSource.canvasWidth || DESKTOP_CANVAS_W;
+    const _voltCH = state.dragSource.canvasHeight || DESIGN_H;
+    const blockW = 300;
+    const blockH = Math.max(80, Math.min(600, Math.round(blockW * (_voltCH / _voltCW))));
     const blockX = Math.max(0, Math.min(canvas.offsetWidth  - blockW, x - blockW/2));
     const blockY = Math.max(0, Math.min(canvas.offsetHeight - blockH, y - blockH/2));
     const src = state.dragSource;
@@ -8335,7 +8338,10 @@ function renderVoltLib(volts) {
 }
 
 function onVoltDragStart(e, volt) {
-  state.dragSource = { kind: 'lib-volt', voltId: volt.id, voltName: volt.name, voltThumbnail: volt.thumbnail || null };
+  state.dragSource = {
+    kind: 'lib-volt', voltId: volt.id, voltName: volt.name, voltThumbnail: volt.thumbnail || null,
+    canvasWidth: volt.canvasWidth || DESKTOP_CANVAS_W, canvasHeight: volt.canvasHeight || DESIGN_H
+  };
   e.dataTransfer.effectAllowed = 'copy';
 }
 // Preset definitions: grid config + zone blocks to auto-place
