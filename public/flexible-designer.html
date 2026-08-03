@@ -2189,13 +2189,31 @@ function loadAutoSave() {
 }
 
 // Keyboard shortcut: Ctrl+Z / Cmd+Z
-// Ctrl+scroll to zoom canvas
-document.addEventListener('wheel', e => {
-  if (e.ctrlKey || e.metaKey) {
+// Wheel-to-zoom canvas — plain scroll zooms (no Ctrl/Cmd required), matching
+// Volt Studio's canvas-wrap wheel behavior (public/volt-designer.html ~4629).
+// Scoped to .canvas-with-rulers (not document) so it never hijacks scrolling
+// over other UI (properties panel, sidebars) — only Volt's canvas-wrap-scoped
+// listener is the equivalent there too.
+// EXCEPTION: when the canvas area is actually scrollable — multi-section mode
+// or the mobile-stacking preview, where .canvas-area gets the 'multi-scroll' /
+// 'mobile-scroll' class (see setContentMode()/mobile-stack rendering, ~2494 /
+// ~2594) — plain wheel keeps scrolling natively so content below the fold
+// stays reachable; Ctrl/Cmd+wheel force-zooms even then. Zoom is cursor-
+// centered via zoomAtCursor() (~8575), matching Volt's zoomAtPoint()/
+// _wrapFocal() pattern (~4599-4612).
+(function() {
+  const cwrap = document.querySelector('.canvas-with-rulers');
+  if (!cwrap) return;
+  cwrap.addEventListener('wheel', e => {
+    const canvasArea = document.querySelector('.canvas-area');
+    const scrollable = canvasArea &&
+      (canvasArea.classList.contains('multi-scroll') || canvasArea.classList.contains('mobile-scroll')) &&
+      canvasArea.scrollHeight > canvasArea.clientHeight + 1;
+    if (!(e.ctrlKey || e.metaKey) && scrollable) return; // let native scroll reach content below the fold
     e.preventDefault();
-    adjustUserZoom(e.deltaY < 0 ? 0.1 : -0.1);
-  }
-}, { passive: false });
+    zoomAtCursor(e.deltaY < 0 ? 1.1 : 1 / 1.1, e.clientX, e.clientY);
+  }, { passive: false });
+})();
 
 // ── Middle-mouse-button drag-to-pan ─────────────────────────────────────────
 // Matches Volt Studio's navigation pattern (public/volt-designer.html ~4573-4594):
@@ -8570,6 +8588,41 @@ function resetUserZoom() {
   }
   state.panX = 0;
   state.panY = 0;
+  applyCanvasScale();
+}
+/**
+ * Zoom-to-cursor: multiplies state.userZoom by `factor` while keeping the
+ * point under the cursor (clientX, clientY) stationary on screen, matching
+ * Volt Studio's zoomAtPoint()/_wrapFocal() pattern (public/volt-designer.html
+ * ~4599-4612). Adapted for this canvas's transform composition — translate()
+ * OUTER, scale() INNER, transform-origin: top left (see applyCanvasScale()) —
+ * which is a different composition than Volt's flex-centered/center-origin
+ * artboard, so the pan-recompute uses screen-space deltas from the canvas's
+ * CURRENT (already-transformed) bounding rect rather than Volt's
+ * wrapper-center-relative offsets; the two are algebraically equivalent
+ * (see decision rationale in the commit that introduced this function), just
+ * expressed in terms available here without re-deriving the untransformed
+ * grid-cell origin (rulers gutter, etc).
+ * ASSUMPTIONS:
+ *  - #canvas is the only transformed element (transform-origin top left).
+ *  - state.panX/state.panY are in the same screen-px units as
+ *    getBoundingClientRect() deltas (true — see the middle-mouse-drag pan
+ *    handler above, which writes them directly from clientX/clientY deltas).
+ *  - factor is a small multiplicative step (~1.1 / 1÷1.1) — one wheel notch.
+ */
+function zoomAtCursor(factor, clientX, clientY) {
+  const canvas = document.getElementById('canvas');
+  if (!canvas) return;
+  const oldZoom = state.userZoom || 1;
+  const newZoom = Math.max(0.25, Math.min(3.0, oldZoom * factor));
+  if (newZoom === oldZoom) return; // already clamped at min/max — nothing to do
+  const rect = canvas.getBoundingClientRect();
+  const dx = clientX - rect.left; // cursor offset from canvas's CURRENT (transformed) top-left
+  const dy = clientY - rect.top;
+  const ratio = newZoom / oldZoom;
+  state.panX = (state.panX || 0) + dx * (1 - ratio);
+  state.panY = (state.panY || 0) + dy * (1 - ratio);
+  state.userZoom = newZoom;
   applyCanvasScale();
 }
 /**
