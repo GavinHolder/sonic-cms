@@ -272,7 +272,6 @@ export default function VoltSvgLayer({ layer, canvasWidth, canvasHeight, instanc
       opacity={opacity}
       style={{ mixBlendMode: blendMode as React.CSSProperties['mixBlendMode'] }}
       filter={filterId ? `url(#${filterId})` : undefined}
-      clipPath={crClipId ? `url(#${crClipId})` : undefined}
     >
       {hasFx && layer.effects && <SvgFilterDef layerId={layer.id} effects={layer.effects} />}
       {hasGradient && primaryFill && <GradientDef fill={primaryFill} layerId={layer.id} />}
@@ -331,7 +330,7 @@ export default function VoltSvgLayer({ layer, canvasWidth, canvasHeight, instanc
         </defs>
       )}
       {boolMaskDef}
-      <g transform={transform || undefined}>
+      <g transform={transform || undefined} clipPath={crClipId ? `url(#${crClipId})` : undefined}>
         {(() => {
           // CSS custom properties (var(--theme-*)) don't resolve as SVG presentation
           // attributes, only via the `style` property. Route theme-token fills/strokes
