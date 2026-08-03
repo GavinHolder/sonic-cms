@@ -1332,7 +1332,7 @@
             var lbl=document.createElement('span');lbl.style.cssText='background:'+_accent+'cc;color:#fff;font-size:8px;font-weight:700;padding:1px 4px;border-radius:3px;text-transform:uppercase;line-height:1.4;white-space:nowrap;';
             lbl.textContent=_bound?_st:((_sd.slotLabel||'Slot')+' ('+_st+')');div.appendChild(lbl);
             if(_bound){
-              var _blMap={'pkg.name':'Name','pkg.speed':'Speed','pkg.price':'Price','pkg.options':'Options','pkg.period':'Period'};
+              var _blMap={'pkg.name':'Name','pkg.speed':'Speed','pkg.speedDown':'Speed ↓','pkg.speedUp':'Speed ↑','pkg.price':'Price','pkg.options':'Options','pkg.period':'Period'};
               var _bl=_blMap[_sd.contentFieldHint]||String(_sd.contentFieldHint).replace(/^pkg\./,'').replace(/^\w/,function(c){return c.toUpperCase();});
               var bpill=document.createElement('span');bpill.style.cssText='background:#fff;color:#6366f1;border:1px solid #6366f1;font-size:8px;font-weight:800;padding:1px 4px;border-radius:3px;line-height:1.4;white-space:nowrap;';
               bpill.textContent='→ '+_bl;div.appendChild(bpill);
@@ -4078,7 +4078,7 @@
       // VoltSlotRenderer resolves via slotData.contentFieldHint. So a linked product card
       // auto-fills this slot from the chosen field; 'None' leaves it as manual slot text.
       var fh=mkSec();fh.appendChild(mkLbl('Bind to Product Field'));var fhs=document.createElement('select');fhs.id='prop-slot-field-hint';fhs.className='form-select form-select-sm';
-      [{v:'',l:'None (manual)'},{v:'pkg.name',l:'Name'},{v:'pkg.speed',l:'Speed'},{v:'pkg.price',l:'Price'},{v:'pkg.options',l:'Options'},{v:'pkg.period',l:'Period'}].forEach(function(o){var op=document.createElement('option');op.value=o.v;op.textContent=o.l;if((sd.contentFieldHint||'')===o.v)op.selected=true;fhs.appendChild(op);});fh.appendChild(fhs);body.appendChild(fh);
+      [{v:'',l:'None (manual)'},{v:'pkg.name',l:'Name'},{v:'pkg.speed',l:'Speed (combined)'},{v:'pkg.speedDown',l:'Speed — Download'},{v:'pkg.speedUp',l:'Speed — Upload'},{v:'pkg.price',l:'Price'},{v:'pkg.options',l:'Options'},{v:'pkg.period',l:'Period'}].forEach(function(o){var op=document.createElement('option');op.value=o.v;op.textContent=o.l;if((sd.contentFieldHint||'')===o.v)op.selected=true;fhs.appendChild(op);});fh.appendChild(fhs);body.appendChild(fh);
       var fhh=document.createElement('div');fhh.style.cssText='font-size:9px;color:#94a3b8;margin:-4px 0 6px;';fhh.textContent='A linked product card auto-fills this slot from the chosen field';body.appendChild(fhh);
       // Overflow fit: how bound text behaves when longer than the slot box.
       // Values map 1:1 to slotData.overflowFit which VoltSlotRenderer already honors
@@ -4086,6 +4086,60 @@
       var ofsec=mkSec();ofsec.appendChild(mkLbl('Overflow Fit'));var ofsel=document.createElement('select');ofsel.id='prop-slot-overflow-fit';ofsel.className='form-select form-select-sm';
       [{v:'clip',l:'Clip (default)'},{v:'ellipsis',l:'Ellipsis (…)'},{v:'shrink',l:'Shrink to fit'}].forEach(function(o){var op=document.createElement('option');op.value=o.v;op.textContent=o.l;if((sd.overflowFit||'clip')===o.v)op.selected=true;ofsel.appendChild(op);});ofsec.appendChild(ofsel);body.appendChild(ofsec);
       var ofh=document.createElement('div');ofh.style.cssText='font-size:9px;color:#94a3b8;margin:-4px 0 6px;';ofh.textContent='How bound text behaves when longer than the slot';body.appendChild(ofh);
+      // ── Typography (real runtime typography — read + applied by VoltSlotRenderer
+      // for the published/live page). Available for all text-bearing slot types;
+      // excluded only for non-text types (image/icon) where these fields don't apply.
+      var _typoTypes=['title','body','action','badge','input','custom'];
+      if(_typoTypes.indexOf(_st)>-1){
+        var typoSec=mkSec();typoSec.appendChild(mkLbl('Typography'));
+        var typoHint=document.createElement('div');typoHint.style.cssText='font-size:9px;color:#94a3b8;margin:-4px 0 6px;';typoHint.textContent='Applied to the real slot text on the live page';typoSec.appendChild(typoHint);
+        // Font Family (curated Google Fonts list, dynamically loaded on selection)
+        var tfLbl=document.createElement('label');tfLbl.className='prop-label';tfLbl.textContent='Family';typoSec.appendChild(tfLbl);
+        var tfSel=document.createElement('select');tfSel.id='prop-slot-font-family';tfSel.className='form-select form-select-sm mb-2';tfSel.style.fontSize='11px';
+        var _slotFonts=[
+          ['inherit','Inherit (default)',null],
+          ['Inter, system-ui, sans-serif','Inter','Inter'],
+          ['Roboto, sans-serif','Roboto','Roboto'],
+          ['Poppins, sans-serif','Poppins','Poppins'],
+          ['Montserrat, sans-serif','Montserrat','Montserrat'],
+          ['Open Sans, sans-serif','Open Sans','Open+Sans'],
+          ['Lato, sans-serif','Lato','Lato'],
+          ['Nunito, sans-serif','Nunito','Nunito'],
+          ['Playfair Display, serif','Playfair Display','Playfair+Display'],
+          ['Merriweather, serif','Merriweather','Merriweather'],
+          ['Bebas Neue, sans-serif','Bebas Neue','Bebas+Neue'],
+          ['Georgia, serif','Georgia',null],
+          ['Arial, sans-serif','Arial',null]
+        ];
+        var _slotLoadedFonts={};
+        function _ensureSlotFont(slug){if(!slug||_slotLoadedFonts[slug])return;_slotLoadedFonts[slug]=true;var lnk=document.createElement('link');lnk.rel='stylesheet';lnk.href='https://fonts.googleapis.com/css2?family='+slug+':wght@300;400;500;600;700;800;900&display=swap';document.head.appendChild(lnk);}
+        var _curSlotFont=_slotFonts.find(function(f){return f[0]===(sd.fontFamily||'inherit');});
+        if(_curSlotFont&&_curSlotFont[2])_ensureSlotFont(_curSlotFont[2]);
+        _slotFonts.forEach(function(f){var o=document.createElement('option');o.value=f[0];o.textContent=f[1];if((sd.fontFamily||'inherit')===f[0])o.selected=true;tfSel.appendChild(o);});
+        typoSec.appendChild(tfSel);
+        // Font Size + Weight row
+        var fwRow=document.createElement('div');fwRow.className='d-flex gap-2 align-items-center mb-2';
+        var fsLbl=document.createElement('label');fsLbl.className='prop-label';fsLbl.style.margin='0';fsLbl.textContent='Size';
+        var fsi=document.createElement('input');fsi.type='number';fsi.id='prop-slot-font-size';fsi.className='form-control form-control-sm';fsi.value=sd.fontSize||13;fsi.min='6';fsi.max='200';fsi.style.cssText='width:60px;font-size:10px;';
+        var fwSel=document.createElement('select');fwSel.id='prop-slot-font-weight';fwSel.className='form-select form-select-sm flex-1';fwSel.style.fontSize='10px';
+        [['300','Light'],['400','Regular'],['500','Medium'],['600','SemiBold'],['700','Bold'],['800','ExtraBold'],['900','Black']].forEach(function(p){var o=document.createElement('option');o.value=p[0];o.textContent=p[1];if(String(sd.fontWeight||400)===p[0])o.selected=true;fwSel.appendChild(o);});
+        fwRow.appendChild(fsLbl);fwRow.appendChild(fsi);fwRow.appendChild(fwSel);typoSec.appendChild(fwRow);
+        // Color (real typography color — distinct from the input-skin-preview color below)
+        var colRow=document.createElement('div');colRow.className='d-flex align-items-center gap-2 mb-2';
+        var colLbl=document.createElement('label');colLbl.className='prop-label';colLbl.style.margin='0';colLbl.textContent='Color';
+        var scp=document.createElement('input');scp.type='color';scp.id='prop-slot-color';scp.value=sd.color||'#1e293b';scp.style.cssText='width:28px;height:22px;padding:1px;border:1px solid #334155;border-radius:4px;background:none;cursor:pointer;flex-shrink:0;';
+        var sch=document.createElement('input');sch.type='text';sch.id='prop-slot-color-hex';sch.value=sd.color||'#1e293b';sch.className='form-control form-control-sm';sch.style.cssText='flex:1;font-size:10px;font-family:monospace;';
+        colRow.appendChild(colLbl);colRow.appendChild(scp);colRow.appendChild(sch);typoSec.appendChild(colRow);
+        // Text Align
+        var taRow=document.createElement('div');taRow.className='btn-group w-100';
+        [['left','bi bi-text-left'],['center','bi bi-text-center'],['right','bi bi-text-right']].forEach(function(p){
+          var ab=document.createElement('button');ab.type='button';ab.className='btn btn-sm prop-slot-text-align-btn '+((sd.textAlign||'left')===p[0]?'btn-primary':'btn-outline-secondary');ab.dataset.align=p[0];
+          var ic=document.createElement('i');ic.className=p[1];ab.appendChild(ic);
+          taRow.appendChild(ab);
+        });
+        typoSec.appendChild(taRow);
+        body.appendChild(typoSec);
+      }
       // Input/action slot skin controls
       if(_st==='input'||_st==='action'){
         var ss=mkSec();ss.appendChild(mkLbl('Skin Mode'));
@@ -4093,13 +4147,13 @@
         [{v:'transparent',l:'Transparent (vector skin)'},{v:'custom',l:'Custom (own styling)'}].forEach(function(o){var op=document.createElement('option');op.value=o.v;op.textContent=o.l;if((sd.skinMode||'transparent')===o.v)op.selected=true;smd.appendChild(op);});
         ss.appendChild(smd);body.appendChild(ss);
         var hint=document.createElement('div');hint.style.cssText='font-size:9px;color:#94a3b8;margin:-4px 0 6px;';hint.textContent='Transparent: shapes below are the visual skin';body.appendChild(hint);
-        // Text color + font size
-        var tc=mkSec();tc.style.display='flex';tc.style.alignItems='center';tc.style.gap='6px';tc.appendChild(mkLbl('Text'));
+        // Skin preview text color (design-time only — colors the live <input> element
+        // rendered on the Studio canvas; the real published text color is set above
+        // under Typography → Color, which writes slotData.color instead)
+        var tc=mkSec();tc.style.display='flex';tc.style.alignItems='center';tc.style.gap='6px';tc.appendChild(mkLbl('Skin Preview Text'));
         var tcp=document.createElement('input');tcp.type='color';tcp.id='prop-slot-text-color';tcp.value=sd.textColor||'#1e293b';tcp.style.cssText='width:28px;height:22px;padding:1px;border:1px solid #334155;border-radius:4px;background:none;cursor:pointer;flex-shrink:0;';
         var tct=document.createElement('input');tct.type='text';tct.id='prop-slot-text-color-hex';tct.value=sd.textColor||'#1e293b';tct.className='form-control form-control-sm';tct.style.cssText='flex:1;font-size:10px;font-family:monospace;';
-        var fsl=document.createElement('label');fsl.className='prop-label';fsl.style.marginLeft='6px';fsl.textContent='Size';
-        var fsi=document.createElement('input');fsi.type='number';fsi.id='prop-slot-font-size';fsi.className='form-control form-control-sm';fsi.value=sd.fontSize||13;fsi.min='6';fsi.max='72';fsi.style.cssText='width:52px;font-size:10px;';
-        tc.appendChild(tcp);tc.appendChild(tct);tc.appendChild(fsl);tc.appendChild(fsi);body.appendChild(tc);
+        tc.appendChild(tcp);tc.appendChild(tct);body.appendChild(tc);
         // Placeholder (input only)
         if(_st==='input'){
           var ph=mkSec();ph.appendChild(mkLbl('Placeholder'));var phi=document.createElement('input');phi.type='text';phi.id='prop-slot-placeholder';phi.className='form-control form-control-sm';phi.value=sd.placeholder||'Enter text...';ph.appendChild(phi);body.appendChild(ph);
@@ -4336,6 +4390,17 @@
       var _stch=document.getElementById('prop-slot-text-color-hex');if(_stch){_stch.addEventListener('input',function(e){if(/^#[0-9A-Fa-f]{6}$/.test(e.target.value)){_setSlotTC(e.target.value);var tp=document.getElementById('prop-slot-text-color');if(tp)tp.value=e.target.value;pushHistory();markDirty();}});}
       // Slot font size
       var _sfs=document.getElementById('prop-slot-font-size');if(_sfs){_sfs.addEventListener('input',function(e){var i=idx();if(i<0)return;if(!state.element.layers[i].slotData)state.element.layers[i].slotData={};state.element.layers[i].slotData.fontSize=parseFloat(e.target.value)||13;renderCanvas();});_sfs.addEventListener('change',function(){pushHistory();markDirty();});}
+      // Slot font family (real typography — writes slotData.fontFamily, read by VoltSlotRenderer)
+      var _sff=document.getElementById('prop-slot-font-family');if(_sff)_sff.addEventListener('change',function(e){var i=idx();if(i<0)return;pushHistory();if(!state.element.layers[i].slotData)state.element.layers[i].slotData={};state.element.layers[i].slotData.fontFamily=e.target.value;markDirty();renderCanvas();});
+      // Slot font weight (real typography — writes slotData.fontWeight)
+      var _sfw=document.getElementById('prop-slot-font-weight');if(_sfw)_sfw.addEventListener('change',function(e){var i=idx();if(i<0)return;pushHistory();if(!state.element.layers[i].slotData)state.element.layers[i].slotData={};state.element.layers[i].slotData.fontWeight=parseInt(e.target.value,10);markDirty();renderCanvas();});
+      // Slot text color (real typography — writes slotData.color; distinct from the
+      // input-skin-preview slotData.textColor bound separately above)
+      function _setSlotColor(v){var i=idx();if(i<0)return;if(!state.element.layers[i].slotData)state.element.layers[i].slotData={};state.element.layers[i].slotData.color=v;renderCanvas();}
+      var _scp=document.getElementById('prop-slot-color');if(_scp){_scp.addEventListener('input',function(e){_setSlotColor(e.target.value);var sh=document.getElementById('prop-slot-color-hex');if(sh)sh.value=e.target.value;});_scp.addEventListener('change',function(){pushHistory();markDirty();});}
+      var _sch=document.getElementById('prop-slot-color-hex');if(_sch){_sch.addEventListener('input',function(e){if(/^#[0-9A-Fa-f]{6}$/.test(e.target.value)){_setSlotColor(e.target.value);var scp2=document.getElementById('prop-slot-color');if(scp2)scp2.value=e.target.value;pushHistory();markDirty();}});}
+      // Slot text align (real typography — writes slotData.textAlign)
+      var _staBtns=document.querySelectorAll('.prop-slot-text-align-btn');if(_staBtns&&_staBtns.length){_staBtns.forEach(function(btn){btn.addEventListener('click',function(){var i=idx();if(i<0)return;pushHistory();if(!state.element.layers[i].slotData)state.element.layers[i].slotData={};state.element.layers[i].slotData.textAlign=btn.dataset.align;markDirty();renderCanvas();_staBtns.forEach(function(b){b.className='btn btn-sm prop-slot-text-align-btn btn-outline-secondary';});btn.className='btn btn-sm prop-slot-text-align-btn btn-primary';});});}
       // Slot placeholder
       var _sph=document.getElementById('prop-slot-placeholder');if(_sph){_sph.addEventListener('input',function(e){var i=idx();if(i<0)return;if(!state.element.layers[i].slotData)state.element.layers[i].slotData={};state.element.layers[i].slotData.placeholder=e.target.value;markDirty();renderCanvas();});_sph.addEventListener('change',function(){pushHistory();});}
       // Slot custom-mode fields
