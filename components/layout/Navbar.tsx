@@ -6,6 +6,7 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import Button from "@/components/ui/Button";
 import { getSections } from "@/lib/section-manager";
+import { scrollToSection as scrollToSectionUtil } from "@/lib/navigation-utils";
 import { defaultNavbarConfig, type NavbarCtaButton } from "@/lib/navbar-config";
 
 // Map feature slug → navbar entry
@@ -373,7 +374,7 @@ export default function Navbar() {
   const matchTextColor = colorMatchActive ? contrastTextColor(matchedColor as string) : null;
 
   const scrollToSection = (id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    scrollToSectionUtil(id);
     setMobileOpen(false);
   };
 
