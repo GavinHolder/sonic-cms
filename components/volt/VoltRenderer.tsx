@@ -678,59 +678,6 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
       }, flipAutoInterval)
     }
 
-    // ── Entrance animations (fire once on first viewport entry) ───────────────
-    const layersWithEntrance = layers.filter(l => l.entranceAnim && l.entranceAnim.type !== 'none')
-    if (layersWithEntrance.length > 0) {
-      // Set initial hidden state immediately (before card is visible)
-      for (const layer of layersWithEntrance) {
-        const ea = layer.entranceAnim!
-        const layerEl = el.querySelector<HTMLElement>(`#volt-layer-${layer.id}`)
-        if (!layerEl) continue
-        const dist = ea.distance ?? 40
-        switch (ea.type) {
-          case 'fadeIn':                       layerEl.style.opacity = '0'; break
-          case 'slideInLeft':   layerEl.style.transform = `translateX(-${dist}px)`; layerEl.style.opacity = '0'; break
-          case 'slideInRight':  layerEl.style.transform = `translateX(${dist}px)`;  layerEl.style.opacity = '0'; break
-          case 'slideInUp':     layerEl.style.transform = `translateY(-${dist}px)`; layerEl.style.opacity = '0'; break
-          case 'slideInDown':   layerEl.style.transform = `translateY(${dist}px)`;  layerEl.style.opacity = '0'; break
-          case 'scaleIn':       layerEl.style.transform = 'scale(0.7)'; layerEl.style.opacity = '0'; break
-          case 'rotateIn':      layerEl.style.transform = 'rotate(-15deg) scale(0.8)'; layerEl.style.opacity = '0'; break
-          case 'flipInX':       layerEl.style.transform = 'rotateX(90deg)'; layerEl.style.opacity = '0'; break
-          case 'flipInY':       layerEl.style.transform = 'rotateY(90deg)'; layerEl.style.opacity = '0'; break
-        }
-      }
-
-      const entranceObserver = new IntersectionObserver(
-        async (entries) => {
-          if (!entries[0].isIntersecting) return
-          entranceObserver.disconnect()
-          const { animate } = await import('animejs')
-
-          // Sort by z-index for stagger (lower z = plays first = background layers first)
-          const sorted = [...layersWithEntrance].sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0))
-          let autoStagger = 0
-
-          for (const layer of sorted) {
-            const ea = layer.entranceAnim!
-            const layerEl = el.querySelector<HTMLElement>(`#volt-layer-${layer.id}`)
-            if (!layerEl) continue
-            const duration = ea.duration ?? 600
-            const delay    = (ea.delay ?? 0) + autoStagger
-            const ease     = ea.ease ?? 'easeOutCubic'
-            const targets: Record<string, unknown> = { opacity: 1, translateX: 0, translateY: 0, scale: 1, rotate: '0deg', rotateX: '0deg', rotateY: '0deg' }
-
-            animate(layerEl, { ...targets, duration, delay, ease })
-            autoStagger += 60  // 60ms stagger between layers
-          }
-        },
-        { threshold: 0.1 }
-      )
-      entranceObserver.observe(el)
-
-      // Store cleanup ref so we can disconnect if the component unmounts before firing
-      ;(el as HTMLElement & { _voltEntranceObs?: IntersectionObserver })._voltEntranceObs = entranceObserver
-    }
-
     // ── Exit animations (fire when card leaves viewport) ────────────────────
     const layersWithExit = layers.filter(l => l.exitAnim && l.exitAnim.type !== 'none')
     if (layersWithExit.length > 0) {
@@ -924,9 +871,7 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
         isTiltingRef.current = false
         cancelAnimationFrame(tiltRafId)
       }
-      // Disconnect entrance observer if component unmounts before it fires
-      const obs = (el as HTMLElement & { _voltEntranceObs?: IntersectionObserver })._voltEntranceObs
-      if (obs) obs.disconnect()
+      // (Entrance observer lives in its own effect below — see that effect's cleanup)
       // Disconnect scroll observer
       const sobs = (el as HTMLElement & { _voltScrollObs?: IntersectionObserver })._voltScrollObs
       if (sobs) sobs.disconnect()
@@ -941,6 +886,83 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
       if (nobs) nobs.disconnect()
     }
   }, [voltElement, isFlip, flipAnimType, flipTrigger, flipAxis, flipDuration, flipEase, flipDirection, flipPerspective, flipAutoInterval, tiltEnabled, tiltMaxDeg, tiltPerspective, layers, states])
+
+  // ── Entrance animations (fire once on first viewport entry) ─────────────────
+  // Isolated into its OWN effect, decoupled from the giant flip/tilt/state
+  // effect above. Root cause of second-order bug (after #60/b989c44 memoized
+  // `layers` itself): `layers` still gets a new reference whenever
+  // `activeBreakpoint` changes (a legitimate, correctly-behaving dependency —
+  // breakpoint overrides can change layer x/y/width/height/visible/fontSize,
+  // see VoltBreakpoint.layerOverrides in types/volt.ts), which retriggered the
+  // giant effect and tore down/recreated this IntersectionObserver mid-flight,
+  // before it may ever have fired, permanently stranding entrance-animated
+  // layers at opacity:0.
+  // FIX: depend on `rawLayers` (the pre-breakpoint-processing source array
+  // from voltElement.layers) instead of the derived `layers`. Confirmed safe
+  // because breakpoint overrides can NEVER touch `entranceAnim` — it isn't
+  // among the overridable fields — so entrance config is 100% invariant across
+  // activeBreakpoint transitions. `rawLayers` itself only changes when
+  // voltElement's underlying design data actually changes (voltElement is
+  // useState-held in VoltBlock.tsx, updated only on real data fetch), so this
+  // effect no longer re-runs on resize/breakpoint churn or on flip/tilt state
+  // changes — only on genuine entrance-config changes.
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+
+    const layersWithEntrance = rawLayers.filter(l => l.entranceAnim && l.entranceAnim.type !== 'none')
+    if (layersWithEntrance.length === 0) return
+
+    // Set initial hidden state immediately (before card is visible)
+    for (const layer of layersWithEntrance) {
+      const ea = layer.entranceAnim!
+      const layerEl = el.querySelector<HTMLElement>(`#volt-layer-${layer.id}`)
+      if (!layerEl) continue
+      const dist = ea.distance ?? 40
+      switch (ea.type) {
+        case 'fadeIn':                       layerEl.style.opacity = '0'; break
+        case 'slideInLeft':   layerEl.style.transform = `translateX(-${dist}px)`; layerEl.style.opacity = '0'; break
+        case 'slideInRight':  layerEl.style.transform = `translateX(${dist}px)`;  layerEl.style.opacity = '0'; break
+        case 'slideInUp':     layerEl.style.transform = `translateY(-${dist}px)`; layerEl.style.opacity = '0'; break
+        case 'slideInDown':   layerEl.style.transform = `translateY(${dist}px)`;  layerEl.style.opacity = '0'; break
+        case 'scaleIn':       layerEl.style.transform = 'scale(0.7)'; layerEl.style.opacity = '0'; break
+        case 'rotateIn':      layerEl.style.transform = 'rotate(-15deg) scale(0.8)'; layerEl.style.opacity = '0'; break
+        case 'flipInX':       layerEl.style.transform = 'rotateX(90deg)'; layerEl.style.opacity = '0'; break
+        case 'flipInY':       layerEl.style.transform = 'rotateY(90deg)'; layerEl.style.opacity = '0'; break
+      }
+    }
+
+    const entranceObserver = new IntersectionObserver(
+      async (entries) => {
+        if (!entries[0].isIntersecting) return
+        entranceObserver.disconnect()
+        const { animate } = await import('animejs')
+
+        // Sort by z-index for stagger (lower z = plays first = background layers first)
+        const sorted = [...layersWithEntrance].sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0))
+        let autoStagger = 0
+
+        for (const layer of sorted) {
+          const ea = layer.entranceAnim!
+          const layerEl = el.querySelector<HTMLElement>(`#volt-layer-${layer.id}`)
+          if (!layerEl) continue
+          const duration = ea.duration ?? 600
+          const delay    = (ea.delay ?? 0) + autoStagger
+          const ease     = ea.ease ?? 'easeOutCubic'
+          const targets: Record<string, unknown> = { opacity: 1, translateX: 0, translateY: 0, scale: 1, rotate: '0deg', rotateX: '0deg', rotateY: '0deg' }
+
+          animate(layerEl, { ...targets, duration, delay, ease })
+          autoStagger += 60  // 60ms stagger between layers
+        }
+      },
+      { threshold: 0.1 }
+    )
+    entranceObserver.observe(el)
+
+    return () => {
+      entranceObserver.disconnect()
+    }
+  }, [rawLayers])
 
   const aspectRatio = `${canvasWidth} / ${canvasHeight}`
 
