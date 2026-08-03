@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { VoltElementData, VoltSlots, VoltInstanceOverrides, VoltBreakpoint, VoltLayerStateOverride, VoltNumberData } from '@/types/volt'
 import { sortLayersByZ } from '@/lib/volt/volt-utils'
 import { personalityToAnimeConfig } from '@/lib/volt/personality-to-anime'
@@ -116,8 +116,17 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
     return () => ro.disconnect()
   }, [fitMode, useMeasuredContain])
 
-  // Apply breakpoint overrides to layers
-  const layers = rawLayers.map(layer => {
+  // Apply breakpoint overrides to layers.
+  // Memoized on [rawLayers, activeBreakpoint] so this array keeps a STABLE
+  // reference across re-renders that don't actually change layer data (e.g.
+  // useMeasuredContain's ResizeObserver-driven coverBox updates, or a parent
+  // like VoltBlock re-rendering while its async productSlots/voltId fetch
+  // settles). The entrance-animation effect below depends on `layers`; an
+  // unmemoized `.map()` produced a new array reference on every render, which
+  // tore down and recreated its IntersectionObserver mid-flight and could
+  // permanently strand entrance-animated layers at opacity:0 before the
+  // observer ever fired once. See sync-doc entry for full root-cause writeup.
+  const layers = useMemo(() => rawLayers.map(layer => {
     if (!activeBreakpoint) return layer
     const override = activeBreakpoint.layerOverrides[layer.id]
     if (!override) return layer
@@ -132,7 +141,7 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
         textLayerData: { ...layer.textLayerData, fontSize: override.fontSize }
       } : {}),
     }
-  })
+  }), [rawLayers, activeBreakpoint])
 
   const sortedLayers = sortLayersByZ(layers)
 

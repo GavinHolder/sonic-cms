@@ -8,6 +8,11 @@ import { packageSlotValues, type PackageLike } from "@/lib/packages/format";
 const VoltRenderer = dynamic(() => import("@/components/volt/VoltRenderer"), { ssr: false });
 const Volt3DRenderer = dynamic(() => import("./Volt3DRenderer"), { ssr: false });
 
+// Hoisted so this style object keeps a stable reference across renders instead
+// of being a fresh literal every time — one less spurious prop change reaching
+// VoltRenderer (see VoltRenderer.tsx `layers` memoization for the related fix).
+const INHERIT_RADIUS_STYLE: React.CSSProperties = { borderRadius: "inherit" };
+
 interface VoltBlockProps {
   voltId: string;
   slots?: VoltSlots;
@@ -107,7 +112,7 @@ export default function VoltBlock({ voltId, slots = {}, instanceOverrides, fitMo
 
   return (
     <div ref={containerRef} style={containerStyle}>
-      <VoltRenderer voltElement={volt} slots={mergedSlots} instanceOverrides={instanceOverrides} style={{ borderRadius: "inherit" }} onHoverChange={setIsHovered} fitMode={fitMode} />
+      <VoltRenderer voltElement={volt} slots={mergedSlots} instanceOverrides={instanceOverrides} style={INHERIT_RADIUS_STYLE} onHoverChange={setIsHovered} fitMode={fitMode} />
       {layers3D.map(l => (
         <Volt3DRenderer
           key={l.id}
