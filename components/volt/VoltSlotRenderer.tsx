@@ -95,6 +95,16 @@ export default function VoltSlotRenderer({ layer, canvasWidth, canvasHeight, slo
     style.lineHeight = (slotData as { lineHeight?: number } | undefined)?.lineHeight ?? 1.5
   }
 
+  // pkg.options/pkg.features bind to a newline-joined list (see formatOptions) —
+  // render each item on its own line instead of collapsing to one flowing line.
+  const isOptionsBinding = slotData.contentFieldHint === 'pkg.options' || slotData.contentFieldHint === 'pkg.features'
+    || slotData.contentFieldHint === 'options' || slotData.contentFieldHint === 'features'
+  if (isOptionsBinding) {
+    style.alignItems = 'flex-start'
+    style.whiteSpace = 'pre-line'
+    style.lineHeight = (slotData as { lineHeight?: number } | undefined)?.lineHeight ?? 1.5
+  }
+
   if (slotData.slotType === 'image') {
     const imageUrl = content ?? slots.imageUrl
     if (!imageUrl) return null

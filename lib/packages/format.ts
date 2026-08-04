@@ -48,9 +48,12 @@ export function formatPrice(pkg: PackageLike): string {
   return period.startsWith("/") ? `${price}${period}` : `${price} ${period}`;
 }
 
-/** Package options (features) joined for a single slot. */
-export function formatOptions(pkg: PackageLike, separator = ", "): string {
-  return featuresToArray(pkg.features).join(separator);
+/** Max options/features shown in a single slot — beyond this the list gets unreadably long. */
+const MAX_OPTIONS = 5;
+
+/** Package options (features), one per line, capped at MAX_OPTIONS. */
+export function formatOptions(pkg: PackageLike, separator = "\n"): string {
+  return featuresToArray(pkg.features).slice(0, MAX_OPTIONS).join(separator);
 }
 
 /**
@@ -63,8 +66,12 @@ export function formatOptions(pkg: PackageLike, separator = ", "): string {
 export function packageSlotValues(pkg: PackageLike): Record<string, string> {
   const base: Record<string, string> = {
     name: str(pkg.name),
-    price: formatPrice(pkg),
+    // "Price" is the raw value alone — Period is its own separate bindable slot
+    // (same split pattern as speed/speedDown/speedUp). priceCombined offers the
+    // old "R699/month" one-slot convenience for cards that want it in one field.
+    price: str(pkg.price),
     priceRaw: str(pkg.price),
+    priceCombined: formatPrice(pkg),
     period: str(pkg.period),
     speed: formatSpeed(pkg),
     speedDown: str(pkg.speedDown),

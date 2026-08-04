@@ -1332,7 +1332,7 @@
             var lbl=document.createElement('span');lbl.style.cssText='background:'+_accent+'cc;color:#fff;font-size:8px;font-weight:700;padding:1px 4px;border-radius:3px;text-transform:uppercase;line-height:1.4;white-space:nowrap;';
             lbl.textContent=_bound?_st:((_sd.slotLabel||'Slot')+' ('+_st+')');div.appendChild(lbl);
             if(_bound){
-              var _blMap={'pkg.name':'Name','pkg.speed':'Speed','pkg.speedDown':'Speed ↓','pkg.speedUp':'Speed ↑','pkg.price':'Price','pkg.options':'Options','pkg.period':'Period'};
+              var _blMap={'pkg.name':'Name','pkg.speed':'Speed','pkg.speedDown':'Speed ↓','pkg.speedUp':'Speed ↑','pkg.price':'Price','pkg.priceCombined':'Price+Period','pkg.options':'Options','pkg.period':'Period'};
               var _bl=_blMap[_sd.contentFieldHint]||String(_sd.contentFieldHint).replace(/^pkg\./,'').replace(/^\w/,function(c){return c.toUpperCase();});
               var bpill=document.createElement('span');bpill.style.cssText='background:#fff;color:#6366f1;border:1px solid #6366f1;font-size:8px;font-weight:800;padding:1px 4px;border-radius:3px;line-height:1.4;white-space:nowrap;';
               bpill.textContent='→ '+_bl;div.appendChild(bpill);
@@ -4078,7 +4078,7 @@
       // VoltSlotRenderer resolves via slotData.contentFieldHint. So a linked product card
       // auto-fills this slot from the chosen field; 'None' leaves it as manual slot text.
       var fh=mkSec();fh.appendChild(mkLbl('Bind to Product Field'));var fhs=document.createElement('select');fhs.id='prop-slot-field-hint';fhs.className='form-select form-select-sm';
-      [{v:'',l:'None (manual)'},{v:'pkg.name',l:'Name'},{v:'pkg.speed',l:'Speed (combined)'},{v:'pkg.speedDown',l:'Speed — Download'},{v:'pkg.speedUp',l:'Speed — Upload'},{v:'pkg.price',l:'Price'},{v:'pkg.options',l:'Options'},{v:'pkg.period',l:'Period'}].forEach(function(o){var op=document.createElement('option');op.value=o.v;op.textContent=o.l;if((sd.contentFieldHint||'')===o.v)op.selected=true;fhs.appendChild(op);});fh.appendChild(fhs);body.appendChild(fh);
+      [{v:'',l:'None (manual)'},{v:'pkg.name',l:'Name'},{v:'pkg.speed',l:'Speed (combined)'},{v:'pkg.speedDown',l:'Speed — Download'},{v:'pkg.speedUp',l:'Speed — Upload'},{v:'pkg.price',l:'Price'},{v:'pkg.priceCombined',l:'Price (combined w/ period)'},{v:'pkg.period',l:'Period'},{v:'pkg.options',l:'Options (max 5)'}].forEach(function(o){var op=document.createElement('option');op.value=o.v;op.textContent=o.l;if((sd.contentFieldHint||'')===o.v)op.selected=true;fhs.appendChild(op);});fh.appendChild(fhs);body.appendChild(fh);
       var fhh=document.createElement('div');fhh.style.cssText='font-size:9px;color:#94a3b8;margin:-4px 0 6px;';fhh.textContent='A linked product card auto-fills this slot from the chosen field';body.appendChild(fhh);
       // Overflow fit: how bound text behaves when longer than the slot box.
       // Values map 1:1 to slotData.overflowFit which VoltSlotRenderer already honors
