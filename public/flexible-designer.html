@@ -9496,7 +9496,7 @@ window.addEventListener('message', function(e) {
       fetch(apiUrl, {
         method: method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: payload.name, layers: payload.layers, states: payload.states, isPublic: payload.isPublic, mood: payload.mood, elementType: payload.elementType, thumbnail: payload.thumbnail })
+        body: JSON.stringify({ name: payload.name, layers: payload.layers, states: payload.states, isPublic: payload.isPublic, mood: payload.mood, elementType: payload.elementType, thumbnail: payload.thumbnail, voltType: payload.voltType, flipCard: payload.flipCard, canvasWidth: payload.canvasWidth, canvasHeight: payload.canvasHeight, designerData: payload })
       }).then(function(r) { return r.json(); }).then(function(json) {
         const saved = json.data && json.data.volt ? json.data.volt : null;
         if (saved && block) {
