@@ -37,12 +37,15 @@ export default function VoltSlotRenderer({ layer, canvasWidth, canvasHeight, slo
 
   // Resolve the slot content (safe when slotData is absent → undefined).
   // Use explicit undefined checks — empty string "" is valid content (not a fallback trigger).
+  // contentFieldHint (the product-field binding) takes priority over the generic
+  // slotType bucket — they're identical at slot creation, but once a slot is
+  // rebound to e.g. pkg.speedDown, the stale slots[slotType] value must not win.
   const content = slotData
     ? (slots[layer.id] !== undefined
         ? slots[layer.id]
-        : slots[slotData.slotType] !== undefined
-        ? slots[slotData.slotType]
-        : slots[slotData.contentFieldHint])
+        : slots[slotData.contentFieldHint] !== undefined
+        ? slots[slotData.contentFieldHint]
+        : slots[slotData.slotType])
     : undefined
 
   // Shrink-to-fit: measure natural text size vs. the fixed box and derive a scale.
