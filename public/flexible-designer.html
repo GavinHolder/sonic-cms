@@ -1670,6 +1670,11 @@
                 <div class="ec-name">Packages</div>
                 <span class="ec-badge container">Block</span>
               </div>
+              <div class="element-card" draggable="true" ondragstart="onLibDragStart(event,'card-tabs')">
+                <div class="ec-icon">🗂️</div>
+                <div class="ec-name">Card Tabs</div>
+                <span class="ec-badge container">Block</span>
+              </div>
             </div>
 
             <!-- Sub-elements -->
@@ -1981,6 +1986,7 @@ const BLOCK_DEFAULTS = {
   html:        { label:'HTML',    html:'<p>Custom HTML</p>', customCss:'' },
   divider:     { label:'Divider', thickness:2, dividerColor:'#dee2e6', customCss:'' },
   volt:        { label:'Volt', bgColor:'transparent', voltId:'', voltName:'', voltThumbnail:null, voltLayerOverrides:{}, customCss:'' },
+  'card-tabs': { label:'Card Tabs', tabs:[{ key:'tab-'+Date.now(), label:'Tab 1', cards:[{ id:'card-'+Date.now() }] }], minCardWidth:260, customCss:'' },
   template:    { label:'Template', templateId:'', templateName:'', templateThumbnail:null, customHtml:'<p>Section template</p>', customCss:'', mediaSlots:{} },
   editorial:   { label:'Editorial', text:'Start typing your editorial content here. This text will flow around any obstacle images you place in the block. You can use multiple obstacles — each with its own position, size, and alpha hull tracing for precise text wrapping.', fontFamily:'Merriweather', fontSize:18, lineHeight:1.6, textColor:'#212529', bgColor:'transparent', obstacles:[], customCss:'' },
   steps:       { label:'Steps', steps:[{number:'01',heading:'Discovery',subtext:'We analyse your requirements and technical constraints.'},{number:'02',heading:'Design',subtext:'We prototype and validate the solution with stakeholders.'},{number:'03',heading:'Build',subtext:'We implement, test, and deploy the solution.'}], stepsNumberWidth:100, stepsDividers:true, stepsLastDivider:false, customCss:'' },
@@ -3390,6 +3396,16 @@ function createBlockPreview(block) {
         (p.heading ? '<div style="font-family:var(--display,sans-serif);text-transform:uppercase;font-size:18px;margin-bottom:10px;">' + escHtml(p.heading) + '</div>' : '') +
         '<div style="display:flex;gap:10px;">' + pkCards + '</div>' +
         '<div style="font-size:10px;opacity:.45;margin-top:8px;">Renders this network\'s packages live on the site</div></div>';
+      break;
+    }
+    case 'card-tabs': {
+      var ctTabs = p.tabs || [];
+      var ctTabsHtml = ctTabs.map(function(t){ return '<span style="padding:3px 9px;border-radius:999px;background:rgba(255,255,255,0.1);margin-right:4px;">' + escHtml(t.label||'Tab') + '</span>'; }).join('');
+      var ctCardCount = ctTabs.reduce(function(sum,t){ return sum + (t.cards||[]).length; }, 0);
+      wrap.innerHTML = '<div style="padding:10px 4px;">' +
+        '<div style="font-size:11px;color:#4f46e5;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;"><i class="bi bi-ui-radios"></i> Card Tabs</div>' +
+        '<div style="font-size:11px;margin-bottom:8px;">' + (ctTabsHtml || '<em style="opacity:.5;">No tabs yet</em>') + '</div>' +
+        '<div style="font-size:10px;opacity:.5;">' + ctTabs.length + ' tab' + (ctTabs.length===1?'':'s') + ' &middot; ' + ctCardCount + ' card' + (ctCardCount===1?'':'s') + '</div></div>';
       break;
     }
     default:
@@ -6376,6 +6392,50 @@ function renderTypeProps(block) {
       h+=`<div style="font-size:11px;color:#9ca3af;padding:6px 0;line-height:1.6;">Renders this network's active packages live on the site. Manage them in <strong>Plugins → Coverage Maps → Networks &amp; Packages</strong>.${_pnets.length?'':'<br><em>No networks loaded yet — create one first.</em>'}</div>`;
       break;
     }
+    case 'card-tabs': {
+      loadCardTabsVoltLib(); // no-op if already loading/loaded
+      const ctTabs = p.tabs || [];
+      const ctProds = window.__allPackages || [];
+      const ctByNet = {};
+      ctProds.forEach(function(pr){ const k = pr.networkName || 'Other'; (ctByNet[k] = ctByNet[k] || []).push(pr); });
+      const ctVolts = _cardTabsVoltLib.list || [];
+      h+=`<div style="font-size:11px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Tabs</div>`;
+      ctTabs.forEach(function(tab, tIdx) {
+        h+=`<div style="border:1px solid #e9ecef;border-radius:8px;padding:8px;margin-bottom:10px;">
+          <div style="display:flex;align-items:center;gap:4px;margin-bottom:8px;">
+            <input class="props-input" style="flex:1;font-size:12px;font-weight:600;" type="text" value="${escHtml(tab.label||'')}" placeholder="Tab label" oninput="renameCardTab('${block.id}',${tIdx},this.value)">
+            <button class="action-btn" title="Move up" ${tIdx===0?'disabled':''} style="width:auto;padding:2px 6px;" onclick="moveCardTab('${block.id}',${tIdx},-1)"><i class="bi bi-arrow-up"></i></button>
+            <button class="action-btn" title="Move down" ${tIdx===ctTabs.length-1?'disabled':''} style="width:auto;padding:2px 6px;" onclick="moveCardTab('${block.id}',${tIdx},1)"><i class="bi bi-arrow-down"></i></button>
+            <button class="action-btn" title="Delete tab" style="width:auto;padding:2px 6px;color:#dc3545;border-color:#dc3545;" onclick="removeCardTab('${block.id}',${tIdx})"><i class="bi bi-trash"></i></button>
+          </div>`;
+        (tab.cards||[]).forEach(function(card, cIdx) {
+          let voltOpts = `<option value="">— Select card design —</option>`;
+          ctVolts.forEach(function(v){ voltOpts += `<option value="${escHtml(v.id)}"${v.id===card.voltId?' selected':''}>${escHtml(v.name)}</option>`; });
+          let prodOpts = `<option value="">— None (manual) —</option>`;
+          Object.keys(ctByNet).forEach(function(net){
+            prodOpts += `<optgroup label="${escHtml(net)}">`;
+            ctByNet[net].forEach(function(pr){ prodOpts += `<option value="${escHtml(pr.id)}"${pr.id===card.productId?' selected':''}>${escHtml(pr.name)}</option>`; });
+            prodOpts += `</optgroup>`;
+          });
+          h+=`<div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-top:1px dashed #e9ecef;">
+            <div style="flex:1;display:flex;flex-direction:column;gap:4px;min-width:0;">
+              <select class="props-select" style="font-size:11px;" onchange="updateCardTabCardVolt('${block.id}',${tIdx},${cIdx},this.value)">${voltOpts}</select>
+              <select class="props-select" style="font-size:11px;" onchange="updateCardTabCardProduct('${block.id}',${tIdx},${cIdx},this.value)">${prodOpts}</select>
+            </div>
+            <button class="action-btn" title="Remove card" style="width:auto;padding:2px 6px;color:#dc3545;border-color:#dc3545;flex-shrink:0;" onclick="removeCardTabCard('${block.id}',${tIdx},${cIdx})"><i class="bi bi-x-lg"></i></button>
+          </div>`;
+        });
+        h+=`<button class="action-btn" style="width:100%;margin-top:6px;font-size:11px;" onclick="addCardTabCard('${block.id}',${tIdx})"><i class="bi bi-plus"></i> Add Card</button>
+        </div>`;
+      });
+      h+=`<button class="action-btn" style="width:100%;margin-bottom:10px;" onclick="addCardTab('${block.id}')"><i class="bi bi-plus-lg"></i> Add Tab</button>`;
+      h+=`<div style="margin-top:6px;padding-top:10px;border-top:1px solid #e9ecef;">
+        <label style="font-size:12px;display:block;margin-bottom:4px;">Min Card Width (px)</label>
+        <input class="props-input" type="number" min="120" max="600" value="${p.minCardWidth||260}" oninput="updateBlockProp('${block.id}','minCardWidth',parseInt(this.value)||260);renderCanvas()">
+      </div>`;
+      h+=`<div style="font-size:10px;color:#9ca3af;padding:8px 0 0;line-height:1.6;">Each card renders one of your existing Volt card designs. Bind a card to a Package to auto-populate its <code>pkg.*</code> content slots.${ctVolts.length?'':'<br><em>No Volt designs found — build one in Volt Studio first.</em>'}</div>`;
+      break;
+    }
   }
   return h;
 }
@@ -6613,6 +6673,88 @@ function showCustomNav(el, id) {
  * @param {*} v - New value to assign.
  */
 function updateBlockProp(bId,k,v) { const b=state.blocks.find(b=>b.id==bId); if(b) { b.props[k]=v; autoSave(); } } // eslint-disable-line eqeqeq
+
+// ─── Card Tabs block (tab-switched grid of existing Volt card designs) ───────
+// Isolated Volt-list cache — deliberately separate from _voltLib (the drag-library
+// panel's cache) so this feature never touches that panel's load/render behaviour.
+const _cardTabsVoltLib = { loaded: false, loading: false, list: [] };
+function loadCardTabsVoltLib() {
+  if (_cardTabsVoltLib.loaded || _cardTabsVoltLib.loading) return;
+  _cardTabsVoltLib.loading = true;
+  fetch('/api/volt')
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(json => {
+      _cardTabsVoltLib.loaded = true;
+      _cardTabsVoltLib.loading = false;
+      _cardTabsVoltLib.list = (json.data && json.data.volts) || [];
+      const sel = state.blocks.find(b => b.id === state.selectedBlockId);
+      if (sel && sel.type === 'card-tabs') renderPropsPanel();
+    })
+    .catch(() => { _cardTabsVoltLib.loading = false; });
+}
+function _cardTabsUid() { return 'ct' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function addCardTab(bId) {
+  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
+  if (!b) return;
+  pushHistory();
+  const tabs = b.props.tabs || (b.props.tabs = []);
+  tabs.push({ key: _cardTabsUid(), label: 'Tab ' + (tabs.length + 1), cards: [{ id: _cardTabsUid() }] });
+  autoSave(); renderCanvas(); renderPropsPanel();
+}
+function removeCardTab(bId, tIdx) {
+  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
+  if (!b || !b.props.tabs) return;
+  pushHistory();
+  b.props.tabs.splice(tIdx, 1);
+  autoSave(); renderCanvas(); renderPropsPanel();
+}
+function renameCardTab(bId, tIdx, label) {
+  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
+  if (!b || !b.props.tabs || !b.props.tabs[tIdx]) return;
+  b.props.tabs[tIdx].label = label;
+  autoSave(); renderCanvas();
+}
+function moveCardTab(bId, tIdx, dir) {
+  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
+  if (!b || !b.props.tabs) return;
+  const tabs = b.props.tabs;
+  const newIdx = tIdx + dir;
+  if (newIdx < 0 || newIdx >= tabs.length) return;
+  pushHistory();
+  const moved = tabs.splice(tIdx, 1)[0];
+  tabs.splice(newIdx, 0, moved);
+  autoSave(); renderCanvas(); renderPropsPanel();
+}
+function addCardTabCard(bId, tIdx) {
+  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
+  if (!b || !b.props.tabs || !b.props.tabs[tIdx]) return;
+  pushHistory();
+  b.props.tabs[tIdx].cards.push({ id: _cardTabsUid() });
+  autoSave(); renderCanvas(); renderPropsPanel();
+}
+function removeCardTabCard(bId, tIdx, cIdx) {
+  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
+  if (!b || !b.props.tabs || !b.props.tabs[tIdx]) return;
+  pushHistory();
+  b.props.tabs[tIdx].cards.splice(cIdx, 1);
+  autoSave(); renderCanvas(); renderPropsPanel();
+}
+function updateCardTabCardVolt(bId, tIdx, cIdx, voltId) {
+  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
+  if (!b || !b.props.tabs || !b.props.tabs[tIdx]) return;
+  const card = b.props.tabs[tIdx].cards[cIdx];
+  if (!card) return;
+  if (voltId) card.voltId = voltId; else delete card.voltId;
+  autoSave(); renderCanvas();
+}
+function updateCardTabCardProduct(bId, tIdx, cIdx, productId) {
+  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
+  if (!b || !b.props.tabs || !b.props.tabs[tIdx]) return;
+  const card = b.props.tabs[tIdx].cards[cIdx];
+  if (!card) return;
+  if (productId) card.productId = productId; else delete card.productId;
+  autoSave(); renderCanvas();
+}
 
 // Persist the per-block "render in front of the Lower Third" flag (top-level on the block,
 // like block.zIndex/hidden). ON → the live renderer re-draws this block in a plate that sits

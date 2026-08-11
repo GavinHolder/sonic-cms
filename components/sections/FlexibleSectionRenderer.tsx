@@ -22,6 +22,7 @@ const EditorialBlock           = dynamic(() => import("@/components/sections/blo
 const PricingTabsBlock         = dynamic(() => import("@/components/sections/blocks/PricingTabsBlock"), { ssr: false });
 const GalleryCtaBlock          = dynamic(() => import("@/components/sections/blocks/GalleryCtaBlock"), { ssr: false });
 const PackagesBlock            = dynamic(() => import("@/components/sections/blocks/PackagesBlock"), { ssr: false });
+const CardTabsBlock             = dynamic(() => import("@/components/sections/blocks/CardTabsBlock"), { ssr: false });
 
 interface FlexibleSectionRendererProps {
   section: FlexibleSection;
@@ -2450,6 +2451,19 @@ function DesignerBlock({ block, darkBg }: {
             <VoltBlock voltId={voltId} slots={voltSlots} fitMode={voltFullBleed ? "cover" : "contain"} productId={voltProductId} />
           </div>
         );
+      }
+
+      // ── card-tabs: tab-switched grid of existing Volt card designs, each optionally bound to a product ──
+      case "card-tabs": {
+        const tabs = p.tabs as import("@/components/sections/blocks/CardTabsBlock").CardTabsTab[] | undefined;
+        if (!tabs || tabs.length === 0) {
+          return (
+            <div style={{ padding: "20px", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#6c757d" }}>
+              <span style={{ fontSize: "12px" }}>No tabs configured</span>
+            </div>
+          );
+        }
+        return <CardTabsBlock content={{ tabs, minCardWidth: p.minCardWidth as number | undefined }} darkBg={darkBg} />;
       }
 
       // ── template: renders an admin-imported "Section Block" HTML template as a block ──
