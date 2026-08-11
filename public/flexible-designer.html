@@ -1670,6 +1670,11 @@
                 <div class="ec-name">Packages</div>
                 <span class="ec-badge container">Block</span>
               </div>
+              <div class="element-card" draggable="true" ondragstart="onLibDragStart(event,'product-grid')">
+                <div class="ec-icon">🗂️</div>
+                <div class="ec-name">Product Grid</div>
+                <span class="ec-badge container">Block</span>
+              </div>
             </div>
 
             <!-- Sub-elements -->
@@ -1987,6 +1992,7 @@ const BLOCK_DEFAULTS = {
   'photo-strip':{ label:'Photo Strip', images:[{src:'',alt:''},{src:'',alt:''},{src:'',alt:''}], columns:3, height:220, gap:4, hoverBrightness:true, customCss:'' },
   marquee:     { label:'Marquee', marqueeStyle:'town', marqueeDirection:'left', marqueeSpeed:36, marqueeSeparator:'star', marqueePauseOnHover:true, marqueeItems:[{label:'Kleinmond'},{label:'Hermanus'},{label:'Caledon'},{label:'Grabouw'}], customCss:'' },
   packages:    { label:'Packages', networkSlug:'', packageColumns:3, heading:'', customCss:'' },
+  'product-grid': { label:'Product Grid', productTypeSlugs:[], minCardWidth:260, voltId:'', voltName:'', heading:'', customCss:'' },
 };
 
 const SUB_DEFAULTS = {
@@ -2449,10 +2455,41 @@ function loadAllPackages() {
     .catch(() => {});
 }
 
+// Active product types (id, name, slug, color) for the Product Grid block's type picker.
+window.__productTypes = [];
+function loadProductTypes() {
+  fetch('/api/product-types', { credentials: 'include' })
+    .then(r => r.ok ? r.json() : [])
+    .then(d => {
+      window.__productTypes = Array.isArray(d) ? d : [];
+      try { if (state.selectedBlockId) renderPropsPanel(); } catch (e) { /* ignore */ }
+    })
+    .catch(() => {});
+}
+
+// Volt designs (id, name) for the Product Grid block's card-design picker. Lazy-loaded
+// on first use (not at init) since it's only needed when a product-grid block is selected.
+window.__voltDesigns = [];
+const _pgVoltDesigns = { loaded: false, loading: false };
+function loadVoltDesignsIfNeeded() {
+  if (_pgVoltDesigns.loaded || _pgVoltDesigns.loading) return;
+  _pgVoltDesigns.loading = true;
+  fetch('/api/volt', { credentials: 'include' })
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(json => {
+      _pgVoltDesigns.loaded = true;
+      _pgVoltDesigns.loading = false;
+      window.__voltDesigns = json.data?.volts || [];
+      try { if (state.selectedBlockId) renderPropsPanel(); } catch (e) { /* ignore */ }
+    })
+    .catch(() => { _pgVoltDesigns.loading = false; });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   loadNavOptions();
   loadNetworks();
   loadAllPackages();
+  loadProductTypes();
   // Only restore autosave when running standalone (not embedded in admin iframe).
   // When embedded, FLEXIBLE_DESIGNER_INIT provides the correct per-section data —
   // loading the shared autosave here would briefly flash stale data from the last
@@ -3390,6 +3427,20 @@ function createBlockPreview(block) {
         (p.heading ? '<div style="font-family:var(--display,sans-serif);text-transform:uppercase;font-size:18px;margin-bottom:10px;">' + escHtml(p.heading) + '</div>' : '') +
         '<div style="display:flex;gap:10px;">' + pkCards + '</div>' +
         '<div style="font-size:10px;opacity:.45;margin-top:8px;">Renders this network\'s packages live on the site</div></div>';
+      break;
+    }
+    case 'product-grid': {
+      var pgTypes = (window.__productTypes || []).filter(function(t){ return (p.productTypeSlugs||[]).indexOf(t.slug) !== -1; });
+      var pgNames = pgTypes.map(function(t){ return escHtml(t.name); }).join(', ');
+      wrap.innerHTML = '<div style="padding:10px 4px;">' +
+        '<div style="font-size:11px;color:#E31E24;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;">🗂️ Product Card Grid' + (pgNames ? ' — ' + pgNames : ' — pick product type(s)') + '</div>' +
+        (p.heading ? '<div style="font-family:var(--display,sans-serif);text-transform:uppercase;font-size:18px;margin-bottom:10px;">' + escHtml(p.heading) + '</div>' : '') +
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
+          (p.voltId
+            ? '<div style="flex:1;min-width:' + (p.minCardWidth||260) + 'px;border:1px dashed rgba(255,255,255,0.25);border-radius:10px;padding:14px;font-size:11px;opacity:.7;">Volt card: ' + escHtml(p.voltName||p.voltId) + '</div>'
+            : '<div style="flex:1;border:1px dashed rgba(255,255,255,0.25);border-radius:10px;padding:14px;font-size:11px;opacity:.6;">No Volt card design selected</div>') +
+        '</div>' +
+        '<div style="font-size:10px;opacity:.45;margin-top:8px;">Renders live packages, grouped by product type → network, using the selected Volt card</div></div>';
       break;
     }
     default:
@@ -6374,6 +6425,27 @@ function renderTypeProps(block) {
       h+=selectRow('Columns', String(p.packageColumns||3), [['1','1'],['2','2'],['3','3'],['4','4']], `updateBlockProp('${block.id}','packageColumns',parseInt(this.value));renderCanvas()`);
       h+=inputRow('Heading (optional)', p.heading||'', `updateBlockProp('${block.id}','heading',this.value);renderCanvas()`,'Section heading');
       h+=`<div style="font-size:11px;color:#9ca3af;padding:6px 0;line-height:1.6;">Renders this network's active packages live on the site. Manage them in <strong>Plugins → Coverage Maps → Networks &amp; Packages</strong>.${_pnets.length?'':'<br><em>No networks loaded yet — create one first.</em>'}</div>`;
+      break;
+    }
+    case 'product-grid': {
+      var _ptypes = window.__productTypes || [];
+      var _selectedTypes = p.productTypeSlugs || [];
+      loadVoltDesignsIfNeeded();
+      h+=`<div style="margin-top:8px;"><label style="font-size:11px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Product types</label>`;
+      if (_ptypes.length) {
+        h += '<div style="display:flex;flex-direction:column;gap:4px;max-height:140px;overflow-y:auto;">' + _ptypes.map(function(t){
+          var checked = _selectedTypes.indexOf(t.slug) !== -1 ? 'checked' : '';
+          return `<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;"><input type="checkbox" ${checked} onchange="var b=state.blocks.find(function(x){return x.id=='${block.id}';});var cur=(b&&Array.isArray(b.props.productTypeSlugs)?b.props.productTypeSlugs:[]).slice();var i=cur.indexOf('${t.slug}');if(this.checked){if(i===-1)cur.push('${t.slug}');}else if(i!==-1){cur.splice(i,1);}updateBlockProp('${block.id}','productTypeSlugs',cur);renderCanvas();"> ${escHtml(t.name)}</label>`;
+        }).join('') + '</div>';
+      } else {
+        h += '<div style="font-size:11px;color:#9ca3af;">No product types yet — create one in <strong>Plugins → Coverage Maps → Networks &amp; Packages</strong>.</div>';
+      }
+      h += '</div>';
+      var _voltOpts = [['','— Pick a Volt card design —']].concat((window.__voltDesigns||[]).map(function(v){ return [v.id, v.name]; }));
+      h+=selectRow('Card design (Volt)', p.voltId||'', _voltOpts, `var _v=(window.__voltDesigns||[]).find(function(x){return x.id===this.value;});updateBlockProp('${block.id}','voltId',this.value);updateBlockProp('${block.id}','voltName',_v?_v.name:'');renderCanvas()`);
+      h+=selectRow('Min card width', String(p.minCardWidth||260), [['200','200px'],['220','220px'],['260','260px'],['300','300px'],['340','340px']], `updateBlockProp('${block.id}','minCardWidth',parseInt(this.value));renderCanvas()`);
+      h+=inputRow('Heading (optional)', p.heading||'', `updateBlockProp('${block.id}','heading',this.value);renderCanvas()`,'Section heading');
+      h+=`<div style="font-size:11px;color:#9ca3af;padding:6px 0;line-height:1.6;">Renders one tab per selected product type, grouped by network, using the chosen Volt card design. Manage product types in <strong>Plugins → Coverage Maps → Networks &amp; Packages</strong>.</div>`;
       break;
     }
   }
