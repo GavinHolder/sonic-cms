@@ -2452,6 +2452,55 @@ function DesignerBlock({ block, darkBg }: {
         );
       }
 
+      // ── template: renders an admin-imported "Section Block" HTML template as a block ──
+      case "template": {
+        const templateId = p.templateId as string | undefined;
+        if (!templateId) {
+          return (
+            <div style={{ padding: "20px", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#6c757d" }}>
+              <span style={{ fontSize: "12px" }}>No template selected</span>
+            </div>
+          );
+        }
+        /* SECURITY: admin-only CMS content — same trust model as the existing volt/html block
+           types above (no new sanitization added; content is authored via Templates admin). */
+        const cmsSite = typeof window !== "undefined" ? (window as any).__CMS_SITE : undefined;
+        const applyCmsVars = (input: string) => cmsSite
+          ? input
+              .replace(/\{\{cms\.logo\}\}/g, cmsSite.logoUrl ?? "")
+              .replace(/\{\{cms\.company\}\}/g, cmsSite.companyName ?? "")
+              .replace(/\{\{cms\.tagline\}\}/g, cmsSite.tagline ?? "")
+              .replace(/\{\{cms\.phone\}\}/g, cmsSite.phone ?? "")
+              .replace(/\{\{cms\.email\}\}/g, cmsSite.email ?? "")
+              .replace(/\{\{cms\.address\}\}/g, cmsSite.address ?? "")
+              .replace(/\{\{cms\.city\}\}/g, cmsSite.city ?? "")
+              .replace(/\{\{cms\.postal\}\}/g, cmsSite.postalCode ?? "")
+              .replace(/\{\{cms\.country\}\}/g, cmsSite.country ?? "")
+              .replace(/\{\{cms\.copyright\}\}/g, cmsSite.copyrightText ?? "")
+              .replace(/\{\{cms\.facebook\}\}/g, cmsSite.facebook ?? "")
+              .replace(/\{\{cms\.instagram\}\}/g, cmsSite.instagram ?? "")
+              .replace(/\{\{cms\.twitter\}\}/g, cmsSite.twitter ?? "")
+              .replace(/\{\{cms\.linkedin\}\}/g, cmsSite.linkedin ?? "")
+              .replace(/\{\{cms\.youtube\}\}/g, cmsSite.youtube ?? "")
+              .replace(/\{\{cms\.tiktok\}\}/g, cmsSite.tiktok ?? "")
+          : input;
+        const templateMediaSlots = (p.mediaSlots && typeof p.mediaSlots === "object" ? p.mediaSlots : {}) as Record<string, string>;
+        const applyMediaSlots = (input: string) =>
+          input.replace(/\{\{cms\.media\.([a-z0-9_-]+)\}\}/g, (_, slotName: string) => templateMediaSlots[slotName] ?? "");
+        const templateHtml = applyMediaSlots(applyCmsVars((p.customHtml as string) || ""));
+        const templateCss  = applyMediaSlots(applyCmsVars((p.customCss as string) || ""));
+        // `block` here isn't typed with an `id` field (see the narrowed param type above), but
+        // the runtime designer block object always has one — used only as a DOM identification
+        // hook (not for CSS scoping, matching the unscoped raw-CSS trust model of standalone pages).
+        const blockDomId = (block as unknown as { id?: string }).id || templateId;
+        return (
+          <div id={`flex-template-${blockDomId}`} className="flex-template-block" style={{ height: "100%" }}>
+            {templateCss && <style dangerouslySetInnerHTML={{ __html: templateCss }} />}
+            <div dangerouslySetInnerHTML={{ __html: templateHtml }} />
+          </div>
+        );
+      }
+
       // ── interactive-3d-card: hover-driven 3D product card (custom GLB or procedural fallback) ──
       case "interactive-3d-card": {
         return (
