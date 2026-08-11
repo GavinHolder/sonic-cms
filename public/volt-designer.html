@@ -1004,6 +1004,17 @@
     var _slotTypeLabels={title:'Title',body:'Paragraph',image:'Image',action:'Action',badge:'Badge',icon:'Icon',input:'Input',custom:'Custom'};
     var _slotTypeTags={title:'TIT',body:'BOD',image:'IMG',action:'ACT',badge:'BDG',icon:'ICN',input:'INP',custom:'CUS'};
     var _slotPreviewMode=false;
+    // Realistic stand-in values for bound product fields, shown in preview mode so authors
+    // can judge real positioning/overflow instead of a generic grey-bar skeleton. Keys mirror
+    // lib/packages/format.ts's packageSlotValues() output (bare + pkg.-prefixed).
+    var _fieldSampleValues=(function(){
+      var m={name:'Home Fibre 50',price:'R599',priceRaw:'R599',priceCombined:'R599/pm',period:'/pm',
+        speed:'50 / 25 Mbps',speedDown:'50',speedUp:'25',
+        options:'Free installation\nNo contract\n24/7 support',features:'Free installation\nNo contract\n24/7 support',
+        network:'Openserve'};
+      var out={};for(var k in m){out[k]=m[k];out['pkg.'+k]=m[k];}return out;
+    })();
+    function _escSlot(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
     function mkSlot(x,y,w,h){var t=_pendingSlotType;var lbl=_slotTypeLabels[t]||'Slot';return {id:nanoid(),name:lbl+' Slot',type:'slot',role:'content',x:x,y:y,width:w,height:h,rotation:0,zIndex:10,visible:true,locked:false,opacity:1,blendMode:'normal',slotData:{slotType:t,slotLabel:lbl},animation:{delay:0,speed:40,style:60,character:50,animates:{fill:false,scale:false,opacity:false,position:false,rotation:false}}};}
     // ── SVG / canvas ──────────────────────────────────────────────────────────
     var svgEl=document.getElementById('artboard-svg');
@@ -1294,11 +1305,18 @@
           if(_slotPreviewMode){
             // Preview mode: show realistic content placeholders
             div.style.cssText='position:absolute;left:'+_lx+'%;top:'+_ly+'%;width:'+_lw+'%;height:'+_lh+'%;border-radius:4px;pointer-events:none;overflow:hidden;box-sizing:border-box;background:#f8fafc;'+_slotShadow;
-            if(_st==='title'){div.innerHTML='<div style="padding:8% 10%;display:flex;flex-direction:column;justify-content:center;height:100%;box-sizing:border-box;"><div style="height:22%;background:#1e293b;border-radius:3px;margin-bottom:8%;opacity:0.85;"></div><div style="height:13%;background:#64748b;border-radius:3px;width:70%;opacity:0.5;"></div></div>';}
-            else if(_st==='body'){div.innerHTML='<div style="padding:8% 10%;display:flex;flex-direction:column;gap:6%;height:100%;box-sizing:border-box;justify-content:center;">'+'<div style="height:9%;background:#94a3b8;border-radius:2px;opacity:0.6;"></div>'.repeat(4)+'<div style="height:9%;background:#94a3b8;border-radius:2px;opacity:0.6;width:65%;"></div></div>';}
+            var _sampleVal=(_sd.contentFieldHint&&_fieldSampleValues[_sd.contentFieldHint])||null;
+            if(_st==='title'){
+              if(_sampleVal){var _tA=_sd.textAlign||'left';div.innerHTML='<div style="padding:6% 10%;display:flex;align-items:center;justify-content:'+(_tA==='center'?'center':_tA==='right'?'flex-end':'flex-start')+';height:100%;box-sizing:border-box;font-family:'+(_sd.fontFamily||'inherit')+';font-size:'+(_sd.fontSize||18)+'px;font-weight:'+(_sd.fontWeight||700)+';color:'+(_sd.color||'#1e293b')+';text-align:'+_tA+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+_escSlot(_sampleVal)+'</div>';}
+              else{div.innerHTML='<div style="padding:8% 10%;display:flex;flex-direction:column;justify-content:center;height:100%;box-sizing:border-box;"><div style="height:22%;background:#1e293b;border-radius:3px;margin-bottom:8%;opacity:0.85;"></div><div style="height:13%;background:#64748b;border-radius:3px;width:70%;opacity:0.5;"></div></div>';}
+            }
+            else if(_st==='body'){
+              if(_sampleVal){var _tA2=_sd.textAlign||'left';div.innerHTML='<div style="padding:8% 10%;height:100%;box-sizing:border-box;display:flex;align-items:flex-start;font-family:'+(_sd.fontFamily||'inherit')+';font-size:'+(_sd.fontSize||13)+'px;font-weight:'+(_sd.fontWeight||400)+';color:'+(_sd.color||'#475569')+';text-align:'+_tA2+';white-space:pre-line;line-height:1.5;overflow:hidden;">'+_escSlot(_sampleVal)+'</div>';}
+              else{div.innerHTML='<div style="padding:8% 10%;display:flex;flex-direction:column;gap:6%;height:100%;box-sizing:border-box;justify-content:center;">'+'<div style="height:9%;background:#94a3b8;border-radius:2px;opacity:0.6;"></div>'.repeat(4)+'<div style="height:9%;background:#94a3b8;border-radius:2px;opacity:0.6;width:65%;"></div></div>';}
+            }
             else if(_st==='image'){div.innerHTML='<div style="width:100%;height:100%;background:#e2e8f0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;"><i class="bi bi-image" style="font-size:24px;color:#94a3b8;"></i><span style="font-size:9px;color:#94a3b8;font-weight:600;letter-spacing:0.5px;">IMAGE</span></div>';}
-            else if(_st==='action'){div.innerHTML='<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;"><div style="background:#6366f1;color:#fff;font-size:11px;font-weight:700;padding:8px 20px;border-radius:6px;letter-spacing:0.3px;">Button</div></div>';}
-            else if(_st==='badge'){div.innerHTML='<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;"><div style="background:#22c55e;color:#fff;font-size:10px;font-weight:700;padding:4px 12px;border-radius:20px;letter-spacing:0.5px;">Badge</div></div>';}
+            else if(_st==='action'){div.innerHTML='<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;"><div style="background:#6366f1;color:#fff;font-size:11px;font-weight:700;padding:8px 20px;border-radius:6px;letter-spacing:0.3px;">'+(_sampleVal?_escSlot(_sampleVal):'Button')+'</div></div>';}
+            else if(_st==='badge'){div.innerHTML='<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;"><div style="background:#22c55e;color:#fff;font-size:10px;font-weight:700;padding:4px 12px;border-radius:20px;letter-spacing:0.5px;max-width:88%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(_sampleVal?_escSlot(_sampleVal):'Badge')+'</div></div>';}
             else if(_st==='icon'){div.innerHTML='<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;"><i class="bi bi-star-fill" style="font-size:30px;color:#6366f1;"></i></div>';}
             else if(_st==='input'){
               var _skinMode=_sd.skinMode||'transparent';
@@ -1319,7 +1337,7 @@
             }
             else{div.innerHTML='<div style="width:100%;height:100%;border:2px dashed #cbd5e1;display:flex;align-items:center;justify-content:center;"><span style="font-size:10px;color:#94a3b8;font-weight:700;letter-spacing:0.5px;">CUSTOM</span></div>';}
             // Preview type label (top-left corner) — skip for input (it has its own rendered element)
-            if(_st!=='input'){var plbl=document.createElement('div');plbl.style.cssText='position:absolute;top:3px;left:3px;background:rgba(34,197,94,0.9);color:#fff;font-size:8px;font-weight:800;padding:1px 5px;border-radius:3px;letter-spacing:0.4px;text-transform:uppercase;';plbl.textContent=_st;div.appendChild(plbl);}
+            if(_st!=='input'){var plbl=document.createElement('div');plbl.style.cssText='position:absolute;top:3px;left:3px;background:'+(_sampleVal?'rgba(99,102,241,0.9)':'rgba(34,197,94,0.9)')+';color:#fff;font-size:8px;font-weight:800;padding:1px 5px;border-radius:3px;letter-spacing:0.4px;text-transform:uppercase;';plbl.textContent=_st;div.appendChild(plbl);}
           } else {
             // Design mode: lighter, less-obstructive data-placeholder affordance.
             // Bound slots get a distinct indigo accent + a "→ Field" pill so the
