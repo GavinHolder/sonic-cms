@@ -560,13 +560,17 @@ model Package {
   term       String?
   // Admin-managed service category (Data, Voice, IoT, CCTV…)
   categoryId String?
+  // Admin-managed marketing product type (Fibre, Wireless, Voice, Hosting…) — optional, unassigned by default
+  productTypeId String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-  network    Network          @relation(fields: [networkId], references: [id], onDelete: Cascade)
-  category   ServiceCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  network     Network          @relation(fields: [networkId], references: [id], onDelete: Cascade)
+  category    ServiceCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  productType ProductType?     @relation(fields: [productTypeId], references: [id], onDelete: SetNull)
 
   @@index([networkId])
   @@index([categoryId])
+  @@index([productTypeId])
   @@map("packages")
 }
 
@@ -581,6 +585,22 @@ model ServiceCategory {
   packages  Package[]
 
   @@map("service_categories")
+}
+
+// Admin-managed marketing product type for packages (Fibre, Wireless, Voice, Hosting…).
+model ProductType {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  icon      String?
+  color     String    @default("#22c55e")
+  order     Int       @default(0)
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  packages  Package[]
+
+  @@map("product_types")
 }
 
 model Project {

@@ -23,6 +23,7 @@ export async function PUT(
       ...(body.kind !== undefined && { kind: body.kind === "VAS" ? "VAS" : "DATA" }),
       ...(body.term !== undefined && { term: body.term || null }),
       ...(body.categoryId !== undefined && { categoryId: body.categoryId || null }),
+      ...(body.productTypeId !== undefined && { productTypeId: body.productTypeId || null }),
       ...(body.popular !== undefined && { popular: body.popular }),
       ...(body.isActive !== undefined && { isActive: body.isActive }),
       ...(body.order !== undefined && { order: body.order }),

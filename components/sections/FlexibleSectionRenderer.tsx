@@ -23,6 +23,7 @@ const PricingTabsBlock         = dynamic(() => import("@/components/sections/blo
 const GalleryCtaBlock          = dynamic(() => import("@/components/sections/blocks/GalleryCtaBlock"), { ssr: false });
 const PackagesBlock            = dynamic(() => import("@/components/sections/blocks/PackagesBlock"), { ssr: false });
 const CardTabsBlock             = dynamic(() => import("@/components/sections/blocks/CardTabsBlock"), { ssr: false });
+const ProductGridBlock         = dynamic(() => import("@/components/sections/blocks/ProductGridBlock"), { ssr: false });
 
 interface FlexibleSectionRendererProps {
   section: FlexibleSection;
@@ -2464,6 +2465,19 @@ function DesignerBlock({ block, darkBg }: {
           );
         }
         return <CardTabsBlock content={{ tabs, minCardWidth: p.minCardWidth as number | undefined }} darkBg={darkBg} />;
+      // ── product-grid: 3-layer Product Type → Network → Category drill-down grid of
+      // existing Volt card designs, each bound to a live package via VoltBlock's productId ──
+      case "product-grid": {
+        const pgSlugs = p.productTypeSlugs as string[] | undefined;
+        const pgVoltId = p.voltId as string | undefined;
+        if (!pgSlugs || pgSlugs.length === 0) {
+          return (
+            <div style={{ padding: "20px", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#6c757d" }}>
+              <span style={{ fontSize: "12px" }}>No product types configured</span>
+            </div>
+          );
+        }
+        return <ProductGridBlock content={{ productTypeSlugs: pgSlugs, voltId: pgVoltId, minCardWidth: p.minCardWidth as number | undefined, heading: p.heading as string | undefined }} darkBg={darkBg} />;
       }
 
       // ── template: renders an admin-imported "Section Block" HTML template as a block ──

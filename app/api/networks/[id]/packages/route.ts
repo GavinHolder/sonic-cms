@@ -28,6 +28,7 @@ export async function POST(
       kind: body.kind === "VAS" ? "VAS" : "DATA",
       term: body.term || null,
       categoryId: body.categoryId || null,
+      productTypeId: body.productTypeId || null,
       popular: body.popular ?? false,
       isActive: body.isActive ?? true,
       order: body.order ?? 0,

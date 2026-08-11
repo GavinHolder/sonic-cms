@@ -22,8 +22,18 @@ interface Pkg {
   kind?: "DATA" | "VAS";
   term?: string | null;
   categoryId?: string | null;
+  productTypeId?: string | null;
 }
 interface ServiceCategory { id: string; name: string; order: number; isActive: boolean; }
+interface ProductType {
+  id: string;
+  name: string;
+  slug: string;
+  icon?: string | null;
+  color: string;
+  order: number;
+  isActive: boolean;
+}
 
 // Fixed term lists per package kind (decoupled — data vs value-added billing)
 const TERMS: Record<"DATA" | "VAS", string[]> = {
@@ -70,6 +80,9 @@ export default function NetworksManager() {
   const [newCategory, setNewCategory] = useState("");
   const [vasEnabled, setVasEnabled] = useState(false);
 
+  const [productTypes, setProductTypes] = useState<ProductType[]>([]);
+  const [ptModal, setPtModal] = useState<Partial<ProductType> | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -84,7 +97,11 @@ export default function NetworksManager() {
     try { const r = await fetch("/api/service-categories"); if (r.ok) setCategories(await r.json()); } catch { /* ignore */ }
   }, []);
 
-  useEffect(() => { load(); loadCategories(); }, [load, loadCategories]);
+  const loadProductTypes = useCallback(async () => {
+    try { const r = await fetch("/api/product-types"); if (r.ok) setProductTypes(await r.json()); } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { load(); loadCategories(); loadProductTypes(); }, [load, loadCategories, loadProductTypes]);
   useEffect(() => {
     fetch("/api/features/coverage-maps")
       .then((r) => (r.ok ? r.json() : null))
@@ -103,6 +120,35 @@ export default function NetworksManager() {
     setConfirm({ title: "Delete category", message: `Delete "${c.name}"? Packages using it become uncategorised.`, onConfirm: async () => {
       const res = await fetch(`/api/service-categories/${c.id}`, { method: "DELETE" });
       if (res.ok) { loadCategories(); toast.success("Category deleted"); } else toast.error("Delete failed");
+      setConfirm(null);
+    } });
+
+  // ── Product Types (Product Card Grid Layer 1 scope) ──────────────────────────
+  const saveProductType = async () => {
+    if (!ptModal) return;
+    const isNew = !ptModal.id;
+    const payload = {
+      name: ptModal.name?.trim(),
+      slug: ptModal.slug,
+      icon: ptModal.icon || "",
+      color: ptModal.color || "#22c55e",
+      order: ptModal.order ?? 0,
+      isActive: ptModal.isActive ?? true,
+    };
+    if (!payload.name) { toast.error("Name required"); return; }
+    const res = await fetch(isNew ? "/api/product-types" : `/api/product-types/${ptModal.id}`, {
+      method: isNew ? "POST" : "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) { toast.success(`Product type ${isNew ? "created" : "updated"}`); setPtModal(null); loadProductTypes(); }
+    else toast.error("Save failed");
+  };
+
+  const deleteProductType = (pt: ProductType) =>
+    setConfirm({ title: "Delete product type", message: `Delete "${pt.name}"? Packages using it become unassigned.`, onConfirm: async () => {
+      const res = await fetch(`/api/product-types/${pt.id}`, { method: "DELETE" });
+      if (res.ok) { loadProductTypes(); toast.success("Product type deleted"); } else toast.error("Delete failed");
       setConfirm(null);
     } });
 
@@ -170,6 +216,7 @@ export default function NetworksManager() {
       kind: pkg.kind ?? "DATA",
       term: pkg.term ?? null,
       categoryId: pkg.categoryId ?? null,
+      productTypeId: pkg.productTypeId ?? null,
       popular: pkg.popular ?? false,
       isActive: pkg.isActive ?? true,
       order: pkg.order ?? 0,
@@ -231,6 +278,32 @@ export default function NetworksManager() {
             <button className="btn btn-outline-primary" onClick={addCategory}><i className="bi bi-plus-lg" /></button>
           </div>
         </div>
+      </div></div>
+
+      {/* Product types (Product Card Grid Layer 1 scope) */}
+      <div className="card shadow-sm mb-3"><div className="card-body">
+        <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+          <strong className="small"><i className="bi bi-grid-3x3-gap me-1" />Product Types</strong>
+          <button className="btn btn-outline-primary btn-sm" onClick={() => setPtModal({ color: "#22c55e", isActive: true, order: productTypes.length })}>
+            <i className="bi bi-plus-lg me-1" />Add Product Type
+          </button>
+        </div>
+        {productTypes.length === 0 ? (
+          <p className="text-muted small mb-0">No product types yet — add one to enable the Product Card Grid block in the Designer.</p>
+        ) : (
+          <div className="d-flex flex-wrap align-items-center gap-2">
+            {productTypes.map((pt) => (
+              <span key={pt.id} className="badge text-bg-light border d-inline-flex align-items-center gap-1" style={{ fontSize: 12 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 3, background: pt.color, display: "inline-block" }} />
+                {pt.icon ? <i className={pt.icon} /> : null}
+                {pt.name}
+                {!pt.isActive && <span className="text-muted">(hidden)</span>}
+                <button type="button" className="btn btn-sm btn-link p-0 ms-1" style={{ fontSize: 11, lineHeight: 1 }} aria-label="Edit" onClick={() => setPtModal(pt)}><i className="bi bi-pencil" /></button>
+                <button type="button" className="btn-close" style={{ fontSize: 8 }} aria-label="Delete" onClick={() => deleteProductType(pt)} />
+              </span>
+            ))}
+          </div>
+        )}
       </div></div>
 
       {loading ? (
@@ -344,6 +417,36 @@ export default function NetworksManager() {
         </div>
       )}
 
+      {/* Product type modal */}
+      {ptModal && (
+        <div className="modal d-block" style={{ background: "rgba(0,0,0,0.5)" }} onClick={() => setPtModal(null)}>
+          <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content">
+              <div className="modal-header"><h5 className="modal-title">{ptModal.id ? "Edit" : "Add"} Product Type</h5>
+                <button className="btn-close" onClick={() => setPtModal(null)} /></div>
+              <div className="modal-body d-flex flex-column gap-3">
+                <div><label className="form-label">Name</label>
+                  <input className="form-control" value={ptModal.name || ""} onChange={(e) => setPtModal({ ...ptModal, name: e.target.value })} placeholder="e.g. Fibre" /></div>
+                <div className="row">
+                  <div className="col"><label className="form-label">Icon <span className="text-muted">(optional Bootstrap Icons class)</span></label>
+                    <input className="form-control" value={ptModal.icon || ""} onChange={(e) => setPtModal({ ...ptModal, icon: e.target.value })} placeholder="bi bi-wifi" /></div>
+                  <div className="col-auto"><label className="form-label">Colour</label>
+                    <input type="color" className="form-control form-control-color" value={ptModal.color || "#22c55e"} onChange={(e) => setPtModal({ ...ptModal, color: e.target.value })} /></div>
+                  <div className="col-auto" style={{ width: 90 }}><label className="form-label">Order</label>
+                    <input className="form-control" type="number" value={ptModal.order ?? 0} onChange={(e) => setPtModal({ ...ptModal, order: parseInt(e.target.value, 10) || 0 })} /></div>
+                </div>
+                <div className="form-check form-switch"><input className="form-check-input" type="checkbox" id="pt-active" checked={ptModal.isActive ?? true} onChange={(e) => setPtModal({ ...ptModal, isActive: e.target.checked })} />
+                  <label className="form-check-label" htmlFor="pt-active">Active</label></div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setPtModal(null)}>Cancel</button>
+                <button className="btn btn-primary" onClick={saveProductType}>Save</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Package modal */}
       {pkgModal && (
         <div className="modal d-block" style={{ background: "rgba(0,0,0,0.5)" }} onClick={() => setPkgModal(null)}>
@@ -369,6 +472,13 @@ export default function NetworksManager() {
                     <select className="form-select" value={pkgModal.pkg.term ?? ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, term: e.target.value || null } })}>
                       <option value="">— None —</option>
                       {TERMS[pkgModal.pkg.kind ?? "DATA"].map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select></div>
+                </div>
+                <div className="row">
+                  <div className="col"><label className="form-label">Product Type <span className="text-muted">(optional — for the Product Card Grid block)</span></label>
+                    <select className="form-select" value={pkgModal.pkg.productTypeId ?? ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, productTypeId: e.target.value || null } })}>
+                      <option value="">— None —</option>
+                      {productTypes.filter((pt) => pt.isActive).map((pt) => <option key={pt.id} value={pt.id}>{pt.name}</option>)}
                     </select></div>
                 </div>
                 <div className="row">
