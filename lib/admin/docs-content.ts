@@ -1464,6 +1464,12 @@ Slots are placeholder regions in the Volt design that can be filled with live co
 | **Image** | Upload an image to fill the image slot |
 | **Action label** | Button text |
 
+### Linked Product (data-bound cards)
+
+Above the slot overrides, **Linked Product** binds this Volt block to a coverage **Package** (grouped by network in the dropdown). Any slot in the design that was bound to a product field in Volt Studio — name, speed (combined / download / upload), price, period, options — then fills itself from that product's live values. Choose **— None (manual text) —** to unbind and fall back to the manual slot overrides.
+
+Editing the product in admin updates every card linked to it; no re-authoring in Volt Studio. Full walkthrough: **Volt Designer → Data-Bound Product Cards**.
+
 ### Layer Colors (per-instance overrides)
 
 The **Layer Colors** section in the Properties panel lists every vector layer in the Volt design. You can override each layer's fill color and show/hide it for this specific instance — without modifying the master Volt design.
@@ -1552,6 +1558,45 @@ An embedded contact form that submits to the site's \`/api/contact\` endpoint. C
 On submission the form shows a success checkmark or an inline error message. The same SMTP settings used for CTA contact forms apply here.
 
 **Typical use:** Pair with a Text Block in the *Contact Split* preset — contact details on the left, Contact Form on the right.
+
+---
+
+## 17. Section Template 📄
+
+Drops a saved **Section Block** template onto the canvas as one positioned block. Use it for a design that arrived as external HTML (an imported card, banner or pricing panel) that you want to place and position like any other block instead of rebuilding it.
+
+It behaves exactly like the Volt block: drag in, position/resize on the canvas, and the content itself is edited elsewhere (in Templates admin) — never inside the block.
+
+### Step 1 — import the template with "Section Block" scope
+
+1. Go to **Admin → Content → Templates**
+2. Click **Import Template** and pick the \`.html\` / \`.htm\` / \`.zip\` file
+3. In the **Use as** radio group, choose **Section Block (Flexible Designer)** (the default is *Standalone Page*)
+4. Fix any checklist items (phone / email / logo / media slots) as usual, name it, and **Save to Library**
+
+The template is stored with type **Block** — it shows its own **Block** stat card, filter tab and badge in the Template Library.
+
+### Step 2 — drag it into a section
+
+1. Open a **FLEXIBLE** section in the Designer
+2. Open the **📄 Templates** tab in the left library panel — it lists every Section Block template (with a thumbnail preview)
+3. Drag one onto the canvas — it drops as a 300 × 300 block at the cursor, then position and resize it like any block
+
+If the tab is empty it tells you so: import one via **Templates → Import** with the *Section Block* scope.
+
+### Properties
+
+| Control | Function |
+|---------|----------|
+| **Template name + ID** | The bound template (shown at the top of the panel) |
+| **Change template** | Swap this block to a different Section Block template in place |
+| **Position & Size / Custom CSS** | Standard block controls |
+
+The block has **no sub-elements and no Edit-Content** — its markup and CSS live in the template. Edit the content in **Templates** admin and every block using it follows.
+
+### CMS variables
+
+The template's HTML is rendered with \`{{cms.*}}\` and \`{{cms.media.*}}\` tokens resolved at display time, so an imported design keeps using the site's live phone, email, logo and media-slot values. See **Template Library → CMS Variables**.
 
 ---
 
@@ -1964,7 +2009,7 @@ The centre column: a header/toolbar over the artboard. The canvas is a fixed **1
 | **Tablet** | 768px. Grid/mosaic = editable per-tablet positions; FREE = scaled-stage preview (read-only). | 768px | Check / adjust tablet |
 | **Mobile** | 375px. Same free-vs-grid behaviour as tablet. Resize handles hidden in mobile. | 375px | Check / adjust mobile |
 | **Reset (device)** | \`resetDevicePositions()\` — clears tablet/mobile overrides. Appears only in grid/mosaic tablet/mobile mode. | — | Discard responsive overrides |
-| **Zoom** − / + / 1:1 | \`adjustUserZoom(±0.1)\` / \`resetUserZoom()\`. Also Ctrl+scroll and Ctrl +/−/0. | 0.25–2.0 · **100%** | Zoom into detail work |
+| **Zoom** − / + / 1:1 | \`adjustUserZoom(±0.1)\` / \`resetUserZoom()\` (1:1 also recentres the canvas). Also the scroll wheel and Ctrl +/−/0. | 0.25–3.0 · **100%** | Zoom into detail work |
 | **Section BG toggle** (🖼) | \`toggleSectionBg()\` — overlays the section's configured background on the canvas. View-only, never saved. | on / off · **ON** | See contrast against the real BG |
 | **Preview eye** | \`previewSection()\` — saves + posts \`FLEXIBLE_DESIGNER_PREVIEW\` so the parent shows a live render. | — | See the true front-end output |
 
@@ -1996,6 +2041,20 @@ The centre column: a header/toolbar over the artboard. The canvas is a fixed **1
 | **Group move** | A multi-selection drags together by one delta |
 | **Drop conflict (grid)** | Popup: **Replace** / **Stack** / **Cancel** when a target cell is occupied |
 | **Click empty canvas** | Deselects everything and exits edit mode |
+
+## Canvas navigation (pan & zoom)
+
+Navigation now matches **Volt Studio** — it works with any tool active and never changes the design.
+
+| Gesture | Behaviour |
+|---------|-----------|
+| **Scroll wheel** | Zooms the canvas — **no Ctrl needed** — and zooms **toward the cursor**, so the point under the pointer stays put. Range 0.25–3.0 |
+| **Ctrl / Cmd + wheel** | Also zooms — use it when the canvas area is scrolling instead (see below) |
+| **Middle-mouse drag** | Pans the canvas freely (cursor becomes a grab hand). Works at any zoom, with any tool |
+| **1:1 button** | Resets zoom **and** the pan offset — one click to get back to a centred 100% view |
+
+- **Exception:** in **Multi Section** mode and the **mobile-stacking** preview, where the canvas area is genuinely scrollable, a plain wheel keeps scrolling so content below the fold stays reachable — hold **Ctrl / Cmd** to force zoom there.
+- Pan and zoom are **view-only**: they are never saved with the section, exactly like the guide toggles.
 
 > Full keyboard shortcuts are on the **Layers, Menus & Shortcuts** page.
 `;
@@ -2138,6 +2197,17 @@ The right panel is **context-sensitive**: an empty prompt with nothing selected;
   <div class="fig-cap">Grid-mode Position replaces callout 3 with Row / Column / Col Span / Row Span / V-Align (Top/Mid/Bot) + Full-Width / Full-Height / Reset 1×1. Mosaic replaces it with a Block-Size preset: Large 6×2, Medium 4×2, Small 4×1, Tall 4×2, Wide 8×1, Mid 6×1.</div>
 </div>
 
+### In front of Lower Third (free mode)
+
+Below the Position & Size controls, free-mode blocks have an **In front of Lower Third** checkbox.
+
+| State | Result |
+|-------|--------|
+| **Off** (default) | The block keeps its normal stacking — the section's Lower Third band paints over it |
+| **On** | The block is re-drawn above the Lower Third band (still below Motion Elements), so it appears in front of the graphic |
+
+Per block, opt-in and undoable. It only has an effect when the section actually has a **Lower Third** enabled; with no block opted in, the section renders exactly as before. Use it when one element — a card, a logo, a badge — should break out over the lower-third graphic while the rest of the design sits behind it.
+
 > These tables are the exhaustive control reference. Prose usage guides for each block live on the **Block Library & Elements** page.
 
 ## Type-specific block Settings
@@ -2202,8 +2272,18 @@ Volt is documented in its own package — here you only bind, slot-override and 
 | Control | Function |
 |---------|----------|
 | **Volt name + Change** | Shows the bound Volt design (name + short ID); **Change** opens Volt Studio (\`openVoltModal\`) |
+| **Linked Product** | Binds the block to a coverage **Package** (dropdown grouped by network; **None** = manual text). Slots bound to \`pkg.*\` fields in Volt Studio fill from the product's live values; passed to the preview iframe as \`productId\` |
 | **Content Slots** | Override Title, Body, Icon (bi-* / emoji), Image (media picker), Action label. Pushed live into the Volt preview iframe via URL params |
 | **Layer Colors** | Per vector layer: visibility checkbox + fill color; dot marks overrides; **Reset** clears all. Loaded from \`/api/public/volt/{id}\` |
+
+### Section Template block
+
+| Control | Function |
+|---------|----------|
+| **Template name + ID** | The bound Section Block template |
+| **Change template** | Dropdown of every \`type=block\` template — swaps this block's markup in place |
+
+Like Volt, this block has **no sub-elements and no Edit-Content**; content is edited in Templates admin.
 
 ## Sub-element properties (per type)
 
@@ -4001,6 +4081,13 @@ export const LOWER_THIRD_DOCS = `
   </table>
 </div>
 
+<div class="alert alert-info small">
+  <strong>Letting one element sit in front of the band.</strong> In a FLEXIBLE (Designer) section using free positioning, each block has an
+  <strong>In front of Lower Third</strong> checkbox in its Properties panel (below Position &amp; Size). Turn it on and that block is drawn
+  above the Lower Third graphic — still below Motion Elements. It is off by default and per block, so the rest of the design stays behind
+  the band. Only has an effect when the section has a Lower Third enabled.
+</div>
+
 <h5 class="mt-4">8 Preset Shapes</h5>
 <p>Click any preset in the <strong>Lower Third</strong> tab of the Normal or CTA section editor to apply it.</p>
 
@@ -5097,6 +5184,8 @@ Each layer has a **role** that indicates its semantic purpose. Role does **not**
 
 When a layer is selected, 8 white square resize handles appear at the corners and edges.
 Drag any handle to resize. The layer's path data is updated in real-time.
+
+A **rotate handle** (circle above the top-centre handle) appears for **every** layer type — vector, text, **image**, **slot** and **3D object**. Drag it to rotate; hold **Shift** to snap to 15° steps. Rotation is applied on the canvas *and* in the live render, so a rotated image or slot looks the same on the published page.
 `;
 
 const VOLT_VERTEX = `
@@ -5121,12 +5210,56 @@ The canvas shows:
 | Action | Result |
 |--------|--------|
 | **Drag orange vertex** | Move that anchor point |
+| **Shift + drag vertex** | Axis-lock — movement is constrained to horizontal *or* vertical (whichever way you have travelled further), so straight edges stay straight. Keep dragging to flip axis |
+| **Ctrl + drag vertex** | Slide the point **along its own edge** — the silhouette is preserved. On a curved node it slides along the local tangent; on a straight segment it projects onto the line through the previous → next anchors |
+| **Click on the shape outline** | Insert a **corner** point there and start dragging it immediately (no modifier needed). A preview dot shows where the point will land |
+| **C** | Toggle the selected point between **corner** and **smooth** (smooth builds symmetric Bezier handles). Also available as a button on the vertex toolbar |
+| **Select a point + Delete / Backspace** | Delete **only that anchor point** and re-stitch the outline — never the whole layer. Ignored at the minimum (3 points closed, 2 points open) |
 | **Drag dashed indigo dot** | Pull out a Bezier curve handle — creates a smooth curve on that edge |
 | **Shift + drag handle** | Symmetric smooth node — opposite handle mirrors automatically |
 | **Alt + click edge** | Insert a new vertex at that point on the edge |
 | **Alt + double-click vertex** | Delete that vertex (minimum 3 retained) |
-| **Ctrl + drag** | Snap to grid while moving |
+| **Ctrl + drag** (handles / other drags) | Snap to grid while moving |
 | **Esc** | Exit vertex edit mode |
+
+The selected point is highlighted, so \`C\` and \`Delete\` always act on an unambiguous target.
+
+> **Context hint bar:** the strip above the canvas is always visible and lists the live key bindings for whatever you are doing — **Vertex Edit**, **Polygon Tool**, **Pen**, **Drawing**, **Bool Edit** or idle. It is display-only (never intercepts clicks), so you don't have to memorise the table above.
+
+---
+
+## Polygon Tool — straight sides & drag-out
+
+The Polygon tool (\`P\`) still commits plain \`M\`/\`L\`/\`Z\` geometry, and now:
+
+| Action | Result |
+|--------|--------|
+| **Click** | Add a point |
+| **Shift (hold)** | Constrain the new side to **45° increments** — clean straight drag-out |
+| **Ctrl (hold)** | Snap to grid |
+| **Click the first point** / **Enter** / **double-click** | Close & commit |
+| **Backspace** | Remove the last point |
+
+Straight clicks stay straight — a click no longer curves the side it was placed on.
+
+---
+
+## Per-state shape editing (REST ⇄ HOVER)
+
+The **REST / HOVER** switcher in the tool palette now governs shape editing too, not just numeric override fields. With **HOVER** active (amber artboard outline), on-canvas edits write to that state's **override** and leave the base shape untouched:
+
+| Edit made while HOVER is active | Where it is stored |
+|---------------------------------|--------------------|
+| Drag the layer (single or multi-selection) | hover override \`x\` / \`y\` |
+| Drag a resize handle | hover override \`width\` / \`height\` |
+| Drag the rotate handle | hover override \`rotation\` |
+| Move vertices / pull handles (vertex edit) | hover override **\`pathData\`** — a complete per-state outline |
+
+- The canvas **reflects the hover values while you edit**, so what you see is what hovers.
+- A hover \`pathData\` override is an **instant swap** on hover (no morph tween) and snaps back to the base outline at rest.
+- Everything here is opt-in: a layer with no override renders exactly as before, and switching back to **REST** edits the base shape as always.
+
+**Typical use:** design the card at rest, switch to **HOVER**, then nudge/rotate/re-cut a shape so it moves or changes silhouette when the visitor hovers the card.
 
 ---
 
@@ -5234,8 +5367,50 @@ Preview mode shows:
 ## Slot Properties
 
 Select a slot layer to edit in **Layer Properties**:
-- **Slot Type** — change the type (updates label automatically)
+- **Slot Type** — change the type (updates label automatically). The **body** type is labelled **Paragraph** in the type picker
 - **Slot Label** — custom label shown in design mode
+- **Bind to Product Field** — pull this slot's text from a linked product instead of typing it (see *Data-Bound Product Cards*)
+- **Overflow Fit** — what happens when the text is longer than the slot box
+- **Typography** — the real font/size/weight/colour/alignment used on the live page
+
+### Overflow Fit
+
+| Option | Behaviour |
+|--------|-----------|
+| **Clip** (default) | Text is cut off at the slot edge — the historical behaviour |
+| **Ellipsis (…)** | Text is truncated with a trailing ellipsis |
+| **Shrink to fit** | Text is scaled down until it fits inside the slot box |
+
+Because slots are absolutely positioned, a long value can never reflow the card — Overflow Fit only decides how the overflow itself is handled. Set it per slot; **Shrink to fit** is the safest choice for price/speed values that vary between products.
+
+### Typography
+
+Available on every text-bearing slot type (title, body/paragraph, action, badge, input, custom — not image/icon). These are the **real** values applied to the published page, not a design-time preview:
+
+| Control | Options |
+|---------|---------|
+| **Family** | *Inherit (default)* plus a curated list — Inter, Roboto, Poppins, Montserrat, Open Sans, Lato, Nunito, Playfair Display, Merriweather, Bebas Neue, Georgia, Arial. Google Fonts are loaded on selection |
+| **Size** | 6–200 px |
+| **Weight** | Light 300 · Regular 400 · Medium 500 · SemiBold 600 · Bold 700 · ExtraBold 800 · Black 900 |
+| **Color** | Colour picker + hex field |
+| **Align** | Left · Centre · Right |
+
+> **Don't confuse the two colour fields.** On **input** and **action** slots, *Skin Preview Text* colours the placeholder \`<input>\` drawn on the Studio canvas only. The published text colour is **Typography → Color**.
+
+### Body / Paragraph slots
+
+A **body** slot renders as multi-line copy — top-aligned, natural wrapping and a comfortable line-height (1.5 by default). Every other slot type keeps its vertically-centred single-line render.
+
+### On-canvas appearance & binding indicator
+
+In design mode a slot is a light, low-obstruction placeholder — a 1px dashed outline with a faint tint that strengthens when the slot is selected:
+
+| Slot state | Outline / tint | Labels shown |
+|-----------|----------------|--------------|
+| **Unbound** | Green | \`Label (type)\` |
+| **Bound to a product field** | Indigo | the slot type, plus a white **→ Field** pill (e.g. \`→ Price\`, \`→ Speed ↓\`) |
+
+So you can tell at a glance which slots are live data and which are manual text, without opening the inspector.
 
 ---
 
@@ -5272,6 +5447,68 @@ Use the **Input** slot type to design a custom text-input skin. The slot defines
 | **Border Color** | Outline colour |
 | **Border Width** | Outline thickness in px |
 | **Border Radius** | Corner rounding in px |
+`;
+
+const VOLT_PRODUCT_BINDING = `
+# Volt Designer — Data-Bound Product Cards
+
+Design **one** Volt card, then point it at a product. Slots that are bound to a product field fill themselves from that product's live values at render time — change the price in admin and every card showing it updates, with no re-authoring in Volt Studio.
+
+Products are the **Packages** managed by the coverage plugin (Admin → Features → Coverage Maps → Packages).
+
+---
+
+## Step 1 — bind the slots (Volt Studio)
+
+1. Select a slot layer
+2. In **Layer Properties → Bind to Product Field**, pick the field it should show
+3. Set **Overflow Fit** (Clip / Ellipsis / Shrink to fit) so a long value from another product still fits the box
+4. Leave the field on **None (manual)** for any slot that should keep the text typed into it
+
+Bound slots turn **indigo** on the canvas and show a **→ Field** pill, so the design reads as a template rather than fixed copy.
+
+### Bindable fields
+
+| Option in the dropdown | Value shown |
+|------------------------|-------------|
+| **None (manual)** | The slot's own text — no binding |
+| **Name** | Package name |
+| **Speed (combined)** | Download / upload as one label, e.g. \`100 / 100 Mbps\` |
+| **Speed — Download** | Download speed only |
+| **Speed — Upload** | Upload speed only |
+| **Price** | The raw price value alone (no period) |
+| **Price (combined w/ period)** | Price + period as one string, e.g. \`R699/month\` |
+| **Period** | The billing period on its own (e.g. \`/month\`) |
+| **Options (max 5)** | The package's features — **one per line**, capped at the first 5 |
+
+> **Price and Period are separate slots** by design, exactly like download/upload speed — so you can style the number large and the period small. Use **Price (combined w/ period)** only when you want both in one slot.
+
+Missing product fields resolve to an empty string — a sparse product never prints \`null\` or \`undefined\` on the card.
+
+---
+
+## Step 2 — link the product (Flexible Designer)
+
+1. Drop the Volt design onto the canvas as a **⚡ Volt** block
+2. Select the block → **Content Slots → Linked Product**
+3. Choose a product from the dropdown (grouped by network), or **— None (manual text) —** to unbind
+
+The block preview refreshes immediately with that product's live values, so what you see on the canvas is what the page renders.
+
+| Behaviour | Result |
+|-----------|--------|
+| Product linked | Bound slots show the product's values; unbound slots keep their manual overrides |
+| No product linked | Every slot falls back to its manual text — the card still renders |
+| Product edited in admin | Every card linked to it updates on the next page load |
+| Same design, different products | Drop the Volt block once per product and link each one — one design, a whole pricing grid |
+
+---
+
+## Notes
+
+- Slots are absolutely positioned, so injected values **never reflow** the card — long values are handled by **Overflow Fit**, not by pushing the layout around.
+- Binding lives on the **slot** (part of the design) while the product link lives on the **block** (part of the page) — that separation is what lets one design serve many products.
+- **Options** binds to a newline list, so give that slot enough height for up to 5 lines (it renders top-aligned, one item per line).
 `;
 
 const VOLT_EFFECTS = `
@@ -5773,8 +6010,12 @@ Each layer can define hover overrides that animate when the user hovers over the
 | **Position (X/Y)** | Translate layer on hover |
 | **Rotation** | Rotate layer on hover |
 | **Fill** | Change colour/fill on hover |
+| **Size (W/H)** | Resize the layer on hover |
+| **Shape outline** | A per-state outline (\`pathData\`) — the shape's silhouette swaps on hover |
 
-Hover transitions animate smoothly between rest and hover states using the layer's configured easing.
+Hover transitions animate smoothly between rest and hover states using the layer's configured easing. A **shape-outline** override is the exception: it swaps instantly on hover and restores the base outline at rest.
+
+You don't have to type these values in: switch the tool palette to **HOVER** and drag, resize, rotate or vertex-edit the layer directly on the canvas — the edit is written to the hover override, never to the base shape. See *Vertex & Bezier Editing → Per-state shape editing*.
 
 ---
 
@@ -6065,7 +6306,7 @@ Hit-testing skips both **hidden** and **locked** layers, so they never intercept
 - **Dot grid** — radial-dot background sized to Grid Size; each dot sits on a snap point.
 - **Bleed zone** — dashed inset shown when Canvas Overflow = visible; layers flagged "Bleed" may extend past the card edge.
 - **Empty-canvas hint** — "Pick a tool and start drawing" card with the R/E/L/P/S key cheatsheet, shown while there are no layers.
-- **Contextual key legend** — status strip that swaps its shortcut list per tool / mode (idle, pen, drawing, vertex, bool).
+- **Contextual key legend** — always-visible status strip above the canvas that swaps its shortcut list per tool / mode (idle, pen, drawing, polygon, vertex, bool). Display-only: it never intercepts canvas clicks.
 - **Vertex ROUND bar** — floats above the zoom bar only during vertex editing.
 `;
 
@@ -6916,16 +7157,19 @@ You can also **import** an external HTML or ZIP file directly into the library �
 | **Standalone** | Full HTML + CSS + linked CSS files + media slots | Standalone page editor — **Save as Template** |
 | **Section** | One section's Designer JSON (background, blocks, spacing, overlays) | Landing page — bookmark icon on any section row |
 | **Page** | Full page layout payload | (built-in / page-level) |
+| **Block** | HTML + CSS + media slots for **one** block, draggable into a FLEXIBLE section | **Import Template** — set **Use as** = *Section Block* |
+
+> **Block** templates (teal badge, puzzle icon) are the Flexible Designer's **📄 Templates** library tab: they are dragged onto the canvas as a single positioned block. See *Flexible Sections → Block Library & Elements → Section Template*.
 
 ---
 
 ## The Template Library Page
 
-The landing screen has a header with one action (**Import**), a row of four clickable **stat cards** that double as type filters, a **search + tab** filter strip, and a responsive **grid of template cards**. Everything reads from \`GET /api/templates\` with the current filters as query params.
+The landing screen has a header with one action (**Import**), a row of clickable **stat cards** that double as type filters (All / Standalone / Section / Page / Block), a **search + tab** filter strip, and a responsive **grid of template cards**. Everything reads from \`GET /api/templates\` with the current filters as query params.
 
 <div class="fig map"><span class="tag">Interface map</span><div class="fig-body"><div class="mock-panel"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px"><div><b>★ Template Library ①</b><div class="hint">Reusable templates for standalone pages, sections, and page layouts.</div></div><button class="btnp">⬆ Import Template ②</button></div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px"><div style="border:2px solid var(--primary);border-radius:8px;padding:8px;background:#fff"><b style="font-size:16px">7</b><div class="hint">All ③</div></div><div style="border:1px solid var(--line);border-radius:8px;padding:8px;background:#fff"><b style="font-size:16px">3</b><div class="hint">Standalone</div></div><div style="border:1px solid var(--line);border-radius:8px;padding:8px;background:#fff"><b style="font-size:16px">3</b><div class="hint">Section</div></div><div style="border:1px solid var(--line);border-radius:8px;padding:8px;background:#fff"><b style="font-size:16px">1</b><div class="hint">Page</div></div></div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><span class="input" style="width:auto;flex:1;color:var(--faint)">🔍 Search templates… ④</span><button class="btnp" style="padding:4px 10px">All ⑤</button><button class="btno" style="padding:4px 10px">Standalone</button><button class="btno" style="padding:4px 10px">Section</button><button class="btno" style="padding:4px 10px">Page</button></div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px"><div style="border:1px solid var(--line);border-radius:9px;overflow:hidden"><div style="height:38px;background:#f3f4f6"></div><div style="padding:8px"><b style="font-size:12px">OVB Landing ⑥</b><div style="margin-top:4px"><span class="chip warn">Standalone</span></div><div style="margin-top:6px;display:flex;gap:3px"><span class="btnp" style="padding:3px 7px;font-size:11px">🚀 ⑦</span><span class="btno" style="padding:3px 7px;font-size:11px">⟨⟩</span><span class="btno" style="padding:3px 7px;font-size:11px">📈</span><span class="btnd" style="padding:3px 7px;font-size:11px">🗑</span></div></div></div><div style="border:1px solid var(--line);border-radius:9px;overflow:hidden"><div style="height:38px;background:#f3f4f6"></div><div style="padding:8px"><b style="font-size:12px">Modern Hero</b><div style="margin-top:4px"><span class="chip blue">Section</span> <span class="chip blue">HERO</span></div></div></div><div style="border:1px solid var(--line);border-radius:9px;overflow:hidden"><div style="height:38px;background:#f3f4f6"></div><div style="padding:8px"><b style="font-size:12px">Services Layout</b><div style="margin-top:4px"><span class="chip info">Page</span> <span class="chip">Built-in</span></div></div></div></div></div></div><div class="fig-cap"><b>Empty state:</b> when nothing matches, a centred bookmark-star reads "No templates yet — go to any standalone page editor or section editor and click <b>Save as Template</b>." <b>Loading:</b> centred spinner "Loading templates…".</div></div>
 
-**Callouts:** ① static "Template Library" heading · ② **Import** — the only control on this page that *creates* a template, and it produces **standalone** templates only (see Import below) · ③ **stat cards** — live counts computed client-side; clicking one sets the type filter (active card gets a coloured border) · ④ **search** — filters by name (\`?search=\`, case-insensitive contains) · ⑤ **type tabs** — All / Standalone / Section / Page (mirror the stat cards); a section sub-filter appears only when Section is active · ⑥ **card grid** — 1 / 2 / 3 columns (mobile / md / lg); order is built-in first, then most-used, then newest · ⑦ **action footer** — per-card buttons that vary by type.
+**Callouts:** ① static "Template Library" heading · ② **Import** — the only control on this page that *creates* a template; it produces **Standalone** or **Block** templates depending on the **Use as** choice (see Import below) · ③ **stat cards** — live counts computed client-side; clicking one sets the type filter (active card gets a coloured border) · ④ **search** — filters by name (\`?search=\`, case-insensitive contains) · ⑤ **type tabs** — All / Standalone / Section / Page / Block (mirror the stat cards); a section sub-filter appears only when Section is active · ⑥ **card grid** — 1 / 2 / 3 columns (mobile / md / lg); order is built-in first, then most-used, then newest · ⑦ **action footer** — per-card buttons that vary by type.
 
 ### Card actions by type
 
@@ -6995,7 +7239,16 @@ If **Set as homepage** is ticked, a final \`PATCH /api/site-config\` points \`/\
 
 ## Importing a Template (HTML or ZIP)
 
-Click **Import Template** on the Templates page to bring in a design from outside the CMS. **Import always yields a Standalone template** — there is no section/page importer. On upload the server analyses the markup, auto-handles what it can, and surfaces an interactive checklist of things to wire to live CMS data before saving.
+Click **Import Template** on the Templates page to bring in a design from outside the CMS. On upload the server analyses the markup, auto-handles what it can, and surfaces an interactive checklist of things to wire to live CMS data before saving.
+
+Import produces one of **two** types, chosen with the **Use as** radio group in the modal (there is no section/page importer):
+
+| Use as | Saved as | Where it is used |
+|--------|----------|------------------|
+| **Standalone Page** (default) | \`standalone\` | **Use as Page** — becomes a whole live page |
+| **Section Block (Flexible Designer)** | \`block\` | The Designer's **📄 Templates** tab — dragged in as one block inside a FLEXIBLE section |
+
+Everything else in the modal is identical for both: the same auto-handling, the same fix-before-saving checklist, the same media slots and name field.
 
 <div class="fig map"><span class="tag">Interface map</span><div class="fig-body"><div class="mock-panel"><div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:10px"><b>⬆ Import Template</b><span style="color:#b3bccb">✕</span></div><div style="border:2px dashed #bfe6da;background:#e4f7f0;border-radius:9px;padding:12px;text-align:center;font-size:12px;color:#0a6b52">✓ <b>ovb-landing.zip</b> (84.2 KB) — click to change file ①</div><div style="border:1px solid #bfe6da;border-radius:8px;margin-top:10px;overflow:hidden"><div style="background:#e4f7f0;padding:6px 10px;font-size:11.5px;color:#0a6b52;font-weight:700">✓ Auto-handled (3) ②</div><div class="hint" style="padding:7px 10px">🖼 6 images uploaded &amp; wired as media slots · 🎨 2 CSS files inlined · JS appended before &lt;/body&gt;</div></div><div style="font-size:11.5px;color:#8a5a00;font-weight:700;margin-top:10px">⚠ Fix before saving (3 items) ③</div><div style="border:1px solid #f0e0bd;background:#fdf6e3;border-radius:7px;padding:8px 10px;margin-top:5px;font-size:11.5px;display:flex;align-items:center;gap:8px">☎ Phone links found<span style="flex:1"></span><span class="chip warn">↻ Replace all with {{cms.phone}}</span></div><div style="font-size:11.5px;font-weight:700;margin-top:10px">Media Slots (6) <span class="chip info">auto-wired</span> ④</div><div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px"><span class="chip info" style="font-family:var(--fig-mono)">{{cms.media.hero-bg}}</span><span class="chip info" style="font-family:var(--fig-mono)">{{cms.media.logo}}</span></div><label class="lbl" style="margin-top:10px">Template Name *</label><input class="input" value="OVB Landing Page" style="max-width:320px">⑤<div style="background:#212529;color:#9ff0c4;border-radius:7px;padding:8px 10px;font-family:var(--fig-mono);font-size:10.5px;margin-top:10px">&lt;section class="hero"&gt;…  <span style="color:#6b7a99">HTML preview ⑥</span></div><div style="display:flex;align-items:center;margin-top:12px"><span class="hint" style="margin:0">ⓘ Saved as a Standalone template.</span><span style="flex:1"></span><button class="btno">Cancel</button> <button class="btnp">🔖 Save to Library ⑦</button></div></div></div><div class="fig-cap"><b>Callouts:</b> ① drop zone — drag/drop or click, accepts <code>.html</code>, <code>.htm</code>, <code>.zip</code> (POSTs to <code>/api/templates/import</code>) · ② auto-handled panel — images uploaded &amp; slotted, CSS inlined, JS appended (ZIP only) · ③ fix-before-saving checklist — one interactive row per detected issue · ④ media-slots panel — every auto-wired <code>{{cms.media.*}}</code> token · ⑤ name (auto-derived from filename; required) · ⑥ HTML preview (first ~600 chars) · ⑦ Save — <code>POST /api/templates</code> as <code>templateType:"standalone"</code> with all applied fixes baked in.</div></div>
 
@@ -8532,6 +8785,7 @@ export const DOC_TOPICS: DocTopic[] = [
       { id: "volt-roles", label: "Layer Roles", icon: "bi-tags", content: VOLT_ROLES },
       { id: "volt-vertex", label: "Vertex & Bezier Editing", icon: "bi-bezier2", content: VOLT_VERTEX },
       { id: "volt-slots", label: "Slot System", icon: "bi-layout-text-window", content: VOLT_SLOTS },
+      { id: "volt-product-binding", label: "Data-Bound Product Cards", icon: "bi-box-seam", content: VOLT_PRODUCT_BINDING },
       { id: "volt-effects", label: "Layer Properties: Fill, Stroke & Shadow", icon: "bi-palette", content: VOLT_EFFECTS },
       { id: "volt-boolean", label: "Boolean Operations", icon: "bi-intersect", content: VOLT_BOOLEAN },
       { id: "volt-3d", label: "3D Objects", icon: "bi-box", content: VOLT_3D },
