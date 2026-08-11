@@ -20,13 +20,14 @@ interface CmsTemplate {
   updatedAt: string;
 }
 
-type FilterType = "all" | "standalone" | "section" | "page";
+type FilterType = "all" | "standalone" | "section" | "page" | "block";
 type SectionFilter = "all" | "HERO" | "NORMAL" | "CTA" | "FOOTER" | "FLEXIBLE";
 
 const TYPE_INFO: Record<string, { label: string; color: string; icon: string }> = {
   standalone: { label: "Standalone", color: "warning",  icon: "bi-code-slash" },
   section:    { label: "Section",    color: "primary",  icon: "bi-layout-split" },
   page:       { label: "Page",       color: "success",  icon: "bi-file-earmark" },
+  block:      { label: "Block",      color: "info",      icon: "bi-puzzle" },
 };
 
 const SECTION_ICONS: Record<string, string> = {
@@ -411,6 +412,7 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
   const [file, setFile]               = useState<File | null>(null);
   const [name, setName]               = useState("");
   const [desc, setDesc]               = useState("");
+  const [scope, setScope]             = useState<"standalone" | "block">("standalone");
   const [html, setHtml]               = useState("");
   const [css, setCss]                 = useState("");
   const [mediaSlots, setMediaSlots]   = useState<Record<string, string>>({});
@@ -698,7 +700,7 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
         body: JSON.stringify({
           name: name.trim(),
           description: desc.trim() || null,
-          templateType: "standalone",
+          templateType: scope,
           data: {
             customHtml: html,
             customCss: css,
@@ -844,6 +846,35 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
                       onChange={e => setDesc(e.target.value)}
                       placeholder="Short description…"
                     />
+                  </div>
+                </div>
+
+                <div className="mb-3">
+                  <label className="form-label fw-semibold small text-muted mb-2">Use as</label>
+                  <div className="btn-group w-100" role="group">
+                    <input
+                      type="radio"
+                      className="btn-check"
+                      name="templateScope"
+                      id="scope-standalone"
+                      checked={scope === "standalone"}
+                      onChange={() => setScope("standalone")}
+                    />
+                    <label className="btn btn-outline-secondary" htmlFor="scope-standalone">
+                      <i className="bi bi-file-earmark-code me-1" />Standalone Page
+                    </label>
+
+                    <input
+                      type="radio"
+                      className="btn-check"
+                      name="templateScope"
+                      id="scope-block"
+                      checked={scope === "block"}
+                      onChange={() => setScope("block")}
+                    />
+                    <label className="btn btn-outline-secondary" htmlFor="scope-block">
+                      <i className="bi bi-puzzle me-1" />Section Block (Flexible Designer)
+                    </label>
                   </div>
                 </div>
 
@@ -1575,6 +1606,7 @@ export default function TemplatesLibraryPage() {
     standalone: templates.filter(t => t.templateType === "standalone").length,
     section:    templates.filter(t => t.templateType === "section").length,
     page:       templates.filter(t => t.templateType === "page").length,
+    block:      templates.filter(t => t.templateType === "block").length,
   };
 
   return (
@@ -1704,7 +1736,7 @@ export default function TemplatesLibraryPage() {
 
         {/* Stats row */}
         <div className="row g-3 mb-4">
-          {(["all", "standalone", "section", "page"] as FilterType[]).map(type => {
+          {(["all", "standalone", "section", "page", "block"] as FilterType[]).map(type => {
             const info = type === "all" ? { label: "All Templates", color: "secondary", icon: "bi-bookmark-star" } : TYPE_INFO[type];
             const count = counts[type];
             return (
@@ -1749,7 +1781,7 @@ export default function TemplatesLibraryPage() {
 
           {/* Type tabs */}
           <div className="btn-group btn-group-sm">
-            {(["all", "standalone", "section", "page"] as FilterType[]).map(type => (
+            {(["all", "standalone", "section", "page", "block"] as FilterType[]).map(type => (
               <button
                 key={type}
                 className={`btn ${typeFilter === type ? "btn-warning" : "btn-outline-secondary"}`}

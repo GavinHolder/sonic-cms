@@ -1594,6 +1594,7 @@
               <div class="lib-tab active" id="tab-containers" onclick="switchLibTab('containers')">Blocks</div>
               <div class="lib-tab" id="tab-sub" onclick="switchLibTab('sub')">Sub-Els</div>
               <div class="lib-tab" id="tab-volt" onclick="switchLibTab('volt')">⚡ Volt</div>
+              <div class="lib-tab" id="tab-templates" onclick="switchLibTab('templates')">📄 Templates</div>
               <div class="lib-tab" id="tab-layouts" onclick="switchLibTab('layouts')">Layouts</div>
             </div>
 
@@ -1725,6 +1726,19 @@
                 <i class="bi bi-plus-lg me-1"></i>Create New Volt
               </button>
               <div id="volt-lib-items"></div>
+            </div>
+
+            <!-- Section Templates -->
+            <div id="lib-templates" style="display:none;">
+              <div id="template-lib-loading" class="sub-lock-notice">
+                <i class="bi bi-hourglass-split"></i>
+                Loading templates…
+              </div>
+              <div id="template-lib-empty" class="sub-lock-notice" style="display:none;">
+                <i class="bi bi-file-earmark-text"></i>
+                No section templates yet. Import one via Templates → Import, choose "Section Block" scope.
+              </div>
+              <div id="template-lib-items"></div>
             </div>
 
             <!-- Layout Presets -->
@@ -1967,6 +1981,7 @@ const BLOCK_DEFAULTS = {
   html:        { label:'HTML',    html:'<p>Custom HTML</p>', customCss:'' },
   divider:     { label:'Divider', thickness:2, dividerColor:'#dee2e6', customCss:'' },
   volt:        { label:'Volt', bgColor:'transparent', voltId:'', voltName:'', voltThumbnail:null, voltLayerOverrides:{}, customCss:'' },
+  template:    { label:'Template', templateId:'', templateName:'', templateThumbnail:null, customHtml:'<p>Section template</p>', customCss:'', mediaSlots:{} },
   editorial:   { label:'Editorial', text:'Start typing your editorial content here. This text will flow around any obstacle images you place in the block. You can use multiple obstacles — each with its own position, size, and alpha hull tracing for precise text wrapping.', fontFamily:'Merriweather', fontSize:18, lineHeight:1.6, textColor:'#212529', bgColor:'transparent', obstacles:[], customCss:'' },
   steps:       { label:'Steps', steps:[{number:'01',heading:'Discovery',subtext:'We analyse your requirements and technical constraints.'},{number:'02',heading:'Design',subtext:'We prototype and validate the solution with stakeholders.'},{number:'03',heading:'Build',subtext:'We implement, test, and deploy the solution.'}], stepsNumberWidth:100, stepsDividers:true, stepsLastDivider:false, customCss:'' },
   'photo-strip':{ label:'Photo Strip', images:[{src:'',alt:''},{src:'',alt:''},{src:'',alt:''}], columns:3, height:220, gap:4, hoverBrightness:true, customCss:'' },
@@ -3240,6 +3255,9 @@ function createBlockPreview(block) {
       break;
     case 'html':
       wrap.innerHTML = `<div class="cb-prev-html">${escHtml(p.html||'').substring(0,60)}…</div>`;
+      break;
+    case 'template':
+      wrap.innerHTML = `<div class="cb-prev-html">${escHtml(p.templateName||'Template')}</div>`;
       break;
     case 'divider':
       wrap.innerHTML = `<div style="padding:10px 0;"><hr style="border-top:${p.thickness}px solid ${p.dividerColor};margin:0;"></div>`;
@@ -4883,6 +4901,35 @@ function onCanvasDrop(e) {
     return;
   }
 
+  if (state.dragSource.kind === 'lib-template') {
+    const rect = canvas.getBoundingClientRect();
+    const _drop_scale = getCanvasScale();
+    const x = (e.clientX - rect.left) / _drop_scale;
+    const y = (e.clientY - rect.top)  / _drop_scale;
+    const blockW = 300;
+    const blockH = 300;
+    const blockX = Math.max(0, Math.min(canvas.offsetWidth  - blockW, x - blockW/2));
+    const blockY = Math.max(0, Math.min(canvas.offsetHeight - blockH, y - blockH/2));
+    const src = state.dragSource;
+    pushHistory();
+    const block = {
+      id: `block-${state.nextId++}`,
+      type: 'template',
+      section: 0, gridRow: 1, gridCol: 1, colSpan: 1, rowSpan: 1,
+      x: blockX, y: blockY, w: blockW, h: blockH,
+      zIndex: 1,
+      props: { ...BLOCK_DEFAULTS['template'], templateId: src.templateId, templateName: src.templateName, templateThumbnail: src.templateThumbnail, customHtml: src.customHtml, customCss: src.customCss, mediaSlots: src.mediaSlots },
+      subElements: []
+    };
+    state.blocks.push(block);
+    selectBlock(block.id);
+    renderCanvas();
+    updateBlockCount();
+    autoSave();
+    state.dragSource = null;
+    return;
+  }
+
   if (state.dragSource.kind === 'lib-block') {
     const canvasArea = canvas.closest('.canvas-area');
     const rect = canvas.getBoundingClientRect();
@@ -6174,6 +6221,29 @@ function renderTypeProps(block) {
         }
         h+=`</div>`;
       }
+      break;
+    }
+    case 'template': {
+      const tName = p.templateName || 'No template selected';
+      loadTemplateLibIfNeeded(); // no-op if already loading/loaded
+      const tOptions = _templateLib.items.map(function(t){
+        return `<option value="${escHtml(t.id)}"${t.id===p.templateId?' selected':''}>${escHtml(t.name)}</option>`;
+      }).join('');
+      h+=`<div style="display:flex;align-items:center;gap:8px;padding:4px 0 10px;border-bottom:1px solid #e9ecef;margin-bottom:10px;">
+        <i class="bi bi-file-earmark-text" style="color:#084298;font-size:18px;flex-shrink:0;"></i>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12px;font-weight:700;color:#212529;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(tName)}</div>
+          ${p.templateId ? `<div style="font-size:10px;color:#adb5bd;">ID: ${escHtml(p.templateId.substring(0,8))}&hellip;</div>` : ''}
+        </div>
+      </div>`;
+      h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;">
+        <label style="margin-bottom:3px;font-size:12px;">Change template</label>
+        <select class="props-input" style="font-size:12px;" onchange="applyTemplateSelection('${block.id}',this.value)">
+          <option value="">— Select a Section Block template —</option>
+          ${tOptions}
+        </select>
+        <div style="font-size:10px;color:#9ca3af;margin-top:4px;">Content is edited in Templates admin, not here.</div>
+      </div>`;
       break;
     }
     case 'editorial': {
@@ -7713,7 +7783,7 @@ function installDesignerFont(bId, sId, safeId) {
  * @returns {string} Bootstrap icon class (e.g. 'bi-layout-text-window').
  */
 function getBlockIcon(type) {
-  return {hero:'bi-layout-text-window',card:'bi-card-text','text-block':'bi-text-paragraph',banner:'bi-megaphone',stats:'bi-graph-up',image:'bi-image',video:'bi-play-circle',html:'bi-code-slash',divider:'bi-dash-lg',volt:'bi-lightning-charge',editorial:'bi-newspaper'}[type]||'bi-square';
+  return {hero:'bi-layout-text-window',card:'bi-card-text','text-block':'bi-text-paragraph',banner:'bi-megaphone',stats:'bi-graph-up',image:'bi-image',video:'bi-play-circle',html:'bi-code-slash',divider:'bi-dash-lg',volt:'bi-lightning-charge',editorial:'bi-newspaper',template:'bi-file-earmark-text'}[type]||'bi-square';
 }
 /**
  * Converts a hex colour and an integer opacity value (0–100) to a CSS rgba()
@@ -8249,12 +8319,15 @@ function switchLibTab(tab) {
   document.getElementById('lib-containers').style.display = tab==='containers'?'block':'none';
   document.getElementById('lib-sub').style.display        = tab==='sub'?'block':'none';
   document.getElementById('lib-volt').style.display       = tab==='volt'?'block':'none';
+  document.getElementById('lib-templates').style.display  = tab==='templates'?'block':'none';
   document.getElementById('lib-layouts').style.display    = tab==='layouts'?'block':'none';
   document.getElementById('tab-containers').className = 'lib-tab'+(tab==='containers'?' active':'');
   document.getElementById('tab-sub').className        = 'lib-tab'+(tab==='sub'?' active':'');
   document.getElementById('tab-volt').className       = 'lib-tab'+(tab==='volt'?' active':'');
+  document.getElementById('tab-templates').className  = 'lib-tab'+(tab==='templates'?' active':'');
   document.getElementById('tab-layouts').className    = 'lib-tab'+(tab==='layouts'?' active':'');
   if (tab === 'volt') loadVoltLibIfNeeded();
+  if (tab === 'templates') loadTemplateLibIfNeeded();
   if (tab === 'layouts') renderLayoutsTab();
 }
 
@@ -8396,6 +8469,110 @@ function onVoltDragStart(e, volt) {
   };
   e.dataTransfer.effectAllowed = 'copy';
 }
+
+// ─── Section Template Library ────────────────────────────────────────────────
+const _templateLib = { loaded: false, loading: false, items: [] };
+
+function loadTemplateLibIfNeeded() {
+  if (_templateLib.loaded || _templateLib.loading) return;
+  _templateLib.loading = true;
+  fetch('/api/templates?type=block')
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(json => {
+      _templateLib.loaded = true;
+      _templateLib.loading = false;
+      _templateLib.items = json.data || [];
+      renderTemplateLib(_templateLib.items);
+      // Re-render props panel if a template block is currently selected, so the
+      // inline "Change" select has options once the library has loaded.
+      const _selBlock = state.blocks.find(function(b){ return b.id === state.selectedBlockId; });
+      if (_selBlock && _selBlock.type === 'template') renderPropsPanel();
+    })
+    .catch(() => {
+      _templateLib.loading = false;
+      const el = document.getElementById('template-lib-loading');
+      if (el) { el.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Failed to load templates.'; }
+    });
+}
+
+/**
+ * Applies a different block-scoped template to an existing 'template' block
+ * without deleting/re-adding it — sets templateId/templateName/templateThumbnail/
+ * customHtml/customCss/mediaSlots together, then re-renders canvas + props panel.
+ * @param {string} bId - Block id.
+ * @param {string} templateId - Selected CmsTemplate id from _templateLib.items.
+ */
+function applyTemplateSelection(bId, templateId) {
+  const b = state.blocks.find(function(x){ return x.id == bId; }); // eslint-disable-line eqeqeq
+  if (!b) return;
+  const tpl = _templateLib.items.find(function(t){ return t.id === templateId; });
+  if (!tpl) return;
+  const data = tpl.data || {};
+  pushHistory();
+  b.props.templateId = tpl.id;
+  b.props.templateName = tpl.name;
+  b.props.templateThumbnail = tpl.thumbnail || null;
+  b.props.customHtml = data.customHtml || '';
+  b.props.customCss = data.customCss || '';
+  b.props.mediaSlots = data.mediaSlots || {};
+  renderCanvas();
+  renderPropsPanel();
+  autoSave();
+}
+
+function renderTemplateLib(templates) {
+  const loading = document.getElementById('template-lib-loading');
+  const empty   = document.getElementById('template-lib-empty');
+  const items   = document.getElementById('template-lib-items');
+  if (!items) return;
+  if (loading) loading.style.display = 'none';
+  items.innerHTML = '';
+  if (!templates.length) { if (empty) empty.style.display = ''; return; }
+  templates.forEach(t => {
+    const card = document.createElement('div');
+    card.className = 'element-card';
+    card.draggable = true;
+    card.addEventListener('dragstart', e => onTemplateDragStart(e, t));
+
+    const preview = document.createElement('div');
+    preview.style.cssText = 'width:32px;height:32px;flex-shrink:0;border-radius:4px;overflow:hidden;border:1px solid #dee2e6;display:flex;align-items:center;justify-content:center;background:#f8f9fa;';
+    if (t.thumbnail) {
+      const img = document.createElement('img');
+      img.src = t.thumbnail;
+      img.style.cssText = 'width:100%;height:100%;object-fit:contain;';
+      preview.appendChild(img);
+    } else {
+      const ic = document.createElement('i');
+      ic.className = 'bi bi-file-earmark-text';
+      ic.style.cssText = 'font-size:14px;color:#6c757d;opacity:0.5;';
+      preview.appendChild(ic);
+    }
+
+    const name = document.createElement('div');
+    name.className = 'ec-name';
+    name.textContent = t.name;
+
+    const badge = document.createElement('span');
+    badge.className = 'ec-badge';
+    badge.style.cssText = 'background:#cfe2ff;color:#084298;';
+    badge.textContent = 'Template';
+
+    card.appendChild(preview);
+    card.appendChild(name);
+    card.appendChild(badge);
+    items.appendChild(card);
+  });
+}
+
+function onTemplateDragStart(e, tpl) {
+  const data = tpl.data || {};
+  state.dragSource = {
+    kind: 'lib-template', templateId: tpl.id, templateName: tpl.name, templateThumbnail: tpl.thumbnail || null,
+    customHtml: data.customHtml || '', customCss: data.customCss || '', mediaSlots: data.mediaSlots || {}
+  };
+  e.dataTransfer.effectAllowed = 'copy';
+}
+
 // Preset definitions: grid config + zone blocks to auto-place
 const PRESET_DEFS = {
   'full-width':    { rows:1, cols:1, gap:0,
