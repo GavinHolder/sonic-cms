@@ -2337,9 +2337,21 @@ interface FreeformChip {
   onMove: (p: FreeformPos) => void;
 }
 
+// Snap threshold in px (screen space) — converted to a %-of-box value per axis at drag time,
+// since the box's px size changes with the admin's viewport/zoom but the stored pos is a %.
+const SNAP_PX = 8;
+// Alignment targets as % of the box. Not 0/50/100 — chips are centre-anchored
+// (translate(-50%,-50%)), so 0/100 would push half the chip off-canvas. These margins
+// mirror the padding used elsewhere in the freeform surface.
+const ALIGN_H = { left: 6, center: 50, right: 94 } as const;
+const ALIGN_V = { top: 8, middle: 50, bottom: 92 } as const;
+
 function FreeformDragSurface({ chips, slide }: { chips: FreeformChip[]; slide: HeroCarouselSlide }) {
   const boxRef = useRef<HTMLDivElement>(null);
   const [dragId, setDragId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [snapEnabled, setSnapEnabled] = useState(true);
+  const [guides, setGuides] = useState<{ v: number[]; h: number[] }>({ v: [], h: [] });
   const moveRef = useRef<((p: FreeformPos) => void) | null>(null);
   // The live hero is 100vw × 100vh, so its background crop AND its font sizes depend
   // on the visitor's viewport. There's no single "real" viewport to match, so instead
@@ -2378,89 +2390,179 @@ function FreeformDragSurface({ chips, slide }: { chips: FreeformChip[]; slide: H
     };
   };
 
+  // Snaps a raw drag position to the canvas centre and to other chips' x/y, within SNAP_PX
+  // (converted to %-of-box per axis, since box px size varies with viewport/zoom). Returns
+  // the (possibly snapped) pos plus which guide lines to draw, so the caller can render them.
+  const snapPos = (raw: FreeformPos, excludeId: string): { pos: FreeformPos; v: number[]; h: number[] } => {
+    if (!snapEnabled || !boxRef.current) return { pos: raw, v: [], h: [] };
+    const r = boxRef.current.getBoundingClientRect();
+    const thresholdX = (SNAP_PX / r.width) * 100;
+    const thresholdY = (SNAP_PX / r.height) * 100;
+    const xCandidates = [50, ...chips.filter((c) => c.id !== excludeId).map((c) => c.pos.x)];
+    const yCandidates = [50, ...chips.filter((c) => c.id !== excludeId).map((c) => c.pos.y)];
+
+    let x = raw.x;
+    let closestX: number | null = null;
+    let closestXDist = thresholdX;
+    for (const cand of xCandidates) {
+      const d = Math.abs(raw.x - cand);
+      if (d <= closestXDist) { closestX = cand; closestXDist = d; }
+    }
+    if (closestX !== null) x = closestX;
+
+    let y = raw.y;
+    let closestY: number | null = null;
+    let closestYDist = thresholdY;
+    for (const cand of yCandidates) {
+      const d = Math.abs(raw.y - cand);
+      if (d <= closestYDist) { closestY = cand; closestYDist = d; }
+    }
+    if (closestY !== null) y = closestY;
+
+    return {
+      pos: { x: clampPct(x), y: clampPct(y) },
+      v: closestX !== null ? [closestX] : [],
+      h: closestY !== null ? [closestY] : [],
+    };
+  };
+
   const bgImg = slide.type === "image" ? (slide.src || slide.mobileSrc) : (slide.poster || slide.mobileSrc);
   const gridOverlay =
     "repeating-linear-gradient(0deg, rgba(255,255,255,0.18) 0, rgba(255,255,255,0.18) 1px, transparent 1px, transparent 25%), repeating-linear-gradient(90deg, rgba(255,255,255,0.18) 0, rgba(255,255,255,0.18) 1px, transparent 1px, transparent 25%)";
 
-  return (
-    <div
-      ref={boxRef}
-      onPointerMove={(e) => {
-        if (dragId && moveRef.current) moveRef.current(posFromEvent(e.clientX, e.clientY));
-      }}
-      onPointerUp={(e) => {
-        boxRef.current?.releasePointerCapture?.(e.pointerId);
-        setDragId(null);
-        moveRef.current = null;
-      }}
-      style={{
-        position: "relative",
-        width: "100%",
-        aspectRatio: aspect,
-        borderRadius: 8,
-        overflow: "hidden",
-        background: "#0f172a",
-        border: "1px solid #334155",
-        touchAction: "none",
-        userSelect: "none",
-      }}
-    >
-      {/* Slide media background so text is placed against the real image/video */}
-      {slide.type === "video" && slide.src ? (
-        <video
-          src={slide.src}
-          muted
-          loop
-          autoPlay
-          playsInline
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
-        />
-      ) : bgImg ? (
-        <div
-          style={{
-            position: "absolute", inset: 0,
-            backgroundImage: `url(${bgImg})`, backgroundSize: "cover", backgroundPosition: "center",
-          }}
-        />
-      ) : null}
-      {/* Placement grid overlay */}
-      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: gridOverlay }} />
+  const selectedChip = chips.find((c) => c.id === selectedId) || null;
+  const alignH = (target: number) => selectedChip?.onMove({ ...selectedChip.pos, x: target });
+  const alignV = (target: number) => selectedChip?.onMove({ ...selectedChip.pos, y: target });
 
-      {chips.length === 0 ? (
-        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: 16, color: "#e2e8f0", fontSize: 12, textShadow: "0 1px 3px rgba(0,0,0,0.8)" }}>
-          No overlay elements to place yet — add a heading, subheading or button.
+  return (
+    <div>
+      {/* Alignment + snap toolbar — acts on the currently selected chip (click to select) */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, flexWrap: "wrap" }}>
+        <div className="btn-group btn-group-sm" role="group" aria-label="Horizontal alignment">
+          <button type="button" className="btn btn-outline-secondary" disabled={!selectedChip} title="Align left" onClick={() => alignH(ALIGN_H.left)}>
+            <i className="bi bi-align-start"></i>
+          </button>
+          <button type="button" className="btn btn-outline-secondary" disabled={!selectedChip} title="Align centre" onClick={() => alignH(ALIGN_H.center)}>
+            <i className="bi bi-align-center"></i>
+          </button>
+          <button type="button" className="btn btn-outline-secondary" disabled={!selectedChip} title="Align right" onClick={() => alignH(ALIGN_H.right)}>
+            <i className="bi bi-align-end"></i>
+          </button>
         </div>
-      ) : chips.map((chip) => {
-        const selected = dragId === chip.id;
-        return (
+        <div className="btn-group btn-group-sm" role="group" aria-label="Vertical alignment">
+          <button type="button" className="btn btn-outline-secondary" disabled={!selectedChip} title="Align top" onClick={() => alignV(ALIGN_V.top)}>
+            <i className="bi bi-align-top"></i>
+          </button>
+          <button type="button" className="btn btn-outline-secondary" disabled={!selectedChip} title="Align middle" onClick={() => alignV(ALIGN_V.middle)}>
+            <i className="bi bi-align-middle"></i>
+          </button>
+          <button type="button" className="btn btn-outline-secondary" disabled={!selectedChip} title="Align bottom" onClick={() => alignV(ALIGN_V.bottom)}>
+            <i className="bi bi-align-bottom"></i>
+          </button>
+        </div>
+        <button
+          type="button"
+          className={`btn btn-sm ${snapEnabled ? "btn-secondary" : "btn-outline-secondary"}`}
+          title={snapEnabled ? "Snapping on — click to disable" : "Snapping off — click to enable"}
+          onClick={() => { setSnapEnabled((v) => !v); setGuides({ v: [], h: [] }); }}
+        >
+          <i className="bi bi-magnet me-1"></i>Snap
+        </button>
+        {!selectedChip && <span style={{ fontSize: 11, color: "#94a3b8" }}>Click an element to align it</span>}
+      </div>
+      <div
+        ref={boxRef}
+        onPointerMove={(e) => {
+          if (!dragId || !moveRef.current) return;
+          const raw = posFromEvent(e.clientX, e.clientY);
+          const snapped = snapPos(raw, dragId);
+          setGuides({ v: snapped.v, h: snapped.h });
+          moveRef.current(snapped.pos);
+        }}
+        onPointerUp={(e) => {
+          boxRef.current?.releasePointerCapture?.(e.pointerId);
+          setDragId(null);
+          moveRef.current = null;
+          setGuides({ v: [], h: [] });
+        }}
+        style={{
+          position: "relative",
+          width: "100%",
+          aspectRatio: aspect,
+          borderRadius: 8,
+          overflow: "hidden",
+          background: "#0f172a",
+          border: "1px solid #334155",
+          touchAction: "none",
+          userSelect: "none",
+        }}
+      >
+        {/* Slide media background so text is placed against the real image/video */}
+        {slide.type === "video" && slide.src ? (
+          <video
+            src={slide.src}
+            muted
+            loop
+            autoPlay
+            playsInline
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
+          />
+        ) : bgImg ? (
           <div
-            key={chip.id}
-            onPointerDown={(e) => {
-              e.preventDefault();
-              boxRef.current?.setPointerCapture?.(e.pointerId);
-              setDragId(chip.id);
-              moveRef.current = chip.onMove;
-            }}
-            title={`${chip.kind} — ${chip.pos.x}%, ${chip.pos.y}%`}
             style={{
-              position: "absolute",
-              left: `${chip.pos.x}%`,
-              top: `${chip.pos.y}%`,
-              transform: "translate(-50%, -50%)",
-              cursor: selected ? "grabbing" : "grab",
-              whiteSpace: chip.kind === "subheading" ? "normal" : "nowrap",
-              maxWidth: chip.kind === "subheading" ? "45%" : "92%",
-              textAlign: "center",
-              outline: selected ? "1.5px solid #38bdf8" : "1px dashed rgba(255,255,255,0.35)",
-              outlineOffset: 2,
-              borderRadius: 3,
-              textShadow: "0 1px 3px rgba(0,0,0,0.55)",
+              position: "absolute", inset: 0,
+              backgroundImage: `url(${bgImg})`, backgroundSize: "cover", backgroundPosition: "center",
             }}
-          >
-            {renderFreeformChip(chip, scale, vpW)}
+          />
+        ) : null}
+        {/* Placement grid overlay */}
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: gridOverlay }} />
+
+        {/* Snap guide lines — shown only while actively snapped during a drag */}
+        {guides.v.map((x) => (
+          <div key={`v-${x}`} style={{ position: "absolute", left: `${x}%`, top: 0, bottom: 0, width: 0, borderLeft: "1px dashed #f472b6", pointerEvents: "none", zIndex: 5 }} />
+        ))}
+        {guides.h.map((y) => (
+          <div key={`h-${y}`} style={{ position: "absolute", top: `${y}%`, left: 0, right: 0, height: 0, borderTop: "1px dashed #f472b6", pointerEvents: "none", zIndex: 5 }} />
+        ))}
+
+        {chips.length === 0 ? (
+          <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: 16, color: "#e2e8f0", fontSize: 12, textShadow: "0 1px 3px rgba(0,0,0,0.8)" }}>
+            No overlay elements to place yet — add a heading, subheading or button.
           </div>
-        );
-      })}
+        ) : chips.map((chip) => {
+          const selected = selectedId === chip.id;
+          return (
+            <div
+              key={chip.id}
+              onPointerDown={(e) => {
+                e.preventDefault();
+                boxRef.current?.setPointerCapture?.(e.pointerId);
+                setDragId(chip.id);
+                setSelectedId(chip.id);
+                moveRef.current = chip.onMove;
+              }}
+              title={`${chip.kind} — ${chip.pos.x}%, ${chip.pos.y}%`}
+              style={{
+                position: "absolute",
+                left: `${chip.pos.x}%`,
+                top: `${chip.pos.y}%`,
+                transform: "translate(-50%, -50%)",
+                cursor: dragId === chip.id ? "grabbing" : "grab",
+                whiteSpace: chip.kind === "subheading" ? "normal" : "nowrap",
+                maxWidth: chip.kind === "subheading" ? "45%" : "92%",
+                textAlign: "center",
+                outline: selected ? "1.5px solid #38bdf8" : "1px dashed rgba(255,255,255,0.35)",
+                outlineOffset: 2,
+                borderRadius: 3,
+                textShadow: "0 1px 3px rgba(0,0,0,0.55)",
+              }}
+            >
+              {renderFreeformChip(chip, scale, vpW)}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

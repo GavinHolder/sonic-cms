@@ -15,6 +15,10 @@ const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffec
 
 interface HeroCarouselProps {
   section: HeroSection;
+  /** External autoplay override for the admin editor's scaled-down preview thumbnail only —
+   * never set on the live page. Halts autoplay without touching the carousel's own internal
+   * pause-button state. */
+  forcePaused?: boolean;
 }
 
 /** Current baked shadows — used as the back-compat fallback when textShadow is undefined. */
@@ -162,7 +166,7 @@ function renderRowInner(row: HeadingRow, shadow: TextShadowConfig | undefined) {
   });
 }
 
-export default function HeroCarousel({ section }: HeroCarouselProps) {
+export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
   // Manual autoplay pause toggle. Combined with autoPlay so EITHER can stop the
@@ -229,16 +233,17 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
   }
 
   // Auto-play functionality — halted when autoPlay is off, when the user has
-  // manually paused, or when there is nothing to advance to.
+  // manually paused, when the admin preview thumbnail has paused it (forcePaused),
+  // or when there is nothing to advance to.
   useEffect(() => {
-    if (!autoPlay || paused || slides.length <= 1) return;
+    if (!autoPlay || paused || forcePaused || slides.length <= 1) return;
 
     const interval = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % slides.length);
     }, autoPlayInterval);
 
     return () => clearInterval(interval);
-  }, [autoPlay, paused, autoPlayInterval, slides.length]);
+  }, [autoPlay, paused, forcePaused, autoPlayInterval, slides.length]);
 
   const goToSlide = (index: number) => {
     setCurrentSlide(index);

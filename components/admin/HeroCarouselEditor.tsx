@@ -67,6 +67,9 @@ export default function HeroCarouselEditor({
 
   // --- Live preview pane -------------------------------------------------
   const [showPreview, setShowPreview] = useState(true);
+  // Pauses ONLY the admin's scaled-down preview thumbnail (via HeroCarousel's forcePaused
+  // prop) — never touches the live page.
+  const [previewPaused, setPreviewPaused] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
   const [previewWidth, setPreviewWidth] = useState(0);
   // Real browser viewport of the admin — the hero fills THIS on the live page,
@@ -717,6 +720,33 @@ export default function HeroCarouselEditor({
                           min-height: ${viewport.h}px !important;
                         }
                       `}</style>
+                      {/* Preview-only play/pause — controls just this thumbnail's autoplay
+                          via forcePaused, sits above the pointerEvents:none scaled wrapper
+                          below so it stays clickable. Never rendered on the live page. */}
+                      <button
+                        type="button"
+                        onClick={() => setPreviewPaused((p) => !p)}
+                        aria-label={previewPaused ? "Play preview" : "Pause preview"}
+                        title={previewPaused ? "Play preview" : "Pause preview"}
+                        style={{
+                          position: "absolute",
+                          top: 8,
+                          right: 8,
+                          zIndex: 10,
+                          width: 32,
+                          height: 32,
+                          borderRadius: "50%",
+                          border: "none",
+                          backgroundColor: "rgba(0,0,0,0.55)",
+                          color: "#fff",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <i className={`bi ${previewPaused ? "bi-play-fill" : "bi-pause-fill"}`}></i>
+                      </button>
                       {previewScale > 0 && (
                         <div
                           style={{
@@ -730,7 +760,7 @@ export default function HeroCarouselEditor({
                             pointerEvents: "none",
                           }}
                         >
-                          <HeroCarousel section={draftSection} />
+                          <HeroCarousel section={draftSection} forcePaused={previewPaused} />
                         </div>
                       )}
                     </div>
