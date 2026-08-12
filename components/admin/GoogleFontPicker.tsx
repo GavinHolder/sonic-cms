@@ -116,6 +116,7 @@ const BUILTIN_FONTS: GoogleFont[] = [
 ];
 
 const STORAGE_KEY = "cms_installed_fonts";
+const INSTALLED_FONTS_EVENT = "cms:installed-fonts-changed";
 
 function loadInstalledFonts(): GoogleFont[] {
   try {
@@ -130,6 +131,9 @@ function saveInstalledFonts(fonts: GoogleFont[]) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(fonts));
   } catch {}
+  // Sibling pickers each hold their own state loaded once on mount — broadcast
+  // so every open instance on the page picks up the new/removed font immediately.
+  window.dispatchEvent(new CustomEvent<GoogleFont[]>(INSTALLED_FONTS_EVENT, { detail: fonts }));
 }
 
 function injectFontLink(family: string) {
@@ -153,6 +157,16 @@ export default function GoogleFontPicker({ value, onChange }: GoogleFontPickerPr
   // Load installed fonts from localStorage on mount
   useEffect(() => {
     setInstalledFonts(loadInstalledFonts());
+  }, []);
+
+  // Stay in sync with fonts installed/removed via sibling picker instances
+  useEffect(() => {
+    const handleInstalledFontsChanged = (e: Event) => {
+      const detail = (e as CustomEvent<GoogleFont[]>).detail;
+      setInstalledFonts(detail ?? loadInstalledFonts());
+    };
+    window.addEventListener(INSTALLED_FONTS_EVENT, handleInstalledFontsChanged);
+    return () => window.removeEventListener(INSTALLED_FONTS_EVENT, handleInstalledFontsChanged);
   }, []);
 
   // Close dropdown on outside click
