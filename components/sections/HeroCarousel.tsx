@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, Fragment } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import type { HeroSection, AnimationType, HeadingRow, TextShadowConfig, FreeformPos } from "@/types/section";
 import { defaultFreeformPos } from "@/types/section";
 
@@ -176,6 +176,10 @@ export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps
   // slide-advance interval (below) doesn't stop them from playing — they need to be
   // paused/played directly. Keyed by slide index since all slides' videos stay mounted.
   const videoRefs = useRef<Map<number, HTMLVideoElement>>(new Map());
+  // OS/browser "reduce motion" accessibility setting. Without this, AnimatePresence
+  // enter transitions can get stuck at their pre-animation (opacity:0) state on
+  // machines with this preference on, leaving the whole hero permanently invisible.
+  const prefersReducedMotion = useReducedMotion();
   const {
     slides = [], autoPlay, autoPlayInterval, showDots, showArrows, transitionDuration,
     showSlideCounter, showScrollIndicator, metaLine, controlsPosition = "bottom-left",
@@ -576,7 +580,7 @@ export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps
                   WebkitOverflowScrolling: isMobile ? "touch" : undefined,
                 }}
               >
-                <AnimatePresence>
+                <AnimatePresence initial={!prefersReducedMotion}>
                   {/* Eyebrow — slide-level or overlay-level (hideable, alignable) */}
                   {(slide.eyebrow || slide.overlay.eyebrow) && !slide.overlay.eyebrowHidden && (
                     <motion.p
@@ -761,31 +765,43 @@ export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps
               // (overflow-y overrides the base `overflow: hidden` on mobile; x stays hidden.) (mobile-gated)
               ...(isMobile ? { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "safe center", overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "104px 20px 64px" } : {}),
             }}>
-              <AnimatePresence>
-                {/* Eyebrow */}
-                {(slide.eyebrow || slide.overlay.eyebrow) && !slide.overlay.eyebrowHidden && (
-                  <div key={`ff-eyebrow-${currentSlide}`} style={ffStyle(slide.overlay.eyebrowPos, defaultFreeformPos("eyebrow"))}>
-                    <motion.p
-                      initial={{ opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.5, delay: 0.05 }}
+              <AnimatePresence initial={!prefersReducedMotion}>
+                {/* Eyebrow — honors eyebrowAlign by shifting which edge of the (shrink-wrapped,
+                    nowrap) box anchors to the stored x% position, since text-align alone is
+                    invisible on a box that's exactly as wide as its single line of text. */}
+                {(slide.eyebrow || slide.overlay.eyebrow) && !slide.overlay.eyebrowHidden && (() => {
+                  const eyebrowAlign = slide.overlay.eyebrowAlign || "center";
+                  const eyebrowAnchorX = eyebrowAlign === "left" ? "0%" : eyebrowAlign === "right" ? "-100%" : "-50%";
+                  return (
+                    <div
+                      key={`ff-eyebrow-${currentSlide}`}
                       style={{
-                        fontSize: "clamp(11px, 1.4vw, 13px)",
-                        fontWeight: 600,
-                        letterSpacing: "0.18em",
-                        textTransform: "uppercase",
-                        color: slide.overlay.eyebrowColor || "var(--bs-success, #22c55e)",
-                        margin: 0,
-                        lineHeight: 1,
-                        whiteSpace: isMobile ? "normal" : "nowrap",
-                        textAlign: "center",
+                        ...ffStyle(slide.overlay.eyebrowPos, defaultFreeformPos("eyebrow")),
+                        ...(isMobile ? {} : { transform: `translate(${eyebrowAnchorX}, -50%)` }),
                       }}
                     >
-                      {slide.eyebrow || slide.overlay.eyebrow}
-                    </motion.p>
-                  </div>
-                )}
+                      <motion.p
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.5, delay: 0.05 }}
+                        style={{
+                          fontSize: "clamp(11px, 1.4vw, 13px)",
+                          fontWeight: 600,
+                          letterSpacing: "0.18em",
+                          textTransform: "uppercase",
+                          color: slide.overlay.eyebrowColor || "var(--bs-success, #22c55e)",
+                          margin: 0,
+                          lineHeight: 1,
+                          whiteSpace: isMobile ? "normal" : "nowrap",
+                          textAlign: isMobile ? "center" : eyebrowAlign,
+                        }}
+                      >
+                        {slide.eyebrow || slide.overlay.eyebrow}
+                      </motion.p>
+                    </div>
+                  );
+                })()}
 
                 {/* Headings — stacked rows (each independently placed) or legacy single heading */}
                 {slide.overlay.headingRows && slide.overlay.headingRows.length > 0
