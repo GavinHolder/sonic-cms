@@ -899,6 +899,26 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                     </motion.a>
                   </div>
                 ))}
+
+                {/* Secondary images — each placed independently, like text elements (#68) */}
+                {(slide.overlay.images ?? []).map((img, index) => (
+                  <div key={`ff-img-${index}-${currentSlide}`} style={ffStyle(img.pos, defaultFreeformPos("image", index))}>
+                    <motion.img
+                      src={img.src}
+                      alt={img.alt || ""}
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.5, delay: 0.05 }}
+                      style={{
+                        display: "block",
+                        width: isMobile ? Math.min(img.width, 160) : img.width,
+                        height: "auto",
+                        maxWidth: "100%",
+                      }}
+                    />
+                  </div>
+                ))}
               </AnimatePresence>
             </div>
           )}

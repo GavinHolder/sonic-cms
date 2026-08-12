@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import type { HeroCarouselSlide, AnimationType, HeadingRow, HeadingWord, FreeformPos } from "@/types/section";
+import type { HeroCarouselSlide, AnimationType, HeadingRow, HeadingWord, FreeformPos, OverlayImage } from "@/types/section";
 import { defaultFreeformPos } from "@/types/section";
 import MediaUploader from "./MediaUploader";
 import MediaPickerModal from "./MediaPickerModal";
@@ -31,6 +31,8 @@ export default function SlideEditor({
   const [dragRow, setDragRow] = useState<number | null>(null);
   // Which media field the library picker targets ("src" = main media, "poster" = video poster)
   const [libraryTarget, setLibraryTarget] = useState<null | "src" | "poster">(null);
+  // Overlay image picker target: "new" = adding an image, a number = replacing overlay.images[index]
+  const [imagePickerTarget, setImagePickerTarget] = useState<null | "new" | number>(null);
 
   const overlayEnabled = slide.showTextOverlay ?? true;
 
@@ -44,6 +46,26 @@ export default function SlideEditor({
     if (!buttons[index]) return;
     buttons[index] = { ...buttons[index], pos };
     updateOverlay({ buttons });
+  };
+
+  // Overlay images — freeform-positioned like heading rows / buttons, but rendering
+  // an image instead of text (item #68: "text overlay element, but an image").
+  const addOverlayImage = (src: string) => {
+    const images = slide.overlay?.images ?? [];
+    if (images.length >= 5) return;
+    updateOverlay({ images: [...images, { src, width: 160 }] });
+  };
+
+  const updateOverlayImage = (index: number, updates: Partial<OverlayImage>) => {
+    const images = [...(slide.overlay?.images ?? [])];
+    if (!images[index]) return;
+    images[index] = { ...images[index], ...updates };
+    updateOverlay({ images });
+  };
+
+  const removeOverlayImage = (index: number) => {
+    const images = slide.overlay?.images ?? [];
+    updateOverlay({ images: images.filter((_, i) => i !== index) });
   };
 
   // Build the draggable chip list for the freeform surface from live overlay state.
@@ -91,6 +113,14 @@ export default function SlideEditor({
         btnBg: b.backgroundColor, btnColor: b.textColor, variant: b.variant,
         pos: b.pos ?? defaultFreeformPos("button", i),
         onMove: (p) => setButtonPos(i, p),
+      });
+    });
+    (ov.images ?? []).forEach((img, i) => {
+      chips.push({
+        id: `img-${i}`, kind: "image", text: img.alt || "Image",
+        imageSrc: img.src, imageWidth: img.width,
+        pos: img.pos ?? defaultFreeformPos("image", i),
+        onMove: (p) => updateOverlayImage(i, { pos: p }),
       });
     });
     return chips;
@@ -750,6 +780,70 @@ export default function SlideEditor({
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* Overlay Images — secondary images (badges, logos, product shots) placed like text elements */}
+            <div className="mb-3 p-2 border rounded" style={{ background: "#f8f9fa" }}>
+              <div className="d-flex align-items-center justify-content-between gap-2 mb-1">
+                <label className="form-label fw-semibold mb-0">
+                  <i className="bi bi-image me-1"></i>Overlay Images
+                </label>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-primary"
+                  disabled={(slide.overlay?.images?.length ?? 0) >= 5}
+                  onClick={() => setImagePickerTarget("new")}
+                >
+                  <i className="bi bi-plus-lg me-1"></i>Add Image
+                </button>
+              </div>
+              <div className="form-text mt-0 mb-2">
+                Small images placed over the slide, positioned the same way as heading rows/buttons. Only positioned while <strong>Freeform Layout</strong> (above) is on.
+              </div>
+              {(slide.overlay?.images ?? []).length === 0 ? (
+                <div className="text-muted small fst-italic">No images added.</div>
+              ) : (
+                <div className="d-flex flex-column gap-2">
+                  {(slide.overlay?.images ?? []).map((img, i) => (
+                    <div key={i} className="d-flex align-items-center gap-2 p-2 border rounded bg-white">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={img.src} alt="" className="img-thumbnail" style={{ width: 48, height: 48, objectFit: "cover", flexShrink: 0 }} />
+                      <div className="flex-grow-1 d-flex align-items-center gap-2">
+                        <label className="form-label small mb-0 text-muted" style={{ minWidth: 40 }}>Width</label>
+                        <input
+                          type="range"
+                          min={40}
+                          max={480}
+                          step={10}
+                          value={img.width}
+                          onChange={(e) => updateOverlayImage(i, { width: Number(e.target.value) })}
+                          className="form-range"
+                        />
+                        <span className="small text-muted" style={{ minWidth: 44 }}>{img.width}px</span>
+                      </div>
+                      <button type="button" className="btn btn-sm btn-outline-secondary" title="Replace image" onClick={() => setImagePickerTarget(i)}>
+                        <i className="bi bi-arrow-repeat"></i>
+                      </button>
+                      <button type="button" className="btn btn-sm btn-outline-danger" title="Remove image" onClick={() => removeOverlayImage(i)}>
+                        <i className="bi bi-trash"></i>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <MediaPickerModal
+                isOpen={imagePickerTarget !== null}
+                onClose={() => setImagePickerTarget(null)}
+                filterType="image"
+                onSelect={(url) => {
+                  if (imagePickerTarget === "new") {
+                    addOverlayImage(url);
+                  } else if (typeof imagePickerTarget === "number") {
+                    updateOverlayImage(imagePickerTarget, { src: url });
+                  }
+                  setImagePickerTarget(null);
+                }}
+              />
             </div>
 
             {/* Heading Mode Toggle */}
@@ -2220,7 +2314,7 @@ export default function SlideEditor({
 // events + the box's bounding rect drive the math (no external deps).
 interface FreeformChip {
   id: string;
-  kind: "eyebrow" | "heading" | "subheading" | "button";
+  kind: "eyebrow" | "heading" | "subheading" | "button" | "image";
   text: string;
   /** Heading rows: per-word fill/outline styling (mirrors the live slide). */
   words?: HeadingWord[];
@@ -2232,6 +2326,9 @@ interface FreeformChip {
   btnBg?: string;
   btnColor?: string;
   variant?: "filled" | "outline" | "ghost";
+  // Image styling
+  imageSrc?: string;
+  imageWidth?: number;    // px (design canvas, 1440 reference width)
   pos: FreeformPos;
   onMove: (p: FreeformPos) => void;
 }
@@ -2407,6 +2504,17 @@ function renderFreeformChip(chip: FreeformChip, scale: number, vpW: number) {
             })
           : chip.text}
       </div>
+    );
+  }
+  if (chip.kind === "image") {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={chip.imageSrc}
+        alt=""
+        draggable={false}
+        style={{ width: px(chip.imageWidth || 160), height: "auto", display: "block", borderRadius: 4 * scale, pointerEvents: "none" }}
+      />
     );
   }
   if (chip.kind === "eyebrow") {

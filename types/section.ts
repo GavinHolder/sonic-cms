@@ -363,7 +363,7 @@ export interface FreeformPos {
  * Staggered so untouched elements don't all pile up dead-center.
  */
 export function defaultFreeformPos(
-  kind: "eyebrow" | "heading" | "subheading" | "button",
+  kind: "eyebrow" | "heading" | "subheading" | "button" | "image",
   index = 0
 ): FreeformPos {
   switch (kind) {
@@ -375,7 +375,23 @@ export function defaultFreeformPos(
       return { x: 50, y: 70 };
     case "button":
       return { x: 40 + index * 16, y: 85 };
+    case "image":
+      return { x: 80, y: 30 + index * 18 };
   }
+}
+
+/**
+ * A secondary image placed over a hero slide, positioned like a text overlay
+ * element. Sibling of headingRows/subheading/buttons on TextOverlayElement —
+ * an overlay "element" that renders an image instead of text.
+ */
+export interface OverlayImage {
+  src: string;
+  alt?: string;
+  /** Rendered width in px at the 1440px reference viewport (height auto, natural aspect ratio). */
+  width: number;
+  /** Freeform placement (only used when overlay.layoutMode === "freeform"). */
+  pos?: FreeformPos;
 }
 
 export interface HeadingRow {
@@ -417,6 +433,8 @@ export interface TextOverlayElement {
   };
   /** Multi-row stacked display heading (OVB-style). Overrides `heading` when present. */
   headingRows?: HeadingRow[];
+  /** Secondary images placed over the slide — freeform-positioned like text elements. */
+  images?: OverlayImage[];
   /** Small uppercase label shown above the heading rows (e.g. "TWENTY-FIVE YEARS ON") */
   eyebrow?: string;
   /** Eyebrow text color (default: accent / brand green) */
