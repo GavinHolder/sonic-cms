@@ -906,6 +906,7 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
                     <motion.img
                       src={img.src}
                       alt={img.alt || ""}
+                      className="hero-freeform-img"
                       initial={{ opacity: 0, y: 12 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0 }}
