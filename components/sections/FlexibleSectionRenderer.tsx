@@ -2465,6 +2465,8 @@ function DesignerBlock({ block, darkBg }: {
           );
         }
         return <CardTabsBlock content={{ tabs, minCardWidth: p.minCardWidth as number | undefined }} darkBg={darkBg} />;
+      }
+
       // ── product-grid: 3-layer Product Type → Network → Category drill-down grid of
       // existing Volt card designs, each bound to a live package via VoltBlock's productId ──
       case "product-grid": {
