@@ -2349,9 +2349,16 @@ const ALIGN_V = { top: 8, middle: 50, bottom: 92 } as const;
 function FreeformDragSurface({ chips, slide }: { chips: FreeformChip[]; slide: HeroCarouselSlide }) {
   const boxRef = useRef<HTMLDivElement>(null);
   const [dragId, setDragId] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Multi-select: shift/ctrl+click toggles membership; plain click replaces the selection
+  // with just that chip. Alignment buttons act on every selected chip; distribute needs 3+.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [snapEnabled, setSnapEnabled] = useState(true);
-  const [guides, setGuides] = useState<{ v: number[]; h: number[] }>({ v: [], h: [] });
+  // Canvas-centre guides and sibling-element guides render in different colours (cyan vs
+  // pink) — they used to look identical, which was confusing since e.g. the default
+  // overlay-image position (x:80%) is nowhere near centre but still drew a same-colour line.
+  type Guides = { vCanvas: number[]; vElement: number[]; hCanvas: number[]; hElement: number[] };
+  const noGuides: Guides = { vCanvas: [], vElement: [], hCanvas: [], hElement: [] };
+  const [guides, setGuides] = useState<Guides>(noGuides);
   const moveRef = useRef<((p: FreeformPos) => void) | null>(null);
   // The live hero is 100vw × 100vh, so its background crop AND its font sizes depend
   // on the visitor's viewport. There's no single "real" viewport to match, so instead
@@ -2391,38 +2398,42 @@ function FreeformDragSurface({ chips, slide }: { chips: FreeformChip[]; slide: H
   };
 
   // Snaps a raw drag position to the canvas centre and to other chips' x/y, within SNAP_PX
-  // (converted to %-of-box per axis, since box px size varies with viewport/zoom). Returns
-  // the (possibly snapped) pos plus which guide lines to draw, so the caller can render them.
-  const snapPos = (raw: FreeformPos, excludeId: string): { pos: FreeformPos; v: number[]; h: number[] } => {
-    if (!snapEnabled || !boxRef.current) return { pos: raw, v: [], h: [] };
+  // (converted to %-of-box per axis, since box px size varies with viewport/zoom). Candidates
+  // are tagged canvas (the 50% centre line) vs element (a sibling chip's position) so the
+  // caller can render them in different colours.
+  const snapPos = (raw: FreeformPos, excludeId: string) => {
+    if (!snapEnabled || !boxRef.current) return { pos: raw, ...noGuides };
     const r = boxRef.current.getBoundingClientRect();
     const thresholdX = (SNAP_PX / r.width) * 100;
     const thresholdY = (SNAP_PX / r.height) * 100;
-    const xCandidates = [50, ...chips.filter((c) => c.id !== excludeId).map((c) => c.pos.x)];
-    const yCandidates = [50, ...chips.filter((c) => c.id !== excludeId).map((c) => c.pos.y)];
+    const others = chips.filter((c) => c.id !== excludeId);
+    const xCandidates: { v: number; isCanvas: boolean }[] = [{ v: 50, isCanvas: true }, ...others.map((c) => ({ v: c.pos.x, isCanvas: false }))];
+    const yCandidates: { v: number; isCanvas: boolean }[] = [{ v: 50, isCanvas: true }, ...others.map((c) => ({ v: c.pos.y, isCanvas: false }))];
 
     let x = raw.x;
-    let closestX: number | null = null;
+    let closestX: { v: number; isCanvas: boolean } | null = null;
     let closestXDist = thresholdX;
     for (const cand of xCandidates) {
-      const d = Math.abs(raw.x - cand);
+      const d = Math.abs(raw.x - cand.v);
       if (d <= closestXDist) { closestX = cand; closestXDist = d; }
     }
-    if (closestX !== null) x = closestX;
+    if (closestX !== null) x = closestX.v;
 
     let y = raw.y;
-    let closestY: number | null = null;
+    let closestY: { v: number; isCanvas: boolean } | null = null;
     let closestYDist = thresholdY;
     for (const cand of yCandidates) {
-      const d = Math.abs(raw.y - cand);
+      const d = Math.abs(raw.y - cand.v);
       if (d <= closestYDist) { closestY = cand; closestYDist = d; }
     }
-    if (closestY !== null) y = closestY;
+    if (closestY !== null) y = closestY.v;
 
     return {
       pos: { x: clampPct(x), y: clampPct(y) },
-      v: closestX !== null ? [closestX] : [],
-      h: closestY !== null ? [closestY] : [],
+      vCanvas: closestX?.isCanvas ? [closestX.v] : [],
+      vElement: closestX && !closestX.isCanvas ? [closestX.v] : [],
+      hCanvas: closestY?.isCanvas ? [closestY.v] : [],
+      hElement: closestY && !closestY.isCanvas ? [closestY.v] : [],
     };
   };
 
@@ -2430,45 +2441,72 @@ function FreeformDragSurface({ chips, slide }: { chips: FreeformChip[]; slide: H
   const gridOverlay =
     "repeating-linear-gradient(0deg, rgba(255,255,255,0.18) 0, rgba(255,255,255,0.18) 1px, transparent 1px, transparent 25%), repeating-linear-gradient(90deg, rgba(255,255,255,0.18) 0, rgba(255,255,255,0.18) 1px, transparent 1px, transparent 25%)";
 
-  const selectedChip = chips.find((c) => c.id === selectedId) || null;
-  const alignH = (target: number) => selectedChip?.onMove({ ...selectedChip.pos, x: target });
-  const alignV = (target: number) => selectedChip?.onMove({ ...selectedChip.pos, y: target });
+  const selectedChips = chips.filter((c) => selectedIds.has(c.id));
+  const alignH = (target: number) => selectedChips.forEach((c) => c.onMove({ ...c.pos, x: target }));
+  const alignV = (target: number) => selectedChips.forEach((c) => c.onMove({ ...c.pos, y: target }));
+  // Distribute: keep the first/last chip (by position) fixed, space the rest evenly between
+  // them. Needs 3+ selected — with 2, "even spacing" is meaningless (there's nothing between).
+  const distributeH = () => {
+    const sorted = [...selectedChips].sort((a, b) => a.pos.x - b.pos.x);
+    if (sorted.length < 3) return;
+    const first = sorted[0].pos.x;
+    const step = (sorted[sorted.length - 1].pos.x - first) / (sorted.length - 1);
+    sorted.forEach((c, i) => { if (i > 0 && i < sorted.length - 1) c.onMove({ ...c.pos, x: clampPct(first + step * i) }); });
+  };
+  const distributeV = () => {
+    const sorted = [...selectedChips].sort((a, b) => a.pos.y - b.pos.y);
+    if (sorted.length < 3) return;
+    const first = sorted[0].pos.y;
+    const step = (sorted[sorted.length - 1].pos.y - first) / (sorted.length - 1);
+    sorted.forEach((c, i) => { if (i > 0 && i < sorted.length - 1) c.onMove({ ...c.pos, y: clampPct(first + step * i) }); });
+  };
 
   return (
     <div>
-      {/* Alignment + snap toolbar — acts on the currently selected chip (click to select) */}
+      {/* Alignment + snap toolbar — acts on every selected chip. Click a chip to select just
+          it; shift/ctrl+click to add/remove it from a multi-selection. */}
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, flexWrap: "wrap" }}>
         <div className="btn-group btn-group-sm" role="group" aria-label="Horizontal alignment">
-          <button type="button" className="btn btn-outline-secondary" disabled={!selectedChip} title="Align left" onClick={() => alignH(ALIGN_H.left)}>
+          <button type="button" className="btn btn-outline-secondary" disabled={selectedChips.length === 0} title="Align left" onClick={() => alignH(ALIGN_H.left)}>
             <i className="bi bi-align-start"></i>
           </button>
-          <button type="button" className="btn btn-outline-secondary" disabled={!selectedChip} title="Align centre" onClick={() => alignH(ALIGN_H.center)}>
+          <button type="button" className="btn btn-outline-secondary" disabled={selectedChips.length === 0} title="Align centre" onClick={() => alignH(ALIGN_H.center)}>
             <i className="bi bi-align-center"></i>
           </button>
-          <button type="button" className="btn btn-outline-secondary" disabled={!selectedChip} title="Align right" onClick={() => alignH(ALIGN_H.right)}>
+          <button type="button" className="btn btn-outline-secondary" disabled={selectedChips.length === 0} title="Align right" onClick={() => alignH(ALIGN_H.right)}>
             <i className="bi bi-align-end"></i>
           </button>
         </div>
         <div className="btn-group btn-group-sm" role="group" aria-label="Vertical alignment">
-          <button type="button" className="btn btn-outline-secondary" disabled={!selectedChip} title="Align top" onClick={() => alignV(ALIGN_V.top)}>
+          <button type="button" className="btn btn-outline-secondary" disabled={selectedChips.length === 0} title="Align top" onClick={() => alignV(ALIGN_V.top)}>
             <i className="bi bi-align-top"></i>
           </button>
-          <button type="button" className="btn btn-outline-secondary" disabled={!selectedChip} title="Align middle" onClick={() => alignV(ALIGN_V.middle)}>
+          <button type="button" className="btn btn-outline-secondary" disabled={selectedChips.length === 0} title="Align middle" onClick={() => alignV(ALIGN_V.middle)}>
             <i className="bi bi-align-middle"></i>
           </button>
-          <button type="button" className="btn btn-outline-secondary" disabled={!selectedChip} title="Align bottom" onClick={() => alignV(ALIGN_V.bottom)}>
+          <button type="button" className="btn btn-outline-secondary" disabled={selectedChips.length === 0} title="Align bottom" onClick={() => alignV(ALIGN_V.bottom)}>
             <i className="bi bi-align-bottom"></i>
+          </button>
+        </div>
+        <div className="btn-group btn-group-sm" role="group" aria-label="Distribute spacing">
+          <button type="button" className="btn btn-outline-secondary" disabled={selectedChips.length < 3} title="Distribute horizontally (select 3+)" onClick={distributeH}>
+            <i className="bi bi-distribute-horizontal"></i>
+          </button>
+          <button type="button" className="btn btn-outline-secondary" disabled={selectedChips.length < 3} title="Distribute vertically (select 3+)" onClick={distributeV}>
+            <i className="bi bi-distribute-vertical"></i>
           </button>
         </div>
         <button
           type="button"
           className={`btn btn-sm ${snapEnabled ? "btn-secondary" : "btn-outline-secondary"}`}
           title={snapEnabled ? "Snapping on — click to disable" : "Snapping off — click to enable"}
-          onClick={() => { setSnapEnabled((v) => !v); setGuides({ v: [], h: [] }); }}
+          onClick={() => { setSnapEnabled((v) => !v); setGuides(noGuides); }}
         >
           <i className="bi bi-magnet me-1"></i>Snap
         </button>
-        {!selectedChip && <span style={{ fontSize: 11, color: "#94a3b8" }}>Click an element to align it</span>}
+        {selectedChips.length === 0 && <span style={{ fontSize: 11, color: "#94a3b8" }}>Click an element to align it (shift-click for multiple)</span>}
+        {selectedChips.length === 1 && <span style={{ fontSize: 11, color: "#94a3b8" }}>1 selected</span>}
+        {selectedChips.length > 1 && <span style={{ fontSize: 11, color: "#94a3b8" }}>{selectedChips.length} selected</span>}
       </div>
       <div
         ref={boxRef}
@@ -2476,14 +2514,17 @@ function FreeformDragSurface({ chips, slide }: { chips: FreeformChip[]; slide: H
           if (!dragId || !moveRef.current) return;
           const raw = posFromEvent(e.clientX, e.clientY);
           const snapped = snapPos(raw, dragId);
-          setGuides({ v: snapped.v, h: snapped.h });
+          setGuides({ vCanvas: snapped.vCanvas, vElement: snapped.vElement, hCanvas: snapped.hCanvas, hElement: snapped.hElement });
           moveRef.current(snapped.pos);
         }}
         onPointerUp={(e) => {
           boxRef.current?.releasePointerCapture?.(e.pointerId);
           setDragId(null);
           moveRef.current = null;
-          setGuides({ v: [], h: [] });
+          setGuides(noGuides);
+        }}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) setSelectedIds(new Set());
         }}
         style={{
           position: "relative",
@@ -2518,12 +2559,21 @@ function FreeformDragSurface({ chips, slide }: { chips: FreeformChip[]; slide: H
         {/* Placement grid overlay */}
         <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: gridOverlay }} />
 
-        {/* Snap guide lines — shown only while actively snapped during a drag */}
-        {guides.v.map((x) => (
-          <div key={`v-${x}`} style={{ position: "absolute", left: `${x}%`, top: 0, bottom: 0, width: 0, borderLeft: "1px dashed #f472b6", pointerEvents: "none", zIndex: 5 }} />
+        {/* Snap guide lines — shown only while actively snapped during a drag. Cyan = snapped
+            to canvas centre; pink = snapped to another element's position (e.g. an unmoved
+            default like the overlay image's x:80%) — kept visually distinct so it's clear
+            which one you're looking at. */}
+        {guides.vCanvas.map((x) => (
+          <div key={`vc-${x}`} style={{ position: "absolute", left: `${x}%`, top: 0, bottom: 0, width: 0, borderLeft: "1px dashed #38bdf8", pointerEvents: "none", zIndex: 5 }} />
         ))}
-        {guides.h.map((y) => (
-          <div key={`h-${y}`} style={{ position: "absolute", top: `${y}%`, left: 0, right: 0, height: 0, borderTop: "1px dashed #f472b6", pointerEvents: "none", zIndex: 5 }} />
+        {guides.hCanvas.map((y) => (
+          <div key={`hc-${y}`} style={{ position: "absolute", top: `${y}%`, left: 0, right: 0, height: 0, borderTop: "1px dashed #38bdf8", pointerEvents: "none", zIndex: 5 }} />
+        ))}
+        {guides.vElement.map((x) => (
+          <div key={`ve-${x}`} style={{ position: "absolute", left: `${x}%`, top: 0, bottom: 0, width: 0, borderLeft: "1px dashed #f472b6", pointerEvents: "none", zIndex: 5 }} />
+        ))}
+        {guides.hElement.map((y) => (
+          <div key={`he-${y}`} style={{ position: "absolute", top: `${y}%`, left: 0, right: 0, height: 0, borderTop: "1px dashed #f472b6", pointerEvents: "none", zIndex: 5 }} />
         ))}
 
         {chips.length === 0 ? (
@@ -2531,15 +2581,25 @@ function FreeformDragSurface({ chips, slide }: { chips: FreeformChip[]; slide: H
             No overlay elements to place yet — add a heading, subheading or button.
           </div>
         ) : chips.map((chip) => {
-          const selected = selectedId === chip.id;
+          const selected = selectedIds.has(chip.id);
           return (
             <div
               key={chip.id}
               onPointerDown={(e) => {
                 e.preventDefault();
+                if (e.shiftKey || e.ctrlKey || e.metaKey) {
+                  // Shift/ctrl-click only toggles selection membership — doesn't start a
+                  // drag, since dragging several chips together isn't supported (yet).
+                  setSelectedIds((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(chip.id)) next.delete(chip.id); else next.add(chip.id);
+                    return next;
+                  });
+                  return;
+                }
                 boxRef.current?.setPointerCapture?.(e.pointerId);
                 setDragId(chip.id);
-                setSelectedId(chip.id);
+                setSelectedIds(new Set([chip.id]));
                 moveRef.current = chip.onMove;
               }}
               title={`${chip.kind} — ${chip.pos.x}%, ${chip.pos.y}%`}
