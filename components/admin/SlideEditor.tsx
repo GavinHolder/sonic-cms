@@ -76,8 +76,10 @@ export default function SlideEditor({
     const eyebrowText = slide.eyebrow || ov.eyebrow;
     if (eyebrowText && !ov.eyebrowHidden) {
       chips.push({
+        // Live eyebrow is fontSize: clamp(11px, 1.4vw, 13px) — at the 1440px reference
+        // viewport 1.4vw always exceeds 13px, so the effective size is always 13.
         id: "eyebrow", kind: "eyebrow", text: eyebrowText,
-        color: ov.eyebrowColor || "#22c55e", fontSize: 15, fontWeight: 700,
+        color: ov.eyebrowColor || "#22c55e", fontSize: 13, fontWeight: 700,
         pos: ov.eyebrowPos ?? defaultFreeformPos("eyebrow"),
         onMove: (p) => updateOverlay({ eyebrowPos: p }),
       });
@@ -85,7 +87,7 @@ export default function SlideEditor({
     if (ov.headingRows && ov.headingRows.length > 0) {
       ov.headingRows.forEach((row, i) => {
         chips.push({
-          id: `row-${i}`, kind: "heading", text: row.text, words: row.words,
+          id: `row-${i}`, kind: "heading", text: row.text, words: row.words, isRow: true,
           fontSize: row.fontSize, fontWeight: row.fontWeight, fontFamily: row.fontFamily, color: row.color,
           pos: row.pos ?? defaultFreeformPos("heading", i),
           onMove: (p) => updateHeadingRow(i, { pos: p }),
@@ -2318,6 +2320,8 @@ interface FreeformChip {
   text: string;
   /** Heading rows: per-word fill/outline styling (mirrors the live slide). */
   words?: HeadingWord[];
+  /** True for stacked headingRows (tighter line-height/letter-spacing than the legacy single heading). */
+  isRow?: boolean;
   fontSize?: number;      // px (design canvas)
   fontWeight?: number;
   fontFamily?: string;
@@ -2470,11 +2474,12 @@ function renderFreeformChip(chip: FreeformChip, scale: number, vpW: number) {
   const px = (n: number, cap = Infinity) => `${Math.max(1, Math.min(n, cap) * scale)}px`;
   if (chip.kind === "heading") {
     const words = chip.words;
-    // Heading effective size honors the slide's clamp(28px, 7vw, fontSize): the 7vw
-    // ceiling at the current viewport is 0.07 * vpW.
-    const cap = 0.07 * vpW;
+    // Stacked headingRows honor clamp(40px, 9vw, fontSize) with lineHeight 0.95 and
+    // letterSpacing -0.02em; the legacy single heading honors clamp(28px, 7vw, fontSize)
+    // with lineHeight 1.2 and no letter-spacing (HeroCarousel.tsx).
+    const cap = chip.isRow ? 0.09 * vpW : 0.07 * vpW;
     return (
-      <div style={{ fontFamily: chip.fontFamily || "inherit", fontWeight: chip.fontWeight || 800, fontSize: px(chip.fontSize || 60, cap), lineHeight: 1.02, color: chip.color || "#fff" }}>
+      <div style={{ fontFamily: chip.fontFamily || "inherit", fontWeight: chip.fontWeight || 800, fontSize: px(chip.fontSize || 60, cap), lineHeight: chip.isRow ? 0.95 : 1.2, letterSpacing: chip.isRow ? "-0.02em" : undefined, color: chip.color || "#fff" }}>
         {words && words.length > 0
           ? words.map((w, wi) => {
               const sp = wi < words.length - 1 ? " " : "";
@@ -2518,10 +2523,13 @@ function renderFreeformChip(chip: FreeformChip, scale: number, vpW: number) {
     );
   }
   if (chip.kind === "eyebrow") {
-    return <div style={{ fontSize: px(chip.fontSize || 15), fontWeight: chip.fontWeight || 700, letterSpacing: `${1.5 * scale}px`, textTransform: "uppercase", color: chip.color || "#22c55e" }}>{chip.text}</div>;
+    // Live eyebrow is clamp(11px, 1.4vw, 13px) — at the 1440px reference viewport
+    // 1.4vw always exceeds 13px, so the effective size is always the 13px cap.
+    return <div style={{ fontSize: px(chip.fontSize || 13, 13), fontWeight: chip.fontWeight || 600, letterSpacing: "0.18em", lineHeight: 1, textTransform: "uppercase", color: chip.color || "#22c55e" }}>{chip.text}</div>;
   }
   if (chip.kind === "subheading") {
-    return <div style={{ fontFamily: chip.fontFamily || "inherit", fontSize: px(chip.fontSize || 22, 52), fontWeight: chip.fontWeight || 400, lineHeight: 1.25, color: chip.color || "#fff" }}>{chip.text}</div>;
+    // Live subheading is clamp(16px, 4vw, fontSize) with lineHeight 1.4 (HeroCarousel.tsx).
+    return <div style={{ fontFamily: chip.fontFamily || "inherit", fontSize: px(chip.fontSize || 22, 0.04 * vpW), fontWeight: chip.fontWeight || 400, lineHeight: 1.4, color: chip.color || "#fff" }}>{chip.text}</div>;
   }
   // button
   const filled = chip.variant !== "ghost" && chip.variant !== "outline";
