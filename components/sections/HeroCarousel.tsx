@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useLayoutEffect, Fragment } from "react";
+import { useState, useEffect, useLayoutEffect, useMemo, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { HeroSection, AnimationType, HeadingRow, TextShadowConfig, FreeformPos } from "@/types/section";
 import { defaultFreeformPos } from "@/types/section";
@@ -173,6 +173,37 @@ export default function HeroCarousel({ section }: HeroCarouselProps) {
     showSlideCounter, showScrollIndicator, metaLine, controlsPosition = "bottom-left",
     statsStrip,
   } = section.content;
+
+  // Overlay font-family values are authored as CSS shorthand (e.g. `'Poppins', sans-serif`)
+  // via GoogleFontPicker, but that only injects the <link> into the ADMIN's own document —
+  // the live public page never loaded the stylesheet, so custom fonts silently fell back
+  // to the browser default here. Same technique FlexibleSectionRenderer uses for its blocks.
+  const heroFontFamilies = useMemo(() => {
+    const families = new Set<string>();
+    const collect = (v?: string) => {
+      if (!v || v === "inherit") return;
+      const m = v.match(/'([^']+)'/);
+      if (m) families.add(m[1]);
+    };
+    for (const s of slides) {
+      collect(s.overlay?.heading?.fontFamily);
+      collect(s.overlay?.subheading?.fontFamily);
+      for (const row of s.overlay?.headingRows ?? []) collect(row.fontFamily);
+    }
+    return [...families];
+  }, [slides]);
+
+  useEffect(() => {
+    for (const family of heroFontFamilies) {
+      const id = "gf-hero-" + family.replace(/\s+/g, "-");
+      if (document.getElementById(id)) continue;
+      const link = document.createElement("link");
+      link.id = id;
+      link.rel = "stylesheet";
+      link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family).replace(/%20/g, "+")}:wght@400;700;800;900&display=swap`;
+      document.head.appendChild(link);
+    }
+  }, [heroFontFamilies]);
 
   // Detect mobile viewport for mobile-specific images/colors.
   // useLayoutEffect (isomorphic) so the correct src is chosen BEFORE the browser

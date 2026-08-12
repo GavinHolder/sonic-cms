@@ -6,6 +6,7 @@ import { defaultFreeformPos } from "@/types/section";
 import MediaUploader from "./MediaUploader";
 import MediaPickerModal from "./MediaPickerModal";
 import { LinkPicker } from "./LinkPicker";
+import GoogleFontPicker from "./GoogleFontPicker";
 
 interface SlideEditorProps {
   slide: HeroCarouselSlide;
@@ -863,18 +864,16 @@ export default function SlideEditor({
                 <div className="row mb-3">
                   <div className="col-md-6">
                     <label className="form-label fw-semibold">Font Family</label>
-                    <input
-                      type="text"
-                      className="form-control"
+                    <GoogleFontPicker
                       value={slide.overlay?.heading.fontFamily ?? "inherit"}
-                      onChange={(e) =>
+                      onChange={(f) =>
                         updateOverlay({
                           heading: {
                             ...slide.overlay?.heading,
                             text: slide.overlay?.heading.text ?? "",
                             fontSize: slide.overlay?.heading.fontSize ?? 56,
                             fontWeight: slide.overlay?.heading.fontWeight ?? 700,
-                            fontFamily: e.target.value,
+                            fontFamily: f,
                             color: slide.overlay?.heading.color ?? "#ffffff",
                             animation: slide.overlay?.heading.animation ?? "slideUp",
                             animationDuration: slide.overlay?.heading.animationDuration ?? 800,
@@ -882,7 +881,6 @@ export default function SlideEditor({
                           },
                         })
                       }
-                      placeholder="inherit"
                     />
                   </div>
                   <div className="col-md-6">
@@ -1157,6 +1155,13 @@ export default function SlideEditor({
                             </select>
                           </div>
                         </div>
+                        <div className="mt-2">
+                          <label className="form-label form-label-sm mb-1">Font Family</label>
+                          <GoogleFontPicker
+                            value={row.fontFamily ?? "inherit"}
+                            onChange={(f) => updateHeadingRow(idx, { fontFamily: f })}
+                          />
+                        </div>
 
                         {/* ── Per-word outline / fill ─────────────────────────── */}
                         <div className="mt-2 pt-2 border-top">
@@ -1302,19 +1307,16 @@ export default function SlideEditor({
                 <div className="row mb-3">
                   <div className="col-md-6">
                     <label className="form-label fw-semibold">Font Family</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      value={slide.overlay.subheading.fontFamily}
-                      onChange={(e) =>
+                    <GoogleFontPicker
+                      value={slide.overlay.subheading.fontFamily ?? "inherit"}
+                      onChange={(f) =>
                         updateOverlay({
                           subheading: {
                             ...slide.overlay?.subheading!,
-                            fontFamily: e.target.value,
+                            fontFamily: f,
                           },
                         })
                       }
-                      placeholder="inherit"
                     />
                   </div>
                   <div className="col-md-6">
@@ -2239,27 +2241,28 @@ function FreeformDragSurface({ chips, slide }: { chips: FreeformChip[]; slide: H
   const [dragId, setDragId] = useState<string | null>(null);
   const moveRef = useRef<((p: FreeformPos) => void) | null>(null);
   // The live hero is 100vw × 100vh, so its background crop AND its font sizes depend
-  // on the actual viewport. To be truly 1:1 we (a) match the surface aspect ratio to
-  // the viewport (same media crop → text lands on the same visual spot), and (b) scale
-  // text by surfaceWidth / viewport width (same relative size + honoring the 7vw clamp).
+  // on the visitor's viewport. There's no single "real" viewport to match, so instead
+  // of reading the admin's own browser window (which drifted every time they resized
+  // it or checked the live page in a differently-sized tab — the actual cause of
+  // positions/sizes looking different each time), we pin a fixed reference desktop
+  // viewport. This makes the preview deterministic and reproducible; it approximates
+  // a 1440-wide desktop visitor, same as the reference width already baked into the
+  // renderFreeformChip scaling below.
+  const REFERENCE_VW = 1440;
+  const REFERENCE_VH = 810;
   const [scale, setScale] = useState(0.35);
-  const [aspect, setAspect] = useState("16 / 9");
-  const [vpW, setVpW] = useState(1440);
+  const vpW = REFERENCE_VW;
+  const aspect = `${REFERENCE_VW} / ${REFERENCE_VH}`;
   useEffect(() => {
     const measure = () => {
-      const w = window.innerWidth || 1440;
-      const h = window.innerHeight || 900;
-      setVpW(w);
-      setAspect(`${w} / ${h}`);
       const el = boxRef.current;
-      if (el) setScale((el.clientWidth || 500) / w);
+      if (el) setScale((el.clientWidth || 500) / REFERENCE_VW);
     };
     measure();
     const el = boxRef.current;
     const ro = el && typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
     if (ro && el) ro.observe(el);
-    window.addEventListener("resize", measure);
-    return () => { ro?.disconnect(); window.removeEventListener("resize", measure); };
+    return () => { ro?.disconnect(); };
   }, []);
 
   const clampPct = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
