@@ -2340,6 +2340,9 @@ interface FreeformChip {
 // Snap threshold in px (screen space) — converted to a %-of-box value per axis at drag time,
 // since the box's px size changes with the admin's viewport/zoom but the stored pos is a %.
 const SNAP_PX = 8;
+// Minimum pointer travel (px) before a pointerdown-on-a-chip counts as a drag rather than
+// a select click. See dragStartRef comment in FreeformDragSurface.
+const DRAG_THRESHOLD_PX = 3;
 // Alignment targets as % of the box. Not 0/50/100 — chips are centre-anchored
 // (translate(-50%,-50%)), so 0/100 would push half the chip off-canvas. These margins
 // mirror the padding used elsewhere in the freeform surface.
@@ -2353,6 +2356,13 @@ function FreeformDragSurface({ chips, slide }: { chips: FreeformChip[]; slide: H
   // with just that chip. Alignment buttons act on every selected chip; distribute needs 3+.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [snapEnabled, setSnapEnabled] = useState(true);
+  // A plain click has to both select a chip AND be able to start a drag from the same
+  // pointerdown — but with zero movement threshold, the tiny sub-pixel jitter inherent in
+  // any mouse click was registering as a real drag and nudging the chip a percent or two.
+  // Track the pointerdown origin and only start actually moving the chip once the pointer
+  // has travelled past DRAG_THRESHOLD_PX.
+  const dragStartRef = useRef<{ x: number; y: number } | null>(null);
+  const movedRef = useRef(false);
   // Canvas-centre guides and sibling-element guides render in different colours (cyan vs
   // pink) — they used to look identical, which was confusing since e.g. the default
   // overlay-image position (x:80%) is nowhere near centre but still drew a same-colour line.
@@ -2510,8 +2520,22 @@ function FreeformDragSurface({ chips, slide }: { chips: FreeformChip[]; slide: H
       </div>
       <div
         ref={boxRef}
+        onPointerDown={(e) => {
+          // Deselect-on-background-click lives here (not onClick) because click-event
+          // targeting gets unreliable once setPointerCapture is in play for a chip drag —
+          // it was firing right after a chip's own pointerdown and clearing the selection
+          // that pointerdown had just set. e.target === e.currentTarget still correctly
+          // excludes clicks that originated on a chip (a different DOM node).
+          if (e.target === e.currentTarget) setSelectedIds(new Set());
+        }}
         onPointerMove={(e) => {
           if (!dragId || !moveRef.current) return;
+          if (!movedRef.current) {
+            const start = dragStartRef.current;
+            const dist = start ? Math.hypot(e.clientX - start.x, e.clientY - start.y) : Infinity;
+            if (dist < DRAG_THRESHOLD_PX) return;
+            movedRef.current = true;
+          }
           const raw = posFromEvent(e.clientX, e.clientY);
           const snapped = snapPos(raw, dragId);
           setGuides({ vCanvas: snapped.vCanvas, vElement: snapped.vElement, hCanvas: snapped.hCanvas, hElement: snapped.hElement });
@@ -2521,10 +2545,9 @@ function FreeformDragSurface({ chips, slide }: { chips: FreeformChip[]; slide: H
           boxRef.current?.releasePointerCapture?.(e.pointerId);
           setDragId(null);
           moveRef.current = null;
+          dragStartRef.current = null;
+          movedRef.current = false;
           setGuides(noGuides);
-        }}
-        onClick={(e) => {
-          if (e.target === e.currentTarget) setSelectedIds(new Set());
         }}
         style={{
           position: "relative",
@@ -2601,6 +2624,8 @@ function FreeformDragSurface({ chips, slide }: { chips: FreeformChip[]; slide: H
                 setDragId(chip.id);
                 setSelectedIds(new Set([chip.id]));
                 moveRef.current = chip.onMove;
+                dragStartRef.current = { x: e.clientX, y: e.clientY };
+                movedRef.current = false;
               }}
               title={`${chip.kind} — ${chip.pos.x}%, ${chip.pos.y}%`}
               style={{

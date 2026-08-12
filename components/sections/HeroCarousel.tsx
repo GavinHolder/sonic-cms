@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useLayoutEffect, useMemo, Fragment } from "react";
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { HeroSection, AnimationType, HeadingRow, TextShadowConfig, FreeformPos } from "@/types/section";
 import { defaultFreeformPos } from "@/types/section";
@@ -172,6 +172,10 @@ export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps
   // Manual autoplay pause toggle. Combined with autoPlay so EITHER can stop the
   // timer (see auto-play effect below). Additive; defaults to playing.
   const [paused, setPaused] = useState(false);
+  // Background <video> elements have their own `autoPlay` attribute, so halting the
+  // slide-advance interval (below) doesn't stop them from playing — they need to be
+  // paused/played directly. Keyed by slide index since all slides' videos stay mounted.
+  const videoRefs = useRef<Map<number, HTMLVideoElement>>(new Map());
   const {
     slides = [], autoPlay, autoPlayInterval, showDots, showArrows, transitionDuration,
     showSlideCounter, showScrollIndicator, metaLine, controlsPosition = "bottom-left",
@@ -244,6 +248,14 @@ export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps
 
     return () => clearInterval(interval);
   }, [autoPlay, paused, forcePaused, autoPlayInterval, slides.length]);
+
+  // Mirror forcePaused onto any mounted background videos — see videoRefs comment above.
+  useEffect(() => {
+    videoRefs.current.forEach((el) => {
+      if (forcePaused) el.pause();
+      else el.play().catch(() => {});
+    });
+  }, [forcePaused]);
 
   const goToSlide = (index: number) => {
     setCurrentSlide(index);
@@ -410,7 +422,7 @@ export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps
   // bleeds through during a transition) and the animated slide layer (which
   // cross-fades). Keeping the gradient here means it is always keyed to its own
   // slide and never leaks past it.
-  const renderSlideBackground = (s: typeof slides[0]) => (
+  const renderSlideBackground = (s: typeof slides[0], slideIndex: number) => (
     <>
       {/* Background Media - Mobile: solid color or mobile image, Desktop: full media */}
       {isMobile && s.mobileBgColor ? (
@@ -441,6 +453,10 @@ export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps
           />
         ) : (
           <video
+            ref={(el) => {
+              if (el) videoRefs.current.set(slideIndex, el);
+              else videoRefs.current.delete(slideIndex);
+            }}
             className="position-absolute top-0 start-0 w-100 h-100"
             style={{ objectFit: "cover", width: "100%", height: "100%" }}
             autoPlay
@@ -507,7 +523,7 @@ export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps
           }}
           aria-hidden={i !== currentSlide}
         >
-          {renderSlideBackground(s)}
+          {renderSlideBackground(s, i)}
         </div>
       ))}
 
