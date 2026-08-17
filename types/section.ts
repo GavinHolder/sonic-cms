@@ -392,6 +392,16 @@ export interface OverlayImage {
   width: number;
   /** Freeform placement (only used when overlay.layoutMode === "freeform"). */
   pos?: FreeformPos;
+  /** Entrance animation. Defaults to "fade" (matches the pre-existing hardcoded look). */
+  animation?: AnimationType;
+  animationDuration?: number; // ms, default 500 (matches the pre-existing hardcoded look)
+  animationDelay?: number;    // ms, default 50 (matches the pre-existing hardcoded look)
+  /**
+   * Non-destructive recolor to solid white via CSS filter (brightness(0) invert(1)) —
+   * preserves the image's alpha shape, doesn't touch the uploaded source file. For
+   * placing a colored logo/icon over a dark background where it wouldn't otherwise read.
+   */
+  forceWhite?: boolean;
 }
 
 export interface HeadingRow {
@@ -443,6 +453,10 @@ export interface TextOverlayElement {
   eyebrowAlign?: "left" | "center" | "right";
   /** Hide the eyebrow without clearing its text */
   eyebrowHidden?: boolean;
+  /** Eyebrow entrance animation. Defaults to "fade" (matches the pre-existing hardcoded look). */
+  eyebrowAnimation?: AnimationType;
+  eyebrowAnimationDuration?: number; // ms, default 500 (matches the pre-existing hardcoded look)
+  eyebrowAnimationDelay?: number;    // ms, default 50 (matches the pre-existing hardcoded look)
   subheading?: {
     text: string;
     fontSize: number;

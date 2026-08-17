@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import type { HeroSection, AnimationType, HeadingRow, TextShadowConfig, FreeformPos } from "@/types/section";
+import type { HeroSection, AnimationType, HeadingRow, TextShadowConfig, FreeformPos, OverlayImage } from "@/types/section";
 import { defaultFreeformPos } from "@/types/section";
 
 /**
@@ -481,6 +481,27 @@ export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps
   );
 
   const slide = slides[currentSlide];
+
+  // Eyebrow and overlay images predate configurable entrance animations and shipped with a
+  // hardcoded subtle fade-up (`{ opacity: 0, y: 12 }`). Only switch to the standard
+  // getAnimationVariants() set (same shapes headings/subheading/buttons use) when the author
+  // has actually picked an animation type — otherwise keep the exact legacy motion so existing
+  // slides render byte-identical to before this was configurable.
+  const eyebrowVariants = slide.overlay?.eyebrowAnimation
+    ? getAnimationVariants(slide.overlay.eyebrowAnimation)
+    : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0 } };
+  const eyebrowTransition = {
+    duration: (slide.overlay?.eyebrowAnimationDuration ?? 500) / 1000,
+    delay: (slide.overlay?.eyebrowAnimationDelay ?? 50) / 1000,
+  };
+  const getImageVariants = (img: OverlayImage) =>
+    img.animation
+      ? getAnimationVariants(img.animation)
+      : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0 } };
+  const getImageTransition = (img: OverlayImage) => ({
+    duration: (img.animationDuration ?? 500) / 1000,
+    delay: (img.animationDelay ?? 50) / 1000,
+  });
   if (!slide) {
     return (
       <div className="min-vh-100 d-flex align-items-center justify-content-center bg-light">
@@ -588,10 +609,8 @@ export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps
                   {(slide.eyebrow || slide.overlay.eyebrow) && !slide.overlay.eyebrowHidden && (
                     <motion.p
                       key={`eyebrow-${currentSlide}`}
-                      initial={{ opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.5, delay: 0.05 }}
+                      {...eyebrowVariants}
+                      transition={eyebrowTransition}
                       style={{
                         fontSize: "clamp(11px, 1.4vw, 13px)",
                         fontWeight: 600,
@@ -787,10 +806,8 @@ export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps
                       }}
                     >
                       <motion.p
-                        initial={{ opacity: 0, y: 12 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.5, delay: 0.05 }}
+                        {...eyebrowVariants}
+                        transition={eyebrowTransition}
                         style={{
                           fontSize: "clamp(11px, 1.4vw, 13px)",
                           fontWeight: 600,
@@ -964,15 +981,16 @@ export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps
                         src={img.src}
                         alt={img.alt || ""}
                         className="hero-freeform-img"
-                        initial={{ opacity: 0, y: 12 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.5, delay: 0.05 }}
+                        {...getImageVariants(img)}
+                        transition={getImageTransition(img)}
                         style={{
                           display: "block",
                           width: isMobile ? effectiveWidth : "100%",
                           height: "auto",
                           maxWidth: "100%",
+                          // Non-destructive recolor to solid white — preserves alpha shape,
+                          // never touches the uploaded source file.
+                          filter: img.forceWhite ? "brightness(0) invert(1)" : undefined,
                         }}
                       />
                     </div>

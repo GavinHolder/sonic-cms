@@ -120,7 +120,7 @@ export default function SlideEditor({
     (ov.images ?? []).forEach((img, i) => {
       chips.push({
         id: `img-${i}`, kind: "image", text: img.alt || "Image",
-        imageSrc: img.src, imageWidth: img.width,
+        imageSrc: img.src, imageWidth: img.width, imageForceWhite: img.forceWhite,
         pos: img.pos ?? defaultFreeformPos("image", i),
         onMove: (p) => updateOverlayImage(i, { pos: p }),
       });
@@ -807,28 +807,85 @@ export default function SlideEditor({
               ) : (
                 <div className="d-flex flex-column gap-2">
                   {(slide.overlay?.images ?? []).map((img, i) => (
-                    <div key={i} className="d-flex align-items-center gap-2 p-2 border rounded bg-white">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={img.src} alt="" className="img-thumbnail" style={{ width: 48, height: 48, objectFit: "cover", flexShrink: 0 }} />
-                      <div className="flex-grow-1 d-flex align-items-center gap-2">
-                        <label className="form-label small mb-0 text-muted" style={{ minWidth: 40 }}>Width</label>
-                        <input
-                          type="range"
-                          min={40}
-                          max={1200}
-                          step={10}
-                          value={img.width}
-                          onChange={(e) => updateOverlayImage(i, { width: Number(e.target.value) })}
-                          className="form-range"
+                    <div key={i} className="d-flex flex-column gap-2 p-2 border rounded bg-white">
+                      <div className="d-flex align-items-center gap-2">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={img.src}
+                          alt=""
+                          className="img-thumbnail"
+                          style={{ width: 48, height: 48, objectFit: "cover", flexShrink: 0, background: img.forceWhite ? "#333" : undefined, filter: img.forceWhite ? "brightness(0) invert(1)" : undefined }}
                         />
-                        <span className="small text-muted" style={{ minWidth: 44 }}>{img.width}px</span>
+                        <div className="flex-grow-1 d-flex align-items-center gap-2">
+                          <label className="form-label small mb-0 text-muted" style={{ minWidth: 40 }}>Width</label>
+                          <input
+                            type="range"
+                            min={40}
+                            max={1200}
+                            step={10}
+                            value={img.width}
+                            onChange={(e) => updateOverlayImage(i, { width: Number(e.target.value) })}
+                            className="form-range"
+                          />
+                          <span className="small text-muted" style={{ minWidth: 44 }}>{img.width}px</span>
+                        </div>
+                        <button type="button" className="btn btn-sm btn-outline-secondary" title="Replace image" onClick={() => setImagePickerTarget(i)}>
+                          <i className="bi bi-arrow-repeat"></i>
+                        </button>
+                        <button type="button" className="btn btn-sm btn-outline-danger" title="Remove image" onClick={() => removeOverlayImage(i)}>
+                          <i className="bi bi-trash"></i>
+                        </button>
                       </div>
-                      <button type="button" className="btn btn-sm btn-outline-secondary" title="Replace image" onClick={() => setImagePickerTarget(i)}>
-                        <i className="bi bi-arrow-repeat"></i>
-                      </button>
-                      <button type="button" className="btn btn-sm btn-outline-danger" title="Remove image" onClick={() => removeOverlayImage(i)}>
-                        <i className="bi bi-trash"></i>
-                      </button>
+                      <div className="d-flex align-items-end gap-2 flex-wrap">
+                        <div style={{ minWidth: 110 }}>
+                          <label className="form-label form-label-sm mb-1">Animation</label>
+                          <select
+                            className="form-select form-select-sm"
+                            value={img.animation ?? "fade"}
+                            onChange={(e) => updateOverlayImage(i, { animation: e.target.value as AnimationType })}
+                          >
+                            <option value="none">None</option>
+                            <option value="fade">Fade</option>
+                            <option value="slideUp">Slide Up</option>
+                            <option value="slideDown">Slide Down</option>
+                            <option value="slideLeft">Slide Left</option>
+                            <option value="slideRight">Slide Right</option>
+                            <option value="zoom">Zoom</option>
+                          </select>
+                        </div>
+                        <div style={{ minWidth: 90 }}>
+                          <label className="form-label form-label-sm mb-1">Duration (ms)</label>
+                          <input
+                            type="number"
+                            className="form-control form-control-sm"
+                            value={img.animationDuration ?? 500}
+                            onChange={(e) => updateOverlayImage(i, { animationDuration: parseInt(e.target.value) || 500 })}
+                            min="0"
+                            max="5000"
+                            step="50"
+                          />
+                        </div>
+                        <div style={{ minWidth: 90 }}>
+                          <label className="form-label form-label-sm mb-1">Delay (ms)</label>
+                          <input
+                            type="number"
+                            className="form-control form-control-sm"
+                            value={img.animationDelay ?? 50}
+                            onChange={(e) => updateOverlayImage(i, { animationDelay: parseInt(e.target.value) || 0 })}
+                            min="0"
+                            max="5000"
+                            step="50"
+                          />
+                        </div>
+                        <label className="d-flex align-items-center gap-1 m-0 small text-muted" title="Recolor to solid white (non-destructive — doesn't touch the uploaded file)">
+                          <input
+                            type="checkbox"
+                            checked={img.forceWhite ?? false}
+                            onChange={(e) => updateOverlayImage(i, { forceWhite: e.target.checked })}
+                          />
+                          <span>Make white</span>
+                        </label>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1140,6 +1197,48 @@ export default function SlideEditor({
                       <span>Visible</span>
                     </label>
                   </div>
+                  <div className="row g-2 mt-1">
+                    <div className="col-4">
+                      <label className="form-label form-label-sm mb-1">Animation</label>
+                      <select
+                        className="form-select form-select-sm"
+                        value={slide.overlay?.eyebrowAnimation ?? "fade"}
+                        onChange={(e) => updateOverlay({ eyebrowAnimation: e.target.value as AnimationType })}
+                      >
+                        <option value="none">None</option>
+                        <option value="fade">Fade</option>
+                        <option value="slideUp">Slide Up</option>
+                        <option value="slideDown">Slide Down</option>
+                        <option value="slideLeft">Slide Left</option>
+                        <option value="slideRight">Slide Right</option>
+                        <option value="zoom">Zoom</option>
+                      </select>
+                    </div>
+                    <div className="col-4">
+                      <label className="form-label form-label-sm mb-1">Duration (ms)</label>
+                      <input
+                        type="number"
+                        className="form-control form-control-sm"
+                        value={slide.overlay?.eyebrowAnimationDuration ?? 500}
+                        onChange={(e) => updateOverlay({ eyebrowAnimationDuration: parseInt(e.target.value) || 500 })}
+                        min="0"
+                        max="5000"
+                        step="50"
+                      />
+                    </div>
+                    <div className="col-4">
+                      <label className="form-label form-label-sm mb-1">Delay (ms)</label>
+                      <input
+                        type="number"
+                        className="form-control form-control-sm"
+                        value={slide.overlay?.eyebrowAnimationDelay ?? 50}
+                        onChange={(e) => updateOverlay({ eyebrowAnimationDelay: parseInt(e.target.value) || 0 })}
+                        min="0"
+                        max="5000"
+                        step="50"
+                      />
+                    </div>
+                  </div>
                   <div className="form-text">Small uppercase label shown above the heading.</div>
                 </div>
 
@@ -1249,6 +1348,30 @@ export default function SlideEditor({
                               <option value="slideRight">Slide Right</option>
                               <option value="zoom">Zoom</option>
                             </select>
+                          </div>
+                          <div className="col-6">
+                            <label className="form-label form-label-sm mb-1">Duration (ms)</label>
+                            <input
+                              type="number"
+                              className="form-control form-control-sm"
+                              value={row.animationDuration}
+                              onChange={(e) => updateHeadingRow(idx, { animationDuration: parseInt(e.target.value) || 800 })}
+                              min="0"
+                              max="5000"
+                              step="50"
+                            />
+                          </div>
+                          <div className="col-6">
+                            <label className="form-label form-label-sm mb-1">Delay (ms)</label>
+                            <input
+                              type="number"
+                              className="form-control form-control-sm"
+                              value={row.animationDelay}
+                              onChange={(e) => updateHeadingRow(idx, { animationDelay: parseInt(e.target.value) || 0 })}
+                              min="0"
+                              max="5000"
+                              step="50"
+                            />
                           </div>
                         </div>
                         <div className="mt-2">
@@ -1529,37 +1652,17 @@ export default function SlideEditor({
 
             {slide.overlay?.textShadow?.enabled && (
               <>
-                <div className="row mb-3">
-                  <div className="col-md-6">
-                    <label className="form-label fw-semibold">Offset X (px)</label>
-                    <input
-                      type="number"
-                      className="form-control"
-                      value={slide.overlay.textShadow.offsetX}
-                      onChange={(e) =>
-                        updateOverlay({
-                          textShadow: { ...slide.overlay?.textShadow!, offsetX: parseInt(e.target.value) || 0 },
-                        })
-                      }
-                      min="-50"
-                      max="50"
-                    />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label fw-semibold">Offset Y (px)</label>
-                    <input
-                      type="number"
-                      className="form-control"
-                      value={slide.overlay.textShadow.offsetY}
-                      onChange={(e) =>
-                        updateOverlay({
-                          textShadow: { ...slide.overlay?.textShadow!, offsetY: parseInt(e.target.value) || 0 },
-                        })
-                      }
-                      min="-50"
-                      max="50"
-                    />
-                  </div>
+                <div className="mb-3">
+                  <label className="form-label fw-semibold">Shadow Direction</label>
+                  <ShadowDirectionDial
+                    offsetX={slide.overlay.textShadow.offsetX}
+                    offsetY={slide.overlay.textShadow.offsetY}
+                    onChange={(offsetX, offsetY) =>
+                      updateOverlay({
+                        textShadow: { ...slide.overlay?.textShadow!, offsetX, offsetY },
+                      })
+                    }
+                  />
                 </div>
 
                 <div className="row mb-3 align-items-end">
@@ -2333,8 +2436,104 @@ interface FreeformChip {
   // Image styling
   imageSrc?: string;
   imageWidth?: number;    // px (design canvas, 1440 reference width)
+  imageForceWhite?: boolean;
   pos: FreeformPos;
   onMove: (p: FreeformPos) => void;
+}
+
+/**
+ * ShadowDirectionDial — drag the dot to set the drop-shadow's offsetX/offsetY together as a
+ * direction + distance (light-direction metaphor: the dot points where the shadow falls,
+ * away from the light). Writes the exact same offsetX/offsetY px values a pair of number
+ * inputs would — no new data field, this is a UI-only replacement for those two inputs.
+ */
+function ShadowDirectionDial({
+  offsetX,
+  offsetY,
+  onChange,
+}: {
+  offsetX: number;
+  offsetY: number;
+  onChange: (offsetX: number, offsetY: number) => void;
+}) {
+  const dialRef = useRef<HTMLDivElement>(null);
+  const RADIUS = 40; // visual px radius of the drag area
+  const MAX_OFFSET = 50; // matches the prior number inputs' min/max="-50"/"50"
+  const scale = RADIUS / MAX_OFFSET;
+  const pad = 12;
+  const size = RADIUS * 2 + pad * 2;
+
+  const setFromEvent = (clientX: number, clientY: number) => {
+    const el = dialRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    let dx = (clientX - (r.left + r.width / 2)) / scale;
+    let dy = (clientY - (r.top + r.height / 2)) / scale;
+    // Clamp to the circle (not per-axis) so the dot never leaves the dial.
+    const dist = Math.hypot(dx, dy);
+    if (dist > MAX_OFFSET) {
+      dx = (dx / dist) * MAX_OFFSET;
+      dy = (dy / dist) * MAX_OFFSET;
+    }
+    onChange(Math.round(dx), Math.round(dy));
+  };
+
+  const handleX = offsetX * scale;
+  const handleY = offsetY * scale;
+
+  return (
+    <div className="d-flex align-items-center gap-3">
+      <div
+        ref={dialRef}
+        onPointerDown={(e) => {
+          e.currentTarget.setPointerCapture(e.pointerId);
+          setFromEvent(e.clientX, e.clientY);
+        }}
+        onPointerMove={(e) => {
+          if (e.buttons !== 1) return;
+          setFromEvent(e.clientX, e.clientY);
+        }}
+        title="Drag to set shadow direction and distance"
+        style={{
+          position: "relative",
+          width: size,
+          height: size,
+          borderRadius: "50%",
+          background: "#f8f9fa",
+          border: "1px solid #dee2e6",
+          cursor: "crosshair",
+          touchAction: "none",
+          flexShrink: 0,
+        }}
+      >
+        {/* center dot — the "no shadow" origin */}
+        <div style={{ position: "absolute", left: size / 2, top: size / 2, width: 4, height: 4, borderRadius: "50%", background: "#adb5bd", transform: "translate(-50%, -50%)", pointerEvents: "none" }} />
+        <svg style={{ position: "absolute", inset: 0, pointerEvents: "none" }} width={size} height={size}>
+          <line x1={size / 2} y1={size / 2} x2={size / 2 + handleX} y2={size / 2 + handleY} stroke="#6c757d" strokeWidth={2} />
+        </svg>
+        <div
+          style={{
+            position: "absolute",
+            left: size / 2 + handleX,
+            top: size / 2 + handleY,
+            width: 14,
+            height: 14,
+            borderRadius: "50%",
+            background: "#0d6efd",
+            border: "2px solid #fff",
+            boxShadow: "0 1px 4px rgba(0,0,0,0.4)",
+            transform: "translate(-50%, -50%)",
+            pointerEvents: "none",
+          }}
+        />
+      </div>
+      <div style={{ fontSize: 12, color: "#6c757d" }}>
+        <div>X: <strong>{offsetX}px</strong></div>
+        <div>Y: <strong>{offsetY}px</strong></div>
+        <div className="text-muted mt-1" style={{ fontSize: 10, maxWidth: 110 }}>Drag the dot to set direction &amp; distance</div>
+      </div>
+    </div>
+  );
 }
 
 // Snap threshold in px (screen space) — converted to a %-of-box value per axis at drag time,
@@ -2713,7 +2912,14 @@ function renderFreeformChip(chip: FreeformChip, scale: number, vpW: number) {
         src={chip.imageSrc}
         alt=""
         draggable={false}
-        style={{ width: px(chip.imageWidth || 160), height: "auto", display: "block", borderRadius: 4 * scale, pointerEvents: "none" }}
+        style={{
+          width: px(chip.imageWidth || 160),
+          height: "auto",
+          display: "block",
+          borderRadius: 4 * scale,
+          pointerEvents: "none",
+          filter: chip.imageForceWhite ? "brightness(0) invert(1)" : undefined,
+        }}
       />
     );
   }
