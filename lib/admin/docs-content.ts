@@ -2608,6 +2608,10 @@ Instead of the 9 preset content positions, drag each overlay element (eyebrow, h
 **Placing elements** — Drag each chip on the placement grid. Position is stored as \`x%, y%\` (anchor = element centre). Click a chip to select it (shift-click for multiple); use the toolbar to align selected chips (left/centre/right, top/middle/bottom) or distribute spacing evenly (3+ selected). **Snap** (on by default) pulls a dragged chip to the canvas centre or to another element's position within a few pixels.
 
 **1:1 accuracy** — the drag canvas, the **Live Preview** panel above the Slides list, and the actual public page all measure the *same* real browser window (\`window.innerWidth/innerHeight\`) to compute their aspect ratio and font scaling, so a position placed in the drag canvas lands in the same relative spot everywhere. The one caveat is inherent, not a bug: a visitor's own window shape can differ from whichever window you were editing in, which shifts things slightly — same as any responsive layout tool. If positions ever look off between the editor and the live page again, hard-refresh both tabs before assuming it's a regression — a stale cached bundle in an already-open tab is the most common cause.
+
+**Overlay image size** — the width slider goes up to 1200px. Images hold the size you set regardless of where you drag them (a bug where images shrank the closer they got to the right edge was fixed).
+
+**Entrance animations** — heading/subheading/eyebrow/button/image entrance animations (slide up, slide down, fade, etc.) always play, on every slide, regardless of the visitor's or your own machine's "reduce motion" accessibility setting. If you ever see them stop animating and just appear instantly, that's not this — check for a newer regression rather than assuming it's the OS setting.
 `;
 
 const PAGES_SYSTEM = `
