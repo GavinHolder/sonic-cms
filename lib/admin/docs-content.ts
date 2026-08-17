@@ -2590,10 +2590,10 @@ Each row supports: \`text\`, \`color\`, \`fontSize\`, \`fontWeight\`, \`fontFami
 In the **Slide Editor → Overlay tab**:
 
 1. Click **"Switch to Stacked"** to enter stacked mode — the current heading becomes the first row
-2. Edit each row's **text**, **color** (hex or color picker), **size**, **weight**, and **animation**
+2. Edit each row's **text**, **color** (hex or color picker), **size**, **weight**, **animation type**, and **animation duration/delay (ms)**
 3. Click **"+ Add Row"** to add up to 5 rows
 4. Drag rows to reorder, or click the trash icon to remove
-5. The optional **Eyebrow** field (above all rows) supports its own color
+5. The optional **Eyebrow** field (above all rows) supports its own color, alignment, visibility, and animation type/duration/delay
 
 Click **"Switch to Classic"** to return to a single heading string (all row data is discarded).
 
@@ -2609,7 +2609,9 @@ Instead of the 9 preset content positions, drag each overlay element (eyebrow, h
 
 **1:1 accuracy** — the drag canvas, the **Live Preview** panel above the Slides list, and the actual public page all measure the *same* real browser window (\`window.innerWidth/innerHeight\`) to compute their aspect ratio and font scaling, so a position placed in the drag canvas lands in the same relative spot everywhere. The one caveat is inherent, not a bug: a visitor's own window shape can differ from whichever window you were editing in, which shifts things slightly — same as any responsive layout tool. If positions ever look off between the editor and the live page again, hard-refresh both tabs before assuming it's a regression — a stale cached bundle in an already-open tab is the most common cause.
 
-**Overlay image size** — the width slider goes up to 1200px. Images hold the size you set regardless of where you drag them (a bug where images shrank the closer they got to the right edge was fixed).
+**Overlay image size** — the width slider goes up to 1200px. Images hold the size you set regardless of where you drag them (a bug where images shrank the closer they got to the right edge was fixed). Each image also has its own Animation type/Duration/Delay controls (same as buttons), and a **Make white** checkbox that non-destructively recolors it to solid white via a CSS filter (doesn't touch the uploaded file) — useful for a colored logo/icon over a dark background.
+
+**Drop shadow direction** — Text Overlay tab, Drop Shadow section: drag the dot on the circular dial to set the shadow's direction and distance, instead of typing raw Offset X/Y numbers. Blur, Color, and Opacity are unchanged below it.
 
 **Entrance animations** — heading/subheading/eyebrow/button/image entrance animations (slide up, slide down, fade, etc.) always play, on every slide, regardless of the visitor's or your own machine's "reduce motion" accessibility setting. If you ever see them stop animating and just appear instantly, that's not this — check for a newer regression rather than assuming it's the OS setting.
 `;
