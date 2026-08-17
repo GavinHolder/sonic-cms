@@ -771,7 +771,7 @@ export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps
                     invisible on a box that's exactly as wide as its single line of text. */}
                 {(slide.eyebrow || slide.overlay.eyebrow) && !slide.overlay.eyebrowHidden && (() => {
                   const eyebrowAlign = slide.overlay.eyebrowAlign || "center";
-                  const eyebrowAnchorX = eyebrowAlign === "left" ? "0%" : eyebrowAlign === "right" ? "-100%" : "-50%";
+                  const eyebrowAnchorX = eyebrowAlign === "left" ? "-100%" : eyebrowAlign === "right" ? "0%" : "-50%";
                   return (
                     <div
                       key={`ff-eyebrow-${currentSlide}`}
