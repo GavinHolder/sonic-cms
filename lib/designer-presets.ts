@@ -365,4 +365,67 @@ export const SECTION_PRESETS: SectionPreset[] = [
       ],
     },
   },
+
+  // 8. Product Cards (Tabbed)
+  {
+    id: "product-cards-tabs",
+    name: "Product Cards (Tabbed)",
+    description: "Centred heading + tab-switched grid of product cards, each independently bound to a product",
+    thumbnailId: "thumb-product-cards-tabs",
+    designerData: {
+      layoutType: "grid",
+      grid: { cols: 1, rows: 2, gap: 24 },
+      blocks: [
+        {
+          id: 1, type: "text",
+          position: { row: 1, col: 1, colSpan: 1, rowSpan: 1, section: 0 },
+          props: {},
+          subElements: [
+            { type: "eyebrow", props: { text: "PRICING", color: "#4caf50", textAlign: "center" } },
+            { type: "heading", props: { text: "Our Packages", fontSize: 40, fontWeight: 800, color: "#1a1a1a", textAlign: "center" } },
+          ],
+        },
+        {
+          // Every card shares the existing Volt product-card design (voltId) with no
+          // productId set — a placeholder ready for the per-card product picker in the
+          // Flexible Designer props panel. Card design/tab mechanics are unmodified from
+          // what's already built in Volt Studio; this preset only packages them together.
+          id: 2, type: "card-tabs",
+          position: { row: 2, col: 1, colSpan: 1, rowSpan: 1, section: 0 },
+          props: {
+            label: "Product Cards",
+            minCardWidth: 260,
+            tabs: [
+              {
+                key: "tab-wireless", label: "Wireless",
+                cards: [
+                  { id: "card-w1", voltId: "cms74vihd000ll566imdklgq2" },
+                  { id: "card-w2", voltId: "cms74vihd000ll566imdklgq2" },
+                  { id: "card-w3", voltId: "cms74vihd000ll566imdklgq2" },
+                  { id: "card-w4", voltId: "cms74vihd000ll566imdklgq2" },
+                ],
+              },
+              {
+                key: "tab-fibre", label: "Fibre",
+                cards: [
+                  { id: "card-f1", voltId: "cms74vihd000ll566imdklgq2" },
+                  { id: "card-f2", voltId: "cms74vihd000ll566imdklgq2" },
+                  { id: "card-f3", voltId: "cms74vihd000ll566imdklgq2" },
+                ],
+              },
+              {
+                key: "tab-voice", label: "Voice",
+                cards: [
+                  { id: "card-v1", voltId: "cms74vihd000ll566imdklgq2" },
+                  { id: "card-v2", voltId: "cms74vihd000ll566imdklgq2" },
+                  { id: "card-v3", voltId: "cms74vihd000ll566imdklgq2" },
+                ],
+              },
+            ],
+          },
+          subElements: [],
+        },
+      ],
+    },
+  },
 ];

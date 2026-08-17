@@ -128,6 +128,22 @@ function PresetThumbnail({ id }: { id: string }) {
           </div>
         </div>
       );
+    case "product-cards-tabs":
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, height: "100%" }}>
+          <div style={{ ...s.box("1", "#dee2e6", { minHeight: 12 }) }} />
+          <div style={s.row(3, { justifyContent: "center" })}>
+            {[0, 1, 2].map((i) => (
+              <div key={i} style={{ ...s.box(undefined, i === 0 ? "#0d6efd" : "#e9ecef", { flex: "none", width: 20, height: 8, borderRadius: 99 }) }} />
+            ))}
+          </div>
+          <div style={s.row(4, { flex: 1 })}>
+            <div style={col("1", "#ced4da")} />
+            <div style={col("1", "#ced4da")} />
+            <div style={col("1", "#ced4da")} />
+          </div>
+        </div>
+      );
     default:
       return <div style={{ flex: 1, background: "#dee2e6", borderRadius: 3 }} />;
   }
@@ -172,7 +188,7 @@ export default function PresetsGalleryModal({ onSelect, onClose }: PresetsGaller
                 gap: 16,
               }}
             >
-              {/* 7 preset cards */}
+              {/* SECTION_PRESETS.length preset cards */}
               {SECTION_PRESETS.map((preset) => (
                 <button
                   key={preset.id}
