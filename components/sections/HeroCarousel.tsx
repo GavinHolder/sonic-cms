@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, Fragment } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import type { HeroSection, AnimationType, HeadingRow, TextShadowConfig, FreeformPos } from "@/types/section";
 import { defaultFreeformPos } from "@/types/section";
 
@@ -176,10 +176,6 @@ export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps
   // slide-advance interval (below) doesn't stop them from playing — they need to be
   // paused/played directly. Keyed by slide index since all slides' videos stay mounted.
   const videoRefs = useRef<Map<number, HTMLVideoElement>>(new Map());
-  // OS/browser "reduce motion" accessibility setting. Without this, AnimatePresence
-  // enter transitions can get stuck at their pre-animation (opacity:0) state on
-  // machines with this preference on, leaving the whole hero permanently invisible.
-  const prefersReducedMotion = useReducedMotion();
   const {
     slides = [], autoPlay, autoPlayInterval, showDots, showArrows, transitionDuration,
     showSlideCounter, showScrollIndicator, metaLine, controlsPosition = "bottom-left",
@@ -580,7 +576,14 @@ export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps
                   WebkitOverflowScrolling: isMobile ? "touch" : undefined,
                 }}
               >
-                <AnimatePresence initial={!prefersReducedMotion}>
+                {/* Entrance animations always play, independent of the OS-level "reduce
+                    motion" setting: the hero's slide-up/fade/etc. transitions are an
+                    authored, decorative choice for this marketing site, not the kind of
+                    interaction-triggered motion that setting is meant to suppress — and
+                    gating AnimatePresence's `initial` prop on it here meant the animation
+                    was silently skipped on every single slide (this wrapper remounts per
+                    slide via the parent's `key={currentSlide}`), not just on first load. */}
+                <AnimatePresence>
                   {/* Eyebrow — slide-level or overlay-level (hideable, alignable) */}
                   {(slide.eyebrow || slide.overlay.eyebrow) && !slide.overlay.eyebrowHidden && (
                     <motion.p
@@ -765,7 +768,10 @@ export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps
               // (overflow-y overrides the base `overflow: hidden` on mobile; x stays hidden.) (mobile-gated)
               ...(isMobile ? { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "safe center", overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "104px 20px 64px" } : {}),
             }}>
-              <AnimatePresence initial={!prefersReducedMotion}>
+              {/* See the comment on the preset AnimatePresence above — same reasoning: entrance
+                  animations here are an authored design choice, always played regardless of the
+                  OS "reduce motion" setting. */}
+              <AnimatePresence>
                 {/* Eyebrow — honors eyebrowAlign by shifting which edge of the (shrink-wrapped,
                     nowrap) box anchors to the stored x% position, since text-align alone is
                     invisible on a box that's exactly as wide as its single line of text. */}
