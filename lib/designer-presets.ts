@@ -395,6 +395,7 @@ export const SECTION_PRESETS: SectionPreset[] = [
           props: {
             label: "Product Cards",
             minCardWidth: 260,
+            cardAspectRatio: "0.625",
             tabs: [
               {
                 key: "tab-wireless", label: "Wireless",
@@ -459,6 +460,7 @@ export const SECTION_PRESETS: SectionPreset[] = [
           props: {
             label: "Product Cards — Ribbon Heritage",
             minCardWidth: 260,
+            cardAspectRatio: "0.652",
             tabs: [
               {
                 key: "tab-wireless", label: "Wireless",

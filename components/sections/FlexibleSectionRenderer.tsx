@@ -2464,7 +2464,7 @@ function DesignerBlock({ block, darkBg }: {
             </div>
           );
         }
-        return <CardTabsBlock content={{ tabs, minCardWidth: p.minCardWidth as number | undefined }} darkBg={darkBg} />;
+        return <CardTabsBlock content={{ tabs, minCardWidth: p.minCardWidth as number | undefined, cardAspectRatio: p.cardAspectRatio as string | undefined }} darkBg={darkBg} />;
       }
 
       // ── product-grid: 3-layer Product Type → Network → Category drill-down grid of

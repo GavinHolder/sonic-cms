@@ -20,7 +20,7 @@ export interface CardTabsTab {
 }
 
 interface Props {
-  content?: { tabs?: CardTabsTab[]; minCardWidth?: number };
+  content?: { tabs?: CardTabsTab[]; minCardWidth?: number; cardAspectRatio?: string };
   darkBg?: boolean;
 }
 
@@ -37,6 +37,10 @@ interface Props {
 export default function CardTabsBlock({ content }: Props) {
   const tabs = content?.tabs || [];
   const minCardWidth = content?.minCardWidth || 260;
+  // Cards are absolutely-positioned Volt layers with no intrinsic height of their
+  // own — without an aspect-ratio here, .cms-card-tabs__cell collapses to its bare
+  // min-height (160px) no matter how tall the underlying Volt design actually is.
+  const cardAspectRatio = content?.cardAspectRatio || "0.65";
   const [active, setActive] = useState(0);
 
   if (tabs.length === 0) {
@@ -98,7 +102,7 @@ export default function CardTabsBlock({ content }: Props) {
           grid-template-columns: repeat(auto-fill, minmax(${minCardWidth}px, 1fr));
           gap: 20px;
         }
-        .cms-card-tabs__cell { min-height: 160px; }
+        .cms-card-tabs__cell { min-height: 160px; aspect-ratio: ${cardAspectRatio}; }
         .cms-card-tabs__empty {
           display: flex; align-items: center; justify-content: center; height: 100%; min-height: 160px;
           border: 1px dashed var(--cms-border, rgba(0,0,0,0.15)); border-radius: 12px;
