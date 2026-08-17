@@ -39,6 +39,7 @@ export default function PageClient({ params }: { params: Promise<{ slug: string 
   const [sections, setSections] = useState<SectionConfig[]>([]);
   const [designerData, setDesignerData] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [notFoundFlag, setNotFoundFlag] = useState(false);
 
   useEffect(() => {
     async function loadPage() {
@@ -46,9 +47,14 @@ export default function PageClient({ params }: { params: Promise<{ slug: string 
         // Fetch page from DB API
         const loadedPage: PageConfig | null = await getPage(slug);
 
-        // Page not found or disabled → 404
+        // Page not found or disabled → 404. `notFound()` must be thrown during render to
+        // be caught by Next.js's not-found boundary — calling it here, inside an async
+        // effect callback, doesn't work: the thrown error isn't routed to the 404 UI, so
+        // the component is left stuck showing whatever it last rendered (the loading
+        // spinner) forever instead of a 404 page. Set a flag and call notFound() from the
+        // render path below instead.
         if (!loadedPage || !loadedPage.enabled) {
-          notFound();
+          setNotFoundFlag(true);
           return;
         }
 
@@ -66,11 +72,15 @@ export default function PageClient({ params }: { params: Promise<{ slug: string 
         setLoading(false);
       } catch (error) {
         console.error("Failed to load page:", error);
-        notFound();
+        setNotFoundFlag(true);
       }
     }
     loadPage();
   }, [slug]);
+
+  if (notFoundFlag) {
+    notFound();
+  }
 
   if (loading) {
     return (

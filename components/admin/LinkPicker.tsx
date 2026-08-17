@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { BUILTIN_MANIFESTS } from "@/lib/plugins/manifests";
 
 interface LinkOption {
   value: string;
@@ -159,6 +160,12 @@ export function LinkPicker({
       .catch(() => {});
 
     // ── Special feature pages ───────────────────────────────────────────────
+    // A ClientFeature's `slug` is its toggle identity, not necessarily its public
+    // URL — e.g. the coverage-maps plugin's ClientFeature.slug is "coverage-maps"
+    // but its actual page lives at /coverage (per its manifest's routes.public).
+    // Assuming `/${slug}` broke that link. Prefer the plugin manifest's declared
+    // public route when the feature's slug matches a known plugin id; fall back
+    // to `/${slug}` for features with no manifest entry.
     fetch("/api/features")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
@@ -168,7 +175,11 @@ export function LinkPicker({
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               .filter((f: any) => f.enabled && f.slug)
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              .map((f: any) => ({ value: `/${f.slug}`, label: f.name || f.slug }))
+              .map((f: any) => {
+                const manifest = BUILTIN_MANIFESTS.find((m) => m.id === f.slug);
+                const publicRoute = manifest?.routes?.public?.[0];
+                return { value: publicRoute || `/${f.slug}`, label: f.name || f.slug };
+              })
           );
         }
       })
