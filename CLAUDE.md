@@ -147,9 +147,10 @@ Act as **senior engineering peer**: challenge assumptions, hunt edge cases, dema
 Security Expert (Opus) | React Reviewer | Skeptic | Architect | Consistency | Redundancy — need 4/6 consensus
 
 **Current Critical Issues (PENDING FIX):**
-1. `lib/auth.ts:13-14` — Hardcoded JWT fallback secret (CRITICAL — fail fast if JWT_SECRET unset)
-2. Zero test coverage (HIGH — target 80%+)
-3. `app/api/pages/[slug]/publish/route.ts:47` — Raw SQL without validation (MEDIUM)
+1. Zero test coverage (HIGH — target 80%+)
+2. `app/api/pages/[slug]/publish/route.ts:47` — Raw SQL (MEDIUM — parameterized via Prisma tagged template, not injectable, but bypasses the query builder)
+
+_(JWT hardcoded-fallback-secret item removed 2026-08-17 — verified fixed in `lib/auth.ts`: throws if `JWT_SECRET` unset, no fallback.)_
 
 **Rules:** `.claude/rules/` | **Templates:** `.claude/templates/` | **Agents:** `.claude/agents/`
 

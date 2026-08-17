@@ -2370,30 +2370,38 @@ function FreeformDragSurface({ chips, slide }: { chips: FreeformChip[]; slide: H
   const noGuides: Guides = { vCanvas: [], vElement: [], hCanvas: [], hElement: [] };
   const [guides, setGuides] = useState<Guides>(noGuides);
   const moveRef = useRef<((p: FreeformPos) => void) | null>(null);
-  // The live hero is 100vw × 100vh, so its background crop AND its font sizes depend
-  // on the visitor's viewport. There's no single "real" viewport to match, so instead
-  // of reading the admin's own browser window (which drifted every time they resized
-  // it or checked the live page in a differently-sized tab — the actual cause of
-  // positions/sizes looking different each time), we pin a fixed reference desktop
-  // viewport. This makes the preview deterministic and reproducible; it approximates
-  // a 1440-wide desktop visitor, same as the reference width already baked into the
-  // renderFreeformChip scaling below.
-  const REFERENCE_VW = 1440;
-  const REFERENCE_VH = 810;
+  // The live hero is 100vw × 100vh, so its background crop AND its font sizes (vw-based
+  // clamp()s) depend on the viewer's window shape, not just its width. This surface used to
+  // pin a fixed 1440×810 (16:9) reference box, decoupled from the admin's actual window —
+  // that's exactly why a chip placed to "look right" here landed somewhere else in the Live
+  // Preview panel and on the live page: both of THOSE already measure the admin's real
+  // window (see HeroCarouselEditor's `viewport` state) and size their virtual hero to match
+  // it 1:1, so this was the one surface out of three using a different shape. Matching that
+  // same real-window measurement here (same DEFAULT_VW/VH fallback too) makes the drag
+  // surface, the Live Preview panel, and the live page (as viewed on this same window) agree.
+  const DEFAULT_VW = 1440;
+  const DEFAULT_VH = 900;
+  const [viewport, setViewport] = useState({ w: DEFAULT_VW, h: DEFAULT_VH });
   const [scale, setScale] = useState(0.35);
-  const vpW = REFERENCE_VW;
-  const aspect = `${REFERENCE_VW} / ${REFERENCE_VH}`;
+  const vpW = viewport.w;
+  const aspect = `${viewport.w} / ${viewport.h}`;
+  useEffect(() => {
+    const readViewport = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
+    readViewport();
+    window.addEventListener("resize", readViewport);
+    return () => window.removeEventListener("resize", readViewport);
+  }, []);
   useEffect(() => {
     const measure = () => {
       const el = boxRef.current;
-      if (el) setScale((el.clientWidth || 500) / REFERENCE_VW);
+      if (el) setScale((el.clientWidth || 500) / viewport.w);
     };
     measure();
     const el = boxRef.current;
     const ro = el && typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
     if (ro && el) ro.observe(el);
     return () => { ro?.disconnect(); };
-  }, []);
+  }, [viewport.w]);
 
   const clampPct = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
 
@@ -2710,8 +2718,8 @@ function renderFreeformChip(chip: FreeformChip, scale: number, vpW: number) {
     );
   }
   if (chip.kind === "eyebrow") {
-    // Live eyebrow is clamp(11px, 1.4vw, 13px) — at the 1440px reference viewport
-    // 1.4vw always exceeds 13px, so the effective size is always the 13px cap.
+    // Live eyebrow is clamp(11px, 1.4vw, 13px) — 1.4vw only drops below the 13px cap
+    // on windows narrower than ~930px, which the admin editor realistically never is.
     return <div style={{ fontSize: px(chip.fontSize || 13, 13), fontWeight: chip.fontWeight || 600, letterSpacing: "0.18em", lineHeight: 1, textTransform: "uppercase", color: chip.color || "#22c55e" }}>{chip.text}</div>;
   }
   if (chip.kind === "subheading") {
