@@ -815,7 +815,7 @@ export default function SlideEditor({
                         <input
                           type="range"
                           min={40}
-                          max={480}
+                          max={1200}
                           step={10}
                           value={img.width}
                           onChange={(e) => updateOverlayImage(i, { width: Number(e.target.value) })}

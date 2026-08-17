@@ -938,25 +938,40 @@ export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps
                 ))}
 
                 {/* Secondary images — each placed independently, like text elements (#68) */}
-                {(slide.overlay.images ?? []).map((img, index) => (
-                  <div key={`ff-img-${index}-${currentSlide}`} style={ffStyle(img.pos, defaultFreeformPos("image", index))}>
-                    <motion.img
-                      src={img.src}
-                      alt={img.alt || ""}
-                      className="hero-freeform-img"
-                      initial={{ opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.5, delay: 0.05 }}
+                {(slide.overlay.images ?? []).map((img, index) => {
+                  const effectiveWidth = isMobile ? Math.min(img.width, 160) : img.width;
+                  return (
+                    <div
+                      key={`ff-img-${index}-${currentSlide}`}
                       style={{
-                        display: "block",
-                        width: isMobile ? Math.min(img.width, 160) : img.width,
-                        height: "auto",
-                        maxWidth: "100%",
+                        ...ffStyle(img.pos, defaultFreeformPos("image", index)),
+                        // Desktop's freeform wrapper is `position:absolute; left:X%` with no
+                        // `right`, so with no explicit width it shrink-fits to the space between
+                        // `left` and the container's right edge — the image visibly shrank the
+                        // further right it was dragged, down to a few px near the edge. An
+                        // explicit width (still capped by maxWidth:92%) removes that auto-shrink.
+                        // Mobile keeps ffStyle's own flex/100%-width flow layout untouched.
+                        ...(isMobile ? {} : { width: `${effectiveWidth}px`, maxWidth: "92%" }),
                       }}
-                    />
-                  </div>
-                ))}
+                    >
+                      <motion.img
+                        src={img.src}
+                        alt={img.alt || ""}
+                        className="hero-freeform-img"
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.5, delay: 0.05 }}
+                        style={{
+                          display: "block",
+                          width: isMobile ? effectiveWidth : "100%",
+                          height: "auto",
+                          maxWidth: "100%",
+                        }}
+                      />
+                    </div>
+                  );
+                })}
               </AnimatePresence>
             </div>
           )}
