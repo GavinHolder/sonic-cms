@@ -48,6 +48,11 @@ export default function VoltSlotRenderer({ layer, canvasWidth, canvasHeight, slo
         : slots[slotData.slotType])
     : undefined
 
+  // Fallback copy: only kicks in when content is falsy (unbound, explicitly blank, or
+  // zero) — same falsy semantics as the render-time `if (!displayContent)` guard below,
+  // so a design with no fallbackText configured renders byte-for-byte as before.
+  const displayContent = content || slotData?.fallbackText
+
   // Shrink-to-fit: measure natural text size vs. the fixed box and derive a scale.
   // transform:scale doesn't affect scrollWidth/clientWidth, so measurement is stable
   // (no feedback loop). Runs only for the 'shrink' strategy.
@@ -63,11 +68,24 @@ export default function VoltSlotRenderer({ layer, canvasWidth, canvasHeight, slo
     if (!cw || !ch || !sw || !sh) return
     const k = Math.min(1, cw / sw, ch / sh)
     setShrinkScale(k > 0 && k < 1 ? k : 1)
-  }, [content, overflowFit, layer.width, layer.height, slotData?.fontSize])
+  }, [displayContent, overflowFit, layer.width, layer.height, slotData?.fontSize])
 
   if (!layer.visible || layer.type !== 'slot' || !slotData) return null
 
   const { x, y, width, height, opacity } = layer
+
+  // fontSize scaled by cqw, mirroring VoltRenderer's text/number layers: stored as px
+  // at canvasWidth → renders proportionally with whatever container the card lands in.
+  // Historically authored as a bare number; also accept a numeric string defensively.
+  const safeCanvasWidth = Math.max(canvasWidth, 1)
+  const rawFontSize = slotData.fontSize
+  const parsedFontSize = typeof rawFontSize === 'number' ? rawFontSize : parseFloat(String(rawFontSize ?? ''))
+  const fontSize = Number.isFinite(parsedFontSize)
+    ? `${Math.min((Math.max(parsedFontSize, 6) / safeCanvasWidth) * 100, 50)}cqw`
+    : 'inherit'
+  const letterSpacing = slotData.letterSpacing
+    ? `${(slotData.letterSpacing / safeCanvasWidth) * 100}cqw`
+    : undefined
 
   const style: React.CSSProperties = {
     position: 'absolute',
@@ -80,10 +98,12 @@ export default function VoltSlotRenderer({ layer, canvasWidth, canvasHeight, slo
     transform: layer.rotation ? `rotate(${layer.rotation}deg)` : undefined,
     transformOrigin: layer.rotation ? 'center center' : undefined,
     fontFamily: slotData.fontFamily ?? 'inherit',
-    fontSize: slotData.fontSize ?? 'inherit',
+    fontSize,
     fontWeight: slotData.fontWeight ?? 'inherit',
     color: slotData.color ?? 'inherit',
     textAlign: slotData.textAlign ?? 'left',
+    letterSpacing,
+    textTransform: slotData.textTransform,
     overflow: (layer.bleed && canvasOverflow === 'visible') ? 'visible' : 'hidden',
     display: 'flex',
     alignItems: 'center',
@@ -140,14 +160,14 @@ export default function VoltSlotRenderer({ layer, canvasWidth, canvasHeight, slo
     )
   }
 
-  if (!content) return null
+  if (!displayContent) return null
 
   // Overflow-fit strategies keep long bound values inside the slot's own box.
   if (overflowFit === 'ellipsis') {
     return (
       <div style={style}>
         <span style={{ display: 'block', width: '100%', minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {content}
+          {displayContent}
         </span>
       </div>
     )
@@ -159,11 +179,11 @@ export default function VoltSlotRenderer({ layer, canvasWidth, canvasHeight, slo
           ref={textRef}
           style={{ whiteSpace: 'nowrap', transform: `scale(${shrinkScale})`, transformOrigin: originForAlign(slotData.textAlign) }}
         >
-          {content}
+          {displayContent}
         </div>
       </div>
     )
   }
-  // Default 'clip' — byte-for-byte the original render.
-  return <div style={style}>{content}</div>
+  // Default 'clip' — byte-for-byte the original render (when no fallbackText is set).
+  return <div style={style}>{displayContent}</div>
 }

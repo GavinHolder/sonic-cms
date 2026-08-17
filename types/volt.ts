@@ -236,10 +236,17 @@ export interface VoltSlotData {
   slotLabel: string
   contentFieldHint: string
   fontFamily?: string
-  fontSize?: string
+  /** px at design canvas width — renderer scales proportionally with cqw, same as text layers.
+   * Historically authored as a bare number (not a unit-suffixed string) despite this type. */
+  fontSize?: string | number
   fontWeight?: number
   color?: string
   textAlign?: 'left' | 'center' | 'right'
+  /** px at design canvas width — renderer scales proportionally with cqw, same as text layers. */
+  letterSpacing?: number
+  textTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize'
+  /** Shown when the bound field has no value (unbound, or explicitly blank/zero). Undefined = render nothing, matching prior behavior. */
+  fallbackText?: string
   imageMode?: 'fill' | 'fit' | 'crop'
   buttonVariant?: 'filled' | 'outline' | 'ghost' | 'dark'
 }
