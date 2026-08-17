@@ -2596,6 +2596,18 @@ In the **Slide Editor → Overlay tab**:
 5. The optional **Eyebrow** field (above all rows) supports its own color
 
 Click **"Switch to Classic"** to return to a single heading string (all row data is discarded).
+
+---
+
+## Freeform Layout
+
+Instead of the 9 preset content positions, drag each overlay element (eyebrow, heading rows, subheading, buttons, overlay images) anywhere on the slide.
+
+**Turning it on** — Slide Editor → **Text Overlay** tab → toggle **Freeform Layout** on. This replaces the Position-tab preset controls for that slide; they're ignored while freeform is on.
+
+**Placing elements** — Drag each chip on the placement grid. Position is stored as \`x%, y%\` (anchor = element centre). Click a chip to select it (shift-click for multiple); use the toolbar to align selected chips (left/centre/right, top/middle/bottom) or distribute spacing evenly (3+ selected). **Snap** (on by default) pulls a dragged chip to the canvas centre or to another element's position within a few pixels.
+
+**1:1 accuracy** — the drag canvas, the **Live Preview** panel above the Slides list, and the actual public page all measure the *same* real browser window (\`window.innerWidth/innerHeight\`) to compute their aspect ratio and font scaling, so a position placed in the drag canvas lands in the same relative spot everywhere. The one caveat is inherent, not a bug: a visitor's own window shape can differ from whichever window you were editing in, which shifts things slightly — same as any responsive layout tool. If positions ever look off between the editor and the live page again, hard-refresh both tabs before assuming it's a regression — a stale cached bundle in an already-open tab is the most common cause.
 `;
 
 const PAGES_SYSTEM = `
