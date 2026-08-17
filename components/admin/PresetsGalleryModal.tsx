@@ -144,6 +144,18 @@ function PresetThumbnail({ id }: { id: string }) {
           </div>
         </div>
       );
+    case "product-cards-ribbon-heritage":
+      return (
+        <div style={s.row(3, { height: "100%" })}>
+          {[0, 1, 2].map((i) => (
+            <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
+              <div style={{ ...s.box("1", "#4774e6", { minHeight: 7, borderRadius: "2px 2px 0 0" }) }} />
+              <div style={{ ...s.box("1", i === 1 ? "#E31E24" : "#dc3545", { minHeight: 8, clipPath: "polygon(0 0,100% 0,100% 65%,50% 100%,0 65%)" }) }} />
+              <div style={col("1", "#0b0d16")} />
+            </div>
+          ))}
+        </div>
+      );
     default:
       return <div style={{ flex: 1, background: "#dee2e6", borderRadius: 3 }} />;
   }

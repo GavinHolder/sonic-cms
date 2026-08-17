@@ -428,4 +428,68 @@ export const SECTION_PRESETS: SectionPreset[] = [
       ],
     },
   },
+
+  // 9. Product Cards — Ribbon Heritage (alternate card style, for comparison against #8)
+  {
+    id: "product-cards-ribbon-heritage",
+    name: "Product Cards — Ribbon Heritage",
+    description: "Chevron-banner pricing cards (blue speed band, red price/CTA bands) — alternate style to compare against the plain Product Cards template",
+    thumbnailId: "thumb-product-cards-ribbon",
+    designerData: {
+      layoutType: "grid",
+      grid: { cols: 1, rows: 2, gap: 24 },
+      blocks: [
+        {
+          id: 1, type: "text",
+          position: { row: 1, col: 1, colSpan: 1, rowSpan: 1, section: 0 },
+          props: {},
+          subElements: [
+            { type: "eyebrow", props: { text: "PRICING", color: "#4caf50", textAlign: "center" } },
+            { type: "heading", props: { text: "Our Packages", fontSize: 40, fontWeight: 800, color: "#1a1a1a", textAlign: "center" } },
+          ],
+        },
+        {
+          // Two Volt designs share this preset: the plain card (voltId ending ...dgalj is the
+          // "Popular" variant — border glow + flag — used for the second card in each tab,
+          // matching the reference design's PLANS[1].pop:true) and the regular card everywhere
+          // else. Card design/tab mechanics unmodified from the "Product Cards (Tabbed)" preset
+          // above — this is purely a different Volt card design, same block type and binding.
+          id: 2, type: "card-tabs",
+          position: { row: 2, col: 1, colSpan: 1, rowSpan: 1, section: 0 },
+          props: {
+            label: "Product Cards — Ribbon Heritage",
+            minCardWidth: 260,
+            tabs: [
+              {
+                key: "tab-wireless", label: "Wireless",
+                cards: [
+                  { id: "card-w1", voltId: "cmsxap4mh000qjggdf94dehx2" },
+                  { id: "card-w2", voltId: "cmsxap4p8000sjggdqz8dgalj" },
+                  { id: "card-w3", voltId: "cmsxap4mh000qjggdf94dehx2" },
+                  { id: "card-w4", voltId: "cmsxap4mh000qjggdf94dehx2" },
+                ],
+              },
+              {
+                key: "tab-fibre", label: "Fibre",
+                cards: [
+                  { id: "card-f1", voltId: "cmsxap4mh000qjggdf94dehx2" },
+                  { id: "card-f2", voltId: "cmsxap4p8000sjggdqz8dgalj" },
+                  { id: "card-f3", voltId: "cmsxap4mh000qjggdf94dehx2" },
+                ],
+              },
+              {
+                key: "tab-voice", label: "Voice",
+                cards: [
+                  { id: "card-v1", voltId: "cmsxap4mh000qjggdf94dehx2" },
+                  { id: "card-v2", voltId: "cmsxap4p8000sjggdqz8dgalj" },
+                  { id: "card-v3", voltId: "cmsxap4mh000qjggdf94dehx2" },
+                ],
+              },
+            ],
+          },
+          subElements: [],
+        },
+      ],
+    },
+  },
 ];
