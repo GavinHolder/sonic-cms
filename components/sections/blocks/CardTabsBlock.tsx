@@ -73,7 +73,7 @@ export default function CardTabsBlock({ content }: Props) {
           role="tabpanel"
           aria-hidden={i !== active}
           className="cms-card-tabs__panel"
-          style={{ display: i === active ? "grid" : "none" }}
+          style={{ display: i === active ? "flex" : "none" }}
         >
           {t.cards.map((c) => (
             <div key={c.id} className="cms-card-tabs__cell">
@@ -99,10 +99,11 @@ export default function CardTabsBlock({ content }: Props) {
         .cms-card-tabs__tab:hover { opacity: 1; }
         .cms-card-tabs__tab--active { opacity: 1; background: var(--cms-primary, #0d6efd); color: #fff; }
         .cms-card-tabs__panel {
-          grid-template-columns: repeat(auto-fill, minmax(${minCardWidth}px, 1fr));
+          flex-wrap: wrap;
+          justify-content: center;
           gap: 20px;
         }
-        .cms-card-tabs__cell { min-height: 160px; aspect-ratio: ${cardAspectRatio}; }
+        .cms-card-tabs__cell { flex: 0 1 ${minCardWidth}px; min-height: 160px; aspect-ratio: ${cardAspectRatio}; }
         .cms-card-tabs__empty {
           display: flex; align-items: center; justify-content: center; height: 100%; min-height: 160px;
           border: 1px dashed var(--cms-border, rgba(0,0,0,0.15)); border-radius: 12px;
