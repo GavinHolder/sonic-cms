@@ -1118,6 +1118,9 @@
       artboard.querySelectorAll('.slot-overlay').forEach(function(e){e.remove();});
       artboard.querySelectorAll('.text-overlay').forEach(function(e){e.remove();});
       artboard.querySelectorAll('.vector-run-svg').forEach(function(e){e.remove();});
+      // canvas-ui-svg: dedicated always-on-top selection/editing overlay, recreated
+      // every render (see its creation further below) — clear the previous pass's copy.
+      artboard.querySelectorAll('.canvas-ui-svg').forEach(function(e){e.remove();});
       // Apply canvas background colour
       artboard.style.background=state.element.canvasBackground||'white';
       var CW=state.element.canvasWidth,CH=state.element.canvasHeight;
@@ -1549,6 +1552,27 @@
       // CSS z-index stacking: if any vector has higher zIndex than all slots, raise SVG above slot divs.
       // Use z-index instead of DOM reordering — moving svgEl in the DOM releases pointer capture mid-drag.
       svgEl.style.zIndex=(_maxVecZ>_maxSlotZ&&isFinite(_maxSlotZ))?'2':'';
+      // Dedicated, always-on-top overlay for selection/editing affordances (boolean-op
+      // labels, selection box, resize/rotate handles, vertex dots, marquee, multi-select
+      // boxes). These used to be appended into svgEl itself, which was safe because ALL
+      // vector content also lived in svgEl (same document, so "appended after" always
+      // painted on top). Now that a vector run can land in a LATER-in-DOM
+      // .vector-run-svg (see _vecSvg() above), content appended into svgEl is no longer
+      // guaranteed to paint above a selected shape that lives in one of those runs —
+      // e.g. layers ordered vector→slot→vector→slot puts the second vector in a run-svg
+      // appended after svgEl, so its selection handles (still in svgEl) could render
+      // BEHIND it. This overlay is created fresh every render, appended last, and
+      // pinned above everything (incl. svgEl's conditional z-index of '2' above) via an
+      // explicit higher z-index. pointer-events stay off since all hit-testing here is
+      // coordinate math against svgEl (hitTest/hitHandle), never DOM identity of these
+      // decorative nodes.
+      var _uiSvg=svgNs('svg');
+      _uiSvg.setAttribute('class','canvas-ui-svg');
+      _uiSvg.setAttribute('viewBox','0 0 '+CW+' '+CH);
+      _uiSvg.setAttribute('preserveAspectRatio','none');
+      _uiSvg.setAttribute('width',CW);_uiSvg.setAttribute('height',CH);
+      _uiSvg.style.cssText='position:absolute;inset:0;display:block;pointer-events:none;z-index:5;';
+      artboard.appendChild(_uiSvg);
       // Boolean base outline (teal) — drawn first so cutter outline renders on top
       if(state.boolBaseId&&state.boolBaseId!==state.selectedLayerId&&!hasSlotInMultiSel()){
         var bbl=state.element.layers.find(function(l){return l.id===state.boolBaseId;});
@@ -1556,13 +1580,13 @@
           var bbx=topx(bbl.x,CW),bby=topx(bbl.y,CH),bbw=topx(bbl.width,CW),bbh=topx(bbl.height,CH);
           var sw2=(2.5/state.zoom).toFixed(3);
           // Fill tint
-          var bbtint=svgNs('rect');bbtint.setAttribute('x',String(bbx));bbtint.setAttribute('y',String(bby));bbtint.setAttribute('width',String(bbw));bbtint.setAttribute('height',String(bbh));bbtint.setAttribute('fill','rgba(6,182,212,0.15)');bbtint.setAttribute('pointer-events','none');svgEl.appendChild(bbtint);
+          var bbtint=svgNs('rect');bbtint.setAttribute('x',String(bbx));bbtint.setAttribute('y',String(bby));bbtint.setAttribute('width',String(bbw));bbtint.setAttribute('height',String(bbh));bbtint.setAttribute('fill','rgba(6,182,212,0.15)');bbtint.setAttribute('pointer-events','none');_uiSvg.appendChild(bbtint);
           // Solid teal border
-          var bbo=svgNs('rect');bbo.setAttribute('x',String(bbx));bbo.setAttribute('y',String(bby));bbo.setAttribute('width',String(bbw));bbo.setAttribute('height',String(bbh));bbo.setAttribute('fill','none');bbo.setAttribute('stroke','#06b6d4');bbo.setAttribute('stroke-width',sw2);bbo.setAttribute('pointer-events','none');svgEl.appendChild(bbo);
+          var bbo=svgNs('rect');bbo.setAttribute('x',String(bbx));bbo.setAttribute('y',String(bby));bbo.setAttribute('width',String(bbw));bbo.setAttribute('height',String(bbh));bbo.setAttribute('fill','none');bbo.setAttribute('stroke','#06b6d4');bbo.setAttribute('stroke-width',sw2);bbo.setAttribute('pointer-events','none');_uiSvg.appendChild(bbo);
           // "BASE" pill — drawn INSIDE the shape at top-left (never clips outside viewBox)
           var bFs=Math.max(8,10/state.zoom);var bPad=3/state.zoom;var bW=30/state.zoom;var bH=13/state.zoom;var bOff=3/state.zoom;
-          var basePill=svgNs('rect');basePill.setAttribute('x',String(bbx+bOff));basePill.setAttribute('y',String(bby+bOff));basePill.setAttribute('width',String(bW));basePill.setAttribute('height',String(bH));basePill.setAttribute('fill','#06b6d4');basePill.setAttribute('rx',String(2/state.zoom));basePill.setAttribute('pointer-events','none');svgEl.appendChild(basePill);
-          var baseTxt=svgNs('text');baseTxt.setAttribute('x',String(bbx+bOff+bPad));baseTxt.setAttribute('y',String(bby+bOff+bH*0.73));baseTxt.setAttribute('fill','white');baseTxt.setAttribute('font-size',String(bFs));baseTxt.setAttribute('font-weight','800');baseTxt.setAttribute('font-family','system-ui,sans-serif');baseTxt.setAttribute('pointer-events','none');baseTxt.textContent='BASE';svgEl.appendChild(baseTxt);
+          var basePill=svgNs('rect');basePill.setAttribute('x',String(bbx+bOff));basePill.setAttribute('y',String(bby+bOff));basePill.setAttribute('width',String(bW));basePill.setAttribute('height',String(bH));basePill.setAttribute('fill','#06b6d4');basePill.setAttribute('rx',String(2/state.zoom));basePill.setAttribute('pointer-events','none');_uiSvg.appendChild(basePill);
+          var baseTxt=svgNs('text');baseTxt.setAttribute('x',String(bbx+bOff+bPad));baseTxt.setAttribute('y',String(bby+bOff+bH*0.73));baseTxt.setAttribute('fill','white');baseTxt.setAttribute('font-size',String(bFs));baseTxt.setAttribute('font-weight','800');baseTxt.setAttribute('font-family','system-ui,sans-serif');baseTxt.setAttribute('pointer-events','none');baseTxt.textContent='BASE';_uiSvg.appendChild(baseTxt);
         }
       }
       // Selection box + resize handles
@@ -1581,33 +1605,33 @@
           var sw1=((isCutterMode?2.5:0.75)/state.zoom).toFixed(3);var dd=(5/state.zoom).toFixed(1)+' '+(3/state.zoom).toFixed(1);
           if(isCutterMode){
             // Orange fill tint for cutter
-            var ctint=svgNs('rect');ctint.setAttribute('x',String(rx));ctint.setAttribute('y',String(ry));ctint.setAttribute('width',String(rw));ctint.setAttribute('height',String(rh));ctint.setAttribute('fill','rgba(249,115,22,0.15)');ctint.setAttribute('pointer-events','none');if(_selTf)ctint.setAttribute('transform',_selTf);svgEl.appendChild(ctint);
+            var ctint=svgNs('rect');ctint.setAttribute('x',String(rx));ctint.setAttribute('y',String(ry));ctint.setAttribute('width',String(rw));ctint.setAttribute('height',String(rh));ctint.setAttribute('fill','rgba(249,115,22,0.15)');ctint.setAttribute('pointer-events','none');if(_selTf)ctint.setAttribute('transform',_selTf);_uiSvg.appendChild(ctint);
           }
           var box=svgNs('rect');box.setAttribute('x',String(rx));box.setAttribute('y',String(ry));box.setAttribute('width',String(rw));box.setAttribute('height',String(rh));
           box.setAttribute('fill','none');box.setAttribute('stroke',selColor);box.setAttribute('stroke-width',sw1);if(!isCutterMode)box.setAttribute('stroke-dasharray',dd);box.setAttribute('pointer-events','none');if(_selTf)box.setAttribute('transform',_selTf);
-          svgEl.appendChild(box);
+          _uiSvg.appendChild(box);
           if(isCutterMode){
             // "CUTTER ✂" pill — drawn INSIDE the shape at top-left (never clips outside viewBox)
             var cFs=Math.max(8,10/state.zoom);var cPad=3/state.zoom;var cW=46/state.zoom;var cH=13/state.zoom;var cOff=3/state.zoom;
-            var cutPill=svgNs('rect');cutPill.setAttribute('x',String(rx+cOff));cutPill.setAttribute('y',String(ry+cOff));cutPill.setAttribute('width',String(cW));cutPill.setAttribute('height',String(cH));cutPill.setAttribute('fill','#f97316');cutPill.setAttribute('rx',String(2/state.zoom));cutPill.setAttribute('pointer-events','none');svgEl.appendChild(cutPill);
-            var cutTxt=svgNs('text');cutTxt.setAttribute('x',String(rx+cOff+cPad));cutTxt.setAttribute('y',String(ry+cOff+cH*0.73));cutTxt.setAttribute('fill','white');cutTxt.setAttribute('font-size',String(cFs));cutTxt.setAttribute('font-weight','800');cutTxt.setAttribute('font-family','system-ui,sans-serif');cutTxt.setAttribute('pointer-events','none');cutTxt.textContent='CUTTER \u2702';svgEl.appendChild(cutTxt);
+            var cutPill=svgNs('rect');cutPill.setAttribute('x',String(rx+cOff));cutPill.setAttribute('y',String(ry+cOff));cutPill.setAttribute('width',String(cW));cutPill.setAttribute('height',String(cH));cutPill.setAttribute('fill','#f97316');cutPill.setAttribute('rx',String(2/state.zoom));cutPill.setAttribute('pointer-events','none');_uiSvg.appendChild(cutPill);
+            var cutTxt=svgNs('text');cutTxt.setAttribute('x',String(rx+cOff+cPad));cutTxt.setAttribute('y',String(ry+cOff+cH*0.73));cutTxt.setAttribute('fill','white');cutTxt.setAttribute('font-size',String(cFs));cutTxt.setAttribute('font-weight','800');cutTxt.setAttribute('font-family','system-ui,sans-serif');cutTxt.setAttribute('pointer-events','none');cutTxt.textContent='CUTTER \u2702';_uiSvg.appendChild(cutTxt);
           }
           var hs=getHsiz();
           HNAMES.forEach(function(h){
             var hp=handlePos(sel,h);
             var hc=svgNs('rect');hc.setAttribute('x',hp.x-hs/2);hc.setAttribute('y',hp.y-hs/2);hc.setAttribute('width',hs);hc.setAttribute('height',hs);
             hc.setAttribute('class','resize-handle');hc.setAttribute('stroke-width',(1/state.zoom).toFixed(3));hc.setAttribute('rx',(1/state.zoom).toFixed(3));hc.setAttribute('data-handle',h);hc.style.cursor=HCUR[h];hc.setAttribute('pointer-events','none');
-            svgEl.appendChild(hc);
+            _uiSvg.appendChild(hc);
           });
           // Rotation handle — circle above top-center (not in cutter mode). Slots now support rotation too.
           if(!isCutterMode){
             var _rhArm=20/state.zoom,_rhcx=rx+rw/2,_rhcy=ry-_rhArm;
             var _rhLine=svgNs('line');_rhLine.setAttribute('x1',_rhcx);_rhLine.setAttribute('y1',ry);_rhLine.setAttribute('x2',_rhcx);_rhLine.setAttribute('y2',_rhcy);
-            _rhLine.setAttribute('stroke','#0d6efd');_rhLine.setAttribute('stroke-width',(1/state.zoom).toFixed(3));_rhLine.setAttribute('pointer-events','none');if(_selTf)_rhLine.setAttribute('transform',_selTf);svgEl.appendChild(_rhLine);
+            _rhLine.setAttribute('stroke','#0d6efd');_rhLine.setAttribute('stroke-width',(1/state.zoom).toFixed(3));_rhLine.setAttribute('pointer-events','none');if(_selTf)_rhLine.setAttribute('transform',_selTf);_uiSvg.appendChild(_rhLine);
             var _rhr=5/state.zoom;
             var _rhCirc=svgNs('circle');_rhCirc.setAttribute('cx',_rhcx);_rhCirc.setAttribute('cy',_rhcy);_rhCirc.setAttribute('r',_rhr);
             _rhCirc.setAttribute('fill','white');_rhCirc.setAttribute('stroke','#0d6efd');_rhCirc.setAttribute('stroke-width',(1.5/state.zoom).toFixed(3));
-            _rhCirc.setAttribute('pointer-events','none');_rhCirc.setAttribute('data-rotate-handle','1');if(_selTf)_rhCirc.setAttribute('transform',_selTf);svgEl.appendChild(_rhCirc);
+            _rhCirc.setAttribute('pointer-events','none');_rhCirc.setAttribute('data-rotate-handle','1');if(_selTf)_rhCirc.setAttribute('transform',_selTf);_uiSvg.appendChild(_rhCirc);
           }
           // Shadow direction is now set via the radial dial in the property panel
           // (canvas sun-drag removed \u2014 the panel dial is the single control).
@@ -1621,7 +1645,7 @@
           var vbx=topx(vel.x,CW),vby=topx(vel.y,CH),vbw=topx(vel.width,CW),vbh=topx(vel.height,CH);
           var vbox=svgNs('rect');vbox.setAttribute('x',vbx);vbox.setAttribute('y',vby);vbox.setAttribute('width',vbw);vbox.setAttribute('height',vbh);
           vbox.setAttribute('fill','none');vbox.setAttribute('stroke','#f59e0b');vbox.setAttribute('stroke-width',(1/state.zoom).toFixed(3));
-          vbox.setAttribute('stroke-dasharray',(3/state.zoom).toFixed(1)+' '+(2/state.zoom).toFixed(1));vbox.setAttribute('pointer-events','none');svgEl.appendChild(vbox);
+          vbox.setAttribute('stroke-dasharray',(3/state.zoom).toFixed(1)+' '+(2/state.zoom).toFixed(1));vbox.setAttribute('pointer-events','none');_uiSvg.appendChild(vbox);
           var _vhit_r=VX_RAD*2/state.zoom;
           // Vertex circles first (behind handle dots)
           vanch.forEach(function(vp,vi){
@@ -1632,7 +1656,7 @@
             var _vFill=(_altHeld&&_onThis)?'#ef4444':(_vSel?'#6366f1':'white');
             var _vStroke=_altHeld?'#ef4444':(_vSel?'#4338ca':'#f59e0b');
             vc.setAttribute('fill',_vFill);vc.setAttribute('stroke',_vStroke);vc.setAttribute('stroke-width',(1.5/state.zoom).toFixed(3));
-            vc.setAttribute('pointer-events','none');vc.setAttribute('data-vi',vi);svgEl.appendChild(vc);
+            vc.setAttribute('pointer-events','none');vc.setAttribute('data-vi',vi);_uiSvg.appendChild(vc);
           });
           // Handle arms + dots (drawn ON TOP of vertex circles)
           vanch.forEach(function(va,_vhi){
@@ -1644,21 +1668,21 @@
               else{hx=vax+topx(h.dx,CW);hy=vay+topx(h.dy,CH);}
               // Arm line — solid white + colored underneath for visibility on any bg
               var armBg=svgNs('line');armBg.setAttribute('x1',vax);armBg.setAttribute('y1',vay);armBg.setAttribute('x2',hx);armBg.setAttribute('y2',hy);
-              armBg.setAttribute('stroke','rgba(255,255,255,0.6)');armBg.setAttribute('stroke-width',(2.2/state.zoom).toFixed(3));armBg.setAttribute('pointer-events','none');svgEl.appendChild(armBg);
+              armBg.setAttribute('stroke','rgba(255,255,255,0.6)');armBg.setAttribute('stroke-width',(2.2/state.zoom).toFixed(3));armBg.setAttribute('pointer-events','none');_uiSvg.appendChild(armBg);
               var arm=svgNs('line');arm.setAttribute('x1',vax);arm.setAttribute('y1',vay);arm.setAttribute('x2',hx);arm.setAttribute('y2',hy);
               arm.setAttribute('stroke',isZero?'#fed7aa':'#fb923c');arm.setAttribute('stroke-width',(1/state.zoom).toFixed(3));
               if(isZero)arm.setAttribute('stroke-dasharray',(3/state.zoom).toFixed(2)+' '+(2/state.zoom).toFixed(2));
-              arm.setAttribute('pointer-events','none');svgEl.appendChild(arm);
+              arm.setAttribute('pointer-events','none');_uiSvg.appendChild(arm);
               // Handle dot — white fill with colored ring for contrast on any background
               var hdotBg=svgNs('circle');hdotBg.setAttribute('cx',hx);hdotBg.setAttribute('cy',hy);
               hdotBg.setAttribute('r',isZero?(vr*0.75).toFixed(2):(vr*0.9).toFixed(2));
-              hdotBg.setAttribute('fill','white');hdotBg.setAttribute('stroke','none');hdotBg.setAttribute('pointer-events','none');svgEl.appendChild(hdotBg);
+              hdotBg.setAttribute('fill','white');hdotBg.setAttribute('stroke','none');hdotBg.setAttribute('pointer-events','none');_uiSvg.appendChild(hdotBg);
               var hdot=svgNs('circle');hdot.setAttribute('cx',hx);hdot.setAttribute('cy',hy);
               hdot.setAttribute('r',isZero?(vr*0.6).toFixed(2):(vr*0.75).toFixed(2));
               hdot.setAttribute('fill',isZero?'#fdba74':'#f97316');
               hdot.setAttribute('stroke',isZero?'#f97316':'#ea580c');
               hdot.setAttribute('stroke-width',(1.5/state.zoom).toFixed(3));
-              hdot.setAttribute('pointer-events','none');svgEl.appendChild(hdot);
+              hdot.setAttribute('pointer-events','none');_uiSvg.appendChild(hdot);
             });
           });
           // Edge add preview dot (Alt held, not over a vertex)
@@ -1667,7 +1691,7 @@
             if(!_epOnVert){
               var _epCk={x:pct(_vxMousePt.x,CW),y:pct(_vxMousePt.y,CH)},_epBest={d:Infinity,pt:null};
               for(var _epi=0;_epi<vanch.length;_epi++){var _epa=vanch[_epi],_epb=vanch[(_epi+1)%vanch.length];var _epdx=_epb.x-_epa.x,_epdy=_epb.y-_epa.y;var _epl2=_epdx*_epdx+_epdy*_epdy;var _ept=_epl2>0?Math.max(0,Math.min(1,((_epCk.x-_epa.x)*_epdx+(_epCk.y-_epa.y)*_epdy)/_epl2)):0;var _epcp={x:_epa.x+_ept*_epdx,y:_epa.y+_ept*_epdy};var _epd=(_epCk.x-_epcp.x)*(_epCk.x-_epcp.x)+(_epCk.y-_epcp.y)*(_epCk.y-_epcp.y);if(_epd<_epBest.d){_epBest={d:_epd,pt:_epcp};}}
-              if(_epBest.pt){var _epDot=svgNs('circle');_epDot.setAttribute('cx',topx(_epBest.pt.x,CW));_epDot.setAttribute('cy',topx(_epBest.pt.y,CH));_epDot.setAttribute('r',(vr*0.7).toFixed(2));_epDot.setAttribute('fill','#22c55e');_epDot.setAttribute('stroke','white');_epDot.setAttribute('stroke-width',(1/state.zoom).toFixed(3));_epDot.setAttribute('pointer-events','none');svgEl.appendChild(_epDot);}
+              if(_epBest.pt){var _epDot=svgNs('circle');_epDot.setAttribute('cx',topx(_epBest.pt.x,CW));_epDot.setAttribute('cy',topx(_epBest.pt.y,CH));_epDot.setAttribute('r',(vr*0.7).toFixed(2));_epDot.setAttribute('fill','#22c55e');_epDot.setAttribute('stroke','white');_epDot.setAttribute('stroke-width',(1/state.zoom).toFixed(3));_epDot.setAttribute('pointer-events','none');_uiSvg.appendChild(_epDot);}
             }
           }
           // Add-point preview dot (no Alt): shown only when hovering directly on the outline
@@ -1677,7 +1701,7 @@
               var _apClosed=vel.vectorData.closed!==false,_apSeg=_apClosed?vanch.length:vanch.length-1,_apBest={d:Infinity,pt:null};
               for(var _api=0;_api<_apSeg;_api++){var _apa=vanch[_api],_apb=vanch[(_api+1)%vanch.length];var _apdx=_apb.x-_apa.x,_apdy=_apb.y-_apa.y;var _apl2=_apdx*_apdx+_apdy*_apdy;var _ck2={x:pct(_vxMousePt.x,CW),y:pct(_vxMousePt.y,CH)};var _apt=_apl2>0?Math.max(0,Math.min(1,((_ck2.x-_apa.x)*_apdx+(_ck2.y-_apa.y)*_apdy)/_apl2)):0;var _apcp={x:_apa.x+_apt*_apdx,y:_apa.y+_apt*_apdy};var _apd=dist2(_vxMousePt,{x:topx(_apcp.x,CW),y:topx(_apcp.y,CH)});if(_apd<_apBest.d){_apBest={d:_apd,pt:_apcp};}}
               var _apth=8/state.zoom;
-              if(_apBest.pt&&_apBest.d<=_apth*_apth){var _apDot=svgNs('circle');_apDot.setAttribute('cx',topx(_apBest.pt.x,CW));_apDot.setAttribute('cy',topx(_apBest.pt.y,CH));_apDot.setAttribute('r',(vr*0.7).toFixed(2));_apDot.setAttribute('fill','#6366f1');_apDot.setAttribute('stroke','white');_apDot.setAttribute('stroke-width',(1/state.zoom).toFixed(3));_apDot.setAttribute('pointer-events','none');svgEl.appendChild(_apDot);}
+              if(_apBest.pt&&_apBest.d<=_apth*_apth){var _apDot=svgNs('circle');_apDot.setAttribute('cx',topx(_apBest.pt.x,CW));_apDot.setAttribute('cy',topx(_apBest.pt.y,CH));_apDot.setAttribute('r',(vr*0.7).toFixed(2));_apDot.setAttribute('fill','#6366f1');_apDot.setAttribute('stroke','white');_apDot.setAttribute('stroke-width',(1/state.zoom).toFixed(3));_apDot.setAttribute('pointer-events','none');_uiSvg.appendChild(_apDot);}
             }
           }
           // Vertex edit hint is shown in the key legend status bar — no canvas annotation needed
@@ -1692,7 +1716,7 @@
         mq.setAttribute('fill','rgba(13,110,253,0.07)');mq.setAttribute('stroke','#0d6efd');
         mq.setAttribute('stroke-width',(1/state.zoom).toFixed(3));
         mq.setAttribute('stroke-dasharray',(4/state.zoom).toFixed(1)+' '+(2/state.zoom).toFixed(1));
-        mq.setAttribute('pointer-events','none');svgEl.appendChild(mq);
+        mq.setAttribute('pointer-events','none');_uiSvg.appendChild(mq);
       }
       // Multi-select bounding boxes
       if(state.multiSelectIds.length>1){
@@ -1703,7 +1727,7 @@
           var mlx=topx(ml.x,CW),mly=topx(ml.y,CH),mlw=topx(ml.width,CW),mlh=topx(ml.height,CH);
           var mb=svgNs('rect');mb.setAttribute('x',mlx);mb.setAttribute('y',mly);mb.setAttribute('width',mlw);mb.setAttribute('height',mlh);
           mb.setAttribute('fill','none');mb.setAttribute('stroke','#0d6efd');mb.setAttribute('stroke-width',(0.75/state.zoom).toFixed(3));
-          mb.setAttribute('stroke-dasharray',(5/state.zoom).toFixed(1)+' '+(3/state.zoom).toFixed(1));mb.setAttribute('pointer-events','none');svgEl.appendChild(mb);
+          mb.setAttribute('stroke-dasharray',(5/state.zoom).toFixed(1)+' '+(3/state.zoom).toFixed(1));mb.setAttribute('pointer-events','none');_uiSvg.appendChild(mb);
         });
       }
       renderPolyGhost();
