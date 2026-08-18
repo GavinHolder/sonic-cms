@@ -8578,6 +8578,92 @@ Clients configure their connection to the main CMS in **Settings → CMS Updates
 `;
 
 // ─────────────────────────────────────────────
+// TUTORIALS
+// ─────────────────────────────────────────────
+
+export const VOLT_CARD_ANIMATION_TUTORIAL = `
+# Animating a Volt Card
+
+Three separate systems in Volt Studio cover three different jobs: an **entrance** (how a layer first appears), a **hover state** (how it changes while a visitor's cursor is over the card), and a **timeline** (multi-step, keyframed animation with its own play/scrub preview). This walks through all three.
+
+---
+
+## 1. Entrance animation
+
+**Select a layer**, then open its **Animate on entrance** checkboxes in the properties panel:
+
+| Checkbox | Default | Effect |
+|----------|---------|--------|
+| **Opacity** | ✅ on | Fades in |
+| **Scale** | off | Grows in from smaller |
+| **Position** | off | Slides in from an offset |
+| **Rotation** | off | Rotates in |
+| **Fill** | off | Colour transitions in |
+
+A new layer ships with only **Opacity** checked — a plain fade. Tick **Position** as well and it fades *and* rises/slides in — the more common "reveal" look.
+
+Three sliders shape how the checked properties move:
+
+| Control | Effect |
+|---------|--------|
+| **Speed** | How fast the entrance plays |
+| **Style** | Snappy vs. eased motion |
+| **Character** | Subtle vs. springy overshoot |
+| **Delay** | Stagger — small per-layer increases make a group read as a sequence instead of landing all at once |
+
+---
+
+## 2. Hover state — showing/hiding on hover
+
+This is how you make a layer **appear only when a visitor hovers the card** (e.g. reveal a features list, swap a hint for real content).
+
+1. Top toolbar, next to the canvas: a **Rest** / **Hover** toggle button. Click **Hover**.
+2. The canvas is now a *second, separate view*. Any layer property you change here — opacity, position, size, colour — is captured as a **hover-only override**. The Rest view is completely untouched.
+3. To reveal something on hover: in Rest, set its opacity to \`0\` (hidden). Switch to **Hover**, select the same layer, set opacity to \`1\`. It now stays invisible until hovered, then fades in.
+4. To hide something on hover (e.g. a "hover for more" hint that should step aside): the reverse — visible at Rest, opacity \`0\` in the Hover view.
+5. Click **Rest** to return to normal editing when done. Hover overrides travel with the design automatically — nothing else to wire up.
+
+**This is exactly how the Ribbon Heritage pricing cards work**: the features list is hidden at Rest behind a "Hover for package specs" hint; hovering fades the hint out and the features in.
+
+Hover overrides aren't limited to opacity — position, size and rotation can all differ between Rest and Hover, so a shape can also move, grow, or change colour on hover, not just fade.
+
+---
+
+## 3. Timeline — keyframed animation, with play/scrub preview
+
+For anything more than a single entrance or hover swap — a shape that animates through several steps, or several layers choreographed together — use the **Timeline** panel (film-strip icon, bottom of the Volt Studio window).
+
+| Control | What it does |
+|---------|---------------|
+| **▶ Play / ■ Stop** | Plays the full timeline at actual speed right in the canvas — this is the scrub/preview feature: test the animation as you build it, no need to leave the editor |
+| **+ Key / − Key** | Adds or removes a keyframe on the *currently selected layer*, at the playhead position |
+| **Duration** | Total length of the timeline, in ms |
+| **Trigger** | \`Viewport\` — plays once when the card scrolls into view. \`Hover-once\` — plays once per fresh hover |
+| **Loop** | Repeats continuously |
+| **Loop on hover** | Repeats only while the card is actively hovered |
+
+**To animate a layer through several key points:**
+
+1. Select the layer.
+2. Move the playhead to time \`0\` and click **+ Key** — this captures the layer's starting opacity/position/scale/rotation.
+3. Move the playhead further along the ruler, adjust the layer (move it, fade it, scale it) with the properties panel, then click **+ Key** again — this captures a second keyframe at that new time and state.
+4. Repeat for as many steps as needed. Volt interpolates smoothly between each keyframe you set.
+5. Hit **▶ Play** at any point to preview the full sequence without leaving the canvas.
+
+Each layer keeps its own independent set of keyframes, so a multi-shape "assembly" animation (pieces flying/fading in one after another) is built by giving each shape its own staggered set of keyframes on the same timeline.
+
+---
+
+## Which one do I need?
+
+| I want to… | Use |
+|---|---|
+| Have something fade or slide in once, when the card first appears | **Entrance** (Part 1) |
+| Show/hide or change something only while hovered | **Hover state** (Part 2) |
+| Animate through several steps, or preview/scrub the result live | **Timeline** (Part 3) |
+`;
+
+// ─────────────────────────────────────────────
 // TOPIC TREE
 // ─────────────────────────────────────────────
 
@@ -8589,6 +8675,26 @@ export const DOC_TOPICS: DocTopic[] = [
     children: [
       { id: "overview", label: "Overview & Architecture", icon: "bi-diagram-3", content: OVERVIEW },
       { id: "admin-access", label: "Admin Access & Navigation", icon: "bi-shield-lock", content: ADMIN_ACCESS },
+    ],
+  },
+  {
+    id: "tutorials",
+    label: "Tutorials",
+    icon: "bi-mortarboard",
+    children: [
+      {
+        id: "tutorials-volt-studio",
+        label: "Volt Studio",
+        icon: "bi-magic",
+        children: [
+          {
+            id: "tut-volt-card-animation",
+            label: "Animating a Card (Entrance, Hover & Timeline)",
+            icon: "bi-play-circle",
+            content: VOLT_CARD_ANIMATION_TUTORIAL,
+          },
+        ],
+      },
     ],
   },
   {
