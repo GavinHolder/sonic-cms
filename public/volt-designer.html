@@ -1057,7 +1057,10 @@
     // (cannot determine → caller falls back to the bbox test).
     function _layerHitNode(layer){
       if(!layer||layer.type!=='vector')return null;
-      try{return svgEl.querySelector('[data-hit="'+layer.id+'"]');}catch(e){return null;}
+      // Scoped to #artboard, not svgEl: a vector's <path data-hit> may live in svgEl
+      // OR in a dynamically-created .vector-run-svg (see _vecSvg() in renderCanvas),
+      // both of which are children of #artboard.
+      try{return artboard.querySelector('[data-hit="'+layer.id+'"]');}catch(e){return null;}
     }
     function _pathHitTest(layer,pt){
       var node=_layerHitNode(layer);
@@ -1114,6 +1117,7 @@
       while(svgEl.firstChild)svgEl.removeChild(svgEl.firstChild);
       artboard.querySelectorAll('.slot-overlay').forEach(function(e){e.remove();});
       artboard.querySelectorAll('.text-overlay').forEach(function(e){e.remove();});
+      artboard.querySelectorAll('.vector-run-svg').forEach(function(e){e.remove();});
       // Apply canvas background colour
       artboard.style.background=state.element.canvasBackground||'white';
       var CW=state.element.canvasWidth,CH=state.element.canvasHeight;
@@ -1121,6 +1125,35 @@
       // Compute max z-index for slots and non-slots (for DOM stacking order fix below)
       var _maxSlotZ=-Infinity,_maxVecZ=-Infinity;
       state.element.layers.forEach(function(l){if(l.visible===false)return;var z=l.zIndex||0;if(l.type==='slot')_maxSlotZ=Math.max(_maxSlotZ,z);else if(l.type==='vector'||l.type==='3d-object'||l.type==='image'||l.type==='text'||l.type==='number')_maxVecZ=Math.max(_maxVecZ,z);});
+      // ── Vector run splitting (z-order interleave fix) ──────────────────────
+      // svgEl (#artboard-svg) is ONE static DOM node — it can only occupy ONE
+      // position in the paint stack, so it cannot represent "shape A behind text 1,
+      // shape B in front of text 1" (genuine interleaving). curVecSvg tracks which
+      // <svg> is currently receiving vector paint content; it starts as svgEl itself
+      // so the common case (all vectors contiguous, no slot/text between them) is a
+      // zero-new-elements, behaviorally-identical path. A slot/text/number layer
+      // "breaks" the run (curVecSvg=null); the next vector layer then lazily creates
+      // a fresh throwaway <svg class="vector-run-svg">, appended to #artboard at that
+      // exact point in this same forEach pass — landing in true DOM z-order right
+      // alongside the slot/text overlay divs, exactly like those divs already do.
+      // Only vector-type layers use this; image/3d-object stay hardcoded to svgEl
+      // (unchanged, pre-existing behavior — out of scope for this fix).
+      var curVecSvg=svgEl;
+      var _vecSvgs=[svgEl];
+      function _vecSvg(){
+        if(!curVecSvg){
+          curVecSvg=svgNs('svg');
+          curVecSvg.setAttribute('class','vector-run-svg');
+          curVecSvg.setAttribute('viewBox','0 0 '+CW+' '+CH);
+          curVecSvg.setAttribute('preserveAspectRatio','none');
+          curVecSvg.setAttribute('width',CW);curVecSvg.setAttribute('height',CH);
+          curVecSvg.style.position='absolute';curVecSvg.style.inset='0';curVecSvg.style.display='block';
+          curVecSvg.style.pointerEvents='none'; // purely visual — all interaction stays routed through svgEl
+          artboard.appendChild(curVecSvg);
+          _vecSvgs.push(curVecSvg);
+        }
+        return curVecSvg;
+      }
       sorted.forEach(function(layer){
         // Cutter layers: visible:false normally, but show in bool-edit mode OR when showCutter=true
         var _isCutterEdit=layer.boolRole==='cutter'&&state.boolEditParentId===layer.boolParentId;
@@ -1144,6 +1177,7 @@
         // Has override indicator: draw orange dot on layer
         var _hasOv=state.activeStateName==='hover'&&Object.keys(_ov).length>0;
         if(layer.type==='vector'&&layer.vectorData){
+          var _psvg=_vecSvg(); // svg receiving THIS run's paint — svgEl for the common contiguous case, a fresh run svg otherwise
           var g=svgNs('g');g.setAttribute('opacity',_lop);g.style.mixBlendMode=layer.blendMode;
           var tf='scale('+(CW/100)+','+(CH/100)+')';
           // C1.5: vector pathData is baked at the BASE position/size, so in hover state
@@ -1180,7 +1214,7 @@
                 var _mb=svgNs('path');_mb.setAttribute('d',layer.vectorData.pathData);_mb.setAttribute('fill','white');_maskEl.appendChild(_mb);
               }
               _subs.forEach(function(bc){var _c=_bcCutter(bc);if(!_c||!_c.vectorData)return;var _mc=svgNs('path');_mc.setAttribute('d',_c.vectorData.pathData);_mc.setAttribute('fill','black');_maskEl.appendChild(_mc);});
-              _defs.appendChild(_maskEl);svgEl.appendChild(_defs);dispMaskId=_mId;
+              _defs.appendChild(_maskEl);_psvg.appendChild(_defs);dispMaskId=_mId;
             }
             // Union cutters render as separate fill-only siblings (perfect merge, no winding artifacts)
             _unis.forEach(function(bc){var _c=_bcCutter(bc);if(_c&&_c.vectorData)_boolUnionPaths.push(_c.vectorData.pathData);});
@@ -1213,7 +1247,7 @@
               _gEl.setAttribute('x1',_x1);_gEl.setAttribute('y1',_y1);_gEl.setAttribute('x2',_x2);_gEl.setAttribute('y2',_y2);
             }
             fill.gradient.stops.forEach(function(st){var _s=svgNs('stop');_s.setAttribute('offset',st.position+'%');_s.setAttribute('stop-color',st.color);_s.setAttribute('stop-opacity',st.opacity!=null?st.opacity:1);_gEl.appendChild(_s);});
-            _gDefs.appendChild(_gEl);svgEl.insertBefore(_gDefs,svgEl.firstChild);
+            _gDefs.appendChild(_gEl);_psvg.insertBefore(_gDefs,_psvg.firstChild);
           }
           var _fAttr=_isGrad?'url(#cg-'+layer.id+')':(fill&&fill.type==='solid')?fill.color:(fill&&fill.type==='glass'?'rgba(100,200,255,0.25)':'none');
           path.setAttribute('fill',_fAttr);path.setAttribute('fill-opacity',(_isGrad||fill&&fill.type==='glass')?1:(fill?fill.opacity:1));path.setAttribute('fill-rule',dispFillRule);
@@ -1237,7 +1271,7 @@
             _filt.setAttribute('id',_fxId);_filt.setAttribute('x','-50%');_filt.setAttribute('y','-50%');_filt.setAttribute('width','200%');_filt.setAttribute('height','200%');
             if(_fxDs){var _fds=svgNs('feDropShadow');_fds.setAttribute('dx',_fxDs.offsetX||0);_fds.setAttribute('dy',_fxDs.offsetY||0);_fds.setAttribute('stdDeviation',(_fxDs.blur||0)/2);_fds.setAttribute('flood-color',_fxDs.color||'#000000');_fds.setAttribute('flood-opacity',_fxDs.opacity!=null?_fxDs.opacity:0.5);_filt.appendChild(_fds);}
             if(_fxGl){var _fgl=svgNs('feDropShadow');_fgl.setAttribute('dx',0);_fgl.setAttribute('dy',0);_fgl.setAttribute('stdDeviation',(_fxGl.blur||0)/2);_fgl.setAttribute('flood-color',_fxGl.color||'#818cf8');_fgl.setAttribute('flood-opacity',_fxGl.opacity!=null?_fxGl.opacity:0.8);_filt.appendChild(_fgl);}
-            _defs2.appendChild(_filt);svgEl.insertBefore(_defs2,svgEl.firstChild);
+            _defs2.appendChild(_filt);_psvg.insertBefore(_defs2,_psvg.firstChild);
             g.setAttribute('filter','url(#'+_fxId+')');
           }
           // Corner radius/bevel: clip the group to a rounded rect (round) or a
@@ -1281,7 +1315,7 @@
                 +' Z';
               var _crPath=svgNs('path');_crPath.setAttribute('d',d);_cpEl.appendChild(_crPath);
             }
-            _crDefs.appendChild(_cpEl);svgEl.insertBefore(_crDefs,svgEl.firstChild);
+            _crDefs.appendChild(_cpEl);_psvg.insertBefore(_crDefs,_psvg.firstChild);
             g.setAttribute('clip-path','url(#'+_crId+')');
           }
           g.appendChild(path);
@@ -1295,7 +1329,7 @@
               g.appendChild(_upath);
             });
           }
-          svgEl.appendChild(g);
+          _psvg.appendChild(g);
         }
         if(layer.type==='slot'){
           var _sd=layer.slotData||{};var _st=_sd.slotType||'title';
@@ -1361,6 +1395,7 @@
           // Rotation: slot div uses left/top/width/height % so center-origin rotation matches its own box.
           if(_lrot){div.style.transform='rotate('+_lrot+'deg)';div.style.transformOrigin='center center';}
           artboard.appendChild(div);
+          curVecSvg=null; // slot div breaks the vector run so the NEXT vector interleaves after it in true DOM order
         }
         if(layer.type==='3d-object'){
           var rx=topx(layer.x,CW),ry=topx(layer.y,CH),rw=topx(layer.width,CW),rh=topx(layer.height,CH);
@@ -1463,6 +1498,7 @@
           _tContent.style.cssText='width:100%;font-family:'+((_td.fontFamily)||'system-ui,sans-serif')+';font-size:'+(_td.fontSize||28)+'px;font-weight:'+(_td.fontWeight||600)+';font-style:'+(_td.fontStyle||'normal')+';color:'+(_td.color||'#fff')+';text-align:'+(_td.textAlign||'left')+';line-height:'+(_td.lineHeight||1.2)+';letter-spacing:'+(_td.letterSpacing||0)+'px;text-transform:'+(_td.textTransform||'none')+';white-space:'+(_td.wordWrap!==false?'pre-wrap':'nowrap')+';word-break:'+(_td.wordWrap!==false?'break-word':'normal')+';user-select:none;';
           _tContent.textContent=_td.content||'Text';
           _tInner.appendChild(_tContent);_tDiv.appendChild(_tInner);artboard.appendChild(_tDiv);
+          curVecSvg=null; // text overlay breaks the vector run (see slot handling above)
         }
         if(layer.type==='number'&&layer.numberData){
           var _nd=layer.numberData;
@@ -1484,26 +1520,31 @@
           _nSpan.style.cssText='font-family:'+((_nd.fontFamily)||'Inter,system-ui,sans-serif')+';font-size:'+(_nd.fontSize||48)+'px;font-weight:'+(_nd.fontWeight||800)+';color:'+(_nd.color||'#fff')+';line-height:1;white-space:nowrap;font-variant-numeric:tabular-nums;user-select:none;';
           _nSpan.textContent=_nStr;
           _nDiv.appendChild(_nSpan);artboard.appendChild(_nDiv);
+          curVecSvg=null; // number overlay breaks the vector run (see slot handling above)
         }
       });
       // ── Clip drawn content to the canvas bounds ────────────────────────────
-      // All layer content above was appended to svgEl. Wrap it in a group clipped
-      // to the canvas viewBox (0,0,CW,CH) so a shape's FILL never renders past the
-      // canvas edge — only the in-canvas portion shows. Selection UI (outline,
-      // handles, badges, marquee, guides) is appended AFTER this group, so it
-      // stays UNCLIPPED and can extend past the edge. Skipped when
-      // canvasOverflow==='visible' (intentional bleed mode). Defs moved into the
-      // group still resolve by id. (DOM overlays live on #artboard, not svgEl.)
-      if(state.element.canvasOverflow!=='visible'&&svgEl.firstChild){
-        var _ccId='artboard-content-clip';
-        var _ccDefs=svgNs('defs');
-        var _ccCp=svgNs('clipPath');_ccCp.setAttribute('id',_ccId);_ccCp.setAttribute('clipPathUnits','userSpaceOnUse');
-        var _ccR=svgNs('rect');_ccR.setAttribute('x','0');_ccR.setAttribute('y','0');_ccR.setAttribute('width',String(CW));_ccR.setAttribute('height',String(CH));
-        _ccCp.appendChild(_ccR);_ccDefs.appendChild(_ccCp);
-        var _ccG=svgNs('g');_ccG.setAttribute('clip-path','url(#'+_ccId+')');_ccG.setAttribute('data-content-clip','1');
-        while(svgEl.firstChild)_ccG.appendChild(svgEl.firstChild);
-        svgEl.appendChild(_ccDefs); // clip def sits OUTSIDE the clipped group
-        svgEl.appendChild(_ccG);
+      // Layer content above was appended to svgEl and/or one or more per-run
+      // vector-run-svg elements (see _vecSvg() above). Wrap EACH one's content in
+      // a group clipped to the canvas viewBox (0,0,CW,CH) so a shape's FILL never
+      // renders past the canvas edge — only the in-canvas portion shows. Selection
+      // UI (outline, handles, badges, marquee, guides) is appended to svgEl AFTER
+      // this loop, so it stays UNCLIPPED and can extend past the edge. Skipped
+      // when canvasOverflow==='visible' (intentional bleed mode). Defs moved into
+      // the group still resolve by id. (DOM overlays live on #artboard, not svgEl.)
+      if(state.element.canvasOverflow!=='visible'){
+        _vecSvgs.forEach(function(_vs,_vsi){
+          if(!_vs.firstChild)return;
+          var _ccId='artboard-content-clip'+(_vsi?('-'+_vsi):'');
+          var _ccDefs=svgNs('defs');
+          var _ccCp=svgNs('clipPath');_ccCp.setAttribute('id',_ccId);_ccCp.setAttribute('clipPathUnits','userSpaceOnUse');
+          var _ccR=svgNs('rect');_ccR.setAttribute('x','0');_ccR.setAttribute('y','0');_ccR.setAttribute('width',String(CW));_ccR.setAttribute('height',String(CH));
+          _ccCp.appendChild(_ccR);_ccDefs.appendChild(_ccCp);
+          var _ccG=svgNs('g');_ccG.setAttribute('clip-path','url(#'+_ccId+')');_ccG.setAttribute('data-content-clip','1');
+          while(_vs.firstChild)_ccG.appendChild(_vs.firstChild);
+          _vs.appendChild(_ccDefs); // clip def sits OUTSIDE the clipped group
+          _vs.appendChild(_ccG);
+        });
       }
       // CSS z-index stacking: if any vector has higher zIndex than all slots, raise SVG above slot divs.
       // Use z-index instead of DOM reordering — moving svgEl in the DOM releases pointer capture mid-drag.
@@ -5901,8 +5942,21 @@
     // Async so external raster hrefs (media-library images) can be inlined as base64 data URIs, making the serialized SVG self-contained (otherwise the thumbnail loses placed photos). Fetch failures fall back to the original href — never block the save.
     async function captureThumbnail(){
       try{
-        // Clone SVG, add white background rect
-        var clone=svgEl.cloneNode(true);
+        // Clone SVG (shallow — attrs only), then merge in svgEl's own children PLUS
+        // any dynamically-created .vector-run-svg elements' children (see _vecSvg()
+        // in renderCanvas: an interleaved design splits vector paint across svgEl and
+        // one or more throwaway run-svgs, so cloning svgEl alone would silently drop
+        // whichever runs landed outside it). Walking #artboard's actual children
+        // preserves their true relative DOM order, matching the live canvas.
+        var clone=svgEl.cloneNode(false);
+        (function(){
+          var _abKids=Array.prototype.slice.call(document.getElementById('artboard').children);
+          _abKids.forEach(function(ch){
+            if(ch===svgEl||(ch.classList&&ch.classList.contains('vector-run-svg'))){
+              Array.prototype.slice.call(ch.childNodes).forEach(function(n){clone.appendChild(n.cloneNode(true));});
+            }
+          });
+        })();
         var bg=svgNs('rect');
         var CW=state.element.canvasWidth,CH=state.element.canvasHeight;
         bg.setAttribute('x','0');bg.setAttribute('y','0');bg.setAttribute('width',CW);bg.setAttribute('height',CH);bg.setAttribute('fill','white');
