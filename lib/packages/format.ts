@@ -65,6 +65,7 @@ export function formatOptions(pkg: PackageLike, separator = "\n"): string {
  */
 export function packageSlotValues(pkg: PackageLike): Record<string, string> {
   const base: Record<string, string> = {
+    id: str(pkg.id),
     name: str(pkg.name),
     // "Price" is the raw value alone — Period is its own separate bindable slot
     // (same split pattern as speed/speedDown/speedUp). priceCombined offers the
