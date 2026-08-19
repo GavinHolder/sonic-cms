@@ -151,11 +151,18 @@
     /* ── LIB TABS ────────────────────────────────── */
     .lib-tabs {
       display: flex;
+      flex-wrap: wrap;
+      row-gap: 2px;
       border-bottom: 2px solid #e9ecef;
       margin-bottom: 10px;
     }
     .lib-tab {
-      flex: 1;
+      /* Grow to fill spare width, but settle around a third of the row so 5
+         tabs wrap 3-then-2 instead of squeezing onto one line and clipping
+         the last label (the original flex:1/nowrap combo did exactly that
+         once "Templates" made it a 5th tab). */
+      flex: 1 1 33%;
+      min-width: 58px;
       padding: 6px 4px;
       text-align: center;
       font-size: 11px;
