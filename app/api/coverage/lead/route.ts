@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { getEmailConfig, sendSubmissionEmail } from "@/lib/email";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -30,6 +31,8 @@ export async function POST(req: NextRequest) {
   let packageName: string | null = null;
   let packageTerm: string | null = null;
   let packageCategory: string | null = null;
+  let packagePrice: string | null = null;
+  let packagePeriod: string | null = null;
   let serviceType: string | null = null;
   let leadCategory = "miss";
   const addonIds = Array.isArray(body.addonIds) ? (body.addonIds as unknown[]).map((x) => String(x)).slice(0, 20) : [];
@@ -43,11 +46,11 @@ export async function POST(req: NextRequest) {
       serviceType = SERVICE_TYPE[net.category] ?? net.category;
     }
     if (packageId) {
-      const pkg = await prisma.package.findUnique({ where: { id: packageId }, select: { name: true, term: true, category: { select: { name: true } } } });
-      if (pkg) { packageName = pkg.name; packageTerm = pkg.term; packageCategory = pkg.category?.name ?? null; }
+      const pkg = await prisma.package.findUnique({ where: { id: packageId }, select: { name: true, term: true, price: true, period: true, category: { select: { name: true } } } });
+      if (pkg) { packageName = pkg.name; packageTerm = pkg.term; packageCategory = pkg.category?.name ?? null; packagePrice = pkg.price; packagePeriod = pkg.period; }
     }
     if (addonIds.length) {
-      const addons = await prisma.package.findMany({ where: { id: { in: addonIds } }, select: { name: true, term: true } });
+      const addons = await prisma.package.findMany({ where: { id: { in: addonIds } }, select: { name: true, term: true, price: true, period: true } });
       addonNames = addons.map((a) => (a.term ? `${a.name} (${a.term})` : a.name));
     }
   }
@@ -67,6 +70,7 @@ export async function POST(req: NextRequest) {
     ...(serviceType ? [{ label: "Service type", value: serviceType }] : []),
     ...(networkName ? [{ label: "Network", value: networkName }] : []),
     ...(packageName ? [{ label: "Package", value: packageTerm ? `${packageName} (${packageTerm})` : packageName }] : []),
+    ...(packagePrice ? [{ label: "Price", value: packagePeriod ? `${packagePrice}${packagePeriod.startsWith("/") ? packagePeriod : ` ${packagePeriod}`}` : packagePrice }] : []),
     ...(packageCategory ? [{ label: "Category", value: packageCategory }] : []),
     ...(addonNames.length ? [{ label: "Add-ons", value: addonNames.join(", ") }] : []),
     { label: "Lead type", value: leadCategory },
@@ -89,6 +93,21 @@ export async function POST(req: NextRequest) {
     });
   } catch {
     // Non-fatal — don't lose the visitor on a storage hiccup.
+  }
+
+  // Notify the admin by email — the FormSubmission above makes the lead visible in
+  // Form Inbox regardless, but coverage leads are time-sensitive (a visitor picked a
+  // specific package at a specific address) so the admin should get pinged directly
+  // rather than relying on someone checking Form Inbox. Reuses the same branded
+  // notification helper every other form on the site uses (lib/email.ts), so this
+  // gets the site's logo/colours and subject-prefix convention for free. Non-fatal on
+  // failure — a misconfigured SMTP setting must never lose the lead itself (already
+  // safely stored above).
+  try {
+    const cfg = await getEmailConfig();
+    await sendSubmissionEmail(data, email, cfg, miss ? "Coverage Miss — Notify Request" : "Coverage Lead");
+  } catch {
+    // Non-fatal — the lead is already safely stored as a FormSubmission above.
   }
 
   return NextResponse.json({ ok: true });
