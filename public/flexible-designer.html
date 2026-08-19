@@ -1992,7 +1992,7 @@ const BLOCK_DEFAULTS = {
   divider:     { label:'Divider', thickness:2, dividerColor:'#dee2e6', customCss:'' },
   volt:        { label:'Volt', bgColor:'transparent', voltId:'', voltName:'', voltThumbnail:null, voltLayerOverrides:{}, customCss:'' },
   'card-tabs': { label:'Card Tabs', tabs:[{ key:'tab-'+Date.now(), label:'Tab 1', cards:[{ id:'card-'+Date.now() }] }], minCardWidth:260, customCss:'' },
-  template:    { label:'Template', templateId:'', templateName:'', templateThumbnail:null, customHtml:'<p>Section template</p>', customCss:'', mediaSlots:{}, productId:'', productName:'' },
+  template:    { label:'Template', templateId:'', templateName:'', templateThumbnail:null, customHtml:'<p>Section template</p>', customCss:'', mediaSlots:{}, productId:'', productName:'', networkSlug:'', networkName:'', productTypeSlug:'', productTypeName:'' },
   editorial:   { label:'Editorial', text:'Start typing your editorial content here. This text will flow around any obstacle images you place in the block. You can use multiple obstacles — each with its own position, size, and alpha hull tracing for precise text wrapping.', fontFamily:'Merriweather', fontSize:18, lineHeight:1.6, textColor:'#212529', bgColor:'transparent', obstacles:[], customCss:'' },
   steps:       { label:'Steps', steps:[{number:'01',heading:'Discovery',subtext:'We analyse your requirements and technical constraints.'},{number:'02',heading:'Design',subtext:'We prototype and validate the solution with stakeholders.'},{number:'03',heading:'Build',subtext:'We implement, test, and deploy the solution.'}], stepsNumberWidth:100, stepsDividers:true, stepsLastDivider:false, customCss:'' },
   'photo-strip':{ label:'Photo Strip', images:[{src:'',alt:''},{src:'',alt:''},{src:'',alt:''}], columns:3, height:220, gap:4, hoverBrightness:true, customCss:'' },
@@ -6326,16 +6326,44 @@ function renderTypeProps(block) {
           prodOpts += `</optgroup>`;
         });
         h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;margin-top:10px;padding-top:10px;border-top:1px solid #e9ecef;">
-          <label style="margin-bottom:3px;font-size:12px;">Linked Product <span style="font-weight:400;color:#9ca3af;">(optional)</span></label>
+          <label style="margin-bottom:3px;font-size:12px;">Linked Product <span style="font-weight:400;color:#9ca3af;">(optional — single-product templates)</span></label>
           <select class="props-select" style="font-size:12px;" onchange="var pr=(window.__allPackages||[]).find(function(x){return x.id===this.value;});updateBlockProp('${block.id}','productId',this.value);updateBlockProp('${block.id}','productName',pr?pr.name:'');renderCanvas()">
             ${prodOpts}
           </select>
           <div style="font-size:10px;color:#9ca3af;margin-top:4px;line-height:1.5;">
             When set, write <code>{{pkg.name}}</code>, <code>{{pkg.price}}</code>, <code>{{pkg.period}}</code>,
             <code>{{pkg.speed}}</code>, <code>{{pkg.speedDown}}</code>, <code>{{pkg.speedUp}}</code>,
-            <code>{{pkg.options}}</code>, <code>{{pkg.network}}</code> anywhere in the template's HTML/CSS
-            (Templates admin) — same token names as a data-bound Volt card slot. They fill in from this
-            product live on the site.
+            <code>{{pkg.options}}</code>, <code>{{pkg.network}}</code>, <code>{{pkg.id}}</code> anywhere in
+            the template's HTML/CSS (Templates admin) — same token names as a data-bound Volt card slot.
+            They fill in from this <strong>one</strong> product live on the site.
+          </div>
+        </div>`;
+
+        const tplNets = window.__networks || [];
+        let netOpts = `<option value="">— None —</option>`;
+        tplNets.forEach(function(n){ netOpts += `<option value="${escHtml(n.slug)}"${n.slug===p.networkSlug?' selected':''}>${escHtml(n.name)} (${escHtml(n.category)})</option>`; });
+        const tplTypes = window.__productTypes || [];
+        let typeOpts = `<option value="">— None —</option>`;
+        tplTypes.forEach(function(t){ typeOpts += `<option value="${escHtml(t.slug)}"${t.slug===p.productTypeSlug?' selected':''}>${escHtml(t.name)}</option>`; });
+        h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;margin-top:10px;padding-top:10px;border-top:1px solid #e9ecef;">
+          <label style="margin-bottom:3px;font-size:12px;">Linked Network <span style="font-weight:400;color:#9ca3af;">(optional — multi-card templates)</span></label>
+          <select class="props-select" style="font-size:12px;" onchange="var n=(window.__networks||[]).find(function(x){return x.slug===this.value;});updateBlockProp('${block.id}','networkSlug',this.value);updateBlockProp('${block.id}','networkName',n?n.name:'');renderCanvas()">
+            ${netOpts}
+          </select>
+        </div>
+        <div class="props-row" style="flex-direction:column;align-items:stretch;margin-top:8px;">
+          <label style="margin-bottom:3px;font-size:12px;">Linked Product Type <span style="font-weight:400;color:#9ca3af;">(optional — multi-card templates)</span></label>
+          <select class="props-select" style="font-size:12px;" onchange="var t=(window.__productTypes||[]).find(function(x){return x.slug===this.value;});updateBlockProp('${block.id}','productTypeSlug',this.value);updateBlockProp('${block.id}','productTypeName',t?t.name:'');renderCanvas()">
+            ${typeOpts}
+          </select>
+          <div style="font-size:10px;color:#9ca3af;margin-top:4px;line-height:1.5;">
+            For a template with <strong>multiple cards and its own tab UI</strong> (self-contained, not
+            single-product tokens): set Network and/or Product Type here — the CMS fetches the matching
+            packages for you and hands them to your template as <code>window.CMS_TEMPLATE.packages</code>
+            (each item has id/name/price/period/speedDown/speedUp/features/networkName/categoryName).
+            Read that array in your template's own &lt;script&gt; and build the cards/tabs yourself.
+            Don't call <code>fetch()</code> for packages from inside your template — the sandbox blocks
+            it (no <code>allow-same-origin</code>, by design); the array is provided instead.
           </div>
         </div>`;
       })();

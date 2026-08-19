@@ -8,7 +8,37 @@ interface Props {
    * handles the {{pkg.*}} layer, which needs a live product fetch. */
   html: string;
   css: string;
+  /** Single-product binding — fills {{pkg.*}} tokens directly (see applyPkgTokens). */
   productId?: string;
+  /** Multi-card binding — the scoped package list is fetched here (parent, same-origin)
+   * and handed to the template as window.CMS_TEMPLATE.packages, NOT fetched by the
+   * template's own script. sandbox="allow-scripts" without allow-same-origin gives the
+   * iframe an opaque origin, so its own fetch() calls carry Origin: null — our API
+   * routes send no CORS headers for that, so a same-site fetch from inside the frame
+   * is silently blocked. Fetching here and injecting the result sidesteps that entirely
+   * without loosening the sandbox. */
+  networkSlug?: string;
+  networkName?: string;
+  productTypeSlug?: string;
+  productTypeName?: string;
+}
+
+interface ScopedPackage {
+  id: string;
+  name: string;
+  speedDown: string | null;
+  speedUp: string | null;
+  price: string;
+  period: string | null;
+  features: unknown;
+  popular: boolean;
+  networkName: string | null;
+  networkSlug: string | null;
+  networkCategory: string | null;
+  categoryId: string | null;
+  categoryName: string | null;
+  productTypeSlug: string | null;
+  productTypeName: string | null;
 }
 
 function applyPkgTokens(input: string, slots: Record<string, string>): string {
@@ -18,17 +48,23 @@ function applyPkgTokens(input: string, slots: Record<string, string>): string {
 
 /**
  * TemplateBlock — sandboxed-iframe renderer for the FLEXIBLE section "template" block
- * type, with an optional live Package binding. Split out of FlexibleSectionRenderer's
- * inline switch because the {{pkg.*}} substitution needs a client fetch (useEffect),
- * and that switch's cases can't call hooks conditionally — every other data-bound
- * block type (VoltBlock, CardTabsBlock, ProductGridBlock) follows this same split.
+ * type, with two optional live-data bindings. Split out of FlexibleSectionRenderer's
+ * inline switch because both bindings need a client fetch (useEffect), and that
+ * switch's cases can't call hooks conditionally — every other data-bound block type
+ * (VoltBlock, CardTabsBlock, ProductGridBlock) follows this same split.
  *
- * Token convention matches VoltBlock/packageSlotValues exactly ({{pkg.name}},
- * {{pkg.price}}, {{pkg.speed}}...) so anyone who has authored a data-bound Volt card
- * already knows the field names for an uploaded HTML template.
+ * - productId: single-product binding, fills {{pkg.*}} tokens directly into the
+ *   template's HTML/CSS before it ever loads. Token names match packageSlotValues
+ *   exactly, same convention as a data-bound Volt card slot.
+ * - networkSlug / productTypeSlug: multi-card binding. The scoped package list is
+ *   fetched here and handed to the template as window.CMS_TEMPLATE.packages — for a
+ *   template with its own multi-card grid + tab UI, self-contained but linked to the
+ *   product subsystem (see components/sections/blocks/CardTabsBlock.tsx for the
+ *   Designer-native equivalent of this same idea).
  */
-export default function TemplateBlock({ html, css, productId }: Props) {
+export default function TemplateBlock({ html, css, productId, networkSlug, networkName, productTypeSlug, productTypeName }: Props) {
   const [pkgSlots, setPkgSlots] = useState<Record<string, string>>({});
+  const [scopedPackages, setScopedPackages] = useState<ScopedPackage[]>([]);
 
   useEffect(() => {
     if (!productId) { setPkgSlots({}); return; }
@@ -44,8 +80,39 @@ export default function TemplateBlock({ html, css, productId }: Props) {
     return () => { active = false; };
   }, [productId]);
 
+  useEffect(() => {
+    const qs = networkSlug
+      ? `network=${encodeURIComponent(networkSlug)}`
+      : productTypeSlug
+      ? `productType=${encodeURIComponent(productTypeSlug)}`
+      : null;
+    if (!qs) { setScopedPackages([]); return; }
+    let active = true;
+    fetch(`/api/packages?${qs}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!active) return;
+        setScopedPackages(data && Array.isArray(data.packages) ? (data.packages as ScopedPackage[]) : []);
+      })
+      .catch(() => { if (active) setScopedPackages([]); });
+    return () => { active = false; };
+  }, [networkSlug, productTypeSlug]);
+
   const finalHtml = applyPkgTokens(html, pkgSlots);
   const finalCss = applyPkgTokens(css, pkgSlots);
+
+  // Read by the template's own script, not substituted into the markup. \u003c escaping
+  // prevents a network/type name or package field containing "</script>" from breaking
+  // out of this inline script (admin-authored data, but cheap to guard anyway).
+  const templateContext = {
+    productId: productId || null,
+    networkSlug: networkSlug || null,
+    networkName: networkName || null,
+    productTypeSlug: productTypeSlug || null,
+    productTypeName: productTypeName || null,
+    packages: scopedPackages,
+  };
+  const contextScript = `<script>window.CMS_TEMPLATE=${JSON.stringify(templateContext).replace(/</g, "\\u003c")};</script>`;
 
   // sandbox="allow-scripts" WITHOUT allow-same-origin is deliberate — see
   // FlexibleSectionRenderer.tsx's "template" case for the full rationale: the frame
@@ -53,10 +120,19 @@ export default function TemplateBlock({ html, css, productId }: Props) {
   // visuals/interactivity but can never read the CMS admin's cookies/localStorage/DOM.
   const srcDoc = `<!doctype html><html><head><meta charset="utf-8">${
     finalCss ? `<style>${finalCss}</style>` : ""
-  }</head><body style="margin:0">${finalHtml}</body></html>`;
+  }${contextScript}</head><body style="margin:0">${finalHtml}</body></html>`;
+
+  // Keyed on the live-data readiness, not just a static block id: mutating an
+  // already-loaded iframe's srcdoc attribute in place does not reliably re-navigate
+  // it in every browser (observed empirically — the attribute updates, the visible
+  // document doesn't). Changing `key` forces React to mount a fresh iframe once the
+  // product/network fetch resolves, guaranteeing a clean load of the final content
+  // instead of racing an in-place update against an already-parsed document.
+  const iframeKey = `${productId ?? ""}:${Object.keys(pkgSlots).length}:${scopedPackages.length}`;
 
   return (
     <iframe
+      key={iframeKey}
       title="Section template"
       srcDoc={srcDoc}
       sandbox="allow-scripts"

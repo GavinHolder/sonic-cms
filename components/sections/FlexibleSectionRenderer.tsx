@@ -2525,9 +2525,24 @@ function DesignerBlock({ block, darkBg }: {
         // switching which template/product is bound doesn't reuse a stale iframe.
         const blockDomId = (block as unknown as { id?: string }).id || templateId;
         const templateProductId = p.productId as string | undefined;
+        const templateNetworkSlug = p.networkSlug as string | undefined;
+        const templateNetworkName = p.networkName as string | undefined;
+        const templateProductTypeSlug = p.productTypeSlug as string | undefined;
+        const templateProductTypeName = p.productTypeName as string | undefined;
         // The {{pkg.*}} layer (optional live product binding) needs its own client fetch —
         // split into TemplateBlock so that hook isn't called conditionally inside this switch.
-        return <TemplateBlock key={blockDomId} html={templateHtml} css={templateCss} productId={templateProductId} />;
+        return (
+          <TemplateBlock
+            key={blockDomId}
+            html={templateHtml}
+            css={templateCss}
+            productId={templateProductId}
+            networkSlug={templateNetworkSlug}
+            networkName={templateNetworkName}
+            productTypeSlug={templateProductTypeSlug}
+            productTypeName={templateProductTypeName}
+          />
+        );
       }
 
       // ── interactive-3d-card: hover-driven 3D product card (custom GLB or procedural fallback) ──
