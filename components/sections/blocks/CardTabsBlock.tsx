@@ -80,6 +80,17 @@ export default function CardTabsBlock({ content }: Props) {
               {c.voltId
                 ? <VoltBlock voltId={c.voltId} productId={c.productId} fitMode="contain" />
                 : <div className="cms-card-tabs__empty">No card design selected</div>}
+              {/* Real availability is address-dependent — send the visitor to the
+                  coverage map with this package pre-selected rather than implying
+                  it's available everywhere. */}
+              {c.productId && (
+                <a
+                  href={`/coverage?package=${encodeURIComponent(c.productId)}`}
+                  className="cms-card-tabs__cta"
+                >
+                  Check coverage <i className="bi bi-geo-alt" />
+                </a>
+              )}
             </div>
           ))}
         </div>
@@ -103,12 +114,22 @@ export default function CardTabsBlock({ content }: Props) {
           justify-content: center;
           gap: 20px;
         }
-        .cms-card-tabs__cell { flex: 0 1 ${minCardWidth}px; min-height: 160px; aspect-ratio: ${cardAspectRatio}; }
+        .cms-card-tabs__cell { position: relative; flex: 0 1 ${minCardWidth}px; min-height: 160px; aspect-ratio: ${cardAspectRatio}; }
         .cms-card-tabs__empty {
           display: flex; align-items: center; justify-content: center; height: 100%; min-height: 160px;
           border: 1px dashed var(--cms-border, rgba(0,0,0,0.15)); border-radius: 12px;
           color: var(--section-muted, rgba(0,0,0,0.4)); font-size: 12px;
         }
+        .cms-card-tabs__cta {
+          position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
+          display: inline-flex; align-items: center; gap: 6px; z-index: 5;
+          padding: 8px 16px; border-radius: 999px; white-space: nowrap;
+          background: var(--cms-primary, #0d6efd); color: #fff;
+          font-size: 12px; font-weight: 700; letter-spacing: 0.02em; text-decoration: none;
+          box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+          transition: transform .15s, box-shadow .15s;
+        }
+        .cms-card-tabs__cta:hover { transform: translateX(-50%) translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.32); color: #fff; }
       `}</style>
     </div>
   );

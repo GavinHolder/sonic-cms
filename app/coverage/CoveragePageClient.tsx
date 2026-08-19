@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import type { CoverageCheckResult, CoverageNetworkResult, CoveragePackage } from "@/lib/coverage-utils";
 import "leaflet/dist/leaflet.css";
@@ -38,6 +39,12 @@ interface Props {
 const RED = "#E31E24";
 
 export default function CoveragePageClient({ initialMaps, networkRadii }: Props) {
+  // Deep-link from a package card's "Check coverage" CTA (?package=<id>) — once the
+  // visitor's address resolves, prefer whichever network actually carries this
+  // package at that address instead of defaulting to the first network/term.
+  const searchParams = useSearchParams();
+  const preselectPackageId = searchParams.get("package");
+
   const [maps] = useState<CoverageMapData[]>(initialMaps);
   const [activeMapId, setActiveMapId] = useState<string>(initialMaps[0]?.id ?? "");
   const [result, setResult] = useState<CoverageCheckResult | null>(null);
@@ -74,11 +81,25 @@ export default function CoveragePageClient({ initialMaps, networkRadii }: Props)
   function handleResult(r: CoverageCheckResult, ctx?: { address: string }) {
     setResult(r);
     setAddress(ctx?.address ?? "");
-    const firstNet = (r.networks ?? [])[0] ?? null;
-    setNetworkId(firstNet?.id ?? null);
-    const firstTerms = [...new Set(((firstNet?.packages ?? []).filter((p) => (p.kind ?? "DATA") !== "VAS").map((p) => p.term).filter(Boolean)) as string[])];
-    setDataTerm(firstTerms[0] ?? null);
-    setPickedData(null); setAddons(new Set());
+    const nets = r.networks ?? [];
+
+    // Prefer whichever network actually carries the deep-linked package here;
+    // fall back to the first network when there's no ?package= or it isn't
+    // available at this address (visitor still sees whatever IS available).
+    let targetNet = nets[0] ?? null;
+    let targetPkg: CoveragePackage | null = null;
+    if (preselectPackageId) {
+      for (const n of nets) {
+        const found = n.packages.find((p) => p.id === preselectPackageId);
+        if (found) { targetNet = n; targetPkg = found; break; }
+      }
+    }
+
+    setNetworkId(targetNet?.id ?? null);
+    const firstTerms = [...new Set(((targetNet?.packages ?? []).filter((p) => (p.kind ?? "DATA") !== "VAS").map((p) => p.term).filter(Boolean)) as string[])];
+    setDataTerm(targetPkg?.term ?? firstTerms[0] ?? null);
+    setPickedData(targetPkg && (targetPkg.kind ?? "DATA") !== "VAS" ? targetPkg.id : null);
+    setAddons(new Set(targetPkg && targetPkg.kind === "VAS" ? [targetPkg.id] : []));
     setName(""); setEmail(""); setPhone(""); setError(""); setSubmitted(false);
     setOpen(true);
   }
