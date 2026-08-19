@@ -157,11 +157,18 @@ export default function CoverageMapViewer({
           fillOpacity: region.opacity,
         }).addTo(map);
 
-        poly.bindTooltip(region.name, {
-          permanent: false,
-          direction: "center",
-          className: "coverage-tooltip",
-        });
+        // Region-name tooltip is an admin editing aid (which polygon is this?) — on the
+        // public search/check map it just leaks internal naming to visitors, and is
+        // actively misleading where regions overlap (e.g. a WISP polygon covering the
+        // same area as a Fibre polygon on a different tower) since the coverage-check
+        // result already tells the visitor what's actually available at their address.
+        if (!showSearch) {
+          poly.bindTooltip(region.name, {
+            permanent: false,
+            direction: "center",
+            className: "coverage-tooltip",
+          });
+        }
 
         // In search mode a click on a region should place a pin + check coverage,
         // so don't bind a popup that would swallow the click.
