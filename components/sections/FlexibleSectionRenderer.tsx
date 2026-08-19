@@ -2455,17 +2455,32 @@ function DesignerBlock({ block, darkBg }: {
         );
       }
 
-      // ── card-tabs: tab-switched grid of existing Volt card designs, each optionally bound to a product ──
+      // ── card-tabs: auto-populating Product Type -> Network -> Term grid of live
+      // packages (see CardTabsBlock.tsx). Falls back to a legacy manually-authored
+      // tabs[] shape when productTypeSlugs isn't set — CardTabsBlock itself decides
+      // which mode to render, so this case just passes both shapes through as-is. ──
       case "card-tabs": {
-        const tabs = p.tabs as import("@/components/sections/blocks/CardTabsBlock").CardTabsTab[] | undefined;
-        if (!tabs || tabs.length === 0) {
+        const ctSlugs = p.productTypeSlugs as string[] | undefined;
+        const ctTabs = p.tabs as import("@/components/sections/blocks/CardTabsBlock").CardTabsTab[] | undefined;
+        if ((!ctSlugs || ctSlugs.length === 0) && (!ctTabs || ctTabs.length === 0)) {
           return (
             <div style={{ padding: "20px", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#6c757d" }}>
-              <span style={{ fontSize: "12px" }}>No tabs configured</span>
+              <span style={{ fontSize: "12px" }}>No product types configured</span>
             </div>
           );
         }
-        return <CardTabsBlock content={{ tabs, minCardWidth: p.minCardWidth as number | undefined, cardAspectRatio: p.cardAspectRatio as string | undefined }} darkBg={darkBg} />;
+        return (
+          <CardTabsBlock
+            content={{
+              productTypeSlugs: ctSlugs,
+              voltId: p.voltId as string | undefined,
+              tabs: ctTabs,
+              minCardWidth: p.minCardWidth as number | undefined,
+              cardAspectRatio: p.cardAspectRatio as string | undefined,
+            }}
+            darkBg={darkBg}
+          />
+        );
       }
 
       // ── product-grid: 3-layer Product Type → Network → Category drill-down grid of

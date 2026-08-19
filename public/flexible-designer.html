@@ -1991,7 +1991,7 @@ const BLOCK_DEFAULTS = {
   html:        { label:'HTML',    html:'<p>Custom HTML</p>', customCss:'' },
   divider:     { label:'Divider', thickness:2, dividerColor:'#dee2e6', customCss:'' },
   volt:        { label:'Volt', bgColor:'transparent', voltId:'', voltName:'', voltThumbnail:null, voltLayerOverrides:{}, customCss:'' },
-  'card-tabs': { label:'Card Tabs', tabs:[{ key:'tab-'+Date.now(), label:'Tab 1', cards:[{ id:'card-'+Date.now() }] }], minCardWidth:260, customCss:'' },
+  'card-tabs': { label:'Card Tabs', productTypeSlugs:[], voltId:'', voltName:'', minCardWidth:260, customCss:'' },
   template:    { label:'Template', templateId:'', templateName:'', templateThumbnail:null, customHtml:'<p>Section template</p>', customCss:'', mediaSlots:{}, productId:'', productName:'', networkSlug:'', networkName:'', productTypeSlug:'', productTypeName:'' },
   editorial:   { label:'Editorial', text:'Start typing your editorial content here. This text will flow around any obstacle images you place in the block. You can use multiple obstacles — each with its own position, size, and alpha hull tracing for precise text wrapping.', fontFamily:'Merriweather', fontSize:18, lineHeight:1.6, textColor:'#212529', bgColor:'transparent', obstacles:[], customCss:'' },
   steps:       { label:'Steps', steps:[{number:'01',heading:'Discovery',subtext:'We analyse your requirements and technical constraints.'},{number:'02',heading:'Design',subtext:'We prototype and validate the solution with stakeholders.'},{number:'03',heading:'Build',subtext:'We implement, test, and deploy the solution.'}], stepsNumberWidth:100, stepsDividers:true, stepsLastDivider:false, customCss:'' },
@@ -3436,21 +3436,37 @@ function createBlockPreview(block) {
       break;
     }
     case 'card-tabs': {
-      var ctTabs = p.tabs || [];
-      var ctTabsHtml = ctTabs.map(function(t){
-        var nets = t.groupByNetwork ? Array.from(new Set((t.cards||[]).map(function(c){ return c.networkLabel; }).filter(Boolean))) : [];
-        var terms = t.groupByTerm ? Array.from(new Set((t.cards||[]).map(function(c){ return c.term; }).filter(Boolean))) : [];
-        var bits = [];
-        if (nets.length > 1) bits.push(nets.length + ' sub-tabs');
-        if (terms.length > 1) bits.push(terms.length + ' terms');
-        var suffix = bits.length ? ' <span style="opacity:.55;">(' + bits.join(', ') + ')</span>' : '';
-        return '<span style="padding:3px 9px;border-radius:999px;background:rgba(255,255,255,0.1);margin-right:4px;">' + escHtml(t.label||'Tab') + suffix + '</span>';
-      }).join('');
-      var ctCardCount = ctTabs.reduce(function(sum,t){ return sum + (t.cards||[]).length; }, 0);
+      // Legacy manually-authored sections (p.tabs, no productTypeSlugs) still get the
+      // old tab/card-count summary; auto-populating ones (the current default) show
+      // which product types + Volt design drive them, mirroring product-grid's preview.
+      if (!p.productTypeSlugs && p.tabs) {
+        var ctLegacyTabs = p.tabs || [];
+        var ctTabsHtml = ctLegacyTabs.map(function(t){
+          var nets = t.groupByNetwork ? Array.from(new Set((t.cards||[]).map(function(c){ return c.networkLabel; }).filter(Boolean))) : [];
+          var terms = t.groupByTerm ? Array.from(new Set((t.cards||[]).map(function(c){ return c.term; }).filter(Boolean))) : [];
+          var bits = [];
+          if (nets.length > 1) bits.push(nets.length + ' sub-tabs');
+          if (terms.length > 1) bits.push(terms.length + ' terms');
+          var suffix = bits.length ? ' <span style="opacity:.55;">(' + bits.join(', ') + ')</span>' : '';
+          return '<span style="padding:3px 9px;border-radius:999px;background:rgba(255,255,255,0.1);margin-right:4px;">' + escHtml(t.label||'Tab') + suffix + '</span>';
+        }).join('');
+        var ctCardCount = ctLegacyTabs.reduce(function(sum,t){ return sum + (t.cards||[]).length; }, 0);
+        wrap.innerHTML = '<div style="padding:10px 4px;">' +
+          '<div style="font-size:11px;color:#4f46e5;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;"><i class="bi bi-ui-radios"></i> Card Tabs <span style="opacity:.5;">(legacy manual)</span></div>' +
+          '<div style="font-size:11px;margin-bottom:8px;">' + (ctTabsHtml || '<em style="opacity:.5;">No tabs yet</em>') + '</div>' +
+          '<div style="font-size:10px;opacity:.5;">' + ctLegacyTabs.length + ' tab' + (ctLegacyTabs.length===1?'':'s') + ' &middot; ' + ctCardCount + ' card' + (ctCardCount===1?'':'s') + '</div></div>';
+        break;
+      }
+      var ctTypes2 = (window.__productTypes || []).filter(function(t){ return (p.productTypeSlugs||[]).indexOf(t.slug) !== -1; });
+      var ctNames2 = ctTypes2.map(function(t){ return escHtml(t.name); }).join(', ');
       wrap.innerHTML = '<div style="padding:10px 4px;">' +
-        '<div style="font-size:11px;color:#4f46e5;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;"><i class="bi bi-ui-radios"></i> Card Tabs</div>' +
-        '<div style="font-size:11px;margin-bottom:8px;">' + (ctTabsHtml || '<em style="opacity:.5;">No tabs yet</em>') + '</div>' +
-        '<div style="font-size:10px;opacity:.5;">' + ctTabs.length + ' tab' + (ctTabs.length===1?'':'s') + ' &middot; ' + ctCardCount + ' card' + (ctCardCount===1?'':'s') + '</div></div>';
+        '<div style="font-size:11px;color:#4f46e5;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;"><i class="bi bi-ui-radios"></i> Card Tabs' + (ctNames2 ? ' — ' + ctNames2 : ' — pick product type(s)') + '</div>' +
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
+          (p.voltId
+            ? '<div style="flex:1;min-width:' + (p.minCardWidth||260) + 'px;border:1px dashed rgba(255,255,255,0.25);border-radius:10px;padding:14px;font-size:11px;opacity:.7;">Volt card: ' + escHtml(p.voltName||p.voltId) + '</div>'
+            : '<div style="flex:1;border:1px dashed rgba(255,255,255,0.25);border-radius:10px;padding:14px;font-size:11px;opacity:.6;">No Volt card design selected</div>') +
+        '</div>' +
+        '<div style="font-size:10px;opacity:.45;margin-top:8px;">Auto-populated: Product Type → Network → Term, live from Networks &amp; Packages</div></div>';
       break;
     }
     case 'product-grid': {
@@ -6504,69 +6520,29 @@ function renderTypeProps(block) {
       break;
     }
     case 'card-tabs': {
-      loadCardTabsVoltLib(); // no-op if already loading/loaded
-      const ctTabs = p.tabs || [];
-      const ctProds = window.__allPackages || [];
-      const ctByNet = {};
-      ctProds.forEach(function(pr){ const k = pr.networkName || 'Other'; (ctByNet[k] = ctByNet[k] || []).push(pr); });
-      const ctVolts = _cardTabsVoltLib.list || [];
-      h+=`<div style="font-size:11px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Tabs</div>`;
-      ctTabs.forEach(function(tab, tIdx) {
-        h+=`<div style="border:1px solid #e9ecef;border-radius:8px;padding:8px;margin-bottom:10px;">
-          <div style="display:flex;align-items:center;gap:4px;margin-bottom:8px;">
-            <input class="props-input" style="flex:1;font-size:12px;font-weight:600;" type="text" value="${escHtml(tab.label||'')}" placeholder="Tab label" oninput="renameCardTab('${block.id}',${tIdx},this.value)">
-            <button class="action-btn" title="Move up" ${tIdx===0?'disabled':''} style="width:auto;padding:2px 6px;" onclick="moveCardTab('${block.id}',${tIdx},-1)"><i class="bi bi-arrow-up"></i></button>
-            <button class="action-btn" title="Move down" ${tIdx===ctTabs.length-1?'disabled':''} style="width:auto;padding:2px 6px;" onclick="moveCardTab('${block.id}',${tIdx},1)"><i class="bi bi-arrow-down"></i></button>
-            <button class="action-btn" title="Delete tab" style="width:auto;padding:2px 6px;color:#dc3545;border-color:#dc3545;" onclick="removeCardTab('${block.id}',${tIdx})"><i class="bi bi-trash"></i></button>
-          </div>`;
-        (function() {
-          const netLabels = Array.from(new Set((tab.cards||[]).map(function(c){ return c.networkLabel; }).filter(Boolean)));
-          h+=`<label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer;margin-bottom:6px;color:#495057;">
-            <input type="checkbox" ${tab.groupByNetwork?'checked':''} onchange="toggleCardTabGroupByNetwork('${block.id}',${tIdx},this.checked)">
-            Split into sub-tabs by network
-          </label>`;
-          if (tab.groupByNetwork) {
-            h+=`<div style="font-size:10px;color:#9ca3af;padding:0 0 8px;line-height:1.5;">${netLabels.length > 1
-              ? 'Sub-tabs: ' + netLabels.map(escHtml).join(', ')
-              : 'Bind cards to products from &gt;1 network below to activate sub-tabs — right now they will all render in one flat tab.'}</div>`;
-          }
-          const termLabels = Array.from(new Set((tab.cards||[]).map(function(c){ return c.term; }).filter(Boolean)));
-          h+=`<label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer;margin-bottom:6px;color:#495057;">
-            <input type="checkbox" ${tab.groupByTerm?'checked':''} onchange="toggleCardTabGroupByTerm('${block.id}',${tIdx},this.checked)">
-            Also split by contract term <span style="font-weight:400;color:#9ca3af;">(nested inside each network)</span>
-          </label>`;
-          if (tab.groupByTerm) {
-            h+=`<div style="font-size:10px;color:#9ca3af;padding:0 0 8px;line-height:1.5;">${termLabels.length > 1
-              ? 'Term tabs: ' + termLabels.map(escHtml).join(', ')
-              : 'Bind cards to products with &gt;1 contract term below to activate term tabs — right now they will all render together.'}</div>`;
-          }
-        })();
-        (tab.cards||[]).forEach(function(card, cIdx) {
-          let voltOpts = `<option value="">— Select card design —</option>`;
-          ctVolts.forEach(function(v){ voltOpts += `<option value="${escHtml(v.id)}"${v.id===card.voltId?' selected':''}>${escHtml(v.name)}</option>`; });
-          let prodOpts = `<option value="">— None (manual) —</option>`;
-          Object.keys(ctByNet).forEach(function(net){
-            prodOpts += `<optgroup label="${escHtml(net)}">`;
-            ctByNet[net].forEach(function(pr){ prodOpts += `<option value="${escHtml(pr.id)}"${pr.id===card.productId?' selected':''}>${escHtml(pr.name)}</option>`; });
-            prodOpts += `</optgroup>`;
-          });
-          h+=`<div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-top:1px dashed #e9ecef;">
-            <div style="flex:1;display:flex;flex-direction:column;gap:4px;min-width:0;">
-              <select class="props-select" style="font-size:11px;" onchange="updateCardTabCardVolt('${block.id}',${tIdx},${cIdx},this.value)">${voltOpts}</select>
-              <select class="props-select" style="font-size:11px;" onchange="updateCardTabCardProduct('${block.id}',${tIdx},${cIdx},this.value)">${prodOpts}</select>
-            </div>
-            <button class="action-btn" title="Remove card" style="width:auto;padding:2px 6px;color:#dc3545;border-color:#dc3545;flex-shrink:0;" onclick="removeCardTabCard('${block.id}',${tIdx},${cIdx})"><i class="bi bi-x-lg"></i></button>
-          </div>`;
-        });
-        h+=`<button class="action-btn" style="width:100%;margin-top:6px;font-size:11px;" onclick="addCardTabCard('${block.id}',${tIdx})"><i class="bi bi-plus"></i> Add Card</button>
-        </div>`;
-      });
-      h+=`<button class="action-btn" style="width:100%;margin-bottom:10px;" onclick="addCardTab('${block.id}')"><i class="bi bi-plus-lg"></i> Add Tab</button>`;
-      h+=`<div style="margin-top:6px;padding-top:10px;border-top:1px solid #e9ecef;">
-        <label style="font-size:12px;display:block;margin-bottom:4px;">Min Card Width (px)</label>
-        <input class="props-input" type="number" min="120" max="600" value="${p.minCardWidth||260}" oninput="updateBlockProp('${block.id}','minCardWidth',parseInt(this.value)||260);renderCanvas()">
-      </div>`;
-      h+=`<div style="font-size:10px;color:#9ca3af;padding:8px 0 0;line-height:1.6;">Each card renders one of your existing Volt card designs. Bind a card to a Package to auto-populate its <code>pkg.*</code> content slots.${ctVolts.length?'':'<br><em>No Volt designs found — build one in Volt Studio first.</em>'}</div>`;
+      // Auto-populating: pick which Product Types feed this block and one Volt card
+      // design — every active package under those types appears automatically,
+      // organized into Product Type -> Network -> Term tabs, and stays current as
+      // packages are added/edited/removed (no manual per-card binding, unlike the
+      // legacy shape this replaces — see CardTabsBlock.tsx for the fallback render
+      // path that still supports sections saved the old way).
+      loadVoltDesignsIfNeeded();
+      var ctTypes = window.__productTypes || [];
+      var ctSelected = p.productTypeSlugs || [];
+      h+=`<div style="margin-top:4px;"><label style="font-size:11px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Product types</label>`;
+      if (ctTypes.length) {
+        h += '<div style="display:flex;flex-direction:column;gap:4px;max-height:140px;overflow-y:auto;">' + ctTypes.map(function(t){
+          var checked = ctSelected.indexOf(t.slug) !== -1 ? 'checked' : '';
+          return `<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;"><input type="checkbox" ${checked} onchange="var b=state.blocks.find(function(x){return x.id=='${block.id}';});var cur=(b&&Array.isArray(b.props.productTypeSlugs)?b.props.productTypeSlugs:[]).slice();var i=cur.indexOf('${t.slug}');if(this.checked){if(i===-1)cur.push('${t.slug}');}else if(i!==-1){cur.splice(i,1);}updateBlockProp('${block.id}','productTypeSlugs',cur);renderCanvas();"> ${escHtml(t.name)}</label>`;
+        }).join('') + '</div>';
+      } else {
+        h += '<div style="font-size:11px;color:#9ca3af;">No product types yet — create one in <strong>Plugins → Coverage Maps → Networks &amp; Packages</strong>.</div>';
+      }
+      h += '</div>';
+      var ctVoltOpts = [['','— Pick a Volt card design —']].concat((window.__voltDesigns||[]).map(function(v){ return [v.id, v.name]; }));
+      h+=selectRow('Card design (Volt)', p.voltId||'', ctVoltOpts, `var _v=(window.__voltDesigns||[]).find(function(x){return x.id===this.value;});updateBlockProp('${block.id}','voltId',this.value);updateBlockProp('${block.id}','voltName',_v?_v.name:'');renderCanvas()`);
+      h+=selectRow('Min card width', String(p.minCardWidth||260), [['200','200px'],['220','220px'],['260','260px'],['300','300px'],['340','340px']], `updateBlockProp('${block.id}','minCardWidth',parseInt(this.value));renderCanvas()`);
+      h+=`<div style="font-size:11px;color:#9ca3af;padding:6px 0;line-height:1.6;">Renders one tab per selected product type (e.g. Fibre/Wireless/Voice), auto-split into sub-tabs by network and term-tabs by contract term wherever a group spans more than one value. New packages under these types appear automatically — nothing to re-edit here. Manage product types in <strong>Plugins → Coverage Maps → Networks &amp; Packages</strong>.</div>`;
       break;
     }
     case 'product-grid': {
