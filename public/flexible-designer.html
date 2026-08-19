@@ -1992,7 +1992,7 @@ const BLOCK_DEFAULTS = {
   divider:     { label:'Divider', thickness:2, dividerColor:'#dee2e6', customCss:'' },
   volt:        { label:'Volt', bgColor:'transparent', voltId:'', voltName:'', voltThumbnail:null, voltLayerOverrides:{}, customCss:'' },
   'card-tabs': { label:'Card Tabs', tabs:[{ key:'tab-'+Date.now(), label:'Tab 1', cards:[{ id:'card-'+Date.now() }] }], minCardWidth:260, customCss:'' },
-  template:    { label:'Template', templateId:'', templateName:'', templateThumbnail:null, customHtml:'<p>Section template</p>', customCss:'', mediaSlots:{} },
+  template:    { label:'Template', templateId:'', templateName:'', templateThumbnail:null, customHtml:'<p>Section template</p>', customCss:'', mediaSlots:{}, productId:'', productName:'' },
   editorial:   { label:'Editorial', text:'Start typing your editorial content here. This text will flow around any obstacle images you place in the block. You can use multiple obstacles — each with its own position, size, and alpha hull tracing for precise text wrapping.', fontFamily:'Merriweather', fontSize:18, lineHeight:1.6, textColor:'#212529', bgColor:'transparent', obstacles:[], customCss:'' },
   steps:       { label:'Steps', steps:[{number:'01',heading:'Discovery',subtext:'We analyse your requirements and technical constraints.'},{number:'02',heading:'Design',subtext:'We prototype and validate the solution with stakeholders.'},{number:'03',heading:'Build',subtext:'We implement, test, and deploy the solution.'}], stepsNumberWidth:100, stepsDividers:true, stepsLastDivider:false, customCss:'' },
   'photo-strip':{ label:'Photo Strip', images:[{src:'',alt:''},{src:'',alt:''},{src:'',alt:''}], columns:3, height:220, gap:4, hoverBrightness:true, customCss:'' },
@@ -6315,6 +6315,30 @@ function renderTypeProps(block) {
         </select>
         <div style="font-size:10px;color:#9ca3af;margin-top:4px;">Content is edited in Templates admin, not here.</div>
       </div>`;
+      (function() {
+        const tplProds = window.__allPackages || [];
+        const tplByNet = {};
+        tplProds.forEach(function(pr){ const k = pr.networkName || 'Other'; (tplByNet[k] = tplByNet[k] || []).push(pr); });
+        let prodOpts = `<option value="">— None (static content only) —</option>`;
+        Object.keys(tplByNet).forEach(function(net){
+          prodOpts += `<optgroup label="${escHtml(net)}">`;
+          tplByNet[net].forEach(function(pr){ prodOpts += `<option value="${escHtml(pr.id)}"${pr.id===p.productId?' selected':''}>${escHtml(pr.name)}</option>`; });
+          prodOpts += `</optgroup>`;
+        });
+        h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;margin-top:10px;padding-top:10px;border-top:1px solid #e9ecef;">
+          <label style="margin-bottom:3px;font-size:12px;">Linked Product <span style="font-weight:400;color:#9ca3af;">(optional)</span></label>
+          <select class="props-select" style="font-size:12px;" onchange="var pr=(window.__allPackages||[]).find(function(x){return x.id===this.value;});updateBlockProp('${block.id}','productId',this.value);updateBlockProp('${block.id}','productName',pr?pr.name:'');renderCanvas()">
+            ${prodOpts}
+          </select>
+          <div style="font-size:10px;color:#9ca3af;margin-top:4px;line-height:1.5;">
+            When set, write <code>{{pkg.name}}</code>, <code>{{pkg.price}}</code>, <code>{{pkg.period}}</code>,
+            <code>{{pkg.speed}}</code>, <code>{{pkg.speedDown}}</code>, <code>{{pkg.speedUp}}</code>,
+            <code>{{pkg.options}}</code>, <code>{{pkg.network}}</code> anywhere in the template's HTML/CSS
+            (Templates admin) — same token names as a data-bound Volt card slot. They fill in from this
+            product live on the site.
+          </div>
+        </div>`;
+      })();
       break;
     }
     case 'editorial': {

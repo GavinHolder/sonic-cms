@@ -24,6 +24,7 @@ const GalleryCtaBlock          = dynamic(() => import("@/components/sections/blo
 const PackagesBlock            = dynamic(() => import("@/components/sections/blocks/PackagesBlock"), { ssr: false });
 const CardTabsBlock             = dynamic(() => import("@/components/sections/blocks/CardTabsBlock"), { ssr: false });
 const ProductGridBlock         = dynamic(() => import("@/components/sections/blocks/ProductGridBlock"), { ssr: false });
+const TemplateBlock            = dynamic(() => import("@/components/sections/blocks/TemplateBlock"), { ssr: false });
 
 interface FlexibleSectionRendererProps {
   section: FlexibleSection;
@@ -2520,29 +2521,13 @@ function DesignerBlock({ block, darkBg }: {
         const templateHtml = applyMediaSlots(applyCmsVars((p.customHtml as string) || ""));
         const templateCss  = applyMediaSlots(applyCmsVars((p.customCss as string) || ""));
         // `block` here isn't typed with an `id` field (see the narrowed param type above), but
-        // the runtime designer block object always has one — used only as a DOM identification
-        // hook (not for CSS scoping, matching the unscoped raw-CSS trust model of standalone pages).
+        // the runtime designer block object always has one — used as the remount key so
+        // switching which template/product is bound doesn't reuse a stale iframe.
         const blockDomId = (block as unknown as { id?: string }).id || templateId;
-        // Rendered via a sandboxed iframe (srcDoc), not dangerouslySetInnerHTML — a browser
-        // never executes <script> tags injected through innerHTML, so imported templates with
-        // real interactivity (the whole point of "upload a template with its own JS") silently
-        // did nothing before this. srcDoc content is parsed as a real document, so its scripts
-        // run normally. sandbox="allow-scripts" WITHOUT allow-same-origin is deliberate: the
-        // frame gets a unique opaque origin, so the uploaded script can run its own visuals/
-        // interactivity but can never read the CMS admin's cookies/localStorage/DOM or make
-        // same-site authenticated requests to the admin API — do not add allow-same-origin here.
-        const templateSrcDoc = `<!doctype html><html><head><meta charset="utf-8">${
-          templateCss ? `<style>${templateCss}</style>` : ""
-        }</head><body style="margin:0">${templateHtml}</body></html>`;
-        return (
-          <iframe
-            key={blockDomId}
-            title="Section template"
-            srcDoc={templateSrcDoc}
-            sandbox="allow-scripts"
-            style={{ display: "block", width: "100%", height: "100%", border: 0 }}
-          />
-        );
+        const templateProductId = p.productId as string | undefined;
+        // The {{pkg.*}} layer (optional live product binding) needs its own client fetch —
+        // split into TemplateBlock so that hook isn't called conditionally inside this switch.
+        return <TemplateBlock key={blockDomId} html={templateHtml} css={templateCss} productId={templateProductId} />;
       }
 
       // ── interactive-3d-card: hover-driven 3D product card (custom GLB or procedural fallback) ──

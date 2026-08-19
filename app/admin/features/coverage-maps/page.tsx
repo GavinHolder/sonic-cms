@@ -73,10 +73,16 @@ function CoverageMapsInner() {
   const [selectedMapId, setSelectedMapId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"regions" | "labels" | "towers">("regions");
   const [view, setView] = useState<"maps" | "networks">("maps");
-  // Regions list groups by the linked network's category (FNO/WISP/WIRELESS) once
-  // there are enough networks that a flat list gets hard to scan. "ALL" shows every
-  // region unfiltered (the previous, only behavior).
-  const [regionCategoryFilter, setRegionCategoryFilter] = useState<"ALL" | "FNO" | "WISP" | "WIRELESS">("ALL");
+  // Regions list groups by the linked network's category once there are enough networks
+  // that a flat list gets hard to scan. "ALL" shows every region unfiltered (the
+  // previous, only behavior). The tab set itself is derived from whichever
+  // NetworkCategory values are actually in use (see the render below) — not hardcoded —
+  // since a category with zero networks (e.g. WIRELESS, when every real network is
+  // FNO or WISP) is dead weight, and "Voice" isn't a region/coverage concept at all
+  // (it's a Package.category — a value-added service layered onto whichever network's
+  // polygon already covers an address, not a distinct delivery medium with its own
+  // coverage shape).
+  const [regionCategoryFilter, setRegionCategoryFilter] = useState<string>("ALL");
 
   // Map form
   const [showMapForm, setShowMapForm] = useState(false);
@@ -590,11 +596,21 @@ function CoverageMapsInner() {
                     acc[cat] = (acc[cat] ?? 0) + 1;
                     return acc;
                   }, {});
-                  const tabs: Array<{ key: "ALL" | "FNO" | "WISP" | "WIRELESS"; label: string }> = [
+                  // Only categories with at least one region get a tab — a category no
+                  // network here actually uses (e.g. WIRELESS on an FNO/WISP-only setup)
+                  // would otherwise sit at a permanent (0), which reads as broken rather
+                  // than "unused". Preferred display order, then any others alphabetically.
+                  const PREFERRED_ORDER = ["FNO", "WISP", "WIRELESS"];
+                  const presentCats = Object.keys(categoryCounts).sort((a, b) => {
+                    const ai = PREFERRED_ORDER.indexOf(a), bi = PREFERRED_ORDER.indexOf(b);
+                    if (ai !== -1 && bi !== -1) return ai - bi;
+                    if (ai !== -1) return -1;
+                    if (bi !== -1) return 1;
+                    return a.localeCompare(b);
+                  });
+                  const tabs: Array<{ key: string; label: string }> = [
                     { key: "ALL", label: "All" },
-                    { key: "FNO", label: "FNO" },
-                    { key: "WISP", label: "WISP" },
-                    { key: "WIRELESS", label: "Wireless" },
+                    ...presentCats.map((c) => ({ key: c, label: c === "UNASSIGNED" ? "Unassigned" : c })),
                   ];
                   return (
                     <div className="d-flex flex-wrap gap-2 mb-3">
