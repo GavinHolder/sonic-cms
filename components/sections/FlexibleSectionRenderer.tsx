@@ -2542,8 +2542,7 @@ function DesignerBlock({ block, darkBg }: {
         const templateProductId = p.productId as string | undefined;
         const templateNetworkSlug = p.networkSlug as string | undefined;
         const templateNetworkName = p.networkName as string | undefined;
-        const templateProductTypeSlug = p.productTypeSlug as string | undefined;
-        const templateProductTypeName = p.productTypeName as string | undefined;
+        const templateProductTypeSlugs = p.productTypeSlugs as string[] | undefined;
         // The {{pkg.*}} layer (optional live product binding) needs its own client fetch —
         // split into TemplateBlock so that hook isn't called conditionally inside this switch.
         return (
@@ -2554,8 +2553,7 @@ function DesignerBlock({ block, darkBg }: {
             productId={templateProductId}
             networkSlug={templateNetworkSlug}
             networkName={templateNetworkName}
-            productTypeSlug={templateProductTypeSlug}
-            productTypeName={templateProductTypeName}
+            productTypeSlugs={templateProductTypeSlugs}
           />
         );
       }

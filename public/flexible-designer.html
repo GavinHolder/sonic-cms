@@ -1992,7 +1992,7 @@ const BLOCK_DEFAULTS = {
   divider:     { label:'Divider', thickness:2, dividerColor:'#dee2e6', customCss:'' },
   volt:        { label:'Volt', bgColor:'transparent', voltId:'', voltName:'', voltThumbnail:null, voltLayerOverrides:{}, customCss:'' },
   'card-tabs': { label:'Card Tabs', productTypeSlugs:[], voltId:'', voltName:'', minCardWidth:260, customCss:'' },
-  template:    { label:'Template', templateId:'', templateName:'', templateThumbnail:null, customHtml:'<p>Section template</p>', customCss:'', mediaSlots:{}, productId:'', productName:'', networkSlug:'', networkName:'', productTypeSlug:'', productTypeName:'' },
+  template:    { label:'Template', templateId:'', templateName:'', templateThumbnail:null, customHtml:'<p>Section template</p>', customCss:'', mediaSlots:{}, productId:'', productName:'', networkSlug:'', networkName:'', productTypeSlugs:[] },
   editorial:   { label:'Editorial', text:'Start typing your editorial content here. This text will flow around any obstacle images you place in the block. You can use multiple obstacles — each with its own position, size, and alpha hull tracing for precise text wrapping.', fontFamily:'Merriweather', fontSize:18, lineHeight:1.6, textColor:'#212529', bgColor:'transparent', obstacles:[], customCss:'' },
   steps:       { label:'Steps', steps:[{number:'01',heading:'Discovery',subtext:'We analyse your requirements and technical constraints.'},{number:'02',heading:'Design',subtext:'We prototype and validate the solution with stakeholders.'},{number:'03',heading:'Build',subtext:'We implement, test, and deploy the solution.'}], stepsNumberWidth:100, stepsDividers:true, stepsLastDivider:false, customCss:'' },
   'photo-strip':{ label:'Photo Strip', images:[{src:'',alt:''},{src:'',alt:''},{src:'',alt:''}], columns:3, height:220, gap:4, hoverBrightness:true, customCss:'' },
@@ -6363,27 +6363,32 @@ function renderTypeProps(block) {
         let netOpts = `<option value="">— None —</option>`;
         tplNets.forEach(function(n){ netOpts += `<option value="${escHtml(n.slug)}"${n.slug===p.networkSlug?' selected':''}>${escHtml(n.name)} (${escHtml(n.category)})</option>`; });
         const tplTypes = window.__productTypes || [];
-        let typeOpts = `<option value="">— None —</option>`;
-        tplTypes.forEach(function(t){ typeOpts += `<option value="${escHtml(t.slug)}"${t.slug===p.productTypeSlug?' selected':''}>${escHtml(t.name)}</option>`; });
+        const tplSelectedTypes = Array.isArray(p.productTypeSlugs) ? p.productTypeSlugs : [];
         h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;margin-top:10px;padding-top:10px;border-top:1px solid #e9ecef;">
-          <label style="margin-bottom:3px;font-size:12px;">Linked Network <span style="font-weight:400;color:#9ca3af;">(optional — multi-card templates)</span></label>
+          <label style="margin-bottom:3px;font-size:12px;">Linked Network <span style="font-weight:400;color:#9ca3af;">(optional — everything on one network)</span></label>
           <select class="props-select" style="font-size:12px;" onchange="var n=(window.__networks||[]).find(function(x){return x.slug===this.value;});updateBlockProp('${block.id}','networkSlug',this.value);updateBlockProp('${block.id}','networkName',n?n.name:'');renderCanvas()">
             ${netOpts}
           </select>
         </div>
         <div class="props-row" style="flex-direction:column;align-items:stretch;margin-top:8px;">
-          <label style="margin-bottom:3px;font-size:12px;">Linked Product Type <span style="font-weight:400;color:#9ca3af;">(optional — multi-card templates)</span></label>
-          <select class="props-select" style="font-size:12px;" onchange="var t=(window.__productTypes||[]).find(function(x){return x.slug===this.value;});updateBlockProp('${block.id}','productTypeSlug',this.value);updateBlockProp('${block.id}','productTypeName',t?t.name:'');renderCanvas()">
-            ${typeOpts}
-          </select>
+          <label style="margin-bottom:3px;font-size:12px;">Linked Product Types <span style="font-weight:400;color:#9ca3af;">(optional — pick one or more for the template's own top-level tabs)</span></label>
+          ${tplTypes.length
+            ? '<div style="display:flex;flex-direction:column;gap:4px;max-height:140px;overflow-y:auto;border:1px solid #e9ecef;border-radius:6px;padding:6px;">' + tplTypes.map(function(t){
+                var checked = tplSelectedTypes.indexOf(t.slug) !== -1 ? 'checked' : '';
+                return `<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;"><input type="checkbox" ${checked} onchange="var b=state.blocks.find(function(x){return x.id=='${block.id}';});var cur=(b&&Array.isArray(b.props.productTypeSlugs)?b.props.productTypeSlugs:[]).slice();var i=cur.indexOf('${t.slug}');if(this.checked){if(i===-1)cur.push('${t.slug}');}else if(i!==-1){cur.splice(i,1);}updateBlockProp('${block.id}','productTypeSlugs',cur);renderCanvas();"> ${escHtml(t.name)}</label>`;
+              }).join('') + '</div>'
+            : '<div style="font-size:11px;color:#9ca3af;">No product types yet — create one in <strong>Plugins → Coverage Maps → Networks &amp; Packages</strong>.</div>'}
           <div style="font-size:10px;color:#9ca3af;margin-top:4px;line-height:1.5;">
             For a template with <strong>multiple cards and its own tab UI</strong> (self-contained, not
-            single-product tokens): set Network and/or Product Type here — the CMS fetches the matching
-            packages for you and hands them to your template as <code>window.CMS_TEMPLATE.packages</code>
-            (each item has id/name/price/period/speedDown/speedUp/features/networkName/categoryName).
-            Read that array in your template's own &lt;script&gt; and build the cards/tabs yourself.
-            Don't call <code>fetch()</code> for packages from inside your template — the sandbox blocks
-            it (no <code>allow-same-origin</code>, by design); the array is provided instead.
+            single-product tokens): pick Product Type(s) and/or a Network here — the CMS fetches the
+            matching packages for you and hands them to your template as
+            <code>window.CMS_TEMPLATE.packages</code> (each item has id/name/price/period/speedDown/
+            speedUp/term/features/networkName/categoryName/productTypeName). Picking more than one
+            Product Type is what lets your template build its own top-level category tabs (e.g. Fibre /
+            Wireless / Voice) — group the array by <code>productTypeSlug</code> yourself. Read the array
+            in your template's own &lt;script&gt; and build the cards/tabs yourself. Don't call
+            <code>fetch()</code> for packages from inside your template — the sandbox blocks it (no
+            <code>allow-same-origin</code>, by design); the array is provided instead.
           </div>
         </div>`;
       })();
