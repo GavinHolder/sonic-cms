@@ -34,11 +34,16 @@ interface CoverageRegion {
 
 interface NetworkOption { id: string; name: string; category: string; color: string; }
 
+interface ProductTypeOption { id: string; name: string; slug: string; color: string; isActive?: boolean; }
+
 interface CoverageTower {
   id: string; mapId: string;
   name: string; lat: number; lng: number;
   description: string | null; isActive: boolean;
   networkId?: string | null;
+  regionId?: string | null;
+  region?: { id: string; name: string } | null;
+  productTypes?: ProductTypeOption[];
 }
 
 interface CoverageLabel {
@@ -102,13 +107,22 @@ function CoverageMapsInner() {
 
   // Tower management
   const [towers, setTowers] = useState<CoverageTower[]>([]);
-  const [newTower, setNewTower] = useState({ name: "", lat: "", lng: "", description: "", networkId: "" });
+  const [newTower, setNewTower] = useState({ name: "", lat: "", lng: "", description: "", networkId: "", regionId: "", productTypeIds: [] as string[] });
   const [showTowerPicker, setShowTowerPicker] = useState(false);
   const [showLabelPicker, setShowLabelPicker] = useState(false);
   // Promise-based confirm via the in-app modal (no native window.confirm)
   const [confirmState, setConfirmState] = useState<{ message: string; resolve: (v: boolean) => void } | null>(null);
   const requestConfirm = (message: string) => new Promise<boolean>((resolve) => setConfirmState({ message, resolve }));
   const [addingTower, setAddingTower] = useState(false);
+  const [productTypes, setProductTypes] = useState<ProductTypeOption[]>([]);
+
+  // Tower edit modal — mirrors the Region/Label edit-modal pattern below.
+  const [showTowerForm, setShowTowerForm] = useState(false);
+  const [editingTower, setEditingTower] = useState<
+    (Partial<CoverageTower> & { productTypeIds: string[] }) | null
+  >(null);
+  const [towerSaving, setTowerSaving] = useState(false);
+  const [showEditTowerPicker, setShowEditTowerPicker] = useState(false);
 
   // Label form
   const [showLabelForm, setShowLabelForm] = useState(false);
@@ -141,9 +155,18 @@ function CoverageMapsInner() {
       .catch(() => {});
   };
 
+  // Refetchable so newly-created product types appear in the tower checklist
+  // without a full page reload. Same endpoint NetworksManager.tsx uses.
+  const loadProductTypes = () => {
+    fetch("/api/product-types")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => setProductTypes(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  };
+
   useEffect(() => { loadMaps(); }, []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { loadNetworks(); }, []);
+  useEffect(() => { loadNetworks(); loadProductTypes(); }, []);
 
   useEffect(() => {
     if (selectedMapId) {
@@ -306,6 +329,8 @@ function CoverageMapsInner() {
         body: JSON.stringify({
           name: `${tower.name} (copy)`, lat: tower.lat, lng: tower.lng,
           description: tower.description ?? null, networkId: tower.networkId ?? null,
+          regionId: tower.regionId ?? null,
+          productTypeIds: (tower.productTypes ?? []).map((pt) => pt.id),
         }),
       });
       if (!res.ok) throw new Error();
@@ -350,9 +375,11 @@ function CoverageMapsInner() {
           lng: parseFloat(newTower.lng),
           description: newTower.description || null,
           networkId: newTower.networkId || null,
+          regionId: newTower.regionId || null,
+          productTypeIds: newTower.productTypeIds,
         }),
       });
-      setNewTower({ name: "", lat: "", lng: "", description: "", networkId: "" });
+      setNewTower({ name: "", lat: "", lng: "", description: "", networkId: "", regionId: "", productTypeIds: [] });
       const res = await fetch(`/api/coverage-maps/${selectedMapId}/towers`);
       setTowers(await res.json());
       toast.success("Tower added");
@@ -371,6 +398,52 @@ function CoverageMapsInner() {
       toast.success("Tower deleted");
     } catch {
       toast.error("Failed to delete tower");
+    }
+  };
+
+  const openEditTower = (tower: CoverageTower) => {
+    setEditingTower({
+      ...tower,
+      networkId: tower.networkId ?? "",
+      regionId: tower.regionId ?? "",
+      productTypeIds: (tower.productTypes ?? []).map((pt) => pt.id),
+    });
+    loadNetworks();
+    setShowTowerForm(true);
+  };
+
+  const saveTower = async () => {
+    if (!editingTower?.id) return;
+    if (!editingTower.name || typeof editingTower.lat !== "number" || typeof editingTower.lng !== "number") {
+      toast.error("Tower name and location are required");
+      return;
+    }
+    setTowerSaving(true);
+    try {
+      const res = await fetch(`/api/coverage-maps/${selectedMapId}/towers/${editingTower.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editingTower.name,
+          lat: editingTower.lat,
+          lng: editingTower.lng,
+          description: editingTower.description || null,
+          networkId: editingTower.networkId || null,
+          regionId: editingTower.regionId || null,
+          productTypeIds: editingTower.productTypeIds,
+          isActive: editingTower.isActive ?? true,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Tower saved");
+      setShowTowerForm(false);
+      setEditingTower(null);
+      const r = await fetch(`/api/coverage-maps/${selectedMapId}/towers`);
+      setTowers(await r.json());
+    } catch {
+      toast.error("Failed to save tower");
+    } finally {
+      setTowerSaving(false);
     }
   };
 
@@ -748,29 +821,75 @@ function CoverageMapsInner() {
                     <i className="bi bi-broadcast-pin" style={{ fontSize: 28, display: "block", marginBottom: 8 }} />
                     No towers yet
                   </div>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-                    {towers.map((tower) => (
-                      <div key={tower.id} className="d-flex align-items-center gap-3"
-                        style={{ padding: "10px 14px", background: "#f9fafb", borderRadius: 8, border: "1px solid #e5e7eb" }}>
-                        <i className="bi bi-broadcast-pin" style={{ color: "#dc2626", fontSize: 18, flexShrink: 0 }} />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 14, fontWeight: 600, color: "#1f2937" }}>{tower.name}</div>
-                          <div style={{ fontSize: 12, color: "#9ca3af" }}>
-                            {tower.lat.toFixed(5)}, {tower.lng.toFixed(5)}
-                            {tower.description && ` · ${tower.description}`}
+                ) : (() => {
+                  // Group towers by region (ask #2: "group towers by area"), sorted by the
+                  // region's own display order (same field the Regions tab list already
+                  // relies on for its ordering), tie-broken alphabetically. Towers with no
+                  // regionId — most towers, until an admin assigns one — form an
+                  // "Unassigned" group shown last so it never crowds out real areas.
+                  const UNASSIGNED = "__unassigned__";
+                  const groups = new Map<string, CoverageTower[]>();
+                  for (const t of towers) {
+                    const key = t.regionId || UNASSIGNED;
+                    if (!groups.has(key)) groups.set(key, []);
+                    groups.get(key)!.push(t);
+                  }
+                  const regionsById = new Map(selectedMap.regions.map((r) => [r.id, r]));
+                  const sortedKeys = [...groups.keys()]
+                    .filter((k) => k !== UNASSIGNED)
+                    .sort((a, b) => {
+                      const ra = regionsById.get(a), rb = regionsById.get(b);
+                      if (ra && rb && ra.order !== rb.order) return ra.order - rb.order;
+                      return (ra?.name ?? "").localeCompare(rb?.name ?? "");
+                    });
+                  if (groups.has(UNASSIGNED)) sortedKeys.push(UNASSIGNED);
+
+                  return (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 18, marginBottom: 16 }}>
+                      {sortedKeys.map((key) => (
+                        <div key={key}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 }}>
+                            {key === UNASSIGNED ? "Unassigned" : (regionsById.get(key)?.name ?? "Unknown region")}
+                            <span style={{ fontWeight: 400, color: "#9ca3af" }}> · {groups.get(key)!.length}</span>
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            {groups.get(key)!.map((tower) => (
+                              <div key={tower.id} className="d-flex align-items-center gap-3"
+                                style={{ padding: "10px 14px", background: "#f9fafb", borderRadius: 8, border: "1px solid #e5e7eb" }}>
+                                <i className="bi bi-broadcast-pin" style={{ color: "#dc2626", fontSize: 18, flexShrink: 0 }} />
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontSize: 14, fontWeight: 600, color: "#1f2937" }}>{tower.name}</div>
+                                  <div style={{ fontSize: 12, color: "#9ca3af" }}>
+                                    {tower.lat.toFixed(5)}, {tower.lng.toFixed(5)}
+                                    {tower.description && ` · ${tower.description}`}
+                                  </div>
+                                  {tower.productTypes && tower.productTypes.length > 0 && (
+                                    <div className="d-flex flex-wrap gap-1" style={{ marginTop: 4 }}>
+                                      {tower.productTypes.map((pt) => (
+                                        <span key={pt.id} style={{ fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 4, background: `${pt.color}22`, color: pt.color }}>
+                                          {pt.name}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                                <button className="btn btn-sm btn-outline-secondary" onClick={() => openEditTower(tower)} title="Edit tower">
+                                  <i className="bi bi-pencil" />
+                                </button>
+                                <button className="btn btn-sm btn-outline-secondary" onClick={() => duplicateTower(tower)} title="Duplicate tower">
+                                  <i className="bi bi-files" />
+                                </button>
+                                <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteTower(tower.id)}>
+                                  <i className="bi bi-trash" />
+                                </button>
+                              </div>
+                            ))}
                           </div>
                         </div>
-                        <button className="btn btn-sm btn-outline-secondary" onClick={() => duplicateTower(tower)} title="Duplicate tower">
-                          <i className="bi bi-files" />
-                        </button>
-                        <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteTower(tower.id)}>
-                          <i className="bi bi-trash" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  );
+                })()}
 
                 {/* Add tower form */}
                 <div style={{ padding: 16, background: "#f9fafb", borderRadius: 8, border: "1px solid #e5e7eb" }}>
@@ -793,13 +912,47 @@ function CoverageMapsInner() {
                     <input className="form-control form-control-sm" placeholder="Description (optional)"
                       value={newTower.description} onChange={(e) => setNewTower((t) => ({ ...t, description: e.target.value }))} />
                   </div>
+                  <div className="row g-2 mb-2">
+                    <div className="col-6">
+                      <select className="form-select form-select-sm" value={newTower.networkId}
+                        onChange={(e) => setNewTower((t) => ({ ...t, networkId: e.target.value }))}>
+                        <option value="">— Network (for distance-limited packages) —</option>
+                        {networks.map((n) => <option key={n.id} value={n.id}>{n.name} ({n.category})</option>)}
+                      </select>
+                    </div>
+                    <div className="col-6">
+                      <select className="form-select form-select-sm" value={newTower.regionId}
+                        onChange={(e) => setNewTower((t) => ({ ...t, regionId: e.target.value }))}>
+                        <option value="">— Region (for grouping) —</option>
+                        {selectedMap.regions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="form-text mb-2">Network links distance-limited packages (e.g. AirFibre ≤100m) to measure from here. Region groups this tower under an area in the list above.</div>
                   <div className="mb-2">
-                    <select className="form-select form-select-sm" value={newTower.networkId}
-                      onChange={(e) => setNewTower((t) => ({ ...t, networkId: e.target.value }))}>
-                      <option value="">— Network (for distance-limited packages) —</option>
-                      {networks.map((n) => <option key={n.id} value={n.id}>{n.name} ({n.category})</option>)}
-                    </select>
-                    <div className="form-text">Links this tower to a provider so its distance-limited packages (e.g. AirFibre ≤100m) measure from here.</div>
+                    <label className="form-label fw-semibold small mb-1">Services available at this tower</label>
+                    <div className="d-flex flex-wrap gap-2">
+                      {productTypes.filter((pt) => pt.isActive !== false).map((pt) => {
+                        const checked = newTower.productTypeIds.includes(pt.id);
+                        return (
+                          <label key={pt.id} className="form-check form-check-inline m-0" style={{ fontSize: 12 }}>
+                            <input
+                              type="checkbox" className="form-check-input"
+                              checked={checked}
+                              onChange={(e) => setNewTower((t) => ({
+                                ...t,
+                                productTypeIds: e.target.checked
+                                  ? [...t.productTypeIds, pt.id]
+                                  : t.productTypeIds.filter((id) => id !== pt.id),
+                              }))}
+                            />
+                            <span className="form-check-label">{pt.name}</span>
+                          </label>
+                        );
+                      })}
+                      {productTypes.length === 0 && <span style={{ fontSize: 12, color: "#9ca3af" }}>No product types configured yet.</span>}
+                    </div>
+                    <div className="form-text">Leave unset for unrestricted (matches every package under this tower&apos;s network, same as today).</div>
                   </div>
                   <button className="btn btn-sm btn-success" onClick={handleAddTower} disabled={addingTower || !newTower.name || !newTower.lat || !newTower.lng}>
                     {addingTower ? <><span className="spinner-border spinner-border-sm me-1" />Adding…</> : <><i className="bi bi-plus me-1" />Add Tower</>}
@@ -1116,6 +1269,115 @@ function CoverageMapsInner() {
         </>
       )}
 
+      {/* ── Tower edit modal (ask #3: name/location/network + new region/services) ── */}
+      {showTowerForm && editingTower && (
+        <>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1040 }} onClick={() => setShowTowerForm(false)} />
+          <div className="modal fade show d-block" style={{ zIndex: 1050 }}>
+            <div className="modal-dialog" style={{ marginTop: 90 }}>
+              <div className="modal-content border-0 shadow-lg" style={{ borderRadius: 12 }}>
+                <div className="modal-header border-0" style={{ background: "#1f2937", borderRadius: "12px 12px 0 0" }}>
+                  <h5 className="modal-title fw-bold text-white">Edit Tower</h5>
+                  <button className="btn-close btn-close-white ms-auto" onClick={() => setShowTowerForm(false)} />
+                </div>
+                <div className="modal-body p-4">
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold">Tower Name <span className="text-danger">*</span></label>
+                    <input
+                      type="text" className="form-control"
+                      value={editingTower.name ?? ""}
+                      onChange={(e) => setEditingTower((prev) => ({ ...prev!, name: e.target.value }))}
+                    />
+                  </div>
+                  <div className="mb-3 d-flex align-items-center gap-2">
+                    <button type="button" className="btn btn-sm btn-outline-success text-nowrap" onClick={() => setShowEditTowerPicker(true)}>
+                      <i className="bi bi-geo-alt me-1" />Change location
+                    </button>
+                    <span style={{ fontSize: 12, fontFamily: "monospace", color: "#16a34a" }}>
+                      {typeof editingTower.lat === "number" && typeof editingTower.lng === "number"
+                        ? `${editingTower.lat.toFixed(5)}, ${editingTower.lng.toFixed(5)}`
+                        : "no location set"}
+                    </span>
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold small">Description</label>
+                    <input
+                      type="text" className="form-control form-control-sm"
+                      value={editingTower.description ?? ""}
+                      onChange={(e) => setEditingTower((prev) => ({ ...prev!, description: e.target.value }))}
+                    />
+                  </div>
+                  <div className="row g-2 mb-3">
+                    <div className="col-6">
+                      <label className="form-label fw-semibold small">Network</label>
+                      <select
+                        className="form-select form-select-sm"
+                        value={editingTower.networkId ?? ""}
+                        onChange={(e) => setEditingTower((prev) => ({ ...prev!, networkId: e.target.value }))}
+                      >
+                        <option value="">— None —</option>
+                        {networks.map((n) => <option key={n.id} value={n.id}>{n.name} ({n.category})</option>)}
+                      </select>
+                    </div>
+                    <div className="col-6">
+                      <label className="form-label fw-semibold small">Region</label>
+                      <select
+                        className="form-select form-select-sm"
+                        value={editingTower.regionId ?? ""}
+                        onChange={(e) => setEditingTower((prev) => ({ ...prev!, regionId: e.target.value }))}
+                      >
+                        <option value="">— None —</option>
+                        {selectedMap?.regions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold small mb-1">Services available at this tower</label>
+                    <div className="d-flex flex-wrap gap-2">
+                      {productTypes.filter((pt) => pt.isActive !== false).map((pt) => {
+                        const checked = editingTower.productTypeIds.includes(pt.id);
+                        return (
+                          <label key={pt.id} className="form-check form-check-inline m-0" style={{ fontSize: 12 }}>
+                            <input
+                              type="checkbox" className="form-check-input"
+                              checked={checked}
+                              onChange={(e) => setEditingTower((prev) => ({
+                                ...prev!,
+                                productTypeIds: e.target.checked
+                                  ? [...prev!.productTypeIds, pt.id]
+                                  : prev!.productTypeIds.filter((id) => id !== pt.id),
+                              }))}
+                            />
+                            <span className="form-check-label">{pt.name}</span>
+                          </label>
+                        );
+                      })}
+                      {productTypes.length === 0 && <span style={{ fontSize: 12, color: "#9ca3af" }}>No product types configured yet.</span>}
+                    </div>
+                    <div className="form-text">Leave unset for unrestricted (matches every package under this tower&apos;s network, same as today).</div>
+                  </div>
+                  <div className="form-check form-switch">
+                    <input
+                      type="checkbox" className="form-check-input" role="switch" id="towerActive"
+                      checked={editingTower.isActive ?? true}
+                      onChange={(e) => setEditingTower((prev) => ({ ...prev!, isActive: e.target.checked }))}
+                    />
+                    <label className="form-check-label" htmlFor="towerActive">Active</label>
+                  </div>
+                </div>
+                <div className="modal-footer border-0">
+                  <button className="btn btn-outline-secondary" onClick={() => setShowTowerForm(false)}>Cancel</button>
+                  <button className="btn btn-success px-4" onClick={saveTower} disabled={towerSaving}>
+                    {towerSaving ? <span className="spinner-border spinner-border-sm me-1" /> : <i className="bi bi-check-lg me-1" />}
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* ── Label form modal ──────────────────────────────────────────────────── */}
       {showLabelForm && editingLabel && (
         <>
@@ -1261,6 +1523,21 @@ function CoverageMapsInner() {
           initialLng={newTower.lng ? parseFloat(newTower.lng) : null}
           onSave={(lat, lng) => { setNewTower((t) => ({ ...t, lat: String(lat), lng: String(lng) })); setShowTowerPicker(false); }}
           onClose={() => setShowTowerPicker(false)}
+        />
+      )}
+
+      {/* ── Edit-tower location picker (re-pick location for the tower being edited) ── */}
+      {showEditTowerPicker && selectedMap && editingTower && (
+        <PointPickerModal
+          show={showEditTowerPicker}
+          title={`Place tower${editingTower.name ? ` — ${editingTower.name}` : ""}`}
+          centerLat={selectedMap.centerLat}
+          centerLng={selectedMap.centerLng}
+          defaultZoom={selectedMap.defaultZoom}
+          initialLat={typeof editingTower.lat === "number" ? editingTower.lat : null}
+          initialLng={typeof editingTower.lng === "number" ? editingTower.lng : null}
+          onSave={(lat, lng) => { setEditingTower((prev) => ({ ...prev!, lat, lng })); setShowEditTowerPicker(false); }}
+          onClose={() => setShowEditTowerPicker(false)}
         />
       )}
 

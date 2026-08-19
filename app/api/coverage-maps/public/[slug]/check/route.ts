@@ -38,7 +38,10 @@ export async function POST(
           },
         },
       },
-      towers: { where: { isActive: true }, select: { lat: true, lng: true, networkId: true } },
+      towers: {
+        where: { isActive: true },
+        select: { lat: true, lng: true, networkId: true, productTypes: { select: { id: true } } },
+      },
     },
   });
   if (!map) {
@@ -63,8 +66,32 @@ export async function POST(
     return 2 * R * Math.asin(Math.sqrt(s));
   };
   const towers = map.towers || [];
-  const nearestTowerM = (networkId: string) => {
-    const ts = towers.filter((t) => t.networkId === networkId);
+  // Nearest tower of `networkId` that "qualifies" for a package's product type, in metres.
+  //
+  // ASSUMPTIONS:
+  // 1. A tower with an empty productTypes array means "unrestricted / not yet
+  //    configured" by an admin — it must NOT wrongly exclude packages just because
+  //    nobody has filled in the new field on an older tower. It qualifies for every
+  //    product type until an admin explicitly assigns one.
+  // 2. productTypeId === null means the package itself isn't tied to a specific
+  //    product type — preserve the pre-existing network-only behavior exactly (any
+  //    tower of the network qualifies, product-type-blind).
+  // 3. Once a tower has at least one productTypes entry, it becomes restrictive: it
+  //    only qualifies for packages whose productTypeId is among that set.
+  //
+  // FAILURE MODES:
+  // - Network with zero towers → ts.length === 0 → Infinity → distance-limited
+  //   packages correctly excluded (packages with maxDistanceM: null are unaffected,
+  //   they never call this function).
+  // - Every tower of the network is tagged with OTHER product types (none match) →
+  //   Infinity → package correctly excluded, even though the network itself has towers.
+  const nearestQualifyingTowerM = (networkId: string, productTypeId: string | null) => {
+    const ts = towers.filter((t) => {
+      if (t.networkId !== networkId) return false;
+      if (!productTypeId) return true;
+      if (t.productTypes.length === 0) return true;
+      return t.productTypes.some((pt) => pt.id === productTypeId);
+    });
     if (ts.length === 0) return Infinity;
     return Math.min(...ts.map((t) => haversineM(point.lat, point.lng, t.lat, t.lng)));
   };
@@ -82,13 +109,13 @@ export async function POST(
       const n = r.network;
       if (!byNetwork.has(n.id)) {
         // Distance gate: a package with maxDistanceM only shows when the point is
-        // within that distance of one of this network's towers.
-        const distM = nearestTowerM(n.id);
+        // within that distance of one of this network's towers that actually
+        // qualifies for the package's product type (see nearestQualifyingTowerM).
         byNetwork.set(n.id, {
           id: n.id, name: n.name, slug: n.slug, category: n.category, color: n.color, logoUrl: n.logoUrl,
           regionNames: [],
           packages: n.packages
-            .filter((p) => p.maxDistanceM == null || distM <= p.maxDistanceM)
+            .filter((p) => p.maxDistanceM == null || nearestQualifyingTowerM(n.id, p.productTypeId ?? null) <= p.maxDistanceM)
             .filter((p) => showVas || p.kind !== "VAS")
             .map((p) => ({
               id: p.id, name: p.name, speedDown: p.speedDown, speedUp: p.speedUp,

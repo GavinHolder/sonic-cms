@@ -17,6 +17,9 @@ export async function PUT(
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
   const d = data as Record<string, unknown>;
+  const productTypeIds = Array.isArray(d.productTypeIds)
+    ? d.productTypeIds.filter((v): v is string => typeof v === "string")
+    : undefined;
   const tower = await prisma.coverageTower.update({
     where: { id: towerId },
     data: {
@@ -27,6 +30,20 @@ export async function PUT(
         description: typeof d.description === "string" ? d.description : null,
       }),
       ...(d.isActive !== undefined && { isActive: d.isActive as boolean }),
+      ...(d.networkId !== undefined && {
+        networkId: typeof d.networkId === "string" && d.networkId ? d.networkId : null,
+      }),
+      ...(d.regionId !== undefined && {
+        regionId: typeof d.regionId === "string" && d.regionId ? d.regionId : null,
+      }),
+      // Full replacement of the set (not additive/merge) — matches what the admin submitted.
+      ...(productTypeIds !== undefined && {
+        productTypes: { set: productTypeIds.map((id) => ({ id })) },
+      }),
+    },
+    include: {
+      region: { select: { id: true, name: true } },
+      productTypes: { select: { id: true, name: true, slug: true, color: true } },
     },
   });
   return NextResponse.json(tower);

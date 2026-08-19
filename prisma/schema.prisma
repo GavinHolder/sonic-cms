@@ -459,6 +459,8 @@ model CoverageRegion {
   updatedAt   DateTime    @updatedAt
   map         CoverageMap @relation(fields: [mapId], references: [id], onDelete: Cascade)
   network     Network?    @relation(fields: [networkId], references: [id], onDelete: SetNull)
+  // Towers grouped into this region via CoverageTower.regionId (admin grouping only).
+  towers      CoverageTower[]
 
   @@index([mapId])
   @@index([networkId])
@@ -499,13 +501,21 @@ model CoverageTower {
   description String?
   isActive    Boolean     @default(true)
   networkId   String?
+  // Which drawn coverage-region polygon this tower belongs to, for admin grouping.
+  // Optional — a tower may not be tied to a specific drawn region.
+  regionId    String?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
-  map         CoverageMap @relation(fields: [mapId], references: [id], onDelete: Cascade)
-  network     Network?    @relation(fields: [networkId], references: [id], onDelete: SetNull)
+  map         CoverageMap     @relation(fields: [mapId], references: [id], onDelete: Cascade)
+  network     Network?        @relation(fields: [networkId], references: [id], onDelete: SetNull)
+  region      CoverageRegion? @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  // Which specific services (e.g. AirFibre, Standard Wi-Fi) this tower physically carries.
+  // Empty = unrestricted/not yet configured — public matching logic treats that permissively.
+  productTypes ProductType[]
 
   @@index([mapId])
   @@index([networkId])
+  @@index([regionId])
   @@map("coverage_towers")
 }
 
@@ -604,6 +614,8 @@ model ProductType {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   packages  Package[]
+  // Coverage towers that physically carry this service (many-to-many).
+  towers    CoverageTower[]
 
   @@map("product_types")
 }
