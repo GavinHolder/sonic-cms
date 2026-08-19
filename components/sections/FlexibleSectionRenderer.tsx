@@ -2523,11 +2523,25 @@ function DesignerBlock({ block, darkBg }: {
         // the runtime designer block object always has one — used only as a DOM identification
         // hook (not for CSS scoping, matching the unscoped raw-CSS trust model of standalone pages).
         const blockDomId = (block as unknown as { id?: string }).id || templateId;
+        // Rendered via a sandboxed iframe (srcDoc), not dangerouslySetInnerHTML — a browser
+        // never executes <script> tags injected through innerHTML, so imported templates with
+        // real interactivity (the whole point of "upload a template with its own JS") silently
+        // did nothing before this. srcDoc content is parsed as a real document, so its scripts
+        // run normally. sandbox="allow-scripts" WITHOUT allow-same-origin is deliberate: the
+        // frame gets a unique opaque origin, so the uploaded script can run its own visuals/
+        // interactivity but can never read the CMS admin's cookies/localStorage/DOM or make
+        // same-site authenticated requests to the admin API — do not add allow-same-origin here.
+        const templateSrcDoc = `<!doctype html><html><head><meta charset="utf-8">${
+          templateCss ? `<style>${templateCss}</style>` : ""
+        }</head><body style="margin:0">${templateHtml}</body></html>`;
         return (
-          <div id={`flex-template-${blockDomId}`} className="flex-template-block" style={{ height: "100%" }}>
-            {templateCss && <style dangerouslySetInnerHTML={{ __html: templateCss }} />}
-            <div dangerouslySetInnerHTML={{ __html: templateHtml }} />
-          </div>
+          <iframe
+            key={blockDomId}
+            title="Section template"
+            srcDoc={templateSrcDoc}
+            sandbox="allow-scripts"
+            style={{ display: "block", width: "100%", height: "100%", border: 0 }}
+          />
         );
       }
 
