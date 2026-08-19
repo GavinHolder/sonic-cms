@@ -7,7 +7,12 @@ export async function GET(request: NextRequest) {
   if (auth instanceof NextResponse) return auth;
 
   const maps = await prisma.coverageMap.findMany({
-    include: { regions: { orderBy: { order: "asc" } }, labels: true, towers: true },
+    // Secondary `createdAt` key matters: every region defaults to order:0 (there's no
+    // drag-to-reorder UI yet), so most regions tie on `order` alone. Postgres doesn't
+    // guarantee stable ordering among ties across queries — an UPDATE can shuffle a
+    // tied row's result position, which read as "the region jumps to the top of the
+    // list after I edit it." createdAt is stable and never touched by edits.
+    include: { regions: { orderBy: [{ order: "asc" }, { createdAt: "asc" }] }, labels: true, towers: true },
     orderBy: { createdAt: "desc" },
   });
   return NextResponse.json(maps);

@@ -109,6 +109,7 @@ function CoverageMapsInner() {
   const [towers, setTowers] = useState<CoverageTower[]>([]);
   const [newTower, setNewTower] = useState({ name: "", lat: "", lng: "", description: "", networkId: "", regionId: "", productTypeIds: [] as string[] });
   const [showTowerPicker, setShowTowerPicker] = useState(false);
+  const [showAddTowerModal, setShowAddTowerModal] = useState(false);
   const [showLabelPicker, setShowLabelPicker] = useState(false);
   // Promise-based confirm via the in-app modal (no native window.confirm)
   const [confirmState, setConfirmState] = useState<{ message: string; resolve: (v: boolean) => void } | null>(null);
@@ -382,6 +383,7 @@ function CoverageMapsInner() {
       setNewTower({ name: "", lat: "", lng: "", description: "", networkId: "", regionId: "", productTypeIds: [] });
       const res = await fetch(`/api/coverage-maps/${selectedMapId}/towers`);
       setTowers(await res.json());
+      setShowAddTowerModal(false);
       toast.success("Tower added");
     } catch {
       toast.error("Failed to add tower");
@@ -814,6 +816,9 @@ function CoverageMapsInner() {
                   <p style={{ margin: 0, fontSize: 13, color: "#6b7280" }}>
                     Tower markers shown on the wireless coverage map
                   </p>
+                  <button className="btn btn-sm btn-primary" onClick={() => setShowAddTowerModal(true)}>
+                    <i className="bi bi-plus-lg me-1" />Add Tower
+                  </button>
                 </div>
 
                 {towers.length === 0 ? (
@@ -891,73 +896,87 @@ function CoverageMapsInner() {
                   );
                 })()}
 
-                {/* Add tower form */}
-                <div style={{ padding: 16, background: "#f9fafb", borderRadius: 8, border: "1px solid #e5e7eb" }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 12 }}>Add Tower</p>
-                  <div className="row g-2 mb-2 align-items-center">
-                    <div className="col-6">
-                      <input className="form-control form-control-sm" placeholder="Tower name *"
-                        value={newTower.name} onChange={(e) => setNewTower((t) => ({ ...t, name: e.target.value }))} />
-                    </div>
-                    <div className="col-6 d-flex align-items-center gap-2">
-                      <button type="button" className="btn btn-sm btn-outline-success text-nowrap" onClick={() => setShowTowerPicker(true)}>
-                        <i className="bi bi-geo-alt me-1" />{newTower.lat && newTower.lng ? "Change location" : "Pick on map"}
-                      </button>
-                      <span style={{ fontSize: 12, fontFamily: "monospace", color: newTower.lat ? "#16a34a" : "#9ca3af" }}>
-                        {newTower.lat && newTower.lng ? `${parseFloat(newTower.lat).toFixed(5)}, ${parseFloat(newTower.lng).toFixed(5)}` : "no location set"}
-                      </span>
+                {/* Add Tower modal — trigger moved to the top of the tab (was an
+                    always-visible form at the bottom, requiring a scroll past every
+                    existing tower to reach it). */}
+                {showAddTowerModal && (
+                  <div className="modal d-block" style={{ background: "rgba(0,0,0,0.5)" }} onClick={() => setShowAddTowerModal(false)}>
+                    <div className="modal-dialog modal-dialog-centered modal-lg" onClick={(e) => e.stopPropagation()}>
+                      <div className="modal-content">
+                        <div className="modal-header"><h5 className="modal-title">Add Tower</h5>
+                          <button className="btn-close" onClick={() => setShowAddTowerModal(false)} /></div>
+                        <div className="modal-body">
+                          <div className="row g-2 mb-2 align-items-center">
+                            <div className="col-6">
+                              <input className="form-control form-control-sm" placeholder="Tower name *"
+                                value={newTower.name} onChange={(e) => setNewTower((t) => ({ ...t, name: e.target.value }))} />
+                            </div>
+                            <div className="col-6 d-flex align-items-center gap-2">
+                              <button type="button" className="btn btn-sm btn-outline-success text-nowrap" onClick={() => setShowTowerPicker(true)}>
+                                <i className="bi bi-geo-alt me-1" />{newTower.lat && newTower.lng ? "Change location" : "Pick on map"}
+                              </button>
+                              <span style={{ fontSize: 12, fontFamily: "monospace", color: newTower.lat ? "#16a34a" : "#9ca3af" }}>
+                                {newTower.lat && newTower.lng ? `${parseFloat(newTower.lat).toFixed(5)}, ${parseFloat(newTower.lng).toFixed(5)}` : "no location set"}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="mb-2">
+                            <input className="form-control form-control-sm" placeholder="Description (optional)"
+                              value={newTower.description} onChange={(e) => setNewTower((t) => ({ ...t, description: e.target.value }))} />
+                          </div>
+                          <div className="row g-2 mb-2">
+                            <div className="col-6">
+                              <select className="form-select form-select-sm" value={newTower.networkId}
+                                onChange={(e) => setNewTower((t) => ({ ...t, networkId: e.target.value }))}>
+                                <option value="">— Network (for distance-limited packages) —</option>
+                                {networks.map((n) => <option key={n.id} value={n.id}>{n.name} ({n.category})</option>)}
+                              </select>
+                            </div>
+                            <div className="col-6">
+                              <select className="form-select form-select-sm" value={newTower.regionId}
+                                onChange={(e) => setNewTower((t) => ({ ...t, regionId: e.target.value }))}>
+                                <option value="">— Region (for grouping) —</option>
+                                {selectedMap.regions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                              </select>
+                            </div>
+                          </div>
+                          <div className="form-text mb-2">Network links distance-limited packages (e.g. AirFibre ≤100m) to measure from here. Region groups this tower under an area in the list above.</div>
+                          <div className="mb-2">
+                            <label className="form-label fw-semibold small mb-1">Services available at this tower</label>
+                            <div className="d-flex flex-wrap gap-2">
+                              {productTypes.filter((pt) => pt.isActive !== false).map((pt) => {
+                                const checked = newTower.productTypeIds.includes(pt.id);
+                                return (
+                                  <label key={pt.id} className="form-check form-check-inline m-0" style={{ fontSize: 12 }}>
+                                    <input
+                                      type="checkbox" className="form-check-input"
+                                      checked={checked}
+                                      onChange={(e) => setNewTower((t) => ({
+                                        ...t,
+                                        productTypeIds: e.target.checked
+                                          ? [...t.productTypeIds, pt.id]
+                                          : t.productTypeIds.filter((id) => id !== pt.id),
+                                      }))}
+                                    />
+                                    <span className="form-check-label">{pt.name}</span>
+                                  </label>
+                                );
+                              })}
+                              {productTypes.length === 0 && <span style={{ fontSize: 12, color: "#9ca3af" }}>No product types configured yet.</span>}
+                            </div>
+                            <div className="form-text">Leave unset for unrestricted (matches every package under this tower&apos;s network, same as today).</div>
+                          </div>
+                        </div>
+                        <div className="modal-footer">
+                          <button className="btn btn-sm btn-outline-secondary" onClick={() => setShowAddTowerModal(false)}>Cancel</button>
+                          <button className="btn btn-sm btn-success" onClick={handleAddTower} disabled={addingTower || !newTower.name || !newTower.lat || !newTower.lng}>
+                            {addingTower ? <><span className="spinner-border spinner-border-sm me-1" />Adding…</> : <><i className="bi bi-plus me-1" />Add Tower</>}
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div className="mb-2">
-                    <input className="form-control form-control-sm" placeholder="Description (optional)"
-                      value={newTower.description} onChange={(e) => setNewTower((t) => ({ ...t, description: e.target.value }))} />
-                  </div>
-                  <div className="row g-2 mb-2">
-                    <div className="col-6">
-                      <select className="form-select form-select-sm" value={newTower.networkId}
-                        onChange={(e) => setNewTower((t) => ({ ...t, networkId: e.target.value }))}>
-                        <option value="">— Network (for distance-limited packages) —</option>
-                        {networks.map((n) => <option key={n.id} value={n.id}>{n.name} ({n.category})</option>)}
-                      </select>
-                    </div>
-                    <div className="col-6">
-                      <select className="form-select form-select-sm" value={newTower.regionId}
-                        onChange={(e) => setNewTower((t) => ({ ...t, regionId: e.target.value }))}>
-                        <option value="">— Region (for grouping) —</option>
-                        {selectedMap.regions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="form-text mb-2">Network links distance-limited packages (e.g. AirFibre ≤100m) to measure from here. Region groups this tower under an area in the list above.</div>
-                  <div className="mb-2">
-                    <label className="form-label fw-semibold small mb-1">Services available at this tower</label>
-                    <div className="d-flex flex-wrap gap-2">
-                      {productTypes.filter((pt) => pt.isActive !== false).map((pt) => {
-                        const checked = newTower.productTypeIds.includes(pt.id);
-                        return (
-                          <label key={pt.id} className="form-check form-check-inline m-0" style={{ fontSize: 12 }}>
-                            <input
-                              type="checkbox" className="form-check-input"
-                              checked={checked}
-                              onChange={(e) => setNewTower((t) => ({
-                                ...t,
-                                productTypeIds: e.target.checked
-                                  ? [...t.productTypeIds, pt.id]
-                                  : t.productTypeIds.filter((id) => id !== pt.id),
-                              }))}
-                            />
-                            <span className="form-check-label">{pt.name}</span>
-                          </label>
-                        );
-                      })}
-                      {productTypes.length === 0 && <span style={{ fontSize: 12, color: "#9ca3af" }}>No product types configured yet.</span>}
-                    </div>
-                    <div className="form-text">Leave unset for unrestricted (matches every package under this tower&apos;s network, same as today).</div>
-                  </div>
-                  <button className="btn btn-sm btn-success" onClick={handleAddTower} disabled={addingTower || !newTower.name || !newTower.lat || !newTower.lng}>
-                    {addingTower ? <><span className="spinner-border spinner-border-sm me-1" />Adding…</> : <><i className="bi bi-plus me-1" />Add Tower</>}
-                  </button>
-                </div>
+                )}
               </div>
             )}
 
