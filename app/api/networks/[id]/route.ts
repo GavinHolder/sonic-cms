@@ -25,7 +25,7 @@ export async function PUT(
   if (auth instanceof NextResponse) return auth;
   const { id } = await params;
   const body = await request.json();
-  const validCat = ["FNO", "WISP", "WIRELESS"];
+  const validCat = ["FNO", "WISP", "WIRELESS", "VOICE"];
   const network = await prisma.network.update({
     where: { id },
     data: {

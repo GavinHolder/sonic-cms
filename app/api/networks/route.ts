@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
   for (let i = 2; await prisma.network.findUnique({ where: { slug: uniqueSlug } }); i++) {
     uniqueSlug = `${base}-${i}`;
   }
-  const validCat = ["FNO", "WISP", "WIRELESS"];
+  const validCat = ["FNO", "WISP", "WIRELESS", "VOICE"];
   const network = await prisma.network.create({
     data: {
       name,

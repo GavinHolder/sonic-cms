@@ -513,11 +513,16 @@ enum NetworkCategory {
   FNO
   WISP
   WIRELESS
+  VOICE
 }
 
 // A distinct provider network (e.g. Internal FNO Fibre, Openserve, External FNO,
-// Wireless). Coverage polygons link to one; packages belong to one. Category drives
-// lead routing (FNO / WISP / Wireless).
+// Wireless, Voice). Coverage polygons link to one; packages belong to one. Category
+// drives lead routing (FNO / WISP / Wireless / Voice). VOICE networks are a structurally
+// separate major category — kept apart from WISP/FNO/WIRELESS data networks so Voice
+// packages aren't nested under a Wi-Fi/Fibre network's package list. Unlike the other
+// categories, Voice service isn't tied to a geographic coverage polygon, so VOICE
+// networks typically have no linked CoverageRegion — that's expected, not a bug.
 model Network {
   id          String           @id @default(cuid())
   name        String

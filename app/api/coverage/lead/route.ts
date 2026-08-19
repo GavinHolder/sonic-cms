@@ -8,7 +8,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * Categorized coverage lead. Created when a visitor picks a package (or asks to be
  * notified on a miss) from the coverage map. Network/package are resolved server-side
  * so the stored labels + leadCategory are authoritative. Stored as a FormSubmission
- * tagged source="coverage_check" + leadCategory (FNO/WISP/WIRELESS/miss).
+ * tagged source="coverage_check" + leadCategory (FNO/WISP/WIRELESS/VOICE/miss).
  */
 export async function POST(req: NextRequest) {
   let body: Record<string, unknown>;
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     if (net) {
       networkName = net.name;
       leadCategory = net.category;
-      const SERVICE_TYPE: Record<string, string> = { FNO: "Fibre", WISP: "Wireless ISP", WIRELESS: "Fixed Wireless" };
+      const SERVICE_TYPE: Record<string, string> = { FNO: "Fibre", WISP: "Wireless ISP", WIRELESS: "Fixed Wireless", VOICE: "Voice" };
       serviceType = SERVICE_TYPE[net.category] ?? net.category;
     }
     if (packageId) {

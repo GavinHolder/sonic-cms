@@ -1,0 +1,20 @@
+-- Promote VOICE to a major Network category, on par with FNO / WISP / WIRELESS.
+--
+-- Why: ServiceCategory ("Voice") and ProductType ("Voice") are independent admin-managed
+-- chip lists that attach only at the Package level — neither has any formal link to
+-- Network.category. In practice, Voice packages (e.g. "Voice Lite 100") were getting
+-- nested under whatever WISP/FNO Network the admin happened to create them on (e.g.
+-- "Sonic Wi-Fi"), mixed in with that network's actual Wi-Fi/Fibre data packages. The
+-- admin asked for Voice to be structurally separated — its own Networks, not mixed with
+-- Wi-Fi/Fibre/third-party providers.
+--
+-- This migration only adds a new enum value. It does not touch any existing rows —
+-- existing FNO/WISP/WIRELESS Networks (and their Packages, e.g. "Voice Lite 100" under
+-- "Sonic Wi-Fi") are left exactly as they are. Moving packages to a new dedicated Voice
+-- network is a deliberate admin action taken later through the Networks & Packages UI,
+-- not something a migration should do silently.
+--
+-- Safety: PostgreSQL enum additions are additive and non-breaking — ALTER TYPE ... ADD
+-- VALUE does not rewrite existing rows or invalidate current FNO/WISP/WIRELESS values.
+-- IF NOT EXISTS (supported since PG 12) makes this safe to re-run.
+ALTER TYPE "NetworkCategory" ADD VALUE IF NOT EXISTS 'VOICE';

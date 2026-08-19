@@ -31,7 +31,7 @@ export interface CoverageNetworkResult {
   id: string;
   name: string;
   slug: string;
-  category: "FNO" | "WISP" | "WIRELESS" | string;
+  category: "FNO" | "WISP" | "WIRELESS" | "VOICE" | string;
   color: string;
   logoUrl: string | null;
   regionNames: string[];

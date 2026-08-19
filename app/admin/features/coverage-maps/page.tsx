@@ -78,10 +78,11 @@ function CoverageMapsInner() {
   // previous, only behavior). The tab set itself is derived from whichever
   // NetworkCategory values are actually in use (see the render below) — not hardcoded —
   // since a category with zero networks (e.g. WIRELESS, when every real network is
-  // FNO or WISP) is dead weight, and "Voice" isn't a region/coverage concept at all
-  // (it's a Package.category — a value-added service layered onto whichever network's
-  // polygon already covers an address, not a distinct delivery medium with its own
-  // coverage shape).
+  // FNO or WISP) is dead weight. VOICE is a real NetworkCategory too (a major category,
+  // structurally separate from WISP/FNO/WIRELESS data networks), but voice service isn't
+  // tied to a geographic coverage polygon the way fibre/wireless delivery is — so a VOICE
+  // tab will only actually appear here if an admin deliberately links a region to a Voice
+  // network, which is expected to be rare-to-never in practice.
   const [regionCategoryFilter, setRegionCategoryFilter] = useState<string>("ALL");
 
   // Map form
@@ -454,7 +455,7 @@ function CoverageMapsInner() {
           <div style={{ fontSize: 13, color: "#1e3a5f", marginTop: 10, lineHeight: 1.7 }}>
             <strong>1. One map</strong> = your whole service footprint — you usually only need one.<br />
             <strong>2. Regions</strong> = the polygons you draw. Draw <em>one per covered area</em> and set each one&apos;s <strong>Provider Network</strong>. A provider can have many scattered polygons — that&apos;s expected.<br />
-            <strong>3. Networks &amp; Packages</strong> (toggle above) = your providers (FNO / WISP / Wireless) and their plans. Regions link to a provider; the provider&apos;s packages show on the public address check.<br />
+            <strong>3. Networks &amp; Packages</strong> (toggle above) = your providers (FNO / WISP / Wireless / Voice) and their plans. Regions link to a provider; the provider&apos;s packages show on the public address check.<br />
             <strong>Labels</strong> = optional town-name text on the map · <strong>Towers</strong> = optional site-marker pins. Both are visual only.
           </div>
         </details>
@@ -600,7 +601,7 @@ function CoverageMapsInner() {
                   // network here actually uses (e.g. WIRELESS on an FNO/WISP-only setup)
                   // would otherwise sit at a permanent (0), which reads as broken rather
                   // than "unused". Preferred display order, then any others alphabetically.
-                  const PREFERRED_ORDER = ["FNO", "WISP", "WIRELESS"];
+                  const PREFERRED_ORDER = ["FNO", "WISP", "WIRELESS", "VOICE"];
                   const presentCats = Object.keys(categoryCounts).sort((a, b) => {
                     const ai = PREFERRED_ORDER.indexOf(a), bi = PREFERRED_ORDER.indexOf(b);
                     if (ai !== -1 && bi !== -1) return ai - bi;

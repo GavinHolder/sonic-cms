@@ -17,7 +17,7 @@ interface CoverageTower { id: string; name: string; lat: number; lng: number; de
 interface CoverageLabel { id: string; text: string; lat: number; lng: number; fontSize: number; fontFamily: string; color: string; bgColor?: string | null; bold: boolean; }
 interface CoverageMapData { id: string; name: string; slug: string; description?: string | null; centerLat: number; centerLng: number; defaultZoom: number; regions: CoverageRegion[]; labels: CoverageLabel[]; towers?: CoverageTower[]; }
 
-const CATEGORY_LABEL: Record<string, string> = { FNO: "Fibre", WISP: "Wireless ISP", WIRELESS: "Fixed Wireless" };
+const CATEGORY_LABEL: Record<string, string> = { FNO: "Fibre", WISP: "Wireless ISP", WIRELESS: "Fixed Wireless", VOICE: "Voice" };
 
 function MapSkeleton() {
   return (

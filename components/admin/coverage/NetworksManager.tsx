@@ -5,7 +5,7 @@ import { useToast } from "@/components/admin/ToastProvider";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import ImageFieldWithUpload from "@/components/admin/ImageFieldWithUpload";
 
-type Category = "FNO" | "WISP" | "WIRELESS";
+type Category = "FNO" | "WISP" | "WIRELESS" | "VOICE";
 
 interface Pkg {
   id: string;
@@ -68,6 +68,7 @@ const CATEGORY_BADGE: Record<Category, string> = {
   FNO: "text-bg-primary",
   WISP: "text-bg-info",
   WIRELESS: "text-bg-success",
+  VOICE: "text-bg-danger",
 };
 
 const slugify = (s: string) =>
@@ -407,7 +408,7 @@ export default function NetworksManager() {
                 <div className="row">
                   <div className="col"><label className="form-label">Category</label>
                     <select className="form-select" value={netModal.category || "FNO"} onChange={(e) => setNetModal({ ...netModal, category: e.target.value as Category })}>
-                      <option value="FNO">FNO (Fibre)</option><option value="WISP">WISP</option><option value="WIRELESS">Wireless</option>
+                      <option value="FNO">FNO (Fibre)</option><option value="WISP">WISP</option><option value="WIRELESS">Wireless</option><option value="VOICE">Voice</option>
                     </select></div>
                   <div className="col-auto"><label className="form-label">Colour</label>
                     <input type="color" className="form-control form-control-color" value={netModal.color || "#22c55e"} onChange={(e) => setNetModal({ ...netModal, color: e.target.value })} /></div>
@@ -530,7 +531,16 @@ export default function NetworksManager() {
                     onClick={() => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, features: [...(pkgModal.pkg.features || []), ""] } })}>
                     <i className="bi bi-plus-lg me-1" />Add feature
                   </button></div>
-                {networks.find((n) => n.id === pkgModal.networkId)?.category !== "FNO" && (
+                {(() => {
+                  const netCat = networks.find((n) => n.id === pkgModal.networkId)?.category;
+                  // Tower-distance gating only makes sense for the tower-based delivery
+                  // categories (WISP/WIRELESS). FNO (fibre) and VOICE aren't tower-proximity
+                  // services, so neither should show this field — previously this was
+                  // `!== "FNO"`, which (before VOICE existed) happened to be equivalent to
+                  // "WISP or WIRELESS", but adding VOICE as a third non-tower category broke
+                  // that shortcut.
+                  return netCat === "WISP" || netCat === "WIRELESS";
+                })() && (
                   <div><label className="form-label">Max distance from tower <span className="text-muted">(metres — leave blank for no limit)</span></label>
                     <input className="form-control" type="number" min={0} value={pkgModal.pkg.maxDistanceM ?? ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, maxDistanceM: e.target.value === "" ? null : parseInt(e.target.value, 10) } })} placeholder="e.g. 100 — only offered within 100m of a tower" />
                     <div className="form-text">Only show this package when the address is within this distance of one of the network&apos;s towers. Draws a ring around each tower on the map.</div></div>

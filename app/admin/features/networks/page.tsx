@@ -9,7 +9,7 @@ export default function NetworksAdminPage() {
   return (
     <AdminLayout
       title="Networks & Packages"
-      subtitle="Provider networks (FNO / WISP / Wireless) and their packages — linked to coverage polygons"
+      subtitle="Provider networks (FNO / WISP / Wireless / Voice) and their packages — linked to coverage polygons"
     >
       <NetworksManager />
     </AdminLayout>
