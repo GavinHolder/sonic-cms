@@ -27,11 +27,11 @@ export async function GET(req: NextRequest) {
     const rows = await prisma.package.findMany({
       where: { isActive: true },
       orderBy: [{ network: { name: "asc" } }, { order: "asc" }, { createdAt: "asc" }],
-      select: { id: true, name: true, network: { select: { name: true, slug: true } } },
+      select: { id: true, name: true, term: true, network: { select: { name: true, slug: true } } },
     });
     const packages = rows.map((p) => {
       const net = (p.network ?? null) as { name?: string; slug?: string } | null;
-      return { id: p.id, name: p.name, networkName: net?.name ?? null, networkSlug: net?.slug ?? null };
+      return { id: p.id, name: p.name, term: p.term, networkName: net?.name ?? null, networkSlug: net?.slug ?? null };
     });
     return NextResponse.json({ packages });
   }

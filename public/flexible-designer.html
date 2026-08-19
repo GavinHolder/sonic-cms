@@ -3439,7 +3439,11 @@ function createBlockPreview(block) {
       var ctTabs = p.tabs || [];
       var ctTabsHtml = ctTabs.map(function(t){
         var nets = t.groupByNetwork ? Array.from(new Set((t.cards||[]).map(function(c){ return c.networkLabel; }).filter(Boolean))) : [];
-        var suffix = nets.length > 1 ? ' <span style="opacity:.55;">(' + nets.length + ' sub-tabs)</span>' : '';
+        var terms = t.groupByTerm ? Array.from(new Set((t.cards||[]).map(function(c){ return c.term; }).filter(Boolean))) : [];
+        var bits = [];
+        if (nets.length > 1) bits.push(nets.length + ' sub-tabs');
+        if (terms.length > 1) bits.push(terms.length + ' terms');
+        var suffix = bits.length ? ' <span style="opacity:.55;">(' + bits.join(', ') + ')</span>' : '';
         return '<span style="padding:3px 9px;border-radius:999px;background:rgba(255,255,255,0.1);margin-right:4px;">' + escHtml(t.label||'Tab') + suffix + '</span>';
       }).join('');
       var ctCardCount = ctTabs.reduce(function(sum,t){ return sum + (t.cards||[]).length; }, 0);
@@ -6526,6 +6530,16 @@ function renderTypeProps(block) {
               ? 'Sub-tabs: ' + netLabels.map(escHtml).join(', ')
               : 'Bind cards to products from &gt;1 network below to activate sub-tabs — right now they will all render in one flat tab.'}</div>`;
           }
+          const termLabels = Array.from(new Set((tab.cards||[]).map(function(c){ return c.term; }).filter(Boolean)));
+          h+=`<label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer;margin-bottom:6px;color:#495057;">
+            <input type="checkbox" ${tab.groupByTerm?'checked':''} onchange="toggleCardTabGroupByTerm('${block.id}',${tIdx},this.checked)">
+            Also split by contract term <span style="font-weight:400;color:#9ca3af;">(nested inside each network)</span>
+          </label>`;
+          if (tab.groupByTerm) {
+            h+=`<div style="font-size:10px;color:#9ca3af;padding:0 0 8px;line-height:1.5;">${termLabels.length > 1
+              ? 'Term tabs: ' + termLabels.map(escHtml).join(', ')
+              : 'Bind cards to products with &gt;1 contract term below to activate term tabs — right now they will all render together.'}</div>`;
+          }
         })();
         (tab.cards||[]).forEach(function(card, cIdx) {
           let voltOpts = `<option value="">— Select card design —</option>`;
@@ -6895,12 +6909,15 @@ function updateCardTabCardProduct(bId, tIdx, cIdx, productId) {
   if (productId) {
     card.productId = productId;
     // Captured now (rather than looked up at render time) so the live site's
-    // groupByNetwork sub-tabs need no extra fetch — see CardTabsCard.networkLabel.
+    // groupByNetwork/groupByTerm sub-tabs need no extra fetch — see
+    // CardTabsCard.networkLabel / CardTabsCard.term.
     const pr = (window.__allPackages || []).find(function(x){ return x.id === productId; });
     if (pr && pr.networkName) card.networkLabel = pr.networkName; else delete card.networkLabel;
+    if (pr && pr.term) card.term = pr.term; else delete card.term;
   } else {
     delete card.productId;
     delete card.networkLabel;
+    delete card.term;
   }
   autoSave(); renderCanvas();
 }
@@ -6908,6 +6925,12 @@ function toggleCardTabGroupByNetwork(bId, tIdx, checked) {
   const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
   if (!b || !b.props.tabs || !b.props.tabs[tIdx]) return;
   if (checked) b.props.tabs[tIdx].groupByNetwork = true; else delete b.props.tabs[tIdx].groupByNetwork;
+  autoSave(); renderCanvas(); renderPropsPanel();
+}
+function toggleCardTabGroupByTerm(bId, tIdx, checked) {
+  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
+  if (!b || !b.props.tabs || !b.props.tabs[tIdx]) return;
+  if (checked) b.props.tabs[tIdx].groupByTerm = true; else delete b.props.tabs[tIdx].groupByTerm;
   autoSave(); renderCanvas(); renderPropsPanel();
 }
 

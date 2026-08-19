@@ -15,6 +15,9 @@ export interface CardTabsCard {
    * (see updateCardTabCardProduct in flexible-designer.html). Lets a tab group its
    * cards into per-network sub-tabs without a live lookup at render time. */
   networkLabel?: string;
+  /** Contract term (e.g. "24-Month", "Prepaid", "12-Month"), captured the same way
+   * as networkLabel. Enables a third tab level nested inside each network group. */
+  term?: string;
 }
 
 export interface CardTabsTab {
@@ -25,6 +28,10 @@ export interface CardTabsTab {
    * render a second row of sub-tabs (one per network) instead of one flat grid
    * — e.g. a "Fibre" tab split into AirFibre / Kuluntu Connect sub-tabs. */
   groupByNetwork?: boolean;
+  /** When true and the active set of cards (after any network grouping) spans
+   * more than one distinct term, render a third tab row nested inside — e.g.
+   * AirFibre split into Prepaid / 24-Month term tabs. */
+  groupByTerm?: boolean;
 }
 
 interface Props {
@@ -32,18 +39,18 @@ interface Props {
   darkBg?: boolean;
 }
 
-interface NetworkGroup {
+interface CardGroup {
   label: string;
   cards: CardTabsCard[];
 }
 
-// Groups cards while preserving first-seen order, so sub-tab order tracks the
-// order cards were added in the Designer rather than alphabetizing labels.
-function groupCardsByNetwork(cards: CardTabsCard[]): NetworkGroup[] {
-  const groups: NetworkGroup[] = [];
+// Groups cards while preserving first-seen order, so tab order tracks the order
+// cards were added in the Designer rather than alphabetizing labels.
+function groupCardsBy(cards: CardTabsCard[], keyFn: (c: CardTabsCard) => string | undefined, fallback: string): CardGroup[] {
+  const groups: CardGroup[] = [];
   const byLabel = new Map<string, CardTabsCard[]>();
   for (const c of cards) {
-    const label = c.networkLabel || "Other";
+    const label = keyFn(c) || fallback;
     let bucket = byLabel.get(label);
     if (!bucket) {
       bucket = [];
@@ -56,15 +63,24 @@ function groupCardsByNetwork(cards: CardTabsCard[]): NetworkGroup[] {
 }
 
 /**
- * CardTabsBlock — tab-switched grid of existing Volt card designs, each
- * optionally bound to a live product via VoltBlock's productId prop.
- * Reuses the card design/binding pipeline unmodified; this component only
- * supplies the tab chrome and grid layout.
+ * CardTabsBlock — up to 3-level tab-switched grid of existing Volt card designs,
+ * each optionally bound to a live product via VoltBlock's productId prop. Reuses
+ * the card design/binding pipeline unmodified; this component only supplies the
+ * tab chrome and grid layout.
  *
- * All tab panels render simultaneously (display:none for inactive ones)
- * rather than conditionally mounting — so bound VoltBlocks fetch their
- * package once and switching tabs never re-triggers a fetch. Sub-tab panels
- * (per network, when a tab opts into groupByNetwork) follow the same rule.
+ * Level 1 (tabs): manually authored in the Designer — e.g. major category
+ * (Fibre / Wireless / Voice).
+ * Level 2 (sub-tabs, groupByNetwork): auto-derived from each bound card's
+ * networkLabel — e.g. Fibre split into AirFibre / Kuluntu Connect.
+ * Level 3 (term-tabs, groupByTerm): auto-derived from each bound card's term,
+ * nested inside the active level-2 group — e.g. AirFibre split into
+ * Prepaid / 24-Month. Levels 2 and 3 are both optional per tab and only render
+ * when the underlying cards actually span more than one value — binding every
+ * card to the same network/term just falls back to the flat grid.
+ *
+ * All panels render simultaneously (display:none for inactive ones) rather than
+ * conditionally mounting — so bound VoltBlocks fetch their package once and
+ * switching tabs never re-triggers a fetch.
  */
 export default function CardTabsBlock({ content }: Props) {
   const tabs = content?.tabs || [];
@@ -77,6 +93,10 @@ export default function CardTabsBlock({ content }: Props) {
   // Keyed by tab.key (not index) so switching top-level tabs and back preserves
   // each tab's own sub-tab selection instead of resetting to 0.
   const [activeSub, setActiveSub] = useState<Record<string, number>>({});
+  // Keyed by `${tab.key}:${subIdx}` — term groups are scoped to whichever
+  // network sub-group is currently active, so the same tab can show different
+  // term selections per network without them clobbering each other.
+  const [activeTerm, setActiveTerm] = useState<Record<string, number>>({});
 
   if (tabs.length === 0) {
     return (
@@ -103,12 +123,18 @@ export default function CardTabsBlock({ content }: Props) {
         ))}
       </div>
       {tabs.map((t, i) => {
-        const groups = t.groupByNetwork ? groupCardsByNetwork(t.cards) : null;
+        const groups = t.groupByNetwork ? groupCardsBy(t.cards, (c) => c.networkLabel, "Other") : null;
         // Only worth a second tab row when it actually splits into >1 group —
         // a single network under groupByNetwork just falls back to the flat grid.
         const showSubTabs = !!groups && groups.length > 1;
         const subIdx = showSubTabs ? Math.min(activeSub[t.key] ?? 0, groups!.length - 1) : 0;
-        const cellsToRender = showSubTabs ? groups![subIdx].cards : t.cards;
+        const networkCards = showSubTabs ? groups![subIdx].cards : t.cards;
+
+        const termKey = `${t.key}:${subIdx}`;
+        const termGroups = t.groupByTerm ? groupCardsBy(networkCards, (c) => c.term, "Other") : null;
+        const showTermTabs = !!termGroups && termGroups.length > 1;
+        const termIdx = showTermTabs ? Math.min(activeTerm[termKey] ?? 0, termGroups!.length - 1) : 0;
+        const cellsToRender = showTermTabs ? termGroups![termIdx].cards : networkCards;
 
         return (
           <div key={t.key} role="tabpanel" aria-hidden={i !== active} className="cms-card-tabs__panelwrap" style={{ display: i === active ? "block" : "none" }}>
@@ -122,6 +148,22 @@ export default function CardTabsBlock({ content }: Props) {
                     aria-selected={gi === subIdx}
                     className={`cms-card-tabs__subtab${gi === subIdx ? " cms-card-tabs__subtab--active" : ""}`}
                     onClick={() => setActiveSub((s) => ({ ...s, [t.key]: gi }))}
+                  >
+                    {g.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            {showTermTabs && (
+              <div className="cms-card-tabs__termbar" role="tablist">
+                {termGroups!.map((g, gi) => (
+                  <button
+                    key={g.label}
+                    type="button"
+                    role="tab"
+                    aria-selected={gi === termIdx}
+                    className={`cms-card-tabs__termtab${gi === termIdx ? " cms-card-tabs__termtab--active" : ""}`}
+                    onClick={() => setActiveTerm((s) => ({ ...s, [termKey]: gi }))}
                   >
                     {g.label}
                   </button>
@@ -166,7 +208,7 @@ export default function CardTabsBlock({ content }: Props) {
         .cms-card-tabs__tab:hover { opacity: 1; }
         .cms-card-tabs__tab--active { opacity: 1; background: var(--cms-primary, #0d6efd); color: #fff; }
         .cms-card-tabs__subbar {
-          display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 20px;
+          display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 14px;
         }
         .cms-card-tabs__subtab {
           border: 1px solid var(--cms-border, rgba(0,0,0,0.14)); background: transparent;
@@ -176,6 +218,17 @@ export default function CardTabsBlock({ content }: Props) {
         }
         .cms-card-tabs__subtab:hover { opacity: 1; }
         .cms-card-tabs__subtab--active { opacity: 1; background: var(--section-text, rgba(0,0,0,0.85)); color: var(--section-bg, #fff); border-color: transparent; }
+        .cms-card-tabs__termbar {
+          display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin-bottom: 20px;
+        }
+        .cms-card-tabs__termtab {
+          border: 1px dashed var(--cms-border, rgba(0,0,0,0.18)); background: transparent;
+          color: var(--section-muted, rgba(0,0,0,0.6)); opacity: 0.8;
+          font-size: 10.5px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase;
+          border-radius: 999px; padding: 4px 12px; cursor: pointer; transition: opacity .15s, background .15s, color .15s, border-color .15s;
+        }
+        .cms-card-tabs__termtab:hover { opacity: 1; }
+        .cms-card-tabs__termtab--active { opacity: 1; background: var(--cms-primary, #0d6efd); color: #fff; border-color: transparent; border-style: solid; }
         .cms-card-tabs__panel {
           display: flex;
           flex-wrap: wrap;
