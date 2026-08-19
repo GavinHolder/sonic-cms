@@ -3337,6 +3337,33 @@ function createBlockPreview(block) {
       }
       break;
     }
+    case 'template': {
+      // Real live preview — the block's own sandboxed iframe, nested inside this
+      // canvas thumbnail iframe, so the Designer shows exactly what the live page
+      // will show (real product data if bound) instead of a blank/name-only box.
+      wrap.style.cssText = 'width:100%;height:100%;position:relative;overflow:hidden;';
+      if (p.templateId) {
+        const tplPreviewUrl = buildTemplatePreviewUrl(block);
+        const tplIframe = document.createElement('iframe');
+        tplIframe.src = tplPreviewUrl;
+        tplIframe.style.cssText = 'width:100%;height:100%;border:none;pointer-events:none;';
+        tplIframe.loading = 'lazy';
+        wrap.appendChild(tplIframe);
+      } else {
+        const tplContainer = document.createElement('div');
+        tplContainer.style.cssText = 'width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;';
+        const tplIcon = document.createElement('i');
+        tplIcon.className = 'bi bi-file-earmark-text';
+        tplIcon.style.cssText = 'font-size:24px;opacity:0.3;';
+        const tplLabel = document.createElement('span');
+        tplLabel.textContent = 'No template selected';
+        tplLabel.style.cssText = 'font-size:11px;color:#6c757d;margin-top:4px;';
+        tplContainer.appendChild(tplIcon);
+        tplContainer.appendChild(tplLabel);
+        wrap.appendChild(tplContainer);
+      }
+      break;
+    }
     case 'editorial': {
       wrap.style.cssText = 'position:relative;width:100%;height:100%;overflow:hidden;';
       // Text preview (scaled down, truncated)
@@ -7007,6 +7034,21 @@ function buildVoltPreviewUrl(b) {
   const isFullBleed = fb === true || (fb === undefined && isVoltFullBleed(b));
   if (isFullBleed) sp.set('fit', 'cover');
   return '/volt-preview/' + b.props.voltId + (sp.toString() ? '?' + sp.toString() : '');
+}
+
+// Mirrors buildVoltPreviewUrl above — Designer canvas thumbnail for the 'template'
+// block type, so the canvas shows the template's real sandboxed render (with real
+// product data if bound) instead of a blank/placeholder box.
+function buildTemplatePreviewUrl(b) {
+  if (!b.props.templateId) return '';
+  const sp = new URLSearchParams();
+  if (b.props.productId) sp.set('productId', b.props.productId);
+  if (b.props.networkSlug) sp.set('networkSlug', b.props.networkSlug);
+  if (b.props.networkName) sp.set('networkName', b.props.networkName);
+  if (Array.isArray(b.props.productTypeSlugs) && b.props.productTypeSlugs.length) {
+    sp.set('productTypeSlugs', b.props.productTypeSlugs.join(','));
+  }
+  return '/template-preview/' + b.props.templateId + (sp.toString() ? '?' + sp.toString() : '');
 }
 
 // ── Volt slot helpers ─────────────────────────────────────────────────────────

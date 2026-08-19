@@ -70,7 +70,7 @@ export default async function RootLayout({
   const headersList = await headers();
   const pathname = headersList.get("x-pathname") || "";
   const isAdminRoute = pathname.startsWith("/admin");
-  const isIsolatedRoute = pathname.startsWith("/volt-preview") || pathname.startsWith("/maintenance-preview") || pathname.startsWith("/standalone") ||
+  const isIsolatedRoute = pathname.startsWith("/volt-preview") || pathname.startsWith("/template-preview") || pathname.startsWith("/maintenance-preview") || pathname.startsWith("/standalone") ||
     pathname.startsWith("/gallery") || pathname.startsWith("/coverage");
 
   // Detect standalone pages served at /{slug} (without /standalone/ prefix).
