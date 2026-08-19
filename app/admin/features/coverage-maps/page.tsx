@@ -97,7 +97,13 @@ function CoverageMapsInner() {
 
   // Region form
   const [showRegionForm, setShowRegionForm] = useState(false);
-  const [editingRegion, setEditingRegion] = useState<Partial<CoverageRegion> | null>(null);
+  const [editingRegion, setEditingRegion] = useState<
+    (Partial<CoverageRegion> & { towerIds: string[] }) | null
+  >(null);
+  // Tower multi-select (search + badges) inside the Region modal — reuses the
+  // `towers` state already fetched for the selected map (Towers tab), no extra fetch.
+  const [regionTowerSearch, setRegionTowerSearch] = useState("");
+  const [regionTowerDropdownOpen, setRegionTowerDropdownOpen] = useState(false);
   const [networks, setNetworks] = useState<NetworkOption[]>([]);
   const [regionSaving, setRegionSaving] = useState(false);
 
@@ -238,7 +244,10 @@ function CoverageMapsInner() {
       name: "", polygon: [], color: "#22c55e", opacity: 0.4,
       strokeColor: "#16a34a", strokeWidth: 2, description: "", isActive: true, order: 0,
       regionType: "GENERAL", fnoProvider: "", serviceSlug: "", towerRef: "", networkId: "",
+      towerIds: [],
     });
+    setRegionTowerSearch("");
+    setRegionTowerDropdownOpen(false);
     loadNetworks();
     setShowRegionForm(true);
   };
@@ -251,7 +260,12 @@ function CoverageMapsInner() {
       serviceSlug: region.serviceSlug ?? "",
       towerRef: region.towerRef ?? "",
       networkId: region.networkId ?? "",
+      // Pre-populate from the `towers` state already loaded for this map (regionId back-relation) —
+      // no separate fetch needed.
+      towerIds: towers.filter((t) => t.regionId === region.id).map((t) => t.id),
     });
+    setRegionTowerSearch("");
+    setRegionTowerDropdownOpen(false);
     loadNetworks();
     setShowRegionForm(true);
   };
@@ -275,6 +289,9 @@ function CoverageMapsInner() {
           serviceSlug: editingRegion.regionType === "WIRELESS" ? (editingRegion.serviceSlug || null) : null,
           towerRef: editingRegion.regionType === "WIRELESS" ? (editingRegion.towerRef || null) : null,
           networkId: editingRegion.networkId || null,
+          // Replace-the-set: every tower now selected gets regionId = this region;
+          // every tower previously linked but no longer selected gets regionId cleared.
+          towerIds: editingRegion.towerIds ?? [],
         }),
         }
       );
@@ -1198,31 +1215,69 @@ function CoverageMapsInner() {
                     </div>
                   )}
                   {editingRegion.regionType === "WIRELESS" && (
-                    <>
-                      <div className="mb-3">
-                        <label className="form-label fw-semibold small">Service Slug</label>
+                    <div className="mb-3">
+                      <label className="form-label fw-semibold small">Towers in this Area</label>
+                      <div className="d-flex flex-wrap gap-2 mb-2">
+                        {editingRegion.towerIds.length === 0 && (
+                          <span style={{ fontSize: 12, color: "#9ca3af" }}>No towers linked yet.</span>
+                        )}
+                        {editingRegion.towerIds.map((tid) => {
+                          const t = towers.find((tw) => tw.id === tid);
+                          if (!t) return null;
+                          return (
+                            <span key={tid} className="badge text-bg-light border d-inline-flex align-items-center gap-1" style={{ fontSize: 12 }}>
+                              {t.name}
+                              <button
+                                type="button" className="btn-close" style={{ fontSize: 8 }} aria-label="Remove"
+                                onClick={() => setEditingRegion((prev) => ({
+                                  ...prev!,
+                                  towerIds: prev!.towerIds.filter((id) => id !== tid),
+                                }))}
+                              />
+                            </span>
+                          );
+                        })}
+                      </div>
+                      <div style={{ position: "relative" }}>
                         <input
                           type="text" className="form-control form-control-sm"
-                          placeholder="e.g. airfibre or standard-wifi"
-                          value={editingRegion.serviceSlug ?? ""}
-                          onChange={(e) => setEditingRegion((prev) => ({ ...prev!, serviceSlug: e.target.value }))}
+                          placeholder={towers.length ? "Search towers to add…" : "No towers yet — add them in the Towers tab"}
+                          value={regionTowerSearch}
+                          onChange={(e) => setRegionTowerSearch(e.target.value)}
+                          onFocus={() => setRegionTowerDropdownOpen(true)}
+                          onBlur={() => setTimeout(() => setRegionTowerDropdownOpen(false), 150)}
                         />
+                        {regionTowerDropdownOpen && (() => {
+                          const q = regionTowerSearch.trim().toLowerCase();
+                          const results = towers.filter(
+                            (t) => !editingRegion!.towerIds.includes(t.id) && t.name.toLowerCase().includes(q)
+                          );
+                          if (results.length === 0) return null;
+                          return (
+                            <div
+                              className="list-group position-absolute w-100 shadow-sm"
+                              style={{ zIndex: 20, maxHeight: 180, overflowY: "auto", top: "100%" }}
+                            >
+                              {results.map((t) => (
+                                <button
+                                  key={t.id} type="button"
+                                  className="list-group-item list-group-item-action py-1 px-2"
+                                  style={{ fontSize: 13 }}
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => {
+                                    setEditingRegion((prev) => ({ ...prev!, towerIds: [...prev!.towerIds, t.id] }));
+                                    setRegionTowerSearch("");
+                                  }}
+                                >
+                                  {t.name}
+                                </button>
+                              ))}
+                            </div>
+                          );
+                        })()}
                       </div>
-                      <div className="mb-3">
-                        <label className="form-label fw-semibold small">Tower Reference</label>
-                        <input
-                          type="text" className="form-control form-control-sm"
-                          list="region-tower-list"
-                          placeholder={towers.length ? "Search existing towers…" : "No towers yet — add them in the Towers tab"}
-                          value={editingRegion.towerRef ?? ""}
-                          onChange={(e) => setEditingRegion((prev) => ({ ...prev!, towerRef: e.target.value }))}
-                        />
-                        <datalist id="region-tower-list">
-                          {towers.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
-                        </datalist>
-                        <div className="form-text">Pick an existing tower (type to search) or enter a reference.</div>
-                      </div>
-                    </>
+                      <div className="form-text">Search and select towers physically located in this area. Multiple towers can belong to one area.</div>
+                    </div>
                   )}
                   <div className="row g-3 mb-3">
                     <div className="col-4">

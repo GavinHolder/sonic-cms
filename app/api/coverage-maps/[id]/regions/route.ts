@@ -26,9 +26,13 @@ export async function POST(
 
   const { id } = await params;
   const body = await request.json();
-  const { name, polygon, color, opacity, strokeColor, strokeWidth, description, order, regionType, fnoProvider, serviceSlug, towerRef, networkId } = body;
+  const { name, polygon, color, opacity, strokeColor, strokeWidth, description, order, regionType, fnoProvider, serviceSlug, towerRef, networkId, towerIds } = body;
 
   if (!name) return NextResponse.json({ error: "name is required" }, { status: 400 });
+
+  const towerIdList = Array.isArray(towerIds)
+    ? towerIds.filter((v: unknown): v is string => typeof v === "string")
+    : [];
 
   const region = await prisma.coverageRegion.create({
     data: {
@@ -46,6 +50,9 @@ export async function POST(
       serviceSlug: serviceSlug ?? null,
       towerRef: towerRef ?? null,
       networkId: networkId || null,
+      // A newly created region can immediately claim towers (moves them off whatever
+      // region they were in before, same semantics as the PUT replace-the-set logic).
+      ...(towerIdList.length > 0 && { towers: { connect: towerIdList.map((twId) => ({ id: twId })) } }),
     },
   });
   return NextResponse.json(region, { status: 201 });
