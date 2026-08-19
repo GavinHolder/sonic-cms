@@ -360,15 +360,19 @@ export default function NetworksManager() {
                   </div>
                   {n.packages.length === 0 ? (
                     <p className="text-muted small mb-0">No packages yet.</p>
-                  ) : (
+                  ) : (() => {
+                    const isVoicePkg = (p: Pkg) => categories.find((c) => c.id === p.categoryId)?.name?.trim().toLowerCase() === "voice";
+                    const hasVoicePkg = n.packages.some(isVoicePkg);
+                    return (
                     <div className="table-responsive">
                       <table className="table table-sm align-middle mb-0">
-                        <thead><tr><th>Name</th><th>Speed</th><th>Price</th><th>Features</th><th></th></tr></thead>
+                        <thead><tr><th>Name</th><th>Speed</th>{hasVoicePkg && <th>Bundle</th>}<th>Price</th><th>Features</th><th></th></tr></thead>
                         <tbody>
                           {n.packages.map((p) => (
                             <tr key={p.id}>
                               <td>{p.name} {p.popular && <span className="badge text-bg-warning ms-1">Popular</span>} {!p.isActive && <span className="badge text-bg-secondary ms-1">Hidden</span>}</td>
-                              <td className="small text-muted">{[p.speedDown, p.speedUp].filter(Boolean).join(" / ") || "—"}</td>
+                              <td className="small text-muted">{isVoicePkg(p) ? "—" : ([p.speedDown, p.speedUp].filter(Boolean).join(" / ") || "—")}</td>
+                              {hasVoicePkg && <td className="small text-muted">{isVoicePkg(p) ? (p.speedDown || "—") : "—"}</td>}
                               <td className="text-nowrap">{p.price}{p.period && <span className="text-muted small"> {p.period}</span>}</td>
                               <td className="small text-muted">{(p.features || []).length} feature(s)</td>
                               <td className="text-end text-nowrap">
@@ -381,7 +385,8 @@ export default function NetworksManager() {
                         </tbody>
                       </table>
                     </div>
-                  )}
+                    );
+                  })()}
                 </div>
               )}
             </div>
