@@ -73,6 +73,10 @@ function CoverageMapsInner() {
   const [selectedMapId, setSelectedMapId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"regions" | "labels" | "towers">("regions");
   const [view, setView] = useState<"maps" | "networks">("maps");
+  // Regions list groups by the linked network's category (FNO/WISP/WIRELESS) once
+  // there are enough networks that a flat list gets hard to scan. "ALL" shows every
+  // region unfiltered (the previous, only behavior).
+  const [regionCategoryFilter, setRegionCategoryFilter] = useState<"ALL" | "FNO" | "WISP" | "WIRELESS">("ALL");
 
   // Map form
   const [showMapForm, setShowMapForm] = useState(false);
@@ -578,7 +582,44 @@ function CoverageMapsInner() {
                   </button>
                 </div>
 
-                {selectedMap.regions.length === 0 ? (
+                {/* Category tabs — filter the (potentially long) region list by the
+                    linked network's category. "ALL" is the previous, unfiltered view. */}
+                {(() => {
+                  const categoryCounts = selectedMap.regions.reduce<Record<string, number>>((acc, r) => {
+                    const cat = networks.find((n) => n.id === r.networkId)?.category ?? "UNASSIGNED";
+                    acc[cat] = (acc[cat] ?? 0) + 1;
+                    return acc;
+                  }, {});
+                  const tabs: Array<{ key: "ALL" | "FNO" | "WISP" | "WIRELESS"; label: string }> = [
+                    { key: "ALL", label: "All" },
+                    { key: "FNO", label: "FNO" },
+                    { key: "WISP", label: "WISP" },
+                    { key: "WIRELESS", label: "Wireless" },
+                  ];
+                  return (
+                    <div className="d-flex flex-wrap gap-2 mb-3">
+                      {tabs.map((t) => (
+                        <button
+                          key={t.key}
+                          type="button"
+                          className={`btn btn-sm ${regionCategoryFilter === t.key ? "btn-dark" : "btn-outline-secondary"}`}
+                          onClick={() => setRegionCategoryFilter(t.key)}
+                        >
+                          {t.label}
+                          <span className="ms-1 opacity-75">
+                            ({t.key === "ALL" ? selectedMap.regions.length : categoryCounts[t.key] ?? 0})
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
+
+                {(() => {
+                  const visibleRegions = regionCategoryFilter === "ALL"
+                    ? selectedMap.regions
+                    : selectedMap.regions.filter((r) => (networks.find((n) => n.id === r.networkId)?.category ?? "UNASSIGNED") === regionCategoryFilter);
+                  return visibleRegions.length === 0 ? (
                   <div
                     style={{
                       textAlign: "center", padding: "40px 20px", border: "2px dashed #e5e7eb",
@@ -586,11 +627,13 @@ function CoverageMapsInner() {
                     }}
                   >
                     <i className="bi bi-pentagon" style={{ fontSize: 32, display: "block", marginBottom: 10 }} />
-                    No regions yet — click <strong>Add Region</strong> to get started
+                    {selectedMap.regions.length === 0
+                      ? <>No regions yet — click <strong>Add Region</strong> to get started</>
+                      : "No regions in this category"}
                   </div>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {selectedMap.regions.map((region) => (
+                    {visibleRegions.map((region) => (
                       <div
                         key={region.id}
                         className="d-flex align-items-center gap-3"
@@ -669,7 +712,8 @@ function CoverageMapsInner() {
                       </div>
                     ))}
                   </div>
-                )}
+                );
+                })()}
               </div>
             )}
 
