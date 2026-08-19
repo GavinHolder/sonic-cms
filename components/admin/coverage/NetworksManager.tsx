@@ -231,6 +231,11 @@ export default function NetworksManager() {
       popular: pkg.popular ?? false,
       isActive: pkg.isActive ?? true,
       order: pkg.order ?? 0,
+      // Moving an existing package to a different network. Ignored by the POST (add)
+      // route — the target network there is already fixed by the URL — but the PUT
+      // (edit) route applies it, letting the admin re-parent a package (e.g. a Voice
+      // package created under a WISP network by mistake) without deleting/recreating it.
+      networkId,
     };
     if (!payload.name || !payload.price) { toast.error("Name and price required"); return; }
     const url = isNew
@@ -467,25 +472,32 @@ export default function NetworksManager() {
       {/* Package modal */}
       {pkgModal && (
         <div className="modal d-block" style={{ background: "rgba(0,0,0,0.5)" }} onClick={() => setPkgModal(null)}>
-          <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-dialog modal-dialog-centered modal-lg" onClick={(e) => e.stopPropagation()}>
             <div className="modal-content">
               <div className="modal-header"><h5 className="modal-title">{pkgModal.pkg.id ? "Edit" : "Add"} Package</h5>
                 <button className="btn-close" onClick={() => setPkgModal(null)} /></div>
               <div className="modal-body d-flex flex-column gap-3">
-                <div><label className="form-label">Name</label>
-                  <input className="form-control" value={pkgModal.pkg.name || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, name: e.target.value } })} placeholder="e.g. Home 50/50" /></div>
                 <div className="row">
-                  <div className="col"><label className="form-label">Kind</label>
+                  <div className="col-8"><label className="form-label">Name</label>
+                    <input className="form-control" value={pkgModal.pkg.name || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, name: e.target.value } })} placeholder="e.g. Home 50/50" /></div>
+                  <div className="col-4"><label className="form-label">Network</label>
+                    <select className="form-select" value={pkgModal.networkId} onChange={(e) => setPkgModal({ ...pkgModal, networkId: e.target.value })}>
+                      {networks.map((n) => <option key={n.id} value={n.id}>{n.name}</option>)}
+                    </select>
+                    {pkgModal.pkg.id && <div className="form-text">Changing this moves the package to the selected network.</div>}</div>
+                </div>
+                <div className="row">
+                  <div className="col-3"><label className="form-label">Kind</label>
                     <select className="form-select" value={pkgModal.pkg.kind ?? "DATA"} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, kind: e.target.value as "DATA" | "VAS", term: null, period: termToPeriod(null) } })}>
                       <option value="DATA">Data package (primary)</option>
                       <option value="VAS">Value-added service (add-on)</option>
                     </select></div>
-                  <div className="col"><label className="form-label">Category</label>
+                  <div className="col-3"><label className="form-label">Category</label>
                     <select className="form-select" value={pkgModal.pkg.categoryId ?? ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, categoryId: e.target.value || null } })}>
                       <option value="">— None —</option>
                       {categories.filter((c) => c.isActive).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select></div>
-                  <div className="col"><label className="form-label">Term <span className="text-muted">(also sets the billing period shown next to price)</span></label>
+                  <div className="col-6"><label className="form-label">Term <span className="text-muted">(also sets the billing period shown next to price)</span></label>
                     <select className="form-select" value={pkgModal.pkg.term ?? ""} onChange={(e) => { const term = e.target.value || null; setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, term, period: termToPeriod(term) } }); }}>
                       <option value="">— None —</option>
                       {TERMS[pkgModal.pkg.kind ?? "DATA"].map((t) => <option key={t} value={t}>{t}</option>)}

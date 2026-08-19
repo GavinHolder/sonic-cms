@@ -27,6 +27,10 @@ export async function PUT(
       ...(body.popular !== undefined && { popular: body.popular }),
       ...(body.isActive !== undefined && { isActive: body.isActive }),
       ...(body.order !== undefined && { order: body.order }),
+      // Moving a package to a different network (e.g. a Voice package created under a
+      // WISP network by mistake) — networkId is required on Package, so only apply
+      // when a non-empty string is explicitly sent.
+      ...(typeof body.networkId === "string" && body.networkId && { networkId: body.networkId }),
     },
   });
   return NextResponse.json(pkg);
