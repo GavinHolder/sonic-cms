@@ -6,7 +6,12 @@
  * output IS an iframe (TemplateBlock's), nested inside the Designer's own preview
  * iframe — nested iframes render fine, this isn't a special case.
  *
- * URL: /template-preview/[id]?productId=...&networkSlug=...&networkName=...&productTypeSlugs=a,b,c
+ * URL: /template-preview/[id]?productId=...&networkSlug=...&networkName=...&productTypeSlugs=a,b,c&tplOptions=<base64 JSON>
+ *
+ * `tplOptions` carries the Designer's "Template Options" map (block.props.templateOptions)
+ * so the canvas preview reflects {{tpl.*}}/--tpl-* edits immediately — see
+ * buildTemplatePreviewUrl() in public/flexible-designer.html for how it's built, and
+ * TemplateBlock.tsx for how it's substituted (same component, same logic, both render sites).
  */
 import { prisma } from "@/lib/prisma";
 import TemplatePreviewClient from "./TemplatePreviewClient";
@@ -33,6 +38,20 @@ export default async function TemplatePreviewPage({ params, searchParams }: Page
     ? sp.productTypeSlugs.split(",").map((s) => s.trim()).filter(Boolean)
     : undefined;
 
+  // Best-effort decode — a malformed/stale querystring value falls back to "no options"
+  // rather than breaking the preview (the template's own inline defaults still apply).
+  let templateOptions: Record<string, string> | undefined;
+  if (sp.tplOptions) {
+    try {
+      const decoded: unknown = JSON.parse(Buffer.from(sp.tplOptions, "base64").toString("utf-8"));
+      if (decoded && typeof decoded === "object" && !Array.isArray(decoded)) {
+        templateOptions = decoded as Record<string, string>;
+      }
+    } catch {
+      templateOptions = undefined;
+    }
+  }
+
   return (
     <TemplatePreviewClient
       html={html}
@@ -41,6 +60,7 @@ export default async function TemplatePreviewPage({ params, searchParams }: Page
       networkSlug={sp.networkSlug || undefined}
       networkName={sp.networkName || undefined}
       productTypeSlugs={productTypeSlugs}
+      templateOptions={templateOptions}
     />
   );
 }

@@ -11,9 +11,10 @@ interface Props {
   networkSlug?: string;
   networkName?: string;
   productTypeSlugs?: string[];
+  templateOptions?: Record<string, string>;
 }
 
-export default function TemplatePreviewClient({ html, css, productId, networkSlug, networkName, productTypeSlugs }: Props) {
+export default function TemplatePreviewClient({ html, css, productId, networkSlug, networkName, productTypeSlugs, templateOptions }: Props) {
   return (
     <div style={{ width: "100%", height: "100vh", background: "transparent", overflow: "hidden" }}>
       <TemplateBlock
@@ -23,6 +24,7 @@ export default function TemplatePreviewClient({ html, css, productId, networkSlu
         networkSlug={networkSlug}
         networkName={networkName}
         productTypeSlugs={productTypeSlugs}
+        templateOptions={templateOptions}
       />
     </div>
   );

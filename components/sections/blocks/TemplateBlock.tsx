@@ -26,6 +26,18 @@ interface Props {
   networkSlug?: string;
   networkName?: string;
   productTypeSlugs?: string[];
+  /** Admin-authored "Template Options" (Designer → block properties → Template Options).
+   * Two conventions, both opt-in on the template author's side:
+   *  - `{{tpl.<key>}}` / `{{tpl.<key>|Default text}}` tokens anywhere in the template's
+   *    HTML or inside JS string literals in its own <script> — textual substitution over
+   *    the raw source, same mechanism as {{pkg.*}}, so it also reaches JS that hasn't run
+   *    yet (see applyTplTokens).
+   *  - `--tpl-<key>` CSS custom properties declared by the template (typically on :root)
+   *    — any key present here is emitted as a `:root{--tpl-key:value}` override <style>
+   *    block placed AFTER the template's own <style>, so it wins on equal specificity.
+   *    Keys are NOT present here unless the admin explicitly set a value; omitted keys
+   *    leave the template's own declared default in effect. */
+  templateOptions?: Record<string, string>;
 }
 
 interface ScopedPackage {
@@ -53,6 +65,48 @@ function applyPkgTokens(input: string, slots: Record<string, string>): string {
 }
 
 /**
+ * Substitutes `{{tpl.<key>}}` / `{{tpl.<key>|Default text}}` tokens with the matching
+ * entry from the admin-authored `templateOptions` map (Designer "Template Options"
+ * panel), falling back to the token's own inline default, then to an empty string.
+ * Runs on the raw HTML/CSS *source* text — same as applyPkgTokens — so a token sitting
+ * inside a <script> tag's JS string literal is substituted before that script ever
+ * executes in the sandboxed iframe, not after.
+ *
+ * ASSUMPTIONS:
+ * 1. Keys are template-author-chosen identifiers matching [a-zA-Z0-9_]+ (no dots/braces).
+ * 2. An inline default (after `|`) may not itself contain `}}`.
+ * 3. options[key] === "" (admin cleared the field) is treated as "unset" so the
+ *    template's own inline default (or "") applies — mirrors the CSS-var override
+ *    behavior below, where an absent/empty key means "use the template's own default".
+ */
+function applyTplTokens(input: string, options: Record<string, string>): string {
+  if (!input) return input;
+  return input.replace(/\{\{tpl\.([a-zA-Z0-9_]+)(?:\|([^}]*))?\}\}/g, (_, key: string, fallback?: string) => {
+    const val = options[key];
+    if (val !== undefined && val !== "") return val;
+    return fallback ?? "";
+  });
+}
+
+/**
+ * Builds a `:root{--tpl-key:value;...}` override <style> block from any `--tpl-*` keys
+ * present in `templateOptions`. Only explicitly-set keys are emitted — a key the admin
+ * never touched (or cleared) is simply omitted, leaving the template's own `--tpl-key:
+ * default` declaration (in its own <style>) in effect. This override block must be
+ * placed AFTER the template's own <style> in the srcDoc so it wins on equal :root
+ * specificity (last-declared rule wins for identical selectors/specificity).
+ */
+function buildTplVarsStyle(options: Record<string, string>): string {
+  const entries = Object.entries(options).filter(([k, v]) => k.startsWith("--tpl-") && v !== undefined && v !== "");
+  if (entries.length === 0) return "";
+  const decls = entries
+    // Strip any accidental "</style" breakout attempt; admin-only content, but cheap to guard.
+    .map(([k, v]) => `${k}:${String(v).replace(/<\/style/gi, "")}`)
+    .join(";");
+  return `<style>:root{${decls}}</style>`;
+}
+
+/**
  * TemplateBlock — sandboxed-iframe renderer for the FLEXIBLE section "template" block
  * type, with two optional live-data bindings. Split out of FlexibleSectionRenderer's
  * inline switch because both bindings need a client fetch (useEffect), and that
@@ -68,7 +122,7 @@ function applyPkgTokens(input: string, slots: Record<string, string>): string {
  *   product subsystem (see components/sections/blocks/CardTabsBlock.tsx for the
  *   Designer-native equivalent of this same idea).
  */
-export default function TemplateBlock({ html, css, productId, networkSlug, networkName, productTypeSlugs }: Props) {
+export default function TemplateBlock({ html, css, productId, networkSlug, networkName, productTypeSlugs, templateOptions }: Props) {
   const [pkgSlots, setPkgSlots] = useState<Record<string, string>>({});
   const [scopedPackages, setScopedPackages] = useState<ScopedPackage[]>([]);
   const slugsKey = (productTypeSlugs || []).join(",");
@@ -110,8 +164,10 @@ export default function TemplateBlock({ html, css, productId, networkSlug, netwo
     return () => { active = false; };
   }, [slugsKey, networkSlug]);
 
-  const finalHtml = applyPkgTokens(html, pkgSlots);
-  const finalCss = applyPkgTokens(css, pkgSlots);
+  const tplOptions = templateOptions || {};
+  const finalHtml = applyTplTokens(applyPkgTokens(html, pkgSlots), tplOptions);
+  const finalCss = applyTplTokens(applyPkgTokens(css, pkgSlots), tplOptions);
+  const tplVarsStyle = buildTplVarsStyle(tplOptions);
 
   // Read by the template's own script, not substituted into the markup. \u003c escaping
   // prevents a network/type name or package field containing "</script>" from breaking
@@ -131,7 +187,7 @@ export default function TemplateBlock({ html, css, productId, networkSlug, netwo
   // visuals/interactivity but can never read the CMS admin's cookies/localStorage/DOM.
   const srcDoc = `<!doctype html><html><head><meta charset="utf-8">${
     finalCss ? `<style>${finalCss}</style>` : ""
-  }${contextScript}</head><body style="margin:0">${finalHtml}</body></html>`;
+  }${tplVarsStyle}${contextScript}</head><body style="margin:0">${finalHtml}</body></html>`;
 
   // Keyed on the live-data readiness, not just a static block id: mutating an
   // already-loaded iframe's srcdoc attribute in place does not reliably re-navigate
@@ -139,7 +195,7 @@ export default function TemplateBlock({ html, css, productId, networkSlug, netwo
   // document doesn't). Changing `key` forces React to mount a fresh iframe once the
   // product/network fetch resolves, guaranteeing a clean load of the final content
   // instead of racing an in-place update against an already-parsed document.
-  const iframeKey = `${productId ?? ""}:${Object.keys(pkgSlots).length}:${scopedPackages.length}`;
+  const iframeKey = `${productId ?? ""}:${Object.keys(pkgSlots).length}:${scopedPackages.length}:${JSON.stringify(tplOptions)}`;
 
   return (
     <iframe

@@ -2543,6 +2543,11 @@ function DesignerBlock({ block, darkBg }: {
         const templateNetworkSlug = p.networkSlug as string | undefined;
         const templateNetworkName = p.networkName as string | undefined;
         const templateProductTypeSlugs = p.productTypeSlugs as string[] | undefined;
+        // "Template Options" ({{tpl.*}} tokens + --tpl-* CSS vars, set via the Designer's
+        // Template Options panel). Substitution itself lives in TemplateBlock (shared with
+        // the Designer's own /template-preview canvas route) so the two render sites can
+        // never drift — this call site only needs to read the prop and pass it through.
+        const templateOptions = (p.templateOptions && typeof p.templateOptions === "object" ? p.templateOptions : {}) as Record<string, string>;
         // The {{pkg.*}} layer (optional live product binding) needs its own client fetch —
         // split into TemplateBlock so that hook isn't called conditionally inside this switch.
         return (
@@ -2554,6 +2559,7 @@ function DesignerBlock({ block, darkBg }: {
             networkSlug={templateNetworkSlug}
             networkName={templateNetworkName}
             productTypeSlugs={templateProductTypeSlugs}
+            templateOptions={templateOptions}
           />
         );
       }

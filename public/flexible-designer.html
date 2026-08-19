@@ -1999,7 +1999,7 @@ const BLOCK_DEFAULTS = {
   divider:     { label:'Divider', thickness:2, dividerColor:'#dee2e6', customCss:'' },
   volt:        { label:'Volt', bgColor:'transparent', voltId:'', voltName:'', voltThumbnail:null, voltLayerOverrides:{}, customCss:'' },
   'card-tabs': { label:'Card Tabs', productTypeSlugs:[], voltId:'', voltName:'', minCardWidth:260, customCss:'' },
-  template:    { label:'Template', templateId:'', templateName:'', templateThumbnail:null, customHtml:'<p>Section template</p>', customCss:'', mediaSlots:{}, productId:'', productName:'', networkSlug:'', networkName:'', productTypeSlugs:[] },
+  template:    { label:'Template', templateId:'', templateName:'', templateThumbnail:null, customHtml:'<p>Section template</p>', customCss:'', mediaSlots:{}, productId:'', productName:'', networkSlug:'', networkName:'', productTypeSlugs:[], templateOptions:{} },
   editorial:   { label:'Editorial', text:'Start typing your editorial content here. This text will flow around any obstacle images you place in the block. You can use multiple obstacles — each with its own position, size, and alpha hull tracing for precise text wrapping.', fontFamily:'Merriweather', fontSize:18, lineHeight:1.6, textColor:'#212529', bgColor:'transparent', obstacles:[], customCss:'' },
   steps:       { label:'Steps', steps:[{number:'01',heading:'Discovery',subtext:'We analyse your requirements and technical constraints.'},{number:'02',heading:'Design',subtext:'We prototype and validate the solution with stakeholders.'},{number:'03',heading:'Build',subtext:'We implement, test, and deploy the solution.'}], stepsNumberWidth:100, stepsDividers:true, stepsLastDivider:false, customCss:'' },
   'photo-strip':{ label:'Photo Strip', images:[{src:'',alt:''},{src:'',alt:''},{src:'',alt:''}], columns:3, height:220, gap:4, hoverBrightness:true, customCss:'' },
@@ -6426,6 +6426,7 @@ function renderTypeProps(block) {
           </div>
         </div>`;
       })();
+      h += renderTemplateOptionsPanel(block, p);
       break;
     }
     case 'editorial': {
@@ -7047,6 +7048,12 @@ function buildTemplatePreviewUrl(b) {
   if (b.props.networkName) sp.set('networkName', b.props.networkName);
   if (Array.isArray(b.props.productTypeSlugs) && b.props.productTypeSlugs.length) {
     sp.set('productTypeSlugs', b.props.productTypeSlugs.join(','));
+  }
+  // Template Options ({{tpl.*}} tokens + --tpl-* CSS vars) — base64 JSON, same pattern as
+  // buildVoltPreviewUrl's 'overrides' param above. Only sent when non-empty so an
+  // untouched template keeps a clean preview URL.
+  if (b.props.templateOptions && typeof b.props.templateOptions === 'object' && Object.keys(b.props.templateOptions).length) {
+    try { sp.set('tplOptions', btoa(JSON.stringify(b.props.templateOptions))); } catch(e) { /* ignore — non-Latin1 values, matches 'overrides' precedent */ }
   }
   return '/template-preview/' + b.props.templateId + (sp.toString() ? '?' + sp.toString() : '');
 }
@@ -8865,9 +8872,123 @@ function applyTemplateSelection(bId, templateId) {
   b.props.customHtml = data.customHtml || '';
   b.props.customCss = data.customCss || '';
   b.props.mediaSlots = data.mediaSlots || {};
+  // A different template's {{tpl.*}}/--tpl-* keys are almost never the same set as the
+  // one being replaced — carrying stale values forward would silently apply the old
+  // template's admin-entered text/colors to keys the new template never declared.
+  b.props.templateOptions = {};
   renderCanvas();
   renderPropsPanel();
   autoSave();
+}
+
+// ─── Template Options (generic {{tpl.*}} token + --tpl-* CSS var authoring convention) ──
+// Any uploaded Section Block template can opt into Designer-editable text/spacing/color
+// WITHOUT hand-editing its own HTML/CSS/JS per instance, by using two conventions the
+// template author writes once:
+//   1. `{{tpl.<key>}}` or `{{tpl.<key>|Default text}}` anywhere in the template's HTML,
+//      or inside a JS string literal in its own inline script tag — substituted
+//      server/client-side as raw text before the script ever runs (see applyTplTokens
+//      in TemplateBlock.tsx).
+//   2. `--tpl-<key>: <default>;` as a CSS custom property (normally on :root) in the
+//      template's CSS — detected here and exposed as a number/color/text field; the
+//      admin's value is emitted as a ":root{--tpl-key:value}" override style block
+//      placed after the template's own style block.
+// Values are stored in block.props.templateOptions (flat Record<string,string>) —
+// {{tpl.*}} keys are plain identifiers, --tpl-* keys keep their leading "--tpl-" so the
+// two namespaces can never collide in that one flat map.
+
+/**
+ * Scans a template's raw HTML + CSS source for the two authoring conventions above and
+ * returns one field descriptor per unique key found (first occurrence wins for a repeated
+ * key/default pair — a template author using the same key twice should use the same
+ * default both times).
+ * @returns {Array<{key:string, label:string, kind:'text'|'number'|'color', default:string, unit:string}>}
+ */
+function scanTemplateOptionFields(html, css) {
+  const fields = [];
+  const seen = {};
+  const tokenRe = /\{\{tpl\.([a-zA-Z0-9_]+)(?:\|([^}]*))?\}\}/g;
+  [html || '', css || ''].forEach(function(src) {
+    tokenRe.lastIndex = 0;
+    let m;
+    while ((m = tokenRe.exec(src))) {
+      const key = m[1];
+      if (seen[key]) continue;
+      seen[key] = true;
+      fields.push({ key: key, label: key, kind: 'text', default: m[2] || '', unit: '' });
+    }
+  });
+  const cssVarRe = /--tpl-([a-zA-Z0-9-]+)\s*:\s*([^;]+);/g;
+  let m2;
+  while ((m2 = cssVarRe.exec(css || ''))) {
+    const cssKey = '--tpl-' + m2[1];
+    if (seen[cssKey]) continue;
+    seen[cssKey] = true;
+    const val = m2[2].trim();
+    let kind = 'text', unit = '';
+    if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(val)) {
+      kind = 'color';
+    } else {
+      const numMatch = val.match(/^(-?[\d.]+)(px|em|rem|%|vw|vh|deg|s|ms)?$/);
+      if (numMatch) { kind = 'number'; unit = numMatch[2] || ''; }
+    }
+    fields.push({ key: cssKey, label: m2[1], kind: kind, default: val, unit: unit });
+  }
+  return fields;
+}
+
+/** Renders the "Template Options" property-panel section for a selected `template` block.
+ * Returns '' (no section rendered) when the template declares no {{tpl.*}}/--tpl-* keys. */
+function renderTemplateOptionsPanel(block, p) {
+  const fields = scanTemplateOptionFields(p.customHtml, p.customCss);
+  if (!fields.length) return '';
+  const opts = (p.templateOptions && typeof p.templateOptions === 'object') ? p.templateOptions : {};
+  let out = `<div class="props-row" style="flex-direction:column;align-items:stretch;margin-top:10px;padding-top:10px;border-top:1px solid #e9ecef;">
+    <label style="margin-bottom:3px;font-size:12px;font-weight:600;">Template Options</label>
+    <div style="font-size:10px;color:#9ca3af;margin-bottom:6px;line-height:1.5;">
+      Detected from this template's <code>{{tpl.*}}</code> tokens and <code>--tpl-*</code> CSS variables.
+      Leave a field blank/at default to keep the template's own value.
+    </div>`;
+  fields.forEach(function(f) {
+    const cur = opts[f.key] !== undefined ? opts[f.key] : '';
+    if (f.kind === 'color') {
+      const swatch = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(cur) ? cur : (f.default || '#000000');
+      out += `<div class="props-row" style="margin-bottom:6px;">
+        <label style="flex:1;font-size:11px;">${escHtml(f.label)}</label>
+        <input type="color" class="props-input" style="width:44px;height:26px;padding:1px;flex:none;" value="${escHtml(swatch)}" onchange="updateTemplateOption('${block.id}','${escHtml(f.key)}',this.value)">
+      </div>`;
+    } else if (f.kind === 'number') {
+      const numVal = cur ? parseFloat(cur) : '';
+      out += `<div class="props-row" style="margin-bottom:6px;">
+        <label style="flex:1;font-size:11px;">${escHtml(f.label)}${f.unit ? ' (' + escHtml(f.unit) + ')' : ''}</label>
+        <input type="number" class="props-num" placeholder="${escHtml(f.default)}" value="${numVal === '' ? '' : escHtml(String(numVal))}"
+          onchange="updateTemplateOption('${block.id}','${escHtml(f.key)}', this.value === '' ? '' : (this.value + '${escHtml(f.unit)}'))">
+      </div>`;
+    } else {
+      out += `<div class="props-row" style="flex-direction:column;align-items:stretch;margin-bottom:6px;">
+        <label style="margin-bottom:2px;font-size:11px;">${escHtml(f.label)}</label>
+        <input type="text" class="props-input" placeholder="${escHtml(f.default || 'Default: (none)')}" value="${escHtml(cur)}" onchange="updateTemplateOption('${block.id}','${escHtml(f.key)}',this.value)">
+      </div>`;
+    }
+  });
+  out += `</div>`;
+  return out;
+}
+
+/** Sets or clears one key in block.props.templateOptions, then re-renders canvas + saves.
+ * Clearing (empty string) deletes the key so the template's own default takes back over,
+ * rather than persisting an explicit empty override. */
+function updateTemplateOption(bId, key, value) {
+  const b = state.blocks.find(function(x){ return x.id === bId; });
+  if (!b) return;
+  const opts = Object.assign({}, (b.props.templateOptions && typeof b.props.templateOptions === 'object') ? b.props.templateOptions : {});
+  if (value === '' || value === null || value === undefined) {
+    delete opts[key];
+  } else {
+    opts[key] = String(value);
+  }
+  updateBlockProp(bId, 'templateOptions', opts);
+  renderCanvas();
 }
 
 function renderTemplateLib(templates) {
