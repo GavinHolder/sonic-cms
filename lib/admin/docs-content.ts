@@ -1104,6 +1104,8 @@ Available on **Heading** and **Paragraph** sub-elements. Toggle **Text Shadow** 
 - **legacy sections open automatically** — Sections authored before the Designer (stored as legacy elements + a mosaic layout) now load straight into the canvas instead of showing blank. Edit them and **Save & Close** to convert the section to standard Designer data — the public page renders identically before and after.
 - **marquee** — An animated horizontal strip (the moving "stat strip" / town ticker). Drag the **Marquee** block in; in Properties choose **Style** (Town = uppercase labels, Stat = value + label), **Direction** (left ← / right →), **Speed** (seconds per loop — lower is faster), **Separator** (✦ / • / | / none), **Pause on hover**, and the **Items** (one per line; for Stat style use \`value | label\`). Honours \`prefers-reduced-motion\`.
 - **outlined text** — In any heading you can make part of the text **hollow/outlined** (transparent fill + stroke in the current colour) by wrapping it in double underscores: \`Reliably serviced. __No excuses.__\`. This sits alongside the red-accent marker \`**word**\`. Both work in section headings and card headings.
+- **card-tabs (auto-populating)** — A live pricing grid with up to 3 tab levels: **Product Type** (top — e.g. Fibre / Wireless / Voice), **Network** (auto sub-tabs — e.g. AirFibre / Kuluntu Connect, only shown when a Product Type has more than one), and **contract Term** (auto term-tabs nested inside the active network — Prepaid / 24-Month / 12-Month, only shown when a network has more than one). Configure by picking Product Type(s) and one Volt card design — every active package under those types appears automatically and stays current as packages are added/edited/removed in Networks & Packages; there is nothing to manually add per card. Each card shows a **Check Coverage** button that deep-links into the coverage-map flow with that exact package pre-selected. Sections saved before this rework (with manually-added cards) keep rendering as before — the auto behaviour only applies once a block is configured with Product Type(s).
+- **template (Section Block, now with JS + product binding)** — The **Template** block renders an admin-uploaded HTML/CSS/JS template (Templates admin → Import Template → "Section Block" scope) inside a sandboxed frame, so the template's own \`<script>\` actually runs (previously only HTML/CSS worked). Two binding modes, both optional and set on the block in the Designer: **Linked Product** fills \`{{pkg.name}}\`, \`{{pkg.price}}\`, \`{{pkg.period}}\`, \`{{pkg.speed}}\`, \`{{pkg.speedDown}}\`, \`{{pkg.speedUp}}\`, \`{{pkg.options}}\`, \`{{pkg.network}}\`, \`{{pkg.id}}\` tokens directly into the template's HTML/CSS for a single-product card; **Linked Network** / **Linked Product Type** hand the template's own script the full matching package list as \`window.CMS_TEMPLATE.packages\` for a template that builds its own multi-card grid and tab UI. The template's script cannot call \`fetch()\` itself (the sandbox blocks it by design) — the CMS fetches for you and provides the data.
 
 ---
 
@@ -4614,6 +4616,10 @@ Each map has multiple regions — each region is a coloured polygon on the map.
 | **Active** | Show/hide this region |
 | **Polygon** | The drawn polygon coordinates — click **Draw / Edit Polygon** |
 
+### Filtering a long region list
+
+Once a map has several regions, a row of category tabs (**All** plus one per network category actually in use — e.g. FNO / WISP) appears above the list to filter it. Only categories with at least one region get a tab, so this adapts automatically to whatever's actually configured — a category no network here uses just doesn't show up, rather than sitting at a permanent empty count. Region-name tooltips (shown when hovering a polygon **in this admin editor**) are an editing aid only — they never appear on the public \`/coverage\` map, since some polygons visually overlap other coverage types and the internal region name would be confusing to a visitor there.
+
 ### Drawing a Polygon
 
 1. Click **Draw / Edit Polygon** on any region
@@ -4648,6 +4654,16 @@ On the \`/coverage\` page, a sidebar lists all active regions. Clicking a region
 2. Pans and zooms the map to fit the polygon
 
 The visitor's detected location (via geolocation) also auto-highlights the matching region.
+
+---
+
+## Coverage Leads & Notifications
+
+When a visitor checks their address and picks a package (or asks to be notified on a miss), the lead is stored as a **Form Submission** (visible in Form Inbox, tagged \`source: coverage_check\`) **and** the admin is emailed immediately using the site's configured email settings (Settings → Email) — coverage leads are time-sensitive, so this doesn't rely on someone checking Form Inbox. The email includes the visitor's details, the address checked, the network/package they picked (with price), and any add-ons — the same information stored on the submission. Sending is best-effort: a misconfigured SMTP setting never loses the lead itself, since it's already safely stored first.
+
+### "Check Coverage" from a package card
+
+Package cards rendered via the **Card Tabs** block (or a Section Block template bound to a product) can link straight into this flow with the visitor's intended package pre-selected — the card's "Check Coverage" button opens \`/coverage?package=<id>\`. Once the visitor's address resolves, the coverage page prefers whichever network actually carries that exact package at that address instead of defaulting to the first result; if the package isn't available there, the visitor still sees whatever real coverage exists rather than a dead end.
 `;
 
 const PROJECTS_GALLERY_DOCS = `
