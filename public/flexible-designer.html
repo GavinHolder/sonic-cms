@@ -3437,7 +3437,11 @@ function createBlockPreview(block) {
     }
     case 'card-tabs': {
       var ctTabs = p.tabs || [];
-      var ctTabsHtml = ctTabs.map(function(t){ return '<span style="padding:3px 9px;border-radius:999px;background:rgba(255,255,255,0.1);margin-right:4px;">' + escHtml(t.label||'Tab') + '</span>'; }).join('');
+      var ctTabsHtml = ctTabs.map(function(t){
+        var nets = t.groupByNetwork ? Array.from(new Set((t.cards||[]).map(function(c){ return c.networkLabel; }).filter(Boolean))) : [];
+        var suffix = nets.length > 1 ? ' <span style="opacity:.55;">(' + nets.length + ' sub-tabs)</span>' : '';
+        return '<span style="padding:3px 9px;border-radius:999px;background:rgba(255,255,255,0.1);margin-right:4px;">' + escHtml(t.label||'Tab') + suffix + '</span>';
+      }).join('');
       var ctCardCount = ctTabs.reduce(function(sum,t){ return sum + (t.cards||[]).length; }, 0);
       wrap.innerHTML = '<div style="padding:10px 4px;">' +
         '<div style="font-size:11px;color:#4f46e5;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;"><i class="bi bi-ui-radios"></i> Card Tabs</div>' +
@@ -6459,6 +6463,18 @@ function renderTypeProps(block) {
             <button class="action-btn" title="Move down" ${tIdx===ctTabs.length-1?'disabled':''} style="width:auto;padding:2px 6px;" onclick="moveCardTab('${block.id}',${tIdx},1)"><i class="bi bi-arrow-down"></i></button>
             <button class="action-btn" title="Delete tab" style="width:auto;padding:2px 6px;color:#dc3545;border-color:#dc3545;" onclick="removeCardTab('${block.id}',${tIdx})"><i class="bi bi-trash"></i></button>
           </div>`;
+        (function() {
+          const netLabels = Array.from(new Set((tab.cards||[]).map(function(c){ return c.networkLabel; }).filter(Boolean)));
+          h+=`<label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer;margin-bottom:6px;color:#495057;">
+            <input type="checkbox" ${tab.groupByNetwork?'checked':''} onchange="toggleCardTabGroupByNetwork('${block.id}',${tIdx},this.checked)">
+            Split into sub-tabs by network
+          </label>`;
+          if (tab.groupByNetwork) {
+            h+=`<div style="font-size:10px;color:#9ca3af;padding:0 0 8px;line-height:1.5;">${netLabels.length > 1
+              ? 'Sub-tabs: ' + netLabels.map(escHtml).join(', ')
+              : 'Bind cards to products from &gt;1 network below to activate sub-tabs — right now they will all render in one flat tab.'}</div>`;
+          }
+        })();
         (tab.cards||[]).forEach(function(card, cIdx) {
           let voltOpts = `<option value="">— Select card design —</option>`;
           ctVolts.forEach(function(v){ voltOpts += `<option value="${escHtml(v.id)}"${v.id===card.voltId?' selected':''}>${escHtml(v.name)}</option>`; });
@@ -6824,8 +6840,23 @@ function updateCardTabCardProduct(bId, tIdx, cIdx, productId) {
   if (!b || !b.props.tabs || !b.props.tabs[tIdx]) return;
   const card = b.props.tabs[tIdx].cards[cIdx];
   if (!card) return;
-  if (productId) card.productId = productId; else delete card.productId;
+  if (productId) {
+    card.productId = productId;
+    // Captured now (rather than looked up at render time) so the live site's
+    // groupByNetwork sub-tabs need no extra fetch — see CardTabsCard.networkLabel.
+    const pr = (window.__allPackages || []).find(function(x){ return x.id === productId; });
+    if (pr && pr.networkName) card.networkLabel = pr.networkName; else delete card.networkLabel;
+  } else {
+    delete card.productId;
+    delete card.networkLabel;
+  }
   autoSave(); renderCanvas();
+}
+function toggleCardTabGroupByNetwork(bId, tIdx, checked) {
+  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
+  if (!b || !b.props.tabs || !b.props.tabs[tIdx]) return;
+  if (checked) b.props.tabs[tIdx].groupByNetwork = true; else delete b.props.tabs[tIdx].groupByNetwork;
+  autoSave(); renderCanvas(); renderPropsPanel();
 }
 
 // Persist the per-block "render in front of the Lower Third" flag (top-level on the block,

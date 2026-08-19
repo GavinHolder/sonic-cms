@@ -11,17 +11,48 @@ export interface CardTabsCard {
   id: string;
   voltId?: string;
   productId?: string;
+  /** Network display name, captured alongside productId when a product is bound
+   * (see updateCardTabCardProduct in flexible-designer.html). Lets a tab group its
+   * cards into per-network sub-tabs without a live lookup at render time. */
+  networkLabel?: string;
 }
 
 export interface CardTabsTab {
   key: string;
   label: string;
   cards: CardTabsCard[];
+  /** When true and this tab's cards span more than one distinct networkLabel,
+   * render a second row of sub-tabs (one per network) instead of one flat grid
+   * — e.g. a "Fibre" tab split into AirFibre / Kuluntu Connect sub-tabs. */
+  groupByNetwork?: boolean;
 }
 
 interface Props {
   content?: { tabs?: CardTabsTab[]; minCardWidth?: number; cardAspectRatio?: string };
   darkBg?: boolean;
+}
+
+interface NetworkGroup {
+  label: string;
+  cards: CardTabsCard[];
+}
+
+// Groups cards while preserving first-seen order, so sub-tab order tracks the
+// order cards were added in the Designer rather than alphabetizing labels.
+function groupCardsByNetwork(cards: CardTabsCard[]): NetworkGroup[] {
+  const groups: NetworkGroup[] = [];
+  const byLabel = new Map<string, CardTabsCard[]>();
+  for (const c of cards) {
+    const label = c.networkLabel || "Other";
+    let bucket = byLabel.get(label);
+    if (!bucket) {
+      bucket = [];
+      byLabel.set(label, bucket);
+      groups.push({ label, cards: bucket });
+    }
+    bucket.push(c);
+  }
+  return groups;
 }
 
 /**
@@ -32,7 +63,8 @@ interface Props {
  *
  * All tab panels render simultaneously (display:none for inactive ones)
  * rather than conditionally mounting — so bound VoltBlocks fetch their
- * package once and switching tabs never re-triggers a fetch.
+ * package once and switching tabs never re-triggers a fetch. Sub-tab panels
+ * (per network, when a tab opts into groupByNetwork) follow the same rule.
  */
 export default function CardTabsBlock({ content }: Props) {
   const tabs = content?.tabs || [];
@@ -42,6 +74,9 @@ export default function CardTabsBlock({ content }: Props) {
   // min-height (160px) no matter how tall the underlying Volt design actually is.
   const cardAspectRatio = content?.cardAspectRatio || "0.65";
   const [active, setActive] = useState(0);
+  // Keyed by tab.key (not index) so switching top-level tabs and back preserves
+  // each tab's own sub-tab selection instead of resetting to 0.
+  const [activeSub, setActiveSub] = useState<Record<string, number>>({});
 
   if (tabs.length === 0) {
     return (
@@ -67,34 +102,55 @@ export default function CardTabsBlock({ content }: Props) {
           </button>
         ))}
       </div>
-      {tabs.map((t, i) => (
-        <div
-          key={t.key}
-          role="tabpanel"
-          aria-hidden={i !== active}
-          className="cms-card-tabs__panel"
-          style={{ display: i === active ? "flex" : "none" }}
-        >
-          {t.cards.map((c) => (
-            <div key={c.id} className="cms-card-tabs__cell">
-              {c.voltId
-                ? <VoltBlock voltId={c.voltId} productId={c.productId} fitMode="contain" />
-                : <div className="cms-card-tabs__empty">No card design selected</div>}
-              {/* Real availability is address-dependent — send the visitor to the
-                  coverage map with this package pre-selected rather than implying
-                  it's available everywhere. */}
-              {c.productId && (
-                <a
-                  href={`/coverage?package=${encodeURIComponent(c.productId)}`}
-                  className="cms-card-tabs__cta"
-                >
-                  Check coverage <i className="bi bi-geo-alt" />
-                </a>
-              )}
+      {tabs.map((t, i) => {
+        const groups = t.groupByNetwork ? groupCardsByNetwork(t.cards) : null;
+        // Only worth a second tab row when it actually splits into >1 group —
+        // a single network under groupByNetwork just falls back to the flat grid.
+        const showSubTabs = !!groups && groups.length > 1;
+        const subIdx = showSubTabs ? Math.min(activeSub[t.key] ?? 0, groups!.length - 1) : 0;
+        const cellsToRender = showSubTabs ? groups![subIdx].cards : t.cards;
+
+        return (
+          <div key={t.key} role="tabpanel" aria-hidden={i !== active} className="cms-card-tabs__panelwrap" style={{ display: i === active ? "block" : "none" }}>
+            {showSubTabs && (
+              <div className="cms-card-tabs__subbar" role="tablist">
+                {groups!.map((g, gi) => (
+                  <button
+                    key={g.label}
+                    type="button"
+                    role="tab"
+                    aria-selected={gi === subIdx}
+                    className={`cms-card-tabs__subtab${gi === subIdx ? " cms-card-tabs__subtab--active" : ""}`}
+                    onClick={() => setActiveSub((s) => ({ ...s, [t.key]: gi }))}
+                  >
+                    {g.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="cms-card-tabs__panel">
+              {cellsToRender.map((c) => (
+                <div key={c.id} className="cms-card-tabs__cell">
+                  {c.voltId
+                    ? <VoltBlock voltId={c.voltId} productId={c.productId} fitMode="contain" />
+                    : <div className="cms-card-tabs__empty">No card design selected</div>}
+                  {/* Real availability is address-dependent — send the visitor to the
+                      coverage map with this package pre-selected rather than implying
+                      it's available everywhere. */}
+                  {c.productId && (
+                    <a
+                      href={`/coverage?package=${encodeURIComponent(c.productId)}`}
+                      className="cms-card-tabs__cta"
+                    >
+                      Check coverage <i className="bi bi-geo-alt" />
+                    </a>
+                  )}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      ))}
+          </div>
+        );
+      })}
       <style jsx>{`
         .cms-card-tabs__bar {
           display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin-bottom: 32px;
@@ -109,7 +165,19 @@ export default function CardTabsBlock({ content }: Props) {
         }
         .cms-card-tabs__tab:hover { opacity: 1; }
         .cms-card-tabs__tab--active { opacity: 1; background: var(--cms-primary, #0d6efd); color: #fff; }
+        .cms-card-tabs__subbar {
+          display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 20px;
+        }
+        .cms-card-tabs__subtab {
+          border: 1px solid var(--cms-border, rgba(0,0,0,0.14)); background: transparent;
+          color: var(--section-text, rgba(0,0,0,0.75)); opacity: 0.75;
+          font-size: 11.5px; font-weight: 600; letter-spacing: 0.02em;
+          border-radius: 999px; padding: 6px 16px; cursor: pointer; transition: opacity .15s, background .15s, color .15s, border-color .15s;
+        }
+        .cms-card-tabs__subtab:hover { opacity: 1; }
+        .cms-card-tabs__subtab--active { opacity: 1; background: var(--section-text, rgba(0,0,0,0.85)); color: var(--section-bg, #fff); border-color: transparent; }
         .cms-card-tabs__panel {
+          display: flex;
           flex-wrap: wrap;
           justify-content: center;
           gap: 20px;
