@@ -7369,6 +7369,57 @@ The bottom of the Analyse modal has a **Re-import from ZIP** drop zone. Drop a n
 
 ---
 
+## Section Block Templates: Live JavaScript & Product Data
+
+Everything above is the general Template Library. This section is specific to **Block** templates (\`templateType: "block"\`) — the ones dragged into a FLEXIBLE section via the Designer's **Template** block. Three capabilities layer on top of the standard import/save flow, and none of them require Volt.
+
+### 1. The normal workflow — any template, not just product cards
+
+1. **Import Template** on the Templates page → upload your \`.html\`/\`.zip\` → set **Use as** = **Section Block** → fix any checklist items → **Save to Library**.
+2. Open a FLEXIBLE section in the Flexible Designer, drag the **Template** block onto the canvas.
+3. In its Properties panel, **Change template** → pick your saved template from the dropdown.
+
+That's the whole workflow for a plain template with no live data — any layout, any height, any content. \`{{cms.*}}\` site variables and \`{{cms.media.*}}\` image slots (from the standard import checklist) still apply.
+
+### 2. It runs real JavaScript now
+
+A Block template's \`<script>\` tags used to be inert — they were injected via \`dangerouslySetInnerHTML\`, and browsers never execute scripts added that way. The block now renders inside a **sandboxed iframe** (\`srcDoc\`, \`sandbox="allow-scripts"\`) instead, so any JS in your uploaded file actually runs — animations, interactivity, whatever the template needs.
+
+<div class="fig-note">The sandbox has <b>no</b> <code>allow-same-origin</code>, on purpose. The template's script gets a unique, opaque browsing context: it can build its own visuals and interactivity, but it can never read the CMS admin's cookies, localStorage, or DOM, and it <b>cannot call <code>fetch()</code></b> for site data itself (that request would carry <code>Origin: null</code>, which the CMS's API routes don't allow). If a template needs live product data, the CMS fetches it for you and hands it over — see below — rather than the template fetching it itself.</div>
+
+### 3. Binding to live products
+
+Two independent, optional bindings, both configured on the Template block in the Designer (Properties panel, below the template picker):
+
+| Binding | What it does | Use it for |
+|---|---|---|
+| **Linked Product** | Fills \`{{pkg.*}}\` tokens directly into your template's HTML/CSS before it loads | one card = one specific package |
+| **Linked Network** / **Linked Product Types** | Fetches the matching packages and hands them to your template's own script as \`window.CMS_TEMPLATE.packages\` | a template with **multiple cards and its own tab UI**, built entirely by your script |
+
+**Single-product tokens** — write these anywhere in the template's HTML/CSS: \`{{pkg.name}}\`, \`{{pkg.price}}\`, \`{{pkg.priceCombined}}\`, \`{{pkg.period}}\`, \`{{pkg.speed}}\`, \`{{pkg.speedDown}}\`, \`{{pkg.speedUp}}\`, \`{{pkg.options}}\`, \`{{pkg.network}}\`, \`{{pkg.id}}\`. Same token names as a data-bound Volt card slot, so anyone who's authored one already knows the field names.
+
+**Multi-card binding** — pick a Network and/or one or more Product Types. Your template's own \`<script>\` reads \`window.CMS_TEMPLATE\`:
+
+\`\`\`js
+window.CMS_TEMPLATE = {
+  productId: null,                 // set only when Linked Product is used
+  networkSlug: null,                // set when Linked Network is used
+  networkName: null,
+  productTypeSlugs: ["fibre", …],   // set when Linked Product Types is used, or null
+  packages: [ /* the fetched, matching packages — see fields below */ ],
+}
+\`\`\`
+
+Each item in \`packages\` has: \`id, name, speedDown, speedUp, price, period, term, features[], popular, networkName, networkSlug, networkCategory, categoryId, categoryName, productTypeSlug, productTypeName\`. Picking **more than one Product Type** is what lets a template build its own top-level category tabs (e.g. Fibre / Wireless / Voice) — group the array by \`productTypeSlug\` yourself, then by \`networkSlug\`, then by \`term\`, exactly mirroring the auto-populating **Card Tabs** block's own 3-level logic (Product Type → Network → Term, each level shown only when it actually has more than one distinct value). \`popular\` is the same flag set on a Package in Networks & Packages — use it to highlight a card, e.g. as "Most Popular".
+
+Don't call \`fetch()\` for packages inside the template — see the sandbox note above. The array is provided; read it, don't fetch it.
+
+### Ready-made product card designs
+
+Nine complete, self-contained pricing-card template files exist as starting points (built to Sonic's brand, each with the full Product Type → Network → Term tab logic already wired to \`window.CMS_TEMPLATE.packages\`): **Ribbon Heritage, Ribbon Brand, Ribbon Premium, Ribbon Premium+, Ribbon Premium+ (Expand on Hover), Refined Editorial, Refined Panel, Refined Hero, Modern**. Import whichever fits, set **Use as** = Section Block, bind it to your Product Type(s) in the Designer, and it renders live — no further wiring needed. Treat each as a starting point for visual tweaks, not a fixed final design.
+
+---
+
 ## Built-in Templates
 
 Some templates are marked **Built-in** — these ship with the CMS and cannot be deleted or renamed (\`isBuiltIn:true\`; the API rejects deletion with 403). They are seeded automatically on fresh installs via \`npm run db:seed\`.
