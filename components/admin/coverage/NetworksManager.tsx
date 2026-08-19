@@ -40,6 +40,16 @@ const TERMS: Record<"DATA" | "VAS", string[]> = {
   DATA: ["24-Month", "Prepaid"],
   VAS: ["Month-to-Month", "12-Month"],
 };
+
+// The billing-period suffix shown next to price (e.g. "R599/month") is derived
+// from Term instead of being a free-text field — Term already IS the contract
+// period, so a separate manually-typed value was redundant and error-prone
+// (e.g. someone typing "24" instead of "/month" ran the digits straight into
+// the price with no separator). All recurring terms bill monthly; Prepaid has
+// no recurring period.
+function termToPeriod(term: string | null | undefined): string {
+  return term === "Prepaid" || !term ? "" : "/month";
+}
 interface Network {
   id: string;
   name: string;
@@ -344,7 +354,7 @@ export default function NetworksManager() {
                 <div className="card-body border-top bg-light">
                   <div className="d-flex justify-content-between align-items-center mb-2">
                     <h6 className="mb-0">Packages</h6>
-                    <button className="btn btn-sm btn-primary" onClick={() => setPkgModal({ networkId: n.id, pkg: { period: "/month", features: [], isActive: true, kind: "DATA" } })}>
+                    <button className="btn btn-sm btn-primary" onClick={() => setPkgModal({ networkId: n.id, pkg: { period: termToPeriod(null), features: [], isActive: true, kind: "DATA" } })}>
                       <i className="bi bi-plus-lg me-1" />Add Package
                     </button>
                   </div>
@@ -359,11 +369,12 @@ export default function NetworksManager() {
                             <tr key={p.id}>
                               <td>{p.name} {p.popular && <span className="badge text-bg-warning ms-1">Popular</span>} {!p.isActive && <span className="badge text-bg-secondary ms-1">Hidden</span>}</td>
                               <td className="small text-muted">{[p.speedDown, p.speedUp].filter(Boolean).join(" / ") || "—"}</td>
-                              <td className="text-nowrap">{p.price}<span className="text-muted small">{p.period}</span></td>
+                              <td className="text-nowrap">{p.price}{p.period && <span className="text-muted small"> {p.period}</span>}</td>
                               <td className="small text-muted">{(p.features || []).length} feature(s)</td>
                               <td className="text-end text-nowrap">
-                                <button className="btn btn-sm btn-outline-primary me-1" onClick={() => setPkgModal({ networkId: n.id, pkg: p })}><i className="bi bi-pencil" /></button>
-                                <button className="btn btn-sm btn-outline-danger" onClick={() => deletePackage(n.id, p)}><i className="bi bi-trash" /></button>
+                                <button className="btn btn-sm btn-outline-primary me-1" onClick={() => setPkgModal({ networkId: n.id, pkg: p })} title="Edit"><i className="bi bi-pencil" /></button>
+                                <button className="btn btn-sm btn-outline-secondary me-1" onClick={() => { const { id: _id, ...rest } = p; setPkgModal({ networkId: n.id, pkg: { ...rest, name: `${p.name} (copy)`, popular: false } }); }} title="Duplicate"><i className="bi bi-copy" /></button>
+                                <button className="btn btn-sm btn-outline-danger" onClick={() => deletePackage(n.id, p)} title="Delete"><i className="bi bi-trash" /></button>
                               </td>
                             </tr>
                           ))}
@@ -459,7 +470,7 @@ export default function NetworksManager() {
                   <input className="form-control" value={pkgModal.pkg.name || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, name: e.target.value } })} placeholder="e.g. Home 50/50" /></div>
                 <div className="row">
                   <div className="col"><label className="form-label">Kind</label>
-                    <select className="form-select" value={pkgModal.pkg.kind ?? "DATA"} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, kind: e.target.value as "DATA" | "VAS", term: null } })}>
+                    <select className="form-select" value={pkgModal.pkg.kind ?? "DATA"} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, kind: e.target.value as "DATA" | "VAS", term: null, period: termToPeriod(null) } })}>
                       <option value="DATA">Data package (primary)</option>
                       <option value="VAS">Value-added service (add-on)</option>
                     </select></div>
@@ -468,8 +479,8 @@ export default function NetworksManager() {
                       <option value="">— None —</option>
                       {categories.filter((c) => c.isActive).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select></div>
-                  <div className="col"><label className="form-label">Term</label>
-                    <select className="form-select" value={pkgModal.pkg.term ?? ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, term: e.target.value || null } })}>
+                  <div className="col"><label className="form-label">Term <span className="text-muted">(also sets the billing period shown next to price)</span></label>
+                    <select className="form-select" value={pkgModal.pkg.term ?? ""} onChange={(e) => { const term = e.target.value || null; setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, term, period: termToPeriod(term) } }); }}>
                       <option value="">— None —</option>
                       {TERMS[pkgModal.pkg.kind ?? "DATA"].map((t) => <option key={t} value={t}>{t}</option>)}
                     </select></div>
@@ -481,17 +492,23 @@ export default function NetworksManager() {
                       {productTypes.filter((pt) => pt.isActive).map((pt) => <option key={pt.id} value={pt.id}>{pt.name}</option>)}
                     </select></div>
                 </div>
-                <div className="row">
-                  <div className="col"><label className="form-label">Down</label>
-                    <input className="form-control" value={pkgModal.pkg.speedDown || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, speedDown: e.target.value } })} placeholder="50 Mbps" /></div>
-                  <div className="col"><label className="form-label">Up</label>
-                    <input className="form-control" value={pkgModal.pkg.speedUp || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, speedUp: e.target.value } })} placeholder="50 Mbps" /></div>
-                </div>
+                {categories.find((c) => c.id === pkgModal.pkg.categoryId)?.name?.trim().toLowerCase() === "voice" ? (
+                  <div className="row">
+                    <div className="col"><label className="form-label">Airtime / Minutes Bundle</label>
+                      <input className="form-control" value={pkgModal.pkg.speedDown || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, speedDown: e.target.value, speedUp: "" } })} placeholder="e.g. 100 minutes, or Unlimited" /></div>
+                  </div>
+                ) : (
+                  <div className="row">
+                    <div className="col"><label className="form-label">Down</label>
+                      <input className="form-control" value={pkgModal.pkg.speedDown || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, speedDown: e.target.value } })} placeholder="50 Mbps" /></div>
+                    <div className="col"><label className="form-label">Up</label>
+                      <input className="form-control" value={pkgModal.pkg.speedUp || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, speedUp: e.target.value } })} placeholder="50 Mbps" /></div>
+                  </div>
+                )}
                 <div className="row">
                   <div className="col"><label className="form-label">Price</label>
-                    <input className="form-control" value={pkgModal.pkg.price || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, price: e.target.value } })} placeholder="R599" /></div>
-                  <div className="col"><label className="form-label">Period</label>
-                    <input className="form-control" value={pkgModal.pkg.period ?? "/month"} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, period: e.target.value } })} /></div>
+                    <input className="form-control" value={pkgModal.pkg.price || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, price: e.target.value } })} placeholder="R599" />
+                    <div className="form-text">Billing period shown next to price: <strong>{termToPeriod(pkgModal.pkg.term) || "none (once-off)"}</strong> — set by Term above.</div></div>
                 </div>
                 <div><label className="form-label">Features</label>
                   {(pkgModal.pkg.features || []).map((f, i) => (
@@ -508,9 +525,11 @@ export default function NetworksManager() {
                     onClick={() => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, features: [...(pkgModal.pkg.features || []), ""] } })}>
                     <i className="bi bi-plus-lg me-1" />Add feature
                   </button></div>
-                <div><label className="form-label">Max distance from tower <span className="text-muted">(metres — leave blank for no limit)</span></label>
-                  <input className="form-control" type="number" min={0} value={pkgModal.pkg.maxDistanceM ?? ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, maxDistanceM: e.target.value === "" ? null : parseInt(e.target.value, 10) } })} placeholder="e.g. 100 — only offered within 100m of a tower" />
-                  <div className="form-text">Only show this package when the address is within this distance of one of the network&apos;s towers. Draws a ring around each tower on the map.</div></div>
+                {networks.find((n) => n.id === pkgModal.networkId)?.category !== "FNO" && (
+                  <div><label className="form-label">Max distance from tower <span className="text-muted">(metres — leave blank for no limit)</span></label>
+                    <input className="form-control" type="number" min={0} value={pkgModal.pkg.maxDistanceM ?? ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, maxDistanceM: e.target.value === "" ? null : parseInt(e.target.value, 10) } })} placeholder="e.g. 100 — only offered within 100m of a tower" />
+                    <div className="form-text">Only show this package when the address is within this distance of one of the network&apos;s towers. Draws a ring around each tower on the map.</div></div>
+                )}
                 <div className="d-flex gap-4">
                   <div className="form-check form-switch"><input className="form-check-input" type="checkbox" id="pkg-popular" checked={pkgModal.pkg.popular ?? false} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, popular: e.target.checked } })} /><label className="form-check-label" htmlFor="pkg-popular">Popular</label></div>
                   <div className="form-check form-switch"><input className="form-check-input" type="checkbox" id="pkg-active" checked={pkgModal.pkg.isActive ?? true} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, isActive: e.target.checked } })} /><label className="form-check-label" htmlFor="pkg-active">Active</label></div>
