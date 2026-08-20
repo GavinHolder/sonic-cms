@@ -57,6 +57,13 @@ interface ScopedPackage {
   categoryName: string | null;
   productTypeSlug: string | null;
   productTypeName: string | null;
+  /** The product type's linked ServiceCategory, if any (see #111 in the sync doc) — null
+   * for every product type until an admin opts in via the Product Types admin. Already
+   * present on the raw /api/packages JSON response regardless of this type annotation;
+   * declared here so a template's own script (reading window.CMS_TEMPLATE.packages) has
+   * a documented, typed field to group its top-level tabs by. */
+  serviceCategorySlug: string | null;
+  serviceCategoryName: string | null;
 }
 
 function applyPkgTokens(input: string, slots: Record<string, string>): string {
