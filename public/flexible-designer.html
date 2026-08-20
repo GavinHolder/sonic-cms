@@ -8901,6 +8901,15 @@ function applyTemplateSelection(bId, templateId) {
  * default both times).
  * @returns {Array<{key:string, label:string, kind:'text'|'number'|'color', default:string, unit:string}>}
  */
+/** Turns a kebab-case --tpl-* suffix ("text-color", "tab-2-active-bg") into a readable
+ * field label ("Text Color", "Tab 2 Active Background") for the Template Options panel. */
+function humanizeTplLabel(suffix) {
+  return suffix.split('-').map(function(w) {
+    if (w === 'bg') return 'Background';
+    return w.charAt(0).toUpperCase() + w.slice(1);
+  }).join(' ');
+}
+
 function scanTemplateOptionFields(html, css) {
   const fields = [];
   const seen = {};
@@ -8934,7 +8943,7 @@ function scanTemplateOptionFields(html, css) {
       const numMatch = val.match(/^(-?[\d.]+)(px|em|rem|%|vw|vh|deg|s|ms)?$/);
       if (numMatch) { kind = 'number'; unit = numMatch[2] || ''; }
     }
-    fields.push({ key: cssKey, label: m2[1], kind: kind, default: val, unit: unit });
+    fields.push({ key: cssKey, label: humanizeTplLabel(m2[1]), kind: kind, default: val, unit: unit });
   }
   return fields;
 }
