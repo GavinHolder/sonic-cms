@@ -8915,9 +8915,14 @@ function scanTemplateOptionFields(html, css) {
       fields.push({ key: key, label: key, kind: 'text', default: m[2] || '', unit: '' });
     }
   });
+  // Scan html+css together, not css alone: a single-file .html import (the normal path —
+  // see /api/templates/import) always returns css:'' with everything, including any
+  // <style> block, folded into html. Scanning css only would silently find zero --tpl-*
+  // declarations for every such template.
   const cssVarRe = /--tpl-([a-zA-Z0-9-]+)\s*:\s*([^;]+);/g;
+  const cssScanSrc = (html || '') + '\n' + (css || '');
   let m2;
-  while ((m2 = cssVarRe.exec(css || ''))) {
+  while ((m2 = cssVarRe.exec(cssScanSrc))) {
     const cssKey = '--tpl-' + m2[1];
     if (seen[cssKey]) continue;
     seen[cssKey] = true;
