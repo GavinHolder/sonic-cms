@@ -35,6 +35,8 @@ export async function PUT(
       ...(body.color !== undefined && { color: body.color || "#22c55e" }),
       ...(body.order !== undefined && { order: body.order }),
       ...(body.isActive !== undefined && { isActive: body.isActive }),
+      // Empty string / null both mean "unassigned" — SetNull on the FK handles the rest.
+      ...(body.serviceCategoryId !== undefined && { serviceCategoryId: body.serviceCategoryId || null }),
     },
   });
   return NextResponse.json(productType);

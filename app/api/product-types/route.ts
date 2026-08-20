@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
       color: body.color || "#22c55e",
       order: body.order ?? 0,
       isActive: body.isActive ?? true,
+      serviceCategoryId: body.serviceCategoryId || null,
     },
   });
   return NextResponse.json(productType, { status: 201 });

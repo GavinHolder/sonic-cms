@@ -27,10 +27,26 @@ interface ScopedPackage {
   id: string;
   productTypeSlug: string | null;
   productTypeName: string | null;
+  // Derived from the package's product type -> ServiceCategory link (see /api/packages).
+  // Null when that product type hasn't been assigned to a category yet.
+  serviceCategorySlug: string | null;
+  serviceCategoryName: string | null;
   networkSlug: string | null;
   networkName: string | null;
   term: string | null;
 }
+
+// Level-1 grouping key/label: the ServiceCategory a package's product type has been
+// assigned to, falling back to the product type itself when unassigned. This is what
+// keeps rendering backward compatible — every product type is unassigned (null
+// serviceCategorySlug) until an admin opts in via the Product Types admin UI, so
+// topKey/topName resolve to exactly today's productTypeSlug/-Name for everyone until
+// then, and today's single-Product-Type-per-group behavior (no extra tab tier) is
+// unchanged. Only once an admin links >1 product type under the same category does a
+// group start containing multiple distinct product types, which is what triggers the
+// extra Product Type tab tier below (see `showProductTypeTabs`).
+const topKey = (p: ScopedPackage) => p.serviceCategorySlug ?? p.productTypeSlug;
+const topName = (p: ScopedPackage) => p.serviceCategoryName ?? p.productTypeName;
 
 export interface CardTabsContent {
   /** Auto-populating mode (current default): which Product Types drive Level-1
@@ -72,17 +88,27 @@ const EMPTY_MSG_STYLE: React.CSSProperties = {
 };
 
 /**
- * CardTabsBlock — auto-populating 3-level tab grid of live packages:
- *   Level 1 (tabs): Product Type, from the block's configured productTypeSlugs.
- *   Level 2 (sub-tabs): Network, within the active Product Type — auto-hidden
+ * CardTabsBlock — auto-populating tab grid of live packages:
+ *   Level 1 (tabs): top-level group, keyed by serviceCategorySlug ?? productTypeSlug
+ *     (see topKey above) — the ServiceCategory a package's product type has been
+ *     assigned to, falling back to the product type itself when unassigned.
+ *   Level 1b (sub-tabs, new): Product Type, within the active Level-1 group —
+ *     auto-hidden unless that group spans >1 distinct product type (only possible
+ *     once an admin links multiple product types under the same category).
+ *   Level 2 (sub-tabs): Network, within the active Level-1(+1b) group — auto-hidden
  *     when only one network is present.
  *   Level 3 (term-tabs): contract Term, within the active Network — auto-hidden
  *     when only one term is present.
  * Every active package matching the configured Product Types appears
  * automatically and stays current as packages are added/edited/removed — no
  * manual per-card authoring in the Designer. Mirrors ProductGridBlock's fetch/
- * drill-down pattern (Product Type -> Network -> Category) with Term as the
- * third layer instead of Service Category, and this block's own tab styling.
+ * drill-down pattern with Term as the innermost layer instead of Service Category,
+ * and this block's own tab styling.
+ *
+ * Backward compatibility: every product type is unassigned (serviceCategorySlug:
+ * null) until an admin explicitly links it to a ServiceCategory in the Product
+ * Types admin UI, so Level 1 resolves to exactly today's productTypeSlug-keyed tabs
+ * and Level 1b never renders, for every site until an admin opts in.
  *
  * Falls back to the legacy manually-authored `tabs[]` shape when
  * productTypeSlugs isn't set, so sections saved before this rework still render.
@@ -112,6 +138,7 @@ function AutoCardTabs({ content }: { content?: CardTabsContent }) {
   const [packages, setPackages] = useState<ScopedPackage[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeType, setActiveType] = useState<string | null>(null);
+  const [activeProductType, setActiveProductType] = useState<string | null>(null);
   const [activeNetwork, setActiveNetwork] = useState<string | null>(null);
   const [activeTerm, setActiveTerm] = useState<string | null>(null);
 
@@ -134,22 +161,39 @@ function AutoCardTabs({ content }: { content?: CardTabsContent }) {
     return () => { active = false; };
   }, [slugs]);
 
-  // ── Level 1: Product Types present among the fetched packages, in configured order ──
-  const types = useMemo(() => {
-    const found = levelsFrom(packages, (p) => p.productTypeSlug, (p) => p.productTypeName);
-    const byKey = new Map(found.map((t) => [t.key, t]));
-    return slugs.filter((s) => byKey.has(s)).map((s) => byKey.get(s)!);
-  }, [packages, slugs]);
+  // ── Level 1: top-level groups present among the fetched packages, in fetch
+  // (== configured productTypeSlugs) order. Backward-compatible: keyed by
+  // serviceCategorySlug ?? productTypeSlug (see topKey above), so with nothing
+  // linked yet this produces exactly the old productTypeSlug-keyed tab list. ──
+  const types = useMemo(() => levelsFrom(packages, topKey, topName), [packages]);
   const effectiveType = activeType && types.some((t) => t.key === activeType) ? activeType : (types[0]?.key ?? null);
-  const packagesForType = useMemo(() => packages.filter((p) => p.productTypeSlug === effectiveType), [packages, effectiveType]);
+  const packagesForType = useMemo(() => packages.filter((p) => topKey(p) === effectiveType), [packages, effectiveType]);
+
+  // ── Level 1b (new): Product Type tabs, ONLY when the active top-level group
+  // actually spans more than one distinct product type (i.e. an admin linked
+  // multiple product types under the same ServiceCategory). With nothing linked,
+  // every group has exactly one product type (itself), so this tier never
+  // renders and Network becomes Level 2 exactly as before. ──
+  const productTypesInGroup = useMemo(
+    () => levelsFrom(packagesForType, (p) => p.productTypeSlug, (p) => p.productTypeName),
+    [packagesForType]
+  );
+  const showProductTypeTabs = productTypesInGroup.length > 1;
+  const effectiveProductType = showProductTypeTabs && activeProductType && productTypesInGroup.some((t) => t.key === activeProductType)
+    ? activeProductType
+    : (showProductTypeTabs ? productTypesInGroup[0]?.key ?? null : null);
+  const packagesForProductType = useMemo(
+    () => (effectiveProductType ? packagesForType.filter((p) => p.productTypeSlug === effectiveProductType) : packagesForType),
+    [packagesForType, effectiveProductType]
+  );
 
   // ── Level 2: Networks within the active Product Type ──
-  const networks = useMemo(() => levelsFrom(packagesForType, (p) => p.networkSlug, (p) => p.networkName), [packagesForType]);
+  const networks = useMemo(() => levelsFrom(packagesForProductType, (p) => p.networkSlug, (p) => p.networkName), [packagesForProductType]);
   const showNetworkTabs = networks.length > 1;
   const effectiveNetwork = showNetworkTabs && activeNetwork && networks.some((n) => n.key === activeNetwork) ? activeNetwork : (showNetworkTabs ? networks[0]?.key ?? null : null);
   const packagesForNetwork = useMemo(
-    () => (effectiveNetwork ? packagesForType.filter((p) => p.networkSlug === effectiveNetwork) : packagesForType),
-    [packagesForType, effectiveNetwork]
+    () => (effectiveNetwork ? packagesForProductType.filter((p) => p.networkSlug === effectiveNetwork) : packagesForProductType),
+    [packagesForProductType, effectiveNetwork]
   );
 
   // ── Level 3: Terms within the active Network ──
@@ -176,12 +220,28 @@ function AutoCardTabs({ content }: { content?: CardTabsContent }) {
             role="tab"
             aria-selected={t.key === effectiveType}
             className={`cms-card-tabs__tab${t.key === effectiveType ? " cms-card-tabs__tab--active" : ""}`}
-            onClick={() => { setActiveType(t.key); setActiveNetwork(null); setActiveTerm(null); }}
+            onClick={() => { setActiveType(t.key); setActiveProductType(null); setActiveNetwork(null); setActiveTerm(null); }}
           >
             {t.label}
           </button>
         ))}
       </div>
+      {showProductTypeTabs && (
+        <div className="cms-card-tabs__pt-bar" role="tablist">
+          {productTypesInGroup.map((pt) => (
+            <button
+              key={pt.key}
+              type="button"
+              role="tab"
+              aria-selected={pt.key === effectiveProductType}
+              className={`cms-card-tabs__pt-tab${pt.key === effectiveProductType ? " cms-card-tabs__pt-tab--active" : ""}`}
+              onClick={() => { setActiveProductType(pt.key); setActiveNetwork(null); setActiveTerm(null); }}
+            >
+              {pt.label}
+            </button>
+          ))}
+        </div>
+      )}
       {showNetworkTabs && (
         <div className="cms-card-tabs__subbar" role="tablist">
           {networks.map((n) => (
@@ -341,6 +401,17 @@ function CardTabsStyles({ minCardWidth, cardAspectRatio }: { minCardWidth: numbe
       }
       .cms-card-tabs__tab:hover { opacity: 1; }
       .cms-card-tabs__tab--active { opacity: 1; background: var(--cms-primary, #0d6efd); color: #fff; }
+      .cms-card-tabs__pt-bar {
+        display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 14px;
+      }
+      .cms-card-tabs__pt-tab {
+        border: 1px solid var(--cms-border, rgba(0,0,0,0.14)); background: transparent;
+        color: var(--section-text, rgba(0,0,0,0.75)); opacity: 0.75;
+        font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
+        border-radius: 999px; padding: 7px 18px; cursor: pointer; transition: opacity .15s, background .15s, color .15s, border-color .15s;
+      }
+      .cms-card-tabs__pt-tab:hover { opacity: 1; }
+      .cms-card-tabs__pt-tab--active { opacity: 1; background: var(--cms-primary, #0d6efd); color: #fff; border-color: transparent; }
       .cms-card-tabs__subbar {
         display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 14px;
       }

@@ -589,7 +589,9 @@ model Package {
   @@map("packages")
 }
 
-// Admin-managed service category for packages (Data, Voice, IoT, CCTV…).
+// Admin-managed service category for packages (Data, Voice, IoT, CCTV…). Also
+// doubles as the "Layer 1" grouping for ProductType (see ProductType.serviceCategoryId
+// below) — same admin-managed chip list, two independent attachment points.
 model ServiceCategory {
   id        String    @id @default(cuid())
   name      String
@@ -598,6 +600,9 @@ model ServiceCategory {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   packages  Package[]
+  // Product types grouped under this category (e.g. "AirFibre"/"Kuluntu Connect"/
+  // "Standard Wi-Fi" under "Wireless"; "Sonic Fibre"/"Openserve Fibre" under "Fibre").
+  productTypes ProductType[]
 
   @@map("service_categories")
 }
@@ -616,7 +621,14 @@ model ProductType {
   packages  Package[]
   // Coverage towers that physically carry this service (many-to-many).
   towers    CoverageTower[]
+  // Optional link to the ServiceCategory this product type belongs to (e.g. "AirFibre"
+  // -> "Wireless"). Nullable/unassigned by default — existing rows stay unlinked until
+  // an admin opts in, which is what keeps public grouping backward compatible (see
+  // /api/packages and CardTabsBlock/ProductGridBlock's serviceCategorySlug fallback).
+  serviceCategoryId String?
+  serviceCategory   ServiceCategory? @relation(fields: [serviceCategoryId], references: [id], onDelete: SetNull)
 
+  @@index([serviceCategoryId])
   @@map("product_types")
 }
 

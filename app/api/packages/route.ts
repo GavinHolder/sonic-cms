@@ -40,8 +40,16 @@ export async function GET(req: NextRequest) {
     id: true, name: true, speedDown: true, speedUp: true, price: true, period: true,
     features: true, popular: true, order: true, term: true,
     network: { select: { name: true, slug: true, category: true, color: true } },
+    // The package's OWN service category (Data/Voice/IoT/CCTV…) — unrelated to the
+    // productType-derived serviceCategorySlug/-Name below, which is the top-level
+    // grouping category the package's product type has been assigned to.
     category: { select: { id: true, name: true } },
-    productType: { select: { slug: true, name: true } },
+    productType: {
+      select: {
+        slug: true, name: true,
+        serviceCategory: { select: { id: true, name: true } },
+      },
+    },
   } as const;
 
   let rows: Array<Record<string, unknown>> = [];
@@ -68,7 +76,9 @@ export async function GET(req: NextRequest) {
   const packages = rows.map((p) => {
     const net = (p.network ?? null) as { name?: string; slug?: string; category?: string; color?: string } | null;
     const cat = (p.category ?? null) as { id?: string; name?: string } | null;
-    const pt = (p.productType ?? null) as { slug?: string; name?: string } | null;
+    const pt = (p.productType ?? null) as
+      | { slug?: string; name?: string; serviceCategory?: { id?: string; name?: string } | null }
+      | null;
     return {
       id: p.id, name: p.name, speedDown: p.speedDown, speedUp: p.speedUp,
       price: p.price, period: p.period, features: p.features, popular: p.popular, term: p.term,
@@ -76,6 +86,14 @@ export async function GET(req: NextRequest) {
       networkCategory: net?.category ?? null, networkColor: net?.color ?? null,
       categoryId: cat?.id ?? null, categoryName: cat?.name ?? null,
       productTypeSlug: pt?.slug ?? null, productTypeName: pt?.name ?? null,
+      // Derived from productType.serviceCategory — null when the product type hasn't
+      // been assigned to a category yet. ServiceCategory has no dedicated `slug`
+      // column, so its stable `id` is reused as the "slug" here (still unique/stable,
+      // just not a human-readable string) to match the productTypeSlug naming
+      // convention. New, strictly additive fields — see CardTabsBlock/ProductGridBlock
+      // for the backward-compatible `serviceCategorySlug ?? productTypeSlug` fallback.
+      serviceCategorySlug: pt?.serviceCategory?.id ?? null,
+      serviceCategoryName: pt?.serviceCategory?.name ?? null,
     };
   });
   return NextResponse.json({ packages });

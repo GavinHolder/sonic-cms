@@ -10,11 +10,29 @@ interface ProductGridPackage {
   name: string;
   networkSlug?: string | null;
   networkName?: string | null;
+  // The package's OWN service category (Data/Voice/IoT/CCTV…) — unrelated to
+  // serviceCategorySlug/-Name below, which is inherited from the package's product
+  // type instead. Drives Layer 3 (innermost) filtering, unchanged from before.
   categoryId?: string | null;
   categoryName?: string | null;
   productTypeSlug?: string | null;
   productTypeName?: string | null;
+  // Derived from the package's product type -> ServiceCategory link (see
+  // /api/packages). Null when that product type hasn't been assigned to a category
+  // yet — drives the new Layer 1 grouping fallback (see topKey/topName below).
+  serviceCategorySlug?: string | null;
+  serviceCategoryName?: string | null;
 }
+
+// Layer-1 grouping key/label: the ServiceCategory a package's product type has been
+// assigned to, falling back to the product type itself when unassigned. Backward
+// compatible — every product type is unassigned (null serviceCategorySlug) until an
+// admin opts in via the Product Types admin UI, so this resolves to exactly today's
+// productTypeSlug/-Name for everyone until then. Only once an admin links >1 product
+// type under the same category does a group span multiple product types, which is
+// what triggers the extra Product Type tab tier (see `showProductTypeTabs`).
+const topKey = (p: ProductGridPackage) => p.serviceCategorySlug ?? p.productTypeSlug ?? null;
+const topName = (p: ProductGridPackage) => p.serviceCategoryName ?? p.productTypeName ?? null;
 
 export interface ProductGridContent {
   /** Which Product Types (by slug) this block instance draws from — authored in the Designer. */
@@ -35,10 +53,17 @@ const EMPTY_MSG_STYLE: React.CSSProperties = {
 };
 
 /**
- * ProductGridBlock — 3-layer client-side drill-down grid:
- *   Layer 1: Product Type tabs (from the block's configured productTypeSlugs)
- *   Layer 2: Network chips, scoped to the active Product Type (auto-hidden when ≤1 distinct network)
- *   Layer 3: Service Category pills, scoped to Layer 1+2 (auto-hidden when ≤1 distinct category)
+ * ProductGridBlock — client-side drill-down grid, fetched once from the block's
+ * configured productTypeSlugs then filtered entirely client-side:
+ *   Layer 1: top-level tabs, keyed by serviceCategorySlug ?? productTypeSlug (see
+ *     topKey above) — i.e. the ServiceCategory a package's product type has been
+ *     assigned to, falling back to the product type itself when unassigned.
+ *   Layer 1b: Product Type chips, scoped to the active Layer-1 group — auto-hidden
+ *     unless that group spans >1 distinct product type (only possible once an admin
+ *     links multiple product types under the same category).
+ *   Layer 2: Network chips, scoped to Layer 1(+1b) (auto-hidden when ≤1 distinct network)
+ *   Layer 3: Service Category pills (the package's OWN categoryId — unrelated to the
+ *     Layer-1 grouping), scoped to Layer 1+1b+2 (auto-hidden when ≤1 distinct category)
  * Renders the filtered packages via the existing VoltBlock/productId binding pipeline —
  * no new card-rendering logic, one Volt design per block instance (see spec).
  *
@@ -49,6 +74,10 @@ const EMPTY_MSG_STYLE: React.CSSProperties = {
  * 2. Packages with productTypeId: null never match any ?productType= fetch and therefore
  *    never appear here — no special-casing needed.
  * 3. One Volt card design serves every card in the grid (v1 scope, see spec §Out of scope).
+ * 4. Backward compatibility: every product type is unassigned (serviceCategorySlug: null)
+ *    until an admin explicitly links it to a ServiceCategory, so Layer 1 resolves to
+ *    exactly today's productTypeSlug-keyed tabs, and Layer 1b never renders, for every
+ *    site until an admin opts in.
  *
  * FAILURE MODES:
  * - A configured slug fetch fails/network error → that slug contributes 0 packages instead
@@ -71,6 +100,7 @@ export default function ProductGridBlock({ content }: Props) {
   const [packages, setPackages] = useState<ProductGridPackage[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeType, setActiveType] = useState<string | null>(null);
+  const [activeProductType, setActiveProductType] = useState<string | null>(null);
   const [activeNetwork, setActiveNetwork] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
 
@@ -93,36 +123,63 @@ export default function ProductGridBlock({ content }: Props) {
     return () => { active = false; };
   }, [slugs]);
 
-  // ── Layer 1: Product Types present among the fetched packages, in configured order ──
-  const productTypes = useMemo(() => {
+  // ── Layer 1: top-level groups present among the fetched packages, in fetch
+  // (== configured productTypeSlugs) order. Backward-compatible: keyed by
+  // serviceCategorySlug ?? productTypeSlug (see topKey above) — with nothing linked
+  // yet this produces exactly the old productTypeSlug-keyed tab list. ──
+  const groups = useMemo(() => {
     const seen = new Map<string, string>();
     for (const pkg of packages) {
+      const key = topKey(pkg);
+      if (key && !seen.has(key)) seen.set(key, topName(pkg) || key);
+    }
+    return Array.from(seen.entries()).map(([slug, name]) => ({ slug, name }));
+  }, [packages]);
+
+  const effectiveType = activeType && groups.some((t) => t.slug === activeType)
+    ? activeType
+    : (groups[0]?.slug ?? null);
+
+  const packagesForType = useMemo(
+    () => packages.filter((p) => topKey(p) === effectiveType),
+    [packages, effectiveType]
+  );
+
+  // ── Layer 1b (new): Product Type tabs, ONLY when the active top-level group
+  // actually spans more than one distinct product type (i.e. an admin linked
+  // multiple product types under the same ServiceCategory). With nothing linked,
+  // every group has exactly one product type (itself), so this tier never renders
+  // and Network stays Layer 2 exactly as before. ──
+  const productTypesInGroup = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const pkg of packagesForType) {
       if (pkg.productTypeSlug && !seen.has(pkg.productTypeSlug)) {
         seen.set(pkg.productTypeSlug, pkg.productTypeName || pkg.productTypeSlug);
       }
     }
-    return slugs.filter((s) => seen.has(s)).map((s) => ({ slug: s, name: seen.get(s)! }));
-  }, [packages, slugs]);
+    return Array.from(seen.entries()).map(([slug, name]) => ({ slug, name }));
+  }, [packagesForType]);
 
-  const effectiveType = activeType && productTypes.some((t) => t.slug === activeType)
-    ? activeType
-    : (productTypes[0]?.slug ?? null);
+  const showProductTypeRow = productTypesInGroup.length > 1;
+  const effectiveProductType = showProductTypeRow && activeProductType && productTypesInGroup.some((t) => t.slug === activeProductType)
+    ? activeProductType
+    : (showProductTypeRow ? productTypesInGroup[0]?.slug ?? null : null);
 
-  const packagesForType = useMemo(
-    () => packages.filter((p) => p.productTypeSlug === effectiveType),
-    [packages, effectiveType]
+  const packagesForProductType = useMemo(
+    () => (effectiveProductType ? packagesForType.filter((p) => p.productTypeSlug === effectiveProductType) : packagesForType),
+    [packagesForType, effectiveProductType]
   );
 
   // ── Layer 2: Networks within the active Product Type ──
   const networks = useMemo(() => {
     const seen = new Map<string, string>();
-    for (const pkg of packagesForType) {
+    for (const pkg of packagesForProductType) {
       if (pkg.networkSlug && !seen.has(pkg.networkSlug)) {
         seen.set(pkg.networkSlug, pkg.networkName || pkg.networkSlug);
       }
     }
     return Array.from(seen.entries()).map(([slug, name]) => ({ slug, name }));
-  }, [packagesForType]);
+  }, [packagesForProductType]);
 
   const showNetworkRow = networks.length > 1;
   const effectiveNetwork = showNetworkRow && activeNetwork && networks.some((n) => n.slug === activeNetwork)
@@ -130,8 +187,8 @@ export default function ProductGridBlock({ content }: Props) {
     : null;
 
   const packagesForNetwork = useMemo(
-    () => (effectiveNetwork ? packagesForType.filter((p) => p.networkSlug === effectiveNetwork) : packagesForType),
-    [packagesForType, effectiveNetwork]
+    () => (effectiveNetwork ? packagesForProductType.filter((p) => p.networkSlug === effectiveNetwork) : packagesForProductType),
+    [packagesForProductType, effectiveNetwork]
   );
 
   // ── Layer 3: Service Categories within the active Product Type + Network ──
@@ -163,7 +220,7 @@ export default function ProductGridBlock({ content }: Props) {
   if (loading) {
     return <div style={EMPTY_MSG_STYLE}>Loading…</div>;
   }
-  if (productTypes.length === 0) {
+  if (groups.length === 0) {
     return <div style={EMPTY_MSG_STYLE}>No packages available yet.</div>;
   }
 
@@ -173,19 +230,34 @@ export default function ProductGridBlock({ content }: Props) {
         <h3 style={{ fontFamily: "var(--theme-font-display, 'Archivo Black'), sans-serif", textTransform: "uppercase", fontSize: "clamp(20px,2.4vw,30px)", color: "var(--section-text)", margin: "0 0 20px", textAlign: "center" }}>{heading}</h3>
       )}
       <div className="cms-product-grid__bar" role="tablist" aria-label="Product type">
-        {productTypes.map((t) => (
+        {groups.map((t) => (
           <button
             key={t.slug}
             type="button"
             role="tab"
             aria-selected={t.slug === effectiveType}
             className={`cms-product-grid__tab${t.slug === effectiveType ? " cms-product-grid__tab--active" : ""}`}
-            onClick={() => { setActiveType(t.slug); setActiveNetwork(null); setActiveCategory(null); }}
+            onClick={() => { setActiveType(t.slug); setActiveProductType(null); setActiveNetwork(null); setActiveCategory(null); }}
           >
             {t.name}
           </button>
         ))}
       </div>
+
+      {showProductTypeRow && (
+        <div className="cms-product-grid__chips" role="group" aria-label="Product type detail">
+          {productTypesInGroup.map((pt) => (
+            <button
+              key={pt.slug}
+              type="button"
+              className={`cms-product-grid__chip${pt.slug === effectiveProductType ? " cms-product-grid__chip--active" : ""}`}
+              onClick={() => { setActiveProductType(pt.slug); setActiveNetwork(null); setActiveCategory(null); }}
+            >
+              {pt.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {showNetworkRow && (
         <div className="cms-product-grid__chips" role="group" aria-label="Provider">

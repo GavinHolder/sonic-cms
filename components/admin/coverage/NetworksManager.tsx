@@ -33,6 +33,10 @@ interface ProductType {
   color: string;
   order: number;
   isActive: boolean;
+  // Optional link to the ServiceCategory this product type is grouped under (e.g.
+  // "AirFibre" -> "Wireless"). Unassigned (null) by default — drives the top-level
+  // grouping fallback in CardTabsBlock/ProductGridBlock (serviceCategorySlug ?? productTypeSlug).
+  serviceCategoryId?: string | null;
 }
 
 // Fixed term lists per package kind (decoupled — data vs value-added billing)
@@ -84,7 +88,11 @@ export default function NetworksManager() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const [netModal, setNetModal] = useState<Partial<Network> | null>(null);
-  const [pkgModal, setPkgModal] = useState<{ networkId: string; pkg: Partial<Pkg> } | null>(null);
+  // termVariants: Add-only "Term Variants" quick-add (see savePackage) — a list of
+  // extra (term, price) pairs that each become their own Package row on save,
+  // sharing every other field with the main form. Undefined/empty for the Edit flow
+  // (editing an existing single package keeps behaving exactly as before).
+  const [pkgModal, setPkgModal] = useState<{ networkId: string; pkg: Partial<Pkg>; termVariants?: { term: string; price: string }[] } | null>(null);
   const [confirm, setConfirm] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
 
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
@@ -145,6 +153,7 @@ export default function NetworksManager() {
       color: ptModal.color || "#22c55e",
       order: ptModal.order ?? 0,
       isActive: ptModal.isActive ?? true,
+      serviceCategoryId: ptModal.serviceCategoryId || "",
     };
     if (!payload.name) { toast.error("Name required"); return; }
     const res = await fetch(isNew ? "/api/product-types" : `/api/product-types/${ptModal.id}`, {
@@ -214,7 +223,7 @@ export default function NetworksManager() {
   // ── Package save ───────────────────────────────────────────────
   const savePackage = async () => {
     if (!pkgModal) return;
-    const { networkId, pkg } = pkgModal;
+    const { networkId, pkg, termVariants } = pkgModal;
     const isNew = !pkg.id;
     const payload = {
       name: pkg.name?.trim(),
@@ -238,6 +247,21 @@ export default function NetworksManager() {
       networkId,
     };
     if (!payload.name || !payload.price) { toast.error("Name and price required"); return; }
+
+    // Term Variants quick-add (Add flow only — see modal JSX below): each completed
+    // extra (term, price) row becomes its own separate Package row, sharing every
+    // other field with the main form via `payload`. Validate up front so a
+    // half-filled row (term picked but no price, or vice versa) doesn't silently
+    // vanish instead of erroring.
+    const variants = isNew ? (termVariants || []) : [];
+    for (const v of variants) {
+      if (!!v.term !== !!v.price.trim()) {
+        toast.error("Complete or remove the incomplete term variant row (needs both a term and a price)");
+        return;
+      }
+    }
+    const completeVariants = variants.filter((v) => v.term && v.price.trim());
+
     const url = isNew
       ? `/api/networks/${networkId}/packages`
       : `/api/networks/${networkId}/packages/${pkg.id}`;
@@ -246,8 +270,30 @@ export default function NetworksManager() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    if (res.ok) { toast.success(`Package ${isNew ? "added" : "updated"}`); setPkgModal(null); load(); }
-    else toast.error("Save failed");
+    if (!res.ok) { toast.error("Save failed"); return; }
+
+    let variantFailures = 0;
+    if (completeVariants.length > 0) {
+      const results = await Promise.all(
+        completeVariants.map((v) =>
+          fetch(`/api/networks/${networkId}/packages`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...payload, term: v.term, price: v.price.trim(), period: termToPeriod(v.term) }),
+          })
+        )
+      );
+      variantFailures = results.filter((r) => !r.ok).length;
+    }
+
+    if (variantFailures > 0) {
+      toast.error(`Package ${isNew ? "added" : "updated"}, but ${variantFailures} term variant(s) failed to save`);
+    } else {
+      const variantNote = completeVariants.length > 0 ? ` + ${completeVariants.length} term variant(s)` : "";
+      toast.success(`Package ${isNew ? "added" : "updated"}${variantNote}`);
+    }
+    setPkgModal(null);
+    load();
   };
 
   const deletePackage = (networkId: string, p: Pkg) =>
@@ -313,6 +359,9 @@ export default function NetworksManager() {
                 <span style={{ width: 10, height: 10, borderRadius: 3, background: pt.color, display: "inline-block" }} />
                 {pt.icon ? <i className={pt.icon} /> : null}
                 {pt.name}
+                {pt.serviceCategoryId && (
+                  <span className="text-muted">→ {categories.find((c) => c.id === pt.serviceCategoryId)?.name ?? "…"}</span>
+                )}
                 {!pt.isActive && <span className="text-muted">(hidden)</span>}
                 <button type="button" className="btn btn-sm btn-link p-0 ms-1" style={{ fontSize: 11, lineHeight: 1 }} aria-label="Edit" onClick={() => setPtModal(pt)}><i className="bi bi-pencil" /></button>
                 <button type="button" className="btn-close" style={{ fontSize: 8 }} aria-label="Delete" onClick={() => deleteProductType(pt)} />
@@ -360,7 +409,7 @@ export default function NetworksManager() {
                 <div className="card-body border-top bg-light">
                   <div className="d-flex justify-content-between align-items-center mb-2">
                     <h6 className="mb-0">Packages</h6>
-                    <button className="btn btn-sm btn-primary" onClick={() => setPkgModal({ networkId: n.id, pkg: { period: termToPeriod(null), features: [], isActive: true, kind: "DATA" } })}>
+                    <button className="btn btn-sm btn-primary" onClick={() => setPkgModal({ networkId: n.id, pkg: { period: termToPeriod(null), features: [], isActive: true, kind: "DATA" }, termVariants: [] })}>
                       <i className="bi bi-plus-lg me-1" />Add Package
                     </button>
                   </div>
@@ -449,6 +498,11 @@ export default function NetworksManager() {
               <div className="modal-body d-flex flex-column gap-3">
                 <div><label className="form-label">Name</label>
                   <input className="form-control" value={ptModal.name || ""} onChange={(e) => setPtModal({ ...ptModal, name: e.target.value })} placeholder="e.g. Fibre" /></div>
+                <div><label className="form-label">Service Category <span className="text-muted">(optional — groups this product type under a top-level tab, e.g. &quot;AirFibre&quot; under &quot;Wireless&quot;)</span></label>
+                  <select className="form-select" value={ptModal.serviceCategoryId || ""} onChange={(e) => setPtModal({ ...ptModal, serviceCategoryId: e.target.value || null })}>
+                    <option value="">— Unassigned (its own top-level tab) —</option>
+                    {categories.filter((c) => c.isActive).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select></div>
                 <div className="row">
                   <div className="col"><label className="form-label">Icon <span className="text-muted">(optional Bootstrap Icons class)</span></label>
                     <input className="form-control" value={ptModal.icon || ""} onChange={(e) => setPtModal({ ...ptModal, icon: e.target.value })} placeholder="bi bi-wifi" /></div>
@@ -488,7 +542,7 @@ export default function NetworksManager() {
                 </div>
                 <div className="row">
                   <div className="col-3"><label className="form-label">Kind</label>
-                    <select className="form-select" value={pkgModal.pkg.kind ?? "DATA"} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, kind: e.target.value as "DATA" | "VAS", term: null, period: termToPeriod(null) } })}>
+                    <select className="form-select" value={pkgModal.pkg.kind ?? "DATA"} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, kind: e.target.value as "DATA" | "VAS", term: null, period: termToPeriod(null) }, termVariants: [] })}>
                       <option value="DATA">Data package (primary)</option>
                       <option value="VAS">Value-added service (add-on)</option>
                     </select></div>
@@ -528,6 +582,44 @@ export default function NetworksManager() {
                     <input className="form-control" value={pkgModal.pkg.price || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, price: e.target.value } })} placeholder="R599" />
                     <div className="form-text">Billing period shown next to price: <strong>{termToPeriod(pkgModal.pkg.term) || "none (once-off)"}</strong> — set by Term above.</div></div>
                 </div>
+                {/* Term Variants quick-add — Add flow only. Lets the admin fill in every
+                    shared field once (name, speed, features, network, product type,
+                    category) and add multiple (term, price) pairs; each is saved as its
+                    own separate Package row on submit (same total rows as doing it
+                    manually N times). Editing an existing package keeps the single
+                    Term/Price fields above unchanged, exactly as before — this section
+                    doesn't apply to Edit, to avoid ambiguity about which saved row a
+                    variant edit would even target. */}
+                {!pkgModal.pkg.id && (
+                  <div className="border rounded p-3 bg-light">
+                    <strong className="small d-block mb-2">Term Variants <span className="text-muted fw-normal">— optional: add more (term, price) pairs for this same product; each is saved as its own package</span></strong>
+                    {(pkgModal.termVariants || []).map((v, i) => (
+                      <div key={i} className="row g-2 mb-2 align-items-center">
+                        <div className="col-5">
+                          <select className="form-select form-select-sm" value={v.term}
+                            onChange={(e) => { const next = [...(pkgModal.termVariants || [])]; next[i] = { ...next[i], term: e.target.value }; setPkgModal({ ...pkgModal, termVariants: next }); }}>
+                            <option value="">— Term —</option>
+                            {TERMS[pkgModal.pkg.kind ?? "DATA"].map((t) => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                        </div>
+                        <div className="col-5">
+                          <input className="form-control form-control-sm" placeholder="Price, e.g. R699" value={v.price}
+                            onChange={(e) => { const next = [...(pkgModal.termVariants || [])]; next[i] = { ...next[i], price: e.target.value }; setPkgModal({ ...pkgModal, termVariants: next }); }} />
+                        </div>
+                        <div className="col-2 text-end">
+                          <button type="button" className="btn btn-sm btn-outline-danger" title="Remove"
+                            onClick={() => setPkgModal({ ...pkgModal, termVariants: (pkgModal.termVariants || []).filter((_, j) => j !== i) })}>
+                            <i className="bi bi-x-lg" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <button type="button" className="btn btn-sm btn-outline-secondary"
+                      onClick={() => setPkgModal({ ...pkgModal, termVariants: [...(pkgModal.termVariants || []), { term: "", price: "" }] })}>
+                      <i className="bi bi-plus-lg me-1" />Add another term
+                    </button>
+                  </div>
+                )}
                 <div><label className="form-label">Features</label>
                   {(pkgModal.pkg.features || []).map((f, i) => (
                     <div key={i} className="d-flex gap-2 mb-2">
