@@ -3306,9 +3306,6 @@ function createBlockPreview(block) {
     case 'html':
       wrap.innerHTML = `<div class="cb-prev-html">${escHtml(p.html||'').substring(0,60)}…</div>`;
       break;
-    case 'template':
-      wrap.innerHTML = `<div class="cb-prev-html">${escHtml(p.templateName||'Template')}</div>`;
-      break;
     case 'divider':
       wrap.innerHTML = `<div style="padding:10px 0;"><hr style="border-top:${p.thickness}px solid ${p.dividerColor};margin:0;"></div>`;
       break;
