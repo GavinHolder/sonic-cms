@@ -632,6 +632,31 @@ model ProductType {
   @@map("product_types")
 }
 
+// Admin-managed package contract-term options (24-Month, Prepaid, Month-to-Month…),
+// replacing the old hardcoded TERMS constant in NetworksManager.tsx. No relation to
+// Package — deliberately loose coupling, same as ServiceCategory/ProductType: matched
+// by *name* against Package.term (a plain string) purely to populate the admin
+// dropdown's options and to derive the billing-period suffix. A package whose `term`
+// string no longer matches any active PackageTerm (renamed/deleted) still displays
+// fine — it just won't show as selected in the dropdown, same graceful degradation
+// categoryId/productTypeId already have.
+model PackageTerm {
+  id           String   @id @default(cuid())
+  name         String
+  // "DATA" | "VAS" — matches Package.kind, keeps the existing meaningful split
+  // (data contracts vs. value-added billing) instead of one flat list.
+  kind         String   @default("DATA")
+  // Replaces the termToPeriod() string-match on "Prepaid" — false = no period
+  // suffix (once-off), true = "/month".
+  billsMonthly Boolean  @default(true)
+  order        Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("package_terms")
+}
+
 model Project {
   id            String   @id @default(cuid())
   title         String

@@ -25,6 +25,14 @@ interface Pkg {
   productTypeId?: string | null;
 }
 interface ServiceCategory { id: string; name: string; order: number; isActive: boolean; }
+interface PackageTerm {
+  id: string;
+  name: string;
+  kind: "DATA" | "VAS";
+  billsMonthly: boolean;
+  order: number;
+  isActive: boolean;
+}
 interface ProductType {
   id: string;
   name: string;
@@ -39,20 +47,31 @@ interface ProductType {
   serviceCategoryId?: string | null;
 }
 
-// Fixed term lists per package kind (decoupled — data vs value-added billing)
-const TERMS: Record<"DATA" | "VAS", string[]> = {
-  DATA: ["24-Month", "Prepaid"],
-  VAS: ["Month-to-Month", "12-Month"],
-};
-
 // The billing-period suffix shown next to price (e.g. "R599/month") is derived
 // from Term instead of being a free-text field — Term already IS the contract
 // period, so a separate manually-typed value was redundant and error-prone
 // (e.g. someone typing "24" instead of "/month" ran the digits straight into
-// the price with no separator). All recurring terms bill monthly; Prepaid has
-// no recurring period.
-function termToPeriod(term: string | null | undefined): string {
-  return term === "Prepaid" || !term ? "" : "/month";
+// the price with no separator). Term options themselves are admin-managed
+// (PackageTerm, see prisma/schema.prisma) — this looks up the live list by
+// name (Package.term stays a plain string, no FK).
+//
+// ASSUMPTIONS:
+// 1. `terms` is the live PackageTerm list for the relevant kind (or the full list —
+//    matching is by name only, kind isn't consulted here).
+// 2. `term` is the raw Package.term string, which may not match any current
+//    PackageTerm row (renamed/deleted term, or legacy data).
+//
+// FAILURE MODES:
+// - No term selected (null/empty) → once-off price, no suffix. Correct: an
+//   unspecified term shouldn't imply a recurring bill.
+// - Term set but matches no PackageTerm row (stale/renamed/deleted) → falls back to
+//   "/month". This direction is deliberate: silently mislabeling a real recurring
+//   price as once-off is the more damaging failure (undercuts the displayed price),
+//   whereas defaulting to the far-more-common monthly case is a safe assumption.
+function termToPeriod(term: string | null | undefined, terms: PackageTerm[]): string {
+  if (!term) return "";
+  const match = terms.find((t) => t.name === term);
+  return !match || match.billsMonthly ? "/month" : "";
 }
 interface Network {
   id: string;
@@ -88,11 +107,17 @@ export default function NetworksManager() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const [netModal, setNetModal] = useState<Partial<Network> | null>(null);
-  // termVariants: Add-only "Term Variants" quick-add (see savePackage) — a list of
-  // extra (term, price) pairs that each become their own Package row on save,
-  // sharing every other field with the main form. Undefined/empty for the Edit flow
-  // (editing an existing single package keeps behaving exactly as before).
-  const [pkgModal, setPkgModal] = useState<{ networkId: string; pkg: Partial<Pkg>; termVariants?: { term: string; price: string }[] } | null>(null);
+  // termVariants: "Term Variants" quick-add (see savePackage) — a list of extra
+  // (term, price) pairs that each become their own *sibling* Package row on save,
+  // sharing every other field with the main form. Available in both Add and Edit:
+  // in Add, the variants are created alongside the package being created; in Edit,
+  // they're created alongside the package being edited (which keeps its own single
+  // term/price, edited normally via the Term/Price fields above — a variant row
+  // never rewrites the package being edited itself).
+  // `features`: optional per-variant override — undefined means "inherit the shared
+  // Features list from the main form" (the common case, e.g. Prepaid vs 24-Month
+  // often differ in inclusions/caps); set means "use this variant's own list".
+  const [pkgModal, setPkgModal] = useState<{ networkId: string; pkg: Partial<Pkg>; termVariants?: { term: string; price: string; features?: string[] }[] } | null>(null);
   const [confirm, setConfirm] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
 
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
@@ -101,6 +126,9 @@ export default function NetworksManager() {
 
   const [productTypes, setProductTypes] = useState<ProductType[]>([]);
   const [ptModal, setPtModal] = useState<Partial<ProductType> | null>(null);
+
+  const [packageTerms, setPackageTerms] = useState<PackageTerm[]>([]);
+  const [termModal, setTermModal] = useState<Partial<PackageTerm> | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -120,7 +148,11 @@ export default function NetworksManager() {
     try { const r = await fetch("/api/product-types"); if (r.ok) setProductTypes(await r.json()); } catch { /* ignore */ }
   }, []);
 
-  useEffect(() => { load(); loadCategories(); loadProductTypes(); }, [load, loadCategories, loadProductTypes]);
+  const loadPackageTerms = useCallback(async () => {
+    try { const r = await fetch("/api/package-terms"); if (r.ok) setPackageTerms(await r.json()); } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { load(); loadCategories(); loadProductTypes(); loadPackageTerms(); }, [load, loadCategories, loadProductTypes, loadPackageTerms]);
   useEffect(() => {
     fetch("/api/features/coverage-maps")
       .then((r) => (r.ok ? r.json() : null))
@@ -169,6 +201,34 @@ export default function NetworksManager() {
     setConfirm({ title: "Delete product type", message: `Delete "${pt.name}"? Packages using it become unassigned.`, onConfirm: async () => {
       const res = await fetch(`/api/product-types/${pt.id}`, { method: "DELETE" });
       if (res.ok) { loadProductTypes(); toast.success("Product type deleted"); } else toast.error("Delete failed");
+      setConfirm(null);
+    } });
+
+  // ── Package Terms (admin-managed, replaces the old hardcoded TERMS constant) ─
+  const saveTerm = async () => {
+    if (!termModal) return;
+    const isNew = !termModal.id;
+    const payload = {
+      name: termModal.name?.trim(),
+      kind: termModal.kind ?? "DATA",
+      billsMonthly: termModal.billsMonthly ?? true,
+      order: termModal.order ?? 0,
+      isActive: termModal.isActive ?? true,
+    };
+    if (!payload.name) { toast.error("Name required"); return; }
+    const res = await fetch(isNew ? "/api/package-terms" : `/api/package-terms/${termModal.id}`, {
+      method: isNew ? "POST" : "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) { toast.success(`Term ${isNew ? "created" : "updated"}`); setTermModal(null); loadPackageTerms(); }
+    else toast.error("Save failed");
+  };
+
+  const deleteTerm = (t: PackageTerm) =>
+    setConfirm({ title: "Delete term", message: `Delete "${t.name}"? Packages using it keep their term text but it stops matching this option.`, onConfirm: async () => {
+      const res = await fetch(`/api/package-terms/${t.id}`, { method: "DELETE" });
+      if (res.ok) { loadPackageTerms(); toast.success("Term deleted"); } else toast.error("Delete failed");
       setConfirm(null);
     } });
 
@@ -248,12 +308,13 @@ export default function NetworksManager() {
     };
     if (!payload.name || !payload.price) { toast.error("Name and price required"); return; }
 
-    // Term Variants quick-add (Add flow only — see modal JSX below): each completed
-    // extra (term, price) row becomes its own separate Package row, sharing every
-    // other field with the main form via `payload`. Validate up front so a
-    // half-filled row (term picked but no price, or vice versa) doesn't silently
-    // vanish instead of erroring.
-    const variants = isNew ? (termVariants || []) : [];
+    // Term Variants quick-add (Add and Edit — see modal JSX below): each completed
+    // extra (term, price) row becomes its own separate sibling Package row, sharing
+    // every other field with the main form via `payload` (never rewrites the package
+    // being edited itself — that one is saved normally above via `payload`/`url`).
+    // Validate up front so a half-filled row (term picked but no price, or vice
+    // versa) doesn't silently vanish instead of erroring.
+    const variants = termVariants || [];
     for (const v of variants) {
       if (!!v.term !== !!v.price.trim()) {
         toast.error("Complete or remove the incomplete term variant row (needs both a term and a price)");
@@ -279,7 +340,16 @@ export default function NetworksManager() {
           fetch(`/api/networks/${networkId}/packages`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...payload, term: v.term, price: v.price.trim(), period: termToPeriod(v.term) }),
+            body: JSON.stringify({
+              ...payload,
+              term: v.term,
+              price: v.price.trim(),
+              period: termToPeriod(v.term, packageTerms),
+              // Shared unless overridden — same pattern as term/price per row. A
+              // variant only carries its own `features` once the admin has touched
+              // that row's "Customize features" toggle in the modal.
+              features: (v.features ?? payload.features).map((s) => s.trim()).filter(Boolean),
+            }),
           })
         )
       );
@@ -371,6 +441,32 @@ export default function NetworksManager() {
         )}
       </div></div>
 
+      {/* Package Terms (admin-managed, drives the Term dropdown + billing-period suffix) */}
+      <div className="card shadow-sm mb-3"><div className="card-body">
+        <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+          <strong className="small"><i className="bi bi-calendar3 me-1" />Package Terms</strong>
+          <button className="btn btn-outline-primary btn-sm" onClick={() => setTermModal({ kind: "DATA", billsMonthly: true, isActive: true, order: packageTerms.length })}>
+            <i className="bi bi-plus-lg me-1" />Add Term
+          </button>
+        </div>
+        {packageTerms.length === 0 ? (
+          <p className="text-muted small mb-0">No terms yet — add the contract-term options packages can be set to (e.g. 24-Month, Prepaid).</p>
+        ) : (
+          <div className="d-flex flex-wrap align-items-center gap-2">
+            {packageTerms.map((t) => (
+              <span key={t.id} className="badge text-bg-light border d-inline-flex align-items-center gap-1" style={{ fontSize: 12 }}>
+                <span className="text-muted">{t.kind}</span>
+                {t.name}
+                <span className="text-muted">{t.billsMonthly ? "/month" : "once-off"}</span>
+                {!t.isActive && <span className="text-muted">(hidden)</span>}
+                <button type="button" className="btn btn-sm btn-link p-0 ms-1" style={{ fontSize: 11, lineHeight: 1 }} aria-label="Edit" onClick={() => setTermModal(t)}><i className="bi bi-pencil" /></button>
+                <button type="button" className="btn-close" style={{ fontSize: 8 }} aria-label="Delete" onClick={() => deleteTerm(t)} />
+              </span>
+            ))}
+          </div>
+        )}
+      </div></div>
+
       {loading ? (
         <div className="text-center py-5"><div className="spinner-border text-primary" /></div>
       ) : networks.length === 0 ? (
@@ -409,7 +505,7 @@ export default function NetworksManager() {
                 <div className="card-body border-top bg-light">
                   <div className="d-flex justify-content-between align-items-center mb-2">
                     <h6 className="mb-0">Packages</h6>
-                    <button className="btn btn-sm btn-primary" onClick={() => setPkgModal({ networkId: n.id, pkg: { period: termToPeriod(null), features: [], isActive: true, kind: "DATA" }, termVariants: [] })}>
+                    <button className="btn btn-sm btn-primary" onClick={() => setPkgModal({ networkId: n.id, pkg: { period: termToPeriod(null, packageTerms), features: [], isActive: true, kind: "DATA" }, termVariants: [] })}>
                       <i className="bi bi-plus-lg me-1" />Add Package
                     </button>
                   </div>
@@ -421,13 +517,14 @@ export default function NetworksManager() {
                     return (
                     <div className="table-responsive">
                       <table className="table table-sm align-middle mb-0">
-                        <thead><tr><th>Name</th><th>Speed</th>{hasVoicePkg && <th>Bundle</th>}<th>Price</th><th>Features</th><th></th></tr></thead>
+                        <thead><tr><th>Name</th><th>Speed</th>{hasVoicePkg && <th>Bundle</th>}<th>Term</th><th>Price</th><th>Features</th><th></th></tr></thead>
                         <tbody>
                           {n.packages.map((p) => (
                             <tr key={p.id}>
                               <td>{p.name} {p.popular && <span className="badge text-bg-warning ms-1">Popular</span>} {!p.isActive && <span className="badge text-bg-secondary ms-1">Hidden</span>}</td>
                               <td className="small text-muted">{isVoicePkg(p) ? "—" : ([p.speedDown, p.speedUp].filter(Boolean).join(" / ") || "—")}</td>
                               {hasVoicePkg && <td className="small text-muted">{isVoicePkg(p) ? (p.speedDown || "—") : "—"}</td>}
+                              <td>{p.term ? <span className="badge text-bg-light border">{p.term}</span> : <span className="text-muted small">—</span>}</td>
                               <td className="text-nowrap">{p.price}{p.period && <span className="text-muted small"> {p.period}</span>}</td>
                               <td className="small text-muted">{(p.features || []).length} feature(s)</td>
                               <td className="text-end text-nowrap">
@@ -523,6 +620,39 @@ export default function NetworksManager() {
         </div>
       )}
 
+      {/* Package Term modal */}
+      {termModal && (
+        <div className="modal d-block" style={{ background: "rgba(0,0,0,0.5)" }} onClick={() => setTermModal(null)}>
+          <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content">
+              <div className="modal-header"><h5 className="modal-title">{termModal.id ? "Edit" : "Add"} Term</h5>
+                <button className="btn-close" onClick={() => setTermModal(null)} /></div>
+              <div className="modal-body d-flex flex-column gap-3">
+                <div><label className="form-label">Name</label>
+                  <input className="form-control" value={termModal.name || ""} onChange={(e) => setTermModal({ ...termModal, name: e.target.value })} placeholder="e.g. 24-Month" /></div>
+                <div className="row">
+                  <div className="col"><label className="form-label">Kind <span className="text-muted">(which package Kind this term applies to)</span></label>
+                    <select className="form-select" value={termModal.kind ?? "DATA"} onChange={(e) => setTermModal({ ...termModal, kind: e.target.value as "DATA" | "VAS" })}>
+                      <option value="DATA">Data package (primary)</option>
+                      <option value="VAS">Value-added service (add-on)</option>
+                    </select></div>
+                  <div className="col-auto" style={{ width: 90 }}><label className="form-label">Order</label>
+                    <input className="form-control" type="number" value={termModal.order ?? 0} onChange={(e) => setTermModal({ ...termModal, order: parseInt(e.target.value, 10) || 0 })} /></div>
+                </div>
+                <div className="form-check form-switch"><input className="form-check-input" type="checkbox" id="term-bills-monthly" checked={termModal.billsMonthly ?? true} onChange={(e) => setTermModal({ ...termModal, billsMonthly: e.target.checked })} />
+                  <label className="form-check-label" htmlFor="term-bills-monthly">Bills monthly <span className="text-muted">(off = once-off price, no &quot;/month&quot; suffix — e.g. Prepaid)</span></label></div>
+                <div className="form-check form-switch"><input className="form-check-input" type="checkbox" id="term-active" checked={termModal.isActive ?? true} onChange={(e) => setTermModal({ ...termModal, isActive: e.target.checked })} />
+                  <label className="form-check-label" htmlFor="term-active">Active</label></div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setTermModal(null)}>Cancel</button>
+                <button className="btn btn-primary" onClick={saveTerm}>Save</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Package modal */}
       {pkgModal && (
         <div className="modal d-block" style={{ background: "rgba(0,0,0,0.5)" }} onClick={() => setPkgModal(null)}>
@@ -542,7 +672,7 @@ export default function NetworksManager() {
                 </div>
                 <div className="row">
                   <div className="col-3"><label className="form-label">Kind</label>
-                    <select className="form-select" value={pkgModal.pkg.kind ?? "DATA"} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, kind: e.target.value as "DATA" | "VAS", term: null, period: termToPeriod(null) }, termVariants: [] })}>
+                    <select className="form-select" value={pkgModal.pkg.kind ?? "DATA"} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, kind: e.target.value as "DATA" | "VAS", term: null, period: termToPeriod(null, packageTerms) }, termVariants: [] })}>
                       <option value="DATA">Data package (primary)</option>
                       <option value="VAS">Value-added service (add-on)</option>
                     </select></div>
@@ -552,9 +682,9 @@ export default function NetworksManager() {
                       {categories.filter((c) => c.isActive).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select></div>
                   <div className="col-6"><label className="form-label">Term <span className="text-muted">(also sets the billing period shown next to price)</span></label>
-                    <select className="form-select" value={pkgModal.pkg.term ?? ""} onChange={(e) => { const term = e.target.value || null; setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, term, period: termToPeriod(term) } }); }}>
+                    <select className="form-select" value={pkgModal.pkg.term ?? ""} onChange={(e) => { const term = e.target.value || null; setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, term, period: termToPeriod(term, packageTerms) } }); }}>
                       <option value="">— None —</option>
-                      {TERMS[pkgModal.pkg.kind ?? "DATA"].map((t) => <option key={t} value={t}>{t}</option>)}
+                      {packageTerms.filter((t) => t.isActive && t.kind === (pkgModal.pkg.kind ?? "DATA")).map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
                     </select></div>
                 </div>
                 <div className="row">
@@ -580,46 +710,84 @@ export default function NetworksManager() {
                 <div className="row">
                   <div className="col"><label className="form-label">Price</label>
                     <input className="form-control" value={pkgModal.pkg.price || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, price: e.target.value } })} placeholder="R599" />
-                    <div className="form-text">Billing period shown next to price: <strong>{termToPeriod(pkgModal.pkg.term) || "none (once-off)"}</strong> — set by Term above.</div></div>
+                    <div className="form-text">Billing period shown next to price: <strong>{termToPeriod(pkgModal.pkg.term, packageTerms) || "none (once-off)"}</strong> — set by Term above.</div></div>
                 </div>
-                {/* Term Variants quick-add — Add flow only. Lets the admin fill in every
-                    shared field once (name, speed, features, network, product type,
-                    category) and add multiple (term, price) pairs; each is saved as its
-                    own separate Package row on submit (same total rows as doing it
-                    manually N times). Editing an existing package keeps the single
-                    Term/Price fields above unchanged, exactly as before — this section
-                    doesn't apply to Edit, to avoid ambiguity about which saved row a
-                    variant edit would even target. */}
-                {!pkgModal.pkg.id && (
-                  <div className="border rounded p-3 bg-light">
-                    <strong className="small d-block mb-2">Term Variants <span className="text-muted fw-normal">— optional: add more (term, price) pairs for this same product; each is saved as its own package</span></strong>
-                    {(pkgModal.termVariants || []).map((v, i) => (
-                      <div key={i} className="row g-2 mb-2 align-items-center">
-                        <div className="col-5">
-                          <select className="form-select form-select-sm" value={v.term}
-                            onChange={(e) => { const next = [...(pkgModal.termVariants || [])]; next[i] = { ...next[i], term: e.target.value }; setPkgModal({ ...pkgModal, termVariants: next }); }}>
-                            <option value="">— Term —</option>
-                            {TERMS[pkgModal.pkg.kind ?? "DATA"].map((t) => <option key={t} value={t}>{t}</option>)}
-                          </select>
+                {/* Term Variants quick-add — available in both Add and Edit. Lets the admin
+                    fill in every shared field once (name, speed, network, product type,
+                    category, and the Features list below unless overridden per-row) and
+                    add multiple (term, price) pairs; each is saved as its own separate
+                    *sibling* Package row on submit (same total rows as doing it manually
+                    N times). This never rewrites the package being edited itself — that
+                    one keeps its own single Term/Price/Features, edited normally via the
+                    fields above — it only adds more term coverage for the same product. */}
+                <div className="border rounded p-3 bg-light">
+                  <strong className="small d-block mb-2">Term Variants <span className="text-muted fw-normal">— optional: add more (term, price) pairs for this same product; each is saved as its own package</span></strong>
+                  {(pkgModal.termVariants || []).map((v, i) => {
+                    const customized = v.features !== undefined;
+                    const variantFeatures = v.features ?? pkgModal.pkg.features ?? [];
+                    const updateVariant = (patch: Partial<{ term: string; price: string; features?: string[] }>) => {
+                      const next = [...(pkgModal.termVariants || [])];
+                      next[i] = { ...next[i], ...patch };
+                      setPkgModal({ ...pkgModal, termVariants: next });
+                    };
+                    return (
+                      <div key={i} className="mb-2">
+                        <div className="row g-2 align-items-center">
+                          <div className="col-5">
+                            <select className="form-select form-select-sm" value={v.term}
+                              onChange={(e) => updateVariant({ term: e.target.value })}>
+                              <option value="">— Term —</option>
+                              {packageTerms.filter((t) => t.isActive && t.kind === (pkgModal.pkg.kind ?? "DATA")).map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
+                            </select>
+                          </div>
+                          <div className="col-5">
+                            <input className="form-control form-control-sm" placeholder="Price, e.g. R699" value={v.price}
+                              onChange={(e) => updateVariant({ price: e.target.value })} />
+                          </div>
+                          <div className="col-2 text-end">
+                            <button type="button" className="btn btn-sm btn-outline-danger" title="Remove"
+                              onClick={() => setPkgModal({ ...pkgModal, termVariants: (pkgModal.termVariants || []).filter((_, j) => j !== i) })}>
+                              <i className="bi bi-x-lg" />
+                            </button>
+                          </div>
                         </div>
-                        <div className="col-5">
-                          <input className="form-control form-control-sm" placeholder="Price, e.g. R699" value={v.price}
-                            onChange={(e) => { const next = [...(pkgModal.termVariants || [])]; next[i] = { ...next[i], price: e.target.value }; setPkgModal({ ...pkgModal, termVariants: next }); }} />
-                        </div>
-                        <div className="col-2 text-end">
-                          <button type="button" className="btn btn-sm btn-outline-danger" title="Remove"
-                            onClick={() => setPkgModal({ ...pkgModal, termVariants: (pkgModal.termVariants || []).filter((_, j) => j !== i) })}>
-                            <i className="bi bi-x-lg" />
+                        {!customized ? (
+                          <button type="button" className="btn btn-sm btn-link p-0 mt-1"
+                            onClick={() => updateVariant({ features: [...(pkgModal.pkg.features || [])] })}>
+                            Customize features for this term <span className="text-muted">(currently using the shared list above)</span>
                           </button>
-                        </div>
+                        ) : (
+                          <div className="ps-2 border-start mt-2">
+                            <div className="d-flex justify-content-between align-items-center mb-1">
+                              <span className="small text-muted">Features for this term</span>
+                              <button type="button" className="btn btn-sm btn-link p-0" onClick={() => updateVariant({ features: undefined })}>
+                                Use shared features instead
+                              </button>
+                            </div>
+                            {variantFeatures.map((f, fi) => (
+                              <div key={fi} className="d-flex gap-2 mb-2">
+                                <input className="form-control form-control-sm" value={f} placeholder="e.g. Uncapped"
+                                  onChange={(e) => { const next = [...variantFeatures]; next[fi] = e.target.value; updateVariant({ features: next }); }} />
+                                <button type="button" className="btn btn-sm btn-outline-danger" title="Remove"
+                                  onClick={() => updateVariant({ features: variantFeatures.filter((_, j) => j !== fi) })}>
+                                  <i className="bi bi-x-lg" />
+                                </button>
+                              </div>
+                            ))}
+                            <button type="button" className="btn btn-sm btn-outline-secondary"
+                              onClick={() => updateVariant({ features: [...variantFeatures, ""] })}>
+                              <i className="bi bi-plus-lg me-1" />Add feature
+                            </button>
+                          </div>
+                        )}
                       </div>
-                    ))}
-                    <button type="button" className="btn btn-sm btn-outline-secondary"
-                      onClick={() => setPkgModal({ ...pkgModal, termVariants: [...(pkgModal.termVariants || []), { term: "", price: "" }] })}>
-                      <i className="bi bi-plus-lg me-1" />Add another term
-                    </button>
-                  </div>
-                )}
+                    );
+                  })}
+                  <button type="button" className="btn btn-sm btn-outline-secondary"
+                    onClick={() => setPkgModal({ ...pkgModal, termVariants: [...(pkgModal.termVariants || []), { term: "", price: "" }] })}>
+                    <i className="bi bi-plus-lg me-1" />Add another term
+                  </button>
+                </div>
                 <div><label className="form-label">Features</label>
                   {(pkgModal.pkg.features || []).map((f, i) => (
                     <div key={i} className="d-flex gap-2 mb-2">
