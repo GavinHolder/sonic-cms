@@ -577,6 +577,48 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   }, []);
   const altLayerActive = mounted && freePlateActive && hasLowerThird && hasPromotedAlt && !!altEscapeHost;
 
+  // ── Section Header vs. free-mode plate collision guard ─────────────────────
+  // The free-mode cover plate (below) is a SECTION-LEVEL layer painted at z-index 12,
+  // ABOVE .section-content-wrapper's z-index 11 — and it is always top-anchored at the
+  // section's own y:0, with zero knowledge of the separate CMS "Section Header" (this
+  // section's sectionHeading/eyebrow/subheading fields, rendered inside the z-11 wrapper
+  // below). When both are configured on the same section, the plate's own content (often
+  // an opaque block background) paints directly over the header text — worse the more the
+  // heading wraps, since a taller heading reaches further down into the plate's territory
+  // while the plate's own top-anchored position never moves to compensate (#zindex-compositing).
+  // Fix: measure the header's REAL rendered height (ResizeObserver — mirrors the stageRef
+  // pattern already used for the plate's own scale math below) and inset the plate's top by
+  // that amount so the free canvas starts where the header actually ends, not at y:0.
+  // Scoped to SINGLE content mode only — MULTI mode's plate height is separately grown via
+  // aspect-ratio to fit the whole design with no crop, and offsetting its top without also
+  // growing that height would clip the design's bottom by the same amount, a regression this
+  // fix must not introduce. Single mode's plate already crops any overflow at the bottom
+  // (documented "background-size:cover"-style behaviour), so shrinking it from the top is
+  // consistent with its existing crop semantics. Zero-cost / no-op for the (majority) case of
+  // no sectionHeading or non-free-mode sections — headerH stays 0.
+  const headerElRef = useRef<HTMLDivElement>(null);
+  const [headerH, setHeaderH] = useState(0);
+  useEffect(() => {
+    const el = headerElRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    // Measured as the header's bottom edge minus the SECTION's own top edge (not just the
+    // header's own offsetHeight) — the header sits inside .section-content-wrapper's padded
+    // box (padding-top: max(--section-pt, --navbar-height), typically ~100px of navbar
+    // clearance), while the plate is a section-level layer with no such padding. Using only
+    // offsetHeight silently dropped that padding from the offset, leaving a partial overlap
+    // (the plate's top still landed above the header's real bottom edge).
+    const measure = () => {
+      const sectionEl = sectionRef.current;
+      if (!sectionEl) { setHeaderH(el.offsetHeight); return; }
+      setHeaderH(Math.max(0, el.getBoundingClientRect().bottom - sectionEl.getBoundingClientRect().top));
+    };
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    measure();
+    return () => ro.disconnect();
+  }, [sectionHeading, sectionSubheading, sectionEyebrow]);
+  const freePlateHeaderOffset = freePlateActive && contentMode !== "multi" && !!sectionHeading ? headerH : 0;
+
   // Resolve the background to a CSS color/gradient string and determine text contrast
   const bgColor  = resolveBgColor(background);
   const darkBg   = isDarkBackground(background);
@@ -690,6 +732,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           designerData={(altLayerActive ? baseDesignerData : designerData!) as string | Record<string, unknown>}
           darkBg={darkBg}
           plateMode
+          headerOffset={freePlateHeaderOffset}
           bgImage={{
             url: bgImageUrl,
             size: bgImageSize,
@@ -725,6 +768,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
                 designerData={promotedDesignerData as string | Record<string, unknown>}
                 darkBg={darkBg}
                 plateMode
+                headerOffset={freePlateHeaderOffset}
               />
             </div>,
             altEscapeHost
@@ -792,7 +836,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
       >
         {/* Section header — above content when sectionHeading is configured */}
         {sectionHeading && !scrollStageActive && (
-          <div className="container-fluid">
+          <div className="container-fluid" ref={headerElRef}>
             <SectionHeader
               heading={sectionHeading}
               subheading={sectionSubheading}
@@ -1540,7 +1584,7 @@ function FullBleedVoltLayer({ props: p }: { props: Record<string, unknown> }) {
   );
 }
 
-function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMode, bgImage }: {
+function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMode, bgImage, headerOffset }: {
   designerData: string | Record<string, unknown>;
   darkBg: boolean;
   scrollStageZone?: number;
@@ -1551,6 +1595,15 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
   plateMode?: boolean;
   // bgImage: section background image fields, drawn INSIDE the plate (free cover-plate only).
   bgImage?: { url?: string; size?: string; position?: string; repeat?: string; opacity?: number; maskCss?: string | null };
+  // headerOffset: px height of this section's separate CMS "Section Header" (measured live
+  // by the caller), single content-mode only. The plate is a z-index-12 layer painted ABOVE
+  // the z-index-11 .section-content-wrapper that holds that header, with no innate awareness
+  // of it — without this the plate's own top-anchored content paints over the header text
+  // whenever the two occupy the same vertical space (worse the more the heading wraps).
+  // Insets the plate's top by this amount so the free canvas starts below the header instead.
+  // 0/undefined (the default) reproduces the exact prior behaviour — every existing free-mode
+  // section without a Section Header, and every multi-mode section, is untouched.
+  headerOffset?: number;
 }) {
   // Hooks must be called before any conditional returns
   const [screenW, setScreenW] = useState(typeof window !== "undefined" ? window.innerWidth : 1440);
@@ -1797,7 +1850,10 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
       return (
         <div ref={stageRef} style={{
           position: "absolute",
-          inset: 0,
+          top: headerOffset || 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
           zIndex: 12,
           overflow: "hidden",
           pointerEvents: "none",
@@ -1924,7 +1980,16 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
         // Visual block types that benefit from filling available space (have aspect ratios
         // or are designed to scale). All other types (text, card, button, etc.) are
         // content-driven and should collapse to their natural height.
-        const FILL_TYPES = new Set(["volt", "image", "3d-object", "video", "canvas", "photo-card", "coverage-map", "projects-gallery", "gallery-cta"]);
+        // "template" MUST be here too: TemplateBlock renders an <iframe style="height:100%">
+        // (see components/sections/blocks/TemplateBlock.tsx) — a percentage height on a
+        // replaced element can never resolve inside an 'auto' grid track (no definite size
+        // to resolve against), so the browser falls back to the iframe's UA-default intrinsic
+        // box (300×150px). That silently squashed every "template" block (e.g. a pricing
+        // grid with tab bars) to ~150px tall with clipped overflow — the tab bar/cards past
+        // that point were never visible on the live page even though the row's own content
+        // needed 500-700px. '1fr' resolves against the grid's definite minHeight instead,
+        // giving the iframe a real height to fill.
+        const FILL_TYPES = new Set(["volt", "image", "3d-object", "video", "canvas", "photo-card", "coverage-map", "projects-gallery", "gallery-cta", "template"]);
         return Array.from({ length: totalRows }, (_, i) => {
           const types = rowTypes[i + 1];
           // A row gets '1fr' only if it contains a visual/fill block type.
