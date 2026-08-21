@@ -245,9 +245,18 @@ export default function TemplateBlock({ html, css, productId, networkSlug, netwo
   // FlexibleSectionRenderer.tsx's "template" case for the full rationale: the frame
   // gets a unique opaque origin, so an uploaded template's script can run its own
   // visuals/interactivity but can never read the CMS admin's cookies/localStorage/DOM.
+  // tplVarsStyle goes AFTER finalHtml, not in <head> — a single-file .html import (the
+  // normal case) puts the ENTIRE uploaded document, including its own <head><style>, into
+  // finalHtml, which is then embedded inside this wrapper's <body>. A <style> placed in
+  // THIS <head> is therefore encountered (and cascades) BEFORE the template's own nested
+  // <style>, so on equal :root specificity the template's own default was silently
+  // winning — the override never took visual effect despite being correctly computed and
+  // injected. Confirmed by tracing the actual srcdoc HTML produced end-to-end, not just
+  // reading the code. Appending it after finalHtml makes it genuinely the last <style>
+  // encountered, which is what the comment on buildTplVarsStyle above has always assumed.
   const srcDoc = `<!doctype html><html><head><meta charset="utf-8">${
     finalCss ? `<style>${finalCss}</style>` : ""
-  }${tplVarsStyle}${contextScript}</head><body style="margin:0">${finalHtml}</body></html>`;
+  }${contextScript}</head><body style="margin:0">${finalHtml}${tplVarsStyle}</body></html>`;
 
   // Keyed on the live-data readiness, not just a static block id: mutating an
   // already-loaded iframe's srcdoc attribute in place does not reliably re-navigate
