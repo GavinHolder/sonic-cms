@@ -8939,6 +8939,11 @@ function scanTemplateOptionFields(html, css) {
     let kind = 'text', unit = '';
     if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(val)) {
       kind = 'color';
+    } else if (val === '0' || val === '1') {
+      // A bare unitless 0/1 default is a template author's convention for a two-way
+      // toggle driven entirely by CSS calc() (e.g. --tpl-tab-shape: 0|1 switching a
+      // pill vs. segmented tab look) — render it as a checkbox, not a number spinner.
+      kind = 'boolean';
     } else {
       const numMatch = val.match(/^(-?[\d.]+)(px|em|rem|%|vw|vh|deg|s|ms)?$/);
       if (numMatch) { kind = 'number'; unit = numMatch[2] || ''; }
@@ -8967,6 +8972,12 @@ function renderTemplateOptionsPanel(block, p) {
       out += `<div class="props-row" style="margin-bottom:6px;">
         <label style="flex:1;font-size:11px;">${escHtml(f.label)}</label>
         <input type="color" class="props-input" style="width:44px;height:26px;padding:1px;flex:none;" value="${escHtml(swatch)}" onchange="updateTemplateOption('${block.id}','${escHtml(f.key)}',this.value)">
+      </div>`;
+    } else if (f.kind === 'boolean') {
+      const checked = (cur !== '' ? cur : f.default) === '1';
+      out += `<div class="props-row" style="margin-bottom:6px;">
+        <label style="flex:1;font-size:11px;">${escHtml(f.label)}</label>
+        <input type="checkbox" ${checked ? 'checked' : ''} onchange="updateTemplateOption('${block.id}','${escHtml(f.key)}', this.checked ? '1' : '0')">
       </div>`;
     } else if (f.kind === 'number') {
       const numVal = cur ? parseFloat(cur) : '';
