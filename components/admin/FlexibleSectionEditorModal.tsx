@@ -80,7 +80,7 @@ export default function FlexibleSectionEditorModal({
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string | number>>(new Set());
 
   // ── Content ───────────────────────────────────────────────────
-  const [contentMode, setContentMode] = useState<"single" | "multi">(
+  const [contentMode, setContentMode] = useState<"single" | "multi" | "dynamic">(
     section.content?.contentMode || section.contentMode || "single"
   );
   const [elements, setElements] = useState<FlexibleElement[]>(
@@ -603,9 +603,20 @@ export default function FlexibleSectionEditorModal({
                         <i className="bi bi-arrows-expand me-1" />
                         Multi Screen (&gt;100vh)
                       </button>
+                      <button
+                        type="button"
+                        className={`btn btn-sm flex-fill ${contentMode === "dynamic" ? "btn-primary" : "btn-outline-secondary"}`}
+                        onClick={() => setContentMode("dynamic")}
+                      >
+                        <i className="bi bi-arrows-angle-expand me-1" />
+                        Dynamic (auto-fit)
+                      </button>
                     </div>
                     <small className="form-text text-muted mt-1 d-block">
-                      Single locks the section to exactly one viewport height. Multi allows it to grow with content.
+                      Single locks the section to exactly one viewport height. Multi grows to a fixed number of
+                      screens you set. Dynamic auto-fits to whatever the section's own content actually needs right
+                      now (e.g. a product tab with more cards), up to the same screen-count cap you set in the
+                      Designer&apos;s Multi Screen Limit field.
                     </small>
                   </div>
 

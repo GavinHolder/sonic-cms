@@ -212,6 +212,42 @@ section[data-content-mode="multi"] .section-content-wrapper {
   height: auto !important;
 }
 
+/* Dynamic Content Height Mode: reuses Multi's EXACT scroll-snap mechanic (same
+   scroll-snap-align/scroll-snap-stop as the rule above — a Dynamic section snaps and scrolls
+   exactly like a Multi section) but the height itself is a LIVE-computed `N × 100vh` instead
+   of a fixed one. FlexibleSectionRenderer.tsx sets --dynamic-screens as a plain (non-!important)
+   custom property on the <section> element whenever a block reports its live rendered content
+   height (see TemplateBlock.tsx's postMessage contract + DesignerBlock's ResizeObserver);
+   custom properties cascade normally regardless of the !important below, so var() here always
+   resolves to the latest value React set. --dynamic-screens defaults to 1 (see the fallback
+   var() below) so a section with contentMode="dynamic" but no report yet (SSR/first paint)
+   renders as exactly one screen — never collapses to 0 and never NaN.
+   Unlike Multi (auto height, no ceiling), Dynamic sets an explicit max-height and clips with
+   overflow:hidden — the admin's multiLimit value is a HARD CAP here, not just a starting size,
+   and content that would need more than the cap is clipped at the cap. This intentionally
+   reuses the exact clip mechanism Single mode already falls back to for oversized content
+   (see the base `#snap-container section:not(.hero-carousel)` rule's overflow:hidden above)
+   rather than inventing a second one. */
+#snap-container section[data-content-mode="dynamic"],
+section[data-content-mode="dynamic"] {
+  height: calc(var(--dynamic-screens, 1) * 100vh) !important;
+  min-height: 100vh;
+  max-height: calc(var(--dynamic-screens, 1) * 100vh) !important;
+  overflow: hidden !important;
+  scroll-snap-align: start;
+  scroll-snap-stop: normal;
+}
+
+/* Dynamic-section content wrapper: clip at the section's own live-computed cap (same
+   overflow:hidden clip as Single mode), not the visible/unbounded growth Multi mode allows. */
+#snap-container section[data-content-mode="dynamic"] .section-content-wrapper,
+section[data-content-mode="dynamic"] .section-content-wrapper {
+  overflow: hidden !important;
+  flex: unset !important;
+  min-height: unset !important;
+  height: auto !important;
+}
+
 /* Gavin branch: CSS custom properties for dynamic CMS values */
 .cms-section {
   position: relative; /* Required for absolutely-positioned children (AnimBgRenderer, overlays) */
@@ -529,6 +565,13 @@ main {
    2. Stack all grid blocks in a single column (full width)
    3. Show no internal scroll — content is visible by expanding the section
    Multi sections already grow via their own data-content-mode="multi" rules.
+   Dynamic sections are DELIBERATELY not excluded below (unlike multi) — the desktop-only
+   hard cap (globals.css [data-content-mode="dynamic"], clip via overflow:hidden) is exactly
+   the behavior a mobile visitor should NOT get: capping a pricing-card grid to N screens and
+   clipping the rest would hide cards a phone user could otherwise just keep scrolling past.
+   This rule's selector already beats that desktop rule on specificity (:not() attribute
+   selector + class outweighs a plain attribute selector), so on mobile a dynamic section is
+   released to full natural-height reflow exactly like a single section — same as multi.
    ────────────────────────────────────────────────────────────────────────── */
 @media (max-width: 767px) {
   /* Release fixed height so content stacks vertically without clipping */

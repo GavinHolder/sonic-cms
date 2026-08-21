@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { packageSlotValues, type PackageLike } from "@/lib/packages/format";
 
 interface Props {
@@ -38,6 +38,12 @@ interface Props {
    *    Keys are NOT present here unless the admin explicitly set a value; omitted keys
    *    leave the template's own declared default in effect. */
   templateOptions?: Record<string, string>;
+  /** Dynamic Content Height Mode (FLEXIBLE section contentMode "dynamic") — called with the
+   * template's own live rendered content height (px) whenever it reports one. See the
+   * postMessage contract documented above the message listener below. Omitted entirely for
+   * Single/Multi sections (FlexibleSectionRenderer only passes this for a "dynamic" section),
+   * so this component's behavior for those modes is completely unchanged. */
+  onContentHeight?: (px: number) => void;
 }
 
 interface ScopedPackage {
@@ -129,10 +135,57 @@ function buildTplVarsStyle(options: Record<string, string>): string {
  *   product subsystem (see components/sections/blocks/CardTabsBlock.tsx for the
  *   Designer-native equivalent of this same idea).
  */
-export default function TemplateBlock({ html, css, productId, networkSlug, networkName, productTypeSlugs, templateOptions }: Props) {
+export default function TemplateBlock({ html, css, productId, networkSlug, networkName, productTypeSlugs, templateOptions, onContentHeight }: Props) {
   const [pkgSlots, setPkgSlots] = useState<Record<string, string>>({});
   const [scopedPackages, setScopedPackages] = useState<ScopedPackage[]>([]);
   const slugsKey = (productTypeSlugs || []).join(",");
+  // Ref to THIS instance's own iframe — a page can hold more than one TemplateBlock (a
+  // section can have >1 block), and the message listener below must only react to a
+  // height report from its own iframe, never one bubbling up from an unrelated iframe
+  // elsewhere on the page. Compared against event.source, not the DOM node, since a
+  // sandboxed iframe's contentWindow is exactly what postMessage sets as event.source —
+  // no DOM/document read is needed (and none is possible without allow-same-origin).
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // ── Dynamic Content Height Mode: receive live height reports from the sandboxed
+  // iframe ─────────────────────────────────────────────────────────────────────
+  // sandbox="allow-scripts" WITHOUT allow-same-origin (see the srcDoc comment below) means
+  // the parent can never read this iframe's contentDocument/contentWindow directly — the
+  // frame has its own opaque origin. postMessage is the one channel a sandboxed iframe can
+  // still use to talk to its parent even without allow-same-origin, so it's the only viable
+  // way for a template's own script to report how tall its rendered content actually is
+  // (needed so a FLEXIBLE section in "dynamic" contentMode can size itself to match).
+  //
+  // MESSAGE CONTRACT — a template author's own <script> should send, whenever its content's
+  // rendered height changes (e.g. after switching a tab that shows more/fewer cards):
+  //   window.parent.postMessage(
+  //     { source: 'sonic-cms-template', type: 'content-height', height: <number, px> },
+  //     '*'
+  //   )
+  // targetOrigin '*' is deliberate, not a shortcut: the iframe itself has an opaque origin
+  // (there is no real origin to target), and the parent's own origin varies per deployment.
+  // This is a same-direction, non-sensitive signal (a pixel count) — not a channel for
+  // secrets — so '*' is the correct choice here, not a weakening. Do not "fix" this by
+  // adding allow-same-origin instead; that would defeat the whole sandbox.
+  useEffect(() => {
+    if (!onContentHeight) return;
+    const onMessage = (event: MessageEvent) => {
+      // Defensive validation — this listener will also receive noise from other iframes/
+      // extensions on the page (unrelated postMessage traffic), so every field is checked
+      // before use and nothing here is allowed to throw on malformed input.
+      const data = event.data as unknown;
+      if (!data || typeof data !== "object") return;
+      const msg = data as { source?: unknown; type?: unknown; height?: unknown };
+      if (msg.source !== "sonic-cms-template" || msg.type !== "content-height") return;
+      if (typeof msg.height !== "number" || !Number.isFinite(msg.height) || msg.height <= 0) return;
+      // Only accept a report from THIS instance's own iframe (see iframeRef comment above) —
+      // never from some other TemplateBlock/iframe elsewhere on the page.
+      if (event.source !== iframeRef.current?.contentWindow) return;
+      onContentHeight(msg.height);
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [onContentHeight]);
 
   useEffect(() => {
     if (!productId) { setPkgSlots({}); return; }
@@ -206,6 +259,7 @@ export default function TemplateBlock({ html, css, productId, networkSlug, netwo
 
   return (
     <iframe
+      ref={iframeRef}
       key={iframeKey}
       title="Section template"
       srcDoc={srcDoc}

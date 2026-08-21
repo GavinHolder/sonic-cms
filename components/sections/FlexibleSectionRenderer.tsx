@@ -449,6 +449,13 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
+  // Dynamic Content Height Mode (contentMode === "dynamic") — how many 100vh "screens" this
+  // section currently needs, computed live by DesignerBlocksRenderer from reported block
+  // content heights and reported back up here so it can be applied to the actual <section>
+  // DOM node (see the --dynamic-screens custom property below + globals.css
+  // [data-content-mode="dynamic"]). Starts at 1 so SSR/first paint is never NaN/0vh.
+  const [dynamicScreens, setDynamicScreens] = useState(1);
+
   // Full-bleed volt blocks (props.fullBleed) are lifted out of the in-grid flow and
   // drawn as section-level background layers BELOW the content wrapper (see the render
   // below + FullBleedVoltLayer). Parsed once here (guarded) so the layer can be a direct
@@ -692,6 +699,12 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           minHeight: 0,
           maxHeight: "none",
         } : {}),
+        // Dynamic Content Height Mode — the live-computed screen count, read by globals.css's
+        // [data-content-mode="dynamic"] rule (height/max-height: calc(var(--dynamic-screens) *
+        // 100vh)). A plain custom property (not a regular longhand) so it isn't fighting that
+        // rule's own !important — see the comment there for why. Single/Multi sections don't
+        // emit this at all (contentMode !== "dynamic"), so they are completely unaffected.
+        ...(contentMode === "dynamic" ? { "--dynamic-screens": dynamicScreens } : {}),
       } as React.CSSProperties}
     >
       {/* Decorative watermark — oversized faded number/word, top-right */}
@@ -871,7 +884,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           <div className="container-fluid">
             {/* If we have designer data (mockup block format), render that first */}
             {designerData
-              ? <DesignerBlocksRenderer designerData={designerData} darkBg={darkBg} />
+              ? <DesignerBlocksRenderer designerData={designerData} darkBg={darkBg} onDynamicScreensChange={contentMode === "dynamic" ? setDynamicScreens : undefined} />
               : <>
                   {mosaicMode
                     ? <MosaicLayout elements={elements} layout={layout as any} darkBg={darkBg} />
@@ -1584,10 +1597,19 @@ function FullBleedVoltLayer({ props: p }: { props: Record<string, unknown> }) {
   );
 }
 
-function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMode, bgImage, headerOffset }: {
+function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMode, bgImage, headerOffset, onDynamicScreensChange }: {
   designerData: string | Record<string, unknown>;
   darkBg: boolean;
   scrollStageZone?: number;
+  // onDynamicScreensChange: contentMode === "dynamic" only. Reports the freshly-computed
+  // "how many 100vh screens does this section need right now" number up to the parent
+  // FlexibleSectionRenderer, which owns the actual <section> DOM node and applies it as a
+  // CSS custom property (see the outer <section> style + globals.css [data-content-mode
+  // "dynamic"]). Undefined for every other DesignerBlocksRenderer call site (free-mode
+  // plate, promoted-plate, scroll-stage) — dynamic mode is scoped to the standard
+  // grid/preset (non-free) designer layout, the same path Multi mode's own
+  // containerH/multiLimit logic already lives in.
+  onDynamicScreensChange?: (screens: number) => void;
   // plateMode: this is the SECTION-LEVEL free cover-plate instance (desktop). It owns the
   // desktop free render (bg image + blocks in one COVER-scaled box) and returns null on
   // mobile. The default (plateMode falsy) in-wrapper instance is the inverse: null on
@@ -1635,6 +1657,60 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
   // both, so it stays the pre-mount default.
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
+
+  // ── Dynamic Content Height Mode ────────────────────────────────────────────
+  // contentMode === "dynamic" reuses Multi's exact scroll-snap mechanic (a section is
+  // still N×100vh, still scroll-snap-align:start/stop:normal — see globals.css
+  // [data-content-mode="dynamic"]) but N is computed LIVE from whichever block reports the
+  // tallest actually-rendered content, instead of being a fixed number the admin picked.
+  // Two reporting channels feed the same blockHeights map:
+  //  - "template" blocks (sandboxed iframe, opaque origin) report via postMessage — see
+  //    TemplateBlock.tsx's onContentHeight / documented message contract.
+  //  - "card-tabs"/"product-grid" blocks (same-origin React, no iframe boundary) report via
+  //    a ResizeObserver on their own rendered container — see DesignerBlock below.
+  // A section can hold >1 dynamic-capable block; height is driven by whichever block
+  // CURRENTLY reports the tallest content, so one block shrinking (e.g. switching to a
+  // shorter tab) never incorrectly shrinks the section out from under a still-tall sibling.
+  const dynamicMeta = useMemo(() => {
+    try {
+      const d = typeof designerData === "string" ? JSON.parse(designerData) : designerData;
+      const cap = Number((d as Record<string, unknown>)?.multiLimit);
+      return {
+        isDynamic: (d as Record<string, unknown>)?.contentMode === "dynamic",
+        // Reuses the existing multiLimit field/UI as the safety cap — defaults to 5
+        // screens when the admin hasn't set one for a Dynamic section.
+        cap: cap > 0 ? cap : 5,
+      };
+    } catch { return { isDynamic: false, cap: 5 }; }
+  }, [designerData]);
+  const [blockHeights, setBlockHeights] = useState<Record<string, number>>({});
+  const reportBlockHeight = useCallback((blockId: string, px: number) => {
+    if (!Number.isFinite(px) || px <= 0) return;
+    setBlockHeights((prev) => (prev[blockId] === px ? prev : { ...prev, [blockId]: px }));
+  }, []);
+  // Viewport height, tracked live (mirrors screenW above) — needed to convert a reported
+  // px height into a count of 100vh "screens". Only tracked while dynamic mode is active.
+  const [viewportH, setViewportH] = useState(typeof window !== "undefined" ? window.innerHeight : 900);
+  useEffect(() => {
+    if (!dynamicMeta.isDynamic) return;
+    const onResize = () => setViewportH(window.innerHeight);
+    window.addEventListener("resize", onResize, { passive: true });
+    return () => window.removeEventListener("resize", onResize);
+  }, [dynamicMeta.isDynamic]);
+  const dynamicScreens = useMemo(() => {
+    if (!dynamicMeta.isDynamic) return 1;
+    const tallest = Object.values(blockHeights).reduce((m, v) => Math.max(m, v), 0);
+    // Before any block has reported a height (SSR / first paint), fall back to a single
+    // screen — must never be NaN or 0vh. Once a report arrives, clamp the computed need
+    // into [1, cap]; beyond the cap the section stops growing and the outer <section>'s
+    // fixed max-height + overflow:hidden (globals.css) clips the rest — the same fallback
+    // behavior Single mode already uses for oversized content, reused as-is here.
+    if (tallest <= 0) return 1;
+    return Math.max(1, Math.min(dynamicMeta.cap, Math.ceil(tallest / Math.max(viewportH, 1))));
+  }, [dynamicMeta, blockHeights, viewportH]);
+  useEffect(() => {
+    onDynamicScreensChange?.(dynamicScreens);
+  }, [dynamicScreens, onDynamicScreensChange]);
 
   // ── Coverage-plugin package binding ───────────────────────────────────────
   // Collect every package referenced by a bound card, fetch them once, and expose
@@ -1740,6 +1816,10 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
 
     const isFreeMode = data.positionMode === "free" || data.layoutType === "free";
     const isMulti    = data.contentMode === "multi";
+    // Dynamic mode is scoped to the non-free designer layout (same path Multi's own
+    // containerH/multiLimit logic lives in) — dynamicMeta/dynamicScreens are computed by
+    // the unconditional hooks above (must run before this try block's early returns).
+    const isDynamic  = dynamicMeta.isDynamic && !isFreeMode;
     // multiLimit defines how many 100vh screens the section spans in multi mode
     const multiLimit = isMulti ? (data.multiLimit || 1) : 1;
     // -1 = mobile signal: show all zones stacked, normal multi layout
@@ -1753,7 +1833,13 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
     // Use max() to match the actual padding-top applied by .section-content-wrapper
     // (which enforces min 100px navbar clearance via max(--section-pt, --navbar-height)).
     // Without this, the grid is taller than available space and content spills out.
-    const containerH = isScrollStage ? "100%" : (isMulti ? `${multiLimit * 100}vh` : "calc(100vh - max(var(--section-pt, 100px), var(--navbar-height, 100px)) - var(--section-pb, 80px))");
+    // Dynamic: same `N × 100vh` formula as Multi, but N (dynamicScreens) is the LIVE
+    // computed value from reported block heights, not the admin's fixed multiLimit.
+    const containerH = isScrollStage
+      ? "100%"
+      : isDynamic
+        ? `${dynamicScreens * 100}vh`
+        : (isMulti ? `${multiLimit * 100}vh` : "calc(100vh - max(var(--section-pt, 100px), var(--navbar-height, 100px)) - var(--section-pb, 80px))");
     // Full-bleed volt blocks are promoted to section-level background layers by the
     // parent section body (FullBleedVoltLayer); drop them from the in-grid flow here so
     // they render once — behind the other blocks — instead of twice. Non-full-bleed
@@ -2028,7 +2114,7 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
                 // Allow slight overflow for decorative elements that extend beyond their bounds
                 overflow: "visible",
               }}>
-                <DesignerBlock block={block} darkBg={darkBg} />
+                <DesignerBlock block={block} darkBg={darkBg} onContentHeight={isDynamic ? reportBlockHeight : undefined} />
               </div>
             );
           })}
@@ -2037,18 +2123,20 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
     }
 
     // Preset / fallback: flex layout
-    // In multi mode blocks stack vertically, each taking an equal fraction of the total height
+    // In multi mode blocks stack vertically, each taking an equal fraction of the total height.
+    // Dynamic mode also stacks vertically, but each block keeps its own natural height (there's
+    // no fixed N to divide evenly by — N is computed FROM the content, not authored up front).
     return (
       <div style={{
         display: "flex",
-        flexDirection: isMulti ? "column" : "row",
-        flexWrap: isMulti ? "nowrap" : "wrap",
+        flexDirection: (isMulti || isDynamic) ? "column" : "row",
+        flexWrap: (isMulti || isDynamic) ? "nowrap" : "wrap",
         gap: `${gap ?? 16}px`,
         minHeight: gridH,
       }}>
         {filteredBlocks.map((block) => (
-          <div key={block.id} style={{ flex: isMulti ? `0 0 calc(${100 / multiLimit}%)` : "1 1 280px", minWidth: 0 }}>
-            <DesignerBlock block={block} darkBg={darkBg} />
+          <div key={block.id} style={{ flex: isMulti ? `0 0 calc(${100 / multiLimit}%)` : (isDynamic ? "0 0 auto" : "1 1 280px"), minWidth: 0 }}>
+            <DesignerBlock block={block} darkBg={darkBg} onContentHeight={isDynamic ? reportBlockHeight : undefined} />
           </div>
         ))}
       </div>
@@ -2091,9 +2179,12 @@ function groupSubsByColumn(subs: SubEl[]): SubEl[][] {
     .map(k => buckets.get(k)!.sort((a, b) => (a.y ?? 0) - (b.y ?? 0)));
 }
 
-function DesignerBlock({ block, darkBg }: {
+function DesignerBlock({ block, darkBg, onContentHeight }: {
   block: { type: string; props?: Record<string, unknown>; subElements?: SubEl[] };
   darkBg: boolean;
+  // Dynamic Content Height Mode only (see FlexibleSectionRenderer/DesignerBlocksRenderer) —
+  // undefined for every Single/Multi section, so this block's render is byte-identical there.
+  onContentHeight?: (blockId: string, px: number) => void;
 }) {
   const blockRef    = useRef<HTMLDivElement>(null);
   // Stats countUp: ref to the number display element
@@ -2103,6 +2194,31 @@ function DesignerBlock({ block, darkBg }: {
   // Default text colour based on the section's background luminance
   const tc = "var(--section-text)";
   const subs = block.subElements || [];
+  // Runtime designer blocks always carry an `id` (not part of the narrow prop type above —
+  // same cast used elsewhere in this file, e.g. the "template" case's blockDomId).
+  const blockId = String((block as unknown as { id?: string | number }).id ?? "");
+
+  // ── Dynamic Content Height Mode: same-origin native blocks (card-tabs/product-grid) ──────
+  // These render as normal React DOM (no iframe boundary), so — unlike "template" blocks,
+  // which need postMessage — their own rendered container height can be measured directly
+  // with a ResizeObserver. Debounced ~100ms so a burst of resize events from a tab-switch
+  // reflow doesn't thrash the parent's state on every intermediate frame.
+  const contentHeightRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!onContentHeight) return;
+    if (block.type !== "card-tabs" && block.type !== "product-grid") return;
+    const el = contentHeightRef.current;
+    if (!el || !blockId || typeof ResizeObserver === "undefined") return;
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const ro = new ResizeObserver((entries) => {
+      const h = entries[0]?.contentRect?.height;
+      if (!h) return;
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => onContentHeight(blockId, h), 100);
+    });
+    ro.observe(el);
+    return () => { ro.disconnect(); if (debounceTimer) clearTimeout(debounceTimer); };
+  }, [block.type, blockId, onContentHeight]);
 
   // ── Card → Package binding ────────────────────────────────────────────────
   // When a card is bound to a package, fetch it so {{pkg.*}} tokens in the card's
@@ -2534,18 +2650,26 @@ function DesignerBlock({ block, darkBg }: {
             </div>
           );
         }
-        return (
-          <CardTabsBlock
-            content={{
-              productTypeSlugs: ctSlugs,
-              voltId: p.voltId as string | undefined,
-              tabs: ctTabs,
-              minCardWidth: p.minCardWidth as number | undefined,
-              cardAspectRatio: p.cardAspectRatio as string | undefined,
-            }}
-            darkBg={darkBg}
-          />
-        );
+        {
+          const ctBlock = (
+            <CardTabsBlock
+              content={{
+                productTypeSlugs: ctSlugs,
+                voltId: p.voltId as string | undefined,
+                tabs: ctTabs,
+                minCardWidth: p.minCardWidth as number | undefined,
+                cardAspectRatio: p.cardAspectRatio as string | undefined,
+              }}
+              darkBg={darkBg}
+            />
+          );
+          // Dynamic Content Height Mode: wrap with the ResizeObserver-measured container
+          // (see contentHeightRef above) ONLY when a report callback was actually passed
+          // down (contentMode === "dynamic") — Single/Multi sections render the block
+          // exactly as before, no extra wrapper div. Deliberately no explicit height here
+          // (would clamp the very measurement it needs to make) — natural content sizing.
+          return onContentHeight ? <div ref={contentHeightRef}>{ctBlock}</div> : ctBlock;
+        }
       }
 
       // ── product-grid: 3-layer Product Type → Network → Category drill-down grid of
@@ -2560,7 +2684,12 @@ function DesignerBlock({ block, darkBg }: {
             </div>
           );
         }
-        return <ProductGridBlock content={{ productTypeSlugs: pgSlugs, voltId: pgVoltId, minCardWidth: p.minCardWidth as number | undefined, heading: p.heading as string | undefined }} darkBg={darkBg} />;
+        {
+          const pgBlock = <ProductGridBlock content={{ productTypeSlugs: pgSlugs, voltId: pgVoltId, minCardWidth: p.minCardWidth as number | undefined, heading: p.heading as string | undefined }} darkBg={darkBg} />;
+          // Dynamic Content Height Mode — see the identical wrapping in the "card-tabs"
+          // case above for the full rationale.
+          return onContentHeight ? <div ref={contentHeightRef}>{pgBlock}</div> : pgBlock;
+        }
       }
 
       // ── template: renders an admin-imported "Section Block" HTML template as a block ──
@@ -2625,6 +2754,7 @@ function DesignerBlock({ block, darkBg }: {
             networkName={templateNetworkName}
             productTypeSlugs={templateProductTypeSlugs}
             templateOptions={templateOptions}
+            onContentHeight={onContentHeight ? (px: number) => onContentHeight(blockDomId, px) : undefined}
           />
         );
       }

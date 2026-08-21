@@ -1445,15 +1445,20 @@
               <select class="form-select form-select-sm mb-2" id="contentMode" onchange="onModeChange()">
                 <option value="single">Single Section (100vh)</option>
                 <option value="multi">Multi Section (Tall — scrollable)</option>
+                <option value="dynamic">Dynamic (auto-fit content)</option>
               </select>
               <div id="multi-limit-row" style="display:none;">
                 <div class="d-flex align-items-center gap-2">
-                  <label class="form-label mb-0 small">Height</label>
+                  <label class="form-label mb-0 small" id="multiLimitLabel">Height</label>
                   <input type="range" class="form-range flex-1" id="multiLimit" min="2" max="10" value="3"
                     oninput="document.getElementById('multiLimitVal').textContent=this.value; renderCanvas(); autoSave();">
                   <span class="slider-value" id="multiLimitVal">3</span>
                   <small class="text-muted">×100vh</small>
                 </div>
+                <!-- Dynamic mode: the live public page computes the actual screen count from
+                     rendered content (see FlexibleSectionRenderer.tsx); this slider becomes the
+                     safety CAP on that computation, not a fixed size — relabeled below via
+                     onModeChange() so the same field/UI is reused for both meanings. -->
               </div>
             </div>
 
@@ -2558,9 +2563,19 @@ function renderCanvas() {
 
   const canvas = document.getElementById('canvas');
   const canvasArea = canvas.closest('.canvas-area');
+  // Dynamic mode's canvas is a STATIC design surface (no live product data driving it in the
+  // designer), so it deliberately reuses Multi's exact rendering here — shown at its cap
+  // height (state.multiLimit × availH), same multi-band block placement. The actual live
+  // auto-fit only happens on the real public page (FlexibleSectionRenderer.tsx); don't
+  // duplicate that logic here. See also globals.css [data-content-mode="dynamic"].
+  const isMultiLike = state.contentMode === 'multi' || state.contentMode === 'dynamic';
   // Apply mode class so CSS can style single vs multi borders differently
   canvas.className = state.contentMode === 'single' ? 'mode-single' : 'mode-multi';
-  document.getElementById('multi-limit-row').style.display = state.contentMode === 'multi' ? 'block' : 'none';
+  document.getElementById('multi-limit-row').style.display = isMultiLike ? 'block' : 'none';
+  // Same field/UI as Multi's fixed height, but it means something different for Dynamic
+  // (a safety CAP the live page clamps to, not a size it's forced to) — relabel accordingly.
+  const multiLimitLabelEl = document.getElementById('multiLimitLabel');
+  if (multiLimitLabelEl) multiLimitLabelEl.textContent = state.contentMode === 'dynamic' ? 'Max screens (safety cap)' : 'Height';
 
   // Section height = available canvas area height (same for single and multi).
   // This ensures each section fills exactly the visible designer area — no cells spill past section boundaries.
@@ -2570,8 +2585,8 @@ function renderCanvas() {
   // Subtract toolbar and ruler heights from the available container height
   const availH = canvasArea ? canvasArea.clientHeight - (headerEl ? headerEl.offsetHeight : 0) - RULER_H : window.innerHeight - RULER_H;
 
-  if (state.contentMode === 'multi') {
-    // Multi mode: canvas height = N × one-section height so all sections scroll within the area
+  if (isMultiLike) {
+    // Multi/Dynamic mode: canvas height = N × one-section height so all sections scroll within the area
     canvas.style.height = `${availH * state.multiLimit}px`;
     canvas.style.minHeight = `${availH * state.multiLimit}px`;
     if (canvasArea) { canvasArea.classList.add('multi-scroll'); canvasArea.classList.remove('single-scroll'); }
@@ -2603,6 +2618,9 @@ function renderCanvas() {
   if (state.contentMode === 'single') {
     badge.className = 'mode-badge single';
     badge.textContent = 'Single Section — 100vh';
+  } else if (state.contentMode === 'dynamic') {
+    badge.className = 'mode-badge multi';
+    badge.textContent = `Dynamic Section — up to ${state.multiLimit}×100vh`;
   } else {
     badge.className = 'mode-badge multi';
     badge.textContent = `Multi Section — ${state.multiLimit}×100vh`;
@@ -2617,7 +2635,7 @@ function renderCanvas() {
   // In free mode or mosaic mode: blocks keep their stored x/y/w/h — no grid snap applied here.
   // Mosaic positioning is handled entirely in renderMosaicBlocks().
   if (state.positionMode !== 'free' && state.layoutType !== 'mosaic') {
-    const maxSection = state.contentMode === 'multi' ? state.multiLimit - 1 : 0;
+    const maxSection = isMultiLike ? state.multiLimit - 1 : 0;
     state.blocks.forEach(b => {
       // Clamp all grid coordinates to valid bounds after grid dimension changes
       b.section  = Math.max(0, Math.min(b.section  || 0, maxSection));
@@ -2641,8 +2659,8 @@ function renderCanvas() {
       }
     });
     // Restore natural canvas height + remove mobile-scroll when not in mobile stacking mode
-    // (only for single-section; multi-section height was already set above)
-    if (state.devicePreview !== 'mobile' && state.contentMode !== 'multi') {
+    // (only for single-section; multi/dynamic-section height was already set above)
+    if (state.devicePreview !== 'mobile' && !isMultiLike) {
       canvas.style.height    = '';
       canvas.style.minHeight = '';
     }
@@ -2793,7 +2811,8 @@ function renderGridOverlay() {
   if (state.devicePreview === 'mobile') return;
 
   const { cellW, cellH, sectionH, gap, offsetX } = getCellMetrics();
-  const sectionCount = state.contentMode === 'multi' ? state.multiLimit : 1;
+  // Dynamic mode's canvas reuses Multi's rendering (see renderCanvas's isMultiLike comment).
+  const sectionCount = (state.contentMode === 'multi' || state.contentMode === 'dynamic') ? state.multiLimit : 1;
 
   for (let s = 0; s < sectionCount; s++) {
     const sectionOffset = s * sectionH;
@@ -5175,7 +5194,7 @@ function getCellMetrics() {
   // Section height = available canvas area height for both single and multi modes.
   // Single: canvas.offsetHeight (naturally fills available space).
   // Multi: canvas.offsetHeight / multiLimit (each stacked section = same available height).
-  let sectionH = state.contentMode === 'multi'
+  let sectionH = (state.contentMode === 'multi' || state.contentMode === 'dynamic')
     ? Math.round(canvas.offsetHeight / state.multiLimit)
     : canvas.offsetHeight;
   // TABLET FIX: on tablet the canvas WIDTH is halved (768 vs desktop 1440) while its
@@ -5225,7 +5244,7 @@ function getCellRect(row, col, colSpan=1, rowSpan=1, section=0) {
  */
 function findCell(x, y) {
   const { gap, cellW, cellH, sectionH } = getCellMetrics();
-  const maxSection = state.contentMode === 'multi' ? state.multiLimit - 1 : 0;
+  const maxSection = (state.contentMode === 'multi' || state.contentMode === 'dynamic') ? state.multiLimit - 1 : 0;
   // Determine which stacked section the Y coordinate falls into
   const section = Math.max(0, Math.min(maxSection, Math.floor(y / sectionH)));
   const localY = y - section * sectionH;
@@ -5251,7 +5270,7 @@ function highlightDropCell(e, excludeId) {
   // rect is viewport-relative — e.clientY - rect.top already accounts for canvas scroll
   const _hdc_s = getCanvasScale();
   const { row, col, section } = findCell((e.clientX-rect.left)/_hdc_s, (e.clientY-rect.top)/_hdc_s);
-  const sectionCount = state.contentMode === 'multi' ? state.multiLimit : 1;
+  const sectionCount = (state.contentMode === 'multi' || state.contentMode === 'dynamic') ? state.multiLimit : 1;
   const cellLabel = sectionCount > 1 ? `S${section+1}R${row}C${col}` : `R${row}C${col}`;
   const occupied = wouldOverlapExisting(row, col, 1, 1, section, excludeId);
   // Find the guide cell element by its text label and apply the highlight class
@@ -5306,7 +5325,7 @@ function startBlockMove(e, blockId) {
   const dragDispH = _moveDP.h;
   document.body.style.cursor = 'grabbing';
 
-  const sectionCount = state.contentMode === 'multi' ? state.multiLimit : 1;
+  const sectionCount = (state.contentMode === 'multi' || state.contentMode === 'dynamic') ? state.multiLimit : 1;
   const canvasW = canvas.offsetWidth;
   const canvasH = canvas.offsetHeight;
 
@@ -5937,7 +5956,7 @@ function renderBlockProps(block) {
   // Pixel dimensions for designers
   const dimW = Math.round(block.w);
   const dimH = Math.round(block.h);
-  const sectionLabel = (state.contentMode==='multi' && block.section !== undefined)
+  const sectionLabel = ((state.contentMode==='multi' || state.contentMode==='dynamic') && block.section !== undefined)
     ? ` · Section ${(block.section||0)+1}`
     : '';
   h+=`<div class="props-section" style="background:#f0f7ff;border-color:#b6d4fe;">
@@ -9387,7 +9406,9 @@ function buildJson() {
     positionMode:  state.positionMode,
     designerCanvasW,
     designerCanvasH,
-    multiLimit:    state.contentMode==='multi' ? state.multiLimit : undefined,
+    // Dynamic mode also saves multiLimit — it's the safety CAP the live page clamps its
+    // live-computed screen count to (see FlexibleSectionRenderer.tsx), not a fixed size.
+    multiLimit:    (state.contentMode==='multi' || state.contentMode==='dynamic') ? state.multiLimit : undefined,
     nextId:        state.nextId,
     layoutType:    state.positionMode==='free' ? 'free' : state.layoutType,
     grid:          state.positionMode!=='free' && state.layoutType==='grid' ? {rows:state.gridRows,cols:state.gridCols,gap:state.gridGap} : undefined,

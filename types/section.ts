@@ -265,6 +265,10 @@ export interface BaseSectionConfig {
   colorPaletteLocked?: boolean; // When true, palette cannot be edited
 
   // Content height mode
+  // NOTE: FLEXIBLE sections also support "dynamic" — see the FlexibleSection-specific
+  // override below, which widens this via Omit instead of a plain redeclaration so other
+  // section kinds (e.g. NORMAL, see NormalSectionEditor.tsx) that read this generic base
+  // field stay narrowly typed to "single" | "multi" and are unaffected by this feature.
   contentMode?: "single" | "multi"; // "single" = 100vh locked, "multi" = >100vh allowed
 
   // Motion/parallax overlay elements (z-index 20, above content and lower-third)
@@ -742,12 +746,16 @@ export interface PhotoStripImage {
  * Flexible Section - New section type with advanced layout control
  * Supports Bootstrap grid, absolute positioning, element library, and creative layouts
  */
-export interface FlexibleSection extends BaseSectionConfig {
+// Omit + redeclare contentMode (rather than a plain override) — TS requires a redeclared
+// interface property to be assignable back to the base type, and "dynamic" isn't part of
+// BaseSectionConfig's narrower "single" | "multi" union. Omit sidesteps that inheritance
+// check entirely; every other BaseSectionConfig field is untouched.
+export interface FlexibleSection extends Omit<BaseSectionConfig, "contentMode"> {
   type: "FLEXIBLE";
-  contentMode?: "single" | "multi"; // alias for content.contentMode (for top-level access)
+  contentMode?: "single" | "multi" | "dynamic"; // alias for content.contentMode (for top-level access)
   content: {
-    // Content mode: "single" (100vh snap) or "multi" (grows with content)
-    contentMode?: "single" | "multi";
+    // Content mode: "single" (100vh snap), "multi" (fixed N×100vh), or "dynamic" (live-computed N×100vh, capped at multiLimit)
+    contentMode?: "single" | "multi" | "dynamic";
     // Animated background layers (stored in content JSONB, no migration needed)
     animBg?: AnimBgConfig;
     // Layout configuration

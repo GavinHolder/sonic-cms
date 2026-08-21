@@ -196,8 +196,9 @@ export default function FlexibleSectionEditor({ section, onChange }: FlexibleSec
               <label className="form-label fw-semibold">Content Mode</label>
               <div className="d-flex gap-2">
                 {[
-                  { value: "single", label: "Single (100vh snap)", icon: "bi-window" },
-                  { value: "multi",  label: "Multi (grows with content)", icon: "bi-layout-split" },
+                  { value: "single",  label: "Single (100vh snap)", icon: "bi-window" },
+                  { value: "multi",   label: "Multi (grows with content)", icon: "bi-layout-split" },
+                  { value: "dynamic", label: "Dynamic (auto-fit content)", icon: "bi-arrows-angle-expand" },
                 ].map(({ value, label, icon }) => (
                   <button
                     key={value}
@@ -205,7 +206,7 @@ export default function FlexibleSectionEditor({ section, onChange }: FlexibleSec
                     className={`btn btn-sm ${contentMode === value ? "btn-primary" : "btn-outline-secondary"}`}
                     onClick={() => {
                       // contentMode is stored inside content JSONB (not a Prisma column)
-                      updateContent({ contentMode: value as "single" | "multi" });
+                      updateContent({ contentMode: value as "single" | "multi" | "dynamic" });
                     }}
                   >
                     <i className={`bi ${icon} me-1`}></i>{label}
