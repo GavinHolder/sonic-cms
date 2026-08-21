@@ -4666,6 +4666,103 @@ When a visitor checks their address and picks a package (or asks to be notified 
 Package cards rendered via the **Card Tabs** block (or a Section Block template bound to a product) can link straight into this flow with the visitor's intended package pre-selected — the card's "Check Coverage" button opens \`/coverage?package=<id>\`. Once the visitor's address resolves, the coverage page prefers whichever network actually carries that exact package at that address instead of defaulting to the first result; if the package isn't available there, the visitor still sees whatever real coverage exists rather than a dead end.
 `;
 
+const NETWORKS_PACKAGES_DOCS = `
+# Networks, Packages & Terms
+
+Access: **Admin → Features → Networks** (linked from the Coverage Maps page, and vice versa — they share data but are separate admin pages).
+
+This is the product catalogue behind coverage checking, the Card Tabs block, the Product Card Grid, and Section Block templates bound to a product — every place on the site that shows a package or its price reads from here.
+
+---
+
+## Networks
+
+A Network is a delivery provider (an FNO, a WISP, a Wireless brand, or a Voice provider) — the top-level container packages belong to.
+
+| Field | Description |
+|-------|-------------|
+| **Name** | Network display name |
+| **Category** | FNO (Fibre) / WISP / Wireless / Voice — drives coverage-map lead routing and which fields the Package form shows |
+| **Color** | Used for map polygons and UI accents |
+
+Click **Packages** on a network row to expand its package table in place.
+
+---
+
+## Service Categories
+
+A small admin-managed chip list (e.g. Data, Voice, IoT, CCTV) used two ways:
+
+1. **On a Package** — its **Category** field, mainly to flag *Voice* packages (see below)
+2. **On a Product Type** — the optional "Layer 1" grouping a Product Type can link into (see next section)
+
+Add/remove categories as plain chips at the top of the Networks page. The **"Show value-added services on the coverage map"** switch next to them controls whether VAS-kind packages (add-ons, not primary plans) surface on the public \`/coverage\` page.
+
+---
+
+## Product Types
+
+A Product Type is the admin-managed marketing label a package can carry (e.g. "AirFibre", "Std Wi-Fi", "Kuluntu Connect", "Sonic Fibre") — it drives the **Product Card Grid** block and the top tab row of **Card Tabs**/Section Block template pricing grids.
+
+| Field | Description |
+|-------|-------------|
+| **Name / Icon / Color** | Shown as the tab label in Card Tabs / Product Card Grid |
+| **Service Category** *(optional)* | Groups this Product Type under a top-level tab — e.g. link "AirFibre", "Std Wi-Fi" and "Kuluntu Connect" all to the "Wireless" category and a pricing grid shows one **Wireless** tab at the top, with those three as a second row of tabs underneath it |
+| **Active** | Show/hide |
+
+**Unlinked is the default and stays fully backward-compatible** — a Product Type with no Service Category just shows as its own top-level tab, exactly as before this link existed. Nothing breaks if you never touch this field.
+
+---
+
+## Package Terms
+
+The contract-term options a package can be set to (24-Month, Prepaid, Month-to-Month…) — admin-managed, not hardcoded, so you can add, rename or retire terms without a code change.
+
+| Field | Description |
+|-------|-------------|
+| **Name** | Shown in the Term dropdown and as the term tab label on pricing grids (e.g. "24-Month") |
+| **Kind** | *Data package (primary)* or *Value-added service (add-on)* — a package only offers terms matching its own Kind |
+| **Bills monthly** | On = price shows a "/month" suffix. Off = a once-off price with no suffix (e.g. Prepaid) |
+| **Order** | Display order in the Term dropdown and term tabs |
+| **Active** | Show/hide |
+
+Changing a term's "Bills monthly" setting or renaming it updates the billing-period suffix shown next to every package price using that term, immediately — packages store the term **name**, so renaming a term here also relabels every package already using it.
+
+---
+
+## Packages
+
+Each package is one sellable plan on a Network — click **Add Package** inside an expanded network to create one, or the pencil icon on an existing row to edit.
+
+| Field | Description |
+|-------|-------------|
+| **Name** | e.g. "Home 50/50" |
+| **Network** | Which network this package belongs to (changeable on an existing package — moves it) |
+| **Kind** | Data package (primary) or Value-added service (add-on) |
+| **Category** | Optional Service Category — setting this to **Voice** swaps the Down/Up speed fields for a single **Airtime / Minutes Bundle** free-text field (e.g. "100 minutes" or "Unlimited"), since a voice plan has no data speed |
+| **Term** | One of the active Package Terms for this package's Kind — also sets the billing-period suffix shown next to the price |
+| **Product Type** | Optional — for the Product Card Grid block and the Card Tabs tab hierarchy |
+| **Down / Up** *(or Airtime for Voice)* | Speed fields |
+| **Price** | The number shown; period suffix comes from Term |
+| **Features** | Free-text bullet list shown on the package card |
+| **Popular** | Highlights this package on pricing cards |
+| **Max distance** | *(WISP/Wireless only)* metres from a coverage tower for this package to be offered |
+
+The packages table shows a **Term badge** on every row (a light "24-Month"-style chip, or "—" if unset) so you can scan a network's term coverage at a glance without opening each package.
+
+### Term Variants — quick-add multiple terms for the same product
+
+Instead of creating "Home 50/50 (24-Month)" and "Home 50/50 (Prepaid)" as two full separate Add Package trips, fill in the shared fields once (name, speed, network, product type, category, features) and use **Term Variants** at the bottom of the modal to add extra (term, price) pairs — available in both **Add** and **Edit**, and on both **Data** and **VAS** kind packages.
+
+1. Click **Add another term**, pick a Term and enter its Price
+2. Repeat for as many terms as this product is sold under
+3. Save — each variant is created as its own **separate sibling package row** (same end result as adding them manually one at a time)
+
+**Editing an existing package never rewrites it via Term Variants** — the package you're editing keeps its own single Term/Price/Features from the fields above; Term Variants only *adds* more term coverage alongside it.
+
+**Per-term Features override:** by default every variant shares the Features list typed above. Click **"Customize features for this term"** on a variant to give it its own independent Features list instead (e.g. a Prepaid variant that excludes a "free installation" feature the 24-Month variant includes, because prepaid installs are self-funded). Click **"Use shared features instead"** to drop the override and go back to inheriting the shared list.
+`;
+
 const PROJECTS_GALLERY_DOCS = `
 # Projects Gallery
 
@@ -8860,6 +8957,14 @@ export const DOC_TOPICS: DocTopic[] = [
     children: [
       { id: "coverage-overview",  label: "Overview & Setup",        icon: "bi-info-circle",   content: COVERAGE_MAP_OVERVIEW },
       { id: "coverage-admin",     label: "Admin: Maps & Regions",   icon: "bi-pencil-square", content: COVERAGE_MAP_ADMIN },
+    ],
+  },
+  {
+    id: "networks-packages",
+    label: "Networks & Packages",
+    icon: "bi-diagram-3-fill",
+    children: [
+      { id: "networks-packages-overview", label: "Networks, Terms & Product Types", icon: "bi-diagram-3-fill", content: NETWORKS_PACKAGES_DOCS },
     ],
   },
   {
