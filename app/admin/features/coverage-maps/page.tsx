@@ -6,6 +6,8 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import { useToast } from "@/components/admin/ToastProvider";
 import NetworksManager from "@/components/admin/coverage/NetworksManager";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
+import ImportRegionsModal from "@/components/admin/coverage/ImportRegionsModal";
+import type { ParsedRegion } from "@/lib/coverage-geojson-import";
 
 const PolygonEditorModal = dynamic(
   () => import("@/components/admin/coverage/PolygonEditorModal"),
@@ -110,6 +112,9 @@ function CoverageMapsInner() {
   // Polygon editor
   const [polyEditorOpen, setPolyEditorOpen] = useState(false);
   const [polyEditorRegion, setPolyEditorRegion] = useState<CoverageRegion | null>(null);
+
+  // Bulk region import (GeoJSON)
+  const [importModalOpen, setImportModalOpen] = useState(false);
 
   // Tower management
   const [towers, setTowers] = useState<CoverageTower[]>([]);
@@ -377,6 +382,25 @@ function CoverageMapsInner() {
     } catch {
       toast.error("Failed to save polygon");
     }
+  };
+
+  // Bulk-create regions from a parsed GeoJSON file (ImportRegionsModal did the
+  // client-side parsing; this just POSTs the already-converted {name, polygon}
+  // rows). Re-throws on failure so the modal keeps its preview open instead of
+  // closing on a transient error (the admin would otherwise have to re-upload).
+  const importRegions = async (regions: ParsedRegion[]) => {
+    const res = await fetch(`/api/coverage-maps/${selectedMapId}/regions/import`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ regions }),
+    });
+    if (!res.ok) {
+      toast.error("Failed to import regions");
+      throw new Error("import failed");
+    }
+    const { count } = await res.json();
+    toast.success(`Imported ${count} region${count === 1 ? "" : "s"}`);
+    await loadMaps();
   };
 
   // ── Tower CRUD ─────────────────────────────────────────────────────────────
@@ -676,9 +700,14 @@ function CoverageMapsInner() {
                   <p style={{ margin: 0, fontSize: 13, color: "#6b7280" }}>
                     Delivery regions displayed as colored polygons on the map
                   </p>
-                  <button className="btn btn-sm btn-success d-flex align-items-center gap-1" onClick={openNewRegion}>
-                    <i className="bi bi-plus" />Add Region
-                  </button>
+                  <div className="d-flex gap-2">
+                    <button className="btn btn-sm btn-outline-success d-flex align-items-center gap-1" onClick={() => setImportModalOpen(true)}>
+                      <i className="bi bi-file-earmark-arrow-up" />Import Regions (GeoJSON)
+                    </button>
+                    <button className="btn btn-sm btn-success d-flex align-items-center gap-1" onClick={openNewRegion}>
+                      <i className="bi bi-plus" />Add Region
+                    </button>
+                  </div>
                 </div>
 
                 {/* Category tabs — filter the (potentially long) region list by the
@@ -1582,6 +1611,17 @@ function CoverageMapsInner() {
           strokeColor={polyEditorRegion.strokeColor}
           onSave={savePolygon}
           onClose={() => setPolyEditorOpen(false)}
+        />
+      )}
+
+      {/* ── Bulk region import (GeoJSON) modal ──────────────────────────────────── */}
+      {importModalOpen && selectedMap && (
+        <ImportRegionsModal
+          show={importModalOpen}
+          mapName={selectedMap.name}
+          existingRegionCount={selectedMap.regions.length}
+          onImport={importRegions}
+          onClose={() => setImportModalOpen(false)}
         />
       )}
 

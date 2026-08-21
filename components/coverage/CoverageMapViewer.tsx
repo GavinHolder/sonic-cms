@@ -4,6 +4,21 @@ import { useEffect, useRef, useState } from "react";
 import { isPointInPolygon, type CoverageCheckResult } from "@/lib/coverage-utils";
 import { searchAddresses, resolveSuggestion, reverseGeocode, type GeoPrecision, type GeoSuggestion } from "@/lib/geocoding";
 
+// Region name/description are admin-entered text, but as of the GeoJSON bulk-import
+// feature they can also come straight from an uploaded file's `properties` — i.e.
+// attacker-controlled if that file ever comes from an external partner. They're
+// interpolated into a raw HTML string below (Leaflet's bindPopup takes HTML, not a
+// React node), so escape before interpolating rather than relying on the values
+// being "probably fine".
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export interface LatLng { lat: number; lng: number }
 
 export interface CoverageRegion {
@@ -163,7 +178,9 @@ export default function CoverageMapViewer({
         // same area as a Fibre polygon on a different tower) since the coverage-check
         // result already tells the visitor what's actually available at their address.
         if (!showSearch) {
-          poly.bindTooltip(region.name, {
+          // bindTooltip also renders string content as HTML (Leaflet sets innerHTML
+          // directly), same as bindPopup above — escape here too.
+          poly.bindTooltip(escapeHtml(region.name), {
             permanent: false,
             direction: "center",
             className: "coverage-tooltip",
@@ -174,7 +191,7 @@ export default function CoverageMapViewer({
         // so don't bind a popup that would swallow the click.
         if (region.description && !showSearch) {
           poly.bindPopup(
-            `<strong style="color:#1f2937">${region.name}</strong><br/><span style="color:#6b7280;font-size:13px">${region.description}</span>`,
+            `<strong style="color:#1f2937">${escapeHtml(region.name)}</strong><br/><span style="color:#6b7280;font-size:13px">${escapeHtml(region.description)}</span>`,
             { closeButton: true }
           );
         }
