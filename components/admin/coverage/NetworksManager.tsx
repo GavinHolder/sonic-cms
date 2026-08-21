@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/components/admin/ToastProvider";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import ImageFieldWithUpload from "@/components/admin/ImageFieldWithUpload";
+import { toEditableFeatureRows, sanitizeFeatureRowsForSave, parsePackageFeatures, type FeatureRow } from "@/lib/packages/features";
 
 type Category = "FNO" | "WISP" | "WIRELESS" | "VOICE";
 
@@ -14,7 +15,11 @@ interface Pkg {
   speedUp?: string | null;
   price: string;
   period?: string | null;
-  features: string[];
+  // Raw Package.features JSON — a mix of legacy plain strings and admin-managed
+  // {badge, value} objects can coexist across different packages (see
+  // lib/packages/features.ts). Left loosely typed here; the edit form normalizes
+  // it to FeatureRow[] via toEditableFeatureRows before rendering/saving.
+  features: unknown;
   popular: boolean;
   isActive: boolean;
   order: number;
@@ -30,6 +35,13 @@ interface PackageTerm {
   name: string;
   kind: "DATA" | "VAS";
   billsMonthly: boolean;
+  order: number;
+  isActive: boolean;
+}
+interface FeatureBadgeType {
+  id: string;
+  name: string;
+  helpText?: string | null;
   order: number;
   isActive: boolean;
 }
@@ -117,7 +129,7 @@ export default function NetworksManager() {
   // `features`: optional per-variant override — undefined means "inherit the shared
   // Features list from the main form" (the common case, e.g. Prepaid vs 24-Month
   // often differ in inclusions/caps); set means "use this variant's own list".
-  const [pkgModal, setPkgModal] = useState<{ networkId: string; pkg: Partial<Pkg>; termVariants?: { term: string; price: string; features?: string[] }[] } | null>(null);
+  const [pkgModal, setPkgModal] = useState<{ networkId: string; pkg: Partial<Pkg>; termVariants?: { term: string; price: string; features?: FeatureRow[] }[] } | null>(null);
   const [confirm, setConfirm] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
 
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
@@ -129,6 +141,9 @@ export default function NetworksManager() {
 
   const [packageTerms, setPackageTerms] = useState<PackageTerm[]>([]);
   const [termModal, setTermModal] = useState<Partial<PackageTerm> | null>(null);
+
+  const [featureBadgeTypes, setFeatureBadgeTypes] = useState<FeatureBadgeType[]>([]);
+  const [fbtModal, setFbtModal] = useState<Partial<FeatureBadgeType> | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -152,7 +167,11 @@ export default function NetworksManager() {
     try { const r = await fetch("/api/package-terms"); if (r.ok) setPackageTerms(await r.json()); } catch { /* ignore */ }
   }, []);
 
-  useEffect(() => { load(); loadCategories(); loadProductTypes(); loadPackageTerms(); }, [load, loadCategories, loadProductTypes, loadPackageTerms]);
+  const loadFeatureBadgeTypes = useCallback(async () => {
+    try { const r = await fetch("/api/feature-badge-types"); if (r.ok) setFeatureBadgeTypes(await r.json()); } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { load(); loadCategories(); loadProductTypes(); loadPackageTerms(); loadFeatureBadgeTypes(); }, [load, loadCategories, loadProductTypes, loadPackageTerms, loadFeatureBadgeTypes]);
   useEffect(() => {
     fetch("/api/features/coverage-maps")
       .then((r) => (r.ok ? r.json() : null))
@@ -232,6 +251,33 @@ export default function NetworksManager() {
       setConfirm(null);
     } });
 
+  // ── Feature Badge Types (admin-managed labels for Package features rows) ────
+  const saveFeatureBadgeType = async () => {
+    if (!fbtModal) return;
+    const isNew = !fbtModal.id;
+    const payload = {
+      name: fbtModal.name?.trim(),
+      helpText: fbtModal.helpText?.trim() || "",
+      order: fbtModal.order ?? 0,
+      isActive: fbtModal.isActive ?? true,
+    };
+    if (!payload.name) { toast.error("Name required"); return; }
+    const res = await fetch(isNew ? "/api/feature-badge-types" : `/api/feature-badge-types/${fbtModal.id}`, {
+      method: isNew ? "POST" : "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) { toast.success(`Feature badge type ${isNew ? "created" : "updated"}`); setFbtModal(null); loadFeatureBadgeTypes(); }
+    else toast.error("Save failed");
+  };
+
+  const deleteFeatureBadgeType = (t: FeatureBadgeType) =>
+    setConfirm({ title: "Delete feature badge type", message: `Delete "${t.name}"? Packages using it keep their stored badge name but it stops matching this option (no help text shown, value still renders).`, onConfirm: async () => {
+      const res = await fetch(`/api/feature-badge-types/${t.id}`, { method: "DELETE" });
+      if (res.ok) { loadFeatureBadgeTypes(); toast.success("Feature badge type deleted"); } else toast.error("Delete failed");
+      setConfirm(null);
+    } });
+
   // ── Global value-added-services visibility ───────────────────────────────────
   const toggleVas = async (on: boolean) => {
     setVasEnabled(on);
@@ -291,7 +337,10 @@ export default function NetworksManager() {
       speedDown: pkg.speedDown || "",
       speedUp: pkg.speedUp || "",
       period: pkg.period ?? "/month",
-      features: (pkg.features || []).map((s) => s.trim()).filter(Boolean),
+      // Always saved as {badge, value}[] going forward — a row left on "— Free text —"
+      // saves as {badge: null, value: "..."}, not a bare string, so the two live
+      // shapes (see lib/packages/features.ts) don't keep multiplying past this point.
+      features: sanitizeFeatureRowsForSave(toEditableFeatureRows(pkg.features)),
       maxDistanceM: pkg.maxDistanceM ?? null,
       kind: pkg.kind ?? "DATA",
       term: pkg.term ?? null,
@@ -348,7 +397,7 @@ export default function NetworksManager() {
               // Shared unless overridden — same pattern as term/price per row. A
               // variant only carries its own `features` once the admin has touched
               // that row's "Customize features" toggle in the modal.
-              features: (v.features ?? payload.features).map((s) => s.trim()).filter(Boolean),
+              features: v.features !== undefined ? sanitizeFeatureRowsForSave(v.features) : payload.features,
             }),
           })
         )
@@ -467,6 +516,30 @@ export default function NetworksManager() {
         )}
       </div></div>
 
+      {/* Feature Badge Types (admin-managed labels for the Features rows on a package) */}
+      <div className="card shadow-sm mb-3"><div className="card-body">
+        <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+          <strong className="small"><i className="bi bi-patch-check me-1" />Feature Badge Types</strong>
+          <button className="btn btn-outline-primary btn-sm" onClick={() => setFbtModal({ isActive: true, order: featureBadgeTypes.length })}>
+            <i className="bi bi-plus-lg me-1" />Add Badge Type
+          </button>
+        </div>
+        {featureBadgeTypes.length === 0 ? (
+          <p className="text-muted small mb-0">No badge types yet — add the labels a package&apos;s Features can be assigned (e.g. Device, Line Rental, Monthly Minutes).</p>
+        ) : (
+          <div className="d-flex flex-wrap align-items-center gap-2">
+            {featureBadgeTypes.map((t) => (
+              <span key={t.id} className="badge text-bg-light border d-inline-flex align-items-center gap-1" style={{ fontSize: 12 }} title={t.helpText || undefined}>
+                {t.name}
+                {!t.isActive && <span className="text-muted">(hidden)</span>}
+                <button type="button" className="btn btn-sm btn-link p-0 ms-1" style={{ fontSize: 11, lineHeight: 1 }} aria-label="Edit" onClick={() => setFbtModal(t)}><i className="bi bi-pencil" /></button>
+                <button type="button" className="btn-close" style={{ fontSize: 8 }} aria-label="Delete" onClick={() => deleteFeatureBadgeType(t)} />
+              </span>
+            ))}
+          </div>
+        )}
+      </div></div>
+
       {loading ? (
         <div className="text-center py-5"><div className="spinner-border text-primary" /></div>
       ) : networks.length === 0 ? (
@@ -526,7 +599,7 @@ export default function NetworksManager() {
                               {hasVoicePkg && <td className="small text-muted">{isVoicePkg(p) ? (p.speedDown || "—") : "—"}</td>}
                               <td>{p.term ? <span className="badge text-bg-light border">{p.term}</span> : <span className="text-muted small">—</span>}</td>
                               <td className="text-nowrap">{p.price}{p.period && <span className="text-muted small"> {p.period}</span>}</td>
-                              <td className="small text-muted">{(p.features || []).length} feature(s)</td>
+                              <td className="small text-muted">{parsePackageFeatures(p.features).length} feature(s)</td>
                               <td className="text-end text-nowrap">
                                 <button className="btn btn-sm btn-outline-primary me-1" onClick={() => setPkgModal({ networkId: n.id, pkg: p })} title="Edit"><i className="bi bi-pencil" /></button>
                                 <button className="btn btn-sm btn-outline-secondary me-1" onClick={() => { const { id: _id, ...rest } = p; setPkgModal({ networkId: n.id, pkg: { ...rest, name: `${p.name} (copy)`, popular: false } }); }} title="Duplicate"><i className="bi bi-copy" /></button>
@@ -653,6 +726,34 @@ export default function NetworksManager() {
         </div>
       )}
 
+      {/* Feature Badge Type modal */}
+      {fbtModal && (
+        <div className="modal d-block" style={{ background: "rgba(0,0,0,0.5)" }} onClick={() => setFbtModal(null)}>
+          <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content">
+              <div className="modal-header"><h5 className="modal-title">{fbtModal.id ? "Edit" : "Add"} Feature Badge Type</h5>
+                <button className="btn-close" onClick={() => setFbtModal(null)} /></div>
+              <div className="modal-body d-flex flex-column gap-3">
+                <div><label className="form-label">Name</label>
+                  <input className="form-control" value={fbtModal.name || ""} onChange={(e) => setFbtModal({ ...fbtModal, name: e.target.value })} placeholder="e.g. Device" /></div>
+                <div><label className="form-label">Help text <span className="text-muted">(optional — shown as a tooltip on the badge, publicly visible)</span></label>
+                  <textarea className="form-control" rows={2} value={fbtModal.helpText || ""} onChange={(e) => setFbtModal({ ...fbtModal, helpText: e.target.value })} placeholder="Explain what this badge means" /></div>
+                <div className="row">
+                  <div className="col-auto" style={{ width: 90 }}><label className="form-label">Order</label>
+                    <input className="form-control" type="number" value={fbtModal.order ?? 0} onChange={(e) => setFbtModal({ ...fbtModal, order: parseInt(e.target.value, 10) || 0 })} /></div>
+                </div>
+                <div className="form-check form-switch"><input className="form-check-input" type="checkbox" id="fbt-active" checked={fbtModal.isActive ?? true} onChange={(e) => setFbtModal({ ...fbtModal, isActive: e.target.checked })} />
+                  <label className="form-check-label" htmlFor="fbt-active">Active</label></div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setFbtModal(null)}>Cancel</button>
+                <button className="btn btn-primary" onClick={saveFeatureBadgeType}>Save</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Package modal */}
       {pkgModal && (
         <div className="modal d-block" style={{ background: "rgba(0,0,0,0.5)" }} onClick={() => setPkgModal(null)}>
@@ -724,8 +825,8 @@ export default function NetworksManager() {
                   <strong className="small d-block mb-2">Term Variants <span className="text-muted fw-normal">— optional: add more (term, price) pairs for this same product; each is saved as its own package</span></strong>
                   {(pkgModal.termVariants || []).map((v, i) => {
                     const customized = v.features !== undefined;
-                    const variantFeatures = v.features ?? pkgModal.pkg.features ?? [];
-                    const updateVariant = (patch: Partial<{ term: string; price: string; features?: string[] }>) => {
+                    const variantFeatures = toEditableFeatureRows(v.features ?? pkgModal.pkg.features ?? []);
+                    const updateVariant = (patch: Partial<{ term: string; price: string; features?: FeatureRow[] }>) => {
                       const next = [...(pkgModal.termVariants || [])];
                       next[i] = { ...next[i], ...patch };
                       setPkgModal({ ...pkgModal, termVariants: next });
@@ -753,7 +854,7 @@ export default function NetworksManager() {
                         </div>
                         {!customized ? (
                           <button type="button" className="btn btn-sm btn-link p-0 mt-1"
-                            onClick={() => updateVariant({ features: [...(pkgModal.pkg.features || [])] })}>
+                            onClick={() => updateVariant({ features: toEditableFeatureRows(pkgModal.pkg.features) })}>
                             Customize features for this term <span className="text-muted">(currently using the shared list above)</span>
                           </button>
                         ) : (
@@ -766,8 +867,13 @@ export default function NetworksManager() {
                             </div>
                             {variantFeatures.map((f, fi) => (
                               <div key={fi} className="d-flex gap-2 mb-2">
-                                <input className="form-control form-control-sm" value={f} placeholder="e.g. Uncapped"
-                                  onChange={(e) => { const next = [...variantFeatures]; next[fi] = e.target.value; updateVariant({ features: next }); }} />
+                                <select className="form-select form-select-sm" style={{ maxWidth: 200 }} value={f.badge ?? ""}
+                                  onChange={(e) => { const next = [...variantFeatures]; next[fi] = { ...next[fi], badge: e.target.value || null }; updateVariant({ features: next }); }}>
+                                  <option value="">— Free text (no badge) —</option>
+                                  {featureBadgeTypes.filter((t) => t.isActive).map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
+                                </select>
+                                <input className="form-control form-control-sm" value={f.value} placeholder="e.g. Uncapped"
+                                  onChange={(e) => { const next = [...variantFeatures]; next[fi] = { ...next[fi], value: e.target.value }; updateVariant({ features: next }); }} />
                                 <button type="button" className="btn btn-sm btn-outline-danger" title="Remove"
                                   onClick={() => updateVariant({ features: variantFeatures.filter((_, j) => j !== fi) })}>
                                   <i className="bi bi-x-lg" />
@@ -775,7 +881,7 @@ export default function NetworksManager() {
                               </div>
                             ))}
                             <button type="button" className="btn btn-sm btn-outline-secondary"
-                              onClick={() => updateVariant({ features: [...variantFeatures, ""] })}>
+                              onClick={() => updateVariant({ features: [...variantFeatures, { badge: null, value: "" }] })}>
                               <i className="bi bi-plus-lg me-1" />Add feature
                             </button>
                           </div>
@@ -788,21 +894,35 @@ export default function NetworksManager() {
                     <i className="bi bi-plus-lg me-1" />Add another term
                   </button>
                 </div>
-                <div><label className="form-label">Features</label>
-                  {(pkgModal.pkg.features || []).map((f, i) => (
-                    <div key={i} className="d-flex gap-2 mb-2">
-                      <input className="form-control" value={f} placeholder="e.g. Uncapped"
-                        onChange={(e) => { const next = [...(pkgModal.pkg.features || [])]; next[i] = e.target.value; setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, features: next } }); }} />
-                      <button type="button" className="btn btn-outline-danger" title="Remove"
-                        onClick={() => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, features: (pkgModal.pkg.features || []).filter((_, j) => j !== i) } })}>
-                        <i className="bi bi-x-lg" />
-                      </button>
-                    </div>
-                  ))}
-                  <button type="button" className="btn btn-sm btn-outline-secondary"
-                    onClick={() => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, features: [...(pkgModal.pkg.features || []), ""] } })}>
-                    <i className="bi bi-plus-lg me-1" />Add feature
-                  </button></div>
+                {(() => {
+                  // Legacy plain-string rows show with badge "— Free text (no badge) —"
+                  // and the string as the value — editable/re-savable exactly as before,
+                  // now also assignable to a real badge type. See lib/packages/features.ts.
+                  const rows = toEditableFeatureRows(pkgModal.pkg.features);
+                  const setRows = (next: FeatureRow[]) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, features: next } });
+                  return (
+                    <div><label className="form-label">Features</label>
+                      {rows.map((f, i) => (
+                        <div key={i} className="d-flex gap-2 mb-2">
+                          <select className="form-select" style={{ maxWidth: 220 }} value={f.badge ?? ""}
+                            onChange={(e) => { const next = [...rows]; next[i] = { ...next[i], badge: e.target.value || null }; setRows(next); }}>
+                            <option value="">— Free text (no badge) —</option>
+                            {featureBadgeTypes.filter((t) => t.isActive).map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
+                          </select>
+                          <input className="form-control" value={f.value} placeholder="e.g. Uncapped"
+                            onChange={(e) => { const next = [...rows]; next[i] = { ...next[i], value: e.target.value }; setRows(next); }} />
+                          <button type="button" className="btn btn-outline-danger" title="Remove"
+                            onClick={() => setRows(rows.filter((_, j) => j !== i))}>
+                            <i className="bi bi-x-lg" />
+                          </button>
+                        </div>
+                      ))}
+                      <button type="button" className="btn btn-sm btn-outline-secondary"
+                        onClick={() => setRows([...rows, { badge: null, value: "" }])}>
+                        <i className="bi bi-plus-lg me-1" />Add feature
+                      </button></div>
+                  );
+                })()}
                 {(() => {
                   const netCat = networks.find((n) => n.id === pkgModal.networkId)?.category;
                   // Tower-distance gating only makes sense for the tower-based delivery

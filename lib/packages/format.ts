@@ -10,6 +10,7 @@
  * "null"/"undefined", so injecting a sparse product never prints junk.
  */
 import type { PackageLike } from "./tokens";
+import { parsePackageFeatures, featureEntryText } from "./features";
 
 export type { PackageLike };
 
@@ -17,17 +18,11 @@ function str(v: unknown): string {
   return v === null || v === undefined ? "" : String(v).trim();
 }
 
+// A feature entry may be a legacy plain string or an admin-managed {badge, value}
+// object (see FeatureBadgeType) — flatten to display text via featureEntryText so a
+// badge entry never prints as "[object Object]" in a text-only slot.
 function featuresToArray(f: unknown): string[] {
-  if (Array.isArray(f)) return f.map((x) => str(x)).filter(Boolean);
-  if (typeof f === "string") {
-    try {
-      const a = JSON.parse(f);
-      return Array.isArray(a) ? a.map((x) => str(x)).filter(Boolean) : [];
-    } catch {
-      return [];
-    }
-  }
-  return [];
+  return parsePackageFeatures(f).map(featureEntryText);
 }
 
 /** "100 / 100 Mbps"-style down/up label. Empty when neither speed is set. */

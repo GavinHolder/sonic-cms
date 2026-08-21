@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { type PackageFeatureEntry } from "@/lib/packages/features";
 
 /**
  * PricingTabsBlock — authorable pricing block with Wireless/Fibre/Voice tabs.
@@ -9,12 +10,17 @@ import { useState } from "react";
  *   { tabs: [ { key, label, plans?[], groups?[{title,subtitle,plans[]}], note?{heading,text}, rates?[{label,value}] } ] }
  * Each plan: { name, spec?, price, period?, flag?, popular?, desc?, features?[] }
  *
+ * A plan's `features` entries are freeform authored content, but may contain either
+ * a plain string or an admin-managed {badge, value} row (same shape as
+ * Package.features — see lib/packages/features.ts) if the author copies one in from
+ * a package; both render correctly here.
+ *
  * Pure content → editable in the Flexible editor. Client-side tab switching only.
  */
 
 interface Plan {
   name: string; spec?: string; price: string; period?: string;
-  flag?: string; popular?: boolean; desc?: string; features?: string[];
+  flag?: string; popular?: boolean; desc?: string; features?: PackageFeatureEntry[];
 }
 interface Group { title: string; subtitle?: string; plans: Plan[]; }
 interface Tab {
@@ -34,7 +40,16 @@ function PlanCard({ p }: { p: Plan }) {
       {p.desc && <p className="sp-desc">{p.desc}</p>}
       {p.features && p.features.length > 0 && (
         <ul className="sp-feats">
-          {p.features.map((f, i) => <li key={i}><span className="sp-tick">✓</span>{f}</li>)}
+          {p.features.map((f, i) => (
+            <li key={i}>
+              <span className="sp-tick">✓</span>
+              {typeof f === "string" || f.badge === null ? (
+                typeof f === "string" ? f : f.value
+              ) : (
+                <span className="sp-feat-badge"><b>{f.badge}</b><span className="sp-feat-dot" />{f.value}</span>
+              )}
+            </li>
+          ))}
         </ul>
       )}
       <span className="sp-cta">Sign up{p.name ? ` for ${p.name}` : ""} →</span>
@@ -123,6 +138,10 @@ export default function PricingTabsBlock({ content }: { content: Record<string, 
         .sp-feats { list-style: none; padding: 0; margin: 0 0 18px; display: flex; flex-direction: column; gap: 8px; }
         .sp-feats li { font-size: 13px; opacity: 0.85; display: flex; align-items: flex-start; gap: 9px; }
         .sp-tick { color: var(--sp-red); font-weight: 700; }
+        .sp-feat-badge { display: inline-flex; align-items: center; gap: 7px; }
+        .sp-feat-badge b { font-family: var(--theme-font-mono, monospace); font-size: 10px; font-weight: 700;
+          letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.65; }
+        .sp-feat-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--sp-red); flex-shrink: 0; }
         .sp-cta { margin-top: auto; font-family: var(--theme-font-mono, monospace); font-size: 11px; font-weight: 600;
           letter-spacing: 0.1em; text-transform: uppercase; color: var(--sp-red); cursor: pointer; }
         .sp-group { margin-bottom: 30px; }

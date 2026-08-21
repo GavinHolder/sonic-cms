@@ -6,6 +6,8 @@
  * package's live values at render. Keep this list in sync with the designer's
  * "available tokens" hint.
  */
+import { parsePackageFeatures, featureEntryText } from "./features";
+
 export interface PackageLike {
   id: string;
   name: string;
@@ -30,12 +32,11 @@ export const PACKAGE_TOKENS = [
   "pkg.network",
 ] as const;
 
+// A feature entry may be a legacy plain string or an admin-managed {badge, value}
+// object (see FeatureBadgeType, lib/packages/features.ts) — flatten to display text
+// so a badge entry never prints as "[object Object]" in this text-only token.
 function featuresToArray(f: unknown): string[] {
-  if (Array.isArray(f)) return f.map((x) => String(x));
-  if (typeof f === "string") {
-    try { const a = JSON.parse(f); return Array.isArray(a) ? a.map((x) => String(x)) : []; } catch { return []; }
-  }
-  return [];
+  return parsePackageFeatures(f).map(featureEntryText);
 }
 
 /** Build the {token: value} map for a package. */

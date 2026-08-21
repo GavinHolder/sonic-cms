@@ -657,6 +657,25 @@ model PackageTerm {
   @@map("package_terms")
 }
 
+// Admin-managed feature badge types for Package.features (e.g. "Device", "Line
+// Rental", "Monthly Minutes") — the admin creates/renames/deletes these; a package's
+// features entry references one by NAME only ({badge, value} in the Package.features
+// JSON array), same deliberately loose coupling as PackageTerm/Package.term above:
+// no FK, so renaming a badge type relabels every package using it without a
+// migration, and deleting one leaves existing package rows untouched (an orphaned
+// badge name just has no help text to show — the value still renders).
+model FeatureBadgeType {
+  id        String   @id @default(cuid())
+  name      String
+  helpText  String?
+  order     Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("feature_badge_types")
+}
+
 model Project {
   id            String   @id @default(cuid())
   title         String
