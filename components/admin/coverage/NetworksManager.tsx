@@ -381,6 +381,12 @@ export default function NetworksManager() {
       body: JSON.stringify(payload),
     });
     if (!res.ok) { toast.error("Save failed"); return; }
+    // The API authoritatively enforces "at most one Popular package per
+    // networkId+productTypeId+term scope" (see lib/packages/popular.ts) and
+    // reports back which sibling(s), if any, it had to unmark — surface that
+    // instead of clearing another package's flag silently.
+    const savedPkg: { clearedPopularNames?: string[] } = await res.json();
+    const clearedPopularNames = [...(savedPkg.clearedPopularNames || [])];
 
     let variantFailures = 0;
     if (completeVariants.length > 0) {
@@ -403,6 +409,10 @@ export default function NetworksManager() {
         )
       );
       variantFailures = results.filter((r) => !r.ok).length;
+      const variantBodies: { clearedPopularNames?: string[] }[] = await Promise.all(
+        results.filter((r) => r.ok).map((r) => r.json())
+      );
+      for (const b of variantBodies) clearedPopularNames.push(...(b.clearedPopularNames || []));
     }
 
     if (variantFailures > 0) {
@@ -410,6 +420,10 @@ export default function NetworksManager() {
     } else {
       const variantNote = completeVariants.length > 0 ? ` + ${completeVariants.length} term variant(s)` : "";
       toast.success(`Package ${isNew ? "added" : "updated"}${variantNote}`);
+    }
+    const uniqueCleared = Array.from(new Set(clearedPopularNames));
+    if (uniqueCleared.length > 0) {
+      toast.info(`Unmarked "${uniqueCleared.join('", "')}" as Popular — only one package per group can be Popular.`);
     }
     setPkgModal(null);
     load();
