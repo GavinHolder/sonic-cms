@@ -237,8 +237,10 @@ export default function CoverageMapViewer({
           iconAnchor: [10, 10],
         });
         const marker = L.marker([tower.lat, tower.lng], { icon });
-        if (tower.name) marker.bindTooltip(tower.name, { direction: "top" });
-        if (tower.description) marker.bindPopup(`<strong>${tower.name}</strong><br/><span style="color:#6b7280;font-size:13px">${tower.description}</span>`);
+        // Same as the region bindTooltip/bindPopup above — Leaflet sets these as innerHTML,
+        // not text, so an admin-entered tower name/description must be escaped here too.
+        if (tower.name) marker.bindTooltip(escapeHtml(tower.name), { direction: "top" });
+        if (tower.description) marker.bindPopup(`<strong>${escapeHtml(tower.name)}</strong><br/><span style="color:#6b7280;font-size:13px">${escapeHtml(tower.description)}</span>`);
         marker.addTo(map);
         // Procedural radius rings — one per distinct package distance of the tower's network
         const nr = tower.networkId ? networkRadii?.[tower.networkId] : undefined;
