@@ -232,6 +232,14 @@ interface ImportAnalysis {
   needsAttention: AnalysisItem[];
 }
 
+interface BatchFileStatus {
+  file: File;
+  status: "pending" | "importing" | "done" | "failed";
+  error?: string;
+  needsAttention?: number;
+  template?: CmsTemplate;
+}
+
 interface MediaFile {
   name: string;
   url: string;
@@ -406,10 +414,14 @@ const ANALYSIS_ICONS: Record<string, string> = {
 interface ImportTemplateModalProps {
   onClose: () => void;
   onImported: (t: CmsTemplate) => void;
+  /** Called once after a multi-file .html batch finishes, with every successfully-saved template. */
+  onBatchImported?: (templates: CmsTemplate[]) => void;
 }
 
-function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) {
+function ImportTemplateModal({ onClose, onImported, onBatchImported }: ImportTemplateModalProps) {
   const [file, setFile]               = useState<File | null>(null);
+  const [batchFiles, setBatchFiles]   = useState<BatchFileStatus[] | null>(null);
+  const [batchRunning, setBatchRunning] = useState(false);
   const [name, setName]               = useState("");
   const [desc, setDesc]               = useState("");
   const [scope, setScope]             = useState<"standalone" | "block">("standalone");
@@ -453,6 +465,8 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
   }, []);
 
   const processFile = useCallback(async (f: File) => {
+    setBatchFiles(null);
+    setBatchRunning(false);
     setFile(f);
     setError(null);
     setAnalysis(null);
@@ -492,9 +506,80 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
     }
   }, [loadSidebar]);
 
+  // Imports + auto-saves a single file as part of a batch — mirrors processFile()'s
+  // extraction call, then immediately saves (skipping the interactive review step,
+  // since re-showing the checklist per file would reintroduce the exact one-at-a-time
+  // tedium the batch flow exists to remove). needsAttention is still reported so the
+  // admin can see which saved templates want a manual pass afterwards.
+  const importAndSaveOne = useCallback(async (f: File): Promise<Partial<BatchFileStatus>> => {
+    try {
+      const fd = new FormData();
+      fd.append("file", f);
+      const res = await fetch("/api/templates/import", { method: "POST", body: fd });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Extraction failed");
+      const { html: fHtml, css: fCss, mediaSlots: fMediaSlots, analysis: fAnalysis } = json.data;
+
+      const saveRes = await fetch("/api/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: autoName(f.name),
+          description: null,
+          templateType: "standalone",
+          data: { customHtml: fHtml, customCss: fCss ?? "", customCssUrls: [], mediaSlots: fMediaSlots ?? {} },
+        }),
+      });
+      const saveJson = await saveRes.json();
+      if (!saveRes.ok) throw new Error(saveJson.error || "Save failed");
+
+      return {
+        status: "done",
+        needsAttention: fAnalysis?.needsAttention?.length ?? 0,
+        template: { ...saveJson.data, tags: [] },
+      };
+    } catch (e) {
+      return { status: "failed", error: e instanceof Error ? e.message : "Import failed" };
+    }
+  }, []);
+
+  const runBatch = useCallback(async (files: File[]) => {
+    const nonHtml = files.filter(f => !/\.html?$/i.test(f.name));
+    if (nonHtml.length > 0) {
+      setError(`Multiple file selection only supports .html files — import .zip files one at a time (${nonHtml.map(f => f.name).join(", ")})`);
+      return;
+    }
+
+    setError(null);
+    setFile(null);
+    setHtml("");
+    setAnalysis(null);
+    const initial: BatchFileStatus[] = files.map(f => ({ file: f, status: "pending" }));
+    setBatchFiles(initial);
+    setBatchRunning(true);
+
+    const finalStatuses = [...initial];
+    for (let i = 0; i < files.length; i++) {
+      setBatchFiles(prev => prev ? prev.map((b, idx) => (idx === i ? { ...b, status: "importing" } : b)) : prev);
+      const result = await importAndSaveOne(files[i]);
+      finalStatuses[i] = { ...finalStatuses[i], ...result } as BatchFileStatus;
+      setBatchFiles(prev => prev ? prev.map((b, idx) => (idx === i ? { ...b, ...result } as BatchFileStatus : b)) : prev);
+    }
+
+    setBatchRunning(false);
+
+    const succeeded = finalStatuses.filter(s => s.status === "done" && s.template).map(s => s.template!);
+    if (succeeded.length > 0) {
+      if (onBatchImported) onBatchImported(succeeded);
+      else succeeded.forEach(onImported);
+    }
+  }, [onBatchImported, onImported, importAndSaveOne]);
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    const f = e.dataTransfer.files[0];
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 1) { runBatch(files); return; }
+    const f = files[0];
     if (f) processFile(f);
   };
 
@@ -738,7 +823,7 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
                 </div>
               )}
             </div>
-            <button className="btn-close" onClick={onClose} disabled={saving} />
+            <button className="btn-close" onClick={onClose} disabled={saving || batchRunning} />
           </div>
           <div className="modal-body">
 
@@ -747,19 +832,27 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
               className="border rounded p-4 text-center mb-3"
               style={{
                 borderStyle: "dashed",
-                borderColor: file && html ? "#198754" : "#dee2e6",
-                background: file && html ? "#f0fdf4" : "#f8f9fa",
-                cursor: "pointer",
+                borderColor: (file && html) || batchFiles ? "#198754" : "#dee2e6",
+                background: (file && html) || batchFiles ? "#f0fdf4" : "#f8f9fa",
+                cursor: batchRunning ? "default" : "pointer",
                 transition: "all 0.15s",
               }}
-              onClick={() => fileRef.current?.click()}
+              onClick={() => { if (!batchRunning) fileRef.current?.click(); }}
               onDragOver={e => e.preventDefault()}
-              onDrop={handleDrop}
+              onDrop={e => { if (!batchRunning) handleDrop(e); else e.preventDefault(); }}
             >
               {extracting ? (
                 <>
                   <span className="spinner-border spinner-border-sm me-2" />
                   Analysing template — uploading images…
+                </>
+              ) : batchFiles ? (
+                <>
+                  <i className={`bi ${batchRunning ? "bi-arrow-repeat" : "bi-check-circle-fill"} text-success me-2`} />
+                  <strong>{batchFiles.length} files selected</strong>
+                  <div className="text-muted small mt-1">
+                    {batchRunning ? "Importing — see progress below" : "Click to select a different batch"}
+                  </div>
                 </>
               ) : file && html ? (
                 <>
@@ -771,19 +864,65 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
               ) : (
                 <>
                   <i className="bi bi-cloud-upload fs-2 text-muted d-block mb-2" />
-                  <div className="fw-semibold">Drop a file here or click to browse</div>
+                  <div className="fw-semibold">Drop file(s) here or click to browse</div>
                   <div className="text-muted small mt-1">
-                    Accepts <code>.html</code> or <code>.zip</code> (ZIP: images auto-uploaded, CSS/JS bundled)
+                    Accepts <code>.html</code> or <code>.zip</code> (ZIP: images auto-uploaded, CSS/JS bundled) — select multiple <code>.html</code> files to import them all as separate templates
                   </div>
                 </>
               )}
             </div>
+
+            {/* Batch import progress */}
+            {batchFiles && (
+              <div className="mb-3">
+                <div className="text-muted small fw-semibold mb-2">
+                  {batchRunning
+                    ? <><span className="spinner-border spinner-border-sm me-1" style={{ width: 12, height: 12 }} />Importing {batchFiles.filter(b => b.status === "done" || b.status === "failed").length} / {batchFiles.length}</>
+                    : <>
+                        Done — {batchFiles.filter(b => b.status === "done").length} imported
+                        {batchFiles.some(b => b.status === "failed") && `, ${batchFiles.filter(b => b.status === "failed").length} failed`}
+                      </>
+                  }
+                </div>
+                <ul className="list-group">
+                  {batchFiles.map((b, i) => (
+                    <li key={i} className="list-group-item d-flex align-items-start gap-2 py-2 px-3">
+                      {b.status === "pending" && <i className="bi bi-clock text-muted flex-shrink-0 mt-1" />}
+                      {b.status === "importing" && <span className="spinner-border spinner-border-sm text-primary flex-shrink-0 mt-1" />}
+                      {b.status === "done" && <i className="bi bi-check-circle-fill text-success flex-shrink-0 mt-1" />}
+                      {b.status === "failed" && <i className="bi bi-x-circle-fill text-danger flex-shrink-0 mt-1" />}
+                      <div className="flex-grow-1 overflow-hidden">
+                        <div className="small fw-semibold text-truncate">{b.file.name}</div>
+                        {b.status === "done" && !!b.needsAttention && (
+                          <div className="text-warning small">
+                            <i className="bi bi-exclamation-triangle me-1" />
+                            Saved — {b.needsAttention} item{b.needsAttention !== 1 ? "s" : ""} may need manual review (open it from the library to fix)
+                          </div>
+                        )}
+                        {b.status === "done" && !b.needsAttention && (
+                          <div className="text-success small">Saved to library</div>
+                        )}
+                        {b.status === "failed" && (
+                          <div className="text-danger small">{b.error}</div>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <input
               ref={fileRef}
               type="file"
               accept=".html,.htm,.zip"
+              multiple
               className="d-none"
-              onChange={e => { const f = e.target.files?.[0]; if (f) processFile(f); e.target.value = ""; }}
+              onChange={e => {
+                const files = Array.from(e.target.files ?? []);
+                e.target.value = "";
+                if (files.length > 1) { runBatch(files); return; }
+                if (files[0]) processFile(files[0]);
+              }}
             />
 
             {/* Integration checklist — now interactive */}
@@ -922,20 +1061,36 @@ function ImportTemplateModal({ onClose, onImported }: ImportTemplateModalProps) 
             )}
           </div>
           <div className="modal-footer">
-            <div className="me-auto text-muted small">
-              <i className="bi bi-info-circle me-1" />
-              Saved as a <strong>Standalone</strong> template. Use <em>Use as Page</em> to publish it.
-            </div>
-            <button className="btn btn-outline-secondary" onClick={onClose} disabled={saving}>Cancel</button>
-            <button
-              className="btn btn-primary"
-              onClick={save}
-              disabled={saving || !html || !name.trim()}
-            >
-              {saving
-                ? <><span className="spinner-border spinner-border-sm me-2" />Saving…</>
-                : <><i className="bi bi-bookmark-plus me-2" />Save to Library</>}
-            </button>
+            {batchFiles ? (
+              <>
+                <div className="me-auto text-muted small">
+                  <i className="bi bi-info-circle me-1" />
+                  Each file is saved as its own <strong>Standalone</strong> template — {batchRunning ? "please wait…" : "open one from the library to fix or refine it."}
+                </div>
+                <button className="btn btn-primary" onClick={onClose} disabled={batchRunning}>
+                  {batchRunning
+                    ? <><span className="spinner-border spinner-border-sm me-2" />Importing…</>
+                    : "Done"}
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="me-auto text-muted small">
+                  <i className="bi bi-info-circle me-1" />
+                  Saved as a <strong>Standalone</strong> template. Use <em>Use as Page</em> to publish it.
+                </div>
+                <button className="btn btn-outline-secondary" onClick={onClose} disabled={saving}>Cancel</button>
+                <button
+                  className="btn btn-primary"
+                  onClick={save}
+                  disabled={saving || !html || !name.trim()}
+                >
+                  {saving
+                    ? <><span className="spinner-border spinner-border-sm me-2" />Saving…</>
+                    : <><i className="bi bi-bookmark-plus me-2" />Save to Library</>}
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -1636,6 +1791,10 @@ export default function TemplatesLibraryPage() {
               setTemplates(prev => [t, ...prev]);
               setShowImport(false);
               showToast(`Template "${t.name}" imported`);
+            }}
+            onBatchImported={(imported) => {
+              setTemplates(prev => [...imported, ...prev]);
+              showToast(`${imported.length} template${imported.length !== 1 ? "s" : ""} imported`);
             }}
           />
         )}
