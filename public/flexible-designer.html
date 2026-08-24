@@ -2149,6 +2149,22 @@ function applySnapshot(snap, addToHistory) {
   state.preset        = s.preset || 'full-width';
   state.positionMode  = s.positionMode || 'free';
   state.designerCanvasH = s.designerCanvasH || null;  // Option C — restore authored free-mode box height (null = new → DESIGN_H)
+  // state.gridRows/gridCols/gridGap/multiLimit are assigned directly here, not just
+  // written into their form fields — getCellRect()/getCellMetrics() (block position/width
+  // math) read straight from `state`, not from the DOM. The old code only set the form
+  // fields and relied on a later renderCanvas() call to read them back INTO state (it
+  // does, at the top of renderCanvas()) — fragile: any block-position computation that
+  // runs before that first renderCanvas() call after a snapshot restore silently used
+  // whatever state.gridCols/gridRows already held (the module-level default, gridCols:3),
+  // not the section's actual saved column count. A block saved as "col 1 of 1" would then
+  // measure itself against 3 columns and render at roughly a third of the width, aligned
+  // to the left — exactly the canvas-vs-live-page mismatch this was causing, since the
+  // real page (FlexibleSectionRenderer.tsx) reads gridCols from the saved data directly,
+  // never from stale in-memory defaults.
+  state.gridRows = s.gridRows;
+  state.gridCols = s.gridCols;
+  state.gridGap  = s.gridGap;
+  state.multiLimit = s.multiLimit;
   // Sync DOM controls so sliders and selects match the restored state
   document.getElementById('contentMode').value  = s.contentMode;
   document.getElementById('layoutType').value   = s.layoutType;
