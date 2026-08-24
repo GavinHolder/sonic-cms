@@ -106,6 +106,23 @@ const CATEGORY_BADGE: Record<Category, string> = {
   VOICE: "text-bg-danger",
 };
 
+// Page is organized into tabs by Network.category (declutters what used to be one
+// long scroll of every network stacked under global admin lists). "OTHER" is a
+// defensive catch-all for any network whose category value doesn't match a known
+// enum member (legacy/null data) so it's never silently dropped from view — see
+// `otherNetworks` below. "GLOBAL" holds the four admin-managed lists (Service
+// Categories, Product Types, Package Terms, Feature Badge Types): these are flat
+// tables with no per-category relation in the schema, so they get their own tab
+// instead of being faked as split per network-category.
+type TabKey = Category | "OTHER" | "GLOBAL";
+const CATEGORY_ORDER: Category[] = ["FNO", "WISP", "WIRELESS", "VOICE"];
+const CATEGORY_TAB_LABEL: Record<Category, string> = {
+  FNO: "FNO (Fibre)",
+  WISP: "WISP",
+  WIRELESS: "Wireless",
+  VOICE: "Voice",
+};
+
 const slugify = (s: string) =>
   s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
@@ -117,6 +134,7 @@ export default function NetworksManager() {
   const [networks, setNetworks] = useState<Network[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState<TabKey>("FNO");
 
   const [netModal, setNetModal] = useState<Partial<Network> | null>(null);
   // termVariants: "Term Variants" quick-add (see savePackage) — a list of extra
@@ -440,17 +458,59 @@ export default function NetworksManager() {
       },
     });
 
+  // Defensive catch-all: networks whose category doesn't match a known enum member
+  // (legacy/null data) still surface under the "Other" tab instead of vanishing.
+  const otherNetworks = networks.filter((n) => !CATEGORY_ORDER.includes(n.category));
+  const visibleNetworks =
+    activeTab === "GLOBAL" ? [] : activeTab === "OTHER" ? otherNetworks : networks.filter((n) => n.category === activeTab);
+
   return (
     <>
       <div className="d-flex justify-content-end gap-2 mb-3">
         <a href="/admin/features/coverage-maps" className="btn btn-outline-secondary btn-sm">
           <i className="bi bi-map me-1" />Coverage Maps
         </a>
-        <button className="btn btn-primary btn-sm" onClick={() => setNetModal({ category: "FNO", color: "#22c55e", isActive: true })}>
+        <button
+          className="btn btn-primary btn-sm"
+          onClick={() => setNetModal({ category: activeTab === "OTHER" || activeTab === "GLOBAL" ? "FNO" : activeTab, color: "#22c55e", isActive: true })}
+        >
           <i className="bi bi-plus-lg me-1" />Add Network
         </button>
       </div>
 
+      {/* Tabs — one per Network.category (declutters the old single long scroll),
+          plus a defensive "Other" tab for any network with an unrecognized category
+          value, plus a "Categories & Types" tab for the four flat admin-managed
+          lists below (Service Categories / Product Types / Package Terms / Feature
+          Badge Types) — these have no per-category relation in the schema, so they
+          live in one shared tab rather than being faked as split per network-category. */}
+      <ul className="nav nav-pills mb-3 flex-wrap">
+        {CATEGORY_ORDER.map((cat) => {
+          const count = networks.filter((n) => n.category === cat).length;
+          return (
+            <li className="nav-item" key={cat}>
+              <button type="button" className={`nav-link ${activeTab === cat ? "active" : ""}`} onClick={() => setActiveTab(cat)}>
+                {CATEGORY_TAB_LABEL[cat]} <span className="badge text-bg-light text-dark ms-1">{count}</span>
+              </button>
+            </li>
+          );
+        })}
+        {otherNetworks.length > 0 && (
+          <li className="nav-item">
+            <button type="button" className={`nav-link ${activeTab === "OTHER" ? "active" : ""}`} onClick={() => setActiveTab("OTHER")}>
+              Other <span className="badge text-bg-warning ms-1">{otherNetworks.length}</span>
+            </button>
+          </li>
+        )}
+        <li className="nav-item">
+          <button type="button" className={`nav-link ${activeTab === "GLOBAL" ? "active" : ""}`} onClick={() => setActiveTab("GLOBAL")}>
+            <i className="bi bi-tags me-1" />Categories &amp; Types
+          </button>
+        </li>
+      </ul>
+
+      {activeTab === "GLOBAL" && (
+      <>
       {/* Service categories + value-added services control */}
       <div className="card shadow-sm mb-3"><div className="card-body">
         <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
@@ -553,18 +613,24 @@ export default function NetworksManager() {
           </div>
         )}
       </div></div>
+      </>
+      )}
 
-      {loading ? (
+      {activeTab !== "GLOBAL" && (loading ? (
         <div className="text-center py-5"><div className="spinner-border text-primary" /></div>
-      ) : networks.length === 0 ? (
+      ) : visibleNetworks.length === 0 ? (
         <div className="card shadow-sm"><div className="card-body text-center py-5">
           <i className="bi bi-diagram-3 display-4 text-muted" style={{ opacity: 0.3 }} />
-          <h6 className="mt-3">No networks yet</h6>
-          <p className="text-muted small">Add your provider networks (e.g. Sonic Fibre, Openserve, Sonic Wireless), then attach packages and link them to coverage polygons.</p>
+          <h6 className="mt-3">No {activeTab === "OTHER" ? "" : `${CATEGORY_TAB_LABEL[activeTab]} `}networks yet</h6>
+          <p className="text-muted small">
+            {networks.length === 0
+              ? "Add your provider networks (e.g. Sonic Fibre, Openserve, Sonic Wireless), then attach packages and link them to coverage polygons."
+              : `No networks in this category yet — click "Add Network" above to add one.`}
+          </p>
         </div></div>
       ) : (
         <div className="d-flex flex-column gap-3">
-          {networks.map((n) => (
+          {visibleNetworks.map((n) => (
             <div key={n.id} className="card shadow-sm">
               <div className="card-body d-flex align-items-center gap-3 flex-wrap">
                 <span style={{ width: 18, height: 18, borderRadius: 4, background: n.color, flexShrink: 0 }} />
@@ -631,7 +697,7 @@ export default function NetworksManager() {
             </div>
           ))}
         </div>
-      )}
+      ))}
 
       {/* Network modal */}
       {netModal && (
