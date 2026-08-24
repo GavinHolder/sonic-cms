@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type {
   SectionConfig,
   HeroCarouselSection,
@@ -156,6 +156,12 @@ export default function SectionEditorModal({
     };
   });
 
+  // Tracks whether mousedown started directly on the backdrop — a click event resolves to
+  // the nearest common ancestor of mousedown/mouseup targets, so a text-selection drag that
+  // starts inside the dialog and ends on the backdrop would otherwise register as a backdrop
+  // click and close the modal mid-selection.
+  const backdropMouseDownOnSelf = useRef(false);
+
   // Prevent body scroll when modal is open
   useEffect(() => {
     document.body.style.overflow = "hidden";
@@ -270,7 +276,8 @@ export default function SectionEditorModal({
     <div
       className="modal show d-block"
       style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
-      onClick={onClose}
+      onMouseDown={(e) => { backdropMouseDownOnSelf.current = e.target === e.currentTarget; }}
+      onClick={(e) => { if (e.target === e.currentTarget && backdropMouseDownOnSelf.current) onClose(); }}
     >
       <div
         className="modal-dialog modal-xl modal-dialog-scrollable"

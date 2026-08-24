@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useToast } from "@/components/admin/ToastProvider";
@@ -121,6 +121,11 @@ function CoverageMapsInner() {
   const [newTower, setNewTower] = useState({ name: "", lat: "", lng: "", description: "", networkId: "", regionId: "", productTypeIds: [] as string[] });
   const [showTowerPicker, setShowTowerPicker] = useState(false);
   const [showAddTowerModal, setShowAddTowerModal] = useState(false);
+  // Tracks whether mousedown started directly on the Add Tower modal backdrop — a click
+  // event resolves to the nearest common ancestor of mousedown/mouseup targets, so a
+  // text-selection drag that starts inside the dialog and ends on the backdrop would
+  // otherwise register as a backdrop click and close the modal mid-selection.
+  const addTowerBackdropMouseDownOnSelf = useRef(false);
   const [showLabelPicker, setShowLabelPicker] = useState(false);
   // Promise-based confirm via the in-app modal (no native window.confirm)
   const [confirmState, setConfirmState] = useState<{ message: string; resolve: (v: boolean) => void } | null>(null);
@@ -946,7 +951,12 @@ function CoverageMapsInner() {
                     always-visible form at the bottom, requiring a scroll past every
                     existing tower to reach it). */}
                 {showAddTowerModal && (
-                  <div className="modal d-block" style={{ background: "rgba(0,0,0,0.5)" }} onClick={() => setShowAddTowerModal(false)}>
+                  <div
+                    className="modal d-block"
+                    style={{ background: "rgba(0,0,0,0.5)" }}
+                    onMouseDown={(e) => { addTowerBackdropMouseDownOnSelf.current = e.target === e.currentTarget; }}
+                    onClick={(e) => { if (e.target === e.currentTarget && addTowerBackdropMouseDownOnSelf.current) setShowAddTowerModal(false); }}
+                  >
                     <div className="modal-dialog modal-dialog-centered modal-lg" onClick={(e) => e.stopPropagation()}>
                       <div className="modal-content">
                         <div className="modal-header"><h5 className="modal-title">Add Tower</h5>

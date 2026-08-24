@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { SECTION_TEMPLATES, TEMPLATE_CATEGORIES, type SectionTemplate } from "@/lib/section-templates";
 
 interface Props {
@@ -12,6 +12,11 @@ interface Props {
 export default function SectionTemplateGallery({ onSelect, onBlank, onClose }: Props) {
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [search, setSearch] = useState("");
+  // Tracks whether mousedown started directly on the backdrop — a click event resolves to
+  // the nearest common ancestor of mousedown/mouseup targets, so a text-selection drag that
+  // starts inside the dialog and ends on the backdrop would otherwise register as a backdrop
+  // click and close the modal mid-selection.
+  const backdropMouseDownOnSelf = useRef(false);
 
   const filtered = SECTION_TEMPLATES.filter(t => {
     if (activeCategory !== "all" && t.category !== activeCategory) return false;
@@ -28,7 +33,8 @@ export default function SectionTemplateGallery({ onSelect, onBlank, onClose }: P
         position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
         zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center",
       }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onMouseDown={(e) => { backdropMouseDownOnSelf.current = e.target === e.currentTarget; }}
+      onClick={(e) => { if (e.target === e.currentTarget && backdropMouseDownOnSelf.current) onClose(); }}
     >
       <div style={{
         background: "#fff", borderRadius: 16, width: 800, maxWidth: "95vw",

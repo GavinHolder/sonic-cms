@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, useRef } from "react";
 import { useRouter } from "next/navigation";
 import AdminLayout from "@/components/admin/AdminLayout";
 import HeroCarouselEditor from "@/components/admin/HeroCarouselEditor";
@@ -44,6 +44,11 @@ export default function PageEditor({ params }: { params: Promise<{ slug: string 
   const [page, setPage] = useState<PageConfig | null>(null);
   const [sections, setSections] = useState<SectionConfig[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  // Tracks whether mousedown started directly on the Create Section modal backdrop — a
+  // click event resolves to the nearest common ancestor of mousedown/mouseup targets, so
+  // a text-selection drag that starts inside the dialog and ends on the backdrop would
+  // otherwise register as a backdrop click and close the modal mid-selection.
+  const createModalBackdropMouseDownOnSelf = useRef(false);
   const [selectedType, setSelectedType] = useState<SectionType>("NORMAL");
   const [editingSection, setEditingSection] = useState<SectionConfig | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -499,7 +504,8 @@ export default function PageEditor({ params }: { params: Promise<{ slug: string 
         <div
           className="modal d-block"
           style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
-          onClick={() => setShowCreateModal(false)}
+          onMouseDown={(e) => { createModalBackdropMouseDownOnSelf.current = e.target === e.currentTarget; }}
+          onClick={(e) => { if (e.target === e.currentTarget && createModalBackdropMouseDownOnSelf.current) setShowCreateModal(false); }}
         >
           <div
             className="modal-dialog modal-dialog-centered"

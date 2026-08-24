@@ -59,6 +59,13 @@ export default function HeroCarouselEditor({
   );
   const [deleteConfirmSlideIndex, setDeleteConfirmSlideIndex] = useState<number | null>(null);
   const [showLastSlideError, setShowLastSlideError] = useState(false);
+  // Tracks whether mousedown started directly on each confirmation modal's backdrop — a
+  // click event resolves to the nearest common ancestor of mousedown/mouseup targets, so a
+  // text-selection drag that starts inside the dialog and ends on the backdrop would
+  // otherwise register as a backdrop click and close the modal mid-selection. Each modal
+  // gets its own ref since they're never open simultaneously but shouldn't share state.
+  const deleteConfirmBackdropMouseDownOnSelf = useRef(false);
+  const lastSlideErrorBackdropMouseDownOnSelf = useRef(false);
   // Auto-expand first slide so controls are visible immediately
   const [expandedSlides, setExpandedSlides] = useState<Set<number>>(new Set([0]));
   // Inline slide-name editing (double-click the label to rename)
@@ -807,7 +814,8 @@ export default function HeroCarouselEditor({
         <div
           className="modal d-block"
           style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1120 }}
-          onClick={() => setDeleteConfirmSlideIndex(null)}
+          onMouseDown={(e) => { deleteConfirmBackdropMouseDownOnSelf.current = e.target === e.currentTarget; }}
+          onClick={(e) => { if (e.target === e.currentTarget && deleteConfirmBackdropMouseDownOnSelf.current) setDeleteConfirmSlideIndex(null); }}
         >
           <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
             <div className="modal-content">
@@ -855,7 +863,8 @@ export default function HeroCarouselEditor({
         <div
           className="modal d-block"
           style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1120 }}
-          onClick={() => setShowLastSlideError(false)}
+          onMouseDown={(e) => { lastSlideErrorBackdropMouseDownOnSelf.current = e.target === e.currentTarget; }}
+          onClick={(e) => { if (e.target === e.currentTarget && lastSlideErrorBackdropMouseDownOnSelf.current) setShowLastSlideError(false); }}
         >
           <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
             <div className="modal-content">

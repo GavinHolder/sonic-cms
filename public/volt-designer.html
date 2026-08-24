@@ -5836,8 +5836,17 @@
     // ── 3D Objects modal wiring ───────────────────────────────────────────────
     document.getElementById('btn-open-3d').addEventListener('click', openV3DModal);
     document.getElementById('v3d-close-btn').addEventListener('click', closeV3DModal);
+    // Tracks whether mousedown started directly on the backdrop itself — a click event
+    // resolves to the nearest common ancestor of the mousedown/mouseup targets, so a
+    // text-selection drag that starts inside the modal content and ends on the backdrop
+    // would otherwise register as a backdrop click (e.target === this) and close the
+    // modal mid-selection. Only close when the drag both started and ended on the backdrop.
+    var _v3dModalMouseDownOnSelf = false;
+    document.getElementById('v3d-modal').addEventListener('mousedown', function(e) {
+      _v3dModalMouseDownOnSelf = (e.target === this);
+    });
     document.getElementById('v3d-modal').addEventListener('click', function(e) {
-      if (e.target === this) closeV3DModal();
+      if (e.target === this && _v3dModalMouseDownOnSelf) closeV3DModal();
     });
     // Format override select — re-loads the current version with the new format
     document.getElementById('v3d-format-select').addEventListener('change', function() {
@@ -5886,7 +5895,11 @@
     // ── Image picker modal wiring ─────────────────────────────────────────────
     document.getElementById('btn-insert-image').addEventListener('click',function(){insertImageLayer('');});
     document.getElementById('img-picker-close').addEventListener('click',closeImagePicker);
-    document.getElementById('img-picker-modal').addEventListener('click',function(e){if(e.target===this)closeImagePicker();});
+    // Same mousedown-vs-click safeguard as the 3D Objects modal above — a text-selection
+    // drag that starts inside the picker and ends on the backdrop must not close it.
+    var _imgPickerModalMouseDownOnSelf = false;
+    document.getElementById('img-picker-modal').addEventListener('mousedown',function(e){_imgPickerModalMouseDownOnSelf=(e.target===this);});
+    document.getElementById('img-picker-modal').addEventListener('click',function(e){if(e.target===this && _imgPickerModalMouseDownOnSelf)closeImagePicker();});
     document.getElementById('img-picker-url-insert').addEventListener('click',function(){
       var url=document.getElementById('img-picker-url').value.trim();if(url)selectImagePickerUrl(url);
     });

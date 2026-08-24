@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { SECTION_PRESETS, type SectionPreset } from "@/lib/designer-presets";
 
 interface PresetsGalleryModalProps {
@@ -169,11 +169,18 @@ export default function PresetsGalleryModal({ onSelect, onClose }: PresetsGaller
     return () => document.removeEventListener("keydown", handler);
   }, [onClose]);
 
+  // Tracks whether mousedown started directly on the backdrop — a click event resolves to
+  // the nearest common ancestor of mousedown/mouseup targets, so a text-selection drag that
+  // starts inside the dialog and ends on the backdrop would otherwise register as a backdrop
+  // click and close the modal mid-selection.
+  const backdropMouseDownOnSelf = useRef(false);
+
   return (
     <div
       className="modal d-block"
       style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1130 }}
-      onClick={onClose}
+      onMouseDown={(e) => { backdropMouseDownOnSelf.current = e.target === e.currentTarget; }}
+      onClick={(e) => { if (e.target === e.currentTarget && backdropMouseDownOnSelf.current) onClose(); }}
     >
       <div
         className="modal-dialog modal-xl modal-dialog-scrollable"

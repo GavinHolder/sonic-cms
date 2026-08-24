@@ -59,6 +59,11 @@ export default function BackupRestore() {
   const [selectedCategories, setSelectedCategories] = useState<Set<RestoreCategory>>(new Set())
   const [selectAll, setSelectAll] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // Tracks whether mousedown started directly on the Restore modal backdrop — a click event
+  // resolves to the nearest common ancestor of mousedown/mouseup targets, so a text-selection
+  // drag that starts inside the dialog and ends on the backdrop would otherwise register as
+  // a backdrop click and close the modal mid-selection.
+  const restoreBackdropMouseDownOnSelf = useRef(false)
 
   // ── Data Loading ─────────────────────────────────────────────────────────
 
@@ -462,8 +467,11 @@ export default function BackupRestore() {
         <div
           className="modal d-block"
           style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+          onMouseDown={(e) => {
+            restoreBackdropMouseDownOnSelf.current = e.target === e.currentTarget
+          }}
           onClick={(e) => {
-            if (e.target === e.currentTarget) setShowRestoreModal(false)
+            if (e.target === e.currentTarget && restoreBackdropMouseDownOnSelf.current) setShowRestoreModal(false)
           }}
         >
           <div className="modal-dialog modal-lg modal-dialog-centered">

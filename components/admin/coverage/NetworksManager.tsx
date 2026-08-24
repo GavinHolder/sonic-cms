@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useToast } from "@/components/admin/ToastProvider";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import ImageFieldWithUpload from "@/components/admin/ImageFieldWithUpload";
@@ -162,6 +162,17 @@ export default function NetworksManager() {
 
   const [featureBadgeTypes, setFeatureBadgeTypes] = useState<FeatureBadgeType[]>([]);
   const [fbtModal, setFbtModal] = useState<Partial<FeatureBadgeType> | null>(null);
+
+  // Tracks whether mousedown started directly on each modal's backdrop — a click event
+  // resolves to the nearest common ancestor of mousedown/mouseup targets, so a
+  // text-selection drag that starts inside a dialog and ends on the backdrop would
+  // otherwise register as a backdrop click and close the modal mid-selection. Each modal
+  // gets its own ref (they're never open simultaneously, but kept independent for clarity).
+  const netModalBackdropMouseDownOnSelf = useRef(false);
+  const ptModalBackdropMouseDownOnSelf = useRef(false);
+  const termModalBackdropMouseDownOnSelf = useRef(false);
+  const fbtModalBackdropMouseDownOnSelf = useRef(false);
+  const pkgModalBackdropMouseDownOnSelf = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -701,7 +712,12 @@ export default function NetworksManager() {
 
       {/* Network modal */}
       {netModal && (
-        <div className="modal d-block" style={{ background: "rgba(0,0,0,0.5)" }} onClick={() => setNetModal(null)}>
+        <div
+          className="modal d-block"
+          style={{ background: "rgba(0,0,0,0.5)" }}
+          onMouseDown={(e) => { netModalBackdropMouseDownOnSelf.current = e.target === e.currentTarget; }}
+          onClick={(e) => { if (e.target === e.currentTarget && netModalBackdropMouseDownOnSelf.current) setNetModal(null); }}
+        >
           <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
             <div className="modal-content">
               <div className="modal-header"><h5 className="modal-title">{netModal.id ? "Edit" : "Add"} Network</h5>
@@ -740,7 +756,12 @@ export default function NetworksManager() {
 
       {/* Product type modal */}
       {ptModal && (
-        <div className="modal d-block" style={{ background: "rgba(0,0,0,0.5)" }} onClick={() => setPtModal(null)}>
+        <div
+          className="modal d-block"
+          style={{ background: "rgba(0,0,0,0.5)" }}
+          onMouseDown={(e) => { ptModalBackdropMouseDownOnSelf.current = e.target === e.currentTarget; }}
+          onClick={(e) => { if (e.target === e.currentTarget && ptModalBackdropMouseDownOnSelf.current) setPtModal(null); }}
+        >
           <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
             <div className="modal-content">
               <div className="modal-header"><h5 className="modal-title">{ptModal.id ? "Edit" : "Add"} Product Type</h5>
@@ -775,7 +796,12 @@ export default function NetworksManager() {
 
       {/* Package Term modal */}
       {termModal && (
-        <div className="modal d-block" style={{ background: "rgba(0,0,0,0.5)" }} onClick={() => setTermModal(null)}>
+        <div
+          className="modal d-block"
+          style={{ background: "rgba(0,0,0,0.5)" }}
+          onMouseDown={(e) => { termModalBackdropMouseDownOnSelf.current = e.target === e.currentTarget; }}
+          onClick={(e) => { if (e.target === e.currentTarget && termModalBackdropMouseDownOnSelf.current) setTermModal(null); }}
+        >
           <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
             <div className="modal-content">
               <div className="modal-header"><h5 className="modal-title">{termModal.id ? "Edit" : "Add"} Term</h5>
@@ -808,7 +834,12 @@ export default function NetworksManager() {
 
       {/* Feature Badge Type modal */}
       {fbtModal && (
-        <div className="modal d-block" style={{ background: "rgba(0,0,0,0.5)" }} onClick={() => setFbtModal(null)}>
+        <div
+          className="modal d-block"
+          style={{ background: "rgba(0,0,0,0.5)" }}
+          onMouseDown={(e) => { fbtModalBackdropMouseDownOnSelf.current = e.target === e.currentTarget; }}
+          onClick={(e) => { if (e.target === e.currentTarget && fbtModalBackdropMouseDownOnSelf.current) setFbtModal(null); }}
+        >
           <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
             <div className="modal-content">
               <div className="modal-header"><h5 className="modal-title">{fbtModal.id ? "Edit" : "Add"} Feature Badge Type</h5>
@@ -836,7 +867,12 @@ export default function NetworksManager() {
 
       {/* Package modal */}
       {pkgModal && (
-        <div className="modal d-block" style={{ background: "rgba(0,0,0,0.5)" }} onClick={() => setPkgModal(null)}>
+        <div
+          className="modal d-block"
+          style={{ background: "rgba(0,0,0,0.5)" }}
+          onMouseDown={(e) => { pkgModalBackdropMouseDownOnSelf.current = e.target === e.currentTarget; }}
+          onClick={(e) => { if (e.target === e.currentTarget && pkgModalBackdropMouseDownOnSelf.current) setPkgModal(null); }}
+        >
           <div className="modal-dialog modal-dialog-centered modal-lg" onClick={(e) => e.stopPropagation()}>
             <div className="modal-content">
               <div className="modal-header"><h5 className="modal-title">{pkgModal.pkg.id ? "Edit" : "Add"} Package</h5>
