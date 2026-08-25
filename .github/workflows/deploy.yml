@@ -315,3 +315,20 @@ jobs:
             cat /tmp/portainer_response.txt 2>/dev/null
             exit 1
           fi
+
+          # Step 3: Prune dangling images left behind by this deploy's pull.
+          # `pullImage: true`/the Docker API pull above always fetches a fresh
+          # `:latest` layer set but never removes the previous one — every one of
+          # these becomes a permanent ~500MB dangling (<none>) image, and Portainer's
+          # own `prune` flag above only prunes orphaned STACK SERVICES, not images.
+          # Left unchecked across enough deploys this fills the host disk, which is
+          # exactly what took the site down (Postgres crash-looped on "no space left
+          # on device", cascading into a failed redeploy — see incident 2026-08-25).
+          # Docker's images/prune endpoint with no filter defaults to dangling-only
+          # (same as plain `docker image prune`, not `-a`), so this only ever removes
+          # image layers nothing references — never a tagged/in-use image.
+          echo "🧹 Pruning dangling images to keep the host disk from filling up..."
+          PRUNE_RESP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            "$BASE_URL/api/endpoints/$ENDPOINT_ID/docker/images/prune" \
+            -H "$AUTH")
+          echo "  Image prune: $PRUNE_RESP"
