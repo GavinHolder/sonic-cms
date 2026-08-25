@@ -397,6 +397,24 @@ let styleInjected = false;
 const DESIGN_H = 900;
 
 /**
+ * Free-mode reflow breakpoint (px) — below this, a free-mode section renders through
+ * FreeReflowStack (single-column, content-driven reading order) instead of the desktop
+ * 1:1 plate (fixed cw×ch canvas, uniformly CSS-scaled to fit the viewport). Was 768,
+ * which only covered phones — a 768-991px TABLET viewport fell into the desktop-plate
+ * branch and got the full desktop design shrunk to fit (scale = viewport/cw, e.g.
+ * 768/1440 ≈ 0.53), reading as "the page is just zoomed out" rather than a real tablet
+ * layout. 992 matches the tablet ceiling already used elsewhere in this file (see
+ * pickPos/canvasRefW's screenW <= 991 for the grid-mode tabletPos convention) so
+ * "tablet" means the same width range everywhere in the FLEXIBLE renderer. Both call
+ * sites below (freePlateDesktop's screenW >= threshold and the reflow gate's
+ * screenW < threshold) must stay in sync — they decide the SAME branch from opposite
+ * sides (section-height override vs. block layout), so a mismatch here reproduces the
+ * exact "designer canvas vs. live page disagree" class of bug already fixed once this
+ * session for the free-mode canvas position sync.
+ */
+const FREE_MODE_REFLOW_BREAKPOINT = 992;
+
+/**
  * FlexibleSectionRenderer — top-level section component for the FLEXIBLE section type.
  *
  * Responsibilities:
@@ -506,7 +524,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   }, [freePlateActive, designerData]);
   // True only when the free-mode 1:1 section-height override should apply: free plate is
   // active AND we're on desktop. Pre-mount counts as desktop (SSR-safe, no hydration flip).
-  const freePlateDesktop = freePlateActive && (!mounted || screenW >= 768) && !!freeCanvas;
+  const freePlateDesktop = freePlateActive && (!mounted || screenW >= FREE_MODE_REFLOW_BREAKPOINT) && !!freeCanvas;
   // Tracks the current scroll stage zone so content column shows only the active zone's blocks
   const [scrollStageZone, setScrollStageZone] = useState(0);
 
@@ -1888,7 +1906,7 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
       // Single-column reading-order stack — MOBILE IS UNCHANGED by the cover-plate work.
       // Only the in-wrapper instance (plateMode falsy) owns it; the section-level plate
       // instance renders nothing on mobile so the stack is never duplicated or clipped.
-      if (mounted && screenW < 768) {
+      if (mounted && screenW < FREE_MODE_REFLOW_BREAKPOINT) {
         if (plateMode) return null;
         return (
           <FreeReflowStack
@@ -2948,12 +2966,30 @@ type ReflowLeaf = {
   node: React.ReactNode;
   aspect?: number | null; // non-container block design aspect (w/h), else null
   minH?: number;          // non-container block fallback min-height when no aspect
+  selfSizing?: boolean;   // true for template/card-tabs/product-grid — see SELF_SIZING_TYPES
+  blockId?: string;       // id used to key this leaf's live-reported content height
 };
 
 /**
- * FreeReflowStack — the free-mode MOBILE layout (≤768px). Instead of shrinking the whole
- * designer canvas into a tiny scaled photograph, it lays the design's leaves out as a
- * single readable column:
+ * Block types whose real content height on mobile can differ wildly from their desktop
+ * aspect ratio — a "template" block bound to a multi-card pricing grid is a good example:
+ * on desktop the cards sit side by side in a short, wide box; stacked single-column on
+ * mobile (FreeReflowStack, single-column always) the SAME cards need several times that
+ * height. Forcing these into `aspectRatio: designW/designH` (the treatment every other
+ * free-mode block gets below) reproduces the exact box the desktop design used and clips
+ * everything past it via the wrapper's overflow:hidden — a card cut off mid-price, or
+ * only the first of three cards visible at all. These three types instead get a
+ * content-driven height (see reportHeight/liveHeights in FreeReflowStack) — the same
+ * onContentHeight channel Dynamic Content Height Mode already uses for these exact block
+ * types elsewhere in this file (DesignerBlock's card-tabs/product-grid ResizeObserver and
+ * "template" case's postMessage wiring), just consumed here instead of by the section.
+ */
+const SELF_SIZING_TYPES = new Set(["template", "card-tabs", "product-grid"]);
+
+/**
+ * FreeReflowStack — the free-mode MOBILE+TABLET layout (< FREE_MODE_REFLOW_BREAKPOINT).
+ * Instead of shrinking the whole designer canvas into a tiny scaled photograph, it lays
+ * the design's leaves out as a single readable column:
  *  1. Collect leaves — every sub-element of a container block (absolute box = block
  *     pixelPos + sub {x,y,w,h}) and every non-container block (its pixelPos box).
  *  2. Order them in READING ORDER — top banded to ~24px rows, then left-to-right.
@@ -2962,11 +2998,25 @@ type ReflowLeaf = {
  *     elements that overlapped or sat adjacent (e.g. a paragraph and the emphasized
  *     heading continuing its sentence) render tight and read as connected, while
  *     far-apart elements keep a normal gap. Fonts become readable fluid clamps (mobile).
+ *  4. SELF_SIZING_TYPES (template/card-tabs/product-grid) skip the aspect-ratio box
+ *     every other block gets and instead grow to their own live-reported content height
+ *     — see reportHeight below and SELF_SIZING_TYPES' doc comment for why.
  */
 function FreeReflowStack({ blocks, designerCanvasW, containerW, darkBg }: {
   blocks: ReflowBlock[]; designerCanvasW: number; containerW: number; darkBg: boolean;
 }) {
   const isContainerType = (t: string) => t === "text" || t === "text-block" || t === "card";
+
+  // Live content height per self-sizing leaf (keyed by block id), reported by
+  // DesignerBlock's own onContentHeight channel (postMessage for "template", a
+  // ResizeObserver for "card-tabs"/"product-grid" — same mechanism Dynamic Content
+  // Height Mode already uses elsewhere in this file). Undefined until the first report
+  // lands, so those leaves start at a placeholder minHeight and grow once real content
+  // height is known — never a fixed aspect-ratio box that can clip a multi-card grid.
+  const [liveHeights, setLiveHeights] = useState<Record<string, number>>({});
+  const reportHeight = useCallback((id: string, px: number) => {
+    setLiveHeights((h) => (h[id] === px ? h : { ...h, [id]: px }));
+  }, []);
 
   const leaves: ReflowLeaf[] = [];
   for (const block of blocks) {
@@ -2983,6 +3033,16 @@ function FreeReflowStack({ blocks, designerCanvasW, containerW, darkBg }: {
           textAlign: (sub.props?.textAlign as React.CSSProperties["textAlign"]) || undefined,
           node: <DesignerSubElement key={String(block.id) + "-" + si} sub={sub} mobile />,
         });
+      });
+    } else if (SELF_SIZING_TYPES.has(block.type)) {
+      const blockId = String((block as unknown as { id?: string | number }).id ?? "");
+      leaves.push({
+        top: pos.y || 0, left: pos.x || 0, width: pos.w, height: pos.h,
+        textAlign: undefined,
+        selfSizing: true,
+        blockId,
+        minH: liveHeights[blockId] ?? 240, // placeholder for one card until the real report lands
+        node: <DesignerBlock key={block.id} block={block} darkBg={darkBg} onContentHeight={reportHeight} />,
       });
     } else {
       const aspect = pos.w > 0 && pos.h > 0 ? pos.w / pos.h : null;
@@ -3021,9 +3081,22 @@ function FreeReflowStack({ blocks, designerCanvasW, containerW, darkBg }: {
           <div key={i} style={{ width: "100%", marginTop, textAlign: leaf.textAlign }}>
             {isBlock ? (
               <div style={{
-                position: "relative", width: "100%", overflow: "hidden",
+                position: "relative", width: "100%",
+                // selfSizing leaves need overflow:visible, not hidden — the height below
+                // is a live-reported value (or a starting placeholder before the first
+                // report lands), and clipping to it would silently hide real content on
+                // any undershoot instead of the brief, self-correcting visual overlap
+                // visible gives instead. Every other leaf keeps the original hidden
+                // (their box is the design's own aspect ratio, never underestimated).
+                overflow: leaf.selfSizing ? "visible" : "hidden",
                 ...(leaf.aspect ? { aspectRatio: `${leaf.aspect}` } : {}),
-                ...(leaf.minH != null ? { minHeight: leaf.minH } : {}),
+                // selfSizing: an explicit `height` (not minHeight) — a percentage height
+                // on the "template" leaf's own <iframe> (height:100%, see TemplateBlock)
+                // only resolves against a DEFINITE containing-block height; minHeight
+                // alone leaves the computed height 'auto' (indeterminate), so the iframe
+                // would fall back to its 300×150 UA default — the exact bug already fixed
+                // once for grid-mode template blocks (see FILL_TYPES above).
+                ...(leaf.selfSizing ? { height: leaf.minH } : leaf.minH != null ? { minHeight: leaf.minH } : {}),
               }}>
                 {leaf.node}
               </div>
