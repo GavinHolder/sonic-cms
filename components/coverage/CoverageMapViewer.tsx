@@ -224,24 +224,12 @@ export default function CoverageMapViewer({
         L.marker([label.lat, label.lng], { icon, interactive: false }).addTo(map);
       });
 
-      // Tower markers — pulsing red pin
+      // Towers are a backend package-linking concept (which packages are reachable from
+      // which physical site), not a public-facing map feature — no pin marker, no
+      // name/description tooltip-popup. The radius rings below still draw (coverage-
+      // distance visualization, not tower identity), just without a marker anchoring them.
       (mapData.towers ?? []).forEach((tower) => {
         if (!tower.lat || !tower.lng) return;
-        const icon = L.divIcon({
-          className: "",
-          html: `<div style="position:relative;width:20px;height:20px">
-            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:10px;height:10px;background:#dc2626;border-radius:50%;border:2px solid #fff;z-index:2"></div>
-            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:20px;height:20px;background:rgba(220,38,38,0.25);border-radius:50%;animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite"></div>
-          </div>`,
-          iconSize: [20, 20],
-          iconAnchor: [10, 10],
-        });
-        const marker = L.marker([tower.lat, tower.lng], { icon });
-        // Same as the region bindTooltip/bindPopup above — Leaflet sets these as innerHTML,
-        // not text, so an admin-entered tower name/description must be escaped here too.
-        if (tower.name) marker.bindTooltip(escapeHtml(tower.name), { direction: "top" });
-        if (tower.description) marker.bindPopup(`<strong>${escapeHtml(tower.name)}</strong><br/><span style="color:#6b7280;font-size:13px">${escapeHtml(tower.description)}</span>`);
-        marker.addTo(map);
         // Procedural radius rings — one per distinct package distance of the tower's network
         const nr = tower.networkId ? networkRadii?.[tower.networkId] : undefined;
         if (nr) {
