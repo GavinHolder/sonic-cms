@@ -396,6 +396,9 @@ export interface OverlayImage {
   width: number;
   /** Freeform placement (only used when overlay.layoutMode === "freeform"). */
   pos?: FreeformPos;
+  /** Per-breakpoint position overrides — see resolveFreeformPos / HeadingRow's posTablet/posMobile. */
+  posTablet?: FreeformPos;
+  posMobile?: FreeformPos;
   /** Entrance animation. Defaults to "fade" (matches the pre-existing hardcoded look). */
   animation?: AnimationType;
   animationDuration?: number; // ms, default 500 (matches the pre-existing hardcoded look)
@@ -421,6 +424,30 @@ export interface HeadingRow {
   animationDelay: number;    // ms
   /** Freeform placement (only used when overlay.layoutMode === "freeform"). */
   pos?: FreeformPos;
+  /** Per-breakpoint position override — absent means "inherit `pos`" (see resolveFreeformPos). */
+  posTablet?: FreeformPos;
+  /** Per-breakpoint position override — absent means "inherit posTablet, then `pos`". Also the
+   *  switch that turns on real per-element mobile layout at all: HeroCarousel only abandons its
+   *  forced centered-stack fallback for an element once THIS is set (see ffStyle). */
+  posMobile?: FreeformPos;
+}
+
+/**
+ * Resolves the position to actually use for a given breakpoint, falling back
+ * progressively — mobile inherits tablet's override if it has none of its own, tablet
+ * (and mobile with neither override set) inherits the desktop `pos`. Centralized here so
+ * the editor (SlideEditor's buildFreeformChips) and the renderer (HeroCarousel's ffStyle)
+ * can never disagree on the fallback chain.
+ */
+export function resolveFreeformPos(
+  breakpoint: "desktop" | "tablet" | "mobile",
+  pos: FreeformPos | undefined,
+  posTablet: FreeformPos | undefined,
+  posMobile: FreeformPos | undefined
+): FreeformPos | undefined {
+  if (breakpoint === "mobile") return posMobile ?? posTablet ?? pos;
+  if (breakpoint === "tablet") return posTablet ?? pos;
+  return pos;
 }
 
 /**
@@ -482,6 +509,9 @@ export interface TextOverlayElement {
     animationDelay: number;
     /** Freeform placement (only used when overlay.layoutMode === "freeform"). */
     pos?: FreeformPos;
+    /** Per-breakpoint position overrides — see resolveFreeformPos / HeadingRow's posTablet/posMobile. */
+    posTablet?: FreeformPos;
+    posMobile?: FreeformPos;
   }>;
   /**
    * Overlay layout mode.
@@ -492,10 +522,16 @@ export interface TextOverlayElement {
   layoutMode?: "preset" | "freeform";
   /** Freeform position for the legacy single `heading` (classic mode). */
   headingPos?: FreeformPos;
+  headingPosTablet?: FreeformPos;
+  headingPosMobile?: FreeformPos;
   /** Freeform position for the subheading. */
   subheadingPos?: FreeformPos;
+  subheadingPosTablet?: FreeformPos;
+  subheadingPosMobile?: FreeformPos;
   /** Freeform position for the eyebrow label. */
   eyebrowPos?: FreeformPos;
+  eyebrowPosTablet?: FreeformPos;
+  eyebrowPosMobile?: FreeformPos;
   position: "center" | "left" | "right" | "topLeft" | "topCenter" | "topRight" | "bottomLeft" | "bottomCenter" | "bottomRight";
   spacing: {
     betweenHeadingSubheading: number; // px

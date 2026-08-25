@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import type { HeroCarouselSlide, AnimationType, HeadingRow, HeadingWord, FreeformPos, OverlayImage } from "@/types/section";
-import { defaultFreeformPos } from "@/types/section";
+import { defaultFreeformPos, resolveFreeformPos } from "@/types/section";
 import MediaUploader from "./MediaUploader";
 import MediaPickerModal from "./MediaPickerModal";
 import { LinkPicker } from "./LinkPicker";
@@ -29,6 +29,11 @@ export default function SlideEditor({
 }: SlideEditorProps) {
   const [activeTab, setActiveTab] = useState<"media" | "gradient" | "overlay" | "position">("media");
   const [dragRow, setDragRow] = useState<number | null>(null);
+  // Which breakpoint the freeform drag surface is currently authoring positions for.
+  // "desktop" is the pre-existing pos/headingPos/etc. fields; tablet/mobile write to
+  // the posTablet/posMobile (or headingPosTablet/headingPosMobile, etc.) siblings added
+  // alongside them — see buildFreeformChips and FreeformDragSurface's viewport override.
+  const [editBreakpoint, setEditBreakpoint] = useState<"desktop" | "tablet" | "mobile">("desktop");
   // Which media field the library picker targets ("src" = main media, "poster" = video poster)
   const [libraryTarget, setLibraryTarget] = useState<null | "src" | "poster">(null);
   // Overlay image picker target: "new" = adding an image, a number = replacing overlay.images[index]
@@ -41,10 +46,12 @@ export default function SlideEditor({
   const isFreeform = slide.overlay?.layoutMode === "freeform";
 
   // Update a single button's freeform pos (buttons live in an array on the overlay).
-  const setButtonPos = (index: number, pos: FreeformPos) => {
+  // `field` selects which of pos/posTablet/posMobile this write targets — driven by
+  // editBreakpoint, same convention as every other setter below.
+  const setButtonPos = (index: number, field: "pos" | "posTablet" | "posMobile", pos: FreeformPos | undefined) => {
     const buttons = [...(slide.overlay?.buttons ?? [])];
     if (!buttons[index]) return;
-    buttons[index] = { ...buttons[index], pos };
+    buttons[index] = { ...buttons[index], [field]: pos };
     updateOverlay({ buttons });
   };
 
@@ -68,61 +75,89 @@ export default function SlideEditor({
     updateOverlay({ images: images.filter((_, i) => i !== index) });
   };
 
+  // Which pos/posTablet/posMobile-style field editBreakpoint currently targets.
+  const posField: "pos" | "posTablet" | "posMobile" =
+    editBreakpoint === "mobile" ? "posMobile" : editBreakpoint === "tablet" ? "posTablet" : "pos";
+
   // Build the draggable chip list for the freeform surface from live overlay state.
+  // Every chip's `pos` is resolved for the CURRENTLY EDITED breakpoint (desktop pos
+  // shown as-is; tablet/mobile fall back through resolveFreeformPos so an un-overridden
+  // element still appears exactly where it inherits from — the same fallback chain
+  // HeroCarousel's ffStyle uses, so what you see here while dragging matches what
+  // renders live). `hasOverride` + `onClearOverride` only apply to tablet/mobile — they
+  // let an admin drop a breakpoint-specific position back to "inherit from above".
   const buildFreeformChips = (): FreeformChip[] => {
     const ov = slide.overlay;
     if (!ov) return [];
     const chips: FreeformChip[] = [];
     const eyebrowText = slide.eyebrow || ov.eyebrow;
     if (eyebrowText && !ov.eyebrowHidden) {
+      const own = editBreakpoint === "mobile" ? ov.eyebrowPosMobile : editBreakpoint === "tablet" ? ov.eyebrowPosTablet : ov.eyebrowPos;
       chips.push({
         // Live eyebrow is fontSize: clamp(11px, 1.4vw, 13px) — at the 1440px reference
         // viewport 1.4vw always exceeds 13px, so the effective size is always 13.
         id: "eyebrow", kind: "eyebrow", text: eyebrowText,
         color: ov.eyebrowColor || "#22c55e", fontSize: 13, fontWeight: 700,
-        pos: ov.eyebrowPos ?? defaultFreeformPos("eyebrow"),
-        onMove: (p) => updateOverlay({ eyebrowPos: p }),
+        pos: resolveFreeformPos(editBreakpoint, ov.eyebrowPos, ov.eyebrowPosTablet, ov.eyebrowPosMobile) ?? defaultFreeformPos("eyebrow"),
+        onMove: (p) => updateOverlay({ [editBreakpoint === "mobile" ? "eyebrowPosMobile" : editBreakpoint === "tablet" ? "eyebrowPosTablet" : "eyebrowPos"]: p }),
+        hasOverride: editBreakpoint !== "desktop" && own != null,
+        onClearOverride: editBreakpoint !== "desktop" ? () => updateOverlay({ [editBreakpoint === "mobile" ? "eyebrowPosMobile" : "eyebrowPosTablet"]: undefined }) : undefined,
       });
     }
     if (ov.headingRows && ov.headingRows.length > 0) {
       ov.headingRows.forEach((row, i) => {
+        const own = editBreakpoint === "mobile" ? row.posMobile : editBreakpoint === "tablet" ? row.posTablet : row.pos;
         chips.push({
           id: `row-${i}`, kind: "heading", text: row.text, words: row.words, isRow: true,
           fontSize: row.fontSize, fontWeight: row.fontWeight, fontFamily: row.fontFamily, color: row.color,
-          pos: row.pos ?? defaultFreeformPos("heading", i),
-          onMove: (p) => updateHeadingRow(i, { pos: p }),
+          pos: resolveFreeformPos(editBreakpoint, row.pos, row.posTablet, row.posMobile) ?? defaultFreeformPos("heading", i),
+          onMove: (p) => updateHeadingRow(i, { [posField]: p }),
+          hasOverride: editBreakpoint !== "desktop" && own != null,
+          onClearOverride: editBreakpoint !== "desktop" ? () => updateHeadingRow(i, { [posField]: undefined }) : undefined,
         });
       });
     } else if (ov.heading?.text) {
+      const own = editBreakpoint === "mobile" ? ov.headingPosMobile : editBreakpoint === "tablet" ? ov.headingPosTablet : ov.headingPos;
       chips.push({
         id: "heading", kind: "heading", text: ov.heading.text,
         fontSize: ov.heading.fontSize, fontWeight: ov.heading.fontWeight, fontFamily: ov.heading.fontFamily, color: ov.heading.color,
-        pos: ov.headingPos ?? defaultFreeformPos("heading"),
-        onMove: (p) => updateOverlay({ headingPos: p }),
+        pos: resolveFreeformPos(editBreakpoint, ov.headingPos, ov.headingPosTablet, ov.headingPosMobile) ?? defaultFreeformPos("heading"),
+        onMove: (p) => updateOverlay({ [editBreakpoint === "mobile" ? "headingPosMobile" : editBreakpoint === "tablet" ? "headingPosTablet" : "headingPos"]: p }),
+        hasOverride: editBreakpoint !== "desktop" && own != null,
+        onClearOverride: editBreakpoint !== "desktop" ? () => updateOverlay({ [editBreakpoint === "mobile" ? "headingPosMobile" : "headingPosTablet"]: undefined }) : undefined,
       });
     }
     if (ov.subheading?.text) {
+      const own = editBreakpoint === "mobile" ? ov.subheadingPosMobile : editBreakpoint === "tablet" ? ov.subheadingPosTablet : ov.subheadingPos;
       chips.push({
         id: "subheading", kind: "subheading", text: ov.subheading.text,
         fontSize: ov.subheading.fontSize, fontWeight: ov.subheading.fontWeight, fontFamily: ov.subheading.fontFamily, color: ov.subheading.color,
-        pos: ov.subheadingPos ?? defaultFreeformPos("subheading"),
-        onMove: (p) => updateOverlay({ subheadingPos: p }),
+        pos: resolveFreeformPos(editBreakpoint, ov.subheadingPos, ov.subheadingPosTablet, ov.subheadingPosMobile) ?? defaultFreeformPos("subheading"),
+        onMove: (p) => updateOverlay({ [editBreakpoint === "mobile" ? "subheadingPosMobile" : editBreakpoint === "tablet" ? "subheadingPosTablet" : "subheadingPos"]: p }),
+        hasOverride: editBreakpoint !== "desktop" && own != null,
+        onClearOverride: editBreakpoint !== "desktop" ? () => updateOverlay({ [editBreakpoint === "mobile" ? "subheadingPosMobile" : "subheadingPosTablet"]: undefined }) : undefined,
       });
     }
     (ov.buttons ?? []).forEach((b, i) => {
+      const own = editBreakpoint === "mobile" ? b.posMobile : editBreakpoint === "tablet" ? b.posTablet : b.pos;
       chips.push({
         id: `btn-${i}`, kind: "button", text: b.text || "Button",
         btnBg: b.backgroundColor, btnColor: b.textColor, variant: b.variant,
-        pos: b.pos ?? defaultFreeformPos("button", i),
-        onMove: (p) => setButtonPos(i, p),
+        pos: resolveFreeformPos(editBreakpoint, b.pos, b.posTablet, b.posMobile) ?? defaultFreeformPos("button", i),
+        onMove: (p) => setButtonPos(i, posField, p),
+        hasOverride: editBreakpoint !== "desktop" && own != null,
+        onClearOverride: editBreakpoint !== "desktop" ? () => setButtonPos(i, posField, undefined) : undefined,
       });
     });
     (ov.images ?? []).forEach((img, i) => {
+      const own = editBreakpoint === "mobile" ? img.posMobile : editBreakpoint === "tablet" ? img.posTablet : img.pos;
       chips.push({
         id: `img-${i}`, kind: "image", text: img.alt || "Image",
         imageSrc: img.src, imageWidth: img.width, imageForceWhite: img.forceWhite,
-        pos: img.pos ?? defaultFreeformPos("image", i),
-        onMove: (p) => updateOverlayImage(i, { pos: p }),
+        pos: resolveFreeformPos(editBreakpoint, img.pos, img.posTablet, img.posMobile) ?? defaultFreeformPos("image", i),
+        onMove: (p) => updateOverlayImage(i, { [posField]: p }),
+        hasOverride: editBreakpoint !== "desktop" && own != null,
+        onClearOverride: editBreakpoint !== "desktop" ? () => updateOverlayImage(i, { [posField]: undefined }) : undefined,
       });
     });
     return chips;
@@ -772,11 +807,31 @@ export default function SlideEditor({
 
               {isFreeform && (
                 <div className="mt-2">
+                  <div className="d-flex align-items-center gap-2 mb-2">
+                    <span className="text-muted small me-1">Position for:</span>
+                    {(["desktop", "tablet", "mobile"] as const).map((bp) => (
+                      <button
+                        key={bp}
+                        type="button"
+                        className={`btn btn-sm ${editBreakpoint === bp ? "btn-primary" : "btn-outline-secondary"}`}
+                        onClick={() => setEditBreakpoint(bp)}
+                      >
+                        <i className={`bi me-1 ${bp === "desktop" ? "bi-laptop" : bp === "tablet" ? "bi-tablet" : "bi-phone"}`} />
+                        {bp.charAt(0).toUpperCase() + bp.slice(1)}
+                      </button>
+                    ))}
+                  </div>
                   <div className="alert alert-info small py-2 px-2 mb-2">
                     <i className="bi bi-hand-index me-1"></i>
-                    Drag the chips to place each element. Position is shown as <strong>x%, y%</strong> (anchor = element centre). Elements not moved use a sensible default.
+                    {editBreakpoint === "desktop" ? (
+                      <>Drag the chips to place each element. Position is shown as <strong>x%, y%</strong> (anchor = element centre). Elements not moved use a sensible default.</>
+                    ) : editBreakpoint === "tablet" ? (
+                      <>Editing the <strong>tablet</strong> (768-991px) layout. An element you haven&apos;t dragged here still uses its Desktop position — drag it to give this breakpoint its own.</>
+                    ) : (
+                      <>Editing the <strong>mobile</strong> (&lt;768px) layout. An element you haven&apos;t dragged here still uses the automatic centered stack, exactly as before — drag it to give it a real position on mobile instead.</>
+                    )}
                   </div>
-                  <FreeformDragSurface chips={buildFreeformChips()} slide={slide} />
+                  <FreeformDragSurface chips={buildFreeformChips()} slide={slide} editBreakpoint={editBreakpoint} />
                   <div className="form-text mt-1">
                     Preset position controls in the <strong>Position</strong> tab are ignored while freeform is on.
                   </div>
@@ -2439,6 +2494,13 @@ interface FreeformChip {
   imageForceWhite?: boolean;
   pos: FreeformPos;
   onMove: (p: FreeformPos) => void;
+  /** True when editing tablet/mobile AND this element has its own override at that
+   *  breakpoint (vs. currently inheriting from desktop/tablet). Always false while
+   *  editing desktop — there's nothing to "clear" there. */
+  hasOverride?: boolean;
+  /** Clears this element's override at the currently-edited breakpoint, falling back
+   *  to inheriting from the breakpoint above. Undefined while editing desktop. */
+  onClearOverride?: () => void;
 }
 
 /**
@@ -2548,7 +2610,7 @@ const DRAG_THRESHOLD_PX = 3;
 const ALIGN_H = { left: 6, center: 50, right: 94 } as const;
 const ALIGN_V = { top: 8, middle: 50, bottom: 92 } as const;
 
-function FreeformDragSurface({ chips, slide }: { chips: FreeformChip[]; slide: HeroCarouselSlide }) {
+function FreeformDragSurface({ chips, slide, editBreakpoint }: { chips: FreeformChip[]; slide: HeroCarouselSlide; editBreakpoint: "desktop" | "tablet" | "mobile" }) {
   const boxRef = useRef<HTMLDivElement>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   // Multi-select: shift/ctrl+click toggles membership; plain click replaces the selection
@@ -2578,18 +2640,30 @@ function FreeformDragSurface({ chips, slide }: { chips: FreeformChip[]; slide: H
   // it 1:1, so this was the one surface out of three using a different shape. Matching that
   // same real-window measurement here (same DEFAULT_VW/VH fallback too) makes the drag
   // surface, the Live Preview panel, and the live page (as viewed on this same window) agree.
+  // ONLY true for desktop, though — tablet/mobile editing needs a FIXED reference box (the
+  // actual device width being authored for), not the admin's own window shape, or a chip
+  // dragged "centered" on a wide monitor would land off-center on a real 375px phone.
   const DEFAULT_VW = 1440;
   const DEFAULT_VH = 900;
+  // Matches SectionLivePreview's PREVIEW_VIEWPORTS (768/375) — same breakpoint widths
+  // used everywhere else an admin picks "tablet"/"mobile" in this CMS. Heights are real
+  // single-screen device heights (not the 1500px scroll-room SectionLivePreview gives
+  // mobile for its stacking preview) since this surface positions elements freely within
+  // one screen, it doesn't render a scrollable stack.
+  const TABLET_VW = 768, TABLET_VH = 1024;
+  const MOBILE_VW = 375, MOBILE_VH = 812;
   const [viewport, setViewport] = useState({ w: DEFAULT_VW, h: DEFAULT_VH });
   const [scale, setScale] = useState(0.35);
   const vpW = viewport.w;
   const aspect = `${viewport.w} / ${viewport.h}`;
   useEffect(() => {
+    if (editBreakpoint === "tablet") { setViewport({ w: TABLET_VW, h: TABLET_VH }); return; }
+    if (editBreakpoint === "mobile") { setViewport({ w: MOBILE_VW, h: MOBILE_VH }); return; }
     const readViewport = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
     readViewport();
     window.addEventListener("resize", readViewport);
     return () => window.removeEventListener("resize", readViewport);
-  }, []);
+  }, [editBreakpoint]);
   useEffect(() => {
     const measure = () => {
       const el = boxRef.current;
@@ -2834,7 +2908,7 @@ function FreeformDragSurface({ chips, slide }: { chips: FreeformChip[]; slide: H
                 dragStartRef.current = { x: e.clientX, y: e.clientY };
                 movedRef.current = false;
               }}
-              title={`${chip.kind} — ${chip.pos.x}%, ${chip.pos.y}%`}
+              title={`${chip.kind} — ${chip.pos.x}%, ${chip.pos.y}%${chip.hasOverride ? " (own position at this breakpoint)" : ""}`}
               style={{
                 position: "absolute",
                 left: `${chip.pos.x}%`,
@@ -2844,13 +2918,32 @@ function FreeformDragSurface({ chips, slide }: { chips: FreeformChip[]; slide: H
                 whiteSpace: chip.kind === "subheading" ? "normal" : "nowrap",
                 maxWidth: chip.kind === "subheading" ? "45%" : "92%",
                 textAlign: "center",
-                outline: selected ? "1.5px solid #38bdf8" : "1px dashed rgba(255,255,255,0.35)",
+                // A chip with its own override at this breakpoint gets a solid amber outline
+                // instead of the usual dashed one — at a glance, which elements have actually
+                // been re-authored for tablet/mobile vs. which are still inheriting.
+                outline: selected ? "1.5px solid #38bdf8" : chip.hasOverride ? "1.5px solid #f59e0b" : "1px dashed rgba(255,255,255,0.35)",
                 outlineOffset: 2,
                 borderRadius: 3,
                 textShadow: "0 1px 3px rgba(0,0,0,0.55)",
               }}
             >
               {renderFreeformChip(chip, scale, vpW)}
+              {chip.hasOverride && chip.onClearOverride && (
+                <button
+                  type="button"
+                  title="Clear this breakpoint's position — inherit from above again"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => { e.stopPropagation(); chip.onClearOverride?.(); }}
+                  style={{
+                    position: "absolute", top: -8, right: -8, width: 16, height: 16,
+                    borderRadius: "50%", border: "1px solid #fff", background: "#f59e0b",
+                    color: "#fff", fontSize: 10, lineHeight: "14px", padding: 0,
+                    cursor: "pointer", boxShadow: "0 1px 3px rgba(0,0,0,0.4)",
+                  }}
+                >
+                  ×
+                </button>
+              )}
             </div>
           );
         })}

@@ -3,7 +3,7 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { HeroSection, AnimationType, HeadingRow, TextShadowConfig, FreeformPos, OverlayImage } from "@/types/section";
-import { defaultFreeformPos } from "@/types/section";
+import { defaultFreeformPos, resolveFreeformPos } from "@/types/section";
 
 /**
  * SSR-safe layout effect: runs synchronously before paint on the client (so we
@@ -169,6 +169,7 @@ function renderRowInner(row: HeadingRow, shadow: TextShadowConfig | undefined) {
 export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
+  const [isTablet, setIsTablet] = useState(false);
   // Manual autoplay pause toggle. Combined with autoPlay so EITHER can stop the
   // timer (see auto-play effect below). Additive; defaults to playing.
   const [paused, setPaused] = useState(false);
@@ -218,7 +219,12 @@ export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps
   // paints the first frame — prevents the mount-time desktop→mobile image flash
   // (e.g. the Sonic mobile logo blinking in) that a post-paint useEffect caused.
   useIsomorphicLayoutEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+      // 768-991 — matches FlexibleSectionRenderer's FREE_MODE_REFLOW_BREAKPOINT tablet
+      // ceiling, so "tablet" means the same width range across the CMS.
+      setIsTablet(window.innerWidth >= 768 && window.innerWidth < 992);
+    };
     checkMobile();
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
@@ -402,19 +408,40 @@ export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps
   // Freeform: absolute-position wrapper for a single overlay element.
   // Anchor is the element CENTER (translate -50%,-50%); pos falls back to a
   // staggered default so an un-dragged element still renders somewhere sane.
-  const ffStyle = (pos: FreeformPos | undefined, def: FreeformPos): React.CSSProperties =>
-    isMobile
-      ? // Mobile: drop absolute % positioning (which clips desktop coords off-edge) and flow the
-        // element in a centered reading-order stack. (#72 mobile-first hero reflow)
-        { position: "relative", left: "auto", top: "auto", transform: "none", width: "100%", maxWidth: "100%", margin: "9px 0", display: "flex", justifyContent: "center", zIndex: 10 }
-      : {
-          position: "absolute",
-          left: `${pos?.x ?? def.x}%`,
-          top: `${pos?.y ?? def.y}%`,
-          transform: "translate(-50%, -50%)",
-          maxWidth: "92%",
-          zIndex: 10,
-        };
+  //
+  // Tablet (768-991) always uses absolute % positioning — posTablet if an admin has
+  // authored one for this element, else the desktop pos (today's exact behaviour,
+  // unchanged for every slide that hasn't been re-authored). Tablet never had the
+  // off-edge clipping problem mobile has (percentage coords already scale reasonably
+  // at that width), so there's no fallback-stack branch for it.
+  //
+  // Mobile ONLY switches to absolute positioning when posMobile is explicitly set —
+  // that field is the opt-in switch (see its doc comment in types/section.ts). Without
+  // it, mobile keeps the original forced centered-stack fallback exactly as before
+  // (#72 mobile-first hero reflow) — a slide nobody has re-authored for mobile renders
+  // byte-identical to pre-this-feature. Falling back to posTablet before pos (via
+  // resolveFreeformPos) only matters once posMobile is set on THIS element; it doesn't
+  // change whether the stack fallback triggers.
+  const ffStyle = (
+    pos: FreeformPos | undefined,
+    def: FreeformPos,
+    posTablet?: FreeformPos,
+    posMobile?: FreeformPos
+  ): React.CSSProperties => {
+    if (isMobile && !posMobile) {
+      return { position: "relative", left: "auto", top: "auto", transform: "none", width: "100%", maxWidth: "100%", margin: "9px 0", display: "flex", justifyContent: "center", zIndex: 10 };
+    }
+    const breakpoint = isMobile ? "mobile" : isTablet ? "tablet" : "desktop";
+    const resolved = resolveFreeformPos(breakpoint, pos, posTablet, posMobile);
+    return {
+      position: "absolute",
+      left: `${resolved?.x ?? def.x}%`,
+      top: `${resolved?.y ?? def.y}%`,
+      transform: "translate(-50%, -50%)",
+      maxWidth: "92%",
+      zIndex: 10,
+    };
+  };
 
   // Background media (mobile bg color / image / video-with-mobile-image / video)
   // + gradient overlay for a given slide. Shared by BOTH the persistent
@@ -801,7 +828,10 @@ export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps
                     <div
                       key={`ff-eyebrow-${currentSlide}`}
                       style={{
-                        ...ffStyle(slide.overlay.eyebrowPos, defaultFreeformPos("eyebrow")),
+                        ...ffStyle(slide.overlay.eyebrowPos, defaultFreeformPos("eyebrow"), slide.overlay.eyebrowPosTablet, slide.overlay.eyebrowPosMobile),
+                        // eyebrowAlign's edge-anchor shift is a desktop-only refinement — on
+                        // mobile (stacked OR posMobile-positioned) it stays centered, matching
+                        // the centered text-align already applied below on mobile.
                         ...(isMobile ? {} : { transform: `translate(${eyebrowAnchorX}, -50%)` }),
                       }}
                     >
@@ -829,7 +859,7 @@ export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps
                 {/* Headings — stacked rows (each independently placed) or legacy single heading */}
                 {slide.overlay.headingRows && slide.overlay.headingRows.length > 0
                   ? slide.overlay.headingRows.map((row: HeadingRow, i: number) => (
-                      <div key={`ff-row-${i}-${currentSlide}`} style={ffStyle(row.pos, defaultFreeformPos("heading", i))}>
+                      <div key={`ff-row-${i}-${currentSlide}`} style={ffStyle(row.pos, defaultFreeformPos("heading", i), row.posTablet, row.posMobile)}>
                         <motion.h1
                           className="hero-heading"
                           {...getAnimationVariants(row.animation)}
@@ -863,7 +893,7 @@ export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps
                       </div>
                     ))
                   : (
-                      <div key={`ff-heading-${currentSlide}`} style={ffStyle(slide.overlay.headingPos, defaultFreeformPos("heading"))}>
+                      <div key={`ff-heading-${currentSlide}`} style={ffStyle(slide.overlay.headingPos, defaultFreeformPos("heading"), slide.overlay.headingPosTablet, slide.overlay.headingPosMobile)}>
                         <motion.h1
                           {...getAnimationVariants(slide.overlay.heading.animation)}
                           transition={{
@@ -897,7 +927,7 @@ export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps
 
                 {/* Subheading */}
                 {slide.overlay.subheading && (
-                  <div key={`ff-sub-${currentSlide}`} style={ffStyle(slide.overlay.subheadingPos, defaultFreeformPos("subheading"))}>
+                  <div key={`ff-sub-${currentSlide}`} style={ffStyle(slide.overlay.subheadingPos, defaultFreeformPos("subheading"), slide.overlay.subheadingPosTablet, slide.overlay.subheadingPosMobile)}>
                     <motion.p
                       {...getAnimationVariants(slide.overlay.subheading.animation)}
                       transition={{
@@ -923,7 +953,7 @@ export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps
 
                 {/* Buttons — each placed independently */}
                 {slide.overlay.buttons.map((button, index) => (
-                  <div key={`ff-btn-${index}-${currentSlide}`} style={ffStyle(button.pos, defaultFreeformPos("button", index))}>
+                  <div key={`ff-btn-${index}-${currentSlide}`} style={ffStyle(button.pos, defaultFreeformPos("button", index), button.posTablet, button.posMobile)}>
                     <motion.a
                       href={button.href}
                       {...getAnimationVariants(button.animation)}
@@ -967,7 +997,7 @@ export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps
                     <div
                       key={`ff-img-${index}-${currentSlide}`}
                       style={{
-                        ...ffStyle(img.pos, defaultFreeformPos("image", index)),
+                        ...ffStyle(img.pos, defaultFreeformPos("image", index), img.posTablet, img.posMobile),
                         // Desktop's freeform wrapper is `position:absolute; left:X%` with no
                         // `right`, so with no explicit width it shrink-fits to the space between
                         // `left` and the container's right edge — the image visibly shrank the
