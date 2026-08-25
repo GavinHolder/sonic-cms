@@ -926,7 +926,7 @@ export default function NetworksManager() {
                           <option value="">— None —</option>
                           {categories.filter((c) => c.isActive).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </select></div>
-                      <div className="col-6"><label className="form-label">Term <span className="text-muted">(also sets the billing period shown next to price)</span></label>
+                      <div className="col-6"><label className="form-label">Term <span className="text-muted" style={{ fontSize: 11 }}>(also sets the billing period shown next to price)</span></label>
                         <select className="form-select" value={pkgModal.pkg.term ?? ""} onChange={(e) => { const term = e.target.value || null; setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, term, period: termToPeriod(term, packageTerms) } }); }}>
                           <option value="">— None —</option>
                           {packageTerms.filter((t) => t.isActive && t.kind === (pkgModal.pkg.kind ?? "DATA")).map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
