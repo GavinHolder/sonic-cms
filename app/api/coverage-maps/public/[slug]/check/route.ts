@@ -33,7 +33,11 @@ export async function POST(
         include: {
           network: {
             include: {
-              packages: { where: { isActive: true }, include: { category: { select: { name: true } } }, orderBy: [{ order: "asc" }, { createdAt: "asc" }] },
+              packages: {
+                where: { isActive: true },
+                include: { category: { select: { name: true } }, restrictedRegions: { select: { id: true } } },
+                orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+              },
             },
           },
         },
@@ -97,39 +101,53 @@ export async function POST(
   };
 
   // ── Group matched regions by network (dedupe), each with its packages ────────
-  const byNetwork = new Map<string, {
-    id: string; name: string; slug: string; category: string; color: string; logoUrl: string | null;
-    regionNames: string[];
-    packages: Array<{ id: string; name: string; speedDown: string | null; speedUp: string | null; price: string; period: string | null; features: unknown; popular: boolean; kind: string; term: string | null; category: string | null }>;
-  }>();
+  // Two passes: a network can match more than one of its own overlapping regions
+  // (e.g. a wide "Wireless" polygon and a narrower promo-area polygon both covering
+  // this point), and a package restricted to just the narrower one still needs to
+  // qualify — so the full set of matched region ids per network has to be known
+  // BEFORE package restriction is evaluated, not just the first region encountered.
+  const networkById = new Map<string, NonNullable<(typeof matched)[number]["network"]>>();
+  const matchedRegionIdsByNetwork = new Map<string, Set<string>>();
+  const regionNamesByNetwork = new Map<string, string[]>();
   const unlinkedRegionNames: string[] = [];
 
   for (const r of matched) {
     if (r.network) {
       const n = r.network;
-      if (!byNetwork.has(n.id)) {
-        // Distance gate: a package with maxDistanceM only shows when the point is
-        // within that distance of one of this network's towers that actually
-        // qualifies for the package's product type (see nearestQualifyingTowerM).
-        byNetwork.set(n.id, {
-          id: n.id, name: n.name, slug: n.slug, category: n.category, color: n.color, logoUrl: n.logoUrl,
-          regionNames: [],
-          packages: n.packages
-            .filter((p) => p.maxDistanceM == null || nearestQualifyingTowerM(n.id, p.productTypeId ?? null) <= p.maxDistanceM)
-            .filter((p) => showVas || p.kind !== "VAS")
-            .map((p) => ({
-              id: p.id, name: p.name, speedDown: p.speedDown, speedUp: p.speedUp,
-              price: p.price, period: p.period, features: p.features, popular: p.popular,
-              kind: p.kind, term: p.term, category: p.category?.name ?? null,
-            })),
-        });
+      if (!networkById.has(n.id)) {
+        networkById.set(n.id, n);
+        matchedRegionIdsByNetwork.set(n.id, new Set());
+        regionNamesByNetwork.set(n.id, []);
       }
-      byNetwork.get(n.id)!.regionNames.push(r.name);
+      matchedRegionIdsByNetwork.get(n.id)!.add(r.id);
+      regionNamesByNetwork.get(n.id)!.push(r.name);
     } else {
       unlinkedRegionNames.push(r.name);
     }
   }
-  const networks = [...byNetwork.values()];
+
+  const networks = [...networkById.entries()].map(([networkId, n]) => {
+    const matchedRegionIds = matchedRegionIdsByNetwork.get(networkId)!;
+    return {
+      id: n.id, name: n.name, slug: n.slug, category: n.category, color: n.color, logoUrl: n.logoUrl,
+      regionNames: regionNamesByNetwork.get(networkId) || [],
+      // Distance gate: a package with maxDistanceM only shows when the point is
+      // within that distance of one of this network's towers that actually
+      // qualifies for the package's product type (see nearestQualifyingTowerM).
+      // Region gate: a package with restrictedRegions set only shows when at least
+      // one of THIS network's matched regions is in that set — empty (the default)
+      // means unrestricted, same as before this field existed.
+      packages: n.packages
+        .filter((p) => p.maxDistanceM == null || nearestQualifyingTowerM(n.id, p.productTypeId ?? null) <= p.maxDistanceM)
+        .filter((p) => showVas || p.kind !== "VAS")
+        .filter((p) => p.restrictedRegions.length === 0 || p.restrictedRegions.some((rr) => matchedRegionIds.has(rr.id)))
+        .map((p) => ({
+          id: p.id, name: p.name, speedDown: p.speedDown, speedUp: p.speedUp,
+          price: p.price, period: p.period, features: p.features, popular: p.popular,
+          kind: p.kind, term: p.term, category: p.category?.name ?? null,
+        })),
+    };
+  });
 
   // ── Legacy back-compat fields (older public client) ──────────────────────────
   const fibre = matched.find((r) => r.regionType === "FIBRE");

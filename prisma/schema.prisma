@@ -461,6 +461,8 @@ model CoverageRegion {
   network     Network?    @relation(fields: [networkId], references: [id], onDelete: SetNull)
   // Towers grouped into this region via CoverageTower.regionId (admin grouping only).
   towers      CoverageTower[]
+  // Packages restricted to this region — see Package.restrictedRegions.
+  restrictedForPackages Package[] @relation("PackageRestrictedRegions")
 
   @@index([mapId])
   @@index([networkId])
@@ -582,6 +584,13 @@ model Package {
   network     Network          @relation(fields: [networkId], references: [id], onDelete: Cascade)
   category    ServiceCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   productType ProductType?     @relation(fields: [productTypeId], references: [id], onDelete: SetNull)
+  // Empty (the default for every package that existed before this field) = no
+  // restriction, available anywhere the network's polygon covers — identical to the
+  // pre-existing behavior. Non-empty = only offered when the checked address falls in
+  // one of these specific regions of the (same) network, letting one network's
+  // coverage area be subdivided per package (e.g. a promo package limited to a few
+  // suburbs) without needing a second Network/polygon just to scope it.
+  restrictedRegions CoverageRegion[] @relation("PackageRestrictedRegions")
 
   @@index([networkId])
   @@index([categoryId])

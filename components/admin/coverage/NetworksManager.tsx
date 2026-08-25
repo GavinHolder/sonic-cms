@@ -28,7 +28,12 @@ interface Pkg {
   term?: string | null;
   categoryId?: string | null;
   productTypeId?: string | null;
+  // Empty/undefined = unrestricted (available everywhere the network covers, the
+  // pre-existing default). Non-empty = only offered in these specific regions of
+  // the package's own network — see restrictedRegions on the Package model.
+  restrictedRegions?: { id: string }[];
 }
+interface CoverageRegionRef { id: string; name: string; }
 interface ServiceCategory { id: string; name: string; order: number; isActive: boolean; }
 interface PackageTerm {
   id: string;
@@ -100,6 +105,7 @@ interface Network {
   isActive: boolean;
   order: number;
   packages: Pkg[];
+  regions?: CoverageRegionRef[];
   _count?: { regions: number };
 }
 
@@ -163,7 +169,7 @@ export default function NetworksManager() {
   useEffect(() => {
     if (!pkgModal) return;
     const hasVariants = (pkgModal.termVariants?.length ?? 0) > 0;
-    const hasRules = pkgModal.pkg.maxDistanceM != null || pkgModal.pkg.popular === true;
+    const hasRules = pkgModal.pkg.maxDistanceM != null || pkgModal.pkg.popular === true || (pkgModal.pkg.restrictedRegions?.length ?? 0) > 0;
     setPkgCollapsed(new Set<string>([...(hasVariants ? [] : ["variants"]), ...(hasRules ? [] : ["rules"])]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pkgModal === null]);
@@ -409,6 +415,7 @@ export default function NetworksManager() {
       term: pkg.term ?? null,
       categoryId: pkg.categoryId ?? null,
       productTypeId: pkg.productTypeId ?? null,
+      restrictedRegionIds: (pkg.restrictedRegions || []).map((r) => r.id),
       popular: pkg.popular ?? false,
       isActive: pkg.isActive ?? true,
       order: pkg.order ?? 0,
@@ -1144,7 +1151,7 @@ export default function NetworksManager() {
                   <div className="card-header bg-light d-flex align-items-center gap-2 py-2" style={{ cursor: "pointer" }} onClick={() => togglePkgSection("rules")}>
                     <i className="bi bi-shield-check text-danger" />
                     <span className="fw-semibold small">Rules &amp; Visibility</span>
-                    <span className="text-muted small">Distance limit, Popular, Active</span>
+                    <span className="text-muted small">Distance limit, Regions, Popular, Active</span>
                     <i className={`bi bi-chevron-${pkgCollapsed.has("rules") ? "down" : "up"} ms-auto text-muted small`} />
                   </div>
                   {!pkgCollapsed.has("rules") && (
@@ -1163,6 +1170,31 @@ export default function NetworksManager() {
                     <input className="form-control" type="number" min={0} value={pkgModal.pkg.maxDistanceM ?? ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, maxDistanceM: e.target.value === "" ? null : parseInt(e.target.value, 10) } })} placeholder="e.g. 100 — only offered within 100m of a tower" style={{ maxWidth: 260 }} />
                     <div className="form-text">Only show this package when the address is within this distance of one of the network&apos;s towers. Draws a ring around each tower on the map.</div></div>
                 )}
+                {(() => {
+                  const net = networks.find((n) => n.id === pkgModal.networkId);
+                  const regions = net?.regions || [];
+                  if (regions.length === 0) return null;
+                  const selectedIds = new Set((pkgModal.pkg.restrictedRegions || []).map((r) => r.id));
+                  const toggleRegion = (id: string) => {
+                    const next = new Set(selectedIds);
+                    if (next.has(id)) next.delete(id); else next.add(id);
+                    setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, restrictedRegions: [...next].map((rid) => ({ id: rid })) } });
+                  };
+                  return (
+                    <div className="mb-3">
+                      <label className="form-label">Restrict to regions <span className="text-muted">(leave all unchecked for no restriction)</span></label>
+                      <div className="d-flex flex-wrap gap-2">
+                        {regions.map((r) => (
+                          <div key={r.id} className="form-check">
+                            <input className="form-check-input" type="checkbox" id={`pkg-region-${r.id}`} checked={selectedIds.has(r.id)} onChange={() => toggleRegion(r.id)} />
+                            <label className="form-check-label small" htmlFor={`pkg-region-${r.id}`}>{r.name}</label>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="form-text">By default this package is offered anywhere in the network&apos;s coverage area. Check one or more regions to limit it to just those (e.g. a promo only available in a few suburbs).</div>
+                    </div>
+                  );
+                })()}
                 <div className="d-flex gap-4">
                   <div className="form-check form-switch"><input className="form-check-input" type="checkbox" id="pkg-popular" checked={pkgModal.pkg.popular ?? false} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, popular: e.target.checked } })} /><label className="form-check-label" htmlFor="pkg-popular">Popular</label></div>
                   <div className="form-check form-switch"><input className="form-check-input" type="checkbox" id="pkg-active" checked={pkgModal.pkg.isActive ?? true} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, isActive: e.target.checked } })} /><label className="form-check-label" htmlFor="pkg-active">Active</label></div>

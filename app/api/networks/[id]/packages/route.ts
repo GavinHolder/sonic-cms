@@ -16,6 +16,9 @@ export async function POST(
   if (!name || !price) {
     return NextResponse.json({ error: "name and price are required" }, { status: 400 });
   }
+  const restrictedRegionIds: string[] = Array.isArray(body.restrictedRegionIds)
+    ? body.restrictedRegionIds.filter((v: unknown) => typeof v === "string")
+    : [];
   const data = {
     networkId,
     name,
@@ -32,6 +35,7 @@ export async function POST(
     popular: body.popular ?? false,
     isActive: body.isActive ?? true,
     order: body.order ?? 0,
+    restrictedRegions: { connect: restrictedRegionIds.map((id) => ({ id })) },
   };
 
   // Enforce "at most one Popular per scope" (see lib/packages/popular.ts) inside

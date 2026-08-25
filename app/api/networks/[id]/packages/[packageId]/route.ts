@@ -39,6 +39,14 @@ export async function PUT(
     // WISP network by mistake) — networkId is required on Package, so only apply
     // when a non-empty string is explicitly sent.
     ...(typeof body.networkId === "string" && body.networkId && { networkId: body.networkId }),
+    // `set` (not `connect`) — this replaces the full restriction list with exactly
+    // what the admin just picked, so unchecking a region actually removes it instead
+    // of only ever growing the set.
+    ...(Array.isArray(body.restrictedRegionIds) && {
+      restrictedRegions: {
+        set: body.restrictedRegionIds.filter((v: unknown) => typeof v === "string").map((id: string) => ({ id })),
+      },
+    }),
   };
 
   // Enforce "at most one Popular per scope" (see lib/packages/popular.ts) whenever

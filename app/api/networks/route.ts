@@ -9,7 +9,13 @@ export async function GET(request: NextRequest) {
 
   const networks = await prisma.network.findMany({
     include: {
-      packages: { orderBy: [{ order: "asc" }, { createdAt: "asc" }] },
+      packages: {
+        include: { restrictedRegions: { select: { id: true } } },
+        orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+      },
+      // Full id/name list (not just _count) — the Package modal's region-restriction
+      // picker needs to render actual checkboxes for this network's regions.
+      regions: { where: { isActive: true }, select: { id: true, name: true }, orderBy: { order: "asc" } },
       _count: { select: { regions: true } },
     },
     orderBy: [{ order: "asc" }, { createdAt: "asc" }],
