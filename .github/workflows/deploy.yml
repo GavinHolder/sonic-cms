@@ -43,11 +43,19 @@ on:
         options: ["true", "false"]
 
 # ┌──────────────────────────────────────────────────────┐
-# │  CHANGE THIS to match your client repo name:         │
-# │  e.g. ghcr.io/yourorg/my-company-cms                 │
+# │  CHANGE THESE to match your client repo/deploy:       │
+# │  IMAGE               e.g. ghcr.io/yourorg/my-cms      │
+# │  APP_CONTAINER_NAME  the app container's `docker ps`  │
+# │                      name — only used by the stack-   │
+# │                      recreate fallback (see Fallback  │
+# │                      2 below), when Portainer's own   │
+# │                      stack stop/start API rejects a   │
+# │                      stack it doesn't fully own.      │
 # └──────────────────────────────────────────────────────┘
 env:
   IMAGE: ghcr.io/gavinholder/sonic-cms
+  APP_CONTAINER_NAME: sonic-cms-app
+  HEALTH_CHECK_URL: https://backend.sonic.co.za/admin/login
 
 permissions:
   contents: write
@@ -282,33 +290,140 @@ jobs:
               fi
             fi
 
-            # Fallback 2: Pull new image via Portainer Docker API, then stop + start
+            # Fallback 2: recreate the app container directly via Portainer's Docker
+            # API proxy, bypassing the STACK-level stop/start endpoints entirely.
+            #
+            # Why not stack stop/start (what this used to do): those endpoints
+            # returned 400 on stop / 409 on start for this stack, consistently,
+            # across 3 deploys in a row — root-caused to Portainer not fully "owning"
+            # this stack's lifecycle (its GET /api/stacks/$STACK_ID response has an
+            # EMPTY StackFileContent even though the containers carry correct compose
+            # labels, which is also why Fallback 1 above silently no-ops instead of
+            # running). A stack Portainer can't read the compose file for is a stack
+            # its own start/stop orchestration can't reliably manage either.
+            #
+            # Why not a plain container stop+start (the naive alternative): a
+            # container is bound to the image it was CREATED with — starting the
+            # SAME container again just resumes the OLD image's process. Picking up
+            # a newly pulled image needs the container actually re-created, not
+            # restarted. This does exactly that, safely:
+            #   1. Read the CURRENT container's full config (image tag, labels,
+            #      volume binds, every network it's on) - nothing here is
+            #      hardcoded/guessed, all of it is captured live so config drift in
+            #      Portainer never goes stale in this workflow file.
+            #   2. Rename it out of the way (frees the container name; the OLD
+            #      container keeps running under the new name — nothing stops yet).
+            #   3. Create + start a NEW container under the original name, using the
+            #      captured config but the freshly pulled image.
+            #   4. Health-check the live site through the real public URL (proves
+            #      Traefik is actually routing to the new container, not just that
+            #      it booted).
+            #   5. Healthy -> remove the renamed-old container. Unhealthy -> remove
+            #      the broken new one and rename old back - the site is never left
+            #      without a working container in either outcome.
             if [ "${RESPONSE2:-0}" != "200" ]; then
+              DOCKER_API="$BASE_URL/api/endpoints/$ENDPOINT_ID/docker"
+              OLD_NAME="${{ env.APP_CONTAINER_NAME }}"
+              RENAMED_OLD="${OLD_NAME}-predeploy"
+
               echo "📦 Pulling latest image via Portainer Docker API..."
               PULL_RESP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-                "$BASE_URL/api/endpoints/$ENDPOINT_ID/docker/images/create?fromImage=${{ env.IMAGE }}&tag=latest" \
+                "$DOCKER_API/images/create?fromImage=${{ env.IMAGE }}&tag=latest" \
                 -H "$AUTH")
               echo "  Image pull: $PULL_RESP"
 
-              echo "🔄 Stopping stack..."
-              STOP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-                "$BASE_URL/api/stacks/$STACK_ID/stop?endpointId=$ENDPOINT_ID" \
-                -H "$AUTH")
-              echo "  Stop: $STOP"
-              sleep 3
-
-              echo "🚀 Starting stack with new image..."
-              START=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-                "$BASE_URL/api/stacks/$STACK_ID/start?endpointId=$ENDPOINT_ID" \
-                -H "$AUTH")
-              echo "  Start: $START"
-
-              if [ "$START" = "200" ]; then
-                echo "✅ Stack restarted with new image"
-              else
-                echo "❌ All deploy methods failed. Check Portainer manually."
+              echo "🔍 Reading current container config..."
+              CURRENT_CONTAINER=$(curl -s "$DOCKER_API/containers/$OLD_NAME/json" -H "$AUTH")
+              CONTAINER_FOUND=$(echo "$CURRENT_CONTAINER" | jq -r '.Id // empty')
+              if [ -z "$CONTAINER_FOUND" ]; then
+                echo "❌ Could not read container '$OLD_NAME' — check APP_CONTAINER_NAME. Response:"
+                echo "$CURRENT_CONTAINER"
                 exit 1
               fi
+
+              PRIMARY_NETWORK=$(echo "$CURRENT_CONTAINER" | jq -r '.HostConfig.NetworkMode')
+              EXTRA_NETWORKS=$(echo "$CURRENT_CONTAINER" | jq -c --arg n "$PRIMARY_NETWORK" \
+                '[.NetworkSettings.Networks | keys[] | select(. != $n)]')
+              # Docker's own container-level Env (KEY=value strings) is already the
+              # exact live config — no need to reconvert Portainer's stack-level
+              # {name,value} pairs from earlier in this script.
+              CREATE_BODY=$(echo "$CURRENT_CONTAINER" | jq -c --arg img "${{ env.IMAGE }}:latest" '{
+                Image: $img,
+                Env: .Config.Env,
+                Labels: .Config.Labels,
+                ExposedPorts: .Config.ExposedPorts,
+                HostConfig: {
+                  Binds: .HostConfig.Binds,
+                  NetworkMode: .HostConfig.NetworkMode,
+                  RestartPolicy: .HostConfig.RestartPolicy
+                }
+              }')
+
+              echo "🔀 Renaming current container out of the way..."
+              RENAME_RESP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+                "$DOCKER_API/containers/$OLD_NAME/rename?name=$RENAMED_OLD" -H "$AUTH")
+              echo "  Rename: $RENAME_RESP"
+              if [ "$RENAME_RESP" != "204" ]; then
+                echo "❌ Could not rename old container — aborting before touching anything live."
+                exit 1
+              fi
+
+              echo "🏗️  Creating new container with the fresh image..."
+              CREATE_RESP=$(curl -s -w "\n%{http_code}" -X POST \
+                "$DOCKER_API/containers/create?name=$OLD_NAME" \
+                -H "$AUTH" -H "Content-Type: application/json" -d "$CREATE_BODY")
+              CREATE_CODE=$(echo "$CREATE_RESP" | tail -n1)
+              CREATE_JSON=$(echo "$CREATE_RESP" | sed '$d')
+              NEW_ID=$(echo "$CREATE_JSON" | jq -r '.Id // empty')
+              echo "  Create: $CREATE_CODE"
+
+              rollback() {
+                echo "↩️  Rolling back — removing broken new container, restoring old one..."
+                [ -n "$NEW_ID" ] && curl -s -o /dev/null -X POST "$DOCKER_API/containers/$NEW_ID/stop" -H "$AUTH"
+                [ -n "$NEW_ID" ] && curl -s -o /dev/null -X DELETE "$DOCKER_API/containers/$NEW_ID?force=true" -H "$AUTH"
+                curl -s -o /dev/null -X POST "$DOCKER_API/containers/$RENAMED_OLD/rename?name=$OLD_NAME" -H "$AUTH"
+                echo "❌ Deploy failed — old container restored, site should be back on the previous version."
+                exit 1
+              }
+
+              if [ "$CREATE_CODE" != "201" ] || [ -z "$NEW_ID" ]; then
+                echo "$CREATE_JSON"
+                rollback
+              fi
+
+              for NET in $(echo "$EXTRA_NETWORKS" | jq -r '.[]'); do
+                echo "🔌 Connecting new container to network: $NET"
+                CONNECT_RESP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+                  "$DOCKER_API/networks/$NET/connect" -H "$AUTH" -H "Content-Type: application/json" \
+                  -d "{\"Container\":\"$NEW_ID\"}")
+                echo "  Connect $NET: $CONNECT_RESP"
+              done
+
+              echo "🚀 Starting new container..."
+              START_RESP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+                "$DOCKER_API/containers/$NEW_ID/start" -H "$AUTH")
+              echo "  Start: $START_RESP"
+              if [ "$START_RESP" != "204" ]; then
+                rollback
+              fi
+
+              echo "🩺 Health-checking ${{ env.HEALTH_CHECK_URL }}..."
+              HEALTHY="false"
+              for i in 1 2 3 4 5 6; do
+                sleep 5
+                CODE=$(curl -s -o /dev/null -w "%{http_code}" "${{ env.HEALTH_CHECK_URL }}")
+                echo "  Attempt $i: HTTP $CODE"
+                if [ "$CODE" = "200" ]; then HEALTHY="true"; break; fi
+              done
+
+              if [ "$HEALTHY" != "true" ]; then
+                rollback
+              fi
+
+              echo "✅ New container healthy — removing old one..."
+              curl -s -o /dev/null -X POST "$DOCKER_API/containers/$RENAMED_OLD/stop" -H "$AUTH"
+              curl -s -o /dev/null -X DELETE "$DOCKER_API/containers/$RENAMED_OLD?force=true" -H "$AUTH"
+              echo "✅ Container recreated with new image"
             fi
           else
             echo "❌ Deploy failed with HTTP $RESPONSE"
