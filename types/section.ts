@@ -394,6 +394,13 @@ export interface OverlayImage {
   alt?: string;
   /** Rendered width in px at the 1440px reference viewport (height auto, natural aspect ratio). */
   width: number;
+  /** Per-breakpoint width overrides (px, same height:auto/natural-aspect-ratio rule as
+   *  `width`) — absent means "inherit", same resolveFreeformPos-style fallback chain as
+   *  position (mobile -> tablet -> desktop). Independent of HeroCarousel's own
+   *  `Math.min(width, 160)` mobile cap below: an explicit widthMobile always wins over
+   *  that cap, since it's the admin deliberately choosing a size, not a safety fallback. */
+  widthTablet?: number;
+  widthMobile?: number;
   /** Freeform placement (only used when overlay.layoutMode === "freeform"). */
   pos?: FreeformPos;
   /** Per-breakpoint position overrides — see resolveFreeformPos / HeadingRow's posTablet/posMobile. */
@@ -448,6 +455,19 @@ export function resolveFreeformPos(
   if (breakpoint === "mobile") return posMobile ?? posTablet ?? pos;
   if (breakpoint === "tablet") return posTablet ?? pos;
   return pos;
+}
+
+/** Same fallback chain as resolveFreeformPos, for a plain numeric value (e.g.
+ *  OverlayImage's widthTablet/widthMobile) instead of an {x,y} position. */
+export function resolveFreeformSize(
+  breakpoint: "desktop" | "tablet" | "mobile",
+  size: number | undefined,
+  sizeTablet: number | undefined,
+  sizeMobile: number | undefined
+): number | undefined {
+  if (breakpoint === "mobile") return sizeMobile ?? sizeTablet ?? size;
+  if (breakpoint === "tablet") return sizeTablet ?? size;
+  return size;
 }
 
 /**

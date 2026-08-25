@@ -16,6 +16,13 @@ interface SlideEditorProps {
   showReorderButtons?: boolean;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
+  /** Controlled breakpoint for the freeform position editor — lifted up to
+   * HeroCarouselEditor so the SAME value also drives the Live Preview thumbnail's
+   * forceViewport (see HeroCarousel), keeping "which breakpoint am I editing" and
+   * "which breakpoint does the preview show" in sync. Omit for an uncontrolled
+   * standalone instance (falls back to internal state, defaulting to desktop). */
+  editBreakpoint?: "desktop" | "tablet" | "mobile";
+  onEditBreakpointChange?: (bp: "desktop" | "tablet" | "mobile") => void;
 }
 
 export default function SlideEditor({
@@ -26,6 +33,8 @@ export default function SlideEditor({
   showReorderButtons = false,
   onMoveUp,
   onMoveDown,
+  editBreakpoint: controlledEditBreakpoint,
+  onEditBreakpointChange,
 }: SlideEditorProps) {
   const [activeTab, setActiveTab] = useState<"media" | "gradient" | "overlay" | "position">("media");
   const [dragRow, setDragRow] = useState<number | null>(null);
@@ -33,7 +42,12 @@ export default function SlideEditor({
   // "desktop" is the pre-existing pos/headingPos/etc. fields; tablet/mobile write to
   // the posTablet/posMobile (or headingPosTablet/headingPosMobile, etc.) siblings added
   // alongside them — see buildFreeformChips and FreeformDragSurface's viewport override.
-  const [editBreakpoint, setEditBreakpoint] = useState<"desktop" | "tablet" | "mobile">("desktop");
+  // Controlled/uncontrolled hybrid (same pattern as SectionLivePreview's viewport prop)
+  // so HeroCarouselEditor can share this value with the Live Preview thumbnail's
+  // forceViewport, while a standalone SlideEditor with no parent wiring still works.
+  const [uncontrolledEditBreakpoint, setUncontrolledEditBreakpoint] = useState<"desktop" | "tablet" | "mobile">("desktop");
+  const editBreakpoint = controlledEditBreakpoint ?? uncontrolledEditBreakpoint;
+  const setEditBreakpoint = onEditBreakpointChange ?? setUncontrolledEditBreakpoint;
   // Which media field the library picker targets ("src" = main media, "poster" = video poster)
   const [libraryTarget, setLibraryTarget] = useState<null | "src" | "poster">(null);
   // Overlay image picker target: "new" = adding an image, a number = replacing overlay.images[index]
@@ -872,17 +886,41 @@ export default function SlideEditor({
                           style={{ width: 48, height: 48, objectFit: "cover", flexShrink: 0, background: img.forceWhite ? "#333" : undefined, filter: img.forceWhite ? "brightness(0) invert(1)" : undefined }}
                         />
                         <div className="flex-grow-1 d-flex align-items-center gap-2">
-                          <label className="form-label small mb-0 text-muted" style={{ minWidth: 40 }}>Width</label>
-                          <input
-                            type="range"
-                            min={40}
-                            max={1200}
-                            step={10}
-                            value={img.width}
-                            onChange={(e) => updateOverlayImage(i, { width: Number(e.target.value) })}
-                            className="form-range"
-                          />
-                          <span className="small text-muted" style={{ minWidth: 44 }}>{img.width}px</span>
+                          <label className="form-label small mb-0 text-muted" style={{ minWidth: 40 }}>
+                            Width{editBreakpoint !== "desktop" && <span className="text-uppercase" style={{ fontSize: 9, opacity: 0.7 }}> ({editBreakpoint})</span>}
+                          </label>
+                          {(() => {
+                            // Same per-breakpoint field pattern as the freeform position
+                            // chips above — an admin editing Tablet/Mobile here adjusts
+                            // widthTablet/widthMobile instead of the shared desktop width,
+                            // so shrinking this image for mobile can't blow out desktop.
+                            const widthField = editBreakpoint === "mobile" ? "widthMobile" : editBreakpoint === "tablet" ? "widthTablet" : "width";
+                            const ownOverride = editBreakpoint === "mobile" ? img.widthMobile : editBreakpoint === "tablet" ? img.widthTablet : undefined;
+                            const resolvedWidth = editBreakpoint === "mobile" ? (img.widthMobile ?? img.widthTablet ?? img.width)
+                              : editBreakpoint === "tablet" ? (img.widthTablet ?? img.width)
+                              : img.width;
+                            return (
+                              <>
+                                <input
+                                  type="range"
+                                  min={40}
+                                  max={1200}
+                                  step={10}
+                                  value={resolvedWidth}
+                                  onChange={(e) => updateOverlayImage(i, { [widthField]: Number(e.target.value) })}
+                                  className="form-range"
+                                />
+                                <span className="small text-muted" style={{ minWidth: 44 }}>{resolvedWidth}px</span>
+                                {editBreakpoint !== "desktop" && ownOverride != null && (
+                                  <button type="button" className="btn btn-sm btn-link p-0" style={{ fontSize: 11 }}
+                                    title={`Clear this ${editBreakpoint} width override — inherit from above again`}
+                                    onClick={() => updateOverlayImage(i, { [widthField]: undefined })}>
+                                    <i className="bi bi-arrow-counterclockwise" />
+                                  </button>
+                                )}
+                              </>
+                            );
+                          })()}
                         </div>
                         <button type="button" className="btn btn-sm btn-outline-secondary" title="Replace image" onClick={() => setImagePickerTarget(i)}>
                           <i className="bi bi-arrow-repeat"></i>

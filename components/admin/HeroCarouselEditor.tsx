@@ -77,6 +77,12 @@ export default function HeroCarouselEditor({
   // Pauses ONLY the admin's scaled-down preview thumbnail (via HeroCarousel's forcePaused
   // prop) — never touches the live page.
   const [previewPaused, setPreviewPaused] = useState(false);
+  // Shared with each SlideEditor's freeform "Position for: Desktop/Tablet/Mobile" toggle
+  // (controlled prop) so switching which breakpoint you're authoring positions for also
+  // switches the Live Preview thumbnail to actually show that breakpoint's layout — see
+  // HeroCarousel's forceViewport prop. Lives here (not inside SlideEditor) because there's
+  // one shared preview pane but one SlideEditor per expanded slide.
+  const [editBreakpoint, setEditBreakpoint] = useState<"desktop" | "tablet" | "mobile">("desktop");
   const previewRef = useRef<HTMLDivElement>(null);
   const [previewWidth, setPreviewWidth] = useState(0);
   // Real browser viewport of the admin — the hero fills THIS on the live page,
@@ -91,6 +97,16 @@ export default function HeroCarouselEditor({
     window.addEventListener("resize", readViewport);
     return () => window.removeEventListener("resize", readViewport);
   }, []);
+
+  // Effective preview box — real-window size for Desktop (unchanged), or a fixed
+  // reference size for Tablet/Mobile so the box shape actually matches that device
+  // instead of showing mobile-layout content inside a desktop-shaped box. Same
+  // reference sizes SlideEditor's own FreeformDragSurface uses for its drag canvas,
+  // so what you positioned things against and what the preview shows agree.
+  const effectiveViewport =
+    editBreakpoint === "tablet" ? { w: 768, h: 1024 }
+    : editBreakpoint === "mobile" ? { w: 375, h: 812 }
+    : viewport;
 
   // Measure the pane so we can scale the virtual hero down to fit.
   useEffect(() => {
@@ -135,11 +151,12 @@ export default function HeroCarouselEditor({
     ]
   );
 
-  // Scale the real-viewport-sized hero down to the measured pane width. Box
-  // height preserves the true window aspect ratio so the crop matches the page.
-  const previewScale = previewWidth > 0 ? previewWidth / viewport.w : 0;
+  // Scale the effective-viewport-sized hero down to the measured pane width. Box
+  // height preserves that viewport's aspect ratio so the crop matches what that
+  // breakpoint actually shows (real window for Desktop, fixed device size otherwise).
+  const previewScale = previewWidth > 0 ? previewWidth / effectiveViewport.w : 0;
   const previewBoxHeight =
-    previewWidth > 0 ? previewWidth * (viewport.h / viewport.w) : 360;
+    previewWidth > 0 ? previewWidth * (effectiveViewport.h / effectiveViewport.w) : 360;
 
   const startEditingName = (index: number, current: string) => {
     setNameDraft(current);
@@ -668,6 +685,8 @@ export default function HeroCarouselEditor({
                             slideNumber={index + 1}
                             onChange={(updates) => updateSlide(index, updates)}
                             onDelete={() => deleteSlide(index)}
+                            editBreakpoint={editBreakpoint}
+                            onEditBreakpointChange={setEditBreakpoint}
                           />
                         </div>
                       )}
@@ -723,8 +742,8 @@ export default function HeroCarouselEditor({
                           the page — same cover crop and centering. */}
                       <style>{`
                         .hero-preview-scope .hero-carousel {
-                          height: ${viewport.h}px !important;
-                          min-height: ${viewport.h}px !important;
+                          height: ${effectiveViewport.h}px !important;
+                          min-height: ${effectiveViewport.h}px !important;
                         }
                       `}</style>
                       {/* Preview-only play/pause — controls just this thumbnail's autoplay
@@ -760,14 +779,14 @@ export default function HeroCarouselEditor({
                             position: "absolute",
                             top: 0,
                             left: 0,
-                            width: `${viewport.w}px`,
-                            height: `${viewport.h}px`,
+                            width: `${effectiveViewport.w}px`,
+                            height: `${effectiveViewport.h}px`,
                             transform: `scale(${previewScale})`,
                             transformOrigin: "top left",
                             pointerEvents: "none",
                           }}
                         >
-                          <HeroCarousel section={draftSection} forcePaused={previewPaused} />
+                          <HeroCarousel section={draftSection} forcePaused={previewPaused} forceViewport={editBreakpoint} />
                         </div>
                       )}
                     </div>

@@ -3,7 +3,7 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { HeroSection, AnimationType, HeadingRow, TextShadowConfig, FreeformPos, OverlayImage } from "@/types/section";
-import { defaultFreeformPos, resolveFreeformPos } from "@/types/section";
+import { defaultFreeformPos, resolveFreeformPos, resolveFreeformSize } from "@/types/section";
 
 /**
  * SSR-safe layout effect: runs synchronously before paint on the client (so we
@@ -19,6 +19,12 @@ interface HeroCarouselProps {
    * never set on the live page. Halts autoplay without touching the carousel's own internal
    * pause-button state. */
   forcePaused?: boolean;
+  /** Admin editor's Live Preview thumbnail only — never set on the live page. Overrides the
+   * normal window.innerWidth-based isMobile/isTablet detection so the preview can show the
+   * mobile/tablet layout on demand (e.g. to match the freeform position editor's own
+   * Desktop/Tablet/Mobile toggle) regardless of the admin's actual browser window size,
+   * which is what the preview mirrors otherwise (see the isMobile/isTablet effect below). */
+  forceViewport?: "desktop" | "tablet" | "mobile";
 }
 
 /** Current baked shadows — used as the back-compat fallback when textShadow is undefined. */
@@ -166,7 +172,7 @@ function renderRowInner(row: HeadingRow, shadow: TextShadowConfig | undefined) {
   });
 }
 
-export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps) {
+export default function HeroCarousel({ section, forcePaused, forceViewport }: HeroCarouselProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
   const [isTablet, setIsTablet] = useState(false);
@@ -219,6 +225,14 @@ export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps
   // paints the first frame — prevents the mount-time desktop→mobile image flash
   // (e.g. the Sonic mobile logo blinking in) that a post-paint useEffect caused.
   useIsomorphicLayoutEffect(() => {
+    // forceViewport (admin Live Preview thumbnail only) short-circuits the real-window
+    // detection entirely — no resize listener, since the forced value doesn't change
+    // with the admin's actual window size and a listener would just fight it.
+    if (forceViewport) {
+      setIsMobile(forceViewport === "mobile");
+      setIsTablet(forceViewport === "tablet");
+      return;
+    }
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
       // 768-991 — matches FlexibleSectionRenderer's FREE_MODE_REFLOW_BREAKPOINT tablet
@@ -228,7 +242,7 @@ export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps
     checkMobile();
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
-  }, []);
+  }, [forceViewport]);
 
   // If no slides, show placeholder
   if (!slides || slides.length === 0) {
@@ -992,7 +1006,16 @@ export default function HeroCarousel({ section, forcePaused }: HeroCarouselProps
 
                 {/* Secondary images — each placed independently, like text elements (#68) */}
                 {(slide.overlay.images ?? []).map((img, index) => {
-                  const effectiveWidth = isMobile ? Math.min(img.width, 160) : img.width;
+                  // An explicit widthTablet/widthMobile (admin-set, via resolveFreeformSize's
+                  // same mobile->tablet->desktop fallback chain as position) always wins over
+                  // the generic mobile safety cap below — that cap exists only so an element
+                  // authored solely for desktop doesn't blow out a phone screen by default; an
+                  // admin who has explicitly picked a mobile/tablet size already solved that.
+                  const breakpoint = isMobile ? "mobile" : isTablet ? "tablet" : "desktop";
+                  const hasWidthOverride = img.widthTablet != null || img.widthMobile != null;
+                  const effectiveWidth = isMobile && !hasWidthOverride
+                    ? Math.min(img.width, 160)
+                    : resolveFreeformSize(breakpoint, img.width, img.widthTablet, img.widthMobile) ?? img.width;
                   return (
                     <div
                       key={`ff-img-${index}-${currentSlide}`}
