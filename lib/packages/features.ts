@@ -75,11 +75,23 @@ export function featureEntryText(e: PackageFeatureEntry): string {
  * `{badge: null, value: theString}` (shown as "— Free text (no badge) —" in the
  * badge <select>), editable and re-savable exactly as before, but now also
  * assignable to a real badge type.
+ *
+ * Deliberately does NOT go through parsePackageFeatures — that filters out any
+ * entry with an empty `.value`, which is correct for display/formatting (nothing
+ * to show for a blank feature) but wrong here: "Add feature" appends a row with
+ * `value: ""` for the admin to type into, and running it through the same filter
+ * discarded that row on the very next render, before an input field ever existed
+ * to type into — "Add feature" silently did nothing. Genuinely malformed entries
+ * (wrong shape, not just an empty value) are still dropped.
  */
 export function toEditableFeatureRows(raw: unknown): FeatureRow[] {
-  return parsePackageFeatures(raw).map((e) =>
-    typeof e === "string" ? { badge: null, value: e } : { badge: e.badge, value: e.value }
-  );
+  const arr = Array.isArray(raw) ? raw : typeof raw === "string" ? safeJsonArray(raw) : [];
+  const out: FeatureRow[] = [];
+  for (const e of arr) {
+    if (typeof e === "string") out.push({ badge: null, value: e });
+    else if (isBadgeFeature(e)) out.push({ badge: e.badge, value: e.value });
+  }
+  return out;
 }
 
 /**

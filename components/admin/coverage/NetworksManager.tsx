@@ -150,6 +150,26 @@ export default function NetworksManager() {
   const [pkgModal, setPkgModal] = useState<{ networkId: string; pkg: Partial<Pkg>; termVariants?: { term: string; price: string; features?: FeatureRow[] }[] } | null>(null);
   const [confirm, setConfirm] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
 
+  // Package modal — which of the less-common sections (Term Variants, Rules &
+  // Visibility) start collapsed. Computed ONCE per modal open (not on every keystroke —
+  // see the pkgModal===null dependency below) so a package that already has variants
+  // or a distance limit/Popular set opens with that section visibly expanded, while a
+  // fresh Add Package starts with both tucked away.
+  const [pkgCollapsed, setPkgCollapsed] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!pkgModal) return;
+    const hasVariants = (pkgModal.termVariants?.length ?? 0) > 0;
+    const hasRules = pkgModal.pkg.maxDistanceM != null || pkgModal.pkg.popular === true;
+    setPkgCollapsed(new Set<string>([...(hasVariants ? [] : ["variants"]), ...(hasRules ? [] : ["rules"])]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pkgModal === null]);
+  const togglePkgSection = (key: string) =>
+    setPkgCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [newCategory, setNewCategory] = useState("");
   const [vasEnabled, setVasEnabled] = useState(false);
@@ -878,67 +898,97 @@ export default function NetworksManager() {
               <div className="modal-header"><h5 className="modal-title">{pkgModal.pkg.id ? "Edit" : "Add"} Package</h5>
                 <button className="btn-close" onClick={() => setPkgModal(null)} /></div>
               <div className="modal-body d-flex flex-column gap-3">
-                <div className="row">
-                  <div className="col-8"><label className="form-label">Name</label>
-                    <input className="form-control" value={pkgModal.pkg.name || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, name: e.target.value } })} placeholder="e.g. Home 50/50" /></div>
-                  <div className="col-4"><label className="form-label">Network</label>
-                    <select className="form-select" value={pkgModal.networkId} onChange={(e) => setPkgModal({ ...pkgModal, networkId: e.target.value })}>
-                      {networks.map((n) => <option key={n.id} value={n.id}>{n.name}</option>)}
-                    </select>
-                    {pkgModal.pkg.id && <div className="form-text">Changing this moves the package to the selected network.</div>}</div>
-                </div>
-                <div className="row">
-                  <div className="col-3"><label className="form-label">Kind</label>
-                    <select className="form-select" value={pkgModal.pkg.kind ?? "DATA"} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, kind: e.target.value as "DATA" | "VAS", term: null, period: termToPeriod(null, packageTerms) }, termVariants: [] })}>
-                      <option value="DATA">Data package (primary)</option>
-                      <option value="VAS">Value-added service (add-on)</option>
-                    </select></div>
-                  <div className="col-3"><label className="form-label">Category</label>
-                    <select className="form-select" value={pkgModal.pkg.categoryId ?? ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, categoryId: e.target.value || null } })}>
-                      <option value="">— None —</option>
-                      {categories.filter((c) => c.isActive).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select></div>
-                  <div className="col-6"><label className="form-label">Term <span className="text-muted">(also sets the billing period shown next to price)</span></label>
-                    <select className="form-select" value={pkgModal.pkg.term ?? ""} onChange={(e) => { const term = e.target.value || null; setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, term, period: termToPeriod(term, packageTerms) } }); }}>
-                      <option value="">— None —</option>
-                      {packageTerms.filter((t) => t.isActive && t.kind === (pkgModal.pkg.kind ?? "DATA")).map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
-                    </select></div>
-                </div>
-                <div className="row">
-                  <div className="col"><label className="form-label">Product Type <span className="text-muted">(optional — for the Product Card Grid block)</span></label>
-                    <select className="form-select" value={pkgModal.pkg.productTypeId ?? ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, productTypeId: e.target.value || null } })}>
-                      <option value="">— None —</option>
-                      {productTypes.filter((pt) => pt.isActive).map((pt) => <option key={pt.id} value={pt.id}>{pt.name}</option>)}
-                    </select></div>
-                </div>
-                {categories.find((c) => c.id === pkgModal.pkg.categoryId)?.name?.trim().toLowerCase() === "voice" ? (
-                  <div className="row">
-                    <div className="col"><label className="form-label">Airtime / Minutes Bundle</label>
-                      <input className="form-control" value={pkgModal.pkg.speedDown || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, speedDown: e.target.value, speedUp: "" } })} placeholder="e.g. 100 minutes, or Unlimited" /></div>
+
+                {/* ── Identity ─────────────────────────────────────────────── */}
+                <div className="card">
+                  <div className="card-header bg-light d-flex align-items-center gap-2 py-2">
+                    <i className="bi bi-tag text-danger" />
+                    <span className="fw-semibold small">Identity</span>
                   </div>
-                ) : (
-                  <div className="row">
-                    <div className="col"><label className="form-label">Down</label>
-                      <input className="form-control" value={pkgModal.pkg.speedDown || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, speedDown: e.target.value } })} placeholder="50 Mbps" /></div>
-                    <div className="col"><label className="form-label">Up</label>
-                      <input className="form-control" value={pkgModal.pkg.speedUp || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, speedUp: e.target.value } })} placeholder="50 Mbps" /></div>
+                  <div className="card-body">
+                    <div className="row">
+                      <div className="col-8"><label className="form-label">Name</label>
+                        <input className="form-control" value={pkgModal.pkg.name || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, name: e.target.value } })} placeholder="e.g. Home 50/50" /></div>
+                      <div className="col-4"><label className="form-label">Network</label>
+                        <select className="form-select" value={pkgModal.networkId} onChange={(e) => setPkgModal({ ...pkgModal, networkId: e.target.value })}>
+                          {networks.map((n) => <option key={n.id} value={n.id}>{n.name}</option>)}
+                        </select>
+                        {pkgModal.pkg.id && <div className="form-text">Changing this moves the package to the selected network.</div>}</div>
+                    </div>
+                    <div className="row">
+                      <div className="col-3"><label className="form-label">Kind</label>
+                        <select className="form-select" value={pkgModal.pkg.kind ?? "DATA"} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, kind: e.target.value as "DATA" | "VAS", term: null, period: termToPeriod(null, packageTerms) }, termVariants: [] })}>
+                          <option value="DATA">Data package (primary)</option>
+                          <option value="VAS">Value-added service (add-on)</option>
+                        </select></div>
+                      <div className="col-3"><label className="form-label">Category</label>
+                        <select className="form-select" value={pkgModal.pkg.categoryId ?? ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, categoryId: e.target.value || null } })}>
+                          <option value="">— None —</option>
+                          {categories.filter((c) => c.isActive).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select></div>
+                      <div className="col-6"><label className="form-label">Term <span className="text-muted">(also sets the billing period shown next to price)</span></label>
+                        <select className="form-select" value={pkgModal.pkg.term ?? ""} onChange={(e) => { const term = e.target.value || null; setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, term, period: termToPeriod(term, packageTerms) } }); }}>
+                          <option value="">— None —</option>
+                          {packageTerms.filter((t) => t.isActive && t.kind === (pkgModal.pkg.kind ?? "DATA")).map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
+                        </select></div>
+                    </div>
+                    <div className="row mb-0">
+                      <div className="col"><label className="form-label">Product Type <span className="text-muted">(optional — for the Product Card Grid block)</span></label>
+                        <select className="form-select" value={pkgModal.pkg.productTypeId ?? ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, productTypeId: e.target.value || null } })}>
+                          <option value="">— None —</option>
+                          {productTypes.filter((pt) => pt.isActive).map((pt) => <option key={pt.id} value={pt.id}>{pt.name}</option>)}
+                        </select></div>
+                    </div>
                   </div>
-                )}
-                <div className="row">
-                  <div className="col"><label className="form-label">Price</label>
-                    <input className="form-control" value={pkgModal.pkg.price || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, price: e.target.value } })} placeholder="R599" />
-                    <div className="form-text">Billing period shown next to price: <strong>{termToPeriod(pkgModal.pkg.term, packageTerms) || "none (once-off)"}</strong> — set by Term above.</div></div>
                 </div>
-                {/* Term Variants quick-add — available in both Add and Edit. Lets the admin
-                    fill in every shared field once (name, speed, network, product type,
-                    category, and the Features list below unless overridden per-row) and
-                    add multiple (term, price) pairs; each is saved as its own separate
-                    *sibling* Package row on submit (same total rows as doing it manually
-                    N times). This never rewrites the package being edited itself — that
-                    one keeps its own single Term/Price/Features, edited normally via the
-                    fields above — it only adds more term coverage for the same product. */}
-                <div className="border rounded p-3 bg-light">
-                  <strong className="small d-block mb-2">Term Variants <span className="text-muted fw-normal">— optional: add more (term, price) pairs for this same product; each is saved as its own package</span></strong>
+
+                {/* ── Speed & Pricing ──────────────────────────────────────── */}
+                <div className="card">
+                  <div className="card-header bg-light d-flex align-items-center gap-2 py-2">
+                    <i className="bi bi-lightning-charge text-danger" />
+                    <span className="fw-semibold small">Speed &amp; Pricing</span>
+                  </div>
+                  <div className="card-body">
+                    {categories.find((c) => c.id === pkgModal.pkg.categoryId)?.name?.trim().toLowerCase() === "voice" ? (
+                      <div className="row">
+                        <div className="col"><label className="form-label">Airtime / Minutes Bundle</label>
+                          <input className="form-control" value={pkgModal.pkg.speedDown || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, speedDown: e.target.value, speedUp: "" } })} placeholder="e.g. 100 minutes, or Unlimited" /></div>
+                      </div>
+                    ) : (
+                      <div className="row">
+                        <div className="col"><label className="form-label">Down</label>
+                          <input className="form-control" value={pkgModal.pkg.speedDown || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, speedDown: e.target.value } })} placeholder="50 Mbps" /></div>
+                        <div className="col"><label className="form-label">Up</label>
+                          <input className="form-control" value={pkgModal.pkg.speedUp || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, speedUp: e.target.value } })} placeholder="50 Mbps" /></div>
+                      </div>
+                    )}
+                    <div className="row mb-0">
+                      <div className="col"><label className="form-label">Price</label>
+                        <input className="form-control" value={pkgModal.pkg.price || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, price: e.target.value } })} placeholder="R599" />
+                        <div className="form-text">Billing period shown next to price: <strong>{termToPeriod(pkgModal.pkg.term, packageTerms) || "none (once-off)"}</strong> — set by Term above.</div></div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Term Variants (collapsible — see pkgCollapsed) ──────────
+                    Quick-add, available in both Add and Edit. Lets the admin fill in every
+                    shared field once (name, speed, network, product type, category, and
+                    the Features list below unless overridden per-row) and add multiple
+                    (term, price) pairs; each is saved as its own separate *sibling*
+                    Package row on submit (same total rows as doing it manually N times).
+                    This never rewrites the package being edited itself — that one keeps
+                    its own single Term/Price/Features, edited normally in the section
+                    above — it only adds more term coverage for the same product. */}
+                <div className="card">
+                  <div className="card-header bg-light d-flex align-items-center gap-2 py-2" style={{ cursor: "pointer" }} onClick={() => togglePkgSection("variants")}>
+                    <i className="bi bi-list-ol text-danger" />
+                    <span className="fw-semibold small">Term Variants</span>
+                    {(pkgModal.termVariants?.length ?? 0) > 0 && <span className="badge bg-secondary-subtle text-secondary-emphasis rounded-pill">{pkgModal.termVariants!.length}</span>}
+                    <i className={`bi bi-chevron-${pkgCollapsed.has("variants") ? "down" : "up"} ms-auto text-muted small`} />
+                  </div>
+                  {!pkgCollapsed.has("variants") && (
+                  <div className="card-body">
+                  <div className="text-muted small mb-2">Optional: add more (term, price) pairs for this same product; each is saved as its own package.</div>
                   {(pkgModal.termVariants || []).map((v, i) => {
                     const customized = v.features !== undefined;
                     const variantFeatures = toEditableFeatureRows(v.features ?? pkgModal.pkg.features ?? []);
@@ -1009,7 +1059,17 @@ export default function NetworksManager() {
                     onClick={() => setPkgModal({ ...pkgModal, termVariants: [...(pkgModal.termVariants || []), { term: "", price: "" }] })}>
                     <i className="bi bi-plus-lg me-1" />Add another term
                   </button>
+                  </div>
+                  )}
                 </div>
+
+                {/* ── Features ─────────────────────────────────────────────── */}
+                <div className="card">
+                  <div className="card-header bg-light d-flex align-items-center gap-2 py-2">
+                    <i className="bi bi-check-circle text-danger" />
+                    <span className="fw-semibold small">Features</span>
+                  </div>
+                  <div className="card-body">
                 {(() => {
                   // Legacy plain-string rows show with badge "— Free text (no badge) —"
                   // and the string as the value — editable/re-savable exactly as before,
@@ -1017,7 +1077,7 @@ export default function NetworksManager() {
                   const rows = toEditableFeatureRows(pkgModal.pkg.features);
                   const setRows = (next: FeatureRow[]) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, features: next } });
                   return (
-                    <div><label className="form-label">Features</label>
+                    <div>
                       {rows.map((f, i) => (
                         <div key={i} className="d-flex gap-2 mb-2">
                           <select className="form-select" style={{ maxWidth: 220 }} value={f.badge ?? ""}
@@ -1039,6 +1099,21 @@ export default function NetworksManager() {
                       </button></div>
                   );
                 })()}
+                  </div>
+                </div>
+
+                {/* ── Rules & Visibility (collapsible — see pkgCollapsed) ─────
+                    Max distance from tower (only for tower-based delivery categories),
+                    Popular, Active. */}
+                <div className="card">
+                  <div className="card-header bg-light d-flex align-items-center gap-2 py-2" style={{ cursor: "pointer" }} onClick={() => togglePkgSection("rules")}>
+                    <i className="bi bi-shield-check text-danger" />
+                    <span className="fw-semibold small">Rules &amp; Visibility</span>
+                    <span className="text-muted small">Distance limit, Popular, Active</span>
+                    <i className={`bi bi-chevron-${pkgCollapsed.has("rules") ? "down" : "up"} ms-auto text-muted small`} />
+                  </div>
+                  {!pkgCollapsed.has("rules") && (
+                  <div className="card-body">
                 {(() => {
                   const netCat = networks.find((n) => n.id === pkgModal.networkId)?.category;
                   // Tower-distance gating only makes sense for the tower-based delivery
@@ -1049,14 +1124,18 @@ export default function NetworksManager() {
                   // that shortcut.
                   return netCat === "WISP" || netCat === "WIRELESS";
                 })() && (
-                  <div><label className="form-label">Max distance from tower <span className="text-muted">(metres — leave blank for no limit)</span></label>
-                    <input className="form-control" type="number" min={0} value={pkgModal.pkg.maxDistanceM ?? ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, maxDistanceM: e.target.value === "" ? null : parseInt(e.target.value, 10) } })} placeholder="e.g. 100 — only offered within 100m of a tower" />
+                  <div className="mb-3"><label className="form-label">Max distance from tower <span className="text-muted">(metres — leave blank for no limit)</span></label>
+                    <input className="form-control" type="number" min={0} value={pkgModal.pkg.maxDistanceM ?? ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, maxDistanceM: e.target.value === "" ? null : parseInt(e.target.value, 10) } })} placeholder="e.g. 100 — only offered within 100m of a tower" style={{ maxWidth: 260 }} />
                     <div className="form-text">Only show this package when the address is within this distance of one of the network&apos;s towers. Draws a ring around each tower on the map.</div></div>
                 )}
                 <div className="d-flex gap-4">
                   <div className="form-check form-switch"><input className="form-check-input" type="checkbox" id="pkg-popular" checked={pkgModal.pkg.popular ?? false} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, popular: e.target.checked } })} /><label className="form-check-label" htmlFor="pkg-popular">Popular</label></div>
                   <div className="form-check form-switch"><input className="form-check-input" type="checkbox" id="pkg-active" checked={pkgModal.pkg.isActive ?? true} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, isActive: e.target.checked } })} /><label className="form-check-label" htmlFor="pkg-active">Active</label></div>
                 </div>
+                  </div>
+                  )}
+                </div>
+
               </div>
               <div className="modal-footer">
                 <button className="btn btn-secondary" onClick={() => setPkgModal(null)}>Cancel</button>
