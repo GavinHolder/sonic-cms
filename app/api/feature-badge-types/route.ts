@@ -23,10 +23,12 @@ export async function POST(request: NextRequest) {
   const name = String(body.name ?? "").trim();
   if (!name) return NextResponse.json({ error: "name is required" }, { status: 400 });
 
+  const category = body.category && ["FNO", "WISP", "WIRELESS", "VOICE"].includes(body.category) ? body.category : null;
   const type = await prisma.featureBadgeType.create({
     data: {
       name,
       helpText: body.helpText ? String(body.helpText).trim() : null,
+      category,
       order: body.order ?? 0,
       isActive: body.isActive ?? true,
     },

@@ -16,6 +16,9 @@ export async function PUT(
     data: {
       ...(body.name !== undefined && { name: String(body.name).trim() }),
       ...(body.helpText !== undefined && { helpText: body.helpText ? String(body.helpText).trim() : null }),
+      ...(body.category !== undefined && {
+        category: body.category && ["FNO", "WISP", "WIRELESS", "VOICE"].includes(body.category) ? body.category : null,
+      }),
       ...(body.order !== undefined && { order: body.order }),
       ...(body.isActive !== undefined && { isActive: body.isActive }),
     },

@@ -42,6 +42,10 @@ interface FeatureBadgeType {
   id: string;
   name: string;
   helpText?: string | null;
+  // null = General — offered for every category, same as every badge type created
+  // before this field existed. Set to scope a badge to just one category's
+  // vocabulary (e.g. "Line Rental" only makes sense for Voice).
+  category?: Category | null;
   order: number;
   isActive: boolean;
 }
@@ -183,6 +187,15 @@ export default function NetworksManager() {
   const [featureBadgeTypes, setFeatureBadgeTypes] = useState<FeatureBadgeType[]>([]);
   const [fbtModal, setFbtModal] = useState<Partial<FeatureBadgeType> | null>(null);
 
+  // The currently-selected network's category, used to scope the Feature Badge
+  // Type options offered in the Package form to just General + this category's own
+  // badges — e.g. editing a package on a Voice network only offers Voice badges
+  // (plus General ones), not Fibre/Wireless-specific ones that don't apply here.
+  const pkgNetworkCategory: Category | undefined = pkgModal ? networks.find((n) => n.id === pkgModal.networkId)?.category : undefined;
+  const badgeTypesForCurrentPkg = featureBadgeTypes.filter(
+    (t) => t.isActive && (t.category == null || t.category === pkgNetworkCategory)
+  );
+
   // Tracks whether mousedown started directly on each modal's backdrop — a click event
   // resolves to the nearest common ancestor of mousedown/mouseup targets, so a
   // text-selection drag that starts inside a dialog and ends on the backdrop would
@@ -307,6 +320,7 @@ export default function NetworksManager() {
     const payload = {
       name: fbtModal.name?.trim(),
       helpText: fbtModal.helpText?.trim() || "",
+      category: fbtModal.category ?? null,
       order: fbtModal.order ?? 0,
       isActive: fbtModal.isActive ?? true,
     };
@@ -632,15 +646,31 @@ export default function NetworksManager() {
         {featureBadgeTypes.length === 0 ? (
           <p className="text-muted small mb-0">No badge types yet — add the labels a package&apos;s Features can be assigned (e.g. Device, Line Rental, Monthly Minutes).</p>
         ) : (
-          <div className="d-flex flex-wrap align-items-center gap-2">
-            {featureBadgeTypes.map((t) => (
-              <span key={t.id} className="badge text-bg-light border d-inline-flex align-items-center gap-1" style={{ fontSize: 12 }} title={t.helpText || undefined}>
-                {t.name}
-                {!t.isActive && <span className="text-muted">(hidden)</span>}
-                <button type="button" className="btn btn-sm btn-link p-0 ms-1" style={{ fontSize: 11, lineHeight: 1 }} aria-label="Edit" onClick={() => setFbtModal(t)}><i className="bi bi-pencil" /></button>
-                <button type="button" className="btn-close" style={{ fontSize: 8 }} aria-label="Delete" onClick={() => deleteFeatureBadgeType(t)} />
-              </span>
-            ))}
+          <div className="d-flex flex-column gap-2">
+            {/* General first, then each category in the same fixed order used everywhere
+                else in this file — a category group with 0 badges is skipped entirely
+                rather than shown empty. */}
+            {([null, ...CATEGORY_ORDER] as (Category | null)[]).map((cat) => {
+              const inGroup = featureBadgeTypes.filter((t) => (t.category ?? null) === cat);
+              if (inGroup.length === 0) return null;
+              return (
+                <div key={cat ?? "general"}>
+                  <div className="text-muted text-uppercase mb-1" style={{ fontSize: 10.5, letterSpacing: "0.06em", fontWeight: 700 }}>
+                    {cat ? CATEGORY_TAB_LABEL[cat] : "General — all categories"}
+                  </div>
+                  <div className="d-flex flex-wrap align-items-center gap-2">
+                    {inGroup.map((t) => (
+                      <span key={t.id} className="badge text-bg-light border d-inline-flex align-items-center gap-1" style={{ fontSize: 12 }} title={t.helpText || undefined}>
+                        {t.name}
+                        {!t.isActive && <span className="text-muted">(hidden)</span>}
+                        <button type="button" className="btn btn-sm btn-link p-0 ms-1" style={{ fontSize: 11, lineHeight: 1 }} aria-label="Edit" onClick={() => setFbtModal(t)}><i className="bi bi-pencil" /></button>
+                        <button type="button" className="btn-close" style={{ fontSize: 8 }} aria-label="Delete" onClick={() => deleteFeatureBadgeType(t)} />
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div></div>
@@ -867,6 +897,11 @@ export default function NetworksManager() {
               <div className="modal-body d-flex flex-column gap-3">
                 <div><label className="form-label">Name</label>
                   <input className="form-control" value={fbtModal.name || ""} onChange={(e) => setFbtModal({ ...fbtModal, name: e.target.value })} placeholder="e.g. Device" /></div>
+                <div><label className="form-label">Category <span className="text-muted">(which package type this badge applies to)</span></label>
+                  <select className="form-select" value={fbtModal.category ?? ""} onChange={(e) => setFbtModal({ ...fbtModal, category: (e.target.value || null) as Category | null })}>
+                    <option value="">General — offered for every category</option>
+                    {CATEGORY_ORDER.map((c) => <option key={c} value={c}>{CATEGORY_TAB_LABEL[c]}</option>)}
+                  </select></div>
                 <div><label className="form-label">Help text <span className="text-muted">(optional — shown as a tooltip on the badge, publicly visible)</span></label>
                   <textarea className="form-control" rows={2} value={fbtModal.helpText || ""} onChange={(e) => setFbtModal({ ...fbtModal, helpText: e.target.value })} placeholder="Explain what this badge means" /></div>
                 <div className="row">
@@ -1036,7 +1071,7 @@ export default function NetworksManager() {
                                 <select className="form-select form-select-sm" style={{ maxWidth: 200 }} value={f.badge ?? ""}
                                   onChange={(e) => { const next = [...variantFeatures]; next[fi] = { ...next[fi], badge: e.target.value || null }; updateVariant({ features: next }); }}>
                                   <option value="">— Free text (no badge) —</option>
-                                  {featureBadgeTypes.filter((t) => t.isActive).map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
+                                  {badgeTypesForCurrentPkg.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
                                 </select>
                                 <input className="form-control form-control-sm" value={f.value} placeholder="e.g. Uncapped"
                                   onChange={(e) => { const next = [...variantFeatures]; next[fi] = { ...next[fi], value: e.target.value }; updateVariant({ features: next }); }} />
@@ -1083,7 +1118,7 @@ export default function NetworksManager() {
                           <select className="form-select" style={{ maxWidth: 220 }} value={f.badge ?? ""}
                             onChange={(e) => { const next = [...rows]; next[i] = { ...next[i], badge: e.target.value || null }; setRows(next); }}>
                             <option value="">— Free text (no badge) —</option>
-                            {featureBadgeTypes.filter((t) => t.isActive).map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
+                            {badgeTypesForCurrentPkg.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
                           </select>
                           <input className="form-control" value={f.value} placeholder="e.g. Uncapped"
                             onChange={(e) => { const next = [...rows]; next[i] = { ...next[i], value: e.target.value }; setRows(next); }} />

@@ -668,6 +668,14 @@ model FeatureBadgeType {
   id        String   @id @default(cuid())
   name      String
   helpText  String?
+  // Optional network-category scope (FNO="Fibre" in the admin UI, WISP, WIRELESS,
+  // VOICE) — Wireless/Fibre/Voice packages each have genuinely distinct feature
+  // vocabularies (e.g. "Line Rental" only makes sense for Voice), and one flat list
+  // of every badge type regardless of category was getting unwieldy. null = General
+  // (shown as an option for every category, same as before this field existed) —
+  // fully backward compatible, every badge type created before this migration
+  // reads as General.
+  category  NetworkCategory?
   order     Int      @default(0)
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
