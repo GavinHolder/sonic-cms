@@ -8963,8 +8963,34 @@ function scanTemplateOptionFields(html, css) {
   // see /api/templates/import) always returns css:'' with everything, including any
   // <style> block, folded into html. Scanning css only would silently find zero --tpl-*
   // declarations for every such template.
-  const cssVarRe = /--tpl-([a-zA-Z0-9-]+)\s*:\s*([^;]+);/g;
   const cssScanSrc = (html || '') + '\n' + (css || '');
+
+  // Opt-in "pick one of N" fields: a template author writes
+  //   /* @options: Label One=value-one | Label Two=value-two */
+  //   --tpl-key: value-one;
+  // immediately above the declaration (an option without "=" uses its own text as
+  // both label and value, e.g. "none | rotate | shimmer"). Values can be full CSS
+  // values (font stacks, keywords, etc.), not just simple tokens — a plain number/
+  // boolean/color field can't express "pick a named animation mode", and a free
+  // text field would force the admin to type an exact string with no guidance.
+  // Runs BEFORE the generic scan below and marks matched keys as seen, so it's
+  // purely additive — a template with no @options comments scans exactly as it
+  // did before this existed.
+  const selectRe = /\/\*\s*@options:\s*([^*]+?)\s*\*\/\s*\n?\s*--tpl-([a-zA-Z0-9-]+)\s*:\s*([^;]+);/g;
+  let mSel;
+  while ((mSel = selectRe.exec(cssScanSrc))) {
+    const cssKey = '--tpl-' + mSel[2];
+    if (seen[cssKey]) continue;
+    seen[cssKey] = true;
+    const options = mSel[1].split('|').map(function(part) {
+      const p = part.trim();
+      const eq = p.indexOf('=');
+      return eq === -1 ? { label: p, value: p } : { label: p.slice(0, eq).trim(), value: p.slice(eq + 1).trim() };
+    });
+    fields.push({ key: cssKey, label: humanizeTplLabel(mSel[2]), kind: 'select', default: mSel[3].trim(), options: options });
+  }
+
+  const cssVarRe = /--tpl-([a-zA-Z0-9-]+)\s*:\s*([^;]+);/g;
   let m2;
   while ((m2 = cssVarRe.exec(cssScanSrc))) {
     const cssKey = '--tpl-' + m2[1];
@@ -9020,6 +9046,16 @@ function renderTemplateOptionsPanel(block, p) {
         <label style="flex:1;font-size:11px;">${escHtml(f.label)}${f.unit ? ' (' + escHtml(f.unit) + ')' : ''}</label>
         <input type="number" class="props-num" placeholder="${escHtml(f.default)}" value="${numVal === '' ? '' : escHtml(String(numVal))}"
           onchange="updateTemplateOption('${block.id}','${escHtml(f.key)}', this.value === '' ? '' : (this.value + '${escHtml(f.unit)}'))">
+      </div>`;
+    } else if (f.kind === 'select') {
+      const selected = cur !== '' ? cur : f.default;
+      out += `<div class="props-row" style="margin-bottom:6px;">
+        <label style="flex:1;font-size:11px;">${escHtml(f.label)}</label>
+        <select class="props-input" style="flex:none;width:auto;max-width:160px;" onchange="updateTemplateOption('${block.id}','${escHtml(f.key)}',this.value)">
+          ${f.options.map(function(o) {
+            return `<option value="${escHtml(o.value)}" ${o.value === selected ? 'selected' : ''}>${escHtml(o.label)}</option>`;
+          }).join('')}
+        </select>
       </div>`;
     } else {
       out += `<div class="props-row" style="flex-direction:column;align-items:stretch;margin-bottom:6px;">
