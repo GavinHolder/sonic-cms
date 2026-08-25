@@ -19,6 +19,31 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
+// Region fill panes — grouped by opacity so overlapping regions at the SAME opacity
+// (e.g. a network duplicated purely to restrict one product to a subset of areas —
+// same underlying coverage, drawn twice) blend as one flat color instead of visibly
+// darkening where they overlap. Each polygon renders fully solid (fillOpacity:1);
+// the actual transparency is applied ONCE, to the whole pane, via CSS opacity — the
+// same effect as flattening N stacked translucent layers into a single composited
+// one. Strokes are unaffected (already independently opaque, not part of this).
+// Pure/stateless by design (keyed only by the opacity value) so both the initial
+// draw and the activeRegion highlight effect below can call this independently
+// without sharing a cache — map.createPane() is itself idempotent for an existing
+// name, so re-"ensuring" a pane that already exists is a cheap no-op plus a style set.
+function regionOpacityPaneName(opacity: number): string {
+  return `region-pane-${Math.round(opacity * 1000)}`;
+}
+function ensureRegionPane(map: any, opacity: number): string {
+  const name = regionOpacityPaneName(opacity);
+  let pane = map.getPane(name);
+  if (!pane) {
+    pane = map.createPane(name);
+    pane.style.zIndex = "400"; // matches Leaflet's default overlayPane stacking
+  }
+  pane.style.opacity = String(opacity);
+  return name;
+}
+
 export interface LatLng { lat: number; lng: number }
 
 export interface CoverageRegion {
@@ -160,16 +185,25 @@ export default function CoverageMapViewer({
         map.on("click", (e: any) => onMapClickRef.current(e.latlng.lat, e.latlng.lng));
       }
 
+      // Dedicated always-on-top pane for whichever region is currently hover/tap-
+      // active (see the activeRegion effect below) — kept solid-composited like
+      // every other region pane; its OWN opacity is bumped there instead of a
+      // per-shape fillOpacity boost, so highlighting one region doesn't reintroduce
+      // the double-transparency problem this whole pane approach exists to avoid.
+      const activePane = map.createPane("region-pane-active");
+      activePane.style.zIndex = "401"; // above the by-opacity panes (400)
+
       // Draw polygons
       mapData.regions.forEach((region) => {
         if (!region.polygon || region.polygon.length < 3) return;
 
         const latlngs = region.polygon.map((p) => [p.lat, p.lng] as [number, number]);
         const poly = L.polygon(latlngs, {
+          pane: ensureRegionPane(map, region.opacity),
           color: region.strokeColor,
           weight: region.strokeWidth,
           fillColor: region.color,
-          fillOpacity: region.opacity,
+          fillOpacity: 1,
         }).addTo(map);
 
         // Region-name tooltip is an admin editing aid (which polygon is this?) — on the
@@ -275,18 +309,33 @@ export default function CoverageMapViewer({
     };
   }, []);
 
-  // Highlight active region when prop changes
+  // Highlight active region when prop changes. Moves the active polygon into the
+  // dedicated "region-pane-active" pane (boosted opacity, always on top) and every
+  // other polygon into its normal by-opacity group pane — NOT a per-shape
+  // fillOpacity boost, which is exactly the double-transparency compounding this
+  // whole pane setup exists to avoid (see regionOpacityPaneName's comment). A
+  // polygon's pane can't be changed in place, so this removes + re-adds it with
+  // options.pane updated; the same Leaflet layer object is reused (not recreated),
+  // so its bound tooltip/popup/click handlers stay attached without rebinding.
   useEffect(() => {
-    if (!leafletMapRef.current) return;
-    import("leaflet").then((L) => {
+    const map = leafletMapRef.current;
+    if (!map) return;
+    import("leaflet").then(() => {
+      const activePane = map.getPane("region-pane-active");
       polygonLayersRef.current.forEach((poly, regionId) => {
         const region = mapData.regions.find((r) => r.id === regionId);
         if (!region) return;
         const isActive = activeRegion === regionId;
-        poly.setStyle({
-          fillOpacity: isActive ? Math.min(region.opacity + 0.2, 0.85) : region.opacity,
-          weight: isActive ? region.strokeWidth + 1 : region.strokeWidth,
-        });
+        const targetPane = isActive ? "region-pane-active" : ensureRegionPane(map, region.opacity);
+        if (poly.options.pane !== targetPane) {
+          map.removeLayer(poly);
+          poly.options.pane = targetPane;
+          poly.addTo(map);
+        }
+        poly.setStyle({ weight: isActive ? region.strokeWidth + 1 : region.strokeWidth });
+        if (isActive && activePane) {
+          activePane.style.opacity = String(Math.min(region.opacity + 0.2, 0.85));
+        }
       });
     });
   }, [activeRegion]);
