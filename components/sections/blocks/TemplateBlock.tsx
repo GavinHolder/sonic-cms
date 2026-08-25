@@ -59,6 +59,10 @@ interface ScopedPackage {
   networkName: string | null;
   networkSlug: string | null;
   networkCategory: string | null;
+  /** Admin-set operator/FNO logo (Networks & Packages → Edit Network → Logo), same
+   * URL already used elsewhere for network branding — nothing new to configure, a
+   * template just has to render it. Null until an admin uploads one. */
+  networkLogoUrl: string | null;
   categoryId: string | null;
   categoryName: string | null;
   productTypeSlug: string | null;

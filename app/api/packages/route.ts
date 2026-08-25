@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
   const select = {
     id: true, name: true, speedDown: true, speedUp: true, price: true, period: true,
     features: true, popular: true, order: true, term: true,
-    network: { select: { name: true, slug: true, category: true, color: true } },
+    network: { select: { name: true, slug: true, category: true, color: true, logoUrl: true } },
     // The package's OWN service category (Data/Voice/IoT/CCTV…) — unrelated to the
     // productType-derived serviceCategorySlug/-Name below, which is the top-level
     // grouping category the package's product type has been assigned to.
@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
   }
 
   const packages = rows.map((p) => {
-    const net = (p.network ?? null) as { name?: string; slug?: string; category?: string; color?: string } | null;
+    const net = (p.network ?? null) as { name?: string; slug?: string; category?: string; color?: string; logoUrl?: string | null } | null;
     const cat = (p.category ?? null) as { id?: string; name?: string } | null;
     const pt = (p.productType ?? null) as
       | { slug?: string; name?: string; serviceCategory?: { id?: string; name?: string } | null }
@@ -84,6 +84,7 @@ export async function GET(req: NextRequest) {
       price: p.price, period: p.period, features: p.features, popular: p.popular, term: p.term,
       networkName: net?.name ?? null, networkSlug: net?.slug ?? null,
       networkCategory: net?.category ?? null, networkColor: net?.color ?? null,
+      networkLogoUrl: net?.logoUrl ?? null,
       categoryId: cat?.id ?? null, categoryName: cat?.name ?? null,
       productTypeSlug: pt?.slug ?? null, productTypeName: pt?.name ?? null,
       // Derived from productType.serviceCategory — null when the product type hasn't
