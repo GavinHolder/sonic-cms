@@ -196,7 +196,10 @@ function SectionLivePreviewInner({
   const viewportH = viewport === "mobile" ? 1500 : 812;
   const scaledW = Math.round(scale * vw);
   const scaledH = Math.round(scale * viewportH);
-  const maxVisibleH = scale >= 1 ? Math.min(scaledH, 700) : scaledH;
+  // Mobile shows the WHOLE stacked reflow at once — no internal scrollbar inside the
+  // phone mockup (the 700px cap + overflow:auto below used to force one). Desktop/
+  // tablet keep the 700px cap so a tall section doesn't blow out the admin panel.
+  const maxVisibleH = viewport === "mobile" ? scaledH : (scale >= 1 ? Math.min(scaledH, 700) : scaledH);
   const deviceRadius = viewport === "desktop" ? 4 : viewport === "tablet" ? 12 : 20;
   const chromeH = viewport === "desktop" ? 26 : 18;
 
@@ -299,7 +302,7 @@ function SectionLivePreviewInner({
             style={{
               width: scaledW,
               height: maxVisibleH,
-              overflow: scale >= 1 ? "auto" : "hidden",
+              overflow: viewport === "mobile" ? "hidden" : (scale >= 1 ? "auto" : "hidden"),
               position: "relative",
             }}
           >
