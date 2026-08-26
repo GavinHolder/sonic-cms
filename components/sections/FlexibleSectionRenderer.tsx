@@ -2032,13 +2032,42 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
                 ));
               }
               // Non-container block (hero, image, packages, etc.): whole block at its design px box.
+              //
+              // SELF_SIZING_TYPES (template/card-tabs/product-grid — see that Set's own doc
+              // comment) are the one exception: hard-clipping them to the authored pos.h with
+              // overflow:hidden is exactly the bug #131 already fixed for the MOBILE reflow
+              // stack, just never carried over to this desktop path. A template block bound to
+              // a live pricing grid has content whose real height depends on which tab/term is
+              // selected and what's currently expanded — an admin-authored fixed box can only
+              // ever be right for ONE of those states. When it's wrong: too-tall content gets
+              // silently clipped (a card cut off mid-price) and — since the wrapper clips the
+              // BOX but the iframe inside still has its own overflowing internal document —
+              // the iframe shows ITS OWN internal scrollbar at the clip boundary, which reads
+              // as "why is there a scrollbar, nothing needs to scroll" from outside. Any height
+              // CHANGE while clipped (a tab switch to a taller package set, a hover-reveal
+              // growing a card) reads as "stuck, then jumps" — the fixed box doesn't move, so
+              // the change is invisible until it crosses the clip line, then suddenly isn't.
+              //
+              // Fix: reuse the SAME blockHeights/reportBlockHeight state this component already
+              // maintains for Dynamic Content Height Mode (just below) — SELF_SIZING_TYPES leaves
+              // report their live content height via the same onContentHeight channel
+              // TemplateBlock/CardTabsBlock/ProductGridBlock already speak, and this box grows
+              // to match instead of clipping. Every other block type (image, video, hero, etc.)
+              // is completely untouched — same fixed pos.h + overflow:hidden as before.
+              const isSelfSizing = SELF_SIZING_TYPES.has(block.type);
+              const liveH = isSelfSizing ? blockHeights[String(block.id)] : undefined;
               return (
                 <div key={block.id} style={{
                   position: "absolute",
-                  left: pos.x, top: pos.y, width: pos.w, height: pos.h,
-                  overflow: "hidden",
+                  left: pos.x, top: pos.y, width: pos.w,
+                  height: liveH || pos.h,
+                  overflow: isSelfSizing ? "visible" : "hidden",
                 }}>
-                  <DesignerBlock block={block} darkBg={darkBg} />
+                  <DesignerBlock
+                    block={block}
+                    darkBg={darkBg}
+                    onContentHeight={isSelfSizing ? reportBlockHeight : undefined}
+                  />
                 </div>
               );
             })}
