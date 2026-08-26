@@ -4763,6 +4763,42 @@ Instead of creating "Home 50/50 (24-Month)" and "Home 50/50 (Prepaid)" as two fu
 **Per-term Features override:** by default every variant shares the Features list typed above. Click **"Customize features for this term"** on a variant to give it its own independent Features list instead (e.g. a Prepaid variant that excludes a "free installation" feature the 24-Month variant includes, because prepaid installs are self-funded). Click **"Use shared features instead"** to drop the override and go back to inheriting the shared list.
 `;
 
+const SCHEDULED_PACKAGE_CHANGES_DOCS = `
+# Scheduled Package Changes
+
+Access: **Admin → Features → Networks → Scheduled Changes tab**.
+
+Schedule a package price change, a new package, a deletion, or a full replace to take effect automatically on a future date — no manual step on the day. A background check (the same 60-second cycle already used for scheduled CMS updates and the SEO engine) applies any due change the moment its date arrives.
+
+---
+
+## The four change types
+
+| Type | What it does |
+|------|---------------|
+| **Price Update** | Pick any number of packages and set each one's new price. One scheduled date can update several packages at once — useful for an across-the-board price increase |
+| **Create** | Fills in a new package (same fields as Add Package: network, name, price, speeds, term, product type, features…) that doesn't exist yet, and creates it on the scheduled date |
+| **Delete** | Removes an existing package on the scheduled date |
+| **Replace** | Deletes one existing package and creates a new one in its place, atomically, on the scheduled date — for retiring an old plan and launching its replacement on the same day |
+
+---
+
+## Pending vs History
+
+The tab shows two tables:
+
+- **Pending** — every change still waiting for its date, with a **Cancel** action (safe any time before it applies)
+- **History** — changes that have already run, showing **Applied** (succeeded) or **Failed** (with the reason) so you can see what actually happened, not just what was scheduled
+
+## What happens if the target package is gone
+
+If a Price Update, Delete, or Replace's target package was deleted by an admin sometime after it was scheduled but before its date arrives, that one change is marked **Failed** with a clear reason instead of silently doing nothing — every other change scheduled for the same date still applies normally.
+
+## Popular badge safety
+
+A scheduled Create or Replace that lands with **Popular** checked follows the same rule as the regular Add Package form — it automatically clears the Popular flag from any other package already holding it in that network/product type/term, so you never end up with two "Popular" cards in one pricing grid after a scheduled change lands.
+`;
+
 const PROJECTS_GALLERY_DOCS = `
 # Projects Gallery
 
@@ -8965,6 +9001,7 @@ export const DOC_TOPICS: DocTopic[] = [
     icon: "bi-diagram-3-fill",
     children: [
       { id: "networks-packages-overview", label: "Networks, Terms & Product Types", icon: "bi-diagram-3-fill", content: NETWORKS_PACKAGES_DOCS },
+      { id: "scheduled-package-changes", label: "Scheduled Changes", icon: "bi-calendar-event", content: SCHEDULED_PACKAGE_CHANGES_DOCS },
     ],
   },
   {
