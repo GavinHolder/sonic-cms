@@ -5,6 +5,7 @@ import { useToast } from "@/components/admin/ToastProvider";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import ImageFieldWithUpload from "@/components/admin/ImageFieldWithUpload";
 import { toEditableFeatureRows, sanitizeFeatureRowsForSave, parsePackageFeatures, type FeatureRow } from "@/lib/packages/features";
+import ScheduledChangesManager from "./ScheduledChangesManager";
 
 type Category = "FNO" | "WISP" | "WIRELESS" | "VOICE";
 
@@ -124,7 +125,7 @@ const CATEGORY_BADGE: Record<Category, string> = {
 // Categories, Product Types, Package Terms, Feature Badge Types): these are flat
 // tables with no per-category relation in the schema, so they get their own tab
 // instead of being faked as split per network-category.
-type TabKey = Category | "OTHER" | "GLOBAL";
+type TabKey = Category | "OTHER" | "GLOBAL" | "SCHEDULED";
 const CATEGORY_ORDER: Category[] = ["FNO", "WISP", "WIRELESS", "VOICE"];
 const CATEGORY_TAB_LABEL: Record<Category, string> = {
   FNO: "FNO (Fibre)",
@@ -524,7 +525,7 @@ export default function NetworksManager() {
         </a>
         <button
           className="btn btn-primary btn-sm"
-          onClick={() => setNetModal({ category: activeTab === "OTHER" || activeTab === "GLOBAL" ? "FNO" : activeTab, color: "#22c55e", isActive: true })}
+          onClick={() => setNetModal({ category: activeTab === "OTHER" || activeTab === "GLOBAL" || activeTab === "SCHEDULED" ? "FNO" : activeTab, color: "#22c55e", isActive: true })}
         >
           <i className="bi bi-plus-lg me-1" />Add Network
         </button>
@@ -559,7 +560,14 @@ export default function NetworksManager() {
             <i className="bi bi-tags me-1" />Categories &amp; Types
           </button>
         </li>
+        <li className="nav-item">
+          <button type="button" className={`nav-link ${activeTab === "SCHEDULED" ? "active" : ""}`} onClick={() => setActiveTab("SCHEDULED")}>
+            <i className="bi bi-calendar-event me-1" />Scheduled Changes
+          </button>
+        </li>
       </ul>
+
+      {activeTab === "SCHEDULED" && <ScheduledChangesManager networks={networks} />}
 
       {activeTab === "GLOBAL" && (
       <>
@@ -684,7 +692,7 @@ export default function NetworksManager() {
       </>
       )}
 
-      {activeTab !== "GLOBAL" && (loading ? (
+      {activeTab !== "GLOBAL" && activeTab !== "SCHEDULED" && (loading ? (
         <div className="text-center py-5"><div className="spinner-border text-primary" /></div>
       ) : visibleNetworks.length === 0 ? (
         <div className="card shadow-sm"><div className="card-body text-center py-5">

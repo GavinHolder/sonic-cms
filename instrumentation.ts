@@ -1,11 +1,14 @@
 /**
  * Next.js instrumentation — runs once on server startup (Node.js runtime).
- * Handles two background tasks:
+ * Handles background tasks:
  *
  * 1. Scheduled update trigger: checks every 60s if a midnight update is due.
  * 2. Maintenance mode failsafe: if maintenance has been active for >45 minutes
  *    (e.g. update failed/hung and admin isn't watching), auto-disables it so
  *    the site doesn't stay locked forever.
+ * 3. Scheduled SEO engine run.
+ * 4. Scheduled package changes (price updates / create / delete / replace) —
+ *    see lib/packages/scheduled-changes.ts.
  */
 
 export async function register() {
@@ -122,6 +125,21 @@ export async function register() {
             console.error("[SEO] Scheduled engine run failed:", err);
           }
         }
+      }
+
+      // ── Task 4: Scheduled package changes ───────────────────────────────────
+      // Same self-hosted-Docker-has-no-platform-cron rationale as Task 3 — this is
+      // the only place that ever checks for a due price update / create / delete /
+      // replace, so if this tick isn't running, scheduled changes silently never
+      // apply. Each row applies+fails independently (see that file's own comment).
+      try {
+        const { applyDueScheduledChanges } = await import("@/lib/packages/scheduled-changes");
+        const { applied, failed } = await applyDueScheduledChanges();
+        if (applied > 0 || failed > 0) {
+          console.log(`[ScheduledChanges] Applied ${applied}, failed ${failed}`);
+        }
+      } catch (err) {
+        console.error("[ScheduledChanges] Tick failed:", err);
       }
     } catch {
       // Silently swallow errors — instrumentation must never crash the server

@@ -591,11 +591,69 @@ model Package {
   // coverage area be subdivided per package (e.g. a promo package limited to a few
   // suburbs) without needing a second Network/polygon just to scope it.
   restrictedRegions CoverageRegion[] @relation("PackageRestrictedRegions")
+  scheduledChanges  ScheduledPackageChange[]
 
   @@index([networkId])
   @@index([categoryId])
   @@index([productTypeId])
   @@map("packages")
+}
+
+enum ScheduledChangeType {
+  PRICE_UPDATE
+  CREATE
+  DELETE
+  REPLACE
+}
+
+enum ScheduledChangeStatus {
+  SCHEDULED
+  APPLIED
+  CANCELLED
+  FAILED
+}
+
+// A package price/lineup change that takes effect automatically on a future date —
+// "retrofit the whole package suite on launch day" without an admin needing to be
+// online at midnight to click Save. Applied by instrumentation.ts's existing 60s
+// tick loop (the same self-hosted-Docker-has-no-serverless-cron mechanism already
+// used for the scheduled CMS update and SEO engine run — see that file's own
+// comment), not a separate cron route: this app has no request traffic guaranteed
+// to arrive exactly on the scheduled date, so a passive route (like the Vercel-only
+// /api/cron/publish-scheduled) would never actually fire here.
+//
+// One row = one target. A "change 5 packages' prices on 1 March" admin action
+// creates 5 rows sharing the same scheduledAt, rather than one row with an array —
+// each package's change succeeds or fails independently (one deleted package
+// shouldn't block the other four), and the history/audit view reads as a flat list
+// either way.
+//
+// packageId meaning by type: PRICE_UPDATE/DELETE/REPLACE = the existing package this
+// change targets (REPLACE deletes it once the new one from createData is created).
+// CREATE has no packageId — createData carries the full new-package payload
+// (same shape POST /api/networks/[id]/packages accepts) including its networkId.
+model ScheduledPackageChange {
+  id            String                 @id @default(cuid())
+  type          ScheduledChangeType
+  status        ScheduledChangeStatus  @default(SCHEDULED)
+  scheduledAt   DateTime
+  packageId     String?
+  package       Package?               @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  // PRICE_UPDATE only.
+  newPrice      String?
+  // CREATE and REPLACE only — full package payload created when this change applies.
+  createData    Json?
+  note          String?
+  createdAt     DateTime               @default(now())
+  createdBy     String?
+  appliedAt     DateTime?
+  // Set on FAILED — e.g. "target package was deleted before this could apply". Kept
+  // (not cleared) even if a later run somehow retries, so the audit trail is honest
+  // about what actually happened, not just the latest attempt.
+  errorMessage  String?
+
+  @@index([status, scheduledAt])
+  @@map("scheduled_package_changes")
 }
 
 // Admin-managed service category for packages (Data, Voice, IoT, CCTV…). Also
