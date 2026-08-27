@@ -26,6 +26,22 @@ const CardTabsBlock             = dynamic(() => import("@/components/sections/bl
 const ProductGridBlock         = dynamic(() => import("@/components/sections/blocks/ProductGridBlock"), { ssr: false });
 const TemplateBlock            = dynamic(() => import("@/components/sections/blocks/TemplateBlock"), { ssr: false });
 
+/** Shape returned by GET /api/templates/[id]/content — see that route's own
+ *  doc comment for why it's a separate public surface from the admin-only
+ *  GET /api/templates. */
+interface TemplateLibContent {
+  customHtml: string;
+  customCss: string;
+  mediaSlots: Record<string, string>;
+}
+/** Module-level, not per-component-instance — multiple "template" blocks
+ *  (even across different sections on the same page) commonly link the same
+ *  library template, so this avoids a redundant fetch per instance. Cleared
+ *  only by a full page reload, which is fine: picking up a library edit made
+ *  DURING the current page view isn't a requirement this is solving, only
+ *  "don't render a stale snapshot from whenever this section was last saved." */
+const templateContentCache = new Map<string, TemplateLibContent>();
+
 interface FlexibleSectionRendererProps {
   section: FlexibleSection;
 }
@@ -2282,6 +2298,37 @@ function DesignerBlock({ block, darkBg, onContentHeight }: {
     return () => { alive = false; };
   }, [boundPackageId]);
 
+  // ── Template block: resolve content LIVE from the library, not the stored
+  // copy ────────────────────────────────────────────────────────────────────
+  // block.props.customHtml/customCss are a SNAPSHOT taken when the admin last
+  // picked this template from the "Change template" dropdown
+  // (applyTemplateSelection in flexible-designer.html), not a live link — that
+  // copy silently goes stale the moment the library template changes after the
+  // fact (see docs/main-cms-sync-prompt.md #145 for the incident this caused).
+  // Fetching the CURRENT library content by templateId here makes it a live
+  // reference instead: one source of truth, no copy to drift. Falls back to
+  // the stored customHtml/customCss while the fetch is in flight or if it
+  // fails, so there's still something to render immediately and this can
+  // never make a working section blank. A section with no templateId (older,
+  // hand-authored inline HTML) never enters this effect at all — untouched.
+  const templateId = (p.templateId as string | undefined) || undefined;
+  const [resolvedTemplate, setResolvedTemplate] = useState<TemplateLibContent | null>(null);
+  useEffect(() => {
+    if (block.type !== "template" || !templateId) { setResolvedTemplate(null); return; }
+    const cached = templateContentCache.get(templateId);
+    if (cached) { setResolvedTemplate(cached); return; }
+    let alive = true;
+    fetch(`/api/templates/${encodeURIComponent(templateId)}/content`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: TemplateLibContent | null) => {
+        if (!alive || !data) return;
+        templateContentCache.set(templateId, data);
+        setResolvedTemplate(data);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [block.type, templateId]);
+
   // ── Stats countUp animation ──────────────────────────────────────────────
   // Triggered once when the stats block first enters the viewport.
   // Extracts the leading numeric part from p.number (e.g. "20+" → 20, "15" → 15)
@@ -2741,7 +2788,9 @@ function DesignerBlock({ block, darkBg, onContentHeight }: {
 
       // ── template: renders an admin-imported "Section Block" HTML template as a block ──
       case "template": {
-        const templateId = p.templateId as string | undefined;
+        // templateId/resolvedTemplate come from the component-level hook above —
+        // declared once there (not re-derived here) so the effect and this render
+        // path can never read two different values for the same block.
         if (!templateId) {
           return (
             <div style={{ padding: "20px", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#6c757d" }}>
@@ -2771,11 +2820,17 @@ function DesignerBlock({ block, darkBg, onContentHeight }: {
               .replace(/\{\{cms\.youtube\}\}/g, cmsSite.youtube ?? "")
               .replace(/\{\{cms\.tiktok\}\}/g, cmsSite.tiktok ?? "")
           : input;
-        const templateMediaSlots = (p.mediaSlots && typeof p.mediaSlots === "object" ? p.mediaSlots : {}) as Record<string, string>;
+        // resolvedTemplate is the LIVE library content (see the component-level
+        // effect above) — falls back to the block's own stored snapshot while
+        // that fetch is in flight or if it fails, so there's still something to
+        // render immediately rather than a blank block.
+        const effectiveHtml = resolvedTemplate ? resolvedTemplate.customHtml : ((p.customHtml as string) || "");
+        const effectiveCss  = resolvedTemplate ? resolvedTemplate.customCss  : ((p.customCss as string) || "");
+        const templateMediaSlots = (resolvedTemplate?.mediaSlots ?? (p.mediaSlots && typeof p.mediaSlots === "object" ? p.mediaSlots : {})) as Record<string, string>;
         const applyMediaSlots = (input: string) =>
           input.replace(/\{\{cms\.media\.([a-z0-9_-]+)\}\}/g, (_, slotName: string) => templateMediaSlots[slotName] ?? "");
-        const templateHtml = applyMediaSlots(applyCmsVars((p.customHtml as string) || ""));
-        const templateCss  = applyMediaSlots(applyCmsVars((p.customCss as string) || ""));
+        const templateHtml = applyMediaSlots(applyCmsVars(effectiveHtml));
+        const templateCss  = applyMediaSlots(applyCmsVars(effectiveCss));
         // `block` here isn't typed with an `id` field (see the narrowed param type above), but
         // the runtime designer block object always has one — used as the remount key so
         // switching which template/product is bound doesn't reuse a stale iframe.
