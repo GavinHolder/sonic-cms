@@ -2426,7 +2426,15 @@ function DesignerBlock({ block, darkBg, onContentHeight }: {
   else if (cardEffect !== "none") shellClasses.push(`db-effect-${cardEffect}`);
   if (boxShadowPre !== "none") shellClasses.push(`db-shadow-${boxShadowPre}`);
 
-  const heightAuto = (p?.heightMode as string) === "auto";
+  // SELF_SIZING_TYPES (template/card-tabs/product-grid) must behave like heightMode
+  // "auto" at THIS shell too, regardless of the admin's actual heightMode setting —
+  // this shell is a SEPARATE overflow:hidden wrapper nested inside the free-mode
+  // absolute box that already respects isSelfSizing (see that box's own comment a
+  // few hundred lines up). Fixing only the outer box left this inner one still
+  // clipping a self-sizing block's hover-reveal/live-height content whenever
+  // heightMode wasn't explicitly "auto" — found by walking the real rendered
+  // ancestor chain of a live "template" block and finding overflow:hidden here.
+  const heightAuto = (p?.heightMode as string) === "auto" || SELF_SIZING_TYPES.has(block.type);
   const shellStyle: React.CSSProperties = {
     position: "relative", height: heightAuto ? "auto" : "100%", overflow: heightAuto ? "visible" : "hidden", borderRadius,
     ...(bgImageSafe ? { background: `url("${bgImageSafe}") center/cover no-repeat` } : {}),
