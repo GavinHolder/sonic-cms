@@ -52,6 +52,14 @@ const STATUS_BADGE: Record<ChangeStatus, string> = {
   CANCELLED: "text-bg-secondary",
   FAILED: "text-bg-danger",
 };
+// Same labels NetworksManager's own category tabs use, so this filter reads
+// consistently with the rest of Networks & Packages admin.
+const CATEGORY_LABEL: Record<string, string> = {
+  FNO: "FNO (Fibre)",
+  WISP: "WISP",
+  WIRELESS: "Wireless",
+  VOICE: "Voice",
+};
 
 // Reusable "new package" field set — same shape ScheduledPackageChange.createData
 // expects (see lib/packages/scheduled-changes.ts), used by both CREATE and REPLACE
@@ -82,6 +90,12 @@ export default function ScheduledChangesManager({ networks }: { networks: Networ
   const [deleteTargetId, setDeleteTargetId] = useState("");
   const [replaceTargetId, setReplaceTargetId] = useState("");
   const [newPkg, setNewPkg] = useState<NewPkgForm>(emptyNewPkg(networks[0]?.id || ""));
+  // Package-picker filters (PRICE_UPDATE) — the flat checkbox list gets unwieldy
+  // once there are more than a handful of packages, so Level 1 (network category)
+  // and Level 3 (term) narrow it down first, same grouping tiers the public
+  // pricing cards use. "All" on both = the full list, same as before this existed.
+  const [pkgFilterCategory, setPkgFilterCategory] = useState<string>("");
+  const [pkgFilterTerm, setPkgFilterTerm] = useState<string>("");
 
   const resetModalState = () => {
     setScheduledAt("");
@@ -91,6 +105,8 @@ export default function ScheduledChangesManager({ networks }: { networks: Networ
     setDeleteTargetId("");
     setReplaceTargetId("");
     setNewPkg(emptyNewPkg(networks[0]?.id || ""));
+    setPkgFilterCategory("");
+    setPkgFilterTerm("");
   };
 
   const load = useCallback(async () => {
@@ -104,7 +120,12 @@ export default function ScheduledChangesManager({ networks }: { networks: Networ
   }, [toast]);
   useEffect(() => { load(); }, [load]);
 
-  const allPackages = networks.flatMap((n) => n.packages.map((p) => ({ ...p, networkName: n.name })));
+  const allPackages = networks.flatMap((n) => n.packages.map((p) => ({ ...p, networkName: n.name, category: n.category })));
+  const availableCategories = Array.from(new Set(networks.map((n) => n.category)));
+  const availableTerms = Array.from(new Set(allPackages.map((p) => p.term).filter((t): t is string => !!t))).sort();
+  const filteredPackages = allPackages.filter(
+    (p) => (!pkgFilterCategory || p.category === pkgFilterCategory) && (!pkgFilterTerm || p.term === pkgFilterTerm)
+  );
 
   const togglePkg = (id: string) => {
     setSelectedPkgIds((prev) => {
@@ -295,11 +316,31 @@ export default function ScheduledChangesManager({ networks }: { networks: Networ
                 {modalType === "PRICE_UPDATE" && (
                   <>
                     <label className="form-label">Select packages</label>
+                    <div className="row g-2 mb-2">
+                      <div className="col-6">
+                        <select className="form-select form-select-sm" value={pkgFilterCategory} onChange={(e) => setPkgFilterCategory(e.target.value)}>
+                          <option value="">All categories</option>
+                          {availableCategories.map((c) => <option key={c} value={c}>{CATEGORY_LABEL[c] ?? c}</option>)}
+                        </select>
+                      </div>
+                      <div className="col-6">
+                        <select className="form-select form-select-sm" value={pkgFilterTerm} onChange={(e) => setPkgFilterTerm(e.target.value)}>
+                          <option value="">All terms</option>
+                          {availableTerms.map((t) => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                      </div>
+                    </div>
                     <div className="border rounded p-2 mb-2" style={{ maxHeight: 260, overflowY: "auto" }}>
-                      {allPackages.length === 0 ? <div className="text-muted small">No packages yet.</div> : allPackages.map((p) => (
+                      {allPackages.length === 0 ? (
+                        <div className="text-muted small">No packages yet.</div>
+                      ) : filteredPackages.length === 0 ? (
+                        <div className="text-muted small">No packages match this filter.</div>
+                      ) : filteredPackages.map((p) => (
                         <div key={p.id} className="d-flex align-items-center gap-2 py-1">
                           <input type="checkbox" className="form-check-input" checked={selectedPkgIds.has(p.id)} onChange={() => togglePkg(p.id)} />
-                          <span className="flex-grow-1 small">{p.name} <span className="text-muted">({p.networkName})</span> — currently R{p.price}</span>
+                          <span className="flex-grow-1 small">
+                            {p.name} <span className="text-muted">({p.networkName}{p.term ? ` · ${p.term}` : ""})</span> — currently R{p.price}
+                          </span>
                           {selectedPkgIds.has(p.id) && (
                             <input
                               type="text" className="form-control form-control-sm" style={{ width: 110 }}
@@ -310,6 +351,9 @@ export default function ScheduledChangesManager({ networks }: { networks: Networ
                         </div>
                       ))}
                     </div>
+                    {selectedPkgIds.size > 0 && (
+                      <div className="form-text mb-2">{selectedPkgIds.size} package{selectedPkgIds.size === 1 ? "" : "s"} selected</div>
+                    )}
                   </>
                 )}
 
