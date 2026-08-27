@@ -2426,17 +2426,30 @@ function DesignerBlock({ block, darkBg, onContentHeight }: {
   else if (cardEffect !== "none") shellClasses.push(`db-effect-${cardEffect}`);
   if (boxShadowPre !== "none") shellClasses.push(`db-shadow-${boxShadowPre}`);
 
-  // SELF_SIZING_TYPES (template/card-tabs/product-grid) must behave like heightMode
-  // "auto" at THIS shell too, regardless of the admin's actual heightMode setting —
-  // this shell is a SEPARATE overflow:hidden wrapper nested inside the free-mode
+  // SELF_SIZING_TYPES (template/card-tabs/product-grid) needs overflow:visible at
+  // THIS shell too, regardless of the admin's actual heightMode setting — this
+  // shell is a SEPARATE overflow:hidden wrapper nested inside the free-mode
   // absolute box that already respects isSelfSizing (see that box's own comment a
   // few hundred lines up). Fixing only the outer box left this inner one still
   // clipping a self-sizing block's hover-reveal/live-height content whenever
   // heightMode wasn't explicitly "auto" — found by walking the real rendered
   // ancestor chain of a live "template" block and finding overflow:hidden here.
-  const heightAuto = (p?.heightMode as string) === "auto" || SELF_SIZING_TYPES.has(block.type);
+  //
+  // height stays height:100% for self-sizing blocks specifically — do NOT switch
+  // it to "auto" the way heightMode="auto" does. The iframe inside (TemplateBlock)
+  // has its own height:100%, which needs THIS shell to have a real, definite
+  // pixel height to resolve against; making this shell height:auto breaks that
+  // chain (a percentage height against an auto-height ancestor computes as
+  // nothing, i.e. the iframe's own intrinsic/UA-default ~150px) and collapsed
+  // the whole card to a sliver in production — caught immediately from the
+  // live page and reverted here within the same fix.
+  const heightModeAuto = (p?.heightMode as string) === "auto";
+  const isSelfSizingBlock = SELF_SIZING_TYPES.has(block.type);
   const shellStyle: React.CSSProperties = {
-    position: "relative", height: heightAuto ? "auto" : "100%", overflow: heightAuto ? "visible" : "hidden", borderRadius,
+    position: "relative",
+    height: heightModeAuto ? "auto" : "100%",
+    overflow: heightModeAuto || isSelfSizingBlock ? "visible" : "hidden",
+    borderRadius,
     ...(bgImageSafe ? { background: `url("${bgImageSafe}") center/cover no-repeat` } : {}),
     ...(!bgImageSafe && bgGradient ? { background: bgGradient } : {}),
     ...(borderWidthV > 0 && borderColorV ? { border: `${borderWidthV}px solid ${borderColorV}` } : {}),
@@ -2482,7 +2495,7 @@ function DesignerBlock({ block, darkBg, onContentHeight }: {
         return (
           <div style={{
             background: cardBg, color: (p.textColor as string) || tc,
-            height: heightAuto ? "auto" : "100%", ...cardGlassStyle,
+            height: heightModeAuto ? "auto" : "100%", ...cardGlassStyle,
             display: "flex", flexDirection: "column", gap: blockGap,
             ...blockPadding("24px", "24px"),
           }}>
