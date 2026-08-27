@@ -3441,9 +3441,10 @@
       [['overshoot','Overshoot (energetic)'],['snap','Snap (decisive)']].forEach(function(p){var o=document.createElement('option');o.value=p[0];o.textContent=p[1];if((nd.easing||'overshoot')===p[0])o.selected=true;easeSel.appendChild(o);});
       easeSel.addEventListener('change',function(){pushHistory();updN('easing',easeSel.value);});
       var trigSel=document.createElement('select');trigSel.className='form-select form-select-sm';trigSel.style.fontSize='11px';
-      [['hover','On hover'],['viewport','On scroll-in']].forEach(function(p){var o=document.createElement('option');o.value=p[0];o.textContent=p[1];if((nd.trigger||'hover')===p[0])o.selected=true;trigSel.appendChild(o);});
-      trigSel.addEventListener('change',function(){pushHistory();updN('trigger',trigSel.value);});
+      [['hover','On hover'],['viewport','On scroll-in'],['none','Static (no animation)']].forEach(function(p){var o=document.createElement('option');o.value=p[0];o.textContent=p[1];if((nd.trigger||'hover')===p[0])o.selected=true;trigSel.appendChild(o);});
+      trigSel.addEventListener('change',function(){pushHistory();updN('trigger',trigSel.value);renderProps();});
       etG.appendChild(easeSel);etG.appendChild(trigSel);etSec.appendChild(etG);body.appendChild(etSec);
+      if((nd.trigger||'hover')==='none'){var stTip=document.createElement('div');stTip.style.cssText='font-size:10px;color:#6b7280;margin-top:4px;';stTip.textContent='Static — shows "Value" directly, ramp feel and duration below are unused.';etSec.appendChild(stTip);}
       // Duration
       var durSec=mkSec();durSec.appendChild(mkLbl('Duration (ms — blank = auto)'));
       var durInp=document.createElement('input');durInp.type='number';durInp.className='form-control form-control-sm';durInp.style.fontSize='11px';durInp.min='0';durInp.step='50';durInp.value=(nd.durationMs!=null?nd.durationMs:'');durInp.placeholder='auto (1050 / 380)';

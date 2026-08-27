@@ -320,8 +320,10 @@ export interface VoltNumberData {
   format?: VoltNumberFormat
   /** Ramp feel — energetic overshoot or decisive snap */
   easing: 'overshoot' | 'snap'
-  /** What fires the count-up (default 'hover') */
-  trigger: 'hover' | 'viewport'
+  /** What fires the count-up (default 'hover'). 'none' shows the final formatted
+   *  value at rest with no ramp animation at all — for when the number itself
+   *  should just be static content, not every layer using this type. */
+  trigger: 'hover' | 'viewport' | 'none'
   /** Ramp duration in ms (default: 1050 for overshoot, 380 for snap) */
   durationMs?: number
   // ── Typography (rendered like a text layer) ────────────────────────────────
