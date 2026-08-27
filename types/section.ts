@@ -285,6 +285,18 @@ export interface BaseSectionConfig {
  */
 export type AnimationType = "fade" | "slideUp" | "slideDown" | "slideLeft" | "slideRight" | "zoom" | "none";
 
+/**
+ * Easing curve for a hero entrance animation or the slide crossfade — opt-in,
+ * per-element. Undefined/omitted means "unchanged from today" (Framer Motion's own
+ * implicit default, whatever that resolves to) — this is a deliberate design
+ * decision (confirmed with the user), not an oversight: existing slides must render
+ * byte-identical until an admin explicitly picks a curve, matching the same
+ * options-not-defaults pattern used everywhere else Template Options appear in
+ * this project. "smooth"/"snappy" are custom cubic-beziers; the rest are Framer
+ * Motion's own named eases.
+ */
+export type HeroEasing = "linear" | "ease" | "easeIn" | "easeOut" | "smooth" | "snappy";
+
 /** Animation types specific to FlexibleElement (scroll-triggered via anime.js) */
 export type FlexibleAnimationType =
   | "none" | "fadeIn" | "slideUp" | "slideDown" | "slideInLeft" | "slideInRight"
@@ -410,6 +422,8 @@ export interface OverlayImage {
   animation?: AnimationType;
   animationDuration?: number; // ms, default 500 (matches the pre-existing hardcoded look)
   animationDelay?: number;    // ms, default 50 (matches the pre-existing hardcoded look)
+  /** Easing curve — undefined means unchanged (Framer's own default). See HeroEasing. */
+  animationEasing?: HeroEasing;
   /**
    * Non-destructive recolor to solid white via CSS filter (brightness(0) invert(1)) —
    * preserves the image's alpha shape, doesn't touch the uploaded source file. For
@@ -429,6 +443,8 @@ export interface HeadingRow {
   animation: AnimationType;
   animationDuration: number; // ms
   animationDelay: number;    // ms
+  /** Easing curve — undefined means unchanged (Framer's own default). See HeroEasing. */
+  animationEasing?: HeroEasing;
   /** Freeform placement (only used when overlay.layoutMode === "freeform"). */
   pos?: FreeformPos;
   /** Per-breakpoint position override — absent means "inherit `pos`" (see resolveFreeformPos). */
@@ -491,6 +507,8 @@ export interface TextOverlayElement {
     animation: AnimationType;
     animationDuration: number; // ms
     animationDelay: number; // ms
+    /** Easing curve — undefined means unchanged (Framer's own default). See HeroEasing. */
+    animationEasing?: HeroEasing;
   };
   /** Multi-row stacked display heading (OVB-style). Overrides `heading` when present. */
   headingRows?: HeadingRow[];
@@ -508,6 +526,8 @@ export interface TextOverlayElement {
   eyebrowAnimation?: AnimationType;
   eyebrowAnimationDuration?: number; // ms, default 500 (matches the pre-existing hardcoded look)
   eyebrowAnimationDelay?: number;    // ms, default 50 (matches the pre-existing hardcoded look)
+  /** Easing curve — undefined means unchanged (Framer's own default). See HeroEasing. */
+  eyebrowAnimationEasing?: HeroEasing;
   subheading?: {
     text: string;
     fontSize: number;
@@ -517,6 +537,8 @@ export interface TextOverlayElement {
     animation: AnimationType;
     animationDuration: number;
     animationDelay: number;
+    /** Easing curve — undefined means unchanged (Framer's own default). See HeroEasing. */
+    animationEasing?: HeroEasing;
   };
   buttons: Array<{
     text: string;
@@ -527,6 +549,8 @@ export interface TextOverlayElement {
     animation: AnimationType;
     animationDuration: number;
     animationDelay: number;
+    /** Easing curve — undefined means unchanged (Framer's own default). See HeroEasing. */
+    animationEasing?: HeroEasing;
     /** Freeform placement (only used when overlay.layoutMode === "freeform"). */
     pos?: FreeformPos;
     /** Per-breakpoint position overrides — see resolveFreeformPos / HeadingRow's posTablet/posMobile. */
@@ -606,6 +630,9 @@ export interface HeroSection extends BaseSectionConfig {
     showDots: boolean;
     showArrows: boolean;
     transitionDuration: number; // ms (default 800)
+    /** Easing for the slide-to-slide background crossfade — undefined means unchanged
+     *  (today's plain CSS ease-in-out). See HeroEasing. */
+    transitionEasing?: HeroEasing;
     /** Show "01 / 03" slide counter at bottom-left (OVB-style) */
     showSlideCounter?: boolean;
     /** Show animated scroll indicator at bottom-right ("SCROLL" text + green line) */

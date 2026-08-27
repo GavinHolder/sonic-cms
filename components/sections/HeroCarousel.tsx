@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, Fragment } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import type { HeroSection, AnimationType, HeadingRow, TextShadowConfig, FreeformPos, OverlayImage } from "@/types/section";
+import { motion, AnimatePresence, type Easing } from "framer-motion";
+import type { HeroSection, AnimationType, HeroEasing, HeadingRow, TextShadowConfig, FreeformPos, OverlayImage } from "@/types/section";
 import { defaultFreeformPos, resolveFreeformPos, resolveFreeformSize } from "@/types/section";
 
 /**
@@ -32,6 +32,39 @@ const BAKED_HEADING_SHADOW =
   "0 2px 4px rgba(0, 0, 0, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2), 0 8px 16px rgba(0, 0, 0, 0.1), 2px 2px 0 rgba(0, 0, 0, 0.4)";
 const BAKED_SUBHEADING_SHADOW =
   "0 1px 3px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.2), 0 4px 12px rgba(0, 0, 0, 0.1), 1px 1px 0 rgba(0, 0, 0, 0.4)";
+
+/** Cubic-bezier control points shared between the Framer Motion and CSS resolvers
+ *  below, so "smooth"/"snappy" render identically whether Framer or plain CSS ends
+ *  up driving a given transition (the slide crossfade uses CSS; everything else
+ *  uses Framer). Named eases (linear/ease*) already exist natively in both, so only
+ *  the two custom curves need a shared source of truth. */
+const HERO_EASING_BEZIER: Record<"smooth" | "snappy", [number, number, number, number]> = {
+  smooth: [0.65, 0, 0.35, 1],
+  snappy: [0.34, 1.56, 0.64, 1],
+};
+
+/** Resolve a HeroEasing value to what Framer Motion's `transition.ease` accepts.
+ *  Undefined/unset returns undefined — Framer then falls back to its own implicit
+ *  default, i.e. today's exact look, unchanged. This is deliberate (see HeroEasing's
+ *  own doc comment): nothing here should look different until an admin opts in. */
+function resolveFramerEasing(e?: HeroEasing): Easing | undefined {
+  if (!e || e === "ease") return e === "ease" ? "easeInOut" : undefined;
+  if (e === "smooth" || e === "snappy") return HERO_EASING_BEZIER[e];
+  return e as Easing; // "linear" | "easeIn" | "easeOut" are valid Framer Motion easing names as-is
+}
+
+/** Same mapping as resolveFramerEasing, but as a CSS transition-timing-function
+ *  string for the slide background crossfade (a plain CSS transition, not Framer).
+ *  Undefined/unset returns "ease-in-out" — the crossfade's existing hardcoded
+ *  value — so an unconfigured section renders byte-identical to before this existed. */
+function resolveCssEasing(e?: HeroEasing): string {
+  if (!e) return "ease-in-out";
+  if (e === "ease") return "ease-in-out";
+  if (e === "easeIn") return "ease-in";
+  if (e === "easeOut") return "ease-out";
+  if (e === "smooth" || e === "snappy") return `cubic-bezier(${HERO_EASING_BEZIER[e].join(",")})`;
+  return e; // "linear"
+}
 
 /** Convert a hex color + 0-100 opacity into an rgba() string. */
 function rgbaFromHex(hex: string, opacity: number): string {
@@ -184,7 +217,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
   // paused/played directly. Keyed by slide index since all slides' videos stay mounted.
   const videoRefs = useRef<Map<number, HTMLVideoElement>>(new Map());
   const {
-    slides = [], autoPlay, autoPlayInterval, showDots, showArrows, transitionDuration,
+    slides = [], autoPlay, autoPlayInterval, showDots, showArrows, transitionDuration, transitionEasing,
     showSlideCounter, showScrollIndicator, metaLine, controlsPosition = "bottom-left",
     statsStrip,
   } = section.content;
@@ -534,6 +567,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
   const eyebrowTransition = {
     duration: (slide.overlay?.eyebrowAnimationDuration ?? 500) / 1000,
     delay: (slide.overlay?.eyebrowAnimationDelay ?? 50) / 1000,
+    ease: resolveFramerEasing(slide.overlay?.eyebrowAnimationEasing),
   };
   const getImageVariants = (img: OverlayImage) =>
     img.animation
@@ -542,6 +576,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
   const getImageTransition = (img: OverlayImage) => ({
     duration: (img.animationDuration ?? 500) / 1000,
     delay: (img.animationDelay ?? 50) / 1000,
+    ease: resolveFramerEasing(img.animationEasing),
   });
   if (!slide) {
     return (
@@ -580,7 +615,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
           style={{
             zIndex: 0,
             opacity: i === currentSlide ? 1 : 0,
-            transition: `opacity ${transitionDuration / 1000}s ease-in-out`,
+            transition: `opacity ${transitionDuration / 1000}s ${resolveCssEasing(transitionEasing)}`,
             pointerEvents: "none",
           }}
           aria-hidden={i !== currentSlide}
@@ -593,7 +628,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
         key={currentSlide}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: transitionDuration / 1000 }}
+        transition={{ duration: transitionDuration / 1000, ease: resolveFramerEasing(transitionEasing) }}
         className="position-absolute top-0 start-0 w-100 h-100"
         style={{ zIndex: 1 }}
       >
@@ -681,6 +716,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                           transition={{
                             duration: (row.animationDuration ?? 800) / 1000,
                             delay: (row.animationDelay ?? i * 120) / 1000,
+                            ease: resolveFramerEasing(row.animationEasing),
                           }}
                           style={{
                             display: "block",
@@ -716,6 +752,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                       transition={{
                         duration: (slide.overlay.heading.animationDuration ?? 800) / 1000,
                         delay: (slide.overlay.heading.animationDelay ?? 0) / 1000,
+                        ease: resolveFramerEasing(slide.overlay.heading.animationEasing),
                       }}
                       className="hero-heading"
                       style={{
@@ -747,6 +784,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                       transition={{
                         duration: (slide.overlay.subheading.animationDuration ?? 800) / 1000,
                         delay: (slide.overlay.subheading.animationDelay ?? 0) / 1000,
+                        ease: resolveFramerEasing(slide.overlay.subheading.animationEasing),
                       }}
                       className="hero-subheading"
                       style={{
@@ -778,6 +816,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                           transition={{
                             duration: (button.animationDuration ?? 800) / 1000,
                             delay: (button.animationDelay ?? 0) / 1000,
+                            ease: resolveFramerEasing(button.animationEasing),
                           }}
                           className={`btn ${
                             button.variant === "filled"
@@ -880,6 +919,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                           transition={{
                             duration: (row.animationDuration ?? 800) / 1000,
                             delay: (row.animationDelay ?? i * 120) / 1000,
+                            ease: resolveFramerEasing(row.animationEasing),
                           }}
                           style={{
                             margin: 0,
@@ -913,6 +953,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                           transition={{
                             duration: (slide.overlay.heading.animationDuration ?? 800) / 1000,
                             delay: (slide.overlay.heading.animationDelay ?? 0) / 1000,
+                            ease: resolveFramerEasing(slide.overlay.heading.animationEasing),
                           }}
                           className="hero-heading"
                           style={{
@@ -947,6 +988,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                       transition={{
                         duration: (slide.overlay.subheading.animationDuration ?? 800) / 1000,
                         delay: (slide.overlay.subheading.animationDelay ?? 0) / 1000,
+                        ease: resolveFramerEasing(slide.overlay.subheading.animationEasing),
                       }}
                       className="hero-subheading"
                       style={{
@@ -974,6 +1016,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                       transition={{
                         duration: (button.animationDuration ?? 800) / 1000,
                         delay: (button.animationDelay ?? 0) / 1000,
+                        ease: resolveFramerEasing(button.animationEasing),
                       }}
                       className={`btn ${
                         button.variant === "filled" ? "" : button.variant === "outline" ? "btn-outline" : "btn-ghost"

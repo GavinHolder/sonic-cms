@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useAutoSave } from "@/lib/hooks/useAutoSave";
-import type { HeroSection, HeroCarouselSlide } from "@/types/section";
-import SlideEditor from "./SlideEditor";
+import type { HeroSection, HeroCarouselSlide, HeroEasing } from "@/types/section";
+import SlideEditor, { EASING_OPTIONS } from "./SlideEditor";
 import HeroCarousel from "@/components/sections/HeroCarousel";
 
 // SSR-safe default for the admin's viewport before the client measures it.
@@ -53,6 +53,9 @@ export default function HeroCarouselEditor({
   const [showArrows, setShowArrows] = useState(section.content.showArrows ?? true);
   const [transitionDuration, setTransitionDuration] = useState(
     section.content.transitionDuration ?? 800
+  );
+  const [transitionEasing, setTransitionEasing] = useState<HeroEasing | undefined>(
+    section.content.transitionEasing
   );
   const [statsStrip, setStatsStrip] = useState<NonNullable<HeroSection["content"]["statsStrip"]>>(
     section.content.statsStrip ?? { enabled: false, items: [] }
@@ -135,6 +138,7 @@ export default function HeroCarouselEditor({
         showDots,
         showArrows,
         transitionDuration,
+        transitionEasing,
         statsStrip,
       },
     }),
@@ -147,6 +151,7 @@ export default function HeroCarouselEditor({
       showDots,
       showArrows,
       transitionDuration,
+      transitionEasing,
       statsStrip,
     ]
   );
@@ -272,6 +277,7 @@ export default function HeroCarouselEditor({
         showDots,
         showArrows,
         transitionDuration,
+        transitionEasing,
         statsStrip,
       },
     };
@@ -409,6 +415,25 @@ export default function HeroCarouselEditor({
                 />
                 <div className="form-text">
                   Animation speed for slide transitions (default: 800ms)
+                </div>
+              </div>
+
+              <div className="col-md-6">
+                <label htmlFor="transitionEasing" className="form-label fw-semibold">
+                  Transition Easing
+                </label>
+                <select
+                  className="form-select"
+                  id="transitionEasing"
+                  value={transitionEasing ?? ""}
+                  onChange={(e) => setTransitionEasing((e.target.value || undefined) as HeroEasing | undefined)}
+                >
+                  {EASING_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+                <div className="form-text">
+                  Curve for the slide background crossfade (default: unset = today&apos;s look)
                 </div>
               </div>
             </div>

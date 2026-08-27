@@ -1,12 +1,27 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import type { HeroCarouselSlide, AnimationType, HeadingRow, HeadingWord, FreeformPos, OverlayImage } from "@/types/section";
+import type { HeroCarouselSlide, AnimationType, HeroEasing, HeadingRow, HeadingWord, FreeformPos, OverlayImage } from "@/types/section";
 import { defaultFreeformPos, resolveFreeformPos } from "@/types/section";
 import MediaUploader from "./MediaUploader";
 import MediaPickerModal from "./MediaPickerModal";
 import { LinkPicker } from "./LinkPicker";
 import GoogleFontPicker from "./GoogleFontPicker";
+
+/** Shared across every entrance-animation field below (heading, subheading, eyebrow,
+ *  buttons, headingRows, overlay images) and the slide transition itself. Value ""
+ *  means "unset" — Framer/CSS's own implicit default, i.e. today's exact look,
+ *  unchanged (see HeroEasing's own doc comment for why that's the deliberate
+ *  default rather than pre-selecting one). */
+export const EASING_OPTIONS: { value: HeroEasing | ""; label: string }[] = [
+  { value: "", label: "Default (unset)" },
+  { value: "linear", label: "Linear" },
+  { value: "ease", label: "Ease" },
+  { value: "easeIn", label: "Ease In" },
+  { value: "easeOut", label: "Ease Out" },
+  { value: "smooth", label: "Smooth" },
+  { value: "snappy", label: "Snappy" },
+];
 
 interface SlideEditorProps {
   slide: HeroCarouselSlide;
@@ -970,6 +985,18 @@ export default function SlideEditor({
                             step="50"
                           />
                         </div>
+                        <div style={{ minWidth: 110 }}>
+                          <label className="form-label form-label-sm mb-1">Easing</label>
+                          <select
+                            className="form-select form-select-sm"
+                            value={img.animationEasing ?? ""}
+                            onChange={(e) => updateOverlayImage(i, { animationEasing: (e.target.value || undefined) as HeroEasing | undefined })}
+                          >
+                            {EASING_OPTIONS.map((o) => (
+                              <option key={o.value} value={o.value}>{o.label}</option>
+                            ))}
+                          </select>
+                        </div>
                         <label className="d-flex align-items-center gap-1 m-0 small text-muted" title="Recolor to solid white (non-destructive — doesn't touch the uploaded file)">
                           <input
                             type="checkbox"
@@ -1155,7 +1182,7 @@ export default function SlideEditor({
                 </div>
 
                 <div className="row mb-4">
-                  <div className="col-md-4">
+                  <div className="col-md-3">
                     <label className="form-label fw-semibold">Animation</label>
                     <select
                       className="form-select"
@@ -1185,7 +1212,7 @@ export default function SlideEditor({
                       <option value="zoom">Zoom</option>
                     </select>
                   </div>
-                  <div className="col-md-4">
+                  <div className="col-md-3">
                     <label className="form-label fw-semibold">Duration (ms)</label>
                     <input
                       type="number"
@@ -1211,7 +1238,7 @@ export default function SlideEditor({
                       step="100"
                     />
                   </div>
-                  <div className="col-md-4">
+                  <div className="col-md-3">
                     <label className="form-label fw-semibold">Delay (ms)</label>
                     <input
                       type="number"
@@ -1236,6 +1263,33 @@ export default function SlideEditor({
                       max="3000"
                       step="100"
                     />
+                  </div>
+                  <div className="col-md-3">
+                    <label className="form-label fw-semibold">Easing</label>
+                    <select
+                      className="form-select"
+                      value={slide.overlay?.heading.animationEasing ?? ""}
+                      onChange={(e) =>
+                        updateOverlay({
+                          heading: {
+                            ...slide.overlay?.heading,
+                            text: slide.overlay?.heading.text ?? "",
+                            fontSize: slide.overlay?.heading.fontSize ?? 56,
+                            fontWeight: slide.overlay?.heading.fontWeight ?? 700,
+                            fontFamily: slide.overlay?.heading.fontFamily ?? "inherit",
+                            color: slide.overlay?.heading.color ?? "#ffffff",
+                            animation: slide.overlay?.heading.animation ?? "slideUp",
+                            animationDuration: slide.overlay?.heading.animationDuration ?? 800,
+                            animationDelay: slide.overlay?.heading.animationDelay ?? 200,
+                            animationEasing: (e.target.value || undefined) as HeroEasing | undefined,
+                          },
+                        })
+                      }
+                    >
+                      {EASING_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               </>
@@ -1291,7 +1345,7 @@ export default function SlideEditor({
                     </label>
                   </div>
                   <div className="row g-2 mt-1">
-                    <div className="col-4">
+                    <div className="col-3">
                       <label className="form-label form-label-sm mb-1">Animation</label>
                       <select
                         className="form-select form-select-sm"
@@ -1307,7 +1361,7 @@ export default function SlideEditor({
                         <option value="zoom">Zoom</option>
                       </select>
                     </div>
-                    <div className="col-4">
+                    <div className="col-3">
                       <label className="form-label form-label-sm mb-1">Duration (ms)</label>
                       <input
                         type="number"
@@ -1319,7 +1373,7 @@ export default function SlideEditor({
                         step="50"
                       />
                     </div>
-                    <div className="col-4">
+                    <div className="col-3">
                       <label className="form-label form-label-sm mb-1">Delay (ms)</label>
                       <input
                         type="number"
@@ -1330,6 +1384,18 @@ export default function SlideEditor({
                         max="5000"
                         step="50"
                       />
+                    </div>
+                    <div className="col-3">
+                      <label className="form-label form-label-sm mb-1">Easing</label>
+                      <select
+                        className="form-select form-select-sm"
+                        value={slide.overlay?.eyebrowAnimationEasing ?? ""}
+                        onChange={(e) => updateOverlay({ eyebrowAnimationEasing: (e.target.value || undefined) as HeroEasing | undefined })}
+                      >
+                        {EASING_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                   <div className="form-text">Small uppercase label shown above the heading.</div>
@@ -1442,7 +1508,7 @@ export default function SlideEditor({
                               <option value="zoom">Zoom</option>
                             </select>
                           </div>
-                          <div className="col-6">
+                          <div className="col-4">
                             <label className="form-label form-label-sm mb-1">Duration (ms)</label>
                             <input
                               type="number"
@@ -1454,7 +1520,7 @@ export default function SlideEditor({
                               step="50"
                             />
                           </div>
-                          <div className="col-6">
+                          <div className="col-4">
                             <label className="form-label form-label-sm mb-1">Delay (ms)</label>
                             <input
                               type="number"
@@ -1465,6 +1531,18 @@ export default function SlideEditor({
                               max="5000"
                               step="50"
                             />
+                          </div>
+                          <div className="col-4">
+                            <label className="form-label form-label-sm mb-1">Easing</label>
+                            <select
+                              className="form-select form-select-sm"
+                              value={row.animationEasing ?? ""}
+                              onChange={(e) => updateHeadingRow(idx, { animationEasing: (e.target.value || undefined) as HeroEasing | undefined })}
+                            >
+                              {EASING_OPTIONS.map((o) => (
+                                <option key={o.value} value={o.value}>{o.label}</option>
+                              ))}
+                            </select>
                           </div>
                         </div>
                         <div className="mt-2">
@@ -1650,7 +1728,7 @@ export default function SlideEditor({
                 </div>
 
                 <div className="row mb-4">
-                  <div className="col-md-4">
+                  <div className="col-md-3">
                     <label className="form-label fw-semibold">Animation</label>
                     <select
                       className="form-select"
@@ -1673,7 +1751,7 @@ export default function SlideEditor({
                       <option value="zoom">Zoom</option>
                     </select>
                   </div>
-                  <div className="col-md-4">
+                  <div className="col-md-3">
                     <label className="form-label fw-semibold">Duration (ms)</label>
                     <input
                       type="number"
@@ -1692,7 +1770,7 @@ export default function SlideEditor({
                       step="100"
                     />
                   </div>
-                  <div className="col-md-4">
+                  <div className="col-md-3">
                     <label className="form-label fw-semibold">Delay (ms)</label>
                     <input
                       type="number"
@@ -1710,6 +1788,25 @@ export default function SlideEditor({
                       max="3000"
                       step="100"
                     />
+                  </div>
+                  <div className="col-md-3">
+                    <label className="form-label fw-semibold">Easing</label>
+                    <select
+                      className="form-select"
+                      value={slide.overlay.subheading.animationEasing ?? ""}
+                      onChange={(e) =>
+                        updateOverlay({
+                          subheading: {
+                            ...slide.overlay?.subheading!,
+                            animationEasing: (e.target.value || undefined) as HeroEasing | undefined,
+                          },
+                        })
+                      }
+                    >
+                      {EASING_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               </>
@@ -1934,7 +2031,7 @@ export default function SlideEditor({
                   </div>
 
                   <div className="row">
-                    <div className="col-md-4">
+                    <div className="col-md-3">
                       <label className="form-label fw-semibold">Animation</label>
                       <select
                         className="form-select form-select-sm"
@@ -1957,7 +2054,7 @@ export default function SlideEditor({
                         <option value="zoom">Zoom</option>
                       </select>
                     </div>
-                    <div className="col-md-4">
+                    <div className="col-md-3">
                       <label className="form-label fw-semibold">Duration (ms)</label>
                       <input
                         type="number"
@@ -1976,7 +2073,7 @@ export default function SlideEditor({
                         step="100"
                       />
                     </div>
-                    <div className="col-md-4">
+                    <div className="col-md-3">
                       <label className="form-label fw-semibold">Delay (ms)</label>
                       <input
                         type="number"
@@ -1994,6 +2091,25 @@ export default function SlideEditor({
                         max="3000"
                         step="100"
                       />
+                    </div>
+                    <div className="col-md-3">
+                      <label className="form-label fw-semibold">Easing</label>
+                      <select
+                        className="form-select form-select-sm"
+                        value={button.animationEasing ?? ""}
+                        onChange={(e) => {
+                          const updatedButtons = [...(slide.overlay?.buttons ?? [])];
+                          updatedButtons[index] = {
+                            ...button,
+                            animationEasing: (e.target.value || undefined) as HeroEasing | undefined,
+                          };
+                          updateOverlay({ buttons: updatedButtons });
+                        }}
+                      >
+                        {EASING_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                 </div>
