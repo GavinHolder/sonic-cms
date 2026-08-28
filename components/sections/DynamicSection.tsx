@@ -421,10 +421,25 @@ function FooterRenderer({ section }: { section: FooterSection }) {
       ? "transparent"
       : "#ffffff";
 
-  // Automatic text color adaptation based on background brightness
+  // Automatic text color adaptation based on background brightness.
+  //
+  // getEffectiveBackgroundColor's own "background image present -> assume dark,
+  // force white text" rule is a blind guess with no actual image analysis behind
+  // it — reasonable-ish odds for a moody hero photo, but flatly wrong for a footer
+  // background that turns out to be light (confirmed live: a light/white-based
+  // image forced white text onto a light background, reading as "text disappeared"
+  // the moment a background image was set — the admin's fix request was "add the
+  // image", not "also make the text unreadable"). NOT passing backgroundImage here
+  // deliberately: that shared function is also used by Hero/Normal sections where
+  // the "assume dark" guess is left untouched (out of scope for this fix, and
+  // likely tuned for typically-dark hero photography) — this footer-only fallthrough
+  // instead uses bgColor, the admin's OWN solid-color choice, which is a real signal
+  // instead of a guess. A background image is layered as an overlay on top of that
+  // solid color in this renderer (see backgroundStyles below), so contrasting
+  // against the solid base is a materially better default than assuming dark.
   const effectiveBgColor = getEffectiveBackgroundColor(
     bgColor,
-    content.backgroundImage,
+    undefined,
     content.gradient
   );
   const contrastColor = getContrastColor(effectiveBgColor);

@@ -135,6 +135,16 @@ export default function Navbar() {
   const [enabledFeatures, setEnabledFeatures] = useState<string[]>([]);
   const [companyName, setCompanyName]     = useState("Your Company");
   const [logoUrl, setLogoUrl]             = useState("");
+  // Navbar-specific logo override + display size (Admin -> Navbar -> Logo). Was saved
+  // correctly to NavbarConfig by that editor, but nothing here ever read logoSrc/
+  // logoHeight/logoWidth back out — the navbar always rendered the SITE-WIDE logoUrl
+  // above (from /api/site-config) at a hardcoded 36px/44px, so entering a display
+  // height/width in the admin visibly did nothing. navLogoSrc, when set, overrides
+  // logoUrl; navLogoHeight/navLogoWidth size BOTH <img> render sites below.
+  const [navLogoSrc, setNavLogoSrc]       = useState("");
+  const [navLogoAlt, setNavLogoAlt]       = useState("");
+  const [navLogoHeight, setNavLogoHeight] = useState(defaultNavbarConfig.logoHeight);
+  const [navLogoWidth, setNavLogoWidth]   = useState(defaultNavbarConfig.logoWidth);
   const [navbarStyle, setNavbarStyle]     = useState<"standard" | "tall">("standard");
   const [navbarStyleLoaded, setNavbarStyleLoaded] = useState(false);
   const [phone, setPhone]                 = useState("");
@@ -205,6 +215,12 @@ export default function Navbar() {
           if (typeof json?.data?.colorMatchTopSection === "boolean") {
             setColorMatchEnabled(json.data.colorMatchTopSection);
           }
+          // logoSrc empty/absent -> falls back to the site-wide logoUrl (unchanged
+          // existing behaviour for anyone who never touched the Navbar Logo panel).
+          if (json?.data?.logoSrc)     setNavLogoSrc(json.data.logoSrc);
+          if (json?.data?.logoAlt)     setNavLogoAlt(json.data.logoAlt);
+          if (typeof json?.data?.logoHeight === "number") setNavLogoHeight(json.data.logoHeight);
+          if (typeof json?.data?.logoWidth === "number")  setNavLogoWidth(json.data.logoWidth);
         }
       } catch {}
     };
@@ -449,7 +465,8 @@ export default function Navbar() {
             {/* Logo */}
             <LogoBlock logoUrl={logoUrl} companyName={companyName} effectiveScrolled={effectiveScrolled}
               mobileOpen={mobileOpen} isDarkBackground={isDarkBackground} navTransition={navTransition}
-              matchTextColor={matchTextColor} />
+              matchTextColor={matchTextColor}
+              navLogoSrc={navLogoSrc} navLogoAlt={navLogoAlt} navLogoHeight={navLogoHeight} navLogoWidth={navLogoWidth} />
 
             {/* Right: links + tools + CTA */}
             <div className="d-flex align-items-center gap-3" style={{ marginLeft: "auto", position: "relative", zIndex: 100 }}>
@@ -488,8 +505,13 @@ export default function Navbar() {
               <Link href="/" className="d-flex align-items-center gap-2 text-decoration-none">
                 {logoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={logoUrl} alt={companyName}
-                    style={{ height: 44, maxWidth: 180, objectFit: "contain" }} />
+                  // width:"auto" (navLogoWidth === 0, the default) lets the browser derive
+                  // width from the image's own natural aspect ratio against the set height —
+                  // never distorted. An explicit navLogoWidth still can't stretch/distort the
+                  // image, because objectFit:"contain" fits it WITHIN that box instead of
+                  // filling it — at most it letterboxes, it never skews.
+                  <img src={navLogoSrc || logoUrl} alt={navLogoAlt || companyName}
+                    style={{ height: navLogoHeight, width: navLogoWidth > 0 ? navLogoWidth : "auto", maxWidth: navLogoWidth > 0 ? undefined : 180, objectFit: "contain" }} />
                 ) : (
                   <span style={{ fontWeight: 700, fontSize: "1.25rem", color: "#fff" }}>
                     {companyName}
@@ -662,12 +684,18 @@ export default function Navbar() {
 
 // ── Sub-components ──────────────────────────────────────────────────────────
 
-function LogoBlock({ logoUrl, companyName, effectiveScrolled, mobileOpen, isDarkBackground, navTransition, matchTextColor }: {
+function LogoBlock({ logoUrl, companyName, effectiveScrolled, mobileOpen, isDarkBackground, navTransition, matchTextColor, navLogoSrc, navLogoAlt, navLogoHeight, navLogoWidth }: {
   logoUrl: string; companyName: string; effectiveScrolled: boolean;
   mobileOpen: boolean; isDarkBackground: boolean; navTransition: string;
   /** Optional contrast color from the color-matched navbar feature (null = default). */
   matchTextColor?: string | null;
+  // Navbar Logo panel override + display size — see the state declarations' own
+  // comment at the top of Navbar for why these were previously dead admin fields.
+  navLogoSrc?: string; navLogoAlt?: string; navLogoHeight?: number; navLogoWidth?: number;
 }) {
+  const effLogo = navLogoSrc || logoUrl;
+  const effHeight = navLogoHeight || 36;
+  const effWidth = navLogoWidth || 0;
   return (
     <div className="d-flex align-items-center" style={{
       position: effectiveScrolled || mobileOpen ? "relative" : "absolute",
@@ -676,10 +704,12 @@ function LogoBlock({ logoUrl, companyName, effectiveScrolled, mobileOpen, isDark
       transition: `all ${navTransition}`, zIndex: 200,
     }}>
       <Link href="/" className="d-flex align-items-center gap-2 text-decoration-none">
-        {logoUrl ? (
+        {effLogo ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={logoUrl} alt={companyName}
-            style={{ height: 36, maxWidth: 160, objectFit: "contain",
+          // Same width:"auto" + objectFit:"contain" never-stretch treatment as the
+          // tall variant's own logo <img> above.
+          <img src={effLogo} alt={navLogoAlt || companyName}
+            style={{ height: effHeight, width: effWidth > 0 ? effWidth : "auto", maxWidth: effWidth > 0 ? undefined : 160, objectFit: "contain",
               filter: "none",
               transition: "filter 600ms cubic-bezier(0.4,0,0.2,1)" }} />
         ) : (
