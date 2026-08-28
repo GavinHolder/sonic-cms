@@ -209,6 +209,20 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
   const [isTablet, setIsTablet] = useState(false);
+  // "Full navbar over hero" (Settings -> Site Config -> Navbar) — same source Navbar.tsx
+  // itself reads, fetched independently here since this component doesn't otherwise see
+  // site config. Off (default) is byte-for-byte unchanged from before this existed. On:
+  // the hero compensates for the navbar switching from transparent-overlay to a full
+  // opaque bar by reserving --navbar-height at its own top, the exact same CSS custom
+  // property (and clearance amount) every non-hero section already reserves via
+  // .section-content-wrapper's padding-top — reusing that, not inventing a new amount.
+  const [heroFullNavbar, setHeroFullNavbar] = useState(false);
+  useEffect(() => {
+    fetch("/api/site-config")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => { if (typeof json?.data?.heroFullNavbar === "boolean") setHeroFullNavbar(json.data.heroFullNavbar); })
+      .catch(() => {});
+  }, []);
   // Manual autoplay pause toggle. Combined with autoPlay so EITHER can stop the
   // timer (see auto-play effect below). Additive; defaults to playing.
   const [paused, setPaused] = useState(false);
@@ -590,7 +604,10 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
     <div
       id={section.id}
       className="hero-carousel position-relative w-100"
-      style={{ minHeight: "100dvh", overflow: "hidden" }}
+      style={{
+        minHeight: heroFullNavbar ? "calc(100dvh + var(--navbar-height, 100px))" : "100dvh",
+        overflow: "hidden",
+      }}
     >
       {/*
         Always-mounted background STACK — one layer per slide, cross-faded by
@@ -613,6 +630,11 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
           key={`bg-${i}`}
           className="position-absolute top-0 start-0 w-100 h-100"
           style={{
+            // Deliberately NOT shifted down for heroFullNavbar — the background image/
+            // video stays full-bleed behind the (now opaque) navbar, same convention
+            // every other section already uses (its own background fills the whole
+            // section; only the CONTENT respects the navbar-clearance padding). Only
+            // the text/overlay content layer below gets pushed down.
             zIndex: 0,
             opacity: i === currentSlide ? 1 : 0,
             transition: `opacity ${transitionDuration / 1000}s ${resolveCssEasing(transitionEasing)}`,
@@ -629,8 +651,18 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: transitionDuration / 1000, ease: resolveFramerEasing(transitionEasing) }}
-        className="position-absolute top-0 start-0 w-100 h-100"
-        style={{ zIndex: 1 }}
+        className="position-absolute start-0 w-100 h-100"
+        style={{
+          // top-0 (the plain Bootstrap class) would anchor this to the box's own top
+          // edge, ignoring the extra height reserved above for the navbar — an
+          // absolutely positioned element doesn't respect its parent's padding, so
+          // growing the parent's min-height alone doesn't push an absolute child down.
+          // Off (default) is exactly top:0, byte for byte the same as the plain top-0
+          // class this replaces.
+          top: heroFullNavbar ? "var(--navbar-height, 100px)" : 0,
+          height: heroFullNavbar ? "calc(100% - var(--navbar-height, 100px))" : "100%",
+          zIndex: 1,
+        }}
       >
           {/* Background is handled by the always-mounted stack above; this
               AnimatePresence layer now carries ONLY the text/overlay content so

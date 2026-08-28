@@ -128,6 +128,15 @@ export default function Navbar() {
   const [heroPresent, setHeroPresent]     = useState(pathHasHero);
   const [pastRevealDelta, setPastRevealDelta] = useState(!pathHasHero);
   const [hideOverHero, setHideOverHero]   = useState(HIDE_OVER_HERO_DEFAULT);
+  // Full navbar over hero (opt-in, default off — current transparent-over-hero
+  // behaviour is byte-for-byte unchanged when this is off). When on, the hero page's
+  // navbar is forced into the SAME "scrolled" (full links, CTA, solid background)
+  // state it already uses everywhere else, via effectiveScrolled below — reusing the
+  // existing opaque-navbar code path instead of building a new visual state. The
+  // hero section itself compensates by adding the standard --navbar-height
+  // padding-top (see HeroCarousel.tsx), the same clearance mechanism every non-hero
+  // section already uses, so nothing new needed inventing there either.
+  const [heroFullNavbar, setHeroFullNavbar] = useState(false);
   const [navLinks, setNavLinks]           = useState<Array<{ id: string; label: string; href?: string }>>([]);
   const [isDarkBackground, setIsDarkBg]   = useState(pathHasHero);
   const [ctaConfig, setCtaConfig]         = useState<NavbarCtaButton>(defaultNavbarConfig.cta);
@@ -235,6 +244,7 @@ export default function Navbar() {
         if (data?.navbarStyle) setNavbarStyle(data.navbarStyle as "standard" | "tall");
         // Optional flag — API may not return it yet; stays false (current behaviour) until then.
         if (typeof data?.hideOverHero === "boolean") setHideOverHero(data.hideOverHero);
+        if (typeof data?.heroFullNavbar === "boolean") setHeroFullNavbar(data.heroFullNavbar);
         if (data?.phone)       setPhone(data.phone);
         // Collect all social URLs
         const s: Record<string, string> = {};
@@ -373,13 +383,15 @@ export default function Navbar() {
     };
   }, [pathHasHero]);
 
-  const effectiveScrolled = !heroPresent || scrolled;
+  const effectiveScrolled = !heroPresent || scrolled || heroFullNavbar;
   const navTransition = heroPresent ? "600ms cubic-bezier(0.4, 0, 0.2, 1)" : "none";
 
   // Hide-over-hero mode: while the hero is on screen and the user hasn't scrolled past
   // the small reveal delta, render the whole navbar hidden (slide/fade up), revealing it
   // on scroll. When the flag is off this is always false → default behaviour unchanged.
-  const navHiddenOverHero = hideOverHero && heroPresent && !pastRevealDelta;
+  // heroFullNavbar takes priority if an admin somehow has both on — a forced-visible,
+  // forced-opaque navbar and a forced-hidden-until-scroll navbar can't both apply.
+  const navHiddenOverHero = hideOverHero && !heroFullNavbar && heroPresent && !pastRevealDelta;
 
   // Color-matched navbar (opt-in). v2: active for the standard variant whenever an
   // opaque solid color is currently sampled under the bar — at ANY scroll position.

@@ -25,6 +25,7 @@ interface SiteConfig {
   tiktok: string;
   navbarStyle: string;
   hideOverHero: boolean;
+  heroFullNavbar: boolean;
   defaultTheme: string;
   copyrightText: string;
   showRegulatory: boolean;
@@ -43,6 +44,7 @@ const DEFAULTS: SiteConfig = {
   facebook: "", instagram: "", twitter: "", linkedin: "", youtube: "", tiktok: "",
   navbarStyle: "standard",
   hideOverHero: false,
+  heroFullNavbar: false,
   defaultTheme: "light",
   copyrightText: "", showRegulatory: false,
   homePage: "",
@@ -359,11 +361,26 @@ function SiteConfigForm() {
               <div className="form-check form-switch mt-3">
                 <input className="form-check-input" type="checkbox" id="hideOverHero"
                   checked={config.hideOverHero}
-                  onChange={() => set("hideOverHero", !config.hideOverHero)} />
+                  onChange={() => { set("hideOverHero", !config.hideOverHero); set("heroFullNavbar", false); }} />
                 <label className="form-check-label small" htmlFor="hideOverHero">
                   <span className="fw-semibold">Hide navbar over hero</span>
                   <span className="text-muted d-block" style={{ fontSize: "0.75rem" }}>
                     Hide the navbar while the hero is on screen; reveal it (fade in) once the visitor scrolls down. Off = navbar always shown (transparent over hero).
+                  </span>
+                </label>
+              </div>
+
+              {/* Mutually exclusive with "Hide navbar over hero" above — both fight over
+                  what the navbar looks like before any scrolling has happened, so turning
+                  one on always turns the other off (see the onChange handlers). */}
+              <div className="form-check form-switch mt-2">
+                <input className="form-check-input" type="checkbox" id="heroFullNavbar"
+                  checked={config.heroFullNavbar}
+                  onChange={() => { set("heroFullNavbar", !config.heroFullNavbar); set("hideOverHero", false); }} />
+                <label className="form-check-label small" htmlFor="heroFullNavbar">
+                  <span className="fw-semibold">Full navbar over hero</span>
+                  <span className="text-muted d-block" style={{ fontSize: "0.75rem" }}>
+                    Show the complete navbar (all links, CTA button, solid background) immediately at the top of the hero, instead of the minimal transparent version — the hero content is pushed down to clear it, exactly like every other section already does.
                   </span>
                 </label>
               </div>

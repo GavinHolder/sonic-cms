@@ -790,6 +790,7 @@ model SiteConfig {
   updatedAt      DateTime @updatedAt
   navbarStyle    String   @default("standard")
   hideOverHero   Boolean  @default(false)
+  heroFullNavbar Boolean  @default(false)
   tiktok         String   @default("")
   defaultTheme   String   @default("dark")
   homePage          String?
