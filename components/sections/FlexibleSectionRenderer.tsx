@@ -780,6 +780,17 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           darkBg={darkBg}
           plateMode
           headerOffset={freePlateHeaderOffset}
+          // Dynamic Content Height Mode on a free-mode section — this plate instance is
+          // the ONLY one that actually renders the blocks (the non-plate call below always
+          // returns null in free mode, see its own onDynamicScreensChange gating), so it's
+          // the only instance that ever receives real reportBlockHeight() calls from a
+          // self-sizing block (TemplateBlock/CardTabsBlock/ProductGridBlock). Without these
+          // two props, dynamicMeta.isDynamic falls back to designerData.contentMode (often
+          // stale) and this instance's live-measured dynamicScreens was never reported
+          // anywhere — the section silently stayed pinned to 1 screen no matter how tall
+          // the content actually rendered (see the null instance's matching comment below).
+          resolvedContentMode={contentMode}
+          onDynamicScreensChange={contentMode === "dynamic" ? setDynamicScreens : undefined}
           bgImage={{
             url: bgImageUrl,
             size: bgImageSize,
@@ -918,7 +929,17 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           <div className="container-fluid">
             {/* If we have designer data (mockup block format), render that first */}
             {designerData
-              ? <DesignerBlocksRenderer designerData={designerData} darkBg={darkBg} resolvedContentMode={contentMode} onDynamicScreensChange={contentMode === "dynamic" ? setDynamicScreens : undefined} />
+              ? <DesignerBlocksRenderer designerData={designerData} darkBg={darkBg} resolvedContentMode={contentMode}
+                  // In free mode THIS instance always renders null on desktop (see
+                  // isFreeMode's own "if (!plateMode) return null" branch) — it never mounts
+                  // a single block, so its own dynamicScreens is permanently stuck at 1. The
+                  // free-mode plate instance above is the one that actually renders blocks
+                  // and owns onDynamicScreensChange for that case; wiring it here too would
+                  // have this always-1 instance race the plate's real value and stomp it
+                  // back to 1 on every render (exactly the bug that kept a free-mode Dynamic
+                  // section pinned to a single 100vh screen no matter how tall its content
+                  // actually was).
+                  onDynamicScreensChange={(contentMode === "dynamic" && !isFreeDesigner) ? setDynamicScreens : undefined} />
               : <>
                   {mosaicMode
                     ? <MosaicLayout elements={elements} layout={layout as any} darkBg={darkBg} />
@@ -1639,10 +1660,12 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
   // "how many 100vh screens does this section need right now" number up to the parent
   // FlexibleSectionRenderer, which owns the actual <section> DOM node and applies it as a
   // CSS custom property (see the outer <section> style + globals.css [data-content-mode
-  // "dynamic"]). Undefined for every other DesignerBlocksRenderer call site (free-mode
-  // plate, promoted-plate, scroll-stage) — dynamic mode is scoped to the standard
-  // grid/preset (non-free) designer layout, the same path Multi mode's own
-  // containerH/multiLimit logic already lives in.
+  // "dynamic"]). Wired to the free-mode PLATE call site too (the one that actually
+  // renders blocks in free mode and gets real reportBlockHeight() reports) — the
+  // non-plate call site is gated OFF for free mode instead, since it always renders
+  // null there and would otherwise report a permanently-stuck "1" and stomp the
+  // plate's real value. Undefined for promoted-plate and scroll-stage, which don't
+  // support Dynamic Content Height Mode.
   onDynamicScreensChange?: (screens: number) => void;
   // resolvedContentMode: the PARENT's already-resolved contentMode (section.contentMode ||
   // content.contentMode || "single") — the SAME value the outer <section>'s own
