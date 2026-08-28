@@ -19,6 +19,18 @@ export async function POST(
   const restrictedRegionIds: string[] = Array.isArray(body.restrictedRegionIds)
     ? body.restrictedRegionIds.filter((v: unknown) => typeof v === "string")
     : [];
+  // A new package with no explicit order defaulted to 0 — the LOWEST possible value,
+  // so it sorted BEFORE every existing package that already had a real (>0) order from
+  // being seeded or manually reordered. Every list that reads packages (public pricing
+  // cards, this network's own admin package list) orders by [{order:"asc"},
+  // {createdAt:"asc"}], so a newly created package landed FIRST/leftmost instead of
+  // LAST/rightmost — the reverse of "newest goes next to the last one added". Default
+  // to one past this network's current highest order instead, so a package with no
+  // explicit order genuinely appends at the end; an admin-supplied body.order (manual
+  // reordering) still wins outright.
+  const nextOrder = body.order ?? (
+    (await prisma.package.aggregate({ where: { networkId }, _max: { order: true } }))._max.order ?? -1
+  ) + 1;
   const data = {
     networkId,
     name,
@@ -34,7 +46,7 @@ export async function POST(
     productTypeId: body.productTypeId || null,
     popular: body.popular ?? false,
     isActive: body.isActive ?? true,
-    order: body.order ?? 0,
+    order: nextOrder,
     restrictedRegions: { connect: restrictedRegionIds.map((id) => ({ id })) },
   };
 
