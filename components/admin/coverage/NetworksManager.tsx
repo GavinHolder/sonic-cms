@@ -1082,7 +1082,7 @@ export default function NetworksManager() {
                               </button>
                             </div>
                             {variantFeatures.map((f, fi) => (
-                              <div key={fi} className="d-flex gap-2 mb-2">
+                              <div key={fi} className="d-flex gap-2 mb-2 align-items-center">
                                 <select className="form-select form-select-sm" style={{ maxWidth: 200 }} value={f.badge ?? ""}
                                   onChange={(e) => { const next = [...variantFeatures]; next[fi] = { ...next[fi], badge: e.target.value || null }; updateVariant({ features: next }); }}>
                                   <option value="">— Free text (no badge) —</option>
@@ -1090,6 +1090,11 @@ export default function NetworksManager() {
                                 </select>
                                 <input className="form-control form-control-sm" value={f.value} placeholder="e.g. Uncapped"
                                   onChange={(e) => { const next = [...variantFeatures]; next[fi] = { ...next[fi], value: e.target.value }; updateVariant({ features: next }); }} />
+                                <div className="form-check form-switch text-nowrap px-0 ps-4" title="Render as a full-width callout banner (like &quot;Free Installation&quot;) instead of a normal feature row">
+                                  <input className="form-check-input" type="checkbox" id={`vfeat-special-${fi}`} checked={f.special === true}
+                                    onChange={(e) => { const next = [...variantFeatures]; next[fi] = { ...next[fi], special: e.target.checked }; updateVariant({ features: next }); }} />
+                                  <label className="form-check-label small text-muted" htmlFor={`vfeat-special-${fi}`}>Special</label>
+                                </div>
                                 <button type="button" className="btn btn-sm btn-outline-danger" title="Remove"
                                   onClick={() => updateVariant({ features: variantFeatures.filter((_, j) => j !== fi) })}>
                                   <i className="bi bi-x-lg" />
@@ -1129,7 +1134,7 @@ export default function NetworksManager() {
                   return (
                     <div>
                       {rows.map((f, i) => (
-                        <div key={i} className="d-flex gap-2 mb-2">
+                        <div key={i} className="d-flex gap-2 mb-2 align-items-center">
                           <select className="form-select" style={{ maxWidth: 220 }} value={f.badge ?? ""}
                             onChange={(e) => { const next = [...rows]; next[i] = { ...next[i], badge: e.target.value || null }; setRows(next); }}>
                             <option value="">— Free text (no badge) —</option>
@@ -1137,6 +1142,11 @@ export default function NetworksManager() {
                           </select>
                           <input className="form-control" value={f.value} placeholder="e.g. Uncapped"
                             onChange={(e) => { const next = [...rows]; next[i] = { ...next[i], value: e.target.value }; setRows(next); }} />
+                          <div className="form-check form-switch text-nowrap px-0 ps-4" title="Render as a full-width callout banner (like &quot;Free Installation&quot;) instead of a normal feature row">
+                            <input className="form-check-input" type="checkbox" id={`feat-special-${i}`} checked={f.special === true}
+                              onChange={(e) => { const next = [...rows]; next[i] = { ...next[i], special: e.target.checked }; setRows(next); }} />
+                            <label className="form-check-label small text-muted" htmlFor={`feat-special-${i}`}>Special</label>
+                          </div>
                           <button type="button" className="btn btn-outline-danger" title="Remove"
                             onClick={() => setRows(rows.filter((_, j) => j !== i))}>
                             <i className="bi bi-x-lg" />

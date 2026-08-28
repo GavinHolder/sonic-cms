@@ -18,6 +18,12 @@
 export interface FeatureRow {
   badge: string | null;
   value: string;
+  /** Marks this row as the card's one "Special" callout (e.g. "FREE INSTALLATION",
+   * "3 MONTHS FREE") — rendered as a full-width banner instead of a normal
+   * badge+checkmark row. Optional/falsy for every ordinary row; omitted from
+   * saved JSON entirely when false (see sanitizeFeatureRowsForSave) so existing
+   * packages' stored shape is untouched until an admin opts a row in. */
+  special?: boolean;
 }
 
 export type PackageFeatureEntry = string | FeatureRow;
@@ -50,7 +56,7 @@ export function parsePackageFeatures(raw: unknown): PackageFeatureEntry[] {
     if (typeof e === "string") {
       if (e.trim()) out.push(e);
     } else if (isBadgeFeature(e)) {
-      if (e.value.trim()) out.push({ badge: e.badge, value: e.value });
+      if (e.value.trim()) out.push({ badge: e.badge, value: e.value, ...(e.special ? { special: true } : {}) });
     }
     // Anything else (number, null, malformed object) is silently dropped.
   }
@@ -89,7 +95,7 @@ export function toEditableFeatureRows(raw: unknown): FeatureRow[] {
   const out: FeatureRow[] = [];
   for (const e of arr) {
     if (typeof e === "string") out.push({ badge: null, value: e });
-    else if (isBadgeFeature(e)) out.push({ badge: e.badge, value: e.value });
+    else if (isBadgeFeature(e)) out.push({ badge: e.badge, value: e.value, special: e.special === true });
   }
   return out;
 }
@@ -103,6 +109,10 @@ export function toEditableFeatureRows(raw: unknown): FeatureRow[] {
  */
 export function sanitizeFeatureRowsForSave(rows: FeatureRow[]): FeatureRow[] {
   return rows
-    .map((r) => ({ badge: r.badge && r.badge.trim() ? r.badge.trim() : null, value: r.value.trim() }))
+    .map((r) => ({
+      badge: r.badge && r.badge.trim() ? r.badge.trim() : null,
+      value: r.value.trim(),
+      ...(r.special ? { special: true as const } : {}),
+    }))
     .filter((r) => r.value !== "");
 }

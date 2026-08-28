@@ -21,6 +21,17 @@ interface Props {
  * A `badge === null` row is a deliberate "free text" choice from the edit form and
  * renders identically to a plain string. See lib/packages/features.ts. */
 function FeatureRowItem({ f, helpText, tc, muted }: { f: PackageFeatureEntry; helpText?: string; tc: string; muted: string }) {
+  if (typeof f !== "string" && f.special) {
+    return (
+      <li style={{
+        fontSize: 13, fontWeight: 700, textAlign: "center", listStyle: "none",
+        color: "#fff", background: "linear-gradient(135deg, var(--bs-danger, #e31e24), #a30d13)",
+        borderRadius: 4, padding: "6px 10px", margin: "4px 0",
+      }}>
+        {f.value}
+      </li>
+    );
+  }
   if (typeof f === "string" || f.badge === null) {
     const text = typeof f === "string" ? f : f.value;
     return (
