@@ -232,6 +232,26 @@ export default function FlexibleSectionEditorModal({
     const gradient = backgroundType === "gradient"
       ? { enabled: true, type: "preset" as const, preset: { direction: gradientDirection as any, startOpacity: gradientStartOpacity, endOpacity: gradientEndOpacity, color: gradientColor } }
       : undefined;
+    // designerData is a separately-maintained snapshot round-tripped through the
+    // vanilla-JS canvas editor (postMessage) — it carries its OWN embedded contentMode
+    // field that nothing keeps in sync with the Content Height Mode toggle above (which
+    // only ever wrote to content.contentMode, a level up). A section could end up with
+    // content.contentMode: "dynamic" while content.designerData.contentMode stayed a
+    // stale "single" underneath it, which silently broke Dynamic/Multi mode's own height
+    // calculation in FlexibleSectionRenderer (that calc reads designerData's copy) —
+    // confirmed against a real production section before this fix. Patch designerData's
+    // own copy to match on every save so the two can never diverge going forward; falls
+    // back to the untouched string if it isn't valid JSON (e.g. legacy/empty content).
+    const syncedDesignerData = (() => {
+      if (!designerData) return designerData;
+      try {
+        const parsed = JSON.parse(designerData);
+        if (parsed && typeof parsed === "object" && parsed.contentMode !== contentMode) {
+          return JSON.stringify({ ...parsed, contentMode });
+        }
+        return designerData;
+      } catch { return designerData; }
+    })();
 
     const updated: FlexibleSection = {
       ...section,
@@ -287,7 +307,7 @@ export default function FlexibleSectionEditorModal({
         // appear if designerData is ever removed. When editing elements directly,
         // explicitly null-out designerData so the renderer doesn't ignore changes.
         elements: designerData ? [] : elements,
-        designerData: designerData || null,
+        designerData: syncedDesignerData || null,
         layout,
         gradient,
         // Background-image fade/MASK (#60)
@@ -467,6 +487,12 @@ export default function FlexibleSectionEditorModal({
     if (typeof designerData === "object") return designerData;
     try { return JSON.parse(designerData as string); } catch { return null; }
   })();
+  // Same designerData/contentMode sync as handleSave (see its own comment) — applied here
+  // too so the LIVE PREVIEW pane while editing matches what actually gets persisted, rather
+  // than the preview showing correct Dynamic/Multi behavior only after a save+reload.
+  const previewDesignerData = parsedDesigner && parsedDesigner.contentMode !== contentMode
+    ? JSON.stringify({ ...parsedDesigner, contentMode })
+    : designerData;
 
   // ── Section being edited in designer ─────────────────────────
   const designerSection: FlexibleSection = {
@@ -480,7 +506,7 @@ export default function FlexibleSectionEditorModal({
     paddingBottom,
     paddingTopMobile,
     paddingBottomMobile,
-    content: { ...section.content, contentMode, elements, layout, designerData } as any,
+    content: { ...section.content, contentMode, elements, layout, designerData: previewDesignerData } as any,
   };
 
   // ─────────────────────────────────────────────────────────────
@@ -655,7 +681,12 @@ export default function FlexibleSectionEditorModal({
                               : (parsedDesigner.preset || "preset")}</strong>
                             {parsedDesigner.grid?.gap != null && ` · gap ${parsedDesigner.grid.gap}px`}
                           </span>
-                          <span className="ms-auto badge bg-primary bg-opacity-10 text-primary">{parsedDesigner.contentMode || "single"} mode</span>
+                          {/* contentMode (the toggle's own state above), not parsedDesigner.contentMode —
+                              the latter is designerData's separately-maintained copy, which is exactly the
+                              field that was found to go stale independently of this toggle (see
+                              previewDesignerData's comment). Showing it here risked telling the admin
+                              their section was still "single" right after they'd switched to "dynamic". */}
+                          <span className="ms-auto badge bg-primary bg-opacity-10 text-primary">{contentMode} mode</span>
                         </div>
 
                         {/* Block accordion */}

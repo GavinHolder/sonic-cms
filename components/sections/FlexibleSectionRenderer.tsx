@@ -918,7 +918,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           <div className="container-fluid">
             {/* If we have designer data (mockup block format), render that first */}
             {designerData
-              ? <DesignerBlocksRenderer designerData={designerData} darkBg={darkBg} onDynamicScreensChange={contentMode === "dynamic" ? setDynamicScreens : undefined} />
+              ? <DesignerBlocksRenderer designerData={designerData} darkBg={darkBg} resolvedContentMode={contentMode} onDynamicScreensChange={contentMode === "dynamic" ? setDynamicScreens : undefined} />
               : <>
                   {mosaicMode
                     ? <MosaicLayout elements={elements} layout={layout as any} darkBg={darkBg} />
@@ -1631,7 +1631,7 @@ function FullBleedVoltLayer({ props: p }: { props: Record<string, unknown> }) {
   );
 }
 
-function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMode, bgImage, headerOffset, onDynamicScreensChange }: {
+function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMode, bgImage, headerOffset, onDynamicScreensChange, resolvedContentMode }: {
   designerData: string | Record<string, unknown>;
   darkBg: boolean;
   scrollStageZone?: number;
@@ -1644,6 +1644,25 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
   // grid/preset (non-free) designer layout, the same path Multi mode's own
   // containerH/multiLimit logic already lives in.
   onDynamicScreensChange?: (screens: number) => void;
+  // resolvedContentMode: the PARENT's already-resolved contentMode (section.contentMode ||
+  // content.contentMode || "single") — the SAME value the outer <section>'s own
+  // data-content-mode attribute uses. Passed down so dynamicMeta.isDynamic (below) checks
+  // THIS instead of re-deriving its own copy from designerData.contentMode.
+  //
+  // Those two are NOT guaranteed to agree: FlexibleSectionEditorModal's "Content Height
+  // Mode" toggle (Single/Multi/Dynamic) writes its choice to content.contentMode on save,
+  // but designerData is a separately-maintained blob (round-tripped through the vanilla-JS
+  // canvas editor) saved alongside it — nothing keeps designerData's OWN embedded
+  // contentMode field in sync with the toggle. A section can end up with
+  // content.contentMode: "dynamic" (correct, drives the visible DOM attribute) while
+  // designerData.contentMode is still a stale "single" underneath it — which silently
+  // gated dynamicScreens' entire computation to always return 1, no matter how tall the
+  // content actually grew. Confirmed directly against production DB before this fix:
+  // content.contentMode was "dynamic", content.designerData.contentMode was "single".
+  // Falls back to designerData.contentMode only when this prop is genuinely absent (the
+  // few call sites — free-mode plate, promoted-plate, scroll-stage — that don't pass it,
+  // where dynamic mode was never in scope anyway).
+  resolvedContentMode?: string;
   // plateMode: this is the SECTION-LEVEL free cover-plate instance (desktop). It owns the
   // desktop free render (bg image + blocks in one COVER-scaled box) and returns null on
   // mobile. The default (plateMode falsy) in-wrapper instance is the inverse: null on
@@ -1710,13 +1729,16 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
       const d = typeof designerData === "string" ? JSON.parse(designerData) : designerData;
       const cap = Number((d as Record<string, unknown>)?.multiLimit);
       return {
-        isDynamic: (d as Record<string, unknown>)?.contentMode === "dynamic",
+        // Prefer the parent's already-resolved contentMode (see resolvedContentMode's own
+        // doc comment above) — falls back to designerData's own copy only when the caller
+        // genuinely didn't pass one.
+        isDynamic: (resolvedContentMode ?? (d as Record<string, unknown>)?.contentMode) === "dynamic",
         // Reuses the existing multiLimit field/UI as the safety cap — defaults to 5
         // screens when the admin hasn't set one for a Dynamic section.
         cap: cap > 0 ? cap : 5,
       };
     } catch { return { isDynamic: false, cap: 5 }; }
-  }, [designerData]);
+  }, [designerData, resolvedContentMode]);
   const [blockHeights, setBlockHeights] = useState<Record<string, number>>({});
   const reportBlockHeight = useCallback((blockId: string, px: number) => {
     if (!Number.isFinite(px) || px <= 0) return;
@@ -1849,7 +1871,14 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
     }
 
     const isFreeMode = data.positionMode === "free" || data.layoutType === "free";
-    const isMulti    = data.contentMode === "multi";
+    // Same resolvedContentMode-over-designerData preference as dynamicMeta.isDynamic above,
+    // and for the identical reason — data.contentMode is designerData's own possibly-stale
+    // embedded copy (see resolvedContentMode's doc comment on this component's props).
+    // Multi mode has the exact same latent bug Dynamic mode had: a section correctly
+    // switched to "multi" via content.contentMode, whose designerData blob wasn't updated
+    // to match, would silently compute isMulti as false here and use the wrong (single-
+    // screen) height math despite showing as Multi everywhere else.
+    const isMulti    = (resolvedContentMode ?? data.contentMode) === "multi";
     // Dynamic mode is scoped to the non-free designer layout (same path Multi's own
     // containerH/multiLimit logic lives in) — dynamicMeta/dynamicScreens are computed by
     // the unconditional hooks above (must run before this try block's early returns).
