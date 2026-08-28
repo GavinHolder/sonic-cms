@@ -303,7 +303,23 @@ function PriceCard({ p, selected, onClick, mode }: { p: CoveragePackage; selecte
       </div>
       {Array.isArray(p.features) && p.features.length > 0 && (
         <div style={{ marginLeft: 22, marginTop: 6, display: "flex", flexWrap: "wrap", gap: "2px 12px" }}>
-          {p.features.slice(0, 4).map((f, i) => <span key={i} style={{ fontSize: 11.5, color: "#cbd5e1" }}><i className="bi bi-check" style={{ color: "#22c55e" }} /> {f}</span>)}
+          {p.features.slice(0, 4).map((f, i) => {
+            // A feature can be the legacy plain-string shape, or the newer
+            // { badge, value } shape (Feature Badges — see real-builders.js's
+            // featLineHtml for the same normalization elsewhere). Rendering the raw
+            // object directly as a child (the previous `{f}`) is exactly what threw
+            // "Minified React error #31: object with keys {badge, value}" the moment
+            // any package on the resolved address actually had a badge-style feature —
+            // this component only ever expected plain strings.
+            const text = f && typeof f === "object" && !Array.isArray(f)
+              ? [(f as { badge?: string }).badge, (f as { value?: string }).value].filter(Boolean).join(": ")
+              : String(f ?? "");
+            return (
+              <span key={i} style={{ fontSize: 11.5, color: "#cbd5e1" }}>
+                <i className="bi bi-check" style={{ color: "#22c55e" }} /> {text}
+              </span>
+            );
+          })}
         </div>
       )}
     </button>
