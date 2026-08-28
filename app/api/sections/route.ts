@@ -51,10 +51,19 @@ export async function GET(request: NextRequest) {
       orderBy: { order: 'asc' },
     });
 
-    return NextResponse.json({
-      success: true,
-      data: sections,
-    });
+    // No Cache-Control here previously meant browsers were free to apply their own
+    // heuristic caching to this response — confirmed live twice this session (a
+    // pricing template CSS edit and a navbar logoHeight save both showed correctly
+    // on a fresh no-store fetch, but a browser tab that had already loaded this
+    // endpoint kept serving its stale cached copy indefinitely, reading as "the
+    // change did nothing" even though it saved and deployed correctly). This is
+    // THE endpoint every page's sections render from — visitor-facing, not just
+    // admin preview — so a stale cache here can hide any content edit indefinitely
+    // for a returning visitor's browser.
+    return NextResponse.json(
+      { success: true, data: sections },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
   } catch (error) {
     console.error('Failed to fetch sections:', error);
     return NextResponse.json(

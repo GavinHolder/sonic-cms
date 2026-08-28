@@ -54,7 +54,16 @@ async function writeConfig(config: NavbarConfig): Promise<void> {
 export async function GET() {
   try {
     const config = await readConfig();
-    return NextResponse.json({ success: true, data: config });
+    // No Cache-Control here previously meant browsers were free to apply their own
+    // heuristic caching to this response — confirmed live: an admin saving a new
+    // logoHeight showed correctly on a fresh fetch, but a browser tab that had
+    // already loaded this endpoint once kept serving its stale cached copy
+    // indefinitely, reading as "the save did nothing" even though it worked.
+    // This config changes on every admin save, so it must never be cached.
+    return NextResponse.json(
+      { success: true, data: config },
+      { headers: { "Cache-Control": "no-store" } }
+    );
   } catch (error) {
     return handleApiError(error);
   }
