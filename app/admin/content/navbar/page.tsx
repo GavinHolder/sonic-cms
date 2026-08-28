@@ -592,38 +592,68 @@ export default function NavbarEditorPage() {
 
               <div className="row g-3">
                 <div className="col-6">
-                  <label className="form-label fw-semibold" htmlFor="logoHeight">
-                    Display Height (px)
+                  <label className="form-label fw-semibold d-flex justify-content-between align-items-center" htmlFor="logoHeight">
+                    <span>Display Height (px)</span>
+                    <span className="badge rounded-pill text-primary border border-primary-subtle" style={{ minWidth: 56 }}>
+                      {config.logoHeight}px
+                    </span>
                   </label>
-                  <input
-                    id="logoHeight"
-                    type="number"
-                    className="form-control"
-                    value={config.logoHeight}
-                    onChange={(e) =>
-                      setField("logoHeight", Math.max(16, parseInt(e.target.value) || 44))
-                    }
-                    min={16}
-                    max={200}
-                  />
-                  <div className="form-text">Default: 44 px · Range: 16–200 px</div>
+                  <div className="d-flex align-items-center gap-2">
+                    <input
+                      type="range"
+                      className="form-range flex-grow-1"
+                      min={16}
+                      max={200}
+                      step={1}
+                      value={config.logoHeight}
+                      onChange={(e) => setField("logoHeight", parseInt(e.target.value))}
+                    />
+                    <input
+                      id="logoHeight"
+                      type="number"
+                      className="form-control"
+                      style={{ width: 76 }}
+                      value={config.logoHeight}
+                      onChange={(e) =>
+                        setField("logoHeight", Math.max(16, parseInt(e.target.value) || 44))
+                      }
+                      min={16}
+                      max={200}
+                    />
+                  </div>
+                  <div className="form-text">Default: 44 px · Range: 16–200 px — drag or type, the preview above updates live</div>
                 </div>
                 <div className="col-6">
-                  <label className="form-label fw-semibold" htmlFor="logoWidth">
-                    Display Width (px)
+                  <label className="form-label fw-semibold d-flex justify-content-between align-items-center" htmlFor="logoWidth">
+                    <span>Display Width (px)</span>
+                    <span className="badge rounded-pill text-primary border border-primary-subtle" style={{ minWidth: 56 }}>
+                      {config.logoWidth > 0 ? `${config.logoWidth}px` : "Auto"}
+                    </span>
                   </label>
-                  <input
-                    id="logoWidth"
-                    type="number"
-                    className="form-control"
-                    value={config.logoWidth}
-                    onChange={(e) =>
-                      setField("logoWidth", Math.max(0, parseInt(e.target.value) || 0))
-                    }
-                    min={0}
-                    max={600}
-                  />
-                  <div className="form-text">Set to <strong>0</strong> for automatic width</div>
+                  <div className="d-flex align-items-center gap-2">
+                    <input
+                      type="range"
+                      className="form-range flex-grow-1"
+                      min={0}
+                      max={600}
+                      step={1}
+                      value={config.logoWidth}
+                      onChange={(e) => setField("logoWidth", parseInt(e.target.value))}
+                    />
+                    <input
+                      id="logoWidth"
+                      type="number"
+                      className="form-control"
+                      style={{ width: 76 }}
+                      value={config.logoWidth}
+                      onChange={(e) =>
+                        setField("logoWidth", Math.max(0, parseInt(e.target.value) || 0))
+                      }
+                      min={0}
+                      max={600}
+                    />
+                  </div>
+                  <div className="form-text">Drag to <strong>0</strong> (far left) for automatic, proportional width</div>
                 </div>
               </div>
 
