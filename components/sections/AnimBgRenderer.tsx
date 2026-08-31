@@ -102,7 +102,7 @@ export default function AnimBgRenderer({ config, colorPalette, sectionRef, secti
 
       if (type === "floating-shapes") {
         const { floatingShapesAnimator } = await import("@/lib/anim-bg/animators");
-        handle = floatingShapesAnimator(layerEl, layerConfig as Parameters<typeof floatingShapesAnimator>[1], colors);
+        handle = floatingShapesAnimator(layerEl, layerConfig as Parameters<typeof floatingShapesAnimator>[1], colors, layer.engine);
       } else if (type === "moving-gradient") {
         const { movingGradientAnimator } = await import("@/lib/anim-bg/animators");
         handle = movingGradientAnimator(layerEl, layerConfig as Parameters<typeof movingGradientAnimator>[1], colors);
@@ -111,7 +111,7 @@ export default function AnimBgRenderer({ config, colorPalette, sectionRef, secti
         handle = particleFieldAnimator(layerEl, layerConfig as Parameters<typeof particleFieldAnimator>[1], colors);
       } else if (type === "waves") {
         const { wavesAnimator } = await import("@/lib/anim-bg/animators");
-        handle = wavesAnimator(layerEl, layerConfig as Parameters<typeof wavesAnimator>[1], colors);
+        handle = wavesAnimator(layerEl, layerConfig as Parameters<typeof wavesAnimator>[1], colors, layer.engine);
       } else if (type === "parallax-drift") {
         const { parallaxDriftAnimator } = await import("@/lib/anim-bg/animators");
         const snapEl = document.getElementById("snap-container") || document.documentElement;
@@ -119,7 +119,7 @@ export default function AnimBgRenderer({ config, colorPalette, sectionRef, secti
       } else if (type === "3d-tilt") {
         const { tiltAnimator } = await import("@/lib/anim-bg/animators");
         const sectionEl = sectionRef?.current || (sectionId ? document.getElementById(sectionId) : null) || layerEl;
-        handle = tiltAnimator(layerEl, layerConfig as Parameters<typeof tiltAnimator>[1], sectionEl);
+        handle = tiltAnimator(layerEl, layerConfig as Parameters<typeof tiltAnimator>[1], sectionEl, layer.engine);
       } else if (type === "3d-scene") {
         // threeDSceneAnimator not yet implemented — skip gracefully
         console.warn("AnimBgRenderer: 3d-scene animator not implemented");
@@ -129,7 +129,7 @@ export default function AnimBgRenderer({ config, colorPalette, sectionRef, secti
         handle = customCodeAnimator(layerEl, layerConfig as Parameters<typeof customCodeAnimator>[1]);
       } else if (type === "svg-animation") {
         const { svgAnimationAnimator } = await import("@/lib/anim-bg/animators");
-        handle = svgAnimationAnimator(layerEl, layerConfig as Parameters<typeof svgAnimationAnimator>[1], colors);
+        handle = svgAnimationAnimator(layerEl, layerConfig as Parameters<typeof svgAnimationAnimator>[1], colors, layer.engine);
       } else if (type === "text-effects") {
         const { textEffectsAnimator } = await import("@/lib/anim-bg/animators");
         const sectionEl = sectionRef?.current || (sectionId ? document.getElementById(sectionId) : null);
@@ -160,7 +160,7 @@ export default function AnimBgRenderer({ config, colorPalette, sectionRef, secti
               loop:          item.loop          !== false,
               loopDelay:     item.loopDelay     ?? 800,
             };
-            const h = textEffectsAnimator(layerEl, itemConfig as Parameters<typeof textEffectsAnimator>[1], colors, sectionEl);
+            const h = textEffectsAnimator(layerEl, itemConfig as Parameters<typeof textEffectsAnimator>[1], colors, sectionEl, undefined, layer.engine);
             if (h) {
               handles.push(h);
               h.pause();
@@ -175,7 +175,8 @@ export default function AnimBgRenderer({ config, colorPalette, sectionRef, secti
           layerConfig as Parameters<typeof textEffectsAnimator>[1],
           colors,
           sectionEl,
-          isIntro ? () => { setShowSkip(false); setIntroCompleted(true); } : undefined
+          isIntro ? () => { setShowSkip(false); setIntroCompleted(true); } : undefined,
+          layer.engine
         );
       }
 

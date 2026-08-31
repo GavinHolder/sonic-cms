@@ -55,6 +55,17 @@ export type BlendMode =
   | "overlay"
   | "soft-light";
 
+/**
+ * Which tweening library drives this layer's animation, for the types that
+ * actually use one (floating-shapes, waves, 3d-tilt, svg-animation,
+ * text-effects — see animators.ts's engineFns()). "anime" is the default and
+ * matches every layer's pre-existing behavior; "motion" opts a layer into
+ * the Motion library instead, same visual choreography, different engine
+ * underneath. Absent/undefined means "anime" — no migration needed for
+ * layers saved before this field existed.
+ */
+export type AnimBgEngine = "anime" | "motion";
+
 export interface FloatingShapesConfig {
   count: number;        // 2–20, default 8
   sizeMin: number;      // px, default 30
@@ -220,6 +231,9 @@ export interface AnimBgLayer {
   useColorPalette: boolean; // true = use section.colorPalette
   colors: string[];         // custom colors (when useColorPalette=false)
   config: AnimBgPresetConfig;
+  /** Tweening engine for types that use one — see AnimBgEngine's own doc
+   * comment. Undefined = "anime" (no behavior change for existing layers). */
+  engine?: AnimBgEngine;
 }
 
 export interface AnimBgConfig {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { AnimBgConfig, AnimBgLayer, AnimBgType, BlendMode, SequenceEntry } from "@/lib/anim-bg/types";
+import type { AnimBgConfig, AnimBgLayer, AnimBgType, AnimBgEngine, BlendMode, SequenceEntry } from "@/lib/anim-bg/types";
 import { DEFAULT_CONFIGS, DEFAULT_ANIM_BG_CONFIG } from "@/lib/anim-bg/defaults";
 import AnimBgCustomCodeEditor from "./AnimBgCustomCodeEditor";
 import MediaPickerModal from "./MediaPickerModal";
@@ -68,6 +68,13 @@ const TYPE_LABELS: Record<AnimBgType, { label: string; icon: string; desc: strin
   "svg-animation":   { label: "SVG Animation",    icon: "bi-filetype-svg", desc: "Custom SVG with built-in or native animations" },
   "text-effects":    { label: "Text Effects",     icon: "bi-type",         desc: "Animated text — typewriter, scramble, glitch, clip fill, intro reveal" },
 };
+
+// Layer types that actually drive their animation through a tweening engine
+// (Anime.js or Motion) — see animators.ts's engineFns(). The other types
+// (moving-gradient, particle-field, parallax-drift, custom-code, 3d-scene)
+// use rAF/canvas/scroll-linked transforms or admin-authored code with no
+// engine choice to make, so the Engine picker below is hidden for them.
+const ENGINE_ELIGIBLE_TYPES = new Set<AnimBgType>(["floating-shapes", "waves", "3d-tilt", "svg-animation", "text-effects"]);
 
 // ─── Per-type field schema ────────────────────────────────────────────────────
 
@@ -856,6 +863,23 @@ export default function AnimBgEditor({ config, onChange, colorPalette, sectionBa
                               </div>
                             )}
                           </div>
+                          {ENGINE_ELIGIBLE_TYPES.has(layer.type) && (
+                            <div className="col-md-6">
+                              <label className="form-label small fw-semibold">
+                                Animation Engine
+                                <span className="text-muted fw-normal ms-1" style={{ fontSize: "0.7rem" }}>
+                                  (same look, different library underneath)
+                                </span>
+                              </label>
+                              <select className="form-select form-select-sm"
+                                value={layer.engine ?? "anime"}
+                                onChange={(e) => updateLayer(layer.id, { engine: e.target.value as AnimBgEngine })}
+                              >
+                                <option value="anime">Anime.js (default)</option>
+                                <option value="motion">Motion</option>
+                              </select>
+                            </div>
+                          )}
                         </div>
 
                         {/* Color controls */}

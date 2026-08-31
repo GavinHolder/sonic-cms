@@ -2,10 +2,20 @@
  * Animated Background Animators
  * Each returns an AnimatorHandle { pause, resume, destroy }
  *
- * Uses Anime.js v4 API: animate(targets, props)
+ * Uses Anime.js v4 API: animate(targets, props) by default. Five of these
+ * animators (floating-shapes, waves, tilt's auto-rotate mode, svg-animation,
+ * text-effects) also accept an `engine: 'anime' | 'motion'` parameter and,
+ * when set to 'motion', drive the exact same choreography through the Motion
+ * library instead — see motion-adapter.ts for how a single `animate`/
+ * `stagger` pair can stand in for either engine with no changes to the
+ * choreography code itself. The other animator types (moving-gradient,
+ * particle-field, parallax-drift, custom-code) don't use a tweening engine
+ * at all (rAF/canvas/scroll-linked transforms or admin-authored code), so an
+ * engine toggle doesn't apply to them.
  */
 
-import { animate, stagger } from "animejs";
+import { animate as animeAnimate, stagger as animeStagger } from "animejs";
+import { animate as motionAnimate, stagger as motionStagger, type EngineControls } from "./motion-adapter";
 import type {
   AnimatorHandle,
   FloatingShapesConfig,
@@ -19,10 +29,20 @@ import type {
   SVGAnimationConfig,
   TextEffectsConfig,
   TextDirection,
+  AnimBgEngine,
 } from "./types";
 import { DEFAULT_FALLBACK_COLORS } from "./defaults";
 
-type AnimInstance = ReturnType<typeof animate>;
+type AnimInstance = EngineControls;
+
+/** Picks the animate/stagger pair for the requested engine. Anime.js's own
+ * `animate` return type structurally satisfies EngineControls (pause/play
+ * both exist; `resume` is called on it too — Anime.js v4 instances have it,
+ * TypeScript just doesn't know that from its own types, hence the cast). */
+function engineFns(engine: AnimBgEngine | undefined) {
+  if (engine === "motion") return { animate: motionAnimate, stagger: motionStagger };
+  return { animate: animeAnimate as unknown as typeof motionAnimate, stagger: animeStagger };
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -53,8 +73,10 @@ function safeColor(c: string): string {
 export function floatingShapesAnimator(
   container: HTMLElement,
   config: FloatingShapesConfig,
-  colors: string[]
+  colors: string[],
+  engine?: AnimBgEngine
 ): AnimatorHandle {
+  const { animate } = engineFns(engine);
   const { count, sizeMin, sizeMax, speedMin, speedMax, blur, opacityMin, opacityMax, shapes } = config;
   const wrapper = document.createElement("div");
   wrapper.style.cssText = "position:absolute;inset:0;overflow:hidden;pointer-events:none;";
@@ -301,8 +323,10 @@ export function particleFieldAnimator(
 export function wavesAnimator(
   container: HTMLElement,
   config: WavesConfig,
-  colors: string[]
+  colors: string[],
+  engine?: AnimBgEngine
 ): AnimatorHandle {
+  const { animate } = engineFns(engine);
   const { waveCount, amplitude, speed, direction } = config;
 
   const wrapper = document.createElement("div");
@@ -409,8 +433,10 @@ export function parallaxDriftAnimator(
 export function tiltAnimator(
   container: HTMLElement,
   config: TiltConfig,
-  sectionEl: HTMLElement
+  sectionEl: HTMLElement,
+  engine?: AnimBgEngine
 ): AnimatorHandle {
+  const { animate } = engineFns(engine);
   const { mode, intensity, speed, perspective } = config;
   container.style.transformStyle = "preserve-3d";
   container.style.perspective    = `${perspective}px`;
@@ -513,8 +539,10 @@ export function customCodeAnimator(
 export function svgAnimationAnimator(
   container: HTMLElement,
   config: SVGAnimationConfig,
-  colors: string[]
+  colors: string[],
+  engine?: AnimBgEngine
 ): AnimatorHandle {
+  const { animate } = engineFns(engine);
   const {
     svgCode   = "",
     animation = "float",
@@ -715,8 +743,10 @@ export function textEffectsAnimator(
   /** Section root element — used for intro mode (z-index must escape container) */
   sectionEl?: HTMLElement | null,
   /** Called when intro mode animation completes (naturally or via skip) */
-  onDone?: () => void
+  onDone?: () => void,
+  engine?: AnimBgEngine
 ): AnimatorHandle {
+  const { animate, stagger } = engineFns(engine);
   const {
     text, animation, direction, fontSize, fontWeight, letterSpacing,
     posX, posY, fillType, fillColor, fillGradient, fillMediaUrl,
