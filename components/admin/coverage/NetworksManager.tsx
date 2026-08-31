@@ -1090,7 +1090,7 @@ export default function NetworksManager() {
                                 </select>
                                 <input className="form-control form-control-sm" value={f.value} placeholder="e.g. Uncapped"
                                   onChange={(e) => { const next = [...variantFeatures]; next[fi] = { ...next[fi], value: e.target.value }; updateVariant({ features: next }); }} />
-                                <div className="form-check form-switch text-nowrap px-0 ps-4" title="Render as a full-width callout banner (like &quot;Free Installation&quot;) instead of a normal feature row">
+                                <div className="form-check form-switch text-nowrap flex-shrink-0" title="Render as a full-width callout banner (like &quot;Free Installation&quot;) instead of a normal feature row">
                                   <input className="form-check-input" type="checkbox" id={`vfeat-special-${fi}`} checked={f.special === true}
                                     onChange={(e) => { const next = [...variantFeatures]; next[fi] = { ...next[fi], special: e.target.checked }; updateVariant({ features: next }); }} />
                                   <label className="form-check-label small text-muted" htmlFor={`vfeat-special-${fi}`}>Special</label>
@@ -1142,7 +1142,7 @@ export default function NetworksManager() {
                           </select>
                           <input className="form-control" value={f.value} placeholder="e.g. Uncapped"
                             onChange={(e) => { const next = [...rows]; next[i] = { ...next[i], value: e.target.value }; setRows(next); }} />
-                          <div className="form-check form-switch text-nowrap px-0 ps-4" title="Render as a full-width callout banner (like &quot;Free Installation&quot;) instead of a normal feature row">
+                          <div className="form-check form-switch text-nowrap flex-shrink-0" title="Render as a full-width callout banner (like &quot;Free Installation&quot;) instead of a normal feature row">
                             <input className="form-check-input" type="checkbox" id={`feat-special-${i}`} checked={f.special === true}
                               onChange={(e) => { const next = [...rows]; next[i] = { ...next[i], special: e.target.checked }; setRows(next); }} />
                             <label className="form-check-label small text-muted" htmlFor={`feat-special-${i}`}>Special</label>
