@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, Fragment } from "react";
-import { motion, AnimatePresence, type Easing } from "framer-motion";
+import { motion, AnimatePresence, type Easing } from "motion/react";
 import type { HeroSection, AnimationType, HeroEasing, HeadingRow, TextShadowConfig, FreeformPos, OverlayImage } from "@/types/section";
 import { defaultFreeformPos, resolveFreeformPos, resolveFreeformSize } from "@/types/section";
 

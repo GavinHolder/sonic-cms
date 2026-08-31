@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import Button from "@/components/ui/Button";
 import type { TextImageBlock as TextImageBlockType } from "@/types/section-v2";
 

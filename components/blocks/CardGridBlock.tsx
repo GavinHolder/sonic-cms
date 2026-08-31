@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import type { CardGridBlock as CardGridBlockType } from "@/types/section-v2";
