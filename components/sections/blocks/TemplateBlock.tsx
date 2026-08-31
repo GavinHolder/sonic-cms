@@ -76,6 +76,23 @@ interface ScopedPackage {
   serviceCategoryName: string | null;
 }
 
+/** Cheap FNV-1a hash — used only to detect "did this template's own content
+ * change" for TemplateBlock's iframe remount key (see iframeKey's own
+ * comment). string.length alone isn't enough: a same-length edit (e.g.
+ * "opacity: 0" -> "opacity: 1", or any single-character CSS value swap —
+ * both real, ordinary template edits, not edge cases) would leave the key
+ * unchanged and silently reproduce the exact stale-iframe bug this key
+ * exists to prevent. Not cryptographic — collision resistance for "did an
+ * admin's template edit change the bytes" is all that's needed here. */
+function fnv1aHash(s: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(36);
+}
+
 function applyPkgTokens(input: string, slots: Record<string, string>): string {
   if (!input) return input;
   return input.replace(/\{\{pkg\.([a-zA-Z0-9_]+)\}\}/g, (_, key: string) => slots[`pkg.${key}`] ?? "");
@@ -262,13 +279,21 @@ export default function TemplateBlock({ html, css, productId, networkSlug, netwo
     finalCss ? `<style>${finalCss}</style>` : ""
   }${contextScript}</head><body style="margin:0">${finalHtml}${tplVarsStyle}</body></html>`;
 
-  // Keyed on the live-data readiness, not just a static block id: mutating an
-  // already-loaded iframe's srcdoc attribute in place does not reliably re-navigate
-  // it in every browser (observed empirically — the attribute updates, the visible
-  // document doesn't). Changing `key` forces React to mount a fresh iframe once the
-  // product/network fetch resolves, guaranteeing a clean load of the final content
-  // instead of racing an in-place update against an already-parsed document.
-  const iframeKey = `${productId ?? ""}:${Object.keys(pkgSlots).length}:${scopedPackages.length}:${JSON.stringify(tplOptions)}`;
+  // Keyed on the live-data readiness AND the template's own content, not just a
+  // static block id: mutating an already-loaded iframe's srcdoc attribute in place
+  // does not reliably re-navigate it in every browser (observed empirically — the
+  // attribute updates, the visible document doesn't). Changing `key` forces React to
+  // mount a fresh iframe once the product/network fetch resolves, guaranteeing a
+  // clean load of the final content instead of racing an in-place update against an
+  // already-parsed document. Originally only covered the product/network binding
+  // changing — html/css themselves weren't in the key, so an admin editing a
+  // template's own content (the normal case: fixing a card's layout/CSS) hit this
+  // exact stale-iframe bug on any client that already had the block mounted, with no
+  // way to tell a live content edit from the "hasn't loaded yet" case. Hashed (not
+  // raw html/css) so a same-length edit — e.g. "opacity: 0" -> "opacity: 1", an
+  // ordinary CSS tweak, not an edge case — still changes the key; string.length alone
+  // would miss it and silently reproduce this exact bug.
+  const iframeKey = `${productId ?? ""}:${Object.keys(pkgSlots).length}:${scopedPackages.length}:${JSON.stringify(tplOptions)}:${fnv1aHash(html + css)}`;
 
   return (
     <iframe
