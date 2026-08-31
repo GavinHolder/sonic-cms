@@ -1419,6 +1419,8 @@
     <button class="btn btn-sm btn-outline-primary" id="guides-btn" onclick="toggleGuides()" title="Show / Hide grid guides"><i class="bi bi-grid"></i></button>
     <!-- Pixel-grid snap toggle (free mode) -->
     <button class="btn btn-sm btn-outline-secondary" id="snap-btn" onclick="toggleSnapGrid()" title="Grid snap OFF — press S to toggle" style="letter-spacing:0.3px;">SNAP</button>
+    <!-- Smart alignment-guide snap toggle (#48 — lines onto other elements while dragging) -->
+    <button class="btn btn-sm btn-primary" id="align-guides-btn" onclick="toggleAlignGuides()" title="Alignment guides ON — press G to toggle. Hold Ctrl while dragging for a one-off precise move." style="letter-spacing:0.3px;"><i class="bi bi-magnet-fill"></i></button>
     <!-- Utilities (icon-only) -->
     <button class="btn btn-sm btn-outline-primary" onclick="toggleJson()" title="JSON Output"><i class="bi bi-code-slash"></i></button>
     <button class="btn btn-sm btn-outline-danger" onclick="clearAll()" title="Clear entire canvas"><i class="bi bi-trash"></i></button>
@@ -1971,6 +1973,14 @@ const state = {
   snapGrid: false,      // pixel-grid snap in free mode (S key or toolbar button)
   snapSize: 10,         // snap increment in px
   subElementSnap: false, // snap sub-elements to 8px grid when dragging inside parent
+  // #48 smart alignment guides (the lines that appear when a dragged sub-element
+  // lines up with another element's edge/center) — was always-on with no toggle;
+  // now a real preference like snapGrid/subElementSnap above. Default true so
+  // existing designer sessions see no behavior change until explicitly turned off.
+  // Held Ctrl during a drag ALSO suppresses this live, on top of the toggle, for a
+  // one-off precise placement without changing the saved preference — see the
+  // ev.ctrlKey checks in startSubElementMove/startGroupMove/startBlockMove.
+  alignGuides: true,
   isResizing: false,
   nextId: 1,
   navOptions: [],
@@ -2316,6 +2326,11 @@ document.addEventListener('keydown', e => {
   if (e.key === 's' && !e.ctrlKey && !e.metaKey &&
       !e.target.closest('input, textarea, [contenteditable="true"], select')) {
     e.preventDefault(); toggleSnapGrid(); return;
+  }
+  // G — toggle smart alignment guides (skip when typing in inputs)
+  if (e.key === 'g' && !e.ctrlKey && !e.metaKey &&
+      !e.target.closest('input, textarea, [contenteditable="true"], select')) {
+    e.preventDefault(); toggleAlignGuides(); return;
   }
   // #89 Escape — clear the current selection (single or multi) when not typing.
   if (e.key === 'Escape' && !e.target.closest('input, textarea, [contenteditable="true"], select')) {
@@ -3932,7 +3947,11 @@ function startSubElementMove(e, blockId, seId) {
     // anywhere (including negative offsets). Positions persist as x/y + manualSize.
     let newX = Math.round(origX + dx);
     let newY = Math.round(origY + dy);
-    if (state.subElementSnap) {
+    // Ctrl held = raw precise positioning: skip BOTH the 8px sub-element grid and
+    // the alignment-guide snap below, live for the rest of this drag — release
+    // Ctrl mid-drag and snapping resumes immediately, same as the axis-lock
+    // pattern already used for top-level block dragging (startBlockMove).
+    if (state.subElementSnap && !ev.ctrlKey) {
       const sg = 8;
       newX = Math.round(newX / sg) * sg;
       newY = Math.round(newY / sg) * sg;
@@ -3940,11 +3959,13 @@ function startSubElementMove(e, blockId, seId) {
     // #48 smart alignment snap: map tentative position → canvas-local top-left,
     // snap onto the single nearest guide per axis (with hysteresis), reposition
     // the persistent guide DIVs. No per-tick DOM churn — _sgUpdate just moves them.
-    if (_sgCtx.ok) {
+    if (_sgCtx.ok && !ev.ctrlKey) {
       const w = seEl.offsetWidth, h = seEl.offsetHeight;
       const snap = _sgUpdate(_sgCtx, _originLeft + newX, _originTop + newY, w, h);
       newX += Math.round(snap.dx);
       newY += Math.round(snap.dy);
+    } else {
+      _sgHideV(); _sgHideH(); // Ctrl-suppressed or guides off — make sure no stale guide line lingers on screen
     }
     se.x = newX;
     se.y = newY;
@@ -4092,15 +4113,18 @@ function startGroupMove(e, clickBlockId, clickSeId) {
     moved = true;
     // #48 snap the group bbox onto the single nearest guide per axis (hysteresis);
     // apply the same nudge to every member. _sgUpdate repositions the guide DIVs.
+    // Ctrl held = raw precise positioning for the whole group, same as single-drag.
     let adx = dx, ady = dy;
-    if (_grpHasBox) {
+    if (_grpHasBox && !ev.ctrlKey) {
       const snap = _sgUpdate(_sgCtx, _grpL + dx, _grpT + dy, _grpR - _grpL, _grpB - _grpT);
       adx = dx + snap.dx; ady = dy + snap.dy;
+    } else if (_grpHasBox) {
+      _sgHideV(); _sgHideH(); // Ctrl-suppressed — no stale guide line while dragging raw
     }
     members.forEach(m => {
       let nx = Math.round(m.origX + adx);
       let ny = Math.round(m.origY + ady);
-      if (state.subElementSnap) { const g = 8; nx = Math.round(nx / g) * g; ny = Math.round(ny / g) * g; }
+      if (state.subElementSnap && !ev.ctrlKey) { const g = 8; nx = Math.round(nx / g) * g; ny = Math.round(ny / g) * g; }
       m.se.x = nx; m.se.y = ny;
       m.el.style.left = nx + 'px'; m.el.style.top = ny + 'px';
     });
@@ -4377,9 +4401,14 @@ function _sgBegin(excludeSet) {
   const canvas = document.getElementById('canvas');
   const cRect = canvas ? canvas.getBoundingClientRect() : null;
   const scale = getCanvasScale();
+  const empty = { x: { el: [], canvas: [] }, y: { el: [], canvas: [] } };
+  // Toggle OFF (state.alignGuides) means every caller's `ctx.ok` check below (and
+  // _sgUpdate's own no-op when !ctx.ok) already short-circuits the whole system —
+  // one gate here instead of touching every call site. Skips _sgEnsureGuides/
+  // _sgHideV/_sgHideH too since there's nothing to show or hide when it's off.
+  if (!state.alignGuides) return { ok: false, cRect: null, scale, targets: empty, sx: { tgt: null }, sy: { tgt: null } };
   _sgEnsureGuides();
   _sgHideV(); _sgHideH();
-  const empty = { x: { el: [], canvas: [] }, y: { el: [], canvas: [] } };
   if (!cRect) return { ok: false, cRect: null, scale, targets: empty, sx: { tgt: null }, sy: { tgt: null } };
   return { ok: true, cRect, scale, targets: _sgBuildTargets(excludeSet, cRect, scale), sx: { tgt: null }, sy: { tgt: null } };
 }
@@ -5388,8 +5417,11 @@ function startBlockMove(e, blockId) {
         if (Math.abs(dx) >= Math.abs(dy)) axNy = _moveDP.y; // lock to horizontal
         else axNx = _moveDP.x;                               // lock to vertical
       }
-      const _nx = Math.max(0, Math.min(canvasW - dragDispW, snapToGrid(axNx)));
-      const _ny = Math.max(0, Math.min(canvasH - dragDispH, snapToGrid(axNy)));
+      // Ctrl also suppresses the pixel-grid snap below (on top of the axis-lock
+      // above) — raw precise positioning for a fine nudge, same behavior as the
+      // sub-element drag handlers (startSubElementMove/startGroupMove).
+      const _nx = Math.max(0, Math.min(canvasW - dragDispW, e.ctrlKey ? axNx : snapToGrid(axNx)));
+      const _ny = Math.max(0, Math.min(canvasH - dragDispH, e.ctrlKey ? axNy : snapToGrid(axNy)));
       setDisplayPos(block, _nx, _ny, dragDispW, dragDispH);
       if (el) { el.style.left=`${_nx}px`; el.style.top=`${_ny}px`; }
       // Update props panel X/Y live
@@ -9392,6 +9424,20 @@ function toggleSnapGrid() {
 function snapToGrid(v) {
   if (!state.snapGrid || state.positionMode !== 'free') return v;
   return Math.round(v / state.snapSize) * state.snapSize;
+}
+/** Toggle the #48 smart alignment-guide snap (lines onto other elements' edges/
+ * centers while dragging a sub-element). Updates toolbar button state; no redraw
+ * needed since guides only exist mid-drag (_sgBegin builds/tears them down). */
+function toggleAlignGuides() {
+  state.alignGuides = !state.alignGuides;
+  const btn = document.getElementById('align-guides-btn');
+  if (btn) {
+    btn.classList.toggle('btn-primary', state.alignGuides);
+    btn.classList.toggle('btn-outline-secondary', !state.alignGuides);
+    btn.title = state.alignGuides
+      ? 'Alignment guides ON — press G to toggle. Hold Ctrl while dragging for a one-off precise move.'
+      : 'Alignment guides OFF — press G to toggle';
+  }
 }
 /**
  * Toggles the pixel rulers along the canvas edges by toggling the
