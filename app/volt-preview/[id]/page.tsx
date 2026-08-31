@@ -47,5 +47,31 @@ export default async function VoltPreviewPage({ params, searchParams }: PageProp
   // the designer preview reflects the live product's values.
   const productId = sp.productId || undefined;
 
-  return <VoltPreviewClient voltId={id} slots={slots} instanceOverrides={instanceOverrides} fit={fit} productId={productId} />;
+  // Real section background (color/gradient/image), forwarded by the Designer canvas
+  // (buildVoltPreviewUrl in flexible-designer.html) so a "glass"/frosted-blur Volt fill
+  // (backdrop-filter in VoltRenderer.tsx) has something authentic behind it to blur —
+  // backdrop-filter only sees same-document content, never across this iframe's own
+  // boundary into the parent Designer canvas. Plain CSS values only (a resolved hex/
+  // gradient string, a URL, size/position keywords) — never HTML, so no sanitization
+  // needed beyond what React's style prop already guarantees.
+  const bg = sp.bg || undefined;
+  const bgGradient = sp.bgGradient || undefined;
+  const bgImage = sp.bgImage || undefined;
+  const bgImageSize = sp.bgImageSize || "cover";
+  const bgImagePosition = sp.bgImagePosition || "center";
+
+  return (
+    <VoltPreviewClient
+      voltId={id}
+      slots={slots}
+      instanceOverrides={instanceOverrides}
+      fit={fit}
+      productId={productId}
+      bg={bg}
+      bgGradient={bgGradient}
+      bgImage={bgImage}
+      bgImageSize={bgImageSize}
+      bgImagePosition={bgImagePosition}
+    />
+  );
 }

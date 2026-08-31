@@ -7098,6 +7098,25 @@ function buildVoltPreviewUrl(b) {
   const fb = b.props.fullBleed;
   const isFullBleed = fb === true || (fb === undefined && isVoltFullBleed(b));
   if (isFullBleed) sp.set('fit', 'cover');
+  // Real section background, forwarded so a "glass"/frosted-blur Volt fill
+  // (backdrop-filter: blur(...) in VoltRenderer.tsx) has something authentic
+  // to blur inside its own iframe document — backdrop-filter can only see
+  // same-document content, never the parent Designer canvas across the
+  // iframe boundary, so without this the glass shape had nothing behind it
+  // and rendered as a flat, unblurred tint instead of frosted. Mirrors
+  // applySectionBgToCanvas()'s own resolution (resolveBgColor/sectionGradCss)
+  // so the preview matches what the live section will actually show behind it.
+  if (state.sectionBg && state.showSectionBg !== false) {
+    const baseVal = resolveBgColor(state.sectionBg.background);
+    if (baseVal && baseVal !== 'transparent') sp.set('bg', baseVal);
+    if (state.sectionBg.bgImageUrl) {
+      sp.set('bgImage', state.sectionBg.bgImageUrl);
+      sp.set('bgImageSize', state.sectionBg.bgImageSize || 'cover');
+      sp.set('bgImagePosition', state.sectionBg.bgImagePosition || 'center');
+    }
+    const grad = sectionGradCss(state.sectionBg.gradient);
+    if (grad) sp.set('bgGradient', grad);
+  }
   return '/volt-preview/' + b.props.voltId + (sp.toString() ? '?' + sp.toString() : '');
 }
 
