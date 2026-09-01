@@ -1042,6 +1042,12 @@ model Policy {
   slug      String   @unique
   title     String
   body      String   @db.Text
+  /// "html" (default, renders `body`) or "pdf" (renders `pdfUrl` instead — see
+  /// app/policies/[slug]/page.tsx). Not a Prisma enum so existing rows need no
+  /// backfill: the column default already reads as "html" for every row that
+  /// existed before this field did.
+  docType   String   @default("html")
+  pdfUrl    String?
   navLabel  String?
   order     Int      @default(0)
   enabled   Boolean  @default(true)

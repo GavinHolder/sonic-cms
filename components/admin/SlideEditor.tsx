@@ -423,7 +423,10 @@ export default function SlideEditor({
               <MediaUploader
                 accept={slide.type === "image" ? "image/*" : "video/*"}
                 onUploadComplete={(url, type) => {
-                  onChange({ src: url, type });
+                  // accept is always "image/*" or "video/*" above, so type is never
+                  // actually "pdf" here — MediaUploader's type is shared/widened for
+                  // its PDF-accepting callers (e.g. PolicyEditor).
+                  onChange({ src: url, type: type as "image" | "video" });
                 }}
                 maxSizeMB={slide.type === "image" ? 10 : 50}
                 label={`Upload ${slide.type === "image" ? "Image" : "Video"}`}

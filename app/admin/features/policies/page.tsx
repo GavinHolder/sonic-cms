@@ -5,12 +5,15 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import { useToast } from "@/components/admin/ToastProvider";
 import { useConfirm } from "@/components/admin/ConfirmProvider";
 import PolicyEditor from "@/components/admin/policies/PolicyEditor";
+import MediaUploader from "@/components/admin/MediaUploader";
 
 interface Policy {
   id: string;
   slug: string;
   title: string;
   body: string;
+  docType: string;
+  pdfUrl: string | null;
   navLabel: string | null;
   order: number;
   enabled: boolean;
@@ -60,6 +63,8 @@ function PoliciesInner() {
       title: "",
       slug: "",
       body: "",
+      docType: "html",
+      pdfUrl: null,
       navLabel: "",
       order: policies.length,
       enabled: true,
@@ -78,6 +83,10 @@ function PoliciesInner() {
   const save = async () => {
     if (!editing?.title) {
       toast.error("Title is required");
+      return;
+    }
+    if (editing.docType === "pdf" && !editing.pdfUrl) {
+      toast.error("Upload a PDF before saving, or switch back to HTML");
       return;
     }
     setSaving(true);
@@ -155,8 +164,8 @@ function PoliciesInner() {
               style={{ padding: "12px 16px", background: "#f9fafb", borderRadius: 8, border: "1px solid #e5e7eb" }}
             >
               <i
-                className="bi bi-file-earmark-text"
-                style={{ color: p.enabled ? "#4a7c59" : "#9ca3af", fontSize: 18, flexShrink: 0 }}
+                className={p.docType === "pdf" ? "bi bi-file-earmark-pdf" : "bi bi-file-earmark-text"}
+                style={{ color: p.enabled ? (p.docType === "pdf" ? "#dc2626" : "#4a7c59") : "#9ca3af", fontSize: 18, flexShrink: 0 }}
               />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 600, color: "#1f2937" }}>{p.title}</div>
@@ -164,6 +173,7 @@ function PoliciesInner() {
                   /policies/{p.slug}
                   {p.navLabel && ` · footer: ${p.navLabel}`}
                   {` · order ${p.order}`}
+                  {p.docType === "pdf" && " · PDF"}
                 </div>
               </div>
               {!p.enabled && (
@@ -237,11 +247,58 @@ function PoliciesInner() {
                   </div>
 
                   <div className="mb-3">
-                    <label className="form-label fw-semibold">Body</label>
-                    <PolicyEditor
-                      value={editing.body ?? ""}
-                      onChange={(html) => setEditing((prev) => ({ ...prev!, body: html }))}
-                    />
+                    <div className="d-flex align-items-center justify-content-between mb-2">
+                      <label className="form-label fw-semibold mb-0">Content</label>
+                      <div className="btn-group btn-group-sm" role="group">
+                        <button
+                          type="button"
+                          className={`btn ${(editing.docType ?? "html") === "html" ? "btn-success" : "btn-outline-secondary"}`}
+                          onClick={() => setEditing((prev) => ({ ...prev!, docType: "html", pdfUrl: null }))}
+                        >
+                          HTML
+                        </button>
+                        <button
+                          type="button"
+                          className={`btn ${editing.docType === "pdf" ? "btn-success" : "btn-outline-secondary"}`}
+                          onClick={() => setEditing((prev) => ({ ...prev!, docType: "pdf" }))}
+                        >
+                          PDF
+                        </button>
+                      </div>
+                    </div>
+
+                    {editing.docType === "pdf" ? (
+                      <div>
+                        {editing.pdfUrl && (
+                          <div
+                            className="d-flex align-items-center gap-2 mb-2 p-2"
+                            style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8 }}
+                          >
+                            <i className="bi bi-file-earmark-pdf text-danger" style={{ fontSize: 18 }} />
+                            <a
+                              href={editing.pdfUrl} target="_blank" rel="noopener noreferrer"
+                              className="small text-truncate" style={{ flex: 1 }}
+                            >
+                              {editing.pdfUrl.split("/").pop()}
+                            </a>
+                          </div>
+                        )}
+                        <MediaUploader
+                          accept="application/pdf"
+                          maxSizeMB={20}
+                          label={editing.pdfUrl ? "Replace PDF" : "Upload PDF"}
+                          onUploadComplete={(url) => setEditing((prev) => ({ ...prev!, pdfUrl: url }))}
+                        />
+                        <div className="form-text">
+                          Visitors land on this policy&apos;s page and the PDF opens there — no HTML version is shown for this policy.
+                        </div>
+                      </div>
+                    ) : (
+                      <PolicyEditor
+                        value={editing.body ?? ""}
+                        onChange={(html) => setEditing((prev) => ({ ...prev!, body: html }))}
+                      />
+                    )}
                   </div>
 
                   <div className="row g-3 mb-3">

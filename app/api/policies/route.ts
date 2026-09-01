@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
   if (auth instanceof NextResponse) return auth;
 
   const data = await request.json();
-  const { title, slug, body, navLabel, order, enabled, metaTitle, metaDescription, noindex } = data;
+  const { title, slug, body, docType, pdfUrl, navLabel, order, enabled, metaTitle, metaDescription, noindex } = data;
 
   if (!title) {
     return NextResponse.json({ error: "title is required" }, { status: 400 });
@@ -71,6 +71,8 @@ export async function POST(request: NextRequest) {
       title,
       slug: uniqueSlug,
       body: DOMPurify.sanitize(typeof body === "string" ? body : ""),
+      docType: docType === "pdf" ? "pdf" : "html",
+      pdfUrl: docType === "pdf" && typeof pdfUrl === "string" ? pdfUrl : null,
       navLabel: navLabel || null,
       order: typeof order === "number" ? order : 0,
       enabled: enabled !== undefined ? !!enabled : true,

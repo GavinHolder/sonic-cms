@@ -49,6 +49,8 @@ export async function PUT(
       ...(data.title !== undefined && { title: data.title }),
       ...slugUpdate,
       ...(data.body !== undefined && { body: DOMPurify.sanitize(typeof data.body === "string" ? data.body : "") }),
+      ...(data.docType !== undefined && { docType: data.docType === "pdf" ? "pdf" : "html" }),
+      ...(data.pdfUrl !== undefined && { pdfUrl: typeof data.pdfUrl === "string" && data.pdfUrl ? data.pdfUrl : null }),
       ...(data.navLabel !== undefined && { navLabel: data.navLabel || null }),
       ...(data.order !== undefined && { order: data.order }),
       ...(data.enabled !== undefined && { enabled: !!data.enabled }),

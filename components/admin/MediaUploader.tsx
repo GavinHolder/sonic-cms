@@ -3,8 +3,8 @@
 import { useState, useRef } from "react";
 
 interface MediaUploaderProps {
-  accept?: string; // "image/*" | "video/*" | "image/*,video/*"
-  onUploadComplete: (url: string, type: "image" | "video") => void;
+  accept?: string; // "image/*" | "video/*" | "image/*,video/*" | "application/pdf"
+  onUploadComplete: (url: string, type: "image" | "video" | "pdf") => void;
   maxSizeMB?: number;
   label?: string;
 }
