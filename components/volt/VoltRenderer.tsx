@@ -1403,6 +1403,20 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
     for (const layer of faceLayers) {
       switch (layer.type) {
         case 'vector':
+          // Glass fills paint nothing in the SVG pass (VoltSvgLayer skips them —
+          // backdrop-filter needs a real same-document HTML element, not SVG, to
+          // blur content behind it) — their visible frosted div comes from
+          // renderGlassOverlays. Emit that div HERE, at this layer's own position
+          // in the zIndex-ordered stream, instead of as a separate bulk pass
+          // rendered before every other layer (the previous behavior): a lower-
+          // zIndex layer meant to sit BEHIND the glass panel — e.g. a photo used
+          // as a background — would otherwise always paint on top of the glass
+          // overlay regardless of its zIndex, hiding the frosted effect entirely
+          // and showing the photo instead. The vector itself still joins the
+          // batched SVG run below so strokes/boolean masks keep working.
+          if (layer.vectorData?.fills?.[0]?.type === 'glass') {
+            nodes.push(...renderGlassOverlays([layer]))
+          }
           vectorRun.push(layer)
           break
         case 'image':
@@ -1439,14 +1453,11 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
     return nodes
   }
 
-  /** Renders a single face's layers (glass behind, then all layers in z-order). */
+  /** Renders a single face's layers, in a single zIndex-ordered pass (glass
+   *  overlays are interleaved at their own zIndex inside renderLayersInterleaved,
+   *  not painted as a separate bulk pass — see the 'vector' case there for why). */
   function renderFaceContent(faceLayers: typeof sortedLayers) {
-    return (
-      <>
-        {renderGlassOverlays(faceLayers)}
-        {renderLayersInterleaved(faceLayers, slots)}
-      </>
-    )
+    return renderLayersInterleaved(faceLayers, slots)
   }
 
   // ── Flip card mode ────────────────────────────────────────────────────────────
@@ -1551,7 +1562,6 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
           ref={carouselContentRef}
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
         >
-          {renderGlassOverlays(bgLayers)}
           {renderLayersInterleaved(bgLayers, bgSlots)}
         </div>
         {renderCarouselControls()}
@@ -1665,7 +1675,6 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
             ref={carouselContentRef}
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
           >
-            {renderGlassOverlays(displayLayers)}
             {renderLayersInterleaved(displayLayers, displaySlots)}
           </div>
           {renderCarouselControls()}
@@ -1692,7 +1701,6 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
         ref={carouselContentRef}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
       >
-        {renderGlassOverlays(displayLayers)}
         {renderLayersInterleaved(displayLayers, displaySlots)}
       </div>
 

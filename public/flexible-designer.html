@@ -3342,6 +3342,17 @@ function createBlockPreview(block) {
         _cBadge.textContent = '\uD83D\uDDBC ' + _cImgs.length + ' images';
         _cWrap.appendChild(_cBadge);
         wrap.appendChild(_cWrap);
+      } else if (p.src) {
+        // Single (non-carousel) image with a picked src — render the actual
+        // image so the canvas preview reflects what was chosen in the media
+        // picker (previously this branch always showed the placeholder text
+        // below regardless of p.src, making the canvas look unchanged after
+        // picking an image).
+        const _iImg = document.createElement('img');
+        _iImg.src = p.src;
+        _iImg.alt = p.alt || '';
+        _iImg.style.cssText = 'width:100%;height:100%;border-radius:4px;display:block;object-fit:' + (p.imageMode === 'natural' ? 'contain' : 'cover') + ';';
+        wrap.appendChild(_iImg);
       } else {
         const _iDiv = document.createElement('div');
         _iDiv.className = 'cb-prev-image';
@@ -6337,42 +6348,66 @@ function renderTypeProps(block) {
         <input class="form-check-input" type="checkbox" role="switch" id="volt-fullbleed-${block.id}" ${p.fullBleed ? 'checked' : ''} onchange="setVoltFullBleed('${block.id}',this.checked)">
         <label class="form-check-label" for="volt-fullbleed-${block.id}" style="color:#6c757d;">Use as background (full-bleed)</label>
       </div>`;
-      // Slot overrides
-      h+=`<div style="margin-bottom:6px;">
-        <div style="font-size:11px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Content Slots</div>`;
-      // Linked Product picker — bind this card to a coverage-plugin Package so slots
-      // whose field hint is pkg.name/pkg.price/pkg.speed… auto-populate from the product.
-      {
-        const _prods = window.__allPackages || [];
-        const _curProd = p.productId || '';
-        const _byNet = {};
-        _prods.forEach(function(pr){ const k = pr.networkName || 'Other'; (_byNet[k] = _byNet[k] || []).push(pr); });
-        let _prodOpts = `<option value="">— None (manual text) —</option>`;
-        Object.keys(_byNet).forEach(function(net){
-          _prodOpts += `<optgroup label="${escHtml(net)}">`;
-          _byNet[net].forEach(function(pr){
-            _prodOpts += `<option value="${escHtml(pr.id)}"${pr.id===_curProd?' selected':''}>${escHtml(pr.name)}</option>`;
-          });
-          _prodOpts += `</optgroup>`;
-        });
-        h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;margin-bottom:8px;">
-          <label style="margin-bottom:3px;font-size:12px;font-weight:600;"><i class="bi bi-box-seam me-1"></i>Linked Product</label>
-          <select class="props-input" style="font-size:12px;" onchange="updateVoltProduct('${block.id}',this.value)">${_prodOpts}</select>
-          <div style="font-size:10px;color:#9ca3af;margin-top:4px;line-height:1.5;">Binds slots with field hints <code>pkg.name</code>, <code>pkg.price</code>, <code>pkg.speed</code>, <code>pkg.period</code>, <code>pkg.options</code>&hellip; to this product's live values.${_prods.length?'':'<br><em>No packages loaded yet.</em>'}</div>
-        </div>`;
-      }
-      h+=inputRow('Title', p.slotTitle||'', `updateVoltSlot('${block.id}','slotTitle',this.value)`, 'Override title…');
-      h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;margin-bottom:8px;">
-        <label style="margin-bottom:3px;font-size:12px;">Body</label>
-        <textarea class="props-input" rows="3" style="resize:vertical;font-size:12px;" placeholder="Override body text…" oninput="updateVoltSlot('${block.id}','slotBody',this.value)">${escHtml(p.slotBody||'')}</textarea>
-      </div>`;
-      h+=inputRow('Icon', p.slotIcon||'', `updateVoltSlot('${block.id}','slotIcon',this.value)`, 'bi-star or emoji…');
-      h+=mediaPickerRow('Image', p.slotImageUrl||'', block.id, 'slotImageUrl', 'image/*', true);
-      h+=inputRow('Action label', p.slotActionLabel||'', `updateVoltSlot('${block.id}','slotActionLabel',this.value)`, 'Button text…');
-      h+=`</div>`;
-      // Layer color overrides
+      // Slot overrides — only offer the fields for content slots this Volt design
+      // actually declares (layers of type 'slot', each tagged with a slotData.slotType
+      // of title/body/icon/image/action in Volt Studio — see volt-designer.html's
+      // mkSlot()/_slotTypeLabels). Previously this section always rendered every
+      // field (Linked Product, Title, Body, Icon, Image, Action label) regardless of
+      // what the selected Volt actually declared, so a purely visual design with NO
+      // slot layers (e.g. a glass/blur panel) still showed a full set of irrelevant
+      // product-card binding fields with nothing to bind to.
       if (p.voltId) {
         loadVoltLayersForBlock(block.id); // no-op if already loading/loaded
+        const _slotCache = _voltLayerCache[p.voltId];
+        if (!_slotCache || _slotCache.loading) {
+          h+=`<div style="margin-bottom:6px;"><div style="font-size:11px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Content Slots</div><div style="font-size:11px;color:#adb5bd;font-style:italic;">Loading…</div></div>`;
+        } else {
+          const _slotTypes = new Set(
+            (_slotCache.layers || [])
+              .filter(function(l){ return l.type === 'slot' && l.slotData && l.slotData.slotType; })
+              .map(function(l){ return l.slotData.slotType; })
+          );
+          if (_slotTypes.size === 0) {
+            h+=`<div style="margin-bottom:6px;"><div style="font-size:11px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Content Slots</div><div style="font-size:11px;color:#adb5bd;font-style:italic;">This Volt design has no content slots — it's a purely visual design with no text/image/product fields to bind.</div></div>`;
+          } else {
+            h+=`<div style="margin-bottom:6px;">
+              <div style="font-size:11px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Content Slots</div>`;
+            // Linked Product picker — bind this card to a coverage-plugin Package so slots
+            // whose field hint is pkg.name/pkg.price/pkg.speed… auto-populate from the product.
+            // Only relevant when the design has at least one slot to bind into.
+            {
+              const _prods = window.__allPackages || [];
+              const _curProd = p.productId || '';
+              const _byNet = {};
+              _prods.forEach(function(pr){ const k = pr.networkName || 'Other'; (_byNet[k] = _byNet[k] || []).push(pr); });
+              let _prodOpts = `<option value="">— None (manual text) —</option>`;
+              Object.keys(_byNet).forEach(function(net){
+                _prodOpts += `<optgroup label="${escHtml(net)}">`;
+                _byNet[net].forEach(function(pr){
+                  _prodOpts += `<option value="${escHtml(pr.id)}"${pr.id===_curProd?' selected':''}>${escHtml(pr.name)}</option>`;
+                });
+                _prodOpts += `</optgroup>`;
+              });
+              h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;margin-bottom:8px;">
+                <label style="margin-bottom:3px;font-size:12px;font-weight:600;"><i class="bi bi-box-seam me-1"></i>Linked Product</label>
+                <select class="props-input" style="font-size:12px;" onchange="updateVoltProduct('${block.id}',this.value)">${_prodOpts}</select>
+                <div style="font-size:10px;color:#9ca3af;margin-top:4px;line-height:1.5;">Binds slots with field hints <code>pkg.name</code>, <code>pkg.price</code>, <code>pkg.speed</code>, <code>pkg.period</code>, <code>pkg.options</code>&hellip; to this product's live values.${_prods.length?'':'<br><em>No packages loaded yet.</em>'}</div>
+              </div>`;
+            }
+            if (_slotTypes.has('title')) h+=inputRow('Title', p.slotTitle||'', `updateVoltSlot('${block.id}','slotTitle',this.value)`, 'Override title…');
+            if (_slotTypes.has('body')) h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;margin-bottom:8px;">
+              <label style="margin-bottom:3px;font-size:12px;">Body</label>
+              <textarea class="props-input" rows="3" style="resize:vertical;font-size:12px;" placeholder="Override body text…" oninput="updateVoltSlot('${block.id}','slotBody',this.value)">${escHtml(p.slotBody||'')}</textarea>
+            </div>`;
+            if (_slotTypes.has('icon')) h+=inputRow('Icon', p.slotIcon||'', `updateVoltSlot('${block.id}','slotIcon',this.value)`, 'bi-star or emoji…');
+            if (_slotTypes.has('image')) h+=mediaPickerRow('Image', p.slotImageUrl||'', block.id, 'slotImageUrl', 'image/*', true);
+            if (_slotTypes.has('action')) h+=inputRow('Action label', p.slotActionLabel||'', `updateVoltSlot('${block.id}','slotActionLabel',this.value)`, 'Button text…');
+            h+=`</div>`;
+          }
+        }
+      }
+      // Layer color overrides
+      if (p.voltId) {
         const cached = _voltLayerCache[p.voltId];
         const overrides = p.voltLayerOverrides || {};
         const hasOverrides = Object.keys(overrides).length > 0;
