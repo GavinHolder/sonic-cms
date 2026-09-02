@@ -3814,9 +3814,34 @@
             var i=state.element.layers.findIndex(function(l){return l.id===layer.id;});
             if(i<0)return;pushHistory();
             _mutFill0(i,function(f){
+              // Capture BEFORE overwriting f.type below — `fill` is the outer, still-
+              // unmutated closure snapshot from this panel render, so `fill.type` reliably
+              // reflects the PRE-click fill type for the "just switched into glass" check.
+              var wasGlass=fill.type==='glass';
               f.type=pair[0];
               if((pair[0]==='linear-gradient'||pair[0]==='radial-gradient')&&(!f.gradient||!f.gradient.stops||!f.gradient.stops.length)){
                 f.gradient={stops:[{color:f.color||'#6366f1',opacity:1,position:0},{color:'#8b5cf6',opacity:1,position:100}],angle:135};
+              }
+              if(pair[0]==='glass'&&!wasGlass){
+                // Switching INTO glass from Solid/Linear/Radial: f.opacity carries over
+                // unchanged from the previous fill type (a normal solid/gradient fill
+                // defaults to opacity 1). VoltRenderer.tsx's renderGlassOverlays uses
+                // this exact field as the frosted panel's backgroundColor alpha
+                // (`fill.opacity ?? 0.15`) — since opacity 1 is a defined, non-nullish
+                // value, that fallback never applies, so the panel renders fully OPAQUE
+                // and completely hides its own backdrop-filter blur (an opaque layer
+                // can't show anything blurred behind it, however much blur is applied).
+                // Result: a "glass" panel that looks like a flat solid card with
+                // whatever's behind it fully hidden — this authoring canvas can't catch
+                // it because its own SVG preview above hardcodes a fake translucent
+                // rgba(100,200,255,0.25) fill for ANY glass type regardless of the real
+                // opacity, so the bug is invisible until the real render (Flexible
+                // Designer canvas / live page). Reset to a sensible translucent default
+                // only on this transition — re-clicking Glass while already glass, or
+                // adjusting the Tint/Border sliders, never touches opacity again, so a
+                // user's own tint choice (including a deliberately high one) is preserved.
+                f.opacity=0.15;
+                if(f.borderOpacity==null) f.borderOpacity=0.3;
               }
             });
             markDirty();renderCanvas();renderProps();
