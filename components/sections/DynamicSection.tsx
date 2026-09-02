@@ -121,7 +121,20 @@ export default function DynamicSection({ section, isFirstAfterHero = false }: Dy
           ...(section.paddingBottomMobile != null && { '--section-pb-mobile': `${section.paddingBottomMobile}px` }),
         } as React.CSSProperties}
       >
-        <div className="section-content-wrapper">
+        {/* Full-bleed layer, NOT .section-content-wrapper — a whole-section Volt design
+            represents the ENTIRE 100vh section box (background layers and all), the same
+            convention already used for backgroundVoltId/fullBleedVolts below and for
+            free-canvas Flexible sections (see FlexibleSectionRenderer's cover-plate
+            comments): the design's own navbar band is baked into the canvas by its author,
+            not reserved by this wrapper. Mounting this inside .section-content-wrapper
+            (nav-clearance padding-top + reduced height) previously squeezed and shifted
+            the WHOLE canvas — including any layer meant to act as a full-bleed background —
+            proportionally down and clipped it at the section's bottom edge, since
+            VoltRenderer positions every layer (background role included) uniformly inside
+            one shared box with no way to exempt just the background from that padding.
+            Position:absolute + inset:0 against the position:relative <section> (100vh,
+            unaffected by navbar-height) fixes that without touching VoltRenderer itself. */}
+        <div style={{ position: "absolute", inset: 0 }}>
           <VoltRenderer voltElement={voltEl} slots={slots} style={{ width: '100%', height: '100%' }} />
         </div>
         {voltEl.layers
