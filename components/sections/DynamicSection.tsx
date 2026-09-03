@@ -133,8 +133,30 @@ export default function DynamicSection({ section, isFirstAfterHero = false }: Dy
             VoltRenderer positions every layer (background role included) uniformly inside
             one shared box with no way to exempt just the background from that padding.
             Position:absolute + inset:0 against the position:relative <section> (100vh,
-            unaffected by navbar-height) fixes that without touching VoltRenderer itself. */}
-        <div style={{ position: "absolute", inset: 0 }}>
+            unaffected by navbar-height) fixes that without touching VoltRenderer itself.
+
+            overflow:hidden here is NOT redundant with the section's own CSS default
+            overflow:hidden (#snap-container section:not(.hero-carousel)) — this section
+            never sets data-content-mode, so its box is always pinned to exactly 100vh by
+            that rule regardless of any Content Height Mode value on the section; a whole-
+            section Volt design has no "dynamic"/"multi" height option in the admin editor
+            today, so there is no taller-than-100vh case here to accommodate.
+            The clip DOES need to be independent of the section element's own overflow,
+            though: TriangleSectionWrapper (mounted below whenever section.triangleEnabled)
+            sets this <section>'s overflow to "visible" via direct DOM style (so the
+            triangle shape can bleed upward into the PREVIOUS section) — and a Volt design
+            authored with canvasOverflow:"visible" (an intentional per-design "let this
+            layer bleed past the canvas edge" option, e.g. a decorative background flourish)
+            relies on ITS renderer's containing box for the clip boundary, since
+            VoltRenderer itself skips self-clipping in that case. .section-content-wrapper
+            used to be that always-on boundary (a static CSS class rule, untouched by the
+            triangle wrapper's inline-style toggle on the outer <section>); replacing it
+            with a plain non-clipping div silently removed that boundary for any
+            triangleEnabled + canvasOverflow:"visible" combination, letting the bleed
+            content render fully unclipped and visibly larger than the section. This
+            explicit overflow:hidden restores that always-on boundary without reintroducing
+            the navbar-padding squeeze the position:absolute/inset:0 change above fixed. */}
+        <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
           <VoltRenderer voltElement={voltEl} slots={slots} style={{ width: '100%', height: '100%' }} />
         </div>
         {voltEl.layers
