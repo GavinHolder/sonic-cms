@@ -101,6 +101,26 @@ export default function HeroCarouselEditor({
     return () => window.removeEventListener("resize", readViewport);
   }, []);
 
+  // Real "full navbar over hero" + navbar height, fetched the same way HeroCarousel
+  // itself does — needed so the preview's forced .hero-carousel height below can
+  // mirror HeroCarousel's own `calc(100dvh + navbar-height)` math byte-for-byte. Admin
+  // routes' root layout hardcodes --navbar-height to 100px (app/layout.tsx skips the DB
+  // lookup on /admin), so without this the preview silently uses the wrong navbar
+  // height whenever the real site uses the "tall" (140px) navbar style, and always
+  // ignores heroFullNavbar's extra reserved space — which is what made freeform
+  // positions drift between the preview and the live page.
+  const [heroFullNavbar, setHeroFullNavbar] = useState(false);
+  const [navbarHeight, setNavbarHeight] = useState(100);
+  useEffect(() => {
+    fetch("/api/site-config")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (typeof json?.data?.heroFullNavbar === "boolean") setHeroFullNavbar(json.data.heroFullNavbar);
+        if (json?.data?.navbarStyle === "tall") setNavbarHeight(140);
+      })
+      .catch(() => {});
+  }, []);
+
   // Effective preview box — real-window size for Desktop (unchanged), or a fixed
   // reference size for Tablet/Mobile so the box shape actually matches that device
   // instead of showing mobile-layout content inside a desktop-shaped box. Same
@@ -764,11 +784,21 @@ export default function HeroCarouselEditor({
                           `.hero-carousel { height:100vh !important }` with a
                           higher-specificity + !important rule so the hero fills
                           the virtual viewport (real window height) exactly as on
-                          the page — same cover crop and centering. */}
+                          the page — same cover crop and centering.
+                          Also mirrors HeroCarousel's own heroFullNavbar math
+                          (`calc(100dvh + navbar-height)`) by adding the real
+                          navbar height here, and pins --navbar-height to the
+                          real value (scoped to this preview only) so the
+                          content layer's `top`/`height` calc — which reads that
+                          same var — lines up with the live page instead of the
+                          admin-wide hardcoded 100px fallback. */}
                       <style>{`
+                        .hero-preview-scope {
+                          --navbar-height: ${navbarHeight}px;
+                        }
                         .hero-preview-scope .hero-carousel {
-                          height: ${effectiveViewport.h}px !important;
-                          min-height: ${effectiveViewport.h}px !important;
+                          height: ${effectiveViewport.h + (heroFullNavbar ? navbarHeight : 0)}px !important;
+                          min-height: ${effectiveViewport.h + (heroFullNavbar ? navbarHeight : 0)}px !important;
                         }
                       `}</style>
                       {/* Preview-only play/pause — controls just this thumbnail's autoplay
