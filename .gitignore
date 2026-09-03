@@ -29,6 +29,9 @@
 # documentation (local reference only)
 /docs/
 
+# local GIS data pulls (large, not for the repo)
+/gis-exports/
+
 # temporary files and junk in root
 /*.log
 /*.png
