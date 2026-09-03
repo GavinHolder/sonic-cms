@@ -7,8 +7,9 @@ import { useToast } from "@/components/admin/ToastProvider";
 import NetworksManager from "@/components/admin/coverage/NetworksManager";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import ImportRegionsModal from "@/components/admin/coverage/ImportRegionsModal";
+import ExportMapModal from "@/components/admin/coverage/ExportMapModal";
 import type { ParsedRegion } from "@/lib/coverage-geojson-import";
-import { regionsAndTowersToGeoJson, regionsAndTowersToKml, type ExportRegion, type ExportTower } from "@/lib/coverage-geojson-export";
+import type { ExportRegion, ExportTower } from "@/lib/coverage-geojson-export";
 
 const PolygonEditorModal = dynamic(
   () => import("@/components/admin/coverage/PolygonEditorModal"),
@@ -116,6 +117,7 @@ function CoverageMapsInner() {
 
   // Bulk region import (GeoJSON)
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
 
   // Tower management
   const [towers, setTowers] = useState<CoverageTower[]>([]);
@@ -409,23 +411,14 @@ function CoverageMapsInner() {
     await loadMaps();
   };
 
-  // Download the current map's regions + towers as a file another GIS tool
-  // (Google My Maps, Google Earth, QGIS, ...) can open. Entirely client-side —
-  // `selectedMap.regions` and `towers` are already loaded in memory, so there's
-  // no need for a server round-trip just to hand the same data back out.
-  const downloadBlob = (content: string, filename: string, mimeType: string) => {
-    const blob = new Blob([content], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
+  // Data for the Export modal (components/admin/coverage/ExportMapModal.tsx),
+  // which lets the admin pick exactly which regions/towers to include rather
+  // than always exporting the whole map. `selectedMap.regions` and `towers`
+  // are already loaded in memory, so this is just a reshape — no API call.
   const buildExportData = () => {
     const networkName = (id: string | null | undefined) => networks.find((n) => n.id === id)?.name ?? null;
     const exportRegions: ExportRegion[] = selectedMap!.regions.map((r) => ({
+      id: r.id,
       name: r.name,
       polygon: r.polygon,
       color: r.color,
@@ -438,6 +431,7 @@ function CoverageMapsInner() {
       networkName: networkName(r.networkId),
     }));
     const exportTowers: ExportTower[] = towers.map((t) => ({
+      id: t.id,
       name: t.name,
       lat: t.lat,
       lng: t.lng,
@@ -446,30 +440,6 @@ function CoverageMapsInner() {
       networkName: networkName(t.networkId),
     }));
     return { exportRegions, exportTowers };
-  };
-
-  const handleExportGeoJson = () => {
-    if (!selectedMap) return;
-    const { exportRegions, exportTowers } = buildExportData();
-    if (exportRegions.length === 0 && exportTowers.length === 0) {
-      toast.error("Nothing to export yet — add a region or tower first");
-      return;
-    }
-    const fc = regionsAndTowersToGeoJson(exportRegions, exportTowers);
-    downloadBlob(JSON.stringify(fc, null, 2), `${selectedMap.slug}.geojson`, "application/geo+json");
-    toast.success(`Exported ${exportRegions.length} region${exportRegions.length === 1 ? "" : "s"} and ${exportTowers.length} tower${exportTowers.length === 1 ? "" : "s"} as GeoJSON`);
-  };
-
-  const handleExportKml = () => {
-    if (!selectedMap) return;
-    const { exportRegions, exportTowers } = buildExportData();
-    if (exportRegions.length === 0 && exportTowers.length === 0) {
-      toast.error("Nothing to export yet — add a region or tower first");
-      return;
-    }
-    const kml = regionsAndTowersToKml(selectedMap.name, exportRegions, exportTowers);
-    downloadBlob(kml, `${selectedMap.slug}.kml`, "application/vnd.google-earth.kml+xml");
-    toast.success(`Exported ${exportRegions.length} region${exportRegions.length === 1 ? "" : "s"} and ${exportTowers.length} tower${exportTowers.length === 1 ? "" : "s"} as KML`);
   };
 
   // ── Tower CRUD ─────────────────────────────────────────────────────────────
@@ -770,11 +740,8 @@ function CoverageMapsInner() {
                     Delivery regions displayed as colored polygons on the map
                   </p>
                   <div className="d-flex gap-2">
-                    <button className="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1" onClick={handleExportGeoJson} title="Download this map's regions + towers as GeoJSON (Google My Maps, QGIS, geojson.io, ...)">
-                      <i className="bi bi-file-earmark-arrow-down" />Export GeoJSON
-                    </button>
-                    <button className="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1" onClick={handleExportKml} title="Download this map's regions + towers as KML (Google Earth, Google My Maps, ...)">
-                      <i className="bi bi-file-earmark-arrow-down" />Export KML
+                    <button className="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1" onClick={() => setExportModalOpen(true)} title="Pick which regions/towers to export as GeoJSON or KML">
+                      <i className="bi bi-file-earmark-arrow-down" />Export
                     </button>
                     <button className="btn btn-sm btn-outline-success d-flex align-items-center gap-1" onClick={() => setImportModalOpen(true)}>
                       <i className="bi bi-file-earmark-arrow-up" />Import Regions (GeoJSON)
@@ -1704,6 +1671,20 @@ function CoverageMapsInner() {
           onClose={() => setImportModalOpen(false)}
         />
       )}
+
+      {/* ── Export (GeoJSON/KML, pick regions + towers) modal ───────────────────── */}
+      {exportModalOpen && selectedMap && (() => {
+        const { exportRegions, exportTowers } = buildExportData();
+        return (
+          <ExportMapModal
+            mapName={selectedMap.name}
+            mapSlug={selectedMap.slug}
+            regions={exportRegions}
+            towers={exportTowers}
+            onClose={() => setExportModalOpen(false)}
+          />
+        );
+      })()}
 
       {/* ── Tower location picker ──────────────────────────────────────────────── */}
       {showTowerPicker && selectedMap && (

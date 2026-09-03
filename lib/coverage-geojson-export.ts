@@ -17,6 +17,7 @@ export interface LatLng {
 }
 
 export interface ExportRegion {
+  id: string;
   name: string;
   polygon: LatLng[];
   color: string;
@@ -30,6 +31,7 @@ export interface ExportRegion {
 }
 
 export interface ExportTower {
+  id: string;
   name: string;
   lat: number;
   lng: number;
