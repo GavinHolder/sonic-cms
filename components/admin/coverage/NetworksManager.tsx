@@ -29,6 +29,10 @@ interface Pkg {
   term?: string | null;
   categoryId?: string | null;
   productTypeId?: string | null;
+  // Per-package pricing card color override. null/undefined = no override, falls
+  // back to this package's network color (Network.color). Takes priority over the
+  // network's color for this specific package's card when set.
+  color?: string | null;
   // Empty/undefined = unrestricted (available everywhere the network covers, the
   // pre-existing default). Non-empty = only offered in these specific regions of
   // the package's own network — see restrictedRegions on the Package model.
@@ -416,6 +420,7 @@ export default function NetworksManager() {
       term: pkg.term ?? null,
       categoryId: pkg.categoryId ?? null,
       productTypeId: pkg.productTypeId ?? null,
+      color: pkg.color || null,
       restrictedRegionIds: (pkg.restrictedRegions || []).map((r) => r.id),
       popular: pkg.popular ?? false,
       isActive: pkg.isActive ?? true,
@@ -1213,6 +1218,16 @@ export default function NetworksManager() {
                     </div>
                   );
                 })()}
+                <div className="mb-3">
+                  <label className="form-label">Card Color Override</label>
+                  <div className="d-flex align-items-center gap-2">
+                    <input type="color" className="form-control form-control-color" value={pkgModal.pkg.color || "#22c55e"} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, color: e.target.value } })} />
+                    {pkgModal.pkg.color && (
+                      <button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, color: null } })}>Clear</button>
+                    )}
+                  </div>
+                  <div className="form-text">Overrides this package&apos;s network color for its pricing card. Leave blank to use the network&apos;s color.</div>
+                </div>
                 <div className="d-flex gap-4">
                   <div className="form-check form-switch"><input className="form-check-input" type="checkbox" id="pkg-popular" checked={pkgModal.pkg.popular ?? false} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, popular: e.target.checked } })} /><label className="form-check-label" htmlFor="pkg-popular">Popular</label></div>
                   <div className="form-check form-switch"><input className="form-check-input" type="checkbox" id="pkg-active" checked={pkgModal.pkg.isActive ?? true} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, isActive: e.target.checked } })} /><label className="form-check-label" htmlFor="pkg-active">Active</label></div>

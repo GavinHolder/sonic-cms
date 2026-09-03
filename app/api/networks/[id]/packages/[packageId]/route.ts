@@ -32,6 +32,9 @@ export async function PUT(
     ...(body.term !== undefined && { term: body.term || null }),
     ...(body.categoryId !== undefined && { categoryId: body.categoryId || null }),
     ...(body.productTypeId !== undefined && { productTypeId: body.productTypeId || null }),
+    // Per-package pricing card color override — empty string clears it back to null
+    // (falls back to the network's color), same convention as the other optional fields.
+    ...(body.color !== undefined && { color: typeof body.color === "string" && body.color.trim() ? body.color.trim() : null }),
     ...(body.popular !== undefined && { popular: body.popular }),
     ...(body.isActive !== undefined && { isActive: body.isActive }),
     ...(body.order !== undefined && { order: body.order }),

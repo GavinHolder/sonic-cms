@@ -44,6 +44,9 @@ export async function POST(
     term: body.term || null,
     categoryId: body.categoryId || null,
     productTypeId: body.productTypeId || null,
+    // Per-package pricing card color override — null/empty = no override, falls
+    // back to the network's own color (see Network.color).
+    color: typeof body.color === "string" && body.color.trim() ? body.color.trim() : null,
     popular: body.popular ?? false,
     isActive: body.isActive ?? true,
     order: nextOrder,

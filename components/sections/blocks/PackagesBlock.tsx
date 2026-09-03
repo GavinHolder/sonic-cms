@@ -7,6 +7,9 @@ interface PkgRow {
   id: string; name: string; speedDown: string | null; speedUp: string | null;
   price: string; period: string | null; features: unknown; popular: boolean;
   networkName: string | null; networkColor: string | null;
+  // Per-package override — takes priority over networkColor when set. Not yet
+  // consumed for rendering in this block (mirrors the /api/packages response shape).
+  packageColor?: string | null;
 }
 
 interface Props {

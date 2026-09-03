@@ -579,6 +579,12 @@ model Package {
   categoryId String?
   // Admin-managed marketing product type (Fibre, Wireless, Voice, Hosting…) — optional, unassigned by default
   productTypeId String?
+  // Per-package pricing card color override (hex string, e.g. "#22c55e"). null = no
+  // override, falls back to the package's Network.color (see Network.color above).
+  // When set, takes priority over the network's color for this package's card,
+  // regardless of the `--tpl-use-network-color` template option — purely additive,
+  // never changes behavior for packages that don't set it.
+  color      String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   network     Network          @relation(fields: [networkId], references: [id], onDelete: Cascade)

@@ -39,6 +39,9 @@ export async function GET(req: NextRequest) {
   const select = {
     id: true, name: true, speedDown: true, speedUp: true, price: true, period: true,
     features: true, popular: true, order: true, term: true,
+    // Package.color — per-package pricing card color override, distinct from the
+    // network's own color below (networkColor). Selected directly (no relation).
+    color: true,
     network: { select: { name: true, slug: true, category: true, color: true, logoUrl: true } },
     // The package's OWN service category (Data/Voice/IoT/CCTV…) — unrelated to the
     // productType-derived serviceCategorySlug/-Name below, which is the top-level
@@ -85,6 +88,9 @@ export async function GET(req: NextRequest) {
       networkName: net?.name ?? null, networkSlug: net?.slug ?? null,
       networkCategory: net?.category ?? null, networkColor: net?.color ?? null,
       networkLogoUrl: net?.logoUrl ?? null,
+      // Per-package override — when set, takes priority over networkColor for this
+      // package's card. Distinct name so it can never be confused with networkColor.
+      packageColor: (p.color as string | null | undefined) ?? null,
       categoryId: cat?.id ?? null, categoryName: cat?.name ?? null,
       productTypeSlug: pt?.slug ?? null, productTypeName: pt?.name ?? null,
       // Derived from productType.serviceCategory — null when the product type hasn't
