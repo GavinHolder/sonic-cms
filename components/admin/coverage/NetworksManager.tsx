@@ -156,6 +156,13 @@ export default function NetworksManager() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<TabKey>("FNO");
 
+  // Packages sub-panel (per-network, keyed by network id): active Product-Type tab
+  // ("ALL" default, or a productTypeId, or "__general__" for untyped packages),
+  // the search filter text, and the set of currently bulk-selected package ids.
+  const [pkgTab, setPkgTab] = useState<Record<string, string>>({});
+  const [pkgSearch, setPkgSearch] = useState<Record<string, string>>({});
+  const [selectedPkgIds, setSelectedPkgIds] = useState<Record<string, Set<string>>>({});
+
   const [netModal, setNetModal] = useState<Partial<Network> | null>(null);
   // termVariants: "Term Variants" quick-add (see savePackage) — a list of extra
   // (term, price) pairs that each become their own *sibling* Package row on save,
@@ -369,7 +376,18 @@ export default function NetworksManager() {
   };
 
   const toggle = (id: string) =>
-    setExpanded((p) => { const s = new Set(p); s.has(id) ? s.delete(id) : s.add(id); return s; });
+    setExpanded((p) => {
+      const s = new Set(p);
+      if (s.has(id)) {
+        s.delete(id);
+        // Collapsing hides the bulk-select checkboxes — clear the selection so it
+        // can't be silently bulk-deleted later after being re-expanded stale.
+        clearPkgSelection(id);
+      } else {
+        s.add(id);
+      }
+      return s;
+    });
 
   // ── Network save ───────────────────────────────────────────────
   const saveNetwork = async () => {
@@ -521,6 +539,34 @@ export default function NetworksManager() {
         setConfirm(null);
       },
     });
+
+  const clearPkgSelection = (networkId: string) =>
+    setSelectedPkgIds((prev) => {
+      if (!prev[networkId] || prev[networkId].size === 0) return prev;
+      const next = { ...prev };
+      delete next[networkId];
+      return next;
+    });
+
+  const bulkDeletePackages = (networkId: string) => {
+    const ids = Array.from(selectedPkgIds[networkId] ?? []);
+    if (ids.length === 0) return;
+    setConfirm({
+      title: "Delete packages",
+      message: `Delete ${ids.length} package${ids.length === 1 ? "" : "s"}?`,
+      onConfirm: async () => {
+        const results = await Promise.all(
+          ids.map((id) => fetch(`/api/networks/${networkId}/packages/${id}`, { method: "DELETE" }))
+        );
+        const failed = results.filter((r) => !r.ok).length;
+        if (failed === 0) toast.success(`${ids.length} package${ids.length === 1 ? "" : "s"} deleted`);
+        else toast.error(`${failed} of ${ids.length} package(s) failed to delete`);
+        clearPkgSelection(networkId);
+        load();
+        setConfirm(null);
+      },
+    });
+  };
 
   // Defensive catch-all: networks whose category doesn't match a known enum member
   // (legacy/null data) still surface under the "Other" tab instead of vanishing.
@@ -743,9 +789,31 @@ export default function NetworksManager() {
 
               {expanded.has(n.id) && (
                 <div className="card-body border-top bg-light">
-                  <div className="d-flex justify-content-between align-items-center mb-2">
-                    <h6 className="mb-0">Packages</h6>
-                    <button className="btn btn-sm btn-primary" onClick={() => setPkgModal({ networkId: n.id, pkg: { period: termToPeriod(null, packageTerms), features: [], isActive: true, kind: "DATA" }, termVariants: [] })}>
+                  <div className="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                    <div className="d-flex align-items-center gap-2 flex-wrap">
+                      <h6 className="mb-0">Packages</h6>
+                      {(selectedPkgIds[n.id]?.size ?? 0) > 0 && (
+                        <span className="d-flex align-items-center gap-2">
+                          <span className="badge text-bg-secondary">{selectedPkgIds[n.id]!.size} selected</span>
+                          <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => bulkDeletePackages(n.id)}>
+                            <i className="bi bi-trash me-1" />Delete selected
+                          </button>
+                          <button type="button" className="btn btn-sm btn-link p-0" onClick={() => clearPkgSelection(n.id)}>Clear</button>
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      className="btn btn-sm btn-primary"
+                      onClick={() => {
+                        const activeTabKey = pkgTab[n.id] ?? "ALL";
+                        const productTypeId = activeTabKey !== "ALL" && activeTabKey !== "__general__" ? activeTabKey : null;
+                        setPkgModal({
+                          networkId: n.id,
+                          pkg: { period: termToPeriod(null, packageTerms), features: [], isActive: true, kind: "DATA", productTypeId },
+                          termVariants: [],
+                        });
+                      }}
+                    >
                       <i className="bi bi-plus-lg me-1" />Add Package
                     </button>
                   </div>
@@ -754,29 +822,134 @@ export default function NetworksManager() {
                   ) : (() => {
                     const isVoicePkg = (p: Pkg) => categories.find((c) => c.id === p.categoryId)?.name?.trim().toLowerCase() === "voice";
                     const hasVoicePkg = n.packages.some(isVoicePkg);
+
+                    // Group packages by Product Type to decide whether tabs are worth
+                    // showing at all — a network with only one group (all typed the
+                    // same, or all untyped) keeps today's flat table untouched.
+                    const groupKeys = Array.from(new Set(n.packages.map((p) => p.productTypeId ?? "__general__")));
+                    const showTabs = groupKeys.length >= 2;
+                    const hasGeneralGroup = groupKeys.includes("__general__");
+                    const hasTypedGroup = groupKeys.some((k) => k !== "__general__");
+                    const tabProductTypes = productTypes
+                      .filter((pt) => pt.isActive && groupKeys.includes(pt.id))
+                      .sort((a, b) => a.order - b.order);
+
+                    const activeTabKey = pkgTab[n.id] ?? "ALL";
+                    const tabFiltered = !showTabs || activeTabKey === "ALL"
+                      ? n.packages
+                      : n.packages.filter((p) => (p.productTypeId ?? "__general__") === activeTabKey);
+
+                    const searchQuery = (pkgSearch[n.id] ?? "").trim().toLowerCase();
+                    const visiblePackages = searchQuery
+                      ? tabFiltered.filter((p) =>
+                          [p.name, p.term, p.price, p.speedDown, p.speedUp].some((v) => (v ?? "").toLowerCase().includes(searchQuery))
+                        )
+                      : tabFiltered;
+
+                    const visibleIds = visiblePackages.map((p) => p.id);
+                    const selected = selectedPkgIds[n.id] ?? new Set<string>();
+                    const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
+
+                    const setTab = (key: string) => {
+                      setPkgTab((prev) => ({ ...prev, [n.id]: key }));
+                      // Switching tabs can hide previously-selected rows — drop the
+                      // selection so a bulk delete can't silently reach hidden packages.
+                      clearPkgSelection(n.id);
+                    };
+
+                    const toggleRow = (id: string) =>
+                      setSelectedPkgIds((prev) => {
+                        const next = { ...prev };
+                        const s = new Set(next[n.id] ?? []);
+                        if (s.has(id)) s.delete(id); else s.add(id);
+                        next[n.id] = s;
+                        return next;
+                      });
+
+                    const toggleAllVisible = () =>
+                      setSelectedPkgIds((prev) => {
+                        const next = { ...prev };
+                        const s = new Set(next[n.id] ?? []);
+                        if (allVisibleSelected) visibleIds.forEach((id) => s.delete(id));
+                        else visibleIds.forEach((id) => s.add(id));
+                        next[n.id] = s;
+                        return next;
+                      });
+
                     return (
-                    <div className="table-responsive">
-                      <table className="table table-sm align-middle mb-0">
-                        <thead><tr><th>Name</th><th>Speed</th>{hasVoicePkg && <th>Bundle</th>}<th>Term</th><th>Price</th><th>Features</th><th></th></tr></thead>
-                        <tbody>
-                          {n.packages.map((p) => (
-                            <tr key={p.id}>
-                              <td>{p.name} {p.popular && <span className="badge text-bg-warning ms-1">Popular</span>} {!p.isActive && <span className="badge text-bg-secondary ms-1">Hidden</span>}</td>
-                              <td className="small text-muted">{isVoicePkg(p) ? "—" : ([p.speedDown, p.speedUp].filter(Boolean).join(" / ") || "—")}</td>
-                              {hasVoicePkg && <td className="small text-muted">{isVoicePkg(p) ? (p.speedDown || "—") : "—"}</td>}
-                              <td>{p.term ? <span className="badge text-bg-light border">{p.term}</span> : <span className="text-muted small">—</span>}</td>
-                              <td className="text-nowrap">{p.price}{p.period && <span className="text-muted small"> {p.period}</span>}</td>
-                              <td className="small text-muted">{parsePackageFeatures(p.features).length} feature(s)</td>
-                              <td className="text-end text-nowrap">
-                                <button className="btn btn-sm btn-outline-primary me-1" onClick={() => setPkgModal({ networkId: n.id, pkg: p })} title="Edit"><i className="bi bi-pencil" /></button>
-                                <button className="btn btn-sm btn-outline-secondary me-1" onClick={() => { const { id: _id, ...rest } = p; setPkgModal({ networkId: n.id, pkg: { ...rest, name: `${p.name} (copy)`, popular: false } }); }} title="Duplicate"><i className="bi bi-copy" /></button>
-                                <button className="btn btn-sm btn-outline-danger" onClick={() => deletePackage(n.id, p)} title="Delete"><i className="bi bi-trash" /></button>
-                              </td>
-                            </tr>
+                    <>
+                      {showTabs && (
+                        <div className="d-flex flex-wrap gap-1 mb-2">
+                          <button type="button" className={`btn btn-sm ${activeTabKey === "ALL" ? "btn-secondary" : "btn-outline-secondary"}`} onClick={() => setTab("ALL")}>
+                            All
+                          </button>
+                          {tabProductTypes.map((pt) => (
+                            <button
+                              key={pt.id}
+                              type="button"
+                              className={`btn btn-sm ${activeTabKey === pt.id ? "text-white border-0" : "btn-outline-secondary"}`}
+                              style={activeTabKey === pt.id ? { background: pt.color } : undefined}
+                              onClick={() => setTab(pt.id)}
+                            >
+                              {pt.name}
+                            </button>
                           ))}
-                        </tbody>
-                      </table>
-                    </div>
+                          {hasGeneralGroup && hasTypedGroup && (
+                            <button type="button" className={`btn btn-sm ${activeTabKey === "__general__" ? "btn-secondary" : "btn-outline-secondary"}`} onClick={() => setTab("__general__")}>
+                              General
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      <div className="mb-2" style={{ maxWidth: 260 }}>
+                        <div className="input-group input-group-sm">
+                          <span className="input-group-text"><i className="bi bi-search" /></span>
+                          <input
+                            type="text"
+                            className="form-control"
+                            placeholder="Search packages..."
+                            value={pkgSearch[n.id] ?? ""}
+                            onChange={(e) => setPkgSearch((prev) => ({ ...prev, [n.id]: e.target.value }))}
+                          />
+                        </div>
+                      </div>
+                      {visiblePackages.length === 0 ? (
+                        <p className="text-muted small mb-0">No packages match.</p>
+                      ) : (
+                        <div className="table-responsive">
+                          <table className="table table-sm align-middle mb-0">
+                            <thead>
+                              <tr>
+                                <th style={{ width: 32 }}>
+                                  <input type="checkbox" className="form-check-input" checked={allVisibleSelected} onChange={toggleAllVisible} aria-label="Select all visible packages" />
+                                </th>
+                                <th>Name</th><th>Speed</th>{hasVoicePkg && <th>Bundle</th>}<th>Term</th><th>Price</th><th>Features</th><th></th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {visiblePackages.map((p) => (
+                                <tr key={p.id}>
+                                  <td>
+                                    <input type="checkbox" className="form-check-input" checked={selected.has(p.id)} onChange={() => toggleRow(p.id)} aria-label={`Select ${p.name}`} />
+                                  </td>
+                                  <td>{p.name} {p.popular && <span className="badge text-bg-warning ms-1">Popular</span>} {!p.isActive && <span className="badge text-bg-secondary ms-1">Hidden</span>}</td>
+                                  <td className="small text-muted">{isVoicePkg(p) ? "—" : ([p.speedDown, p.speedUp].filter(Boolean).join(" / ") || "—")}</td>
+                                  {hasVoicePkg && <td className="small text-muted">{isVoicePkg(p) ? (p.speedDown || "—") : "—"}</td>}
+                                  <td>{p.term ? <span className="badge text-bg-light border">{p.term}</span> : <span className="text-muted small">—</span>}</td>
+                                  <td className="text-nowrap">{p.price}{p.period && <span className="text-muted small"> {p.period}</span>}</td>
+                                  <td className="small text-muted">{parsePackageFeatures(p.features).length} feature(s)</td>
+                                  <td className="text-end text-nowrap">
+                                    <button className="btn btn-sm btn-outline-primary me-1" onClick={() => setPkgModal({ networkId: n.id, pkg: p })} title="Edit"><i className="bi bi-pencil" /></button>
+                                    <button className="btn btn-sm btn-outline-secondary me-1" onClick={() => { const { id: _id, ...rest } = p; setPkgModal({ networkId: n.id, pkg: { ...rest, name: `${p.name} (copy)`, popular: false } }); }} title="Duplicate"><i className="bi bi-copy" /></button>
+                                    <button className="btn btn-sm btn-outline-danger" onClick={() => deletePackage(n.id, p)} title="Delete"><i className="bi bi-trash" /></button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </>
                     );
                   })()}
                 </div>
