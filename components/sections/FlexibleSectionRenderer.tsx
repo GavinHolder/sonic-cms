@@ -716,21 +716,37 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
         position: "relative",
         ...(isBgGrad ? { background: bgColor } : {}),
         ...(diagonalSlab ? { clipPath: "polygon(0 4%, 100% 0, 100% 96%, 0 100%)", overflow: "hidden" } : {}),
-        ...(freePlateDesktop && freeCanvas && contentMode === "multi" ? {
-          // MULTI free-mode height — the section is exactly as tall as the design scaled
-          // to the viewport WIDTH (height = width · ch/cw), so the WHOLE design shows with
-          // NO cover-zoom and NO crop. aspect-ratio derives that height in pure CSS
+        ...(freePlateDesktop && freeCanvas && (contentMode === "multi" || contentMode === "single") ? {
+          // MULTI/SINGLE free-mode height — the section is exactly as tall as the design
+          // scaled to the viewport WIDTH (height = width · ch/cw), so the WHOLE design shows
+          // with NO cover-zoom and NO crop. aspect-ratio derives that height in pure CSS
           // (SSR/no-JS safe — no measurement, no zero-height flash); height:auto + min/max
           // release the 100vh + min/max-height pins from globals.css (the desktop
           // `#snap-container section:not(.hero-carousel)` rule has NO !important, so this
           // inline style wins). Scoped to freePlateDesktop → applied on desktop ONLY; on
           // mobile no inline height is emitted, so the mobile CSS height model is byte-identical.
-          // SINGLE mode intentionally emits NONE of these overrides — the section keeps its
-          // globals.css 100vh pin so a single free section is exactly one screen and never
-          // scrolls; the plate contain-fits the design inside that fixed 100vh box instead.
+          //
+          // SINGLE (added 2026-09-04, fixes the cc72fb2 regression): reuses MULTI's exact
+          // mechanism instead of a separate contain-fit compromise. cc72fb2 fixed cropped
+          // bottom content (e.g. Kuluntu's icon row) by scaling the plate down to CONTAIN the
+          // fixed 100vh box — but that introduced visible left/right letterbox gutters
+          // whenever height was the constraining ratio, which the user rejected ("not fitting
+          // on the left and right edges, i dont want spaces"). Width-fill (cover) and
+          // never-crop are mutually exclusive inside a FIXED-height box — the only way to get
+          // both is to stop fixing the box height. So SINGLE now grows exactly like MULTI:
+          // width-only plate scale (no gutters, ever) + section height = the scaled design's
+          // true height (no crop, ever). minHeight stays 100vh (unlike MULTI's 0) so a single
+          // section is still AT LEAST one full screen even when the design's own aspect ratio
+          // would compute shorter — it can only ever grow past 100vh, never shrink under it.
+          // Tradeoff: on an unusually short/wide viewport (unusually short browser height, or
+          // a design authored much taller than wide relative to the viewport) the section can
+          // end up noticeably taller than 100vh, so a single section is no longer an ABSOLUTE
+          // guarantee of exactly one screen — it's the least-bad option once "no side gutters"
+          // and "no cropped content" are both non-negotiable; there is no scale value that
+          // satisfies both inside a fixed box.
           aspectRatio: `${freeCanvas.cw} / ${freeCanvas.ch}`,
           height: "auto",
-          minHeight: 0,
+          minHeight: contentMode === "single" ? "100vh" : 0,
           maxHeight: "none",
         } : {}),
         // Dynamic Content Height Mode — the live-computed screen count, read by globals.css's
@@ -1916,6 +1932,14 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
     // to match, would silently compute isMulti as false here and use the wrong (single-
     // screen) height math despite showing as Multi everywhere else.
     const isMulti    = (resolvedContentMode ?? data.contentMode) === "multi";
+    // isSingleFreeGrow: SINGLE mode's free-canvas plate, reusing MULTI's width-only scale +
+    // section-grows-to-fit mechanism instead of the old fixed-100vh contain-fit compromise.
+    // See the matching <section> style block's own doc comment (outer component, above) for
+    // the full before/after rationale. Explicitly "single" only — a free-canvas section left
+    // in "dynamic" mode (rare/unsupported combination; dynamic's growth mechanism is the
+    // separate reportBlockHeight/blockHeights channel, not this plate) keeps the untouched
+    // contain-fit fallback below rather than being silently pulled into this new behavior.
+    const isSingleFreeGrow = (resolvedContentMode ?? data.contentMode) === "single";
     // Dynamic mode is scoped to the non-free designer layout (same path Multi's own
     // containerH/multiLimit logic lives in) — dynamicMeta/dynamicScreens are computed by
     // the unconditional hooks above (must run before this try block's early returns).
@@ -2005,49 +2029,41 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
       // nothing (the plate lives at section level so it fills the section box, not the padded
       // content wrapper — that is what keeps the live render registered with the design box).
       if (!plateMode) return null;
-      // Two render modes, branched cleanly on isMulti:
+      // Three render modes, branched on isMulti / isSingleFreeGrow:
       //
       // MULTI: WIDTH-ONLY scale = a truthful 1:1 render. Plate width after scale = cw·(stageW/cw)
       //   = stageW = the section content width, so the plate fills the width EXACTLY. The section
       //   is separately grown to the SCALED design height (aspect-ratio on the <section>, above),
       //   so the WHOLE design is visible with no crop and no zoom. Top-left anchored, no centering.
       //
-      // SINGLE: WIDTH-FILL (cover) scale = sw/cw so the background fills the section edge-to-edge
-      //   (no letterbox bars). Single mode emits NO aspect-ratio override, so the section keeps its
-      //   globals.css 100vh pin with overflow:hidden and never scrolls — the design's empty BOTTOM
-      //   simply crops off-screen like background-size:cover. The design is authored top-left (text
-      //   at the TOP of the box) so it is top-left anchored with no horizontal offset, keeping the
-      //   text fully visible and registered under the fixed navbar.
+      // SINGLE (2026-09-04): reuses MULTI's identical width-only scale — see the matching
+      //   <section> style block's doc comment (outer component) for why this replaced the
+      //   short-lived contain-fit compromise (cc72fb2 fixed cropped bottom content but
+      //   introduced left/right letterbox gutters, which the user rejected). The section is
+      //   grown the same way MULTI's is (min-height 100vh instead of MULTI's 0, so it never
+      //   goes below one screen), so width-fill and "never crop" are both satisfied by growing
+      //   the box instead of shrinking the plate.
+      //
+      // Anything else (e.g. a free-canvas section left in "dynamic" mode — rare/unsupported):
+      //   CONTAIN-fit fallback, unchanged from before — scale by min(widthRatio, heightRatio)
+      //   inside the fixed 100vh box so nothing is ever cropped, accepting letterbox gutters
+      //   as the tradeoff. Kept only for this non-single/non-multi case now.
       const sw = stageW || (typeof window !== "undefined" ? window.innerWidth : cw);
       let plateTransform: string;
       let plateLeft = 0;
-      if (isMulti) {
-        // MULTI: width-only scale — exactly as before (transform string byte-identical).
+      if (isMulti || isSingleFreeGrow) {
+        // MULTI/SINGLE: width-only scale. For SINGLE this is safe now that the section itself
+        // (see the style block above) grows to `sw · ch/cw` — the plate's own scaled height is
+        // that exact same value, so it always exactly fills the (possibly-grown) box with no
+        // crop and no gutters, byte-identical math to MULTI's.
         const scale = sw / cw;
         plateTransform = `scale(${scale})`;
       } else {
-        // SINGLE: CONTAIN-fit — scale by min(widthRatio, heightRatio) so the WHOLE design
-        // (bg + every block, including anything anchored near the canvas bottom, e.g. an
-        // icon row) is ALWAYS fully visible inside the fixed 100vh box — never cropped.
-        //
-        // Bug fixed (2026-09-04): this used to be width-only scale (`sw / cw`, identical to
-        // MULTI's formula) with no regard for the box's actual height. Single mode pins the
-        // section to exactly 100vh (no aspect-ratio override, see the style block above), so
-        // whenever the width-scaled design was TALLER than that box — any viewport shorter
-        // than the design's authored aspect ratio — the excess simply clipped off-screen via
-        // this wrapper's overflow:hidden. That silently deleted bottom-anchored content
-        // instead of just cropping "empty" background, e.g. the Kuluntu "Serving Our
-        // Community" section's icon row (Connected/Community/Care/Together) disappearing
-        // entirely below ~625px viewport height. stageH was already measured for exactly
-        // this (see its own comment above) but was never actually consumed here.
-        //
-        // min() can only ever be <= the old width-only scale, so for every viewport where
-        // the design already fit (the common case — the box is at least as tall as the
-        // width-scaled design), heightScale >= widthScale and this is BYTE-IDENTICAL to the
-        // old behaviour. It only shrinks further, and only in the exact scenario that used
-        // to crop — trading a hidden bottom for a smaller-but-fully-visible design (plus a
-        // sliver of section background at the bottom, never at the top, since the design
-        // stays top-anchored so its navbar band keeps registering under the fixed navbar).
+        // CONTAIN-fit fallback (dynamic / any other free-canvas mode) — scale by
+        // min(widthRatio, heightRatio) so the WHOLE design is always fully visible inside the
+        // fixed 100vh box, never cropped, at the cost of letterbox gutters when height is the
+        // constraining ratio. See git history (cc72fb2) for the original single-mode bug this
+        // was written to fix, before single mode was moved to the width-fill-grow path above.
         const sh = stageH || (typeof window !== "undefined" ? window.innerHeight : ch);
         const widthScale = sw / cw;
         const heightScale = sh / ch;
