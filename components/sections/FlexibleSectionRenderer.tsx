@@ -781,16 +781,12 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           // via multiLimit). A 2026-09-04 attempt (`736e864`) let single sections grow past
           // 100vh to avoid cropping bottom-anchored content — that broke the hard rule (the
           // page needed extra scroll before the next section's snap point) and was reverted
-          // the same day once the violation was reported. Single mode's plate instead
-          // contain-fits inside this fixed 100vh box below (see the CONTAIN-fit branch in
-          // DesignerBlocksRenderer) — content is never cropped, at the cost of letterbox
-          // gutters on an unusually short/wide viewport. That gutter tradeoff was also
-          // reported as unwanted once (`cc72fb2` → `736e864`); it is intentionally restored
-          // here because the alternative (breaking the 100vh contract) is worse. If this
-          // needs revisiting, the actual fix belongs in the Volt design's own content
-          // (canvas aspect ratio / element placement), not another rendering trick — see the
-          // CONTAIN-fit branch's own comment for why no scale value can satisfy "no gutters"
-          // + "no crop" + "always exactly 100vh" simultaneously.
+          // the same day once the violation was reported. Single mode's plate instead fills
+          // this fixed 100vh box via NON-UNIFORM scale (see that branch in
+          // DesignerBlocksRenderer) — width and height each scale to fill exactly, so there
+          // is neither crop nor letterbox gutters, at the cost of mild image stretch on
+          // off-ratio viewports (accepted trade-off, 2026-09-04, after both CONTAIN-fit's
+          // gutters and width-fill-and-grow's 100vh violation were rejected).
           aspectRatio: `${freeCanvas.cw} / ${freeCanvas.ch}`,
           height: "auto",
           minHeight: 0,
@@ -2079,38 +2075,32 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
       //   N×100vh), so growing it to the design's true height is safe.
       //
       // SINGLE (and any other free-canvas content mode, e.g. an unsupported "dynamic" free
-      //   combination): CONTAIN-fit — scale by min(widthRatio, heightRatio) so the WHOLE design
-      //   is always fully visible inside the section's fixed 100vh box, never cropped, at the
-      //   cost of letterbox gutters when height is the constraining ratio. This is deliberate,
-      //   not a fallback: single sections have a hard, non-negotiable 100vh contract (see this
-      //   section's own <section> style block, above) — the plate must fit ITSELF into that
-      //   fixed box, the box can never grow to fit the plate. A 2026-09-04 attempt
-      //   (`736e864`) tried width-fill + let-the-section-grow instead, specifically to avoid
-      //   the gutters — that broke the 100vh contract (confirmed live: needed extra scroll
-      //   before the next section's snap point) and was reverted the same day. If the gutters
-      //   need eliminating without reintroducing that regression, the fix belongs in the Volt
-      //   design's own content (canvas aspect ratio close to common viewport ratios, or
-      //   bottom-anchored elements moved up), not in this scale math — no scale value can give
-      //   "no gutters" + "no crop" + "always exactly 100vh" simultaneously inside a fixed box.
+      //   combination): NON-UNIFORM fill — scaleX = width/cw, scaleY = height/ch, applied
+      //   independently via `scale(sx, sy)`. This is the one scale strategy that actually
+      //   satisfies all three constraints at once: no letterbox gutters (both axes fill
+      //   exactly), no crop (nothing is scaled past the box, the WHOLE design is visible),
+      //   and the section's fixed 100vh box is never touched (still no aspect-ratio/height
+      //   override here — see this section's own <section> style block, above). The cost is
+      //   mild non-uniform stretch on off-ratio viewports (measured: ~0% at the design's
+      //   native 1.6:1 canvas ratio, ~11% at 16:9, ~20% at 1920x1000, up to ~48% at 21:9
+      //   ultrawide) — an accepted, user-confirmed trade-off (2026-09-04) after CONTAIN-fit's
+      //   letterbox gutters and the width-fill+grow attempt (`736e864`, broke the 100vh
+      //   contract, reverted same day) were both explicitly rejected. See
+      //   docs/CODEMAPS or MISTAKES.md for the fuller history if this needs revisiting —
+      //   the underlying tension (no gutters + no crop + always exactly 100vh) has no
+      //   uniform-scale solution; only non-uniform scale threads all three.
       const sw = stageW || (typeof window !== "undefined" ? window.innerWidth : cw);
       let plateTransform: string;
-      let plateLeft = 0;
+      const plateLeft = 0;
       if (isMulti) {
         // MULTI: width-only scale — exactly as before (transform string byte-identical).
         const scale = sw / cw;
         plateTransform = `scale(${scale})`;
       } else {
         const sh = stageH || (typeof window !== "undefined" ? window.innerHeight : ch);
-        const widthScale = sw / cw;
-        const heightScale = sh / ch;
-        const scale = Math.min(widthScale, heightScale);
-        plateTransform = `scale(${scale})`;
-        // Height-constrained: the scaled design is now narrower than the box (that's what
-        // picking the smaller ratio means) — centre it horizontally instead of leaving the
-        // gap only on the right, which is what the default left:0 top-left anchor would do.
-        if (heightScale < widthScale) {
-          plateLeft = Math.max(0, (sw - cw * scale) / 2);
-        }
+        const scaleX = sw / cw;
+        const scaleY = sh / ch;
+        plateTransform = `scale(${scaleX}, ${scaleY})`;
       }
       return (
         <div ref={stageRef} style={{
@@ -2126,10 +2116,8 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
           <div style={{
             // TOP-LEFT anchored plate. The design is authored top-left (navbar band at the TOP of
             // the cw×ch box), so pin the plate's top-left to the section's top-left and transform
-            // from there. MULTI: width-only scale, left stays 0. SINGLE: contain-fit scale — left
-            // is only ever nudged off 0 when height was the constraining ratio (plateLeft centres
-            // the now-narrower design horizontally); offsetY stays 0 (top-anchored) so the design
-            // is centred across the width while the navbar band stays under the fixed navbar.
+            // from there. MULTI: width-only scale. SINGLE: non-uniform scale(sx,sy) fills both
+            // axes exactly, so left/top both stay 0 — there is no leftover gap to centre.
             position: "absolute", left: plateLeft, top: 0,
             width: cw, height: ch,
             transform: plateTransform,
