@@ -2075,32 +2075,48 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
       //   N×100vh), so growing it to the design's true height is safe.
       //
       // SINGLE (and any other free-canvas content mode, e.g. an unsupported "dynamic" free
-      //   combination): NON-UNIFORM fill — scaleX = width/cw, scaleY = height/ch, applied
-      //   independently via `scale(sx, sy)`. This is the one scale strategy that actually
-      //   satisfies all three constraints at once: no letterbox gutters (both axes fill
-      //   exactly), no crop (nothing is scaled past the box, the WHOLE design is visible),
-      //   and the section's fixed 100vh box is never touched (still no aspect-ratio/height
-      //   override here — see this section's own <section> style block, above). The cost is
-      //   mild non-uniform stretch on off-ratio viewports (measured: ~0% at the design's
-      //   native 1.6:1 canvas ratio, ~11% at 16:9, ~20% at 1920x1000, up to ~48% at 21:9
-      //   ultrawide) — an accepted, user-confirmed trade-off (2026-09-04) after CONTAIN-fit's
-      //   letterbox gutters and the width-fill+grow attempt (`736e864`, broke the 100vh
-      //   contract, reverted same day) were both explicitly rejected. See
-      //   docs/CODEMAPS or MISTAKES.md for the fuller history if this needs revisiting —
-      //   the underlying tension (no gutters + no crop + always exactly 100vh) has no
-      //   uniform-scale solution; only non-uniform scale threads all three.
+      //   combination): the background image and the content blocks (cards, text, buttons —
+      //   anything the visitor reads or clicks) are TWO SEPARATE layers with two separate
+      //   transforms, not one shared plate transform. They used to share one: a single
+      //   non-uniform scale(sx,sy) killed the letterbox gutters on the background, but
+      //   applied that SAME sx≠sy distortion to every content block too — stretching the
+      //   pricing cards' chevrons/buttons/text out of proportion (reported live, 2026-09-04,
+      //   same day as the non-uniform fix). Cards and background are explicitly separate
+      //   concerns (user directive, 2026-09-04: "the bg and product cards are two separate
+      //   things ... fixed separately") and must never share a distortable transform again:
+      //   - BACKGROUND layer: NON-UNIFORM scale(sx,sy) — sx=width/cw, sy=height/ch — fills
+      //     both axes exactly, no letterbox gutters, no crop. Stretch is fine here; it's a
+      //     decorative photo, not something with straight lines/right angles a viewer reads.
+      //   - CONTENT layer: UNIFORM scale = min(widthRatio, heightRatio) (contain-fit,
+      //     horizontally centred when height-constrained) — the exact same math the section
+      //     used before any of this letterbox work started. Cards, buttons and text always
+      //     render at their true undistorted aspect ratio; the trade-off is the content box
+      //     doesn't always reach the section's edges on an off-ratio viewport, which is
+      //     strictly preferable to visibly warped UI.
+      // Both layers sit on the same cw×ch coordinate system (the Designer canvas), so a
+      // block's pixelPos still means the same thing on-canvas — only which transform
+      // renders it changed.
       const sw = stageW || (typeof window !== "undefined" ? window.innerWidth : cw);
-      let plateTransform: string;
-      const plateLeft = 0;
+      let bgTransform: string;
+      let contentTransform: string;
+      let contentLeft = 0;
       if (isMulti) {
-        // MULTI: width-only scale — exactly as before (transform string byte-identical).
+        // MULTI: width-only scale — exactly as before (transform string byte-identical) —
+        // for both layers (multi has no letterbox/distortion tension: the section grows to
+        // the scaled height via aspect-ratio above, so width-only scale alone is exact).
         const scale = sw / cw;
-        plateTransform = `scale(${scale})`;
+        bgTransform = `scale(${scale})`;
+        contentTransform = `scale(${scale})`;
       } else {
         const sh = stageH || (typeof window !== "undefined" ? window.innerHeight : ch);
         const scaleX = sw / cw;
         const scaleY = sh / ch;
-        plateTransform = `scale(${scaleX}, ${scaleY})`;
+        bgTransform = `scale(${scaleX}, ${scaleY})`;
+        const scale = Math.min(scaleX, scaleY);
+        contentTransform = `scale(${scale})`;
+        if (scaleY < scaleX) {
+          contentLeft = Math.max(0, (sw - cw * scale) / 2);
+        }
       }
       return (
         <div ref={stageRef} style={{
@@ -2113,32 +2129,33 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
           overflow: "hidden",
           pointerEvents: "none",
         }}>
+          {/* Background layer — non-uniform scale(sx,sy), fills the box exactly (see the
+              doc comment above for why this is intentionally split from the content layer). */}
+          {bgImage?.url && (
+            <div aria-hidden="true" style={{
+              position: "absolute", left: 0, top: 0,
+              width: cw, height: ch,
+              transform: bgTransform,
+              transformOrigin: "top left",
+              zIndex: 0,
+              backgroundImage: `url(${bgImage.url})`,
+              backgroundSize: bgImage.size || "cover",
+              backgroundPosition: bgImage.position || "center",
+              backgroundRepeat: bgImage.repeat || "no-repeat",
+              opacity: (bgImage.opacity ?? 100) / 100,
+              ...(bgImage.maskCss ? { maskImage: bgImage.maskCss, WebkitMaskImage: bgImage.maskCss } : {}),
+              pointerEvents: "none",
+            }} />
+          )}
           <div style={{
-            // TOP-LEFT anchored plate. The design is authored top-left (navbar band at the TOP of
-            // the cw×ch box), so pin the plate's top-left to the section's top-left and transform
-            // from there. MULTI: width-only scale. SINGLE: non-uniform scale(sx,sy) fills both
-            // axes exactly, so left/top both stay 0 — there is no leftover gap to centre.
-            position: "absolute", left: plateLeft, top: 0,
+            // TOP-LEFT anchored content plate — always UNIFORM scale (never the background's
+            // non-uniform transform), so every card/button/text block renders undistorted.
+            position: "absolute", left: contentLeft, top: 0,
             width: cw, height: ch,
-            transform: plateTransform,
+            transform: contentTransform,
             transformOrigin: "top left",
             pointerEvents: "auto",
           }}>
-            {/* Background image — INSIDE the plate (inset:0 of the cw×ch box) so image + text
-                share one scaled box and crop identically. Mirrors the section-level bg layer
-                this replaces (size / position / repeat / opacity / mask). */}
-            {bgImage?.url && (
-              <div aria-hidden="true" style={{
-                position: "absolute", inset: 0, zIndex: 0,
-                backgroundImage: `url(${bgImage.url})`,
-                backgroundSize: bgImage.size || "cover",
-                backgroundPosition: bgImage.position || "center",
-                backgroundRepeat: bgImage.repeat || "no-repeat",
-                opacity: (bgImage.opacity ?? 100) / 100,
-                ...(bgImage.maskCss ? { maskImage: bgImage.maskCss, WebkitMaskImage: bgImage.maskCss } : {}),
-                pointerEvents: "none",
-              }} />
-            )}
             {filteredBlocks.map((block) => {
               // Always the DESKTOP design layout — the whole stage scales, so there is no
               // per-breakpoint reflow by default (exact 1:1). Per-breakpoint mobile layouts
