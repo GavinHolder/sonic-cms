@@ -164,20 +164,20 @@ export default function CoveragePageClient({ initialMaps, networkRadii }: Props)
       {/* ── Right-side results panel ─────────────────────────────────────────── */}
       <div style={{
         position: "absolute", top: 0, right: 0, height: "100%", width: "min(33vw, 460px)", minWidth: 340,
-        background: "#0f1322", color: "#f5f6fa", boxShadow: "-12px 0 40px rgba(0,0,0,0.45)",
-        borderLeft: `1px solid rgba(255,255,255,0.08)`, zIndex: 1500,
+        background: "#ffffff", color: "#0f1322", boxShadow: "-12px 0 40px rgba(0,0,0,0.25)",
+        borderLeft: `1px solid rgba(0,0,0,0.08)`, zIndex: 1500,
         transform: open ? "translateX(0)" : "translateX(105%)", transition: "transform .35s cubic-bezier(.4,0,.2,1)",
         display: "flex", flexDirection: "column",
       }}>
         {/* Header */}
-        <div style={{ padding: "20px 22px", borderBottom: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+        <div style={{ padding: "20px 22px", borderBottom: "1px solid rgba(0,0,0,0.08)", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
           <div>
-            <h2 style={{ margin: 0, fontFamily: "'Archivo Black', sans-serif", fontSize: 18, textTransform: "uppercase", letterSpacing: "-0.01em", lineHeight: 1.1 }}>
+            <h2 style={{ margin: 0, fontFamily: "'Archivo Black', sans-serif", fontSize: 18, textTransform: "uppercase", letterSpacing: "-0.01em", lineHeight: 1.1, color: "#0f1322" }}>
               {isMiss ? "Not covered yet" : submitted ? "You're on the list" : "Services & Packages"}
             </h2>
-            {address && <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>{address}</div>}
+            {address && <div style={{ fontSize: 12, color: "#64748b", marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>{address}</div>}
           </div>
-          <button onClick={() => setOpen(false)} aria-label="Close" style={{ border: "none", background: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: 18, lineHeight: 1 }}><i className="bi bi-x-lg" /></button>
+          <button onClick={() => setOpen(false)} aria-label="Close" style={{ border: "none", background: "transparent", color: "#64748b", cursor: "pointer", fontSize: 18, lineHeight: 1 }}><i className="bi bi-x-lg" /></button>
         </div>
 
         {/* Body */}
@@ -185,18 +185,18 @@ export default function CoveragePageClient({ initialMaps, networkRadii }: Props)
           {submitted ? (
             <div style={{ textAlign: "center", padding: "30px 0" }}>
               <i className="bi bi-check-circle-fill" style={{ fontSize: 44, color: "#22c55e" }} />
-              <p style={{ marginTop: 14, fontSize: 15, color: "#cbd5e1" }}>
+              <p style={{ marginTop: 14, fontSize: 15, color: "#475569" }}>
                 Thanks {name.split(" ")[0]}! {isMiss ? "We'll notify you the moment we reach you." : "Our team will contact you shortly to get you connected."}
               </p>
             </div>
           ) : isMiss ? (
             <>
-              <p style={{ color: "#cbd5e1", fontSize: 14, lineHeight: 1.6, marginTop: 0 }}>We don&apos;t reach this address yet — but we&apos;re expanding fast. Leave your details and we&apos;ll let you know the moment coverage arrives.</p>
+              <p style={{ color: "#475569", fontSize: 14, lineHeight: 1.6, marginTop: 0 }}>We don&apos;t reach this address yet — but we&apos;re expanding fast. Leave your details and we&apos;ll let you know the moment coverage arrives.</p>
               <LeadForm {...{ name, setName, email, setEmail, phone, setPhone, error }} />
             </>
           ) : !hasAnyPackage ? (
             <>
-              <p style={{ color: "#cbd5e1", fontSize: 14, lineHeight: 1.6, marginTop: 0 }}>Good news — coverage is available here{networks.length ? ` via ${networks.map((n) => n.name).join(", ")}` : ""}. Leave your details and our team will sort out the right package.</p>
+              <p style={{ color: "#475569", fontSize: 14, lineHeight: 1.6, marginTop: 0 }}>Good news — coverage is available here{networks.length ? ` via ${networks.map((n) => n.name).join(", ")}` : ""}. Leave your details and our team will sort out the right package.</p>
               <LeadForm {...{ name, setName, email, setEmail, phone, setPhone, error }} />
             </>
           ) : (
@@ -209,9 +209,9 @@ export default function CoveragePageClient({ initialMaps, networkRadii }: Props)
                     {networks.map((n) => {
                       const active = n.id === net?.id;
                       return (
-                        <button key={n.id} onClick={() => selectNetwork(n.id)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 10, cursor: "pointer", background: active ? "rgba(227,30,36,0.12)" : "rgba(255,255,255,0.04)", border: `1.5px solid ${active ? RED : "rgba(255,255,255,0.12)"}`, color: "inherit" }}>
+                        <button key={n.id} onClick={() => selectNetwork(n.id)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 10, cursor: "pointer", background: active ? "rgba(227,30,36,0.08)" : "rgba(0,0,0,0.03)", border: `1.5px solid ${active ? RED : "rgba(0,0,0,0.12)"}`, color: "inherit" }}>
                           {n.logoUrl ? <img src={n.logoUrl} alt={n.name} style={{ height: 18, maxWidth: 90, objectFit: "contain" }} /> : <strong style={{ fontSize: 13 }}>{n.name}</strong>}
-                          <span style={{ fontSize: 9, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.1em" }}>{CATEGORY_LABEL[n.category] ?? n.category}</span>
+                          <span style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.1em" }}>{CATEGORY_LABEL[n.category] ?? n.category}</span>
                         </button>
                       );
                     })}
@@ -223,9 +223,9 @@ export default function CoveragePageClient({ initialMaps, networkRadii }: Props)
               {dataTerms.length > 1 && (
                 <div style={{ marginBottom: 14 }}>
                   <SectionLabel>Service term</SectionLabel>
-                  <div style={{ display: "inline-flex", background: "rgba(255,255,255,0.05)", borderRadius: 10, padding: 3 }}>
+                  <div style={{ display: "inline-flex", background: "rgba(0,0,0,0.04)", borderRadius: 10, padding: 3 }}>
                     {dataTerms.map((t) => (
-                      <button key={t} onClick={() => setDataTerm(t)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 12.5, fontWeight: 600, background: dataTerm === t ? RED : "transparent", color: dataTerm === t ? "#fff" : "#cbd5e1" }}>{t}</button>
+                      <button key={t} onClick={() => setDataTerm(t)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 12.5, fontWeight: 600, background: dataTerm === t ? RED : "transparent", color: dataTerm === t ? "#fff" : "#475569" }}>{t}</button>
                     ))}
                   </div>
                 </div>
@@ -244,10 +244,10 @@ export default function CoveragePageClient({ initialMaps, networkRadii }: Props)
               {/* Value-added services */}
               {vasPkgs.length > 0 && (
                 <div style={{ marginBottom: 16 }}>
-                  <SectionLabel>Value-added services <span style={{ color: "#64748b", textTransform: "none", letterSpacing: 0 }}>(optional add-ons)</span></SectionLabel>
+                  <SectionLabel>Value-added services <span style={{ color: "#94a3b8", textTransform: "none", letterSpacing: 0 }}>(optional add-ons)</span></SectionLabel>
                   {Object.entries(vasByCategory).map(([cat, pkgs]) => (
                     <div key={cat} style={{ marginBottom: 12 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: "#cbd5e1", margin: "4px 0 6px" }}>{cat}</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#475569", margin: "4px 0 6px" }}>{cat}</div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                         {pkgs.map((p) => <PriceCard key={p.id} p={p} selected={addons.has(p.id)} onClick={() => toggleAddon(p.id)} mode="check" />)}
                       </div>
@@ -258,8 +258,8 @@ export default function CoveragePageClient({ initialMaps, networkRadii }: Props)
 
               {/* Contact form — once a data package is picked */}
               {pickedData && (
-                <div style={{ marginTop: 6, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-                  <p style={{ margin: "0 0 10px", fontSize: 13, color: "#cbd5e1" }}>Get connected — enter your details:</p>
+                <div style={{ marginTop: 6, paddingTop: 16, borderTop: "1px solid rgba(0,0,0,0.08)" }}>
+                  <p style={{ margin: "0 0 10px", fontSize: 13, color: "#475569" }}>Get connected — enter your details:</p>
                   <LeadForm {...{ name, setName, email, setEmail, phone, setPhone, error }} />
                 </div>
               )}
@@ -269,12 +269,12 @@ export default function CoveragePageClient({ initialMaps, networkRadii }: Props)
 
         {/* Footer */}
         {!submitted && (
-          <div style={{ padding: "14px 20px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+          <div style={{ padding: "14px 20px", borderTop: "1px solid rgba(0,0,0,0.08)" }}>
             <button onClick={submitLead} disabled={!canSubmit || submitting}
-              style={{ width: "100%", padding: "13px 18px", borderRadius: 9, border: "none", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, background: (!canSubmit || submitting) ? "rgba(255,255,255,0.12)" : RED, color: "#fff", fontWeight: 700, fontSize: 14, cursor: (!canSubmit || submitting) ? "not-allowed" : "pointer" }}>
+              style={{ width: "100%", padding: "13px 18px", borderRadius: 9, border: "none", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, background: (!canSubmit || submitting) ? "rgba(0,0,0,0.12)" : RED, color: "#fff", fontWeight: 700, fontSize: 14, cursor: (!canSubmit || submitting) ? "not-allowed" : "pointer" }}>
               {submitting ? "Sending…" : <><i className="bi bi-telephone" /> {isMiss ? "Notify me" : "Get connected"}</>}
             </button>
-            {!isMiss && hasAnyPackage && !pickedData && <div style={{ fontSize: 11.5, color: "#64748b", textAlign: "center", marginTop: 8 }}>Pick a data package to continue</div>}
+            {!isMiss && hasAnyPackage && !pickedData && <div style={{ fontSize: 11.5, color: "#94a3b8", textAlign: "center", marginTop: 8 }}>Pick a data package to continue</div>}
           </div>
         )}
       </div>
@@ -288,18 +288,18 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function PriceCard({ p, selected, onClick, mode }: { p: CoveragePackage; selected: boolean; onClick: () => void; mode: "radio" | "check" }) {
   return (
-    <button onClick={onClick} style={{ position: "relative", textAlign: "left", padding: "14px 16px", borderRadius: 12, cursor: "pointer", width: "100%", background: selected ? "rgba(227,30,36,0.12)" : "rgba(255,255,255,0.03)", border: `1.5px solid ${selected ? RED : "rgba(255,255,255,0.1)"}`, color: "inherit", transition: "all .15s" }}>
+    <button onClick={onClick} style={{ position: "relative", textAlign: "left", padding: "14px 16px", borderRadius: 12, cursor: "pointer", width: "100%", background: selected ? "rgba(227,30,36,0.06)" : "rgba(0,0,0,0.02)", border: `1.5px solid ${selected ? RED : "rgba(0,0,0,0.1)"}`, color: "inherit", transition: "all .15s" }}>
       {p.popular && <span style={{ position: "absolute", top: 10, right: 12, fontSize: 9, fontWeight: 800, letterSpacing: "0.1em", color: RED }}>★ POPULAR</span>}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
         <span style={{ fontWeight: 700, fontSize: 14.5 }}>
-          <i className={`bi ${mode === "check" ? (selected ? "bi-check-square-fill" : "bi-square") : (selected ? "bi-record-circle-fill" : "bi-circle")}`} style={{ color: selected ? RED : "#64748b", marginRight: 8, fontSize: 13 }} />
+          <i className={`bi ${mode === "check" ? (selected ? "bi-check-square-fill" : "bi-square") : (selected ? "bi-record-circle-fill" : "bi-circle")}`} style={{ color: selected ? RED : "#94a3b8", marginRight: 8, fontSize: 13 }} />
           {p.name}
         </span>
-        <span style={{ fontFamily: "'Archivo Black', sans-serif", fontSize: 19, whiteSpace: "nowrap" }}>{p.price}<span style={{ fontSize: 11, color: "#94a3b8" }}>{p.period}</span></span>
+        <span style={{ fontFamily: "'Archivo Black', sans-serif", fontSize: 19, whiteSpace: "nowrap" }}>{p.price}<span style={{ fontSize: 11, color: "#64748b" }}>{p.period}</span></span>
       </div>
-      <div style={{ marginLeft: 22, marginTop: 3, display: "flex", gap: 10, flexWrap: "wrap", fontSize: 12, color: "#94a3b8" }}>
+      <div style={{ marginLeft: 22, marginTop: 3, display: "flex", gap: 10, flexWrap: "wrap", fontSize: 12, color: "#64748b" }}>
         {(p.speedDown || p.speedUp) && <span>{[p.speedDown && `↓ ${p.speedDown}`, p.speedUp && `↑ ${p.speedUp}`].filter(Boolean).join("  ")}</span>}
-        {p.term && <span style={{ color: "#64748b" }}>· {p.term}</span>}
+        {p.term && <span style={{ color: "#94a3b8" }}>· {p.term}</span>}
       </div>
       {Array.isArray(p.features) && p.features.length > 0 && (
         <div style={{ marginLeft: 22, marginTop: 6, display: "flex", flexWrap: "wrap", gap: "2px 12px" }}>
@@ -315,7 +315,7 @@ function PriceCard({ p, selected, onClick, mode }: { p: CoveragePackage; selecte
               ? [(f as { badge?: string }).badge, (f as { value?: string }).value].filter(Boolean).join(": ")
               : String(f ?? "");
             return (
-              <span key={i} style={{ fontSize: 11.5, color: "#cbd5e1" }}>
+              <span key={i} style={{ fontSize: 11.5, color: "#475569" }}>
                 <i className="bi bi-check" style={{ color: "#22c55e" }} /> {text}
               </span>
             );
@@ -330,7 +330,7 @@ function LeadForm({ name, setName, email, setEmail, phone, setPhone, error }: {
   name: string; setName: (v: string) => void; email: string; setEmail: (v: string) => void;
   phone: string; setPhone: (v: string) => void; error: string;
 }) {
-  const inputStyle: React.CSSProperties = { width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: 14, marginBottom: 8, outline: "none" };
+  const inputStyle: React.CSSProperties = { width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid rgba(0,0,0,0.15)", background: "rgba(0,0,0,0.02)", color: "#0f1322", fontSize: 14, marginBottom: 8, outline: "none" };
   return (
     <div>
       <input style={inputStyle} placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
