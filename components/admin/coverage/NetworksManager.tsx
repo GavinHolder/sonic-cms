@@ -1178,7 +1178,8 @@ export default function NetworksManager() {
                         <select className="form-select" value={pkgModal.pkg.productTypeId ?? ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, productTypeId: e.target.value || null } })}>
                           <option value="">— None —</option>
                           {productTypes.filter((pt) => pt.isActive).map((pt) => <option key={pt.id} value={pt.id}>{pt.name}</option>)}
-                        </select></div>
+                        </select>
+                        <div className="form-text">If set AND at least one of this network&apos;s towers has been tagged with a Product Type (Coverage Maps → Towers tab), this package only shows where a tower carrying <em>this</em> type exists — automatically, with or without a distance limit below.</div></div>
                     </div>
                   </div>
                 </div>
@@ -1377,7 +1378,7 @@ export default function NetworksManager() {
                 })() && (
                   <div className="mb-3"><label className="form-label">Max distance from tower <span className="text-muted">(metres — leave blank for no limit)</span></label>
                     <input className="form-control" type="number" min={0} value={pkgModal.pkg.maxDistanceM ?? ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, maxDistanceM: e.target.value === "" ? null : parseInt(e.target.value, 10) } })} placeholder="e.g. 100 — only offered within 100m of a tower" style={{ maxWidth: 260 }} />
-                    <div className="form-text">Only show this package when the address is within this distance of one of the network&apos;s towers. Draws a ring around each tower on the map.</div></div>
+                    <div className="form-text">Only show this package when the address is within this distance of one of the network&apos;s (qualifying) towers. Draws a ring around each tower on the map. Leave blank if you only need the Product Type tower-tagging above — that works without a distance limit too.</div></div>
                 )}
                 {(() => {
                   const net = networks.find((n) => n.id === pkgModal.networkId);

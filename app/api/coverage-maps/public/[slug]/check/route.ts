@@ -100,6 +100,15 @@ export async function POST(
     return Math.min(...ts.map((t) => haversineM(point.lat, point.lng, t.lat, t.lng)));
   };
 
+  // Whether an admin has opted this network into tower-level service restriction
+  // at all, i.e. tagged at least one of its towers with a specific product type
+  // (see CoverageTower.productTypes). Networks that have never done this (every
+  // tower's productTypes is still empty, or the network has no towers) are
+  // completely unaffected by the product-type gate below — same as before this
+  // gate existed.
+  const networkHasTowerTagging = (networkId: string) =>
+    towers.some((t) => t.networkId === networkId && t.productTypes.length > 0);
+
   // ── Group matched regions by network (dedupe), each with its packages ────────
   // Two passes: a network can match more than one of its own overlapping regions
   // (e.g. a wide "Wireless" polygon and a narrower promo-area polygon both covering
@@ -134,11 +143,22 @@ export async function POST(
       // Distance gate: a package with maxDistanceM only shows when the point is
       // within that distance of one of this network's towers that actually
       // qualifies for the package's product type (see nearestQualifyingTowerM).
+      //
+      // Tower-service gate: independent of maxDistanceM. Once a network has ANY
+      // tower tagged with a specific product type (networkHasTowerTagging), a
+      // package tied to a product type (e.g. AirFibre) only shows where a
+      // qualifying tower exists at all — even with no distance limit set. Without
+      // this, a package with a productTypeId but no maxDistanceM previously showed
+      // everywhere in the network's polygon regardless of which towers actually
+      // carry that service, making tower-level product tagging a no-op unless an
+      // admin also invented an arbitrary distance limit.
+      //
       // Region gate: a package with restrictedRegions set only shows when at least
       // one of THIS network's matched regions is in that set — empty (the default)
       // means unrestricted, same as before this field existed.
       packages: n.packages
         .filter((p) => p.maxDistanceM == null || nearestQualifyingTowerM(n.id, p.productTypeId ?? null) <= p.maxDistanceM)
+        .filter((p) => p.maxDistanceM != null || !p.productTypeId || !networkHasTowerTagging(n.id) || Number.isFinite(nearestQualifyingTowerM(n.id, p.productTypeId)))
         .filter((p) => showVas || p.kind !== "VAS")
         .filter((p) => p.restrictedRegions.length === 0 || p.restrictedRegions.some((rr) => matchedRegionIds.has(rr.id)))
         .map((p) => ({
