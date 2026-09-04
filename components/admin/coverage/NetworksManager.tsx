@@ -71,6 +71,11 @@ interface ProductType {
   // "AirFibre" -> "Wireless"). Unassigned (null) by default — drives the top-level
   // grouping fallback in CardTabsBlock/ProductGridBlock (serviceCategorySlug ?? productTypeSlug).
   serviceCategoryId?: string | null;
+  // Optional Media Library image — shown as the pricing section's background while
+  // this product type's tab is selected (see /api/packages productTypeBackgroundUrl
+  // and the "background-override" postMessage listener in FlexibleSectionRenderer.tsx).
+  // Unset (null) = the section keeps its own normally-configured background.
+  backgroundImageUrl?: string | null;
 }
 
 // The billing-period suffix shown next to price (e.g. "R599/month") is derived
@@ -278,6 +283,7 @@ export default function NetworksManager() {
       order: ptModal.order ?? 0,
       isActive: ptModal.isActive ?? true,
       serviceCategoryId: ptModal.serviceCategoryId || "",
+      backgroundImageUrl: ptModal.backgroundImageUrl || "",
     };
     if (!payload.name) { toast.error("Name required"); return; }
     const res = await fetch(isNew ? "/api/product-types" : `/api/product-types/${ptModal.id}`, {
@@ -852,6 +858,13 @@ export default function NetworksManager() {
                   <div className="col-auto" style={{ width: 90 }}><label className="form-label">Order</label>
                     <input className="form-control" type="number" value={ptModal.order ?? 0} onChange={(e) => setPtModal({ ...ptModal, order: parseInt(e.target.value, 10) || 0 })} /></div>
                 </div>
+                <ImageFieldWithUpload
+                  label="Background Image (optional)"
+                  value={ptModal.backgroundImageUrl || ""}
+                  onChange={(url) => setPtModal({ ...ptModal, backgroundImageUrl: url })}
+                  helpText="Browse the Media Library or upload — when set, the pricing section's background swaps to this image while this product type's tab is selected."
+                  previewMaxHeight="60px"
+                />
                 <div className="form-check form-switch"><input className="form-check-input" type="checkbox" id="pt-active" checked={ptModal.isActive ?? true} onChange={(e) => setPtModal({ ...ptModal, isActive: e.target.checked })} />
                   <label className="form-check-label" htmlFor="pt-active">Active</label></div>
               </div>

@@ -694,6 +694,12 @@ model ProductType {
   packages  Package[]
   // Coverage towers that physically carry this service (many-to-many).
   towers    CoverageTower[]
+  // Optional Media Library image shown as the pricing section's background while this
+  // product type's tab is active (e.g. Wireless > AirFibre gets its own backdrop).
+  // Nullable — unset means the section keeps its own normally-configured background.
+  // Additive/no migration risk. See /api/packages (productTypeBackgroundUrl) and the
+  // "background-override" postMessage listener in FlexibleSectionRenderer.tsx.
+  backgroundImageUrl String?
   // Optional link to the ServiceCategory this product type belongs to (e.g. "AirFibre"
   // -> "Wireless"). Nullable/unassigned by default — existing rows stay unlinked until
   // an admin opts in, which is what keeps public grouping backward compatible (see

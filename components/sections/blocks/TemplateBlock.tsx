@@ -67,6 +67,17 @@ interface ScopedPackage {
   categoryName: string | null;
   productTypeSlug: string | null;
   productTypeName: string | null;
+  /** Admin-set background image (Product Types admin → Background Image), null when
+   * unset. A template's own script can look this up per-tab/per-card and, when it
+   * wants the containing SECTION's background to swap to it, send:
+   *   window.parent.postMessage(
+   *     { source: 'sonic-cms-template', type: 'background-override', imageUrl: <url> | null },
+   *     '*'
+   *   )
+   * See FlexibleSectionRenderer.tsx's matching listener for the full contract —
+   * imageUrl: null (or omitted product type background) reverts to the section's
+   * own normally-configured background. */
+  productTypeBackgroundUrl?: string | null;
   /** The product type's linked ServiceCategory, if any (see #111 in the sync doc) — null
    * for every product type until an admin opts in via the Product Types admin. Already
    * present on the raw /api/packages JSON response regardless of this type annotation;

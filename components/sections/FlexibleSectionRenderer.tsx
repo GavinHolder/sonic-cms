@@ -562,6 +562,55 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   const bgImageRepeat   = (section as any).bgImageRepeat   as string | undefined;
   const bgImageOpacity  = (section as any).bgImageOpacity  as number | undefined;
 
+  // ── Background Override (generic renderer capability) ──────────────────────────
+  // Lets a TemplateBlock's own sandboxed-iframe content swap THIS section's background
+  // image live — e.g. a pricing template with Service Category / Product Type tabs,
+  // where each Product Type can have its own admin-set background (Product Types admin
+  // → Background Image, see /api/packages' productTypeBackgroundUrl). Mirrors the
+  // existing "content-height" channel in TemplateBlock.tsx: same source tag, same '*'
+  // targetOrigin rationale (opaque sandboxed-iframe origin, non-sensitive payload), same
+  // defensive validation style. Reusable by ANY TemplateBlock content, not just the
+  // pricing card — nothing here is pricing-specific.
+  //
+  // MESSAGE CONTRACT — a template author's own <script> sends, whenever the active
+  // tab/selection's background should change:
+  //   window.parent.postMessage(
+  //     { source: 'sonic-cms-template', type: 'background-override', imageUrl: '<url>' | null },
+  //     '*'
+  //   )
+  // imageUrl: a string swaps this section's rendered background image to that URL.
+  // null reverts to the section's own normally-configured bgImageUrl (below). There is
+  // no separate "clear" signal — null IS clear, since "no override in effect" and
+  // "explicitly clear the override" are the same state here.
+  //
+  // Scoped per-section: a page can hold multiple sections, each with their own
+  // TemplateBlock (and a TemplateBlock could in principle hold more than one nested
+  // iframe context in future), so the listener only accepts a message whose event.source
+  // matches an <iframe> that is an actual DOM descendant of THIS section's own root
+  // (sectionRef) — never a message that happens to bubble up from an unrelated section's
+  // block elsewhere on the page.
+  const [bgOverrideUrl, setBgOverrideUrl] = useState<string | null>(null);
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      const data = event.data as unknown;
+      if (!data || typeof data !== "object") return;
+      const msg = data as { source?: unknown; type?: unknown; imageUrl?: unknown };
+      if (msg.source !== "sonic-cms-template" || msg.type !== "background-override") return;
+      if (msg.imageUrl !== null && typeof msg.imageUrl !== "string") return;
+      const sectionEl = sectionRef.current;
+      if (!sectionEl) return;
+      const iframes = Array.from(sectionEl.querySelectorAll("iframe"));
+      const fromThisSection = iframes.some((f) => event.source === f.contentWindow);
+      if (!fromThisSection) return;
+      setBgOverrideUrl(msg.imageUrl || null);
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+  // Effective background image URL — an active override wins over the section's own
+  // configured bgImageUrl; null override (the default/reverted state) falls through to it.
+  const effectiveBgImageUrl = bgOverrideUrl ?? bgImageUrl;
+
   // Background VOLT (Volt Type = Background, Phase 1 data at content.backgroundVoltId) —
   // a volt chosen in the Background tab, drawn as a section-level background layer below.
   // Distinct from voltElementId/SectionVolt (whole-section volt) and from the per-block
@@ -765,14 +814,14 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
       {/* Background image layer — absolute fill, z-index 0, below everything.
           In free cover-plate mode the bg image is drawn INSIDE the plate instead (so
           image + text share one scaled box and crop identically), so it is skipped here. */}
-      {bgImageUrl && !freePlateActive && (
+      {effectiveBgImageUrl && !freePlateActive && (
         <div
           aria-hidden="true"
           style={{
             position: "absolute",
             inset: 0,
             zIndex: 0,
-            backgroundImage: `url(${bgImageUrl})`,
+            backgroundImage: `url(${effectiveBgImageUrl})`,
             backgroundSize: bgImageSize || "cover",
             backgroundPosition: bgImagePosition || "center",
             backgroundRepeat: bgImageRepeat || "no-repeat",
@@ -808,7 +857,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           resolvedContentMode={contentMode}
           onDynamicScreensChange={contentMode === "dynamic" ? setDynamicScreens : undefined}
           bgImage={{
-            url: bgImageUrl,
+            url: effectiveBgImageUrl,
             size: bgImageSize,
             position: bgImagePosition,
             repeat: bgImageRepeat,
@@ -855,7 +904,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           is visible on the live page — not just when an image is present. The #60 image mask
           stays on the image layer above, untouched. */}
       {gradCss && (
-        <div aria-hidden="true" style={{ position: "absolute", inset: 0, zIndex: bgImageUrl ? 1 : 0, background: gradCss, pointerEvents: "none" }} />
+        <div aria-hidden="true" style={{ position: "absolute", inset: 0, zIndex: effectiveBgImageUrl ? 1 : 0, background: gradCss, pointerEvents: "none" }} />
       )}
 
       {/* Background VOLT layer (Volt Type = Background) — the volt selected in the Background
@@ -883,8 +932,9 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
       ))}
 
       {/* Animated background layers — rendered below content (z-index 0–10).
-          Disabled when a background image is set (bgImageUrl takes priority). */}
-      {animBg?.enabled && !bgImageUrl && (
+          Disabled when a background image is set (bgImageUrl takes priority) — also
+          disabled while a background-override is active, for the same reason. */}
+      {animBg?.enabled && !effectiveBgImageUrl && (
         <AnimBgRenderer
           config={animBg}
           colorPalette={section.colorPalette}

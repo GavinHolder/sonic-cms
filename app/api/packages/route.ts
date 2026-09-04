@@ -50,6 +50,8 @@ export async function GET(req: NextRequest) {
     productType: {
       select: {
         slug: true, name: true,
+        // Optional admin-set background — see productTypeBackgroundUrl below.
+        backgroundImageUrl: true,
         serviceCategory: { select: { id: true, name: true } },
       },
     },
@@ -80,7 +82,7 @@ export async function GET(req: NextRequest) {
     const net = (p.network ?? null) as { name?: string; slug?: string; category?: string; color?: string; logoUrl?: string | null } | null;
     const cat = (p.category ?? null) as { id?: string; name?: string } | null;
     const pt = (p.productType ?? null) as
-      | { slug?: string; name?: string; serviceCategory?: { id?: string; name?: string } | null }
+      | { slug?: string; name?: string; backgroundImageUrl?: string | null; serviceCategory?: { id?: string; name?: string } | null }
       | null;
     return {
       id: p.id, name: p.name, speedDown: p.speedDown, speedUp: p.speedUp,
@@ -93,6 +95,12 @@ export async function GET(req: NextRequest) {
       packageColor: (p.color as string | null | undefined) ?? null,
       categoryId: cat?.id ?? null, categoryName: cat?.name ?? null,
       productTypeSlug: pt?.slug ?? null, productTypeName: pt?.name ?? null,
+      // Optional Media Library image set on this package's product type (Product
+      // Types admin → Background Image) — null when unset. Lets a multi-tab
+      // template (e.g. the pricing card) look up each tab's background without a
+      // second API call; see the "background-override" postMessage contract
+      // documented in components/sections/blocks/TemplateBlock.tsx.
+      productTypeBackgroundUrl: pt?.backgroundImageUrl ?? null,
       // Derived from productType.serviceCategory — null when the product type hasn't
       // been assigned to a category yet. ServiceCategory has no dedicated `slug`
       // column, so its stable `id` is reused as the "slug" here (still unique/stable,

@@ -37,6 +37,9 @@ export async function PUT(
       ...(body.isActive !== undefined && { isActive: body.isActive }),
       // Empty string / null both mean "unassigned" — SetNull on the FK handles the rest.
       ...(body.serviceCategoryId !== undefined && { serviceCategoryId: body.serviceCategoryId || null }),
+      // Empty string / null both mean "no background override" — falls back to the
+      // section's own configured background (see FlexibleSectionRenderer.tsx).
+      ...(body.backgroundImageUrl !== undefined && { backgroundImageUrl: body.backgroundImageUrl || null }),
     },
   });
   return NextResponse.json(productType);
