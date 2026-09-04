@@ -2020,18 +2020,45 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
       //   text fully visible and registered under the fixed navbar.
       const sw = stageW || (typeof window !== "undefined" ? window.innerWidth : cw);
       let plateTransform: string;
+      let plateLeft = 0;
       if (isMulti) {
         // MULTI: width-only scale — exactly as before (transform string byte-identical).
         const scale = sw / cw;
         plateTransform = `scale(${scale})`;
       } else {
-        // SINGLE: WIDTH-FILL (cover) — scale section width so the background fills edge-to-edge
-        // (no letterbox bars). The section stays pinned 100vh (single mode emits no aspect-ratio
-        // override) with overflow:hidden, so the design's empty BOTTOM crops off-screen like
-        // background-size:cover; the design is top-anchored so the text is never cut. No horizontal
-        // offset. Pre-measure guard on sw above falls back to the viewport (no zero-scale flash).
-        const scale = sw / cw;
+        // SINGLE: CONTAIN-fit — scale by min(widthRatio, heightRatio) so the WHOLE design
+        // (bg + every block, including anything anchored near the canvas bottom, e.g. an
+        // icon row) is ALWAYS fully visible inside the fixed 100vh box — never cropped.
+        //
+        // Bug fixed (2026-09-04): this used to be width-only scale (`sw / cw`, identical to
+        // MULTI's formula) with no regard for the box's actual height. Single mode pins the
+        // section to exactly 100vh (no aspect-ratio override, see the style block above), so
+        // whenever the width-scaled design was TALLER than that box — any viewport shorter
+        // than the design's authored aspect ratio — the excess simply clipped off-screen via
+        // this wrapper's overflow:hidden. That silently deleted bottom-anchored content
+        // instead of just cropping "empty" background, e.g. the Kuluntu "Serving Our
+        // Community" section's icon row (Connected/Community/Care/Together) disappearing
+        // entirely below ~625px viewport height. stageH was already measured for exactly
+        // this (see its own comment above) but was never actually consumed here.
+        //
+        // min() can only ever be <= the old width-only scale, so for every viewport where
+        // the design already fit (the common case — the box is at least as tall as the
+        // width-scaled design), heightScale >= widthScale and this is BYTE-IDENTICAL to the
+        // old behaviour. It only shrinks further, and only in the exact scenario that used
+        // to crop — trading a hidden bottom for a smaller-but-fully-visible design (plus a
+        // sliver of section background at the bottom, never at the top, since the design
+        // stays top-anchored so its navbar band keeps registering under the fixed navbar).
+        const sh = stageH || (typeof window !== "undefined" ? window.innerHeight : ch);
+        const widthScale = sw / cw;
+        const heightScale = sh / ch;
+        const scale = Math.min(widthScale, heightScale);
         plateTransform = `scale(${scale})`;
+        // Height-constrained: the scaled design is now narrower than the box (that's what
+        // picking the smaller ratio means) — centre it horizontally instead of leaving the
+        // gap only on the right, which is what the default left:0 top-left anchor would do.
+        if (heightScale < widthScale) {
+          plateLeft = Math.max(0, (sw - cw * scale) / 2);
+        }
       }
       return (
         <div ref={stageRef} style={{
@@ -2047,10 +2074,11 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
           <div style={{
             // TOP-LEFT anchored plate. The design is authored top-left (navbar band at the TOP of
             // the cw×ch box), so pin the plate's top-left to the section's top-left and transform
-            // from there. MULTI: width-only scale, no translate. SINGLE: contain-fit scale with a
-            // horizontal-centre translate and offsetY 0 (top-anchored) so the design is centred
-            // across the width while the navbar band stays under the fixed 100px navbar.
-            position: "absolute", left: 0, top: 0,
+            // from there. MULTI: width-only scale, left stays 0. SINGLE: contain-fit scale — left
+            // is only ever nudged off 0 when height was the constraining ratio (plateLeft centres
+            // the now-narrower design horizontally); offsetY stays 0 (top-anchored) so the design
+            // is centred across the width while the navbar band stays under the fixed navbar.
+            position: "absolute", left: plateLeft, top: 0,
             width: cw, height: ch,
             transform: plateTransform,
             transformOrigin: "top left",
