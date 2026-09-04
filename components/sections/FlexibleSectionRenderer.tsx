@@ -1630,6 +1630,20 @@ function isFullBleedVolt(b: { type?: string; props?: Record<string, unknown> } |
 // (decorative background — matches the section bg image/gradient layers). Uses
 // VoltBlock fitMode="cover" (#85) to fill the section box. Slot-building mirrors the
 // in-grid volt case (kept inline to leave that case byte-for-byte unchanged).
+//
+// overflow:hidden on the wrapper (below) is NOT redundant with VoltBlock's own
+// internal clipping. VoltBlock (fitMode="cover") only clips to ITS OWN container when
+// the volt's canvasOverflow !== "visible"; a volt authored with canvasOverflow:"visible"
+// (an intentional per-design "let this layer bleed past the canvas edge" option)
+// deliberately sets its own container to overflow:"visible" and relies on an ANCESTOR
+// for the real clip boundary. FLEXIBLE sections get wrapped in TriangleSectionWrapper
+// whenever section.triangleEnabled, which sets the <section>'s own overflow to
+// "visible" via direct DOM style (so the triangle shape can bleed upward into the
+// PREVIOUS section) — without an independent overflow:hidden here, a full-bleed volt
+// with canvasOverflow:"visible" on a triangleEnabled section would render fully
+// unclipped, visibly bigger than / cut off from its section's real box. Same class of
+// bug as f7b4acd (DynamicSection.tsx's whole-section-Volt layer) and mirrors the
+// backgroundVoltId layer above (line ~854), which already carries this overflow:hidden.
 function FullBleedVoltLayer({ props: p }: { props: Record<string, unknown> }) {
   const voltId = p.voltId as string | undefined;
   if (!voltId) return null;
@@ -1646,7 +1660,7 @@ function FullBleedVoltLayer({ props: p }: { props: Record<string, unknown> }) {
   };
   const productId = (p.productId as string) || undefined;
   return (
-    <div aria-hidden="true" style={{ position: "absolute", inset: 0, zIndex: 2, pointerEvents: "none" }}>
+    <div aria-hidden="true" style={{ position: "absolute", inset: 0, overflow: "hidden", zIndex: 2, pointerEvents: "none" }}>
       <VoltBlock voltId={voltId} slots={voltSlots} fitMode="cover" productId={productId} />
     </div>
   );
