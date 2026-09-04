@@ -68,8 +68,14 @@ export default function CoveragePageClient({ initialMaps, networkRadii }: Props)
   const isMiss = !!result && !(result.hit ?? networks.length > 0);
   const net = networks.find((n) => n.id === networkId) ?? networks[0] ?? null;
 
-  const dataPkgs = (net?.packages ?? []).filter((p) => (p.kind ?? "DATA") !== "VAS");
-  const vasPkgs = (net?.packages ?? []).filter((p) => p.kind === "VAS");
+  // Popular always floats to the top of its list — Array.prototype.sort is a
+  // stable sort (spec-guaranteed since ES2019), so this only reorders the
+  // popular item(s) and leaves everyone else's relative order untouched.
+  const byPopularFirst = (list: CoveragePackage[]) =>
+    [...list].sort((a, b) => (a.popular === b.popular ? 0 : a.popular ? -1 : 1));
+
+  const dataPkgs = byPopularFirst((net?.packages ?? []).filter((p) => (p.kind ?? "DATA") !== "VAS"));
+  const vasPkgs = byPopularFirst((net?.packages ?? []).filter((p) => p.kind === "VAS"));
   const dataTerms = [...new Set(dataPkgs.map((p) => p.term).filter(Boolean) as string[])];
   const shownData = dataTerm ? dataPkgs.filter((p) => p.term === dataTerm) : dataPkgs;
   const hasAnyPackage = dataPkgs.length > 0 || vasPkgs.length > 0;
@@ -140,7 +146,8 @@ export default function CoveragePageClient({ initialMaps, networkRadii }: Props)
   return (
     <div style={{ position: "relative", width: "100%", height: "100dvh", background: "#0a0d18", overflow: "hidden" }}>
       {/* kill any focus ring / flash on the map container */}
-      <style>{`.leaflet-container, .leaflet-container:focus, .leaflet-container *:focus { outline: none !important; }`}</style>
+      <style>{`.leaflet-container, .leaflet-container:focus, .leaflet-container *:focus { outline: none !important; }
+        @keyframes popularGlow { 0%, 100% { box-shadow: 0 0 6px 0px rgba(227,30,36,0.45); } 50% { box-shadow: 0 0 22px 7px rgba(227,30,36,0.55); } }`}</style>
 
       <a href="/" style={{ position: "absolute", top: 16, left: 16, zIndex: 901, display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 16px", borderRadius: 8, background: "rgba(6,8,15,0.85)", color: "#fff", textDecoration: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", border: "1px solid rgba(255,255,255,0.12)", backdropFilter: "blur(8px)" }}>
         <i className="bi bi-arrow-left" /> Back to site
@@ -288,7 +295,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function PriceCard({ p, selected, onClick, mode }: { p: CoveragePackage; selected: boolean; onClick: () => void; mode: "radio" | "check" }) {
   return (
-    <button onClick={onClick} style={{ position: "relative", textAlign: "left", padding: "14px 16px", borderRadius: 12, cursor: "pointer", width: "100%", background: selected ? "rgba(227,30,36,0.06)" : "rgba(0,0,0,0.02)", border: `1.5px solid ${selected ? RED : "rgba(0,0,0,0.1)"}`, color: "inherit", transition: "all .15s" }}>
+    <button onClick={onClick} style={{ position: "relative", textAlign: "left", padding: "14px 16px", borderRadius: 12, cursor: "pointer", width: "100%", background: selected ? "rgba(227,30,36,0.06)" : "rgba(0,0,0,0.02)", border: `1.5px solid ${selected || p.popular ? RED : "rgba(0,0,0,0.1)"}`, color: "inherit", transition: "all .15s", animation: p.popular ? "popularGlow 2.4s ease-in-out infinite" : undefined }}>
       {p.popular && <span style={{ position: "absolute", top: 10, right: 12, fontSize: 9, fontWeight: 800, letterSpacing: "0.1em", color: RED }}>★ POPULAR</span>}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
         <span style={{ fontWeight: 700, fontSize: 14.5 }}>
