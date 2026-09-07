@@ -75,8 +75,16 @@ function ctaLabel(content?: CardTabsContent): string {
   return content?.ctaText || DEFAULT_CTA_TEXT;
 }
 
+// Schemes a CTA link is allowed to use — blocks "javascript:"/"data:"/etc from an
+// admin-authored ctaUrl reaching a rendered <a href> (stored CMS content, not
+// something we should trust as inert; matches how LinkPicker-style fields are
+// treated elsewhere).
+const SAFE_CTA_PREFIXES = ["/", "https://", "http://", "mailto:", "tel:", "#"];
+
 /**
  * Resolves the per-card CTA href from the admin-configured ctaUrl + a package id.
+ * - Anything not starting with a safe prefix (SAFE_CTA_PREFIXES) falls back to the
+ *   default coverage URL — rejects "javascript:"/"data:" etc.
  * - `{package}` token → substituted with the package id (lets an admin point the
  *   button anywhere, e.g. "/coverage?package={package}", and still deep-link).
  * - tel:/mailto:/#anchor → used as-is; a package id wouldn't be consumed there.
@@ -85,7 +93,8 @@ function ctaLabel(content?: CardTabsContent): string {
  *   preselectPackageId), so the default "/coverage" behaves exactly as before.
  */
 function ctaHref(content: CardTabsContent | undefined, packageId: string): string {
-  const url = content?.ctaUrl || DEFAULT_CTA_URL;
+  const raw = content?.ctaUrl || DEFAULT_CTA_URL;
+  const url = SAFE_CTA_PREFIXES.some((p) => raw.startsWith(p)) ? raw : DEFAULT_CTA_URL;
   if (url.includes("{package}")) return url.replace("{package}", encodeURIComponent(packageId));
   if (url.startsWith("tel:") || url.startsWith("mailto:") || url.startsWith("#")) return url;
   const sep = url.includes("?") ? "&" : "?";
