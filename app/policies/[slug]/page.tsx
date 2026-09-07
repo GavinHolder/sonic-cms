@@ -55,7 +55,7 @@ export default async function PolicyPage({ params }: Props) {
   if (policy.docType === "page") {
     if (!policy.linkedPage || !policy.linkedPage.enabled) {
       return (
-        <main className="container py-5" style={{ maxWidth: 820 }}>
+        <main className="container py-5" style={{ maxWidth: 820, paddingTop: "var(--navbar-height, 100px)" }}>
           <p className="text-muted">This content is not currently available.</p>
         </main>
       );
@@ -72,7 +72,7 @@ export default async function PolicyPage({ params }: Props) {
     const safeIntro = DOMPurify.sanitize(policy.body || "");
     return (
       <main className="policy-pdf-page">
-        <div className="container py-5" style={{ maxWidth: 1040 }}>
+        <div className="container py-5" style={{ maxWidth: 1040, paddingTop: "var(--navbar-height, 100px)" }}>
           {policy.navLabel && <span className="eyebrow d-block mb-2">{policy.navLabel}</span>}
           <h1 className="fw-bold mb-4">{policy.title}</h1>
           <div className="row g-4">
@@ -117,7 +117,7 @@ export default async function PolicyPage({ params }: Props) {
   const safeBody = DOMPurify.sanitize(policy.body || "");
 
   return (
-    <main className="container py-5" style={{ maxWidth: 820 }}>
+    <main className="container py-5" style={{ maxWidth: 820, paddingTop: "var(--navbar-height, 100px)" }}>
       <article>
         <h1 className="fw-bold mb-4">{policy.title}</h1>
         <div
