@@ -343,8 +343,16 @@ function PoliciesInner() {
                           label={editing.pdfUrl ? "Replace PDF" : "Upload PDF"}
                           onUploadComplete={(url) => setEditing((prev) => ({ ...prev!, pdfUrl: url }))}
                         />
+                        <div className="form-text mb-3">
+                          The PDF is embedded on this policy&apos;s page, with a download button.
+                        </div>
+                        <label className="form-label fw-semibold small">Description (optional)</label>
+                        <PolicyEditor
+                          value={editing.body ?? ""}
+                          onChange={(html) => setEditing((prev) => ({ ...prev!, body: html }))}
+                        />
                         <div className="form-text">
-                          Visitors land on this policy&apos;s page and the PDF opens there — no HTML version is shown for this policy.
+                          Shown above the PDF — an intro, summary, or key facts. Leave blank to show just the PDF.
                         </div>
                       </div>
                     ) : (

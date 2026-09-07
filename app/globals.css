@@ -407,6 +407,71 @@ footer .footer-text-link { color: inherit; }
   --bs-btn-disabled-border-color: var(--theme-red);
 }
 
+/* Policy PDF-doctype pages (app/policies/[slug]/page.tsx) — Sonic-branded instead
+   of bare Bootstrap. Deliberately its OWN scope, not .cms-section: that class
+   carries 100vh + scroll-snap behavior that would break a normal scrolling
+   document page. Colors are hardcoded light/white (not var(--theme-*), which
+   default dark) — legal/compliance documents read as a plain white page
+   regardless of the site's dark-mode default. */
+.policy-pdf-page {
+  background: #ffffff;
+  color: #1f2937;
+}
+.policy-pdf-page h1, .policy-pdf-page h2, .policy-pdf-page h3 {
+  font-family: 'Archivo Black', system-ui, sans-serif;
+  letter-spacing: -0.01em;
+}
+.policy-pdf-page .eyebrow {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #E31E24;
+}
+.policy-pdf-page .btn-primary {
+  --bs-btn-bg: #E31E24;
+  --bs-btn-border-color: #E31E24;
+  --bs-btn-hover-bg: #c41a1f;
+  --bs-btn-hover-border-color: #c41a1f;
+  --bs-btn-active-bg: #c41a1f;
+  --bs-btn-active-border-color: #c41a1f;
+}
+.policy-pdf-page .doc-card {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 24px;
+}
+.policy-pdf-page .policy-pdf-intro {
+  color: #374151;
+  line-height: 1.7;
+}
+.policy-pdf-page .policy-pdf-intro table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  margin: 12px 0;
+}
+.policy-pdf-page .policy-pdf-intro th {
+  text-align: left;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e5e7eb;
+}
+.policy-pdf-page .policy-pdf-intro td {
+  padding: 9px 0;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: top;
+}
+.policy-pdf-page .policy-pdf-intro td:last-child {
+  text-align: right;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
 /* Tab-page content scrollbars */
 .tab-page-content {
   scrollbar-width: thin;
