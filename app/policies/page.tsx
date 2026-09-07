@@ -27,7 +27,7 @@ export default async function PoliciesIndexPage() {
   if (!policies) notFound();
 
   return (
-    <main className="container py-5" style={{ maxWidth: 820, paddingTop: "var(--navbar-height, 100px)" }}>
+    <main className="container pb-5" style={{ maxWidth: 820, paddingTop: "var(--navbar-height, 100px)" }}>
       <h1 className="fw-bold mb-4">Policies</h1>
       {policies.length === 0 ? (
         <p className="text-muted">No policies published yet.</p>
