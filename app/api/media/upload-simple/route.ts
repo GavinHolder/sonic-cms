@@ -170,35 +170,61 @@ export async function POST(request: NextRequest) {
     const user = authenticate(request);
     const folderId = request.nextUrl.searchParams.get("folderId") || null;
     let mediaId: string | null = null;
+    let responseUrl = finalUrl;
     if (user) {
       try {
-        const record = await prisma.mediaAsset.create({
-          data: {
-            filename:     finalFilename,
-            originalName: originalName || finalFilename,
-            mimeType:     finalMimeType,
-            fileSize:     size,
-            width,
-            height,
-            url:          finalUrl,
+        // Idempotency guard: a duplicate POST for the same upload (observed live as
+        // two identical-looking cards in the Media Library) creates a second row with
+        // a near-identical converted file — same originalName/size/folder, a filename
+        // that only differs by its millisecond timestamp. Rather than a second insert,
+        // treat a same-user/name/size/folder upload within a few seconds of the last
+        // one as the same upload and hand back the existing record instead.
+        const recentDuplicate = await prisma.mediaAsset.findFirst({
+          where: {
             uploadedBy:   user.userId,
+            originalName: originalName || finalFilename,
+            fileSize:     size,
             folderId,
+            createdAt:    { gte: new Date(Date.now() - 10_000) },
           },
+          orderBy: { createdAt: "desc" },
         });
-        mediaId = record.id;
-        await auditLog(request, user, {
-          action: "upload",
-          resource: "media",
-          resourceId: record.id,
-          details: { filename: finalFilename, mimeType: finalMimeType, size, folderId },
-        });
+
+        if (recentDuplicate) {
+          mediaId = recentDuplicate.id;
+          responseUrl = recentDuplicate.url;
+          // The image conversion above already wrote finalFilename to disk before we
+          // knew this was a duplicate — remove it so it doesn't linger as an orphan.
+          await unlink(join(UPLOAD_DIR, finalFilename)).catch(() => {});
+        } else {
+          const record = await prisma.mediaAsset.create({
+            data: {
+              filename:     finalFilename,
+              originalName: originalName || finalFilename,
+              mimeType:     finalMimeType,
+              fileSize:     size,
+              width,
+              height,
+              url:          finalUrl,
+              uploadedBy:   user.userId,
+              folderId,
+            },
+          });
+          mediaId = record.id;
+          await auditLog(request, user, {
+            action: "upload",
+            resource: "media",
+            resourceId: record.id,
+            details: { filename: finalFilename, mimeType: finalMimeType, size, folderId },
+          });
+        }
       } catch { /* non-fatal */ }
     }
 
     return NextResponse.json({
       success: true,
       mediaId,
-      url:  finalUrl,
+      url:  responseUrl,
       type: isImage ? "image" : isPdf ? "pdf" : "video",
       ...(isImage ? {} : { size }),
     });

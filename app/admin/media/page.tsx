@@ -137,6 +137,7 @@ function MediaLibraryContent() {
 
   const handleUpload = async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
+    if (uploading) return; // re-entrancy guard — ignore a second onChange while one batch is in flight
     setUploading(true);
     const targetFolderId =
       typeof folderView === "string" && folderView !== "all" && folderView !== "uncategorised"
