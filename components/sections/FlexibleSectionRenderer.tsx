@@ -807,8 +807,17 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
 
       {/* Background image layer — absolute fill, z-index 0, below everything.
           In free cover-plate mode the bg image is drawn INSIDE the plate instead (so
-          image + text share one scaled box and crop identically), so it is skipped here. */}
-      {effectiveBgImageUrl && !freePlateActive && (
+          image + text share one scaled box and crop identically), so it is skipped here —
+          but ONLY when the plate is actually rendering. The plate is desktop-only
+          (FREE_MODE_REFLOW_BREAKPOINT — mobile drops it entirely for FreeReflowStack's
+          plain reading-order stack, which never carried a background of its own), so on
+          mobile a free-canvas section had NO background layer at all: neither this one
+          (skipped, since freePlateActive stays true regardless of viewport) nor the
+          plate's (returns null on mobile) ever rendered it. `freePlateDesktop` already
+          encodes "plate is actually active right now" (freePlateActive AND desktop
+          width) — using it here instead of the plain data-driven freePlateActive is the
+          exact fix: same skip on desktop, but now shows on mobile too. */}
+      {effectiveBgImageUrl && !freePlateDesktop && (
         <div
           aria-hidden="true"
           style={{
