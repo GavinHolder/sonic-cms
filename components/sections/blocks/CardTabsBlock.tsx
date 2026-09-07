@@ -57,9 +57,39 @@ export interface CardTabsContent {
   voltId?: string;
   minCardWidth?: number;
   cardAspectRatio?: string;
+  /** Per-card CTA button, admin-configurable via the Designer (Card Tabs block
+   * properties → Button text / Button Link) — never hardcoded. Both fall back to
+   * today's exact defaults when unset, so sections saved before these fields
+   * existed keep rendering identically. See ctaHref()/ctaLabel() below. */
+  ctaText?: string;
+  ctaUrl?: string;
   /** Legacy manual-authoring shape — present only on sections saved before the
    * auto-populating rework. Ignored when productTypeSlugs is set. */
   tabs?: CardTabsTab[];
+}
+
+const DEFAULT_CTA_TEXT = "Check coverage";
+const DEFAULT_CTA_URL = "/coverage";
+
+function ctaLabel(content?: CardTabsContent): string {
+  return content?.ctaText || DEFAULT_CTA_TEXT;
+}
+
+/**
+ * Resolves the per-card CTA href from the admin-configured ctaUrl + a package id.
+ * - `{package}` token → substituted with the package id (lets an admin point the
+ *   button anywhere, e.g. "/coverage?package={package}", and still deep-link).
+ * - tel:/mailto:/#anchor → used as-is; a package id wouldn't be consumed there.
+ * - anything else → the package id is appended as a `package` query param, same
+ *   shape the coverage page already reads (see CoveragePageClient.tsx's
+ *   preselectPackageId), so the default "/coverage" behaves exactly as before.
+ */
+function ctaHref(content: CardTabsContent | undefined, packageId: string): string {
+  const url = content?.ctaUrl || DEFAULT_CTA_URL;
+  if (url.includes("{package}")) return url.replace("{package}", encodeURIComponent(packageId));
+  if (url.startsWith("tel:") || url.startsWith("mailto:") || url.startsWith("#")) return url;
+  const sep = url.includes("?") ? "&" : "?";
+  return `${url}${sep}package=${encodeURIComponent(packageId)}`;
 }
 
 interface Props {
@@ -281,8 +311,8 @@ function AutoCardTabs({ content }: { content?: CardTabsContent }) {
           {visiblePackages.map((pkg) => (
             <div key={pkg.id} className="cms-card-tabs__cell">
               <VoltBlock voltId={voltId} productId={pkg.id} fitMode="contain" />
-              <a href={`/coverage?package=${encodeURIComponent(pkg.id)}`} className="cms-card-tabs__cta">
-                Check coverage <i className="bi bi-geo-alt" />
+              <a href={ctaHref(content, pkg.id)} className="cms-card-tabs__cta">
+                {ctaLabel(content)} <i className="bi bi-geo-alt" />
               </a>
             </div>
           ))}
@@ -370,8 +400,8 @@ function LegacyCardTabs({ content }: { content?: CardTabsContent }) {
                     ? <VoltBlock voltId={c.voltId} productId={c.productId} fitMode="contain" />
                     : <div className="cms-card-tabs__empty">No card design selected</div>}
                   {c.productId && (
-                    <a href={`/coverage?package=${encodeURIComponent(c.productId)}`} className="cms-card-tabs__cta">
-                      Check coverage <i className="bi bi-geo-alt" />
+                    <a href={ctaHref(content, c.productId)} className="cms-card-tabs__cta">
+                      {ctaLabel(content)} <i className="bi bi-geo-alt" />
                     </a>
                   )}
                 </div>

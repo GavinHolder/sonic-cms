@@ -2013,7 +2013,7 @@ const BLOCK_DEFAULTS = {
   html:        { label:'HTML',    html:'<p>Custom HTML</p>', customCss:'' },
   divider:     { label:'Divider', thickness:2, dividerColor:'#dee2e6', customCss:'' },
   volt:        { label:'Volt', bgColor:'transparent', voltId:'', voltName:'', voltThumbnail:null, voltLayerOverrides:{}, customCss:'' },
-  'card-tabs': { label:'Card Tabs', productTypeSlugs:[], voltId:'', voltName:'', minCardWidth:260, customCss:'' },
+  'card-tabs': { label:'Card Tabs', productTypeSlugs:[], voltId:'', voltName:'', minCardWidth:260, ctaText:'Check coverage', ctaUrl:'/coverage', customCss:'' },
   template:    { label:'Template', templateId:'', templateName:'', templateThumbnail:null, customHtml:'<p>Section template</p>', customCss:'', mediaSlots:{}, productId:'', productName:'', networkSlug:'', networkName:'', productTypeSlugs:[], templateOptions:{} },
   editorial:   { label:'Editorial', text:'Start typing your editorial content here. This text will flow around any obstacle images you place in the block. You can use multiple obstacles — each with its own position, size, and alpha hull tracing for precise text wrapping.', fontFamily:'Merriweather', fontSize:18, lineHeight:1.6, textColor:'#212529', bgColor:'transparent', obstacles:[], customCss:'' },
   steps:       { label:'Steps', steps:[{number:'01',heading:'Discovery',subtext:'We analyse your requirements and technical constraints.'},{number:'02',heading:'Design',subtext:'We prototype and validate the solution with stakeholders.'},{number:'03',heading:'Build',subtext:'We implement, test, and deploy the solution.'}], stepsNumberWidth:100, stepsDividers:true, stepsLastDivider:false, customCss:'' },
@@ -6682,6 +6682,8 @@ function renderTypeProps(block) {
       h+=selectRow('Card design (Volt)', p.voltId||'', ctVoltOpts, `var _v=(window.__voltDesigns||[]).find(function(x){return x.id===this.value;});updateBlockProp('${block.id}','voltId',this.value);updateBlockProp('${block.id}','voltName',_v?_v.name:'');renderCanvas()`);
       h+=selectRow('Min card width', String(p.minCardWidth||260), [['200','200px'],['220','220px'],['260','260px'],['300','300px'],['340','340px']], `updateBlockProp('${block.id}','minCardWidth',parseInt(this.value));renderCanvas()`);
       h+=`<div style="font-size:11px;color:#9ca3af;padding:6px 0;line-height:1.6;">Renders one tab per selected product type (e.g. Fibre/Wireless/Voice), auto-split into sub-tabs by network and term-tabs by contract term wherever a group spans more than one value. New packages under these types appear automatically — nothing to re-edit here. Manage product types in <strong>Plugins → Coverage Maps → Networks &amp; Packages</strong>.</div>`;
+      h+=inputRow('Button text', p.ctaText||'Check coverage', `updateBlockProp('${block.id}','ctaText',this.value);renderCanvas()`,'Check coverage');
+      h+=renderCardTabsCtaUrlRow(block.id, p.ctaUrl||'');
       break;
     }
     case 'product-grid': {
@@ -6929,6 +6931,45 @@ function renderNavSection(targetId, currentVal, kind, blockId) {
 function showCustomNav(el, id) {
   const div=document.getElementById(`cnav-${id}`);
   if (div) div.style.display=['custom','tel','mailto'].includes(el.value)?'block':'none';
+}
+
+/**
+ * Card Tabs block "Button Link" row — same dropdown+custom-URL picker UX as
+ * renderNavSection (Home / section anchors / CMS pages / custom URL), but
+ * self-contained and writing to this block's own `ctaUrl` prop instead of the
+ * shared `navTarget` prop banner/hero/button already use, so it can never
+ * collide with that wiring. Prepends the Check Coverage page as the first,
+ * most relevant option since that's this button's default target; unlike
+ * renderNavSection, an unmatched saved value (e.g. a raw "/coverage?package=..."
+ * URL) pre-selects "Custom URL..." AND pre-fills the free-text box with it, so
+ * an admin editing an already-customized link sees the real current value
+ * instead of it looking unset.
+ * @param {string} blockId - The card-tabs block's id.
+ * @param {string} currentVal - The block's current ctaUrl prop (may be empty).
+ * @returns {string} HTML string for the Button Link section.
+ */
+function renderCardTabsCtaUrlRow(blockId, currentVal) {
+  const val = currentVal || '/coverage';
+  const builtins = [{ value:'/coverage', label:'🎯 Check Coverage page (default)' }].concat(state.navOptions);
+  const known = builtins.some(o => o.value === val);
+  const selVal = known ? val : 'custom';
+  const opts = builtins.map(o =>
+    `<option value="${o.value}" ${selVal===o.value?'selected':''}>${o.label}</option>`
+  ).join('');
+  const boxId = `ctaurl-${blockId}`;
+  return `<div class="props-section">
+    <div class="props-label" style="color:#856404;"><i class="bi bi-link-45deg"></i> Button Link</div>
+    <div class="nav-section">
+      <div class="nav-label"><i class="bi bi-link"></i> Link To</div>
+      <select class="props-select" onchange="updateBlockProp('${blockId}','ctaUrl',this.value);showCustomNav(this,'${boxId}')">
+        ${opts}
+      </select>
+      <div id="cnav-${boxId}" style="display:${selVal==='custom'?'block':'none'};margin-top:6px;">
+        <input class="props-input" type="text" value="${escHtml(selVal==='custom'?val:'')}" placeholder="e.g. /coverage or /coverage?package={package}"
+          oninput="updateBlockProp('${blockId}','ctaUrl',this.value)">
+      </div>
+    </div>
+  </div>`;
 }
 
 // ═══════════════════════════════════════════════════════════
