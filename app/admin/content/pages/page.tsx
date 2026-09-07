@@ -20,7 +20,18 @@ import {
 import type { PageConfig, PageType, PDFPageConfig, FormPageConfig, DesignerPageConfig, StandalonePageConfig } from "@/types/page";
 import Link from "next/link";
 
-type FilterType = "all" | "full" | "pdf" | "form" | "designer" | "standalone" | "feature" | "submissions";
+type FilterType = "all" | "full" | "pdf" | "form" | "designer" | "standalone" | "feature" | "policy" | "submissions";
+
+interface PolicyRecord {
+  id: string;
+  slug: string;
+  title: string;
+  docType: string;
+  navLabel: string | null;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
 
 interface FormSubmission {
   id: string;
@@ -84,6 +95,7 @@ export default function PagesManager() {
   const searchParams = useSearchParams();
   const [pages, setPages] = useState<PageConfig[]>([]);
   const [features, setFeatures] = useState<FeatureRecord[]>([]);
+  const [policies, setPolicies] = useState<PolicyRecord[]>([]);
   const [filter, setFilter] = useState<FilterType>("all");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -147,6 +159,16 @@ export default function PagesManager() {
       .catch(() => {});
   }, []);
 
+  // Load policy pages (separate model — Legal & Compliance plugin, managed
+  // in full at /admin/features/policies; this list is a read-only overview
+  // so they're visible and filterable here too).
+  useEffect(() => {
+    fetch("/api/policies")
+      .then((r) => r.json())
+      .then((d) => { if (Array.isArray(d)) setPolicies(d); })
+      .catch(() => {});
+  }, []);
+
   // Load current homepage slug
   useEffect(() => {
     fetch("/api/site-config")
@@ -202,6 +224,7 @@ export default function PagesManager() {
     return page.type === filter;
   });
   const showFeatures = filter === "all" || filter === "feature";
+  const showPolicies = filter === "all" || filter === "policy";
 
   const handleToggleEnabled = async (slug: string) => {
     try {
@@ -342,13 +365,14 @@ export default function PagesManager() {
 
   const getPageStats = () => {
     return {
-      total: pages.length + features.length,
+      total: pages.length + features.length + policies.length,
       full: pages.filter((p) => p.type === "full").length,
       pdf: pages.filter((p) => p.type === "pdf").length,
       form: pages.filter((p) => p.type === "form").length,
       designer: pages.filter((p) => p.type === "designer").length,
       standalone: pages.filter((p) => p.type === "standalone").length,
       features: features.length,
+      policies: policies.length,
     };
   };
 
@@ -439,6 +463,14 @@ export default function PagesManager() {
             </div>
           </div>
         </div>
+        <div className="col-12 col-sm-6 col-lg-2">
+          <div className="card border-0 shadow-sm" style={{ borderLeft: "3px solid #E31E24" }}>
+            <div className="card-body p-3">
+              <div className="text-body-secondary small mb-1">Policy Pages</div>
+              <div className="h4 mb-0 fw-semibold" style={{ color: "#E31E24" }}>{stats.policies}</div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Filter Tabs */}
@@ -505,6 +537,16 @@ export default function PagesManager() {
           >
             <i className="bi bi-cpu me-1"></i>
             Features ({stats.features})
+          </button>
+        </li>
+        <li className="nav-item">
+          <button
+            className={`nav-link ${filter === "policy" ? "active" : ""}`}
+            onClick={() => setFilter("policy")}
+            style={filter === "policy" ? {} : { color: "#E31E24" }}
+          >
+            <i className="bi bi-file-earmark-lock2 me-1"></i>
+            Policies ({stats.policies})
           </button>
         </li>
         <li className="nav-item ms-auto">
@@ -599,7 +641,7 @@ export default function PagesManager() {
       )}
 
       {/* Pages Table */}
-      {filter !== "submissions" && (filteredPages.length === 0 && !(showFeatures && features.length > 0) ? (
+      {filter !== "submissions" && (filteredPages.length === 0 && !(showFeatures && features.length > 0) && !(showPolicies && policies.length > 0) ? (
 
         <div className="card border-0 shadow-sm">
           <div className="card-body text-center py-5">
@@ -702,6 +744,56 @@ export default function PagesManager() {
                     </tr>
                   );
                 })}
+                {/* Policy pages — separate model (Legal & Compliance plugin), managed in
+                    full at /admin/features/policies; the gear icon below links there. */}
+                {showPolicies && policies.map((policy) => (
+                  <tr key={`policy-${policy.slug}`} className={!policy.enabled ? "opacity-50" : ""}>
+                    <td>
+                      <div>
+                        <div className="d-flex align-items-center gap-2 mb-1">
+                          <span className="fw-semibold">{policy.title}</span>
+                          <span className="badge" style={{ background: "#E31E24", fontSize: "0.65rem" }}>
+                            <i className="bi bi-file-earmark-lock2 me-1" />Policy
+                          </span>
+                        </div>
+                        <div className="d-flex align-items-center gap-2">
+                          <code className="text-primary small">/policies/{policy.slug}</code>
+                          <a href={`/policies/${policy.slug}`} target="_blank" rel="noopener noreferrer" className="btn btn-link btn-sm p-0" title="View page">
+                            <i className="bi bi-box-arrow-up-right" />
+                          </a>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <span className="badge" style={{ background: "#E31E24" }}>
+                        <i className="bi bi-file-earmark-lock2 me-1" />
+                        Policy — {policy.docType === "pdf" ? "PDF" : policy.docType === "page" ? "Page" : "HTML"}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={`badge ${policy.enabled ? "bg-success" : "bg-secondary"}`}>
+                        {policy.enabled ? "Enabled" : "Disabled"}
+                      </span>
+                    </td>
+                    <td>
+                      <small className="text-body-secondary">
+                        {policy.createdAt ? new Date(policy.createdAt).toLocaleDateString() : "—"}
+                      </small>
+                    </td>
+                    <td>
+                      <small className="text-body-secondary">
+                        {policy.updatedAt ? new Date(policy.updatedAt).toLocaleDateString() : "—"}
+                      </small>
+                    </td>
+                    <td>
+                      <div className="d-flex gap-1 justify-content-end">
+                        <Link href="/admin/features/policies" className="btn btn-sm btn-primary" title="Manage in Policies">
+                          <i className="bi bi-gear" />
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
                 {filteredPages.map((page) => (
                   <tr key={page.id} className={!page.enabled ? "opacity-50" : ""}>
                     {/* Page Title & Slug */}
