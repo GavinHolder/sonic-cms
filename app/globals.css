@@ -355,6 +355,53 @@ footer .section-content-wrapper {
 footer .footer-text-muted { opacity: 0.72; }
 footer .footer-text-link { color: inherit; }
 
+/* Mobile: footer was hard-capped to exactly 100vh + overflow:hidden on EVERY
+   viewport (see the unconditional `footer{}` rule above) with no mobile
+   exception — unlike regular FLEXIBLE sections, which already release their
+   100vh cap on mobile so content can grow instead of clipping (see
+   "FLEXIBLE section mobile responsiveness" below). A footer with a logo,
+   tagline, address block, socials, and 4 link columns doesn't fit one phone
+   screen, so anything past the fold was silently invisible — not a rendering
+   bug, a real content-height constraint that was never given the same
+   mobile exception every other section already has. The footer is always
+   the LAST element on the page, so growing it past 100vh here can't disturb
+   any later section's scroll-snap point the way it would for a middle
+   section (the actual reason that same relaxation is restricted to
+   .flexible-section elsewhere, not applied blindly everywhere).
+   Also fixes the link-columns row: it was `flex-wrap: nowrap` unconditionally,
+   forcing all 4 columns into ~70px-wide slots on a phone regardless of
+   column count. Wraps to 2-per-row on mobile instead. And centers the logo
+   block, which had no alignment rule at all (always left-aligned). */
+@media (max-width: 767px) {
+  footer {
+    height: auto;
+    min-height: 100vh;
+    max-height: none;
+    overflow: visible;
+  }
+  footer .section-content-wrapper {
+    overflow: visible;
+    height: auto;
+    min-height: unset;
+  }
+  footer .footer-cols-row {
+    flex-wrap: wrap;
+    row-gap: 24px;
+  }
+  footer .footer-col {
+    flex: 1 1 45% !important;
+    min-width: 130px;
+  }
+  footer .footer-logo-block {
+    text-align: center;
+  }
+  footer .footer-logo-img {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
 /* ===== CUSTOM SCROLLBAR ===== */
 
 ::-webkit-scrollbar {

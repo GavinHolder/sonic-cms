@@ -499,11 +499,12 @@ function FooterRenderer({ section }: { section: FooterSection }) {
 
   // Build logo element (falls back to SiteConfig logo/tagline)
   const logoElement = (effLogo || effTagline) && (
-    <div className="mb-3">
+    <div className="mb-3 footer-logo-block">
       {effLogo && (
         <img
           src={effLogo}
           alt="Logo"
+          className="footer-logo-img"
           style={{ maxHeight: "60px", marginBottom: "12px" }}
           onError={(e) => {
             e.currentTarget.style.display = "none";
@@ -602,9 +603,9 @@ function FooterRenderer({ section }: { section: FooterSection }) {
       : [];
   const footerColumns = [...baseColumns, ...legalColumn];
   const columnsElement = footerColumns.length > 0 && (
-    <div className="d-flex gap-4 justify-content-between">
+    <div className="d-flex gap-4 justify-content-between footer-cols-row">
       {footerColumns.map((col, ci) => (
-        <div key={col.id || (col as any).heading || ci} style={{ flex: '1 1 0', minWidth: 0 }}>
+        <div key={col.id || (col as any).heading || ci} className="footer-col" style={{ flex: '1 1 0', minWidth: 0 }}>
           <h6 className={`fw-bold mb-3 ${textClass}`}>{(col as any).heading || col.title}</h6>
           <ul className="list-unstyled">
             {col.links.map((link, i) => (
