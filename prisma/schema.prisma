@@ -67,6 +67,7 @@ model Page {
   submissions     FormSubmission[]
   createdByUser   User             @relation(fields: [createdBy], references: [id])
   sections        Section[]
+  linkedByPolicies Policy[]
 
   @@index([slug])
   @@index([status])
@@ -1054,12 +1055,20 @@ model Policy {
   slug      String   @unique
   title     String
   body      String   @db.Text
-  /// "html" (default, renders `body`) or "pdf" (renders `pdfUrl` instead — see
-  /// app/policies/[slug]/page.tsx). Not a Prisma enum so existing rows need no
+  /// "html" (default, renders `body`), "pdf" (renders `pdfUrl` instead), or
+  /// "page" (embeds an existing Page's own content via `pageId` instead) — see
+  /// app/policies/[slug]/page.tsx. Not a Prisma enum so existing rows need no
   /// backfill: the column default already reads as "html" for every row that
   /// existed before this field did.
   docType   String   @default("html")
   pdfUrl    String?
+  /// Set when docType = "page". References an existing Page whose own content
+  /// (sections/designer/etc.) is rendered in place of `body`/`pdfUrl`, so the
+  /// policy is authored with the full Page tooling instead of the plain rich
+  /// text box. SetNull on delete so removing that Page doesn't take the policy
+  /// row down with it — it just falls back to rendering nothing until re-linked.
+  pageId    String?
+  linkedPage Page?   @relation(fields: [pageId], references: [id], onDelete: SetNull)
   navLabel  String?
   order     Int      @default(0)
   enabled   Boolean  @default(true)
@@ -1072,5 +1081,6 @@ model Policy {
   createdByUser User @relation(fields: [createdBy], references: [id])
 
   @@index([enabled, order])
+  @@index([pageId])
   @@map("policies")
 }

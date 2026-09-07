@@ -14,12 +14,20 @@ interface Policy {
   body: string;
   docType: string;
   pdfUrl: string | null;
+  pageId: string | null;
   navLabel: string | null;
   order: number;
   enabled: boolean;
   metaTitle: string | null;
   metaDescription: string | null;
   noindex: boolean;
+}
+
+interface PageOption {
+  id: string;
+  slug: string;
+  title: string;
+  status: string;
 }
 
 export default function PoliciesPage() {
@@ -36,6 +44,7 @@ function PoliciesInner() {
 
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pageOptions, setPageOptions] = useState<PageOption[]>([]);
 
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Partial<Policy> | null>(null);
@@ -53,8 +62,18 @@ function PoliciesInner() {
     }
   };
 
+  const loadPageOptions = async () => {
+    try {
+      const res = await fetch("/api/pages");
+      if (!res.ok) return;
+      const json = await res.json();
+      setPageOptions(json.data.pages ?? []);
+    } catch { /* dropdown just stays empty */ }
+  };
+
   useEffect(() => {
     load();
+    loadPageOptions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -65,6 +84,7 @@ function PoliciesInner() {
       body: "",
       docType: "html",
       pdfUrl: null,
+      pageId: null,
       navLabel: "",
       order: policies.length,
       enabled: true,
@@ -87,6 +107,10 @@ function PoliciesInner() {
     }
     if (editing.docType === "pdf" && !editing.pdfUrl) {
       toast.error("Upload a PDF before saving, or switch back to HTML");
+      return;
+    }
+    if (editing.docType === "page" && !editing.pageId) {
+      toast.error("Select a page before saving, or switch back to HTML");
       return;
     }
     setSaving(true);
@@ -164,8 +188,12 @@ function PoliciesInner() {
               style={{ padding: "12px 16px", background: "#f9fafb", borderRadius: 8, border: "1px solid #e5e7eb" }}
             >
               <i
-                className={p.docType === "pdf" ? "bi bi-file-earmark-pdf" : "bi bi-file-earmark-text"}
-                style={{ color: p.enabled ? (p.docType === "pdf" ? "#dc2626" : "#4a7c59") : "#9ca3af", fontSize: 18, flexShrink: 0 }}
+                className={
+                  p.docType === "pdf" ? "bi bi-file-earmark-pdf"
+                  : p.docType === "page" ? "bi bi-file-earmark-richtext"
+                  : "bi bi-file-earmark-text"
+                }
+                style={{ color: p.enabled ? (p.docType === "pdf" ? "#dc2626" : p.docType === "page" ? "#2563eb" : "#4a7c59") : "#9ca3af", fontSize: 18, flexShrink: 0 }}
               />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 600, color: "#1f2937" }}>{p.title}</div>
@@ -174,6 +202,7 @@ function PoliciesInner() {
                   {p.navLabel && ` · footer: ${p.navLabel}`}
                   {` · order ${p.order}`}
                   {p.docType === "pdf" && " · PDF"}
+                  {p.docType === "page" && " · Page"}
                 </div>
               </div>
               {!p.enabled && (
@@ -253,21 +282,46 @@ function PoliciesInner() {
                         <button
                           type="button"
                           className={`btn ${(editing.docType ?? "html") === "html" ? "btn-success" : "btn-outline-secondary"}`}
-                          onClick={() => setEditing((prev) => ({ ...prev!, docType: "html", pdfUrl: null }))}
+                          onClick={() => setEditing((prev) => ({ ...prev!, docType: "html", pdfUrl: null, pageId: null }))}
                         >
                           HTML
                         </button>
                         <button
                           type="button"
                           className={`btn ${editing.docType === "pdf" ? "btn-success" : "btn-outline-secondary"}`}
-                          onClick={() => setEditing((prev) => ({ ...prev!, docType: "pdf" }))}
+                          onClick={() => setEditing((prev) => ({ ...prev!, docType: "pdf", pageId: null }))}
                         >
                           PDF
+                        </button>
+                        <button
+                          type="button"
+                          className={`btn ${editing.docType === "page" ? "btn-success" : "btn-outline-secondary"}`}
+                          onClick={() => setEditing((prev) => ({ ...prev!, docType: "page", pdfUrl: null }))}
+                        >
+                          Page
                         </button>
                       </div>
                     </div>
 
-                    {editing.docType === "pdf" ? (
+                    {editing.docType === "page" ? (
+                      <div>
+                        <select
+                          className="form-select"
+                          value={editing.pageId ?? ""}
+                          onChange={(e) => setEditing((prev) => ({ ...prev!, pageId: e.target.value || null }))}
+                        >
+                          <option value="">Select a page…</option>
+                          {pageOptions.map((pg) => (
+                            <option key={pg.id} value={pg.id}>
+                              {pg.title} — /{pg.slug}{pg.status !== "PUBLISHED" ? ` (${pg.status.toLowerCase()})` : ""}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="form-text">
+                          Visitors land on this policy&apos;s page and see that page&apos;s own content — no HTML version is shown for this policy.
+                        </div>
+                      </div>
+                    ) : editing.docType === "pdf" ? (
                       <div>
                         {editing.pdfUrl && (
                           <div

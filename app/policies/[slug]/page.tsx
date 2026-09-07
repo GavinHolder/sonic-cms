@@ -4,6 +4,7 @@ import DOMPurify from "isomorphic-dompurify";
 import prisma from "@/lib/prisma";
 import { fetchSeoConfig, buildMetadata } from "@/lib/metadata-generator";
 import { getPlugin } from "@/lib/plugins/registry";
+import PageClient from "@/app/[slug]/PageClient";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,10 @@ interface Props {
 async function getEnabledPolicy(slug: string) {
   const plugin = await getPlugin("policies");
   if (!plugin || !plugin.enabled) return null;
-  const policy = await prisma.policy.findUnique({ where: { slug } });
+  const policy = await prisma.policy.findUnique({
+    where: { slug },
+    include: { linkedPage: { select: { slug: true, enabled: true } } },
+  });
   if (!policy || !policy.enabled) return null;
   return policy;
 }
@@ -40,6 +44,24 @@ export default async function PolicyPage({ params }: Props) {
   const { slug } = await params;
   const policy = await getEnabledPolicy(slug);
   if (!policy) notFound();
+
+  // Page mode: the policy is an alias for an existing Page's own content (full
+  // sections, designer canvas, etc.) — rendered exactly as that Page renders at
+  // its own URL, no reading-column wrapper here (sections are full-bleed/100vh
+  // and would be broken by one). The Policy still owns the URL, footer listing,
+  // and SEO meta (see generateMetadata above); the Page supplies 100% of the
+  // visual content, including its own heading — no separate <h1> here to avoid
+  // a redundant title stacked above the Page's own hero/heading.
+  if (policy.docType === "page") {
+    if (!policy.linkedPage || !policy.linkedPage.enabled) {
+      return (
+        <main className="container py-5" style={{ maxWidth: 820 }}>
+          <p className="text-muted">This content is not currently available.</p>
+        </main>
+      );
+    }
+    return <PageClient params={Promise.resolve({ slug: policy.linkedPage.slug })} />;
+  }
 
   // PDF mode: the policy IS the uploaded file — no HTML body is rendered for it.
   // Embedded via <iframe> (native PDF viewer in every modern desktop/mobile browser)
