@@ -402,6 +402,27 @@ footer .footer-text-link { color: inherit; }
   }
 }
 
+/* ===== COVERAGE MAP (full-page floating search, CoverageMapViewer.tsx) ===== */
+
+/* Mobile: the floating search form is centered and widens to nearly full
+   viewport width (`min(560px, calc(100% - 32px))`) — correct, deliberate
+   mobile behavior, a full-width search bar is what you want on a phone.
+   The "Back to site" button sits at a fixed top:16/left:16, independent of
+   the form's own centering math. On a wide desktop viewport the centered
+   560px-capped form sits far to the right of x:16, so the two never meet —
+   only below ~624px viewport width does the form's left edge reach x:16
+   too, landing both elements on the exact same top-left corner (confirmed
+   live: elementFromPoint at that corner returned the button, not the
+   search input — taps on roughly the left third of the search box hit
+   the button instead). Pushing the form down below the button's own
+   height, mobile-only, is a one-line fix that doesn't touch desktop's
+   positioning at all. */
+@media (max-width: 767px) {
+  .coverage-floating-search {
+    top: 70px !important;
+  }
+}
+
 /* ===== CUSTOM SCROLLBAR ===== */
 
 ::-webkit-scrollbar {

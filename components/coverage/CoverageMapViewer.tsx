@@ -455,6 +455,7 @@ export default function CoverageMapViewer({
       {showSearch && (
         <form
           onSubmit={handleSearch}
+          className={floatingSearch ? "coverage-floating-search" : undefined}
           style={floatingSearch
             ? { position: "absolute", top: 16, left: "50%", transform: "translateX(-50%)", zIndex: 900, width: "min(560px, calc(100% - 32px))" }
             : { marginBottom: 12, position: "relative" }}

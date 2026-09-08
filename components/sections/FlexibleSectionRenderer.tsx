@@ -3332,8 +3332,15 @@ function FreeReflowStack({ blocks, designerCanvasW, containerW, darkBg }: {
   // scaleGuess ≈ how much the design is compressed horizontally into the phone column.
   const scaleGuess = designerCanvasW > 0 ? containerW / designerCanvasW : 0.26;
 
+  // 12px, not the original 20px — this sits inside the shared `.container-fluid`
+  // wrapper (FlexibleSectionRenderer.tsx), which already contributes its own default
+  // Bootstrap gutter (12px/side). The two were stacking to 32px/side (64px total on a
+  // 375px phone), squeezing a self-sizing block like the pricing widget's iframe down
+  // to 311px — not enough room for its own tab row, cutting off the last tab.
+  // 12px/side here (24px/side combined with the gutter) still gives every block real
+  // breathing room from the screen edge, just not doubled.
   return (
-    <div style={{ display: "flex", flexDirection: "column", width: "100%", padding: "0 20px" }}>
+    <div style={{ display: "flex", flexDirection: "column", width: "100%", padding: "0 12px" }}>
       {ordered.map((leaf, i) => {
         const prev = i > 0 ? ordered[i - 1] : null;
         let marginTop = 0;
