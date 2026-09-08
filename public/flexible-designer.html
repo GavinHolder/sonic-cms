@@ -5776,6 +5776,10 @@ function _lyDuplicateBlock(blockId){
   copy.x = (copy.x||0)+20; copy.y = (copy.y||0)+20; copy.zIndex = (copy.zIndex||1)+1;
   const idx = state.blocks.indexOf(b);
   state.blocks.splice(idx+1, 0, copy);
+  // Reindex zIndex to match array position (same invariant _fcxReorder/_lyHandleDrop
+  // enforce) — otherwise the bumped copy.zIndex above can leave every later block's
+  // stored zIndex stale relative to its true array position.
+  state.blocks.forEach((b,i)=> b.zIndex = i+1);
   state.selectedBlockId = copy.id; state.selectedSubId = null;
   renderCanvas(); renderPropsPanel(); autoSave();
 }
@@ -7637,8 +7641,19 @@ function resolveDropConflict(choice) {
   }
 
   if (!isMove) {
-    // New drop: the block was never added to state.blocks — push it now
-    state.blocks.push(block);
+    // New drop: the block was never added to state.blocks — push it now.
+    // 'replace' means "send to back": insert at the FRONT of the array so the
+    // live renderer's array-order-derived zIndex (FlexibleSectionRenderer.tsx)
+    // paints it behind everything else, matching the zIndex=1 intent set above
+    // (previously this always pushed to the END, which the live renderer's
+    // then-array-order-only painting read as FRONTMOST — the opposite of what
+    // 'replace'/"send to back" intended). 'stack' means frontmost, so it's
+    // still appended at the end.
+    if (choice === 'replace') state.blocks.unshift(block);
+    else state.blocks.push(block);
+    // Reindex so stored zIndex always matches array position — same invariant
+    // _fcxReorder / _lyHandleDrop / _lyDuplicateBlock already enforce.
+    state.blocks.forEach((b,i)=> b.zIndex = i+1);
   }
   // For moves, block is already in state.blocks at its new position;
   // the zIndex update above is all that is needed.
