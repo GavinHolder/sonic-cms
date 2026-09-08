@@ -54,7 +54,18 @@ export default function VoltPreviewClient({
       {bgGradient && (
         <div aria-hidden="true" style={{ position: "absolute", inset: 0, zIndex: 1, background: bgGradient }} />
       )}
-      <div style={{ position: "relative", zIndex: 2, width: fullBleed ? "100%" : undefined, height: fullBleed ? "100%" : undefined }}>
+      {/* Always a definite 100%/100% box (not just for fullBleed) — VoltBlock's "contain"
+          fitMode chain (VoltRenderer's useMeasuredContain ResizeObserver, see that file's
+          hasExplicitHeight/useMeasuredContain comment) needs a REAL parent height to
+          inherit down through VoltBlock's own height:"100%" container. Leaving width/height
+          `undefined` here for the (default, non-fullBleed) "contain" case made this wrapper
+          — and therefore VoltBlock/VoltRenderer beneath it — collapse to 0×0: this flex
+          parent uses alignItems:"center" (not "stretch"), so an auto-sized flex item never
+          picks up the flex container's 100vh height on its own. A 0×0 Volt renders nothing
+          (including its glass overlay, which is sized off the same chain), so the iframe
+          showed blank/transparent — through which the Designer canvas's own background
+          shows, looking like the volt was replaced by whatever sits behind it. */}
+      <div style={{ position: "relative", zIndex: 2, width: "100%", height: "100%" }}>
         <VoltBlock voltId={voltId} slots={slots} instanceOverrides={instanceOverrides} fitMode={fit} productId={productId} />
       </div>
     </div>

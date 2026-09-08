@@ -1117,6 +1117,7 @@
       while(svgEl.firstChild)svgEl.removeChild(svgEl.firstChild);
       artboard.querySelectorAll('.slot-overlay').forEach(function(e){e.remove();});
       artboard.querySelectorAll('.text-overlay').forEach(function(e){e.remove();});
+      artboard.querySelectorAll('.glass-overlay').forEach(function(e){e.remove();});
       artboard.querySelectorAll('.vector-run-svg').forEach(function(e){e.remove();});
       // canvas-ui-svg: dedicated always-on-top selection/editing overlay, recreated
       // every render (see its creation further below) — clear the previous pass's copy.
@@ -1252,7 +1253,12 @@
             fill.gradient.stops.forEach(function(st){var _s=svgNs('stop');_s.setAttribute('offset',st.position+'%');_s.setAttribute('stop-color',st.color);_s.setAttribute('stop-opacity',st.opacity!=null?st.opacity:1);_gEl.appendChild(_s);});
             _gDefs.appendChild(_gEl);_psvg.insertBefore(_gDefs,_psvg.firstChild);
           }
-          var _fAttr=_isGrad?'url(#cg-'+layer.id+')':(fill&&fill.type==='solid')?fill.color:(fill&&fill.type==='glass'?'rgba(100,200,255,0.25)':'none');
+          // Glass fills paint nothing here — same as VoltSvgLayer.tsx's isGlass skip in the
+          // real renderer. The real frosted look comes from the HTML backdrop-filter overlay
+          // appended below (mirrors VoltRenderer.tsx's renderGlassOverlays); this path stays
+          // an invisible hit-target only (isPointInFill works on path geometry regardless of
+          // fill paint, so selection/click still work with fill:none).
+          var _fAttr=_isGrad?'url(#cg-'+layer.id+')':(fill&&fill.type==='solid')?fill.color:'none';
           path.setAttribute('fill',_fAttr);path.setAttribute('fill-opacity',(_isGrad||fill&&fill.type==='glass')?1:(fill?fill.opacity:1));path.setAttribute('fill-rule',dispFillRule);
           if(layer.vectorData.stroke){
             var s=layer.vectorData.stroke;path.setAttribute('stroke',s.color);path.setAttribute('stroke-opacity',s.opacity);path.setAttribute('stroke-linecap',s.cap||'round');path.setAttribute('stroke-linejoin',s.join||'round');if(s.dash&&s.dash.length)path.setAttribute('stroke-dasharray',s.dash.map(function(n){return (n/(CW/100)).toFixed(3);}).join(' '));else path.removeAttribute('stroke-dasharray');
@@ -1333,6 +1339,34 @@
             });
           }
           _psvg.appendChild(g);
+          // ── Glass fill — real HTML backdrop-filter overlay ──────────────────────
+          // Mirrors VoltRenderer.tsx's renderGlassOverlays exactly: a simple rectangle
+          // sized off the layer's own bounding box (NOT clipped to the path shape —
+          // the real renderer doesn't do that either, so this stays a true preview of
+          // what actually ships), positioned in canvas px like the text/number overlays
+          // above. Real blur here needs real content behind it — the canvas's own
+          // background/dot-grid gives it something to frost, same idea as forwarding
+          // the section bg into /volt-preview for the Flexible Designer + live page.
+          if(fill&&fill.type==='glass'&&!isCutterEditVis){
+            var _gx=topx(_lx,CW),_gy=topx(_ly,CH),_gw=topx(_lw,CW),_gh=topx(_lh,CH);
+            var _gBlur=fill.blur!=null?fill.blur:12;
+            var _gBgOp=fill.opacity!=null?fill.opacity:0.15;
+            var _gBorOp=fill.borderOpacity!=null?fill.borderOpacity:0.3;
+            var _gRad=fill.glassBorderRadius!=null?fill.glassBorderRadius:12;
+            var _gColor=fill.color||'#ffffff';
+            var _gR=parseInt(_gColor.slice(1,3),16)||255,_gG=parseInt(_gColor.slice(3,5),16)||255,_gB=parseInt(_gColor.slice(5,7),16)||255;
+            var _gDiv=document.createElement('div');_gDiv.className='glass-overlay';_gDiv.id='glass-overlay-'+layer.id;
+            _gDiv.style.cssText='position:absolute;left:'+_gx+'px;top:'+_gy+'px;width:'+_gw+'px;height:'+_gh+'px;'+
+              'backdrop-filter:blur('+_gBlur+'px);-webkit-backdrop-filter:blur('+_gBlur+'px);'+
+              'background-color:rgba('+_gR+','+_gG+','+_gB+','+_gBgOp+');'+
+              'border:1px solid rgba(255,255,255,'+_gBorOp+');border-radius:'+_gRad+'px;'+
+              'pointer-events:none;box-sizing:border-box;';
+            _gDiv.style.opacity=_lop!=null?_lop:1;
+            if(_lrot){_gDiv.style.transform='rotate('+_lrot+'deg)';_gDiv.style.transformOrigin='center center';}
+            if(layer.blendMode&&layer.blendMode!=='normal')_gDiv.style.mixBlendMode=layer.blendMode;
+            artboard.appendChild(_gDiv);
+            curVecSvg=null; // breaks the vector run so later layers interleave above this overlay in true z-order (mirrors slot/text handling)
+          }
         }
         if(layer.type==='slot'){
           var _sd=layer.slotData||{};var _st=_sd.slotType||'title';
@@ -6050,9 +6084,16 @@
         // live artboard (svgEl is a single static child; overlay divs are always
         // appended after it). Best-effort: any failure here still leaves the
         // shape-only thumbnail from the try block above, never blocking the save.
+        // .glass-overlay included too: glass fills now paint fill:none in the SVG pass
+        // (see renderCanvas), so without this a glass shape would thumbnail as fully
+        // invisible instead of its old fake flat placeholder. Real backdrop-filter blur
+        // may or may not render inside a flattened data-URI <img>, but the tint/border/
+        // radius always will — strictly more accurate than the old hardcoded blue swatch
+        // either way. querySelectorAll returns both classes in true document order, so
+        // glass/text interleaving is preserved same as text-only was.
         try{
           var artboardEl=document.getElementById('artboard');
-          var overlays=artboardEl?Array.prototype.slice.call(artboardEl.querySelectorAll('.text-overlay')):[];
+          var overlays=artboardEl?Array.prototype.slice.call(artboardEl.querySelectorAll('.text-overlay, .glass-overlay')):[];
           if(overlays.length){
             var fo=svgNs('foreignObject');
             fo.setAttribute('x','0');fo.setAttribute('y','0');fo.setAttribute('width',CW);fo.setAttribute('height',CH);
