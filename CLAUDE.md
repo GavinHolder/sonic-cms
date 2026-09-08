@@ -195,6 +195,8 @@ _(JWT hardcoded-fallback-secret item removed 2026-08-17 — verified fixed in `l
 
 **Sections:** All sections are `100vh`, CSS `scroll-snap-type: y mandatory`. Hero has NO snap. Content scrolls internally via `.section-content-wrapper` (`overflow-y: auto`). Class: `cms-section`.
 
+**⛔ HARD BOUNDARY (PERMANENT):** a single-mode section (`data-content-mode="single"`) is ALWAYS exactly `100vh`; a multi-mode section is ALWAYS exactly `multiLimit × 100vh` — never more, never less, for ANY content-fitting reason (cropping, letterboxing, overflow). If a fix seems to require growing/shrinking a section past this contract, that approach is wrong by definition — fit the CONTENT to the fixed box instead (contain-fit, internal scroll, or adjusting the content itself), never the box. A 2026-09-04 fix (`736e864`) violated this to avoid cropping some background content and broke the site's scroll-snap rhythm; reverted same-day in `b4f1426`. Before shipping any section-height/aspect-ratio CSS change, verify this contract holds at multiple real viewport sizes.
+
 **Section padding:** `paddingTop`/`paddingBottom` (0–200px, default 80px). Internal padding only — no external margins.
 
 **Section JSONB extras:** `lowerThird Json?` (SVG/image at section bottom, z-10), `motionElements Json?` (parallax overlay images, z-20). Both wired via `wrapSection()` in `DynamicSection.tsx`.
