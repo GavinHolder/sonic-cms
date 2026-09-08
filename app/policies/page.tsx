@@ -27,21 +27,28 @@ export default async function PoliciesIndexPage() {
   if (!policies) notFound();
 
   return (
-    <main className="container pb-5" style={{ maxWidth: 820, paddingTop: "var(--navbar-height, 100px)" }}>
-      <h1 className="fw-bold mb-4">Policies</h1>
-      {policies.length === 0 ? (
-        <p className="text-muted">No policies published yet.</p>
-      ) : (
-        <ul className="list-unstyled">
-          {policies.map((p) => (
-            <li key={p.id} className="mb-2">
-              <Link href={`/policies/${p.slug}`} className="fs-5">
-                {p.navLabel || p.title}
+    <main className="policy-pdf-page">
+      <div className="container pb-5" style={{ maxWidth: 820, paddingTop: "var(--navbar-height, 100px)" }}>
+        <span className="eyebrow d-block mb-2">Legal &amp; Compliance</span>
+        <h1 className="fw-bold mb-4">Policies</h1>
+        {policies.length === 0 ? (
+          <p className="text-muted">No policies published yet.</p>
+        ) : (
+          <div className="d-flex flex-column gap-2">
+            {policies.map((p) => (
+              <Link
+                key={p.id}
+                href={`/policies/${p.slug}`}
+                className="doc-card d-flex align-items-center justify-content-between text-decoration-none"
+                style={{ color: "#1f2937" }}
+              >
+                <span className="fw-semibold fs-5">{p.navLabel || p.title}</span>
+                <i className="bi bi-arrow-right" />
               </Link>
-            </li>
-          ))}
-        </ul>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
     </main>
   );
 }

@@ -613,14 +613,14 @@ export default function Navbar() {
                     <motion.div key={link.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
                       transition={{ duration: 0.2, delay: i * 0.05 }}>
                       <Link href={link.href} onClick={() => setMobileOpen(false)}
-                        className="text-decoration-none fw-medium px-4 py-2 dropdown-link d-block text-center w-100"
+                        className="text-decoration-none fw-medium px-4 py-3 dropdown-link d-block text-center w-100"
                         style={{ color: "var(--theme-text)", whiteSpace: "nowrap" }}>
                         {link.label}
                       </Link>
                     </motion.div>
                   ) : (
                     <motion.button key={link.id} onClick={() => { scrollToSection(link.id); setMobileOpen(false); }}
-                      className="text-decoration-none fw-medium px-4 py-2 dropdown-link d-block border-0 bg-transparent text-center w-100"
+                      className="text-decoration-none fw-medium px-4 py-3 dropdown-link d-block border-0 bg-transparent text-center w-100"
                       style={{ color: "var(--theme-text)", whiteSpace: "nowrap", cursor: "pointer" }}
                       whileHover={{ backgroundColor: "rgba(127,127,127,0.15)" }}
                       initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
