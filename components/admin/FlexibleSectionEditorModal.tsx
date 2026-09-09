@@ -329,51 +329,122 @@ export default function FlexibleSectionEditorModal({
   const handleDesignerMessage = useCallback((e: MessageEvent) => {
     if (!e.data?.type) return;
     if (e.data.type === "FLEXIBLE_DESIGNER_READY") {
-      // Check for unsaved draft first (survives unexpected designer closes)
-      let draft: string | null = null;
-      try { draft = localStorage.getItem(draftKey); } catch {}
-      // Legacy sections (seeded as content.elements + mosaic layout, no designerData)
-      // open blank in the canvas. Synthesise an editable designerData payload from the
-      // legacy content so the canvas is populated. Returns "" when there are no legacy
-      // elements. We DON'T setDesignerData here — real designerData is written only when
-      // the user saves in the designer, so nothing is mutated until they confirm.
-      const legacySynth = !designerData ? legacyToDesignerData(section.content as Record<string, unknown>) : "";
-      const initPayload = draft || designerData || legacySynth || JSON.stringify({
-        contentMode,
-        layoutType: layout.type || "preset",
-        grid: { rows: 2, cols: 3, gap: 16 },
-        preset: layout.preset || "2-col-split",
-        blocks: [],
-      });
-      // #68 — forward the section's configured background so the designer canvas can
-      // preview it (view-only in the designer). Mirrors the fields FlexibleSectionRenderer
-      // reads off the section: solid/preset colour, bg image + sizing, and gradient overlay.
-      let payloadWithBg = initPayload;
-      try {
-        const obj = JSON.parse(initPayload);
-        obj.sectionBackground = {
-          background: backgroundType === "solid" ? background : "transparent",
-          bgImageUrl: bgImageUrl || "",
-          bgImageSize,
-          bgImagePosition,
-          bgImageRepeat,
-          bgImageOpacity,
-          gradient: backgroundType === "gradient"
-            ? { enabled: true, type: "preset", preset: { direction: gradientDirection, startOpacity: gradientStartOpacity, endOpacity: gradientEndOpacity, color: gradientColor } }
-            : undefined,
-        };
-        payloadWithBg = JSON.stringify(obj);
-      } catch { /* non-JSON payload — send as-is */ }
-      iframeRef.current?.contentWindow?.postMessage(
-        { type: "FLEXIBLE_DESIGNER_INIT", payload: payloadWithBg },
-        "*"
-      );
+      // Resolve the init payload asynchronously — a stale draft may need a user
+      // decision (see below) before we can safely post FLEXIBLE_DESIGNER_INIT.
+      (async () => {
+        // Read any unsaved draft (survives unexpected designer closes). Written as
+        // an envelope { payload, savedAt } (see FLEXIBLE_DESIGNER_SAVE/DONE below) so
+        // its age can be compared against the section's own last real save. A draft
+        // stored before this fix (or otherwise malformed) has no savedAt — treat it
+        // as maximally stale (savedAt=0) rather than trusting it outright.
+        let draftPayload: string | null = null;
+        let draftSavedAt = 0;
+        try {
+          const raw = localStorage.getItem(draftKey);
+          if (raw) {
+            try {
+              const parsed = JSON.parse(raw);
+              if (parsed && typeof parsed === "object" && typeof parsed.payload === "string") {
+                draftPayload = parsed.payload;
+                draftSavedAt = typeof parsed.savedAt === "number" ? parsed.savedAt : 0;
+              } else {
+                draftPayload = raw; // legacy envelope-less draft
+              }
+            } catch {
+              draftPayload = raw; // legacy raw-string draft (pre-fix format)
+            }
+          }
+        } catch {}
+
+        // Section's own last real save, from the server (fetched fresh whenever the
+        // sections list is loaded) — the anchor a draft's age is judged against.
+        const sectionUpdatedAt = (() => {
+          const raw = (section as any)?.updatedAt;
+          const t = raw ? new Date(raw).getTime() : NaN;
+          return Number.isFinite(t) ? t : 0;
+        })();
+
+        let useDraft = false;
+        if (draftPayload) {
+          if (draftSavedAt >= sectionUpdatedAt) {
+            // Draft is at least as new as the section's last real save — genuine
+            // unsaved work that nothing has since superseded. Safe to resume as-is.
+            useDraft = true;
+          } else {
+            // The section was saved (by this user or anyone else, in this browser or
+            // another) AFTER this draft was written — the draft is stale. Trusting it
+            // unconditionally here is the exact bug: it would silently show old
+            // content over newer real data. Ask instead of guessing either way.
+            const resume = await confirm({
+              title: "Unsaved draft found",
+              message: draftSavedAt
+                ? `This section has an unsaved draft from ${new Date(draftSavedAt).toLocaleString()} that predates the current saved version. Resume the draft, or discard it and use the current version?`
+                : `This section has an old unsaved draft that predates the current saved version. Resume the draft, or discard it and use the current version?`,
+              confirmText: "Resume draft",
+              cancelText: "Discard and use current version",
+              variant: "warning",
+            });
+            useDraft = resume;
+            if (!resume) {
+              try { localStorage.removeItem(draftKey); } catch {}
+            }
+          }
+        }
+
+        if (useDraft && draftPayload) {
+          // Bring the resolved choice into designerData so every other part of the
+          // modal (block accordion, "N blocks" summary, live preview) agrees with
+          // what's actually loaded into the designer canvas, instead of the two
+          // silently disagreeing the way the bug reproduced.
+          setDesignerData(draftPayload);
+          setSectionDirty(true); // resumed draft isn't persisted to the section yet
+        }
+
+        // Legacy sections (seeded as content.elements + mosaic layout, no designerData)
+        // open blank in the canvas. Synthesise an editable designerData payload from the
+        // legacy content so the canvas is populated. Returns "" when there are no legacy
+        // elements. We DON'T setDesignerData here — real designerData is written only when
+        // the user saves in the designer, so nothing is mutated until they confirm.
+        const legacySynth = !designerData ? legacyToDesignerData(section.content as Record<string, unknown>) : "";
+        const initPayload = (useDraft ? draftPayload : null) || designerData || legacySynth || JSON.stringify({
+          contentMode,
+          layoutType: layout.type || "preset",
+          grid: { rows: 2, cols: 3, gap: 16 },
+          preset: layout.preset || "2-col-split",
+          blocks: [],
+        });
+        // #68 — forward the section's configured background so the designer canvas can
+        // preview it (view-only in the designer). Mirrors the fields FlexibleSectionRenderer
+        // reads off the section: solid/preset colour, bg image + sizing, and gradient overlay.
+        let payloadWithBg = initPayload;
+        try {
+          const obj = JSON.parse(initPayload);
+          obj.sectionBackground = {
+            background: backgroundType === "solid" ? background : "transparent",
+            bgImageUrl: bgImageUrl || "",
+            bgImageSize,
+            bgImagePosition,
+            bgImageRepeat,
+            bgImageOpacity,
+            gradient: backgroundType === "gradient"
+              ? { enabled: true, type: "preset", preset: { direction: gradientDirection, startOpacity: gradientStartOpacity, endOpacity: gradientEndOpacity, color: gradientColor } }
+              : undefined,
+          };
+          payloadWithBg = JSON.stringify(obj);
+        } catch { /* non-JSON payload — send as-is */ }
+        iframeRef.current?.contentWindow?.postMessage(
+          { type: "FLEXIBLE_DESIGNER_INIT", payload: payloadWithBg },
+          "*"
+        );
+      })();
     }
     if (e.data.type === "FLEXIBLE_DESIGNER_SAVE" || e.data.type === "FLEXIBLE_DESIGNER_DONE") {
       setDesignerData(e.data.payload);
       setSectionDirty(true);   // designer saved, but the section still needs saving to persist
-      // Persist to draft so data survives if modal closes unexpectedly
-      try { localStorage.setItem(draftKey, e.data.payload); } catch {}
+      // Persist to draft — as { payload, savedAt } so a later reopen can tell whether
+      // this draft is actually newer than the section's last real save — so data
+      // survives if modal closes unexpectedly.
+      try { localStorage.setItem(draftKey, JSON.stringify({ payload: e.data.payload, savedAt: Date.now() })); } catch {}
       if (e.data.type === "FLEXIBLE_DESIGNER_DONE") {
         setShowDesigner(false);
       }
@@ -382,7 +453,7 @@ export default function FlexibleSectionEditorModal({
       // Close the designer — the live preview pane is always visible now.
       setShowDesigner(false);
     }
-  }, [designerData, contentMode, layout, draftKey, section,
+  }, [designerData, contentMode, layout, draftKey, section, confirm,
       backgroundType, background, bgImageUrl, bgImageSize, bgImagePosition, bgImageRepeat, bgImageOpacity,
       gradientDirection, gradientStartOpacity, gradientEndOpacity, gradientColor]);
 
