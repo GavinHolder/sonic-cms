@@ -26,16 +26,31 @@ export async function GET(
     const user = requireRole(request, "VIEWER")
     if (user instanceof Response) return user
 
-    const volt = await prisma.voltElement.findFirst({
+    const record = await prisma.voltElement.findFirst({
       where: {
         id,
         OR: [{ authorId: user.userId }, { isPublic: true }],
       },
     })
 
-    if (!volt) {
+    if (!record) {
       return errorResponse("NOT_FOUND", "Volt element not found", 404)
     }
+
+    // designerData is a legacy full-record snapshot field (see VoltStudio.tsx);
+    // a since-fixed save bug could leave it self-nested (designerData.designerData...).
+    // The editor (VoltStudio.tsx) already strips this on ingest before it can
+    // propagate into a new save, but strip it here too so this read never hands
+    // out a self-nested blob to any other/future consumer. Real layers/states
+    // etc. always come from their own columns on `record` above, untouched.
+    const rawDesignerData = record.designerData
+    const volt =
+      rawDesignerData && typeof rawDesignerData === "object" && !Array.isArray(rawDesignerData)
+        ? (() => {
+            const { designerData: _nested, ...cleanDesignerData } = rawDesignerData as Record<string, unknown>
+            return { ...record, designerData: cleanDesignerData }
+          })()
+        : record
 
     return successResponse({ volt })
   } catch (error) {

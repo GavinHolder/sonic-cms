@@ -36,8 +36,18 @@ export default function VoltStudio({ initialElement, onSave, onDone }: Props) {
 
       if (e.data?.type === 'VOLT_DESIGNER_SAVE' || e.data?.type === 'VOLT_DESIGNER_DONE') {
         const payload = e.data.payload as Partial<VoltElementData>
+        // initialElement comes straight from GET /api/volt/[id] — the RAW DB row,
+        // which carries a `designerData` key (a full-record snapshot written by a
+        // previous save, see onSave below). Spreading initialElement as-is would
+        // carry that stale designerData forward into `updated`, and `updated` is
+        // itself what gets saved AS the new designerData — nesting one more doll
+        // around the last on every single save. Strip it before spreading so
+        // `updated` (and therefore the next designerData snapshot) never contains
+        // a designerData-shaped value inside itself.
+        const { designerData: _staleDesignerData, ...initialElementClean } =
+          initialElement as VoltElementData & { designerData?: unknown }
         // Always preserve the DB id — designer payload may send empty string for new elements
-        const updated: VoltElementData = { ...initialElement, ...payload, id: initialElement.id }
+        const updated: VoltElementData = { ...initialElementClean, ...payload, id: initialElement.id }
         const isDone = e.data.type === 'VOLT_DESIGNER_DONE'
         const isEmpty = (updated.layers?.length ?? 0) === 0
 

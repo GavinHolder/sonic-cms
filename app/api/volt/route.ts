@@ -50,23 +50,21 @@ export async function GET(request: NextRequest) {
         createdAt: true,
         updatedAt: true,
         // Selected only to compute `hasGlassLayer` below — never returned raw.
-        // designerData (when present) is the canonical source of truth for
-        // layers/states, same precedence GET /api/public/volt/[id] uses.
         layers: true,
         states: true,
-        designerData: true,
       },
     })
 
-    const volts = rows.map(({ layers, states, designerData, ...rest }) => {
-      const dd =
-        designerData && typeof designerData === "object" && !Array.isArray(designerData)
-          ? (designerData as Record<string, unknown>)
-          : null
-      const effectiveLayers = dd && Array.isArray(dd.layers) ? dd.layers : layers
-      const effectiveStates = dd && Array.isArray(dd.states) ? dd.states : states
-      return { ...rest, hasGlassLayer: voltHasGlassLayer(effectiveLayers, effectiveStates) }
-    })
+    // layers/states always come from their real columns — never from
+    // designerData, a legacy full-record snapshot field that a since-fixed
+    // save bug could leave stale or self-nested (see VoltStudio.tsx and
+    // GET /api/public/volt/[id], which apply the same rule). Preferring
+    // designerData here previously meant a corrupted/stale snapshot could
+    // silently override the real, current layers/states for this badge.
+    const volts = rows.map(({ layers, states, ...rest }) => ({
+      ...rest,
+      hasGlassLayer: voltHasGlassLayer(layers, states),
+    }))
 
     return successResponse({ volts }, 200, { total: volts.length })
   } catch (error) {
