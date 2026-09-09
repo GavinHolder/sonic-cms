@@ -11,6 +11,7 @@ import {
   errorResponse,
   handleApiError,
 } from "@/lib/api-middleware"
+import { voltHasGlassLayer } from "@/lib/volt/volt-utils"
 
 // ============================================
 // GET /api/volt
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest) {
       ? { OR: [{ authorId: user.userId }, { isPublic: true }] }
       : { authorId: user.userId }
 
-    const volts = await prisma.voltElement.findMany({
+    const rows = await prisma.voltElement.findMany({
       where,
       orderBy: { updatedAt: "desc" },
       select: {
@@ -48,7 +49,23 @@ export async function GET(request: NextRequest) {
         downloads: true,
         createdAt: true,
         updatedAt: true,
+        // Selected only to compute `hasGlassLayer` below — never returned raw.
+        // designerData (when present) is the canonical source of truth for
+        // layers/states, same precedence GET /api/public/volt/[id] uses.
+        layers: true,
+        states: true,
+        designerData: true,
       },
+    })
+
+    const volts = rows.map(({ layers, states, designerData, ...rest }) => {
+      const dd =
+        designerData && typeof designerData === "object" && !Array.isArray(designerData)
+          ? (designerData as Record<string, unknown>)
+          : null
+      const effectiveLayers = dd && Array.isArray(dd.layers) ? dd.layers : layers
+      const effectiveStates = dd && Array.isArray(dd.states) ? dd.states : states
+      return { ...rest, hasGlassLayer: voltHasGlassLayer(effectiveLayers, effectiveStates) }
     })
 
     return successResponse({ volts }, 200, { total: volts.length })

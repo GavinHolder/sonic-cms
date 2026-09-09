@@ -2551,11 +2551,39 @@ function loadVoltDesignsIfNeeded() {
     .catch(() => { _pgVoltDesigns.loading = false; });
 }
 
+// voltId -> boolean, "does this Volt contain a glass/frosted layer". Consumed by
+// buildVoltPreviewUrl() to decide whether a Volt's preview iframe needs the
+// section's real background forwarded into it (only a glass fill's
+// backdrop-filter needs real content behind it to blur — see the comment on
+// that function). Computed server-side (GET /api/volt's `hasGlassLayer` field,
+// see lib/volt/volt-utils.ts's voltHasGlassLayer()) so this is a cheap lookup,
+// not a re-derivation of layer data client-side.
+//
+// Eager-loaded here (like loadNetworks/loadAllPackages/loadProductTypes above)
+// rather than lazily like loadVoltDesignsIfNeeded/loadVoltLibIfNeeded/
+// loadCardTabsVoltLib — those only fire once a specific picker UI is opened,
+// which is too late for existing Volt blocks already on the canvas at init.
+// If a volt block's iframe builds before this resolves, buildVoltPreviewUrl
+// fails safe (no bg forwarded); once loaded, existing volt blocks' iframes are
+// rebuilt so a glass volt's blur self-corrects a moment after first paint.
+window.__voltGlassMap = {};
+function loadVoltGlassFlags() {
+  fetch('/api/volt', { credentials: 'include' })
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(json => {
+      const volts = (json.data && json.data.volts) || [];
+      volts.forEach(v => { window.__voltGlassMap[v.id] = !!v.hasGlassLayer; });
+      state.blocks.forEach(b => { if (b.type === 'volt' && b.props.voltId) refreshVoltIframe(b.id); });
+    })
+    .catch(() => {});
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   loadNavOptions();
   loadNetworks();
   loadAllPackages();
   loadProductTypes();
+  loadVoltGlassFlags();
   // Only restore autosave when running standalone (not embedded in admin iframe).
   // When embedded, FLEXIBLE_DESIGNER_INIT provides the correct per-section data —
   // loading the shared autosave here would briefly flash stale data from the last
@@ -7203,7 +7231,15 @@ function buildVoltPreviewUrl(b) {
   // and rendered as a flat, unblurred tint instead of frosted. Mirrors
   // applySectionBgToCanvas()'s own resolution (resolveBgColor/sectionGradCss)
   // so the preview matches what the live section will actually show behind it.
-  if (state.sectionBg && state.showSectionBg !== false) {
+  //
+  // Scoped to volts that actually HAVE a glass layer (window.__voltGlassMap,
+  // populated by loadVoltGlassFlags() from GET /api/volt's `hasGlassLayer`
+  // field) — a plain shape/graphic volt has nothing that consumes this, and
+  // forwarding it unconditionally made the section's real bg image/color show
+  // through the shape's transparent or uncovered areas instead of nothing.
+  // Fails safe (no bg forwarded) if the map hasn't loaded yet for this voltId.
+  const hasGlassLayer = !!(window.__voltGlassMap && window.__voltGlassMap[b.props.voltId]);
+  if (hasGlassLayer && state.sectionBg && state.showSectionBg !== false) {
     const baseVal = resolveBgColor(state.sectionBg.background);
     if (baseVal && baseVal !== 'transparent') sp.set('bg', baseVal);
     if (state.sectionBg.bgImageUrl) {
