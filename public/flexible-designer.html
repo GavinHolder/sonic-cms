@@ -5679,7 +5679,7 @@ function _lyGroupRowHtml(block){
   const sel = (state.selectedBlockId===block.id && !state.selectedSubId) ? ' selected' : '';
   const hid = block.hidden ? ' layer-hidden' : '';
   const label = block.props?.label || block.type;
-  return `<div class="layer-row layer-group${sel}${hid}" draggable="true" data-layer-row data-kind="block" data-block-id="${_lyEsc(block.id)}">
+  return `<div class="layer-row layer-group${sel}${hid}" draggable="true" data-layer-row data-kind="block" data-block-id="${_lyEsc(block.id)}" data-block-type="${_lyEsc(block.type)}">
     <span class="layer-caret${collapsed?' collapsed':''}" data-caret>&#9662;</span>
     <i class="layer-icon bi bi-collection" title="Parent group — ${block.subElements.length} element(s)"></i>
     <span class="layer-name" data-name>${_lyEsc(label)}</span>
@@ -5708,7 +5708,7 @@ function _lyLeafRowHtml(block){
   const sel = (state.selectedBlockId===block.id && !state.selectedSubId) ? ' selected' : '';
   const hid = block.hidden ? ' layer-hidden' : '';
   const label = block.props?.label || block.type;
-  return `<div class="layer-row layer-leaf${sel}${hid}" draggable="true" data-layer-row data-kind="block" data-block-id="${_lyEsc(block.id)}">
+  return `<div class="layer-row layer-leaf${sel}${hid}" draggable="true" data-layer-row data-kind="block" data-block-id="${_lyEsc(block.id)}" data-block-type="${_lyEsc(block.type)}">
     <span class="layer-caret" style="visibility:hidden">&bull;</span>
     <i class="layer-icon bi ${getBlockIcon(block.type)}"></i>
     <span class="layer-name" data-name>${_lyEsc(label)}</span>
@@ -5732,6 +5732,16 @@ function renderLayersPanel(){
     host.innerHTML = '<div class="layers-empty">No elements yet.<br>Drag a block onto the canvas.</div>';
   } else {
     let html = '';
+    // EVERY block in state.blocks gets a row here, unconditionally — this loop never
+    // filters by type. A block with children (subElements.length > 0, e.g. a text-block
+    // container holding a heading/paragraph) renders as a ".layer-group" row; a childless
+    // block renders as a ".layer-leaf" row instead (same data-block-id, tagged with
+    // data-block-type for reliable lookup either way). 'volt' blocks are ALWAYS childless
+    // (they reference an external Volt design rather than containing sub-elements), so a
+    // volt block is expected to appear as a leaf row, never a group row. A DOM check that
+    // only queries '.layer-row.layer-group' will therefore always miss volt blocks (and any
+    // other block before its first child is added) even though they are present — query
+    // '.layer-row' (or the '[data-block-type]' attribute) to check for a specific block.
     state.blocks.forEach(block => {
       if (block.subElements?.length > 0){
         html += _lyGroupRowHtml(block);
