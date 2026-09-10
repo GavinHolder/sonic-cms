@@ -3714,16 +3714,27 @@ function DesignerSubElement({ sub, pkg, mobile, exact, darkBg }: { sub: SubEl; p
         const icon = p.icon as string | undefined;
         return (
           <a href={String(p.navTarget || "#")} style={{
-            display:        "inline-block",
-            alignSelf:      "center",
-            width:          "fit-content",
+            // exact: the designer canvas renders the button as a block-level div that fills
+            // its sub-element wrapper and centers its text (`_btn.style.display='block';
+            // _btn.style.textAlign='center'` in createSubElementDOM, public/flexible-designer.html)
+            // — not an inline-block sized to its own text. The free-canvas wrapper (~line 2218)
+            // is position:absolute, not flex, so the old alignSelf:"center" here was inert and
+            // the button rendered narrow + left-aligned instead of matching the canvas. Only
+            // override for `exact` — the flex-column card/banner/stats layouts below still want
+            // a content-sized, alignSelf-centered button and are untouched.
+            display:        exact ? "block" : "inline-block",
+            ...(exact
+              ? { textAlign: "center" as const }
+              : { alignSelf: "center" as const, width: "fit-content" }),
             background:     (p.bgColor   as string) || "#0d6efd",
             color:          (p.textColor as string) || "#fff",
             padding:        `${py}px ${px}px`,
             borderRadius:   br,
             textDecoration: "none",
             fontWeight:     600,
-            fontSize:       "14px",
+            // exact: designer's .se-button class default is 12px — createSubElementDOM never
+            // overrides it inline for the button branch. The old fixed 14px overstated it.
+            fontSize:       exact ? "12px" : "14px",
             marginTop:      mt,
           }}>
             {icon && <i className={`bi ${icon} me-1`} />}
