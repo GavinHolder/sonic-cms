@@ -77,6 +77,21 @@ Rules:
 
 ---
 
+## ⛔ ONE SYSTEM PER CONCERN (PERMANENT)
+
+**Never hand-write the same rendering/business logic twice in two different places. If two consumers need the same decision (a default value, a layout formula, a display rule), extract it into ONE shared, callable function both consumers invoke — never let each consumer keep its own copy "for now."**
+
+**This rule exists because:** `public/flexible-designer.html` (the Designer canvas — hand-rolled vanilla JS/DOM) and `components/sections/FlexibleSectionRenderer.tsx` (the live React renderer) evolved as two independently hand-maintained implementations of "what a Flexible-section element looks like." On 2026-09-09/10 this caused THREE separate live bugs in one day — a font default, a button's display mode, and a z-index rule — each one a different property silently drifting between the two files' copies of the same logic, with nothing to catch it until a human noticed the live site looked wrong. See `docs/main-cms-sync-prompt.md` entries #182, #187, #188, #189 for the full incident history and the fix (`public/flexible-render-rules.js`, a shared computation module both files call).
+
+**Going forward:**
+1. **Before writing rendering/positioning/styling logic that already exists elsewhere for the same concept** (a sub-element type, a block type, a layout rule) — check whether it's already computed somewhere else for a sibling consumer (Designer canvas vs. live renderer, or any other current/future dual-implementation surface). If it is, extract or extend the shared function; do not add a second hand-copy.
+2. **When adding a new block/sub-element type or property to the Flexible Designer system** — its style/position computation goes in the shared `public/flexible-render-rules.js` module (or its designated successor) from the start, not written inline in each consumer and "unified later."
+3. **If you find an existing duplicated system while working nearby** — flag it to the user rather than silently leaving it (per the codebase-wide effort to eliminate scattered duplicate implementations, tracked in `docs/main-cms-sync-prompt.md` #189's committed follow-up). Don't unilaterally refactor something unrelated to the current task, but do surface it.
+
+**Override:** None for new code in the Flexible Designer/renderer system. For other areas of the codebase, only when the user and Claude explicitly agree the duplication is genuinely justified (rare) and state why.
+
+---
+
 ## ⚡ MANDATORY: Feature Confirmation → Docs + Commit
 
 **Every time the user confirms a feature is working:**
