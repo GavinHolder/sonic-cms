@@ -2225,6 +2225,13 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
                     padding: "6px 10px",
                     border: "1px solid transparent",
                     boxSizing: "border-box",
+                    // Same explicit stacking level the non-container branch below gives its
+                    // block wrapper (see zIndex doc comment on the `blocks` type above). Without
+                    // this, every sub-element here paints at implicit z-index:auto, which always
+                    // loses to ANY sibling block carrying an explicit z-index (e.g. a Volt/image
+                    // block) regardless of the actual numbers — "Send to back" on that sibling
+                    // can never put it behind a container block's (text/text-block/card) content.
+                    zIndex: block.zIndex ?? (index + 1),
                   }}>
                     <DesignerSubElement sub={sub} exact darkBg={darkBg} />
                   </div>
