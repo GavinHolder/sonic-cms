@@ -1417,6 +1417,10 @@
     /* Stretched block indicator */
     .container-block.preview-stretch .cb-header::after { content:'← STRETCH →';font-size:9px;font-weight:700;color:#198754;margin-left:auto;padding-right:4px;opacity:0.7; }
   </style>
+  <!-- Shared heading/paragraph/button style formula — single source of truth also
+       consumed by components/sections/FlexibleSectionRenderer.tsx (ES module import).
+       Must load before createSubElementDOM (in the <script> below) calls it. -->
+  <script src="/flexible-render-rules.js"></script>
 </head>
 <body>
 
@@ -3729,18 +3733,25 @@ function createSubElementDOM(se, blockId) {
   const preview = document.createElement('div');
   const p = se.props;
   switch(se.type) {
-    case 'heading':
+    case 'heading': {
       if (p.fontFamily && p.fontFamily !== 'inherit') { const _m=p.fontFamily.match(/'([^']+)'/); if(_m) injectGoogleFont(_m[1]); }
-      preview.innerHTML = `<div class="se-heading ${p.level||'h2'}" style="color:${p.color||''};font-size:${p.fontSize||22}px;font-family:${p.fontFamily||'inherit'};font-weight:${p.fontWeight||'700'};text-align:${p.textAlign||'left'};white-space:${p.textWrap||'normal'};line-height:${p.lineHeight||1.2};letter-spacing:${p.letterSpacing||0}px;text-transform:${p.textTransform||'none'};${outlineStyleFrag(p)}${shadowStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">' + (p.level||'h2').toUpperCase() + ' — double-click to edit</span>')}</div>`;
+      // Shared with FlexibleSectionRenderer.tsx via computeSubElementStyle (window.FlexibleRenderRules,
+      // loaded from /flexible-render-rules.js) — the Designer canvas always renders in `exact` mode.
+      const _hStyle = window.FlexibleRenderRules.styleObjectToCssText(window.FlexibleRenderRules.computeSubElementStyle('heading', p, { exact: true }));
+      preview.innerHTML = `<div class="se-heading ${p.level||'h2'}" style="${_hStyle}${outlineStyleFrag(p)}${shadowStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">' + (p.level||'h2').toUpperCase() + ' — double-click to edit</span>')}</div>`;
       break;
+    }
     case 'eyebrow':
       if (p.fontFamily && p.fontFamily !== 'inherit') { const _m=p.fontFamily.match(/'([^']+)'/); if(_m) injectGoogleFont(_m[1]); }
       preview.innerHTML = `<div class="se-eyebrow" style="color:${p.color||'#0d6efd'};font-size:${p.fontSize||13}px;font-family:${p.fontFamily||'inherit'};font-weight:${p.fontWeight||'700'};text-align:${p.textAlign||'left'};text-transform:${p.textTransform||'uppercase'};letter-spacing:${p.letterSpacing??2}px;line-height:${p.lineHeight||1.4};${outlineStyleFrag(p)}${shadowStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">EYEBROW — double-click to edit</span>')}</div>`;
       break;
-    case 'paragraph':
+    case 'paragraph': {
       if (p.fontFamily && p.fontFamily !== 'inherit') { const _m=p.fontFamily.match(/'([^']+)'/); if(_m) injectGoogleFont(_m[1]); }
-      preview.innerHTML = `<div class="se-paragraph" style="color:${p.color||''};font-size:${p.fontSize||14}px;font-family:${p.fontFamily||'inherit'};text-align:${p.textAlign||'left'};white-space:${p.textWrap||'pre-wrap'};line-height:${p.lineHeight||1.6};letter-spacing:${p.letterSpacing||0}px;text-transform:${p.textTransform||'none'};${outlineStyleFrag(p)}${shadowStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">Paragraph — double-click to edit</span>')} </div>`;
+      // Shared with FlexibleSectionRenderer.tsx via computeSubElementStyle — see heading case above.
+      const _pStyle = window.FlexibleRenderRules.styleObjectToCssText(window.FlexibleRenderRules.computeSubElementStyle('paragraph', p, { exact: true }));
+      preview.innerHTML = `<div class="se-paragraph" style="${_pStyle}${outlineStyleFrag(p)}${shadowStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">Paragraph — double-click to edit</span>')} </div>`;
       break;
+    }
     case 'image':
       preview.innerHTML = p.src
         ? `<img src="${p.src}" style="width:100%;border-radius:4px;max-height:60px;object-fit:cover;" alt="${p.alt||''}">`
@@ -3750,23 +3761,19 @@ function createSubElementDOM(se, blockId) {
       // Derive variant: seed data may omit variant but always set bgColor/textColor.
       // Match FlexibleSectionRenderer: bgColor is always the button background.
       const _bv = p.variant === 'outline' ? 'outline' : p.variant === 'ghost' ? 'ghost' : 'filled';
-      const _px = p.paddingX    !== undefined ? Number(p.paddingX)    : 20;
-      const _py = p.paddingY    !== undefined ? Number(p.paddingY)    : 8;
-      const _br = p.borderRadius !== undefined ? String(Number(p.borderRadius)) + 'px' : '6px';
-      const _mt = p.marginTop   !== undefined ? String(Number(p.marginTop))   + 'px' : '4px';
       const _bg = p.bgColor    || '#0d6efd';
       const _tc = p.textColor  || (_bv === 'filled' ? '#ffffff' : _bg);
       const _btn = document.createElement('div');
       _btn.className = 'se-button ' + _bv;
+      // Shared with FlexibleSectionRenderer.tsx via computeSubElementStyle — background/
+      // padding/borderRadius/marginTop/display/textAlign/fontSize/fontWeight come from
+      // there; outline/ghost then override background/border/color below exactly as
+      // before (the live renderer has no outline/ghost equivalent — bgColor is always
+      // the button background there, per the comment above).
+      Object.assign(_btn.style, window.FlexibleRenderRules.computeSubElementStyle('button', p, { exact: true }));
       if (_bv === 'outline') { _btn.style.border = '2px solid ' + _bg; _btn.style.background = 'transparent'; }
       else if (_bv === 'ghost') { _btn.style.background = 'transparent'; }
-      else { _btn.style.background = _bg; }
       _btn.style.color = _tc;
-      _btn.style.padding = _py + 'px ' + _px + 'px';
-      _btn.style.borderRadius = _br;
-      _btn.style.marginTop = _mt;
-      _btn.style.display = 'block';
-      _btn.style.textAlign = 'center';
       if (p.icon) { const _ic = document.createElement('i'); _ic.className = 'bi ' + p.icon; _btn.appendChild(_ic); _btn.appendChild(document.createTextNode(' ')); }
       _btn.appendChild(document.createTextNode(p.text || 'Button'));
       preview.appendChild(_btn);

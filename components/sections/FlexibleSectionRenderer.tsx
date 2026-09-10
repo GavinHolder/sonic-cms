@@ -10,6 +10,11 @@ import { DEFAULT_ANIM_BG_CONFIG } from "@/lib/anim-bg/defaults";
 import { designerBlockToElement } from "@/lib/flexible/legacy-to-designer";
 import { resolvePackageTokens, type PackageLike } from "@/lib/packages/tokens";
 import { animate } from "animejs";
+// Shared heading/paragraph/button style + free-canvas position formula — the single
+// source of truth also consumed by public/flexible-designer.html (see that file's
+// <script src="/flexible-render-rules.js"> and this module's own doc comment for why
+// it exists). Plain JS + hand-written flexible-render-rules.d.ts alongside it.
+import { computeSubElementStyle, computeSubElementPosition } from "../../public/flexible-render-rules.js";
 
 const AnimBgRenderer    = dynamic(() => import("./AnimBgRenderer"), { ssr: false });
 const ScrollStageWrapper = dynamic(() => import("./scroll-stage/ScrollStageWrapper"), { ssr: false });
@@ -2212,19 +2217,9 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
                 // canvas does — it can never left-clip (the old #79 cutoff came from
                 // clipping, which this wrapper doesn't do).
                 const bp   = (block.props || {}) as Record<string, unknown>;
-                const padT = Number(bp.paddingTop ?? 16);
-                const padX = Number(bp.paddingX   ?? 20);
                 return subs.map((sub, si) => (
                   <div key={String(block.id) + "-" + si} style={{
-                    position: "absolute",
-                    left: (pos.x || 0) + 2 + padX + (sub.x || 0),
-                    top:  (pos.y || 0) + 2 + padT + (sub.y || 0),
-                    width: sub.w != null ? sub.w : Math.max((pos.w || 0) - 2 * padX, 0),
-                    minWidth: 60,
-                    height: sub.h != null ? sub.h : undefined,
-                    padding: "6px 10px",
-                    border: "1px solid transparent",
-                    boxSizing: "border-box",
+                    ...computeSubElementPosition(pos, sub, bp),
                     // Same explicit stacking level the non-container branch below gives its
                     // block wrapper (see zIndex doc comment on the `blocks` type above). Without
                     // this, every sub-element here paints at implicit z-index:auto, which always
@@ -3643,21 +3638,10 @@ function DesignerSubElement({ sub, pkg, mobile, exact, darkBg }: { sub: SubEl; p
           : text;
         return (
           <div style={{
-            fontSize:      mobile ? mobileFontClamp(Number(p.fontSize) || 22) : `${Number(p.fontSize) || 22}px`,
-            fontFamily:    (p.fontFamily as string) || undefined,
-            fontWeight:    (p.fontWeight as string) || "700",
-            // exact: designer headings resolve an un-set colour to #212529 (.se-heading),
-            // NOT the inherited theme colour — except on dark section backgrounds.
-            color:         (p.color as string) || (exact && !darkBg ? "#212529" : undefined),
-            textAlign:     (p.textAlign as React.CSSProperties["textAlign"]) || (exact ? "left" : undefined),
-            // exact: designer heading default line-height is 1.2 (`p.lineHeight||1.2`);
-            // inheriting the page's 1.5 made an 80px heading 120px tall vs 96px on canvas.
-            lineHeight:    p.lineHeight !== undefined ? Number(p.lineHeight) : (exact ? 1.2 : undefined),
-            letterSpacing: p.letterSpacing !== undefined ? `${Number(p.letterSpacing)}px` : (exact ? "0px" : undefined),
-            textTransform: (p.textTransform as React.CSSProperties["textTransform"]) || (exact ? "none" : undefined),
-            // Match the designer canvas white-space so line breaks land identically (#79).
-            // Designer heading: `white-space: p.textWrap||'normal'` + .se-heading break-word.
-            ...(exact ? { whiteSpace: (p.textWrap as React.CSSProperties["whiteSpace"]) || ("normal" as const), overflowWrap: "break-word" as const } : {}),
+            // Shared with the Designer canvas (public/flexible-designer.html) via
+            // computeSubElementStyle — see its doc comment in flexible-render-rules.js
+            // for exactly which defaults `exact`/`mobile`/`darkBg` each resolve to.
+            ...computeSubElementStyle("heading", p, { exact, mobile, darkBg }),
             ...outlinedStyle,
             ...textShadowStyle,
             marginBottom:  hasShell ? 0 : mb,
@@ -3678,31 +3662,13 @@ function DesignerSubElement({ sub, pkg, mobile, exact, darkBg }: { sub: SubEl; p
           : animEffect === "typewriter"
           ? <span ref={countSpanRef} data-fulltext={text} />
           : text;
-        // In `exact` (desktop 1:1) and `mobile` (reflow) modes the wrapper/column width is
-        // authoritative — the designer never applies a paragraph maxWidth, so honouring it
-        // here would wrap the text narrower than the canvas, growing an extra line and making
-        // a neighbouring absolute element overlap on the live page (#79). Suppress it.
-        const constrainWidth = !exact && !mobile && !!p.maxWidth && Number(p.maxWidth) > 0;
         return (
           <p style={{
-            // exact: designer paragraph defaults are 14px / line-height 1.6
-            // (`p.fontSize||14`, `p.lineHeight||1.6`) — not the renderer's legacy 15/1.65.
-            fontSize:      mobile ? mobileFontClamp(Number(p.fontSize) || 15) : `${Number(p.fontSize) || (exact ? 14 : 15)}px`,
-            fontFamily:    (p.fontFamily as string) || undefined,
-            fontWeight:    (p.fontWeight as string) || undefined,
-            color:         (p.color as string) || (exact && !darkBg ? "#212529" : undefined),
-            textAlign:     (p.textAlign as React.CSSProperties["textAlign"]) || (exact ? "left" : undefined),
-            lineHeight:    p.lineHeight !== undefined ? Number(p.lineHeight) : (exact ? 1.6 : 1.65),
-            letterSpacing: p.letterSpacing !== undefined ? `${Number(p.letterSpacing)}px` : (exact ? "0px" : undefined),
-            textTransform: (p.textTransform as React.CSSProperties["textTransform"]) || (exact ? "none" : undefined),
-            maxWidth:      constrainWidth ? `${Number(p.maxWidth)}px` : undefined,
-            marginLeft:    constrainWidth ? "auto" : undefined,
-            marginRight:   constrainWidth ? "auto" : undefined,
-            // Match the designer's `.se-paragraph` wrapping (pre-wrap keeps authored line
-            // breaks; break-word prevents long tokens from widening the box) so height is 1:1.
-            // No word-break here — the designer never sets it, and its min-content sizing
-            // differs from overflow-wrap, which can change where lines break.
-            ...(exact ? { whiteSpace: (p.textWrap as React.CSSProperties["whiteSpace"]) || "pre-wrap", overflowWrap: "break-word" as const } : {}),
+            // Shared with the Designer canvas (public/flexible-designer.html) via
+            // computeSubElementStyle — including the maxWidth-suppression-under-exact
+            // rule (#79: the wrapper/column width is authoritative in exact/mobile
+            // modes, so a paragraph maxWidth would wrap narrower than the canvas).
+            ...computeSubElementStyle("paragraph", p, { exact, mobile, darkBg }),
             ...outlinedStyle,
             ...textShadowStyle,
             marginBottom:  hasShell ? 0 : mb,
@@ -3714,10 +3680,6 @@ function DesignerSubElement({ sub, pkg, mobile, exact, darkBg }: { sub: SubEl; p
       }
       // ── button: anchor styled as a button, navigates to navTarget ────────
       case "button": {
-        const px   = p.paddingX     !== undefined ? Number(p.paddingX)     : 20;
-        const py   = p.paddingY     !== undefined ? Number(p.paddingY)     : 8;
-        const br   = p.borderRadius !== undefined ? `${Number(p.borderRadius)}px` : "6px";
-        const mt   = p.marginTop    !== undefined ? `${Number(p.marginTop)}px`    : "4px";
         const icon = p.icon as string | undefined;
         return (
           <a href={String(p.navTarget || "#")} style={{
@@ -3729,20 +3691,9 @@ function DesignerSubElement({ sub, pkg, mobile, exact, darkBg }: { sub: SubEl; p
             // the button rendered narrow + left-aligned instead of matching the canvas. Only
             // override for `exact` — the flex-column card/banner/stats layouts below still want
             // a content-sized, alignSelf-centered button and are untouched.
-            display:        exact ? "block" : "inline-block",
-            ...(exact
-              ? { textAlign: "center" as const }
-              : { alignSelf: "center" as const, width: "fit-content" }),
-            background:     (p.bgColor   as string) || "#0d6efd",
-            color:          (p.textColor as string) || "#fff",
-            padding:        `${py}px ${px}px`,
-            borderRadius:   br,
-            textDecoration: "none",
-            fontWeight:     600,
             // exact: designer's .se-button class default is 12px — createSubElementDOM never
             // overrides it inline for the button branch. The old fixed 14px overstated it.
-            fontSize:       exact ? "12px" : "14px",
-            marginTop:      mt,
+            ...computeSubElementStyle("button", p, { exact }),
           }}>
             {icon && <i className={`bi ${icon} me-1`} />}
             {(p.text as string) || "Button"}
