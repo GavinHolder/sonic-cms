@@ -555,7 +555,14 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
     if (!freePlateActive || !designerData) return null;
     try {
       const d = typeof designerData === "string" ? JSON.parse(designerData) : designerData;
-      return { cw: resolveCanvasDim((d as any)?.designerCanvasW, 1440), ch: resolveCanvasDim((d as any)?.designerCanvasH, DESIGN_H) };
+      // multiLimit read from the same parsed JSON (no second JSON.parse) — mirrors
+      // DesignerBlocksRenderer's own `data.multiLimit || 1` so the outer aspect-ratio
+      // override can span the full N×100vh plate, not just one band's ch.
+      return {
+        cw: resolveCanvasDim((d as any)?.designerCanvasW, 1440),
+        ch: resolveCanvasDim((d as any)?.designerCanvasH, DESIGN_H),
+        multiLimit: Number((d as any)?.multiLimit) || 1,
+      };
     } catch { return null; }
   }, [freePlateActive, designerData]);
   // True only when the free-mode 1:1 section-height override should apply: free plate is
@@ -807,7 +814,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           // is neither crop nor letterbox gutters, at the cost of mild image stretch on
           // off-ratio viewports (accepted trade-off, 2026-09-04, after both CONTAIN-fit's
           // gutters and width-fill-and-grow's 100vh violation were rejected).
-          aspectRatio: `${freeCanvas.cw} / ${freeCanvas.ch}`,
+          aspectRatio: `${freeCanvas.cw} / ${freeCanvas.ch * (freeCanvas.multiLimit || 1)}`,
           height: "auto",
           minHeight: 0,
           maxHeight: "none",
@@ -2080,6 +2087,12 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
     if (isFreeMode) {
       const cw = resolveCanvasDim(data.designerCanvasW, 1440);
       const ch = resolveCanvasDim(data.designerCanvasH, DESIGN_H);
+      // FREE+MULTI plates span multiLimit stacked 100vh bands sharing ONE cw×chTotal
+      // coordinate space (matches the Designer canvas's own designerCanvasH*multiLimit
+      // sizing, public/flexible-designer.html:2677-2678) — chTotal is the FULL plate
+      // extent used for the background/content box heights below. Single mode leaves
+      // multiLimit===1 so chTotal===ch, a no-op.
+      const chTotal = isMulti ? ch * multiLimit : ch;
 
       // ── Mobile: smart, readable reflow (<768px, post-mount) ─────────────────
       // Single-column reading-order stack — MOBILE IS UNCHANGED by the cover-plate work.
@@ -2171,7 +2184,7 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
           {bgImage?.url && (
             <div aria-hidden="true" style={{
               position: "absolute", left: 0, top: 0,
-              width: cw, height: ch,
+              width: cw, height: chTotal,
               transform: bgTransform,
               transformOrigin: "top left",
               zIndex: 0,
@@ -2188,7 +2201,7 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
             // TOP-LEFT anchored content plate — always UNIFORM scale (never the background's
             // non-uniform transform), so every card/button/text block renders undistorted.
             position: "absolute", left: contentLeft, top: 0,
-            width: cw, height: ch,
+            width: cw, height: chTotal,
             transform: contentTransform,
             transformOrigin: "top left",
             pointerEvents: "auto",
