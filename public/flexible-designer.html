@@ -2666,9 +2666,17 @@ function renderCanvas() {
   const availH = canvasArea ? canvasArea.clientHeight - (headerEl ? headerEl.offsetHeight : 0) - RULER_H : window.innerHeight - RULER_H;
 
   if (isMultiLike) {
-    // Multi/Dynamic mode: canvas height = N × one-section height so all sections scroll within the area
-    canvas.style.height = `${availH * state.multiLimit}px`;
-    canvas.style.minHeight = `${availH * state.multiLimit}px`;
+    // Multi/Dynamic + FREE (Option C, same fix as single+free below): LOCK each band to the
+    // authored designerCanvasH instead of the operator's live clientHeight — buildJson()
+    // already saves a stable designerCanvasH for every free-positioned section regardless of
+    // contentMode, but until this fix the multi-mode canvas ignored it and re-measured the
+    // live panel on every load, so the SAME saved section rendered a different total canvas
+    // height (and thus different per-band proportions/background aspect) depending on
+    // whichever operator's window/pane happened to be open. getCanvasScale() below mirrors
+    // this with its own multi+free letterbox case.
+    const perSectionH = state.positionMode === 'free' ? (state.designerCanvasH || DESIGN_H) : availH;
+    canvas.style.height = `${perSectionH * state.multiLimit}px`;
+    canvas.style.minHeight = `${perSectionH * state.multiLimit}px`;
     if (canvasArea) { canvasArea.classList.add('multi-scroll'); canvasArea.classList.remove('single-scroll'); }
     // Fix: canvas-with-rulers must not clip the taller canvas in multi mode
     const cwRulers = canvasArea ? canvasArea.querySelector('.canvas-with-rulers') : null;
@@ -9479,13 +9487,16 @@ function getCanvasScale() {
   if (!cwrap) return state.userZoom || 1;
   const rulerW = cwrap.classList.contains('rulers-hidden') ? 0 : 20;
   const availW = cwrap.clientWidth - rulerW - 2;
-  // Free + single (Option C): LETTERBOX the fixed 1440×boxH design box within the available
-  // area on BOTH axes, so the canvas keeps the authored design aspect (not the window's
-  // leftover height). Grid/preset/mosaic + multi keep the width-only fit (UNCHANGED).
-  if (state.positionMode === 'free' && state.contentMode === 'single') {
+  // Free + single, or free + multi/dynamic (Option C): LETTERBOX the fixed
+  // 1440×(boxH×bands) design box within the available area on BOTH axes, so the canvas keeps
+  // the authored design aspect (not the window's leftover height). Grid/preset/mosaic keep
+  // the width-only fit (UNCHANGED) — those layouts reflow to fill available space by design.
+  if (state.positionMode === 'free' && (state.contentMode === 'single' || state.contentMode === 'multi' || state.contentMode === 'dynamic')) {
     const availH = cwrap.clientHeight - rulerW - 2;
     const boxH = state.designerCanvasH || DESIGN_H;
-    const fit = Math.min(1, availW / DESKTOP_CANVAS_W, boxH > 0 ? availH / boxH : 1);
+    const bands = (state.contentMode === 'multi' || state.contentMode === 'dynamic') ? (state.multiLimit || 1) : 1;
+    const totalH = boxH * bands;
+    const fit = Math.min(1, availW / DESKTOP_CANVAS_W, totalH > 0 ? availH / totalH : 1);
     return fit * (state.userZoom || 1);
   }
   const fitScale = Math.min(1, availW / DESKTOP_CANVAS_W);
@@ -9527,12 +9538,14 @@ function resetUserZoom() {
     const rulerW = cwrap.classList.contains('rulers-hidden') ? 0 : 20;
     const availW = cwrap.clientWidth - rulerW - 2;
     let fitScale = Math.min(1, availW / DESKTOP_CANVAS_W);
-    // Mirror the free+single letterbox fit so "reset zoom" lands on a true 100% of the
-    // authored 1440×boxH box (not the width-only fit).
-    if (state.positionMode === 'free' && state.contentMode === 'single') {
+    // Mirror the free (single or multi/dynamic) letterbox fit so "reset zoom" lands on a true
+    // 100% of the authored 1440×(boxH×bands) box (not the width-only fit).
+    if (state.positionMode === 'free' && (state.contentMode === 'single' || state.contentMode === 'multi' || state.contentMode === 'dynamic')) {
       const availH = cwrap.clientHeight - rulerW - 2;
       const boxH = state.designerCanvasH || DESIGN_H;
-      fitScale = Math.min(1, availW / DESKTOP_CANVAS_W, boxH > 0 ? availH / boxH : 1);
+      const bands = (state.contentMode === 'multi' || state.contentMode === 'dynamic') ? (state.multiLimit || 1) : 1;
+      const totalH = boxH * bands;
+      fitScale = Math.min(1, availW / DESKTOP_CANVAS_W, totalH > 0 ? availH / totalH : 1);
     }
     // userZoom = 1/fitScale makes getCanvasScale() return exactly 1.0 (100%)
     state.userZoom = fitScale > 0 ? 1 / fitScale : 1;
