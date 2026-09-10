@@ -10424,6 +10424,51 @@ function closeVoltModal() {
   iframe.src = '';
 }
 
+/**
+ * Entry point for the outer "✕ Close" button and the modal backdrop click —
+ * the two paths that used to call closeVoltModal() directly and silently discard
+ * any unsaved edits made inside the embedded Volt Studio iframe (that iframe's own
+ * Save/Done buttons are unaffected by this and keep working exactly as before).
+ *
+ * Asks the iframe (via postMessage) whether it has unsaved changes before tearing
+ * it down. If it reports dirty, shows the shared non-native confirm modal so the
+ * user has to explicitly choose to discard; otherwise (or if the iframe doesn't
+ * answer in time — e.g. still loading) closes immediately, matching prior behavior.
+ */
+function requestCloseVoltModal() {
+  const modal = document.getElementById('volt-modal');
+  const iframe = document.getElementById('volt-modal-iframe');
+  if (!modal || !modal.classList.contains('vm-open') || !iframe || !iframe.src || !iframe.contentWindow) {
+    closeVoltModal();
+    return;
+  }
+  let responded = false;
+  let timer = null;
+  function onMsg(e) {
+    if (!e.data || e.data.type !== 'VOLT_DESIGNER_DIRTY_STATE') return;
+    try { if (e.source !== iframe.contentWindow) return; } catch (_) { return; }
+    responded = true;
+    clearTimeout(timer);
+    window.removeEventListener('message', onMsg);
+    if (e.data.isDirty) {
+      showConfirmModal(
+        'Unsaved Changes',
+        'This Volt design has unsaved changes.<br><small class="text-muted">Closing now will discard them. Use Save or Done inside Volt Studio to keep your edits.</small>',
+        function() { closeVoltModal(); }
+      );
+    } else {
+      closeVoltModal();
+    }
+  }
+  window.addEventListener('message', onMsg);
+  timer = setTimeout(function() {
+    if (responded) return;
+    window.removeEventListener('message', onMsg);
+    closeVoltModal();
+  }, 400);
+  iframe.contentWindow.postMessage({ type: 'VOLT_DESIGNER_QUERY_DIRTY' }, '*');
+}
+
 function createNewVoltFromCanvas() {
   const block = { id: null, props: { voltId: null, voltName: 'New Volt', voltThumbnail: null } };
   _voltModalBlockId = '__new__';
@@ -10662,12 +10707,12 @@ window.addEventListener('message', function(e) {
 
 <!-- Volt Studio Modal Overlay -->
 <div id="volt-modal">
-  <div id="volt-modal-overlay" onclick="closeVoltModal()"></div>
+  <div id="volt-modal-overlay" onclick="requestCloseVoltModal()"></div>
   <div id="volt-modal-frame">
     <div id="volt-modal-header">
       <i class="bi bi-lightning-charge" style="color:#818cf8;font-size:15px;"></i>
       <span id="volt-modal-title">Volt Studio</span>
-      <button id="volt-modal-close" onclick="closeVoltModal()">✕ Close</button>
+      <button id="volt-modal-close" onclick="requestCloseVoltModal()">✕ Close</button>
     </div>
     <iframe id="volt-modal-iframe" src="" frameborder="0" allow="*"></iframe>
   </div>

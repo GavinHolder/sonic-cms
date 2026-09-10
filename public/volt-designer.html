@@ -6148,6 +6148,12 @@
           }
         }
       }
+      if(e.data && e.data.type === 'VOLT_DESIGNER_QUERY_DIRTY') {
+        // Host (flexible-designer.html) is asking whether it's safe to close the modal
+        // without losing work. Answer with the same dirty flag that gates btn-save/the
+        // unsaved-indicator — see markDirty()/markClean() above.
+        if(window.parent && window.parent!==window) window.parent.postMessage({type:'VOLT_DESIGNER_DIRTY_STATE', isDirty: !!state.isDirty}, '*');
+      }
       if(!e.data||e.data.type!=='VOLT_DESIGNER_LOAD')return;
       // Real element arrived — cancel the empty-canvas fallback and reveal the canvas. Always applied, even if the fallback already fired (real data wins).
       _loadReceived=true;if(_loadFallbackTimer){clearTimeout(_loadFallbackTimer);_loadFallbackTimer=null;}_hideLoadOverlay();
