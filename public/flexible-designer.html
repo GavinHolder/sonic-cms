@@ -9834,6 +9834,13 @@ function copyJson() {
  * @returns {string} Pretty-printed JSON string (2-space indent).
  */
 function buildJson() {
+  // Per-breakpoint independent layouts (2026-09-11): the live flat state
+  // fields below represent whichever breakpoint is currently active — keep
+  // state.variants[activeBreakpoint] in sync with them before building the
+  // final payload, so the save always reflects the latest edits regardless
+  // of which breakpoint tab is open when Save/autosave fires.
+  state.variants[state.activeBreakpoint] = snapshotFlatStateAsVariant();
+
   const canvas = document.getElementById('canvas');
   // Always store the DESKTOP canvas width — even if currently in tablet/mobile preview.
   // Using the tablet/mobile width (768/375) would corrupt the reference width on reload.
@@ -9847,7 +9854,7 @@ function buildJson() {
   const designerCanvasH = state.positionMode === 'free'
     ? (state.designerCanvasH || DESIGN_H)
     : (canvas ? canvas.offsetHeight : 800);
-  return JSON.stringify({
+  const flatPayload = {
     contentMode:   state.contentMode,
     positionMode:  state.positionMode,
     designerCanvasW,
@@ -9897,7 +9904,24 @@ function buildJson() {
       props:          b.props,
       subElements:    b.subElements
     }))
-  },null,2);
+  };
+
+  if (state.positionMode !== 'free') {
+    // Grid/preset/mosaic — OUT OF SCOPE for this feature (see the RULING in
+    // task-5-brief.md). Save in the exact original flat shape, no variant
+    // wrapper — FlexibleSectionRenderer.tsx's grid/mosaic rendering path is
+    // untouched by this plan and does not know how to unwrap
+    // {variant:"per-breakpoint"}.
+    return JSON.stringify(flatPayload,null,2);
+  }
+
+  // flatPayload describes whichever breakpoint is CURRENTLY active — make sure
+  // state.variants holds the CANONICAL, up-to-date copy for that breakpoint too
+  // (Step 1 already did this, but flatPayload was just independently rebuilt
+  // from the same live state.* fields, so they're consistent by construction).
+  state.variants[state.activeBreakpoint] = flatPayload;
+
+  return JSON.stringify(window.FlexibleBreakpointRules.serializeVariants(state.variants),null,2);
 }
 /**
  * Saves the current layout to localStorage under 'cms_layout_draft' and
