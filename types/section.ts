@@ -846,6 +846,23 @@ export interface PhotoStripImage {
 export interface FlexibleSection extends Omit<BaseSectionConfig, "contentMode"> {
   type: "FLEXIBLE";
   contentMode?: "single" | "multi" | "dynamic"; // alias for content.contentMode (for top-level access)
+  // designerData (content JSONB, no dedicated schema field — see MediaAsset-
+  // adjacent fields above for the "content JSONB, not a real column" pattern
+  // this also follows) holds a Flexible section's free-canvas block layout.
+  // As of 2026-09-11 it may be EITHER:
+  //   - a legacy flat blob (no "variant" key) — treated as Desktop-only,
+  //     every section saved before this date is in this shape.
+  //   - { variant: "per-breakpoint", desktop: <flat blob>, tablet: <flat
+  //     blob>|null, mobile: <flat blob>|null } — desktop/tablet/mobile each
+  //     independently hold the SAME flat shape recursively (own blocks,
+  //     own designerCanvasW/H, own contentMode/multiLimit, etc.). null
+  //     tablet/mobile means "not yet customized — falls back to Desktop's
+  //     own blob, shrunk (tablet width) or reflowed via FreeReflowStack
+  //     (mobile width)".
+  // See public/flexible-breakpoint-rules.js for the shared resolve/select
+  // logic both public/flexible-designer.html and FlexibleSectionRenderer.tsx
+  // use — do not hand-parse this shape anywhere else (ONE SYSTEM PER
+  // CONCERN, CLAUDE.md).
   content: {
     // Content mode: "single" (100vh snap), "multi" (fixed N×100vh), or "dynamic" (live-computed N×100vh, capped at multiLimit)
     contentMode?: "single" | "multi" | "dynamic";
