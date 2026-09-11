@@ -28,6 +28,24 @@ interface MediaPickerModalProps {
 
 const PER_PAGE = 12;
 
+// De-dupe key for merging DB-backed media (mediaAsset.url, which is prefixed with
+// MEDIA_URL — an absolute origin in production, e.g. "https://www.sonic.co.za/uploads/x.png")
+// against the raw filesystem listing (/api/media/files, which always returns an origin-less
+// path, e.g. "/uploads/x.png"). Comparing the two url strings directly only works when
+// MEDIA_URL is unset/relative — with an absolute MEDIA_URL every already-registered file's
+// pathname never matches its own DB row's key, so it gets re-added as a second "needs
+// registration" filesystem entry (same file, two cards, two different sizes: the DB's
+// possibly-stale fileSize vs a live fs.stat() read). Stripping any protocol+host down to
+// just the pathname before comparing makes both sources land on the same key regardless of
+// whether MEDIA_URL is absolute or relative.
+function mediaUrlPath(url: string): string {
+  try {
+    return new URL(url, "http://placeholder").pathname;
+  } catch {
+    return url;
+  }
+}
+
 export default function MediaPickerModal({
   isOpen,
   onClose,
@@ -81,7 +99,7 @@ export default function MediaPickerModal({
             mimeType: string; fileSize: number; url: string;
             altText?: string; createdAt?: string;
           }[]) {
-            dbByUrl.set(m.url, {
+            dbByUrl.set(mediaUrlPath(m.url), {
               id: m.id,
               name: m.filename || m.originalName || m.url,
               url: m.url,
@@ -100,7 +118,7 @@ export default function MediaPickerModal({
       if (fsRes.ok) {
         const fsData = await fsRes.json();
         for (const f of (fsData.files ?? []) as Omit<MediaFile, "id" | "needsRegistration">[]) {
-          if (!dbByUrl.has(f.url)) {
+          if (!dbByUrl.has(mediaUrlPath(f.url))) {
             merged.push({
               id: f.url, // temp ID — replaced with real DB id on confirm
               name: f.name,
