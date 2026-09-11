@@ -1254,6 +1254,19 @@
     .dev-btn { font-size: 0.875rem; padding: 0.25rem 0.5rem; border: 1px solid #dee2e6; background: white; border-radius: 4px; cursor: pointer; transition: all 0.12s; line-height: 1.5; color: #6c757d; }
     .dev-btn.active { border-color: #0d6efd; background: #e7f0ff; color: #0d6efd; }
     .dev-btn:hover:not(.active) { border-color: #adb5bd; background: #f8f9fa; color: #495057; }
+    /* Per-breakpoint independent layouts — dot indicator on Tablet/Mobile toggle
+       buttons once that breakpoint has its own customized layout (not falling
+       back to Desktop). Purely visual. */
+    #dev-tablet.device-customized::after,
+    #dev-mobile.device-customized::after {
+      content: '';
+      display: inline-block;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #0d6efd;
+      margin-left: 4px;
+      vertical-align: middle;
+    }
 
     /* ── Task #86: unified toolbar / canvas control-bar button sizing ──
        Normalizes SIZE/SHAPE only — semantic colours (Save=blue, Done=green,
@@ -1830,6 +1843,9 @@
         <!-- Device editing indicator + reset -->
         <span id="dev-indicator" style="display:none;font-size:11px;font-weight:600;padding:2px 7px;border-radius:10px;"></span>
         <button id="dev-reset-btn" style="display:none;" class="btn btn-sm btn-outline-secondary" onclick="resetDevicePositions()" title="Clear device-specific positions and revert to auto-scaled desktop layout">↺ Reset</button>
+        <!-- Per-breakpoint independent layouts — discard the active Tablet/Mobile
+             layout and fall back to Desktop's. Disabled while on Desktop. -->
+        <button id="dev-reset-variant-btn" class="btn btn-sm btn-outline-danger" onclick="resetActiveBreakpointToDesktop()" title="Discard this breakpoint's customized layout and revert to Desktop" disabled>↺ Layout</button>
         <!-- Divider before preview to prevent accidental clicks -->
         <div style="width:1px;height:20px;background:rgba(255,255,255,0.15);margin:0 4px;flex-shrink:0;"></div>
         <!-- Preview -->
@@ -2207,6 +2223,30 @@ function loadFlatVariantIntoState(flatBlob) {
   state.gridGap  = layout.gridGap;
   state.multiLimit = layout.multiLimit;
   state.edgePad = layout.edgePad || 0;
+}
+
+/**
+ * Captures the CURRENTLY-ACTIVE breakpoint's live flat state fields (the
+ * inverse of loadFlatVariantIntoState) as a plain object with the same shape
+ * a saved variant blob has — used by setDevicePreview to snapshot the
+ * outgoing breakpoint before swapping to a new one, and by buildJson() (Task
+ * 5) to snapshot the CURRENTLY active breakpoint before serializing all three.
+ * Field list MUST stay in lockstep with loadFlatVariantIntoState above (same
+ * 10 fields, mirrored in the opposite direction: state.X -> result.X).
+ */
+function snapshotFlatStateAsVariant() {
+  return {
+    blocks: state.blocks,
+    nextId: state.nextId,
+    preset: state.preset,
+    positionMode: state.positionMode,
+    designerCanvasH: state.designerCanvasH,
+    gridRows: state.gridRows,
+    gridCols: state.gridCols,
+    gridGap: state.gridGap,
+    multiLimit: state.multiLimit,
+    edgePad: state.edgePad
+  };
 }
 
 /**
@@ -8688,6 +8728,34 @@ function autoScalePos(pos, targetW, srcW) {
  * @param {'desktop'|'tablet'|'mobile'} device - Target preview device.
  */
 function setDevicePreview(device) {
+  // Per-breakpoint independent layouts (2026-09-11): before changing the
+  // PRESENTATION (existing logic below, unchanged), swap the actual EDITED
+  // DATA — snapshot the outgoing breakpoint's current flat state back into
+  // state.variants, then load the incoming breakpoint's own data (seeding it
+  // from Desktop via a deep clone if this is the first time it's been
+  // touched). This is a no-op the first time this function ever runs for a
+  // section (activeBreakpoint === device, e.g. clicking "Desktop" while
+  // already on Desktop) — guarded below.
+  if (device !== state.activeBreakpoint) {
+    // 1. Snapshot the OUTGOING breakpoint's current edits.
+    state.variants[state.activeBreakpoint] = snapshotFlatStateAsVariant();
+
+    // 2. Seed the INCOMING breakpoint from Desktop if it's never been customized.
+    if (!state.variants[device]) {
+      state.variants[device] = window.FlexibleBreakpointRules.duplicateVariant(state.variants.desktop);
+    }
+
+    // 3. Load the incoming breakpoint's data into the live flat state fields.
+    loadFlatVariantIntoState(state.variants[device]);
+    state.activeBreakpoint = device;
+
+    // 4. Clear selection state that would otherwise reference blocks from the
+    //    breakpoint we just left — mirrors applySnapshot()'s existing
+    //    selection-clear after a full state replace (see line ~2281).
+    state.selectedBlockId = null;
+    state.selectedSubId   = null;
+  }
+
   // Cache desktop canvas width before leaving desktop mode
   if (state.devicePreview === 'desktop') {
     const c = document.getElementById('canvas');
@@ -8711,6 +8779,7 @@ function setDevicePreview(device) {
   ['mobile','tablet','desktop'].forEach(d => {
     document.getElementById(`dev-${d}`)?.classList.toggle('active', d === device);
   });
+  updateDeviceVariantIndicators();
   // Show/hide device editing indicator
   const indicator = document.getElementById('dev-indicator');
   const resetBtn  = document.getElementById('dev-reset-btn');
@@ -8730,6 +8799,45 @@ function setDevicePreview(device) {
   }
   // Give DOM time to reflow, then update dimensions
   setTimeout(() => { renderCanvas(); updateDimensions(); }, 50);
+}
+
+/**
+ * Syncs the Tablet/Mobile toolbar buttons' "customized" dot indicator and the
+ * Reset-to-Desktop button's enabled state to state.variants/state.activeBreakpoint.
+ * Called after any action that can change either — a breakpoint switch
+ * (setDevicePreview) or a reset (resetActiveBreakpointToDesktop).
+ */
+function updateDeviceVariantIndicators() {
+  document.getElementById('dev-tablet')?.classList.toggle('device-customized', !!state.variants.tablet);
+  document.getElementById('dev-mobile')?.classList.toggle('device-customized', !!state.variants.mobile);
+  const resetVariantBtn = document.getElementById('dev-reset-variant-btn');
+  if (resetVariantBtn) resetVariantBtn.disabled = (state.activeBreakpoint === 'desktop');
+}
+
+/**
+ * Discards the active breakpoint's (Tablet/Mobile) customized layout and
+ * falls back to showing Desktop's layout until it is customized again.
+ * No-op on Desktop (nothing to reset). Confirms via the shared modal before
+ * discarding, since this is destructive and not covered by Ctrl+Z.
+ */
+function resetActiveBreakpointToDesktop() {
+  if (state.activeBreakpoint === 'desktop') return; // nothing to reset
+  const label = state.activeBreakpoint === 'tablet' ? 'Tablet' : 'Mobile';
+  showConfirmModal(
+    'Reset ' + label + ' Layout',
+    'This discards the customized ' + label + ' layout and reverts to showing the Desktop layout (scaled/reflowed) until you customize it again.',
+    function() {
+      state.variants[state.activeBreakpoint] = null;
+      loadFlatVariantIntoState(state.variants.desktop);  // show the fallback (desktop) immediately
+      state.selectedBlockId = null;
+      state.selectedSubId   = null;
+      renderCanvas();
+      renderPropsPanel();
+      updateBlockCount();
+      autoSave();
+      updateDeviceVariantIndicators();
+    }
+  );
 }
 
 /**
