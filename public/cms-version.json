@@ -1,20 +1,11 @@
 {
-  "version": "1.73.0",
+  "version": "1.74.0",
   "date": "2026-09-11",
   "changelog": {
     "features": [
-      "Flexible Designer: shared rendering-rules module (flexible-render-rules.js) unifies Designer-canvas and live-page sub-element style/position computation for heading/paragraph/button — one source of truth instead of two hand-maintained copies",
-      "Flexible Designer: \"Repeat per section\" background option for Multi/Dynamic free-canvas sections — tile the background image once per 100vh section instead of stretching one image across the whole multi-section design"
+      "Flexible Designer: independent Desktop/Tablet/Mobile layouts for free-canvas sections — each breakpoint is now a fully separate, independently authored canvas (own blocks, own layout) instead of a scaled or reflowed view of Desktop. Existing sections are unaffected until a breakpoint is explicitly customized. Note: Content Height Mode and Screen Limit are still shared across all three breakpoints for now, and a section with an empty Desktop layout shows nothing at any screen size even if Tablet/Mobile have content"
     ],
-    "bugfixes": [
-      "Flexible Designer: z-index now honored for text/card block sub-elements stacked over Volt/image blocks in free-canvas mode (previously always painted behind regardless of layer order)",
-      "Flexible Designer: canvas font now matches the live page's actual webfont",
-      "Volt Studio: closing the embedded Volt editor (✕ or backdrop) now warns before discarding unsaved edits instead of discarding silently",
-      "Flexible Designer: button sub-elements now match the live page's box model (display/alignment/font size) in free-canvas mode",
-      "Flexible Designer + live render: Multi/Dynamic section and background-plate height are now consistently computed from the authored per-band height × screen count in both the Designer canvas and the live page (previously viewport-dependent in the Designer and missing the multiplier entirely on the live page)",
-      "Admin: a stale unsaved Flexible Designer draft no longer silently overrides newer saved section data — now prompts to resume or discard",
-      "Media Library: Select Media picker no longer lists every already-registered file twice"
-    ],
+    "bugfixes": [],
     "breaking": []
   }
 }

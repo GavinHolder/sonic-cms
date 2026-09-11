@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2026-09-11] v1.74.0 — Independent per-breakpoint layouts for Flexible sections
+
+### Added
+- **Flexible Designer: independent Desktop/Tablet/Mobile layouts** for free-canvas sections — the Tablet/Mobile preview toggle used to be a pure visual shrink or reflow of the Desktop layout, with zero real per-breakpoint authoring; it now switches between fully separate, independently editable canvases (own blocks, own canvas size, own content-height mode) — "a new section per screen size," per the explicit design decision. First-time switch to an uncustomized breakpoint seeds it as a duplicate of Desktop rather than starting blank. Existing sections are completely unaffected until a breakpoint is explicitly customized — zero migration, no schema change.
+- Built and verified via a 9-task written plan with independent code review at every step; the final whole-branch review caught and a dedicated fix pass resolved 4 data-loss bugs in the save/reload/undo round-trip before any of it reached production (none of which were ever live) — see `docs/main-cms-sync-prompt.md` #194 for the full incident/fix history if picking this up later.
+
+### Known limitations (by design, documented, tracked as follow-ups)
+- Content Height Mode (single/multi/dynamic) and the multi-mode Screen Limit are still shared across all three breakpoints — saved/rendered correctly per-breakpoint if set, but the Designer's own controls can't author them differently per breakpoint yet.
+- A section with an empty Desktop layout shows nothing at any screen size, even when Tablet or Mobile have content.
+- Undo can, in a narrow case (undoing immediately after switching screens mid-edit), affect the wrong breakpoint's layout — not persisted to the database until Save is pressed.
+
+---
+
 ## [2026-09-11] v1.73.0 — Flexible Designer/live-render unification + media library fix
 
 ### Added
