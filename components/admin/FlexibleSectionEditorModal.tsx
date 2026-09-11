@@ -19,6 +19,7 @@ import { defaultScrollStage, defaultZone, defaultThreeZone } from "@/components/
 import type { ScrollStageConfig, ScrollStageZoneConfig, ScrollStageZoneImageConfig, ScrollStageZoneThreeConfig } from "@/components/sections/scroll-stage/types";
 import { DEFAULT_LOWER_THIRD } from "@/lib/lower-third-presets";
 import { legacyToDesignerData } from "@/lib/flexible/legacy-to-designer";
+import { resolveVariants, serializeVariants } from "../../public/flexible-breakpoint-rules.js";
 import { useConfirm } from "@/components/admin/ConfirmProvider";
 import {
   PRESET_COLORS,
@@ -250,13 +251,12 @@ export default function FlexibleSectionEditorModal({
     // back to the untouched string if it isn't valid JSON (e.g. legacy/empty content).
     const syncedDesignerData = (() => {
       if (!designerData) return designerData;
-      try {
-        const parsed = JSON.parse(designerData);
-        if (parsed && typeof parsed === "object" && parsed.contentMode !== contentMode) {
-          return JSON.stringify({ ...parsed, contentMode });
-        }
-        return designerData;
-      } catch { return designerData; }
+      const variants = resolveVariants(designerData);
+      if (!variants.desktop) return designerData;
+      if (variants.desktop.contentMode !== contentMode) {
+        variants.desktop = { ...variants.desktop, contentMode };
+      }
+      return JSON.stringify(serializeVariants(variants));
     })();
 
     const updated: FlexibleSection = {
@@ -499,86 +499,120 @@ export default function FlexibleSectionEditorModal({
     });
   };
 
+  // These four functions are the modal's own inline "Section Elements" editor — scoped to
+  // the DESKTOP variant only (see parsedDesigner's own comment below). Each resolves the
+  // full {desktop, tablet, mobile} structure, mutates ONLY variants.desktop.blocks (the
+  // mutation logic itself is unchanged from before this fix), then re-serializes ALL THREE
+  // variants — so a Tablet/Mobile layout authored via "Edit in Designer" is never silently
+  // dropped by one of these inline edits. resolveVariants() already swallows malformed JSON
+  // internally (returns desktop: null) — the `if (!variants.desktop) return;` guard below
+  // replaces the old try/catch's "malformed JSON — ignore" behavior with the same effect.
   const updateDesignerBlockProps = (blockId: string | number, patch: Record<string, unknown>) => {
     if (!designerData) return;
-    try {
-      const data = JSON.parse(designerData);
-      data.blocks = (data.blocks || []).map((b: any) =>
+    const variants = resolveVariants(designerData);
+    if (!variants.desktop) return;
+    variants.desktop = {
+      ...variants.desktop,
+      blocks: ((variants.desktop.blocks as any[]) || []).map((b: any) =>
         b.id === blockId ? { ...b, props: { ...(b.props || {}), ...patch } } : b
-      );
-      setDesignerData(JSON.stringify(data));
-    } catch { /* malformed JSON — ignore */ }
+      ),
+    };
+    setDesignerData(JSON.stringify(serializeVariants(variants)));
   };
 
   const updateDesignerSubElement = (blockId: string | number, subIdx: number, patch: Record<string, unknown>) => {
     if (!designerData) return;
-    try {
-      const data = JSON.parse(designerData);
-      data.blocks = (data.blocks || []).map((b: any) => {
+    const variants = resolveVariants(designerData);
+    if (!variants.desktop) return;
+    variants.desktop = {
+      ...variants.desktop,
+      blocks: ((variants.desktop.blocks as any[]) || []).map((b: any) => {
         if (b.id !== blockId) return b;
         const subs = [...(b.subElements || [])];
         subs[subIdx] = { ...subs[subIdx], props: { ...(subs[subIdx].props || {}), ...patch } };
         return { ...b, subElements: subs };
-      });
-      setDesignerData(JSON.stringify(data));
-    } catch { /* malformed JSON — ignore */ }
+      }),
+    };
+    setDesignerData(JSON.stringify(serializeVariants(variants)));
   };
 
   const addDesignerSubElement = (blockId: string | number, type: string) => {
     if (!designerData) return;
-    try {
-      const defaults: Record<string, Record<string, unknown>> = {
-        heading:   { text: "New Heading", level: "h2", fontSize: 28, fontWeight: "700", textAlign: "left", marginBottom: 8 },
-        paragraph: { text: "Add your paragraph text here.", fontSize: 15, lineHeight: 1.65, textAlign: "left", marginBottom: 16 },
-        button:    { text: "Click Here", variant: "filled", size: "md", borderRadius: 6, paddingX: 24, paddingY: 10 },
-        image:     { src: "", alt: "Image", imageMode: "fill" },
-        badge:     { text: "New Badge", borderRadius: 20, fontSize: 12 },
-        divider:   { thickness: 1 },
-        video:     { src: "", autoplay: false, loop: false },
-      };
-      const data = JSON.parse(designerData);
-      data.blocks = (data.blocks || []).map((b: any) => {
+    const defaults: Record<string, Record<string, unknown>> = {
+      heading:   { text: "New Heading", level: "h2", fontSize: 28, fontWeight: "700", textAlign: "left", marginBottom: 8 },
+      paragraph: { text: "Add your paragraph text here.", fontSize: 15, lineHeight: 1.65, textAlign: "left", marginBottom: 16 },
+      button:    { text: "Click Here", variant: "filled", size: "md", borderRadius: 6, paddingX: 24, paddingY: 10 },
+      image:     { src: "", alt: "Image", imageMode: "fill" },
+      badge:     { text: "New Badge", borderRadius: 20, fontSize: 12 },
+      divider:   { thickness: 1 },
+      video:     { src: "", autoplay: false, loop: false },
+    };
+    const variants = resolveVariants(designerData);
+    if (!variants.desktop) return;
+    variants.desktop = {
+      ...variants.desktop,
+      blocks: ((variants.desktop.blocks as any[]) || []).map((b: any) => {
         if (b.id !== blockId) return b;
         const newSub = { type, props: { ...(defaults[type] || {}) } };
         return { ...b, subElements: [...(b.subElements || []), newSub] };
-      });
-      setDesignerData(JSON.stringify(data));
-      setExpandedBlocks((prev) => new Set([...prev, blockId]));
-    } catch { /* malformed JSON — ignore */ }
+      }),
+    };
+    setDesignerData(JSON.stringify(serializeVariants(variants)));
+    setExpandedBlocks((prev) => new Set([...prev, blockId]));
   };
 
   const removeDesignerSubElement = (blockId: string | number, subIdx: number) => {
     if (!designerData) return;
-    try {
-      const data = JSON.parse(designerData);
-      data.blocks = (data.blocks || []).map((b: any) => {
+    const variants = resolveVariants(designerData);
+    if (!variants.desktop) return;
+    variants.desktop = {
+      ...variants.desktop,
+      blocks: ((variants.desktop.blocks as any[]) || []).map((b: any) => {
         if (b.id !== blockId) return b;
         const subs = [...(b.subElements || [])];
         subs.splice(subIdx, 1);
         return { ...b, subElements: subs };
-      });
-      setDesignerData(JSON.stringify(data));
-    } catch { /* malformed JSON — ignore */ }
+      }),
+    };
+    setDesignerData(JSON.stringify(serializeVariants(variants)));
   };
 
-  // Parse designer data once for rendering
-  const parsedDesigner = (() => {
-    if (!designerData) return null;
-    if (typeof designerData === "object") return designerData;
-    try { return JSON.parse(designerData as string); } catch { return null; }
-  })();
+  // Resolve designerData through the per-breakpoint resolver once for rendering. Every
+  // consumer below (updateDesignerBlockProps etc. above, the Content tab's block accordion
+  // and "N blocks" summary, isMultiFreeBg) is scoped to the DESKTOP variant only —
+  // Tablet/Mobile customization is a Designer-canvas-only capability (Task 4's breakpoint
+  // toggle, reached via "Edit in Designer"). parsedDesigner below is intentionally the
+  // DESKTOP blob specifically, not the raw per-breakpoint wrapper, so none of this file's
+  // existing block-reading/editing code needs to change its own logic — it already fully
+  // knows how to read/edit one flat blob. resolveVariants() already handles the
+  // JSON.parse-if-string + legacy-flat-blob-as-desktop shape detection the old inline
+  // parsing did manually, and returns a null desktop on parse failure — matching the old
+  // definition's null fallback. Cast to `any` (matching FlexibleSectionRenderer.tsx's own
+  // established convention for this exact resolvedVariants.desktop value) since this blob's
+  // fields (`.blocks`, `.layoutType`, `.grid`, `.preset`, `.positionMode`, `.contentMode`)
+  // are read all over this file exactly as the old implicit-`any` JSON.parse result was.
+  const resolvedVariants = designerData ? resolveVariants(designerData) : { desktop: null, tablet: null, mobile: null };
+  const parsedDesigner = resolvedVariants.desktop as any;
   // "Repeat per section" is scoped to free+multi/dynamic sections only (grid/preset/
   // mosaic multi-mode sections don't get this toggle — YAGNI). positionMode lives
   // inside designerData (the vanilla-JS canvas editor's own state), not in this
   // component's own React state, hence reading it off parsedDesigner here.
   const isMultiFreeBg = (contentMode === "multi" || contentMode === "dynamic")
     && (parsedDesigner as { positionMode?: string } | null)?.positionMode === "free";
-  // Same designerData/contentMode sync as handleSave (see its own comment) — applied here
-  // too so the LIVE PREVIEW pane while editing matches what actually gets persisted, rather
-  // than the preview showing correct Dynamic/Multi behavior only after a save+reload.
-  const previewDesignerData = parsedDesigner && parsedDesigner.contentMode !== contentMode
-    ? JSON.stringify({ ...parsedDesigner, contentMode })
-    : designerData;
+  // Same designerData/contentMode sync as handleSave's syncedDesignerData (see its own
+  // comment) — applied here too so the LIVE PREVIEW pane while editing matches what
+  // actually gets persisted, rather than the preview showing correct Dynamic/Multi behavior
+  // only after a save+reload. Goes through resolveVariants/serializeVariants (not a raw
+  // `{ ...parsedDesigner, contentMode }` spread, which is desktop-only and would silently
+  // drop Tablet/Mobile from the PREVIEW the instant the Content Height Mode toggle is
+  // touched) so an "Edit in Designer" tablet/mobile layout survives into the preview too.
+  const previewDesignerData = (() => {
+    if (!parsedDesigner || parsedDesigner.contentMode === contentMode) return designerData;
+    const variants = resolveVariants(designerData);
+    if (!variants.desktop) return designerData;
+    variants.desktop = { ...variants.desktop, contentMode };
+    return JSON.stringify(serializeVariants(variants));
+  })();
 
   // ── Section being edited in designer ─────────────────────────
   const designerSection: FlexibleSection = {
