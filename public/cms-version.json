@@ -1,29 +1,19 @@
 {
-  "version": "1.72.6",
-  "date": "2026-07-30",
+  "version": "1.73.0",
+  "date": "2026-09-11",
   "changelog": {
     "features": [
-      "Volt Studio slots: overflow-fit control (clip/ellipsis/shrink), on-canvas binding indicator (shows the bound product field), body/paragraph text slot option, and lighter less-obstructive slot affordance",
-      "Flexible Designer: per-element toggle to render an element in front of the section Lower Third (opt-in, default off)",
-      "Volt Studio: bind a slot to a product field (Name/Speed/Price/Options/Period) so linked product cards auto-populate the slot end-to-end",
-      "Volt Studio: editable vector/polygon points — add anchor points anywhere, corner/smooth node toggle, 45° straight-side snap",
-      "Volt Studio: per-state on-canvas editing — drag/resize/rotate shapes independently per hover state",
-      "Volt Studio: per-state shape outline morph on hover (instant swap)",
-      "Volt Studio: vector point-edit constraints — Shift axis-lock, Ctrl inline anchor sliding, select + Delete to remove a single point",
-      "Volt Studio: always-visible context hint bar for vertex/polygon/pen tools",
-      "Data-bound product cards — link Volt cards to coverage packages; auto-populate name, speed, price and options from live product data"
+      "Flexible Designer: shared rendering-rules module (flexible-render-rules.js) unifies Designer-canvas and live-page sub-element style/position computation for heading/paragraph/button — one source of truth instead of two hand-maintained copies",
+      "Flexible Designer: \"Repeat per section\" background option for Multi/Dynamic free-canvas sections — tile the background image once per 100vh section instead of stretching one image across the whole multi-section design"
     ],
     "bugfixes": [
-      "Volt Studio: canvas size presets/custom now apply, persist, render saved size; selection outline tracks rotated & duplicated shapes; arrow-key nudging selected layers",
-      "Hero carousel: tall slide content on mobile now scrolls within the slide instead of clipping",
-      "Hero carousel: slide text isolated per slide (no outlined-word bleed during transitions)",
-      "Hero carousel: mobile slide sizing — slide 1 no longer oversized on phones",
-      "Flexible Designer: stable marquee drag-select (no full-page text highlight or selection flicker)",
-      "Flexible Designer: tablet preview vertical spacing matches design ratio",
-      "Volt: polygon/pen no longer curves a straight-clicked side",
-      "Volt Studio: image, slot and 3D-object layers can now be rotated (rotation applied on canvas + live render)",
-      "Volt Studio: resize-dragging a rotated shape now resizes along the shape's own axes with the opposite corner anchored (was axis-aligned)",
-      "Flexible Designer: tablet/live 768px boundary reconciled (iPad-portrait renders as tablet, not mobile); hardened autoScalePos vertical scaling"
+      "Flexible Designer: z-index now honored for text/card block sub-elements stacked over Volt/image blocks in free-canvas mode (previously always painted behind regardless of layer order)",
+      "Flexible Designer: canvas font now matches the live page's actual webfont",
+      "Volt Studio: closing the embedded Volt editor (✕ or backdrop) now warns before discarding unsaved edits instead of discarding silently",
+      "Flexible Designer: button sub-elements now match the live page's box model (display/alignment/font size) in free-canvas mode",
+      "Flexible Designer + live render: Multi/Dynamic section and background-plate height are now consistently computed from the authored per-band height × screen count in both the Designer canvas and the live page (previously viewport-dependent in the Designer and missing the multiplier entirely on the live page)",
+      "Admin: a stale unsaved Flexible Designer draft no longer silently overrides newer saved section data — now prompts to resume or discard",
+      "Media Library: Select Media picker no longer lists every already-registered file twice"
     ],
     "breaking": []
   }

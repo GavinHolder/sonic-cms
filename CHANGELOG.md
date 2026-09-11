@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2026-09-11] v1.73.0 — Flexible Designer/live-render unification + media library fix
+
+### Added
+- **Flexible Designer: shared rendering-rules module** (`public/flexible-render-rules.js`) — one pure-function source of truth for heading/paragraph/button sub-element style and free-canvas position, called by both the Designer canvas (`flexible-designer.html`) and the live React renderer (`FlexibleSectionRenderer.tsx`), replacing two independently hand-maintained copies of the same logic that had drifted apart (see Fixed, below)
+- **Flexible Designer: "Repeat per section" background option** for Multi/Dynamic free-canvas sections — new toggle in the section editor's Background tab tiles the background image once per 100vh section instead of stretching one image across the whole multi-section design; default off, existing sections unaffected. Layer geometry computed once in `flexible-render-rules.js`'s `computeMultiBgLayers()`, shared by the Designer canvas preview and the live page
+
+### Fixed
+- **Flexible Designer canvas vs. live page mismatches** — three separate same-day bugs (font default, button box model, z-index stacking) traced to the Designer canvas and live renderer independently hand-computing the same sub-element style/position and silently drifting apart; z-index specifically: a text/card block's sub-elements always painted at implicit `z-index:auto` while any sibling Volt/image block got an explicit `z-index`, so "Send to back" on the Volt could never actually put it behind overlapping text
+- **Flexible Designer: Multi/Dynamic section canvas height was viewport-dependent** — computed from the operator's live browser panel size instead of the section's authored `designerCanvasH`, so the same saved section showed a different total canvas height depending on who had the Designer open
+- **Live render: Multi/Dynamic free-canvas sections rendered only one band tall** — the section's aspect-ratio and the background/content plate box were missing the `× multiLimit` factor, so a saved multi-band design was squeezed into a box sized for a single band (companion fix to the Designer-side height bug above)
+- **Volt Studio: closing the embedded Volt editor discarded unsaved work silently** — the outer modal's ✕ and backdrop-click now check for unsaved changes and warn before discarding, matching the editor's own Save/Done buttons which already persisted correctly
+- **Admin: a stale unsaved Flexible Designer draft could silently override newer saved section data** on reopen — now compared against the section's own last-saved timestamp, with a resume/discard prompt when the draft is older
+- **Media Library: Select Media picker listed every already-registered file twice** — the picker merges DB-backed media with a raw filesystem scan to surface unregistered files, but compared an absolute DB URL against a relative filesystem path, so the de-dupe check never matched and every registered file also appeared as a second "unregistered" card with a different (stale) file size
+
+---
+
 ## [2026-05-09] Session (continued 3)
 
 ### Added
