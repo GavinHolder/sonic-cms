@@ -14,7 +14,7 @@ import { animate } from "animejs";
 // source of truth also consumed by public/flexible-designer.html (see that file's
 // <script src="/flexible-render-rules.js"> and this module's own doc comment for why
 // it exists). Plain JS + hand-written flexible-render-rules.d.ts alongside it.
-import { computeSubElementStyle, computeSubElementPosition } from "../../public/flexible-render-rules.js";
+import { computeSubElementStyle, computeSubElementPosition, computeMultiBgLayers } from "../../public/flexible-render-rules.js";
 
 const AnimBgRenderer    = dynamic(() => import("./AnimBgRenderer"), { ssr: false });
 const ScrollStageWrapper = dynamic(() => import("./scroll-stage/ScrollStageWrapper"), { ssr: false });
@@ -588,6 +588,13 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   const bgImagePosition = (section as any).bgImagePosition as string | undefined;
   const bgImageRepeat   = (section as any).bgImageRepeat   as string | undefined;
   const bgImageOpacity  = (section as any).bgImageOpacity  as number | undefined;
+  // "Repeat per section" (opt-in, default false — free+multi/dynamic sections only).
+  // Unlike its bgImage* siblings above (real Section columns), this one is NOT a
+  // schema column — it round-trips inside `content` JSONB, the same pattern already
+  // established for bgMaskEnabled/backgroundVoltId just below (no migration for a
+  // first-cut, deliberately scoped feature — see FlexibleSectionEditorModal.tsx's
+  // matching content.bgMultiRepeat read/write for the editable Background-tab toggle).
+  const bgMultiRepeat  = (content as any).bgMultiRepeat === true;
 
   // ── Background Override (generic renderer capability) ──────────────────────────
   // Lets a TemplateBlock's own sandboxed-iframe content swap THIS section's background
@@ -893,6 +900,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
             repeat: bgImageRepeat,
             opacity: bgImageOpacity,
             maskCss: bgMaskCss,
+            multiRepeat: bgMultiRepeat,
           }}
         />
       )}
@@ -1802,7 +1810,7 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
   // desktop free, mobile reading-stack on mobile. Together they never double-render.
   plateMode?: boolean;
   // bgImage: section background image fields, drawn INSIDE the plate (free cover-plate only).
-  bgImage?: { url?: string; size?: string; position?: string; repeat?: string; opacity?: number; maskCss?: string | null };
+  bgImage?: { url?: string; size?: string; position?: string; repeat?: string; opacity?: number; maskCss?: string | null; multiRepeat?: boolean };
   // headerOffset: px height of this section's separate CMS "Section Header" (measured live
   // by the caller), single content-mode only. The plate is a z-index-12 layer painted ABOVE
   // the z-index-11 .section-content-wrapper that holds that header, with no innate awareness
@@ -2182,20 +2190,62 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
           {/* Background layer — non-uniform scale(sx,sy), fills the box exactly (see the
               doc comment above for why this is intentionally split from the content layer). */}
           {bgImage?.url && (
-            <div aria-hidden="true" style={{
-              position: "absolute", left: 0, top: 0,
-              width: cw, height: chTotal,
-              transform: bgTransform,
-              transformOrigin: "top left",
-              zIndex: 0,
-              backgroundImage: `url(${bgImage.url})`,
-              backgroundSize: bgImage.size || "cover",
-              backgroundPosition: bgImage.position || "center",
-              backgroundRepeat: bgImage.repeat || "no-repeat",
-              opacity: (bgImage.opacity ?? 100) / 100,
-              ...(bgImage.maskCss ? { maskImage: bgImage.maskCss, WebkitMaskImage: bgImage.maskCss } : {}),
-              pointerEvents: "none",
-            }} />
+            isMulti && bgImage.multiRepeat ? (
+              // "Repeat per section" (opt-in, default false — free+multi/dynamic only):
+              // tile the SAME image once per 100vh band instead of stretching one copy
+              // across the whole multiLimit-band design. Geometry computed by the shared
+              // module so this stays in sync with flexible-designer.html's identical
+              // repeat branch in applySectionBgToCanvas() (ONE SYSTEM PER CONCERN — see
+              // flexible-render-rules.js's own doc comment on computeMultiBgLayers).
+              // bgTransform is applied ONCE, to this OUTER wrapper only — never per-band
+              // — so each band's top offset scales correctly instead of the scale
+              // compounding a second time on top of an already-scaled offset.
+              <div aria-hidden="true" style={{
+                position: "absolute", left: 0, top: 0,
+                width: cw, height: chTotal,
+                transform: bgTransform,
+                transformOrigin: "top left",
+                zIndex: 0,
+                pointerEvents: "none",
+              }}>
+                {computeMultiBgLayers({
+                  ch, multiLimit, repeat: true,
+                  bgImageUrl: bgImage.url,
+                  bgImageSize: bgImage.size,
+                  bgImagePosition: bgImage.position,
+                  bgImageRepeat: bgImage.repeat,
+                  bgImageOpacity: bgImage.opacity,
+                  maskCss: bgImage.maskCss,
+                }).map((layer, i) => (
+                  <div key={i} aria-hidden="true" style={{
+                    position: "absolute", left: 0, top: layer.top,
+                    width: cw, height: layer.height,
+                    backgroundImage: layer.backgroundImage,
+                    backgroundSize: layer.backgroundSize,
+                    backgroundPosition: layer.backgroundPosition,
+                    backgroundRepeat: layer.backgroundRepeat,
+                    opacity: layer.opacity,
+                    ...(layer.maskCss ? { maskImage: layer.maskCss, WebkitMaskImage: layer.maskCss } : {}),
+                    pointerEvents: "none",
+                  }} />
+                ))}
+              </div>
+            ) : (
+              <div aria-hidden="true" style={{
+                position: "absolute", left: 0, top: 0,
+                width: cw, height: chTotal,
+                transform: bgTransform,
+                transformOrigin: "top left",
+                zIndex: 0,
+                backgroundImage: `url(${bgImage.url})`,
+                backgroundSize: bgImage.size || "cover",
+                backgroundPosition: bgImage.position || "center",
+                backgroundRepeat: bgImage.repeat || "no-repeat",
+                opacity: (bgImage.opacity ?? 100) / 100,
+                ...(bgImage.maskCss ? { maskImage: bgImage.maskCss, WebkitMaskImage: bgImage.maskCss } : {}),
+                pointerEvents: "none",
+              }} />
+            )
           )}
           <div style={{
             // TOP-LEFT anchored content plate — always UNIFORM scale (never the background's

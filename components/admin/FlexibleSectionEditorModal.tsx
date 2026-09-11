@@ -178,6 +178,12 @@ export default function FlexibleSectionEditorModal({
   const [bgImageRepeat, setBgImageRepeat] = useState(section.bgImageRepeat || "no-repeat");
   const [bgImageOpacity, setBgImageOpacity] = useState(section.bgImageOpacity ?? 100);
   const [bgParallax, setBgParallax] = useState(section.bgParallax || false);
+  // "Repeat per section" — free+multi/dynamic sections only. Tiles the bg image once
+  // per 100vh band instead of stretching one copy across the whole multiLimit-band
+  // design (see computeMultiBgLayers in public/flexible-render-rules.js). Persisted
+  // inside content JSONB — same pattern as bgMaskEnabled just below (no schema column
+  // for a first-cut, deliberately scoped feature).
+  const [bgMultiRepeat, setBgMultiRepeat] = useState(contentAny?.bgMultiRepeat === true);
   // Background-image fade/MASK (#60) — persisted inside content JSONB
   const [bgMaskEnabled, setBgMaskEnabled] = useState(contentAny?.bgMaskEnabled === true);
   const [bgMaskDirection, setBgMaskDirection] = useState(contentAny?.bgMaskDirection || "bottom");
@@ -310,6 +316,8 @@ export default function FlexibleSectionEditorModal({
         designerData: syncedDesignerData || null,
         layout,
         gradient,
+        // "Repeat per section" — see the bgMultiRepeat state declaration's own comment
+        bgMultiRepeat,
         // Background-image fade/MASK (#60)
         bgMaskEnabled,
         bgMaskDirection,
@@ -426,6 +434,7 @@ export default function FlexibleSectionEditorModal({
             bgImagePosition,
             bgImageRepeat,
             bgImageOpacity,
+            bgMultiRepeat,
             gradient: backgroundType === "gradient"
               ? { enabled: true, type: "preset", preset: { direction: gradientDirection, startOpacity: gradientStartOpacity, endOpacity: gradientEndOpacity, color: gradientColor } }
               : undefined,
@@ -454,7 +463,7 @@ export default function FlexibleSectionEditorModal({
       setShowDesigner(false);
     }
   }, [designerData, contentMode, layout, draftKey, section, confirm,
-      backgroundType, background, bgImageUrl, bgImageSize, bgImagePosition, bgImageRepeat, bgImageOpacity,
+      backgroundType, background, bgImageUrl, bgImageSize, bgImagePosition, bgImageRepeat, bgImageOpacity, bgMultiRepeat,
       gradientDirection, gradientStartOpacity, gradientEndOpacity, gradientColor]);
 
   useEffect(() => {
@@ -558,6 +567,12 @@ export default function FlexibleSectionEditorModal({
     if (typeof designerData === "object") return designerData;
     try { return JSON.parse(designerData as string); } catch { return null; }
   })();
+  // "Repeat per section" is scoped to free+multi/dynamic sections only (grid/preset/
+  // mosaic multi-mode sections don't get this toggle — YAGNI). positionMode lives
+  // inside designerData (the vanilla-JS canvas editor's own state), not in this
+  // component's own React state, hence reading it off parsedDesigner here.
+  const isMultiFreeBg = (contentMode === "multi" || contentMode === "dynamic")
+    && (parsedDesigner as { positionMode?: string } | null)?.positionMode === "free";
   // Same designerData/contentMode sync as handleSave (see its own comment) — applied here
   // too so the LIVE PREVIEW pane while editing matches what actually gets persisted, rather
   // than the preview showing correct Dynamic/Multi behavior only after a save+reload.
@@ -1059,6 +1074,19 @@ export default function FlexibleSectionEditorModal({
                           <label className="form-check-label" htmlFor="flex-bgParallax">Enable Parallax Effect</label>
                         </div>
                       </div>
+
+                      {/* "Repeat per section" — Multi/Dynamic + Free-positioning designs only.
+                          Tiles the image once per 100vh band instead of stretching one copy
+                          across the whole multi-section design. */}
+                      {isMultiFreeBg && (
+                        <div className="mb-4">
+                          <div className="form-check form-switch">
+                            <input className="form-check-input" type="checkbox" id="flex-bgMultiRepeat" checked={bgMultiRepeat} onChange={(e) => setBgMultiRepeat(e.target.checked)} />
+                            <label className="form-check-label" htmlFor="flex-bgMultiRepeat">Repeat per section</label>
+                          </div>
+                          <small className="text-muted d-block mt-1">Tile this image once per 100vh section instead of stretching one image across the whole multi-section design.</small>
+                        </div>
+                      )}
 
                       {/* Fade image to transparent (alpha mask) — #60 */}
                       <div className="mb-3">

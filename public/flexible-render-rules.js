@@ -19,10 +19,12 @@
  * heading, paragraph and button sub-elements — no behavior was changed
  * while writing it.
  *
- * Scope: heading / paragraph / button sub-element STYLE, plus the
- * free-canvas container-block sub-element WRAPPER POSITION formula.
- * Everything else (image/badge/icon/divider, outline/shadow filters,
- * animation, block-level layout) is untouched and stays in each consumer.
+ * Scope: heading / paragraph / button sub-element STYLE, the free-canvas
+ * container-block sub-element WRAPPER POSITION formula, and (2026-09-11,
+ * `computeMultiBgLayers`) the free+multi/dynamic section BACKGROUND-IMAGE
+ * LAYER GEOMETRY for the opt-in "repeat per section" mode. Everything else
+ * (image/badge/icon/divider, outline/shadow filters, animation, block-level
+ * layout) is untouched and stays in each consumer.
  *
  * Loadable two ways (UMD-lite):
  *   - As a plain <script> tag → exposes window.FlexibleRenderRules.
@@ -255,9 +257,123 @@
     };
   }
 
+  /**
+   * Neutralises a URL so it can't break out of a CSS `url('...')` context. Exact
+   * duplicate of public/flexible-designer.html's own `cssUrl()` helper (see its
+   * "SECURITY (#68)" comment) — re-implemented here rather than imported because
+   * this module has zero DOM/window dependencies (see the file header) and must
+   * stay callable as a bare function in both a <script> global and an ES import.
+   */
+  function sanitizeCssUrl(u) {
+    return String(u == null ? "" : u).replace(/["'()\\\n\r]/g, "");
+  }
+
+  /**
+   * computeMultiBgLayers(opts) — pure function. Computes the background-image
+   * LAYER GEOMETRY for a free-canvas multi/dynamic section's background image —
+   * one array entry per rendered `<div>`, for:
+   *   1. public/flexible-designer.html's applySectionBgToCanvas() (canvas preview)
+   *   2. FlexibleSectionRenderer.tsx's DesignerBlocksRenderer free-mode plate (live)
+   *
+   * DEFAULT (opts.repeat falsy): today's existing "cover the whole design" behavior
+   * — a single `ch * multiLimit`-tall layer stretching one copy of the image across
+   * every stacked 100vh band. This is the untouched, always-was-default path; single
+   * mode already calls this with multiLimit 1, collapsing it to a `ch`-tall layer.
+   *
+   * OPT-IN (opts.repeat true — the "Repeat per section" toggle, default OFF):
+   * `multiLimit` separate layers, each exactly `ch` tall and stacked back-to-back
+   * (layer i's top = i*ch, i = 0..multiLimit-1), each showing the SAME image at its
+   * own normal background-size/position/repeat — i.e. the image repeats once per
+   * 100vh band instead of being stretched/zoomed across the whole design. Scoped to
+   * free+multi/dynamic sections only — grid/preset/mosaic multi-mode sections never
+   * call this with repeat:true (deliberately out of scope for this feature — YAGNI).
+   *
+   * SECURITY: returns PIECES — `backgroundImage` as an already-built, sanitized
+   * `url('...')` string, plus plain backgroundSize/Position/Repeat/opacity/maskCss
+   * values — for the CALLER to assign via style-PROPERTY (flexible-designer.html,
+   * per its own "SECURITY (#68)" precedent) or a React style object
+   * (FlexibleSectionRenderer.tsx). This function itself builds no HTML/markup and
+   * touches no DOM, so it introduces no injection vector regardless of caller;
+   * bgImageUrl is run through the same sanitizeCssUrl() neutralisation
+   * flexible-designer.html's cssUrl() already applies to the single-layer case, so a
+   * malicious Template-import URL can't break out of the url('...') wrapper here
+   * either.
+   *
+   * ASSUMPTIONS:
+   * 1. `opts.ch` is one band's height in design px — the Designer canvas's own
+   *    `state.designerCanvasH || DESIGN_H`, or the renderer's resolved `ch`
+   *    (`resolveCanvasDim(data.designerCanvasH, DESIGN_H)`) — both callers already
+   *    compute this identically for the existing single-layer path.
+   * 2. `opts.multiLimit` is the admin-set band count (2-10 in the UI; single mode
+   *    passes/implies 1, collapsing repeat:true to one `ch`-tall layer — identical
+   *    to the non-repeat single-layer result).
+   * 3. bgImageSize/bgImagePosition/bgImageRepeat/bgImageOpacity get the SAME
+   *    fallback defaults ('cover' / 'center' / 'no-repeat' / 100) each consumer
+   *    already applied per-layer before this extraction — centralised here so
+   *    neither consumer re-implements the fallback for the new multi-layer case.
+   *    (The pre-existing single-layer call sites are NOT routed through this
+   *    defaulting — they keep their own untouched, already-correct inline fallback,
+   *    so today's default rendering stays byte-for-byte unchanged.)
+   *
+   * FAILURE MODES:
+   * - opts.multiLimit missing/non-numeric/<1 → clamped to 1 (mirrors both
+   *   consumers' own `state.multiLimit || 1` / `data.multiLimit || 1` guard), so
+   *   repeat:true degrades to a single ch-tall layer instead of 0 layers or a
+   *   negative-length loop.
+   * - opts.ch missing/non-numeric → treated as 0 (Number(x) || 0). Both callers
+   *   already guard against a zero/undefined canvas height upstream (DESIGN_H /
+   *   resolveCanvasDim fallbacks) before this function ever sees `ch`, so this is
+   *   defense-in-depth, not a new failure path this function introduces.
+   * - opts.bgImageOpacity non-numeric (e.g. a corrupt Template-import value) falls
+   *   back to opacity 1 (100%), the same "can't parse it, don't hide the image"
+   *   default flexible-designer.html's own single-layer branch already uses.
+   */
+  function computeMultiBgLayers(opts) {
+    opts = opts || {};
+    var ch = Number(opts.ch) || 0;
+    var multiLimit = Math.max(1, Number(opts.multiLimit) || 1);
+    var repeat = !!opts.repeat;
+    var size = opts.bgImageSize || "cover";
+    var position = opts.bgImagePosition || "center";
+    var imgRepeat = opts.bgImageRepeat || "no-repeat";
+    var opN = Number(opts.bgImageOpacity);
+    var opacity = (opts.bgImageOpacity == null || !Number.isFinite(opN)) ? 1 : opN / 100;
+    var backgroundImage = opts.bgImageUrl ? "url('" + sanitizeCssUrl(opts.bgImageUrl) + "')" : undefined;
+    var maskCss = opts.maskCss || undefined;
+
+    if (!repeat) {
+      return [{
+        top: 0,
+        height: ch * multiLimit,
+        backgroundImage: backgroundImage,
+        backgroundSize: size,
+        backgroundPosition: position,
+        backgroundRepeat: imgRepeat,
+        opacity: opacity,
+        maskCss: maskCss,
+      }];
+    }
+
+    var layers = [];
+    for (var i = 0; i < multiLimit; i++) {
+      layers.push({
+        top: i * ch,
+        height: ch,
+        backgroundImage: backgroundImage,
+        backgroundSize: size,
+        backgroundPosition: position,
+        backgroundRepeat: imgRepeat,
+        opacity: opacity,
+        maskCss: maskCss,
+      });
+    }
+    return layers;
+  }
+
   return {
     computeSubElementStyle: computeSubElementStyle,
     computeSubElementPosition: computeSubElementPosition,
     styleObjectToCssText: styleObjectToCssText,
+    computeMultiBgLayers: computeMultiBgLayers,
   };
 });

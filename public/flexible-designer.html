@@ -1474,7 +1474,7 @@
                 <div class="d-flex align-items-center gap-2">
                   <label class="form-label mb-0 small" id="multiLimitLabel">Height</label>
                   <input type="range" class="form-range flex-1" id="multiLimit" min="2" max="10" value="3"
-                    oninput="document.getElementById('multiLimitVal').textContent=this.value; renderCanvas(); autoSave();">
+                    oninput="document.getElementById('multiLimitVal').textContent=this.value; renderCanvas(); applySectionBgToCanvas(); autoSave();">
                   <span class="slider-value" id="multiLimitVal">3</span>
                   <small class="text-muted">×100vh</small>
                 </div>
@@ -2011,7 +2011,7 @@ const state = {
   _guideIdCounter: 0,
   // #68 — section background preview on the canvas. VIEW-ONLY: never written back
   // into buildJson(); mirrors the fields FlexibleSectionRenderer reads off the section.
-  sectionBg: null,        // { background, bgImageUrl, bgImageSize, bgImagePosition, bgImageRepeat, bgImageOpacity, gradient } | null
+  sectionBg: null,        // { background, bgImageUrl, bgImageSize, bgImagePosition, bgImageRepeat, bgImageOpacity, bgMultiRepeat, gradient } | null
   showSectionBg: true     // toggle state (default ON) — pure view preference
 };
 let _saveTimer = null;
@@ -8421,7 +8421,7 @@ function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'
 //  OTHER CONTROLS
 // ═══════════════════════════════════════════════════════════
 /** Called when the content mode radio changes (single/multi). Re-renders and saves. */
-function onModeChange()   { renderCanvas(); autoSave(); }
+function onModeChange()   { renderCanvas(); applySectionBgToCanvas(); autoSave(); }
 /** Called when the layout type radio changes (grid/preset/mosaic/free). Re-renders and saves. */
 function onLayoutChange() {
   pushHistory();
@@ -8520,7 +8520,7 @@ function togglePositionMode() {
   // Re-apply the active device preview so the canvas width, scale and frame switch between
   // the grid (narrow canvas) and free (scaled-stage) presentations correctly.
   if (state.devicePreview !== 'desktop') setDevicePreview(state.devicePreview);
-  renderCanvas(); renderPropsPanel(); autoSave();
+  renderCanvas(); applySectionBgToCanvas(); renderPropsPanel(); autoSave();
 }
 
 /**
@@ -9868,7 +9868,7 @@ function readSectionBgFromPayload(layout) {
   if (!layout || typeof layout !== 'object') return null;
   const src = (layout.sectionBackground && typeof layout.sectionBackground === 'object')
     ? layout.sectionBackground : layout;
-  const KEYS = ['background','bgImageUrl','bgImageSize','bgImagePosition','bgImageRepeat','bgImageOpacity','gradient'];
+  const KEYS = ['background','bgImageUrl','bgImageSize','bgImagePosition','bgImageRepeat','bgImageOpacity','bgMultiRepeat','gradient'];
   const has = KEYS.some(k => src[k] !== undefined && src[k] !== null && src[k] !== '');
   if (!has) return null;
   return {
@@ -9878,6 +9878,11 @@ function readSectionBgFromPayload(layout) {
     bgImagePosition: src.bgImagePosition,
     bgImageRepeat:   src.bgImageRepeat,
     bgImageOpacity:  src.bgImageOpacity,
+    // "Repeat per section" (opt-in, default false) — tile the bg image once per
+    // 100vh band instead of stretching one copy across the whole multi-band
+    // design. View-only here (see this block's own header comment); the real
+    // editable toggle lives in FlexibleSectionEditorModal.tsx's Background tab.
+    bgMultiRepeat:   src.bgMultiRepeat === true,
     gradient:        src.gradient || null
   };
 }
@@ -9910,19 +9915,58 @@ function applySectionBgToCanvas() {
   // ever concatenated into HTML.
   const children = [];
   if (bg.bgImageUrl) {
-    const size = bg.bgImageSize || 'cover';
-    const pos  = bg.bgImagePosition || 'center';
-    const rep  = bg.bgImageRepeat || 'no-repeat';
-    const opN  = Number(bg.bgImageOpacity);
-    const op   = (bg.bgImageOpacity == null || !Number.isFinite(opN)) ? 1 : opN / 100;
-    const img = document.createElement('div');
-    img.className = 'csb-image';
-    img.style.backgroundImage    = "url('" + cssUrl(bg.bgImageUrl) + "')";
-    img.style.backgroundSize     = String(size);
-    img.style.backgroundPosition = String(pos);
-    img.style.backgroundRepeat   = String(rep);
-    img.style.opacity            = String(op);
-    children.push(img);
+    // "Repeat per section" (opt-in, default off — YAGNI-scoped to free+multi/dynamic
+    // only; grid/preset/mosaic multi-mode never takes this branch): tile the SAME
+    // image once per 100vh band instead of stretching one copy across the whole
+    // multiLimit-band design. Geometry computed by the shared module so this stays
+    // in sync with FlexibleSectionRenderer.tsx's identical repeat branch (ONE SYSTEM
+    // PER CONCERN — see flexible-render-rules.js's own doc comment on
+    // computeMultiBgLayers). The non-repeat / non-multi / non-free default path
+    // below is UNCHANGED — same single .csb-image div as before this feature.
+    const isMultiLikeBg = (state.contentMode === 'multi' || state.contentMode === 'dynamic') && state.positionMode === 'free';
+    if (isMultiLikeBg && bg.bgMultiRepeat) {
+      const layers = window.FlexibleRenderRules.computeMultiBgLayers({
+        ch: state.designerCanvasH || DESIGN_H,
+        multiLimit: state.multiLimit || 1,
+        repeat: true,
+        bgImageUrl: bg.bgImageUrl,
+        bgImageSize: bg.bgImageSize,
+        bgImagePosition: bg.bgImagePosition,
+        bgImageRepeat: bg.bgImageRepeat,
+        bgImageOpacity: bg.bgImageOpacity,
+      });
+      // SECURITY (#68): style-PROPERTY assignment only, same as the single-layer
+      // branch below — computeMultiBgLayers already sanitized the URL, but the
+      // assignment method (never innerHTML) is what actually makes it XSS-safe.
+      layers.forEach(function (layer) {
+        const img = document.createElement('div');
+        img.className = 'csb-image';
+        img.style.left   = '0';
+        img.style.top    = layer.top + 'px';
+        img.style.width  = '100%';
+        img.style.height = layer.height + 'px';
+        img.style.backgroundImage    = layer.backgroundImage || '';
+        img.style.backgroundSize     = String(layer.backgroundSize);
+        img.style.backgroundPosition = String(layer.backgroundPosition);
+        img.style.backgroundRepeat   = String(layer.backgroundRepeat);
+        img.style.opacity            = String(layer.opacity);
+        children.push(img);
+      });
+    } else {
+      const size = bg.bgImageSize || 'cover';
+      const pos  = bg.bgImagePosition || 'center';
+      const rep  = bg.bgImageRepeat || 'no-repeat';
+      const opN  = Number(bg.bgImageOpacity);
+      const op   = (bg.bgImageOpacity == null || !Number.isFinite(opN)) ? 1 : opN / 100;
+      const img = document.createElement('div');
+      img.className = 'csb-image';
+      img.style.backgroundImage    = "url('" + cssUrl(bg.bgImageUrl) + "')";
+      img.style.backgroundSize     = String(size);
+      img.style.backgroundPosition = String(pos);
+      img.style.backgroundRepeat   = String(rep);
+      img.style.opacity            = String(op);
+      children.push(img);
+    }
   }
   // Gradient layer (content.gradient). Over a bg image it's a scrim; with NO image it
   // renders as a standalone full-section background layer — mirroring the renderer so a

@@ -64,3 +64,39 @@ export function computeSubElementPosition(
  * heading/paragraph rendering; not used by the React renderer.
  */
 export function styleObjectToCssText(styleObj: Record<string, unknown>): string;
+
+export interface MultiBgLayersOpts {
+  /** One band's height in design px. */
+  ch: number;
+  /** Admin-set band count (2-10); single mode passes/implies 1. */
+  multiLimit: number;
+  /** "Repeat per section" toggle. Falsy (default) = today's single-layer cover behavior. */
+  repeat?: boolean;
+  bgImageUrl?: string;
+  bgImageSize?: string;
+  bgImagePosition?: string;
+  bgImageRepeat?: string;
+  bgImageOpacity?: number;
+  maskCss?: string | null;
+}
+
+export interface MultiBgLayer {
+  /** Layer's top offset in design px, relative to the multi-band box. */
+  top: number;
+  /** Layer height in design px. */
+  height: number;
+  /** Already-built, sanitized `url('...')` string, or undefined when no bgImageUrl was given. */
+  backgroundImage?: string;
+  backgroundSize: string;
+  backgroundPosition: string;
+  backgroundRepeat: string;
+  opacity: number;
+  maskCss?: string;
+}
+
+/**
+ * Computes background-image layer geometry for a free-canvas multi/dynamic
+ * section's background — one array entry per rendered layer div. See the
+ * doc comment in flexible-render-rules.js for the full contract.
+ */
+export function computeMultiBgLayers(opts: MultiBgLayersOpts): MultiBgLayer[];
