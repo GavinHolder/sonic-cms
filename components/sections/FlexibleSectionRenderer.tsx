@@ -444,13 +444,21 @@ function resolveCanvasDim(raw: unknown, fallback: number): number {
  * layout (not just a shrink of Desktop) — Tablet now owns the 768-991 range
  * with its own real layout (rendered via the SAME scaled-stage plate as
  * Desktop, just fed the tablet variant's own designerCanvasW/H), so it no
- * longer needs to be swept into the mobile reflow. A tablet-width visitor on
- * a section that has NOT customized Tablet still gets the pre-2026-09-11
- * fallback behavior (Desktop's own blob, shrunk) — see pickActiveVariant's
- * isFallback flag, used below. Both call sites below (freePlateDesktop's
- * screenW >= threshold and the reflow gate's screenW < threshold) must stay
- * in sync — they decide the SAME branch from opposite sides (section-height
- * override vs. block layout).
+ * longer needs to be swept into the mobile reflow. This is an INTENTIONAL,
+ * user-approved behavior change for EVERY existing section, not just ones
+ * that adopt this feature: a prior fix (commit 98c8fc8) specifically moved
+ * the 768-991px tablet range OUT of the shrink-desktop branch and INTO the
+ * reflow at the old 992 threshold, precisely because a shrunk desktop design
+ * read poorly at tablet width. Narrowing back to 768 reverts that for this
+ * narrower sliver — an un-customized (isFallback === true) tablet-width
+ * visitor now gets Desktop's blob SHRUNK to fit (the pre-98c8fc8 behavior),
+ * not the readable single-column reflow it got a moment ago. Confirmed
+ * acceptable with the site owner as the deliberate trade-off for giving
+ * Tablet a real, independently-authored layout at that width once an admin
+ * customizes it — see pickActiveVariant's isFallback flag, used below. Both
+ * call sites below (freePlateDesktop's screenW >= threshold and the reflow
+ * gate's screenW < threshold) must stay in sync — they decide the SAME
+ * branch from opposite sides (section-height override vs. block layout).
  */
 const FREE_MODE_REFLOW_BREAKPOINT = 768;
 
@@ -553,6 +561,31 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
+  // ── Per-breakpoint independent layouts (2026-09-11) — resolve ONCE, here ───────────────
+  // Every parent-level decision below that depends on "which breakpoint's designerData
+  // variant is actually live right now" — freePlateDesktop (section-height override +
+  // bg-image-skip gate), freeCanvas's multiLimit, fullBleedVolts, and the lower-third
+  // promotion split — reads off this SAME activeBreakpointKey/effectiveDesignerData/
+  // isBreakpointFallback, computed once and passed down to the free-mode plate instance
+  // of DesignerBlocksRenderer as props (see that component's own doc comment on them).
+  //
+  // FAILURE MODE THIS FIXES: an earlier version of this feature had the parent compute
+  // freePlateDesktop from screenW alone, while DesignerBlocksRenderer's own isFreeMode
+  // branch independently called resolveVariants()/pickActiveVariant() a SECOND time. For
+  // a CUSTOMIZED Mobile variant (isFallback === false) at a mobile screenW, the parent's
+  // screenW-only check said "not desktop, skip the plate" while the child's isFallback-
+  // aware check said "customized variant, render the plate anyway" — two independently-
+  // derived decisions reaching opposite conclusions about the SAME render. Symptoms: the
+  // parent's own background-image layer rendered ALONGSIDE the plate's internal
+  // background (doubled/overlapping), and the multi-mode aspect-ratio height override
+  // never applied (parent thought the plate was inactive), clipping a multi-band Mobile
+  // layout to a single 100vh screen. Root-caused and fixed 2026-09-11 — see
+  // task-6-report.md's fix-up entry for the full trace.
+  const activeBreakpointKey = pickBreakpointForWidth(mounted ? screenW : 1920);
+  const resolvedDesignerVariants = useMemo(() => resolveVariants(designerData), [designerData]);
+  const { data: effectiveDesignerData, isFallback: isBreakpointFallback } =
+    pickActiveVariant(resolvedDesignerVariants, activeBreakpointKey);
+
   // Dynamic Content Height Mode (contentMode === "dynamic") — how many 100vh "screens" this
   // section currently needs, computed live by DesignerBlocksRenderer from reported block
   // content heights and reported back up here so it can be applied to the actual <section>
@@ -567,16 +600,17 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   // blocks in-grid (isFullBleedVolt) so they render exactly once, behind the other blocks.
   const fullBleedVolts = useMemo<Array<{ id: number | string; props: Record<string, unknown> }>>(() => {
     if (!designerData) return [];
-    try {
-      // Per-breakpoint independent layouts (2026-09-11): resolve to the canonical desktop
-      // blob first — see resolveTopLevelDesignerData's own doc comment. Byte-identical to
-      // the previous raw-parse for every legacy (non-wrapped) section.
-      const d = resolveTopLevelDesignerData(designerData);
-      return ((d?.blocks as Array<{ id: number | string; type?: string; props?: Record<string, unknown> }>) || [])
-        .filter((b) => isFullBleedVolt(b))
-        .map((b) => ({ id: b.id, props: (b.props || {}) as Record<string, unknown> }));
-    } catch { return []; }
-  }, [designerData]);
+    // Per-breakpoint independent layouts (2026-09-11): reads the shared, already-resolved
+    // effectiveDesignerData (whichever breakpoint variant is actually live right now — see
+    // the resolution block above), NOT desktop-only. A full-bleed volt present only on a
+    // Tablet/Mobile variant must still render as this section-level background layer once
+    // that breakpoint is active; one present only on Desktop must stop rendering once a
+    // DIFFERENT, customized breakpoint's own block list no longer includes it — matching
+    // what DesignerBlocksRenderer's own in-grid isFullBleedVolt filter now excludes.
+    return ((effectiveDesignerData?.blocks as Array<{ id: number | string; type?: string; props?: Record<string, unknown> }>) || [])
+      .filter((b) => isFullBleedVolt(b))
+      .map((b) => ({ id: b.id, props: (b.props || {}) as Record<string, unknown> }));
+  }, [designerData, effectiveDesignerData]);
 
   // ── Free-mode cover-plate detection (Option C) ─────────────────────────────
   // A free-mode designer section is rendered as ONE cover plate: the bg image + all
@@ -612,25 +646,42 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   const freeCanvas = useMemo(() => {
     if (!freePlateActive || !designerData) return null;
     try {
-      // Per-breakpoint independent layouts (2026-09-11): resolve to the canonical desktop
-      // blob first — see resolveTopLevelDesignerData's own doc comment. Without this, a
-      // wrapped section's designerCanvasW/H/multiLimit would silently read as undefined
-      // here and fall back to the 1440×DESIGN_H defaults, corrupting the outer section's
-      // 1:1 aspect-ratio height override for any resaved free-mode section.
+      // cw/ch: designerCanvasW/H are invariant per breakpoint variant BY CONSTRUCTION —
+      // buildJson() (flexible-designer.html) force-writes designerCanvasW to the fixed
+      // DESKTOP_CANVAS_W (1440) for every variant snapshot regardless of which breakpoint
+      // is active when Save fires, and designerCanvasH has no per-breakpoint editing UI
+      // that could make it diverge in practice (it's derived, not a slider). Desktop is
+      // therefore a safe, stable source for these two fields specifically — see
+      // resolveTopLevelDesignerData's own doc comment for why desktop is the right
+      // stand-in for section-level (non-breakpoint-varying) reads in general.
       const d = resolveTopLevelDesignerData(designerData);
-      // multiLimit read from the same resolved blob (no second JSON.parse) — mirrors
-      // DesignerBlocksRenderer's own `data.multiLimit || 1` so the outer aspect-ratio
-      // override can span the full N×100vh plate, not just one band's ch.
       return {
         cw: resolveCanvasDim((d as any)?.designerCanvasW, 1440),
         ch: resolveCanvasDim((d as any)?.designerCanvasH, DESIGN_H),
-        multiLimit: Number((d as any)?.multiLimit) || 1,
+        // multiLimit is DIFFERENT from cw/ch: it's a live, per-variant-editable slider
+        // (Task 3/4's snapshotFlatStateAsVariant captures it independently per breakpoint),
+        // so it genuinely CAN diverge between Desktop/Tablet/Mobile. Read it from the
+        // shared, already-resolved effectiveDesignerData (whichever breakpoint variant is
+        // actually live right now — see the resolution block above), NOT desktop's copy —
+        // otherwise a Tablet/Mobile variant with its own multiLimit would get an
+        // aspect-ratio override sized for Desktop's band count instead of its own.
+        multiLimit: Number((effectiveDesignerData as any)?.multiLimit) || 1,
       };
     } catch { return null; }
-  }, [freePlateActive, designerData]);
+  }, [freePlateActive, designerData, effectiveDesignerData]);
   // True only when the free-mode 1:1 section-height override should apply: free plate is
-  // active AND we're on desktop. Pre-mount counts as desktop (SSR-safe, no hydration flip).
-  const freePlateDesktop = freePlateActive && (!mounted || screenW >= FREE_MODE_REFLOW_BREAKPOINT) && !!freeCanvas;
+  // active, has valid canvas dimensions, AND is actually rendering the scaled-stage plate
+  // right now (as opposed to FreeReflowStack). The third condition is NOT simply "desktop
+  // width" any more — a CUSTOMIZED Mobile variant (isBreakpointFallback === false) also
+  // renders via the plate at mobile widths (see DesignerBlocksRenderer's own reflow gate,
+  // which this expression mirrors BY CONSTRUCTION: both read the same mounted/
+  // activeBreakpointKey/isBreakpointFallback/screenW, computed once above, so they cannot
+  // disagree the way two independent computations previously could — see this file's
+  // "resolve ONCE, here" comment above for the bug this fixes). Pre-mount counts as
+  // desktop (SSR-safe, no hydration flip) via activeBreakpointKey's own pre-mount default.
+  const plateIsReflowedNotRendered =
+    mounted && activeBreakpointKey === "mobile" && isBreakpointFallback && screenW < FREE_MODE_REFLOW_BREAKPOINT;
+  const freePlateDesktop = freePlateActive && !plateIsReflowedNotRendered && !!freeCanvas;
   // Tracks the current scroll stage zone so content column shows only the active zone's blocks
   const [scrollStageZone, setScrollStageZone] = useState(0);
 
@@ -734,33 +785,46 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   // Opt-in: with no promoted block the split never activates and the section renders
   // byte-identically (and it stays inactive pre-hydration + on SSR, so no hydration mismatch).
   const hasLowerThird = (section as { lowerThird?: { enabled?: boolean } }).lowerThird?.enabled === true;
-  const { baseDesignerData, promotedDesignerData, hasPromotedAlt } = useMemo(() => {
-    if (!freePlateActive || !designerData) {
-      return { baseDesignerData: designerData, promotedDesignerData: null as unknown, hasPromotedAlt: false };
+  // Per-breakpoint independent layouts (2026-09-11): this split now operates on the
+  // shared, already-resolved `effectiveDesignerData` (whichever breakpoint variant is
+  // actually live right now — see the resolution block above), NOT on a flattened,
+  // reconstructed copy of the raw designerData. Two DIFFERENT outputs are produced:
+  //  - baseEffectiveData / promotedEffectiveData: the EFFECTIVE variant's own blocks,
+  //    split into "stays in the main plate" vs. "promoted to the portaled overlay" — fed
+  //    to DesignerBlocksRenderer via its new `effectiveDesignerData` prop (see that
+  //    component's own doc comment), NOT via the `designerData` prop.
+  //  - The raw `designerData` prop passed to BOTH plate call sites below is left
+  //    COMPLETELY UNTOUCHED (still the original, possibly per-breakpoint-wrapped value) —
+  //    it now only feeds DesignerBlocksRenderer's entry-gate (blocks-existence/isFreeMode
+  //    check, both desktop-canonical, unaffected by promotion) and grid/mosaic paths.
+  // FIXES a real bug found in review: the previous version rebuilt `baseDesignerData` as
+  // `{ ...desktopBlob, blocks: base }` — a FLAT object with no "variant" key — and fed
+  // THAT to the main plate as its `designerData` prop. Fed back through resolveVariants()
+  // inside the child, a flat object with no variant key is classified as legacy/desktop-
+  // only, which silently DESTROYED every Tablet/Mobile variant for any section that has
+  // BOTH lowerThird.enabled AND at least one block with aboveLowerThird:true (a real,
+  // shipped checkbox) — not just "promotion doesn't work", but "the entire per-breakpoint
+  // feature silently turns off for this section". Never touching the raw `designerData`
+  // prop at all removes this failure mode by construction: there is nothing left to
+  // reconstruct or misclassify.
+  const { baseEffectiveData, promotedEffectiveData, hasPromotedAlt } = useMemo(() => {
+    if (!freePlateActive || !effectiveDesignerData) {
+      return { baseEffectiveData: effectiveDesignerData, promotedEffectiveData: null as Record<string, unknown> | null, hasPromotedAlt: false };
     }
-    try {
-      // Per-breakpoint independent layouts (2026-09-11): resolve to the canonical desktop
-      // blob first — see resolveTopLevelDesignerData's own doc comment. Without this, a
-      // wrapped section's top-level blocks read as undefined and this split silently
-      // no-ops (falls through to the catch/no-promotion fallback below), so the "in front
-      // of the Lower Third" feature would quietly stop working for a resaved free-mode
-      // section instead of throwing.
-      const d = resolveTopLevelDesignerData(designerData);
-      const blocks = Array.isArray((d as { blocks?: unknown[] } | null)?.blocks) ? (d as { blocks: Array<{ aboveLowerThird?: boolean }> }).blocks : [];
-      const promoted = blocks.filter((b) => b?.aboveLowerThird === true);
-      if (promoted.length === 0) {
-        return { baseDesignerData: designerData, promotedDesignerData: null as unknown, hasPromotedAlt: false };
-      }
-      const base = blocks.filter((b) => b?.aboveLowerThird !== true);
-      return {
-        baseDesignerData: { ...(d as Record<string, unknown>), blocks: base } as Record<string, unknown>,
-        promotedDesignerData: { ...(d as Record<string, unknown>), blocks: promoted } as Record<string, unknown>,
-        hasPromotedAlt: true,
-      };
-    } catch {
-      return { baseDesignerData: designerData, promotedDesignerData: null as unknown, hasPromotedAlt: false };
+    const blocks = Array.isArray(effectiveDesignerData.blocks)
+      ? (effectiveDesignerData.blocks as Array<{ aboveLowerThird?: boolean }>)
+      : [];
+    const promoted = blocks.filter((b) => b?.aboveLowerThird === true);
+    if (promoted.length === 0) {
+      return { baseEffectiveData: effectiveDesignerData, promotedEffectiveData: null as Record<string, unknown> | null, hasPromotedAlt: false };
     }
-  }, [freePlateActive, designerData]);
+    const base = blocks.filter((b) => b?.aboveLowerThird !== true);
+    return {
+      baseEffectiveData: { ...effectiveDesignerData, blocks: base } as Record<string, unknown>,
+      promotedEffectiveData: { ...effectiveDesignerData, blocks: promoted } as Record<string, unknown>,
+      hasPromotedAlt: true,
+    };
+  }, [freePlateActive, effectiveDesignerData]);
   // Portal host = the wrapSection root (section → z-10 content wrapper → root), which is the
   // Lower Third's sibling. Resolved once after mount (ref is populated by then); null in
   // contexts without that structure → the split simply never activates.
@@ -875,8 +939,11 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           // (SSR/no-JS safe — no measurement, no zero-height flash); height:auto + min/max
           // release the 100vh + min/max-height pins from globals.css (the desktop
           // `#snap-container section:not(.hero-carousel)` rule has NO !important, so this
-          // inline style wins). Scoped to freePlateDesktop → applied on desktop ONLY; on
-          // mobile no inline height is emitted, so the mobile CSS height model is byte-identical.
+          // inline style wins). Scoped to freePlateDesktop → applied whenever the plate is
+          // actually rendering (desktop, tablet, or a CUSTOMIZED mobile variant — see
+          // freePlateDesktop's own updated doc comment); on an un-customized mobile width
+          // (genuinely reflowed via FreeReflowStack) no inline height is emitted, so that
+          // CSS height model stays byte-identical to before this feature.
           //
           // SINGLE mode intentionally emits NONE of these overrides — the section keeps its
           // globals.css 100vh pin so a single free section is exactly one screen and NEVER
@@ -911,15 +978,15 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
       {/* Background image layer — absolute fill, z-index 0, below everything.
           In free cover-plate mode the bg image is drawn INSIDE the plate instead (so
           image + text share one scaled box and crop identically), so it is skipped here —
-          but ONLY when the plate is actually rendering. The plate is desktop-only
-          (FREE_MODE_REFLOW_BREAKPOINT — mobile drops it entirely for FreeReflowStack's
-          plain reading-order stack, which never carried a background of its own), so on
-          mobile a free-canvas section had NO background layer at all: neither this one
-          (skipped, since freePlateActive stays true regardless of viewport) nor the
-          plate's (returns null on mobile) ever rendered it. `freePlateDesktop` already
-          encodes "plate is actually active right now" (freePlateActive AND desktop
-          width) — using it here instead of the plain data-driven freePlateActive is the
-          exact fix: same skip on desktop, but now shows on mobile too. */}
+          but ONLY when the plate is actually rendering. `freePlateDesktop` (despite its
+          name — kept for minimal diff, see its own updated doc comment) encodes "the
+          plate is actually rendering right now": true for desktop/tablet widths, AND for
+          a mobile width whose Mobile variant has been independently CUSTOMIZED (renders
+          via the plate too, not FreeReflowStack) — false only for an un-customized mobile
+          width, which is genuinely reflowed via FreeReflowStack (no background of its
+          own), so THIS layer must show there. Using freePlateDesktop here instead of the
+          plain data-driven freePlateActive is the fix: skipped exactly when — and only
+          when — the plate itself is the thing drawing the background. */}
       {effectiveBgImageUrl && !freePlateDesktop && (
         <div
           aria-hidden="true"
@@ -947,7 +1014,17 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           pointerEvents are re-enabled on the inner stage so links/buttons stay clickable. */}
       {freePlateActive && (
         <DesignerBlocksRenderer
-          designerData={(altLayerActive ? baseDesignerData : designerData!) as string | Record<string, unknown>}
+          // designerData: the RAW, untouched value — used only for this component's own
+          // entry-gate (blocks-existence/isFreeMode, both desktop-canonical) and grid/
+          // mosaic paths. The actual per-breakpoint, promotion-aware CONTENT to render
+          // comes from effectiveDesignerData below instead (see that prop's own doc
+          // comment on DesignerBlocksRenderer, and this file's lower-third-split comment
+          // above for why splitting via this prop — never by reconstructing designerData
+          // itself — is what keeps Tablet/Mobile variants intact).
+          designerData={designerData!}
+          effectiveDesignerData={altLayerActive ? baseEffectiveData : effectiveDesignerData}
+          isBreakpointFallback={isBreakpointFallback}
+          activeBreakpointKey={activeBreakpointKey}
           darkBg={darkBg}
           plateMode
           headerOffset={freePlateHeaderOffset}
@@ -981,7 +1058,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           after hydration and only when ≥1 block opted in AND the section has a lower third,
           so the default render (and SSR) is byte-identical. Section colour vars are copied
           onto the wrapper so promoted blocks keep their contrast text outside the <section>. */}
-      {altLayerActive && altEscapeHost && promotedDesignerData
+      {altLayerActive && altEscapeHost && promotedEffectiveData
         ? createPortal(
             <div
               style={{
@@ -995,7 +1072,12 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
               } as React.CSSProperties}
             >
               <DesignerBlocksRenderer
-                designerData={promotedDesignerData as string | Record<string, unknown>}
+                // designerData: the RAW, untouched value (same reasoning as the main plate
+                // above) — the promoted CONTENT itself comes from effectiveDesignerData.
+                designerData={designerData!}
+                effectiveDesignerData={promotedEffectiveData}
+                isBreakpointFallback={isBreakpointFallback}
+                activeBreakpointKey={activeBreakpointKey}
                 darkBg={darkBg}
                 plateMode
                 headerOffset={freePlateHeaderOffset}
@@ -1839,10 +1921,35 @@ function FullBleedVoltLayer({ props: p }: { props: Record<string, unknown> }) {
   );
 }
 
-function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMode, bgImage, headerOffset, onDynamicScreensChange, resolvedContentMode }: {
+function DesignerBlocksRenderer({
+  designerData, darkBg, scrollStageZone, plateMode, bgImage, headerOffset, onDynamicScreensChange, resolvedContentMode,
+  effectiveDesignerData, isBreakpointFallback, activeBreakpointKey,
+}: {
   designerData: string | Record<string, unknown>;
   darkBg: boolean;
   scrollStageZone?: number;
+  // ── Per-breakpoint independent layouts (2026-09-11) — the caller's ALREADY-RESOLVED
+  // variant, passed down instead of re-derived here ──────────────────────────────────
+  // FlexibleSectionRenderer (the parent) computes ONE canonical resolution — which
+  // breakpoint is active, which variant blob is effective for it, and whether that's a
+  // fallback to Desktop — ONCE, shared by every parent-level decision that must agree
+  // with what this component renders (freePlateDesktop's section-height override and
+  // background-image-skip gate, freeCanvas's multiLimit, fullBleedVolts, the lower-third
+  // promotion split). When the caller passes these three props, the isFreeMode branch
+  // below uses them DIRECTLY instead of independently calling resolveVariants()/
+  // pickActiveVariant() itself — this is what makes divergence between the parent's
+  // decisions and this component's own render impossible (previously: two separate
+  // resolutions could disagree for a CUSTOMIZED Mobile variant, producing a doubled
+  // background layer and a multi-mode section clipped to one screen — see
+  // task-6-report.md's fix-up entry). Only the free-mode PLATE call sites (the base plate
+  // and the promoted/"above lower third" plate) pass these, since only they have a
+  // parent-level decision that needs to agree. The scroll-stage and in-wrapper/non-plate
+  // call sites omit them (stay `undefined`) and fall back to this component's own local
+  // resolution below, exactly as before these props existed — neither of those has any
+  // competing parent-level decision to diverge from.
+  effectiveDesignerData?: Record<string, unknown> | null;
+  isBreakpointFallback?: boolean;
+  activeBreakpointKey?: "desktop" | "tablet" | "mobile";
   // onDynamicScreensChange: contentMode === "dynamic" only. Reports the freshly-computed
   // "how many 100vh screens does this section need right now" number up to the parent
   // FlexibleSectionRenderer, which owns the actual <section> DOM node and applies it as a
@@ -1936,7 +2043,21 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
   // shorter tab) never incorrectly shrinks the section out from under a still-tall sibling.
   const dynamicMeta = useMemo(() => {
     try {
-      const d = typeof designerData === "string" ? JSON.parse(designerData) : designerData;
+      // Per-breakpoint independent layouts (2026-09-11): prefer the caller's already-
+      // resolved effectiveDesignerData prop when provided (currently only the free-mode
+      // plate call site, which is also the only one that ever wires onDynamicScreensChange
+      // — see that prop's own doc comment) over re-parsing designerData's raw top level.
+      // Reading the raw top level here would silently see `undefined` multiLimit for a
+      // genuinely per-breakpoint-wrapped free-mode section — the admin's configured safety
+      // CAP would incorrectly fall back to the default 5 instead of whichever breakpoint
+      // variant is actually live, even though isDynamic (below) is already correctly
+      // gated inert for free-mode sections downstream (see the main try block's own
+      // `isDynamic = dynamicMeta.isDynamic && !isFreeMode`) — dynamicScreens/cap are
+      // computed and reported UP to the parent independently of that gate, so a stale cap
+      // here was a real (if narrow) bug for a free+dynamic section combo, not inert.
+      const d = effectiveDesignerData !== undefined
+        ? effectiveDesignerData
+        : (typeof designerData === "string" ? JSON.parse(designerData) : designerData);
       const cap = Number((d as Record<string, unknown>)?.multiLimit);
       return {
         // Prefer the parent's already-resolved contentMode (see resolvedContentMode's own
@@ -1948,7 +2069,7 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
         cap: cap > 0 ? cap : 5,
       };
     } catch { return { isDynamic: false, cap: 5 }; }
-  }, [designerData, resolvedContentMode]);
+  }, [designerData, resolvedContentMode, effectiveDesignerData]);
   const [blockHeights, setBlockHeights] = useState<Record<string, number>>({});
   const reportBlockHeight = useCallback((blockId: string, px: number) => {
     if (!Number.isFinite(px) || px <= 0) return;
@@ -2183,18 +2304,36 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
     // positions at every width. (Percent-positions + px-fonts could never be 1:1; that drift
     // was the recurring "designer ≠ live" bug.)
     if (isFreeMode) {
-      // Per-breakpoint independent layouts (2026-09-11): "data" up to this point is the
-      // raw, possibly per-breakpoint-wrapped designerData — resolve it and pick whichever
-      // breakpoint's own blob applies for the CURRENT render width, before any of the
-      // existing block/canvas-size logic below (which is untouched — it already fully
-      // knows how to render one flat blob) runs. mounted/screenW are already read further
-      // up this same function for the FreeReflowStack gate below — reuse them here rather
-      // than re-deriving.
-      const resolvedVariants = resolveVariants(data);
-      const activeBreakpointKey = pickBreakpointForWidth(
-        mounted ? screenW : 1920 // pre-mount/SSR: assume desktop-width, matching this file's existing SSR-safe "pre-mount counts as desktop" convention used elsewhere (see freePlateDesktop's own comment)
-      );
-      const { data: effectiveData, isFallback: isBreakpointFallback } = pickActiveVariant(resolvedVariants, activeBreakpointKey);
+      // Per-breakpoint independent layouts (2026-09-11): prefer the CALLER's already-
+      // resolved effectiveDesignerData/isBreakpointFallback/activeBreakpointKey props
+      // (computed ONCE by FlexibleSectionRenderer, shared with its own parent-level
+      // decisions — see this component's own props doc comment for the full rationale and
+      // the bug this fixes) over independently re-deriving them here. `activeBreakpointKey`
+      // (the prop) is the discriminator: it is only ever passed by call sites that opt into
+      // the shared resolution, so its presence/absence cleanly decides which path runs.
+      // Falls back to this branch's OWN local resolution — exactly as before these props
+      // existed — for call sites that don't pass them (scroll-stage, the in-wrapper/non-
+      // plate instance), neither of which has a competing parent-level decision to diverge
+      // from. Local names deliberately differ from the prop names above (resolved* prefix)
+      // to avoid shadowing confusion between "what the caller passed" and "what this
+      // branch is actually using".
+      let resolvedActiveBreakpointKey: "desktop" | "tablet" | "mobile";
+      let effectiveData: Record<string, unknown> | null;
+      let resolvedIsBreakpointFallback: boolean;
+      if (activeBreakpointKey !== undefined) {
+        resolvedActiveBreakpointKey = activeBreakpointKey;
+        effectiveData = effectiveDesignerData ?? null;
+        resolvedIsBreakpointFallback = !!isBreakpointFallback;
+      } else {
+        // mounted/screenW are already read further up this same function for the
+        // FreeReflowStack gate below — reuse them here rather than re-deriving.
+        resolvedActiveBreakpointKey = pickBreakpointForWidth(
+          mounted ? screenW : 1920 // pre-mount/SSR: assume desktop-width, matching this file's existing SSR-safe "pre-mount counts as desktop" convention used elsewhere (see freePlateDesktop's own comment)
+        );
+        const picked = pickActiveVariant(resolveVariants(data), resolvedActiveBreakpointKey);
+        effectiveData = picked.data;
+        resolvedIsBreakpointFallback = picked.isFallback;
+      }
 
       // Shadow the outer, desktop-only blocks/isMulti/multiLimit/gridBlocks/filteredBlocks
       // (declared above, shared with the grid/mosaic branches) with THIS breakpoint's own
@@ -2243,7 +2382,16 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
       // layout renders it as a real independent scaled-stage plate below, same as
       // desktop/tablet, NOT reflowed — it's a genuine authored design now, not a fallback
       // needing readable-order rescue.
-      if (mounted && activeBreakpointKey === "mobile" && isBreakpointFallback && screenW < FREE_MODE_REFLOW_BREAKPOINT) {
+      //
+      // `screenW < FREE_MODE_REFLOW_BREAKPOINT` is technically redundant once `mounted &&
+      // resolvedActiveBreakpointKey === "mobile"` is already true (pickBreakpointForWidth's
+      // own 768px threshold and FREE_MODE_REFLOW_BREAKPOINT are numerically identical
+      // today) — kept anyway, deliberately, as a defensive belt-and-braces guard: it costs
+      // nothing, and it means this specific line stays correct on its own even if a future
+      // change ever lets those two thresholds diverge (e.g. FREE_MODE_REFLOW_BREAKPOINT
+      // gets tuned independently of pickBreakpointForWidth's fixed 768/992 split) without
+      // anyone having to remember this gate implicitly depended on them staying equal.
+      if (mounted && resolvedActiveBreakpointKey === "mobile" && resolvedIsBreakpointFallback && screenW < FREE_MODE_REFLOW_BREAKPOINT) {
         if (plateMode) return null;
         return (
           <FreeReflowStack
