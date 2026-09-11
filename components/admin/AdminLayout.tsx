@@ -30,7 +30,7 @@ export default function AdminLayout({ children, title, subtitle, actions }: Admi
               position: "fixed",
               inset: 0,
               backgroundColor: "rgba(0,0,0,0.4)",
-              zIndex: 1099,
+              zIndex: 1020, // below .admin-sidebar's z-index:1030 (Sidebar.tsx) — the backdrop must sit BEHIND the drawer it's dimming, not above it, or it blocks all clicks on the sidebar's own nav links
             }}
           />
         )}
