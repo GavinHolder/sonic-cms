@@ -2276,8 +2276,13 @@ function serializeBlocksForVariant(liveBlocks) {
  *     INIT-handler mapper was a whitelist and silently dropped three of those;
  *     using a whitelist here would ALSO have broken undo, whose snapshots carry
  *     the full live block and currently survive a restore untouched.
- *   - idempotent — running it on an already-LIVE block is a no-op, so the paths
- *     that convert at INIT and then again on load cannot double-transform.
+ *   - idempotent for every reachable input in this app: gridRow/gridCol and
+ *     w/h are only non-idempotent for inputs that never occur here (absent
+ *     position.row/col on a free-mode block, where gridRow/gridCol are
+ *     unused; or a 0-size block, which resize/input clamping prevents) — so
+ *     the paths that convert at INIT and then again on load never
+ *     double-transform in practice, though the function has no general
+ *     mathematical idempotence guarantee for arbitrary input.
  */
 function deserializeBlocksForVariant(rawBlocks) {
   return (rawBlocks || []).map(b => {
@@ -10484,7 +10489,14 @@ window.addEventListener('message', function(e) {
             tablet:  initVariants.tablet ? normalizeInitVariant(initVariants.tablet) : null,
             mobile:  initVariants.mobile ? normalizeInitVariant(initVariants.mobile) : null
           }
-        : normalizedDesktop;   // desktop-only -> byte-identical to the pre-2026-09-11 call
+        : normalizedDesktop;   // desktop-only -> behaviorally equivalent to the pre-2026-09-11 call
+      // Note: normalizeInitVariant() is spread-first (Object.assign({}, v, {...})),
+      // so unlike the old 12-key whitelist it lets through extra fields
+      // (edgePad, designerCanvasH, etc.) if present. Traced: every downstream
+      // consumer either re-reads its own field from the correct source right
+      // after (designerCanvasH) or simply gains a previously-dropped field as
+      // a fix (edgePad) — not byte-identical to the old object, but produces
+      // the same final application state for every legacy (non-wrapped) payload.
       // isNewSectionLoad = true: this IS a whole new section being opened, so all
       // three variants are replaced wholesale from this payload.
       applySnapshot(JSON.stringify(snapshotPayload), false, true);

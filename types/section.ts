@@ -859,6 +859,17 @@ export interface FlexibleSection extends Omit<BaseSectionConfig, "contentMode"> 
   //     tablet/mobile means "not yet customized — falls back to Desktop's
   //     own blob, shrunk (tablet width) or reflowed via FreeReflowStack
   //     (mobile width)".
+  //   - KNOWN LIMITATION (2026-09-11): contentMode/multiLimit/edgePad ARE
+  //     stored and rendered per-variant, but the Designer UI cannot author
+  //     them differing per breakpoint yet — renderCanvas() re-reads these
+  //     from shared, section-wide DOM controls on every render regardless
+  //     of which variant was just loaded, so any divergence gets silently
+  //     normalized back to the outgoing breakpoint's value on the next
+  //     switch. A future per-breakpoint control swap is needed before "3
+  //     screens on Desktop, 1 on Mobile" is actually authorable.
+  //   - KNOWN LIMITATION: a section whose Desktop variant has zero blocks
+  //     renders nothing at ANY width, even if Tablet/Mobile have content —
+  //     entry-gating is desktop-canonical throughout.
   // See public/flexible-breakpoint-rules.js for the shared resolve/select
   // logic both public/flexible-designer.html and FlexibleSectionRenderer.tsx
   // use — do not hand-parse this shape anywhere else (ONE SYSTEM PER
