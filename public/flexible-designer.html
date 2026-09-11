@@ -2173,24 +2173,23 @@ function undo() {
 }
 
 /**
- * Restores designer state from a JSON snapshot string.
- * Syncs all DOM controls to match the restored values, resets block
- * selection, and triggers a full canvas re-render.
- * @param {string} snap - JSON string produced by snapshotState().
- * @param {boolean} addToHistory - If true, push the restored state onto the
- *   history stack (useful for re-applying a snapshot as a new step).
+ * Loads ONE flat variant blob (desktop/tablet/mobile shape — identical to the
+ * legacy pre-2026-09-11 designerData shape) into the live, flat state fields
+ * (state.blocks, state.designerCanvasW, etc.). Called for whichever breakpoint
+ * is currently active — see switchActiveBreakpoint (Task 4) for how breakpoint
+ * switches call this again with a different blob.
  */
-function applySnapshot(snap, addToHistory) {
-  const s = JSON.parse(snap);
+function loadFlatVariantIntoState(flatBlob) {
+  const layout = flatBlob || {};
   // Normalize all block IDs to strings.
   // Legacy saves may use numeric IDs (e.g. 10) but inline HTML oninput handlers
   // always pass IDs as strings from template-literal interpolation, causing
   // find(b => b.id === blockId) to miss with strict equality.
-  state.blocks = (s.blocks || []).map(b => ({ ...b, id: String(b.id) }));
-  state.nextId        = s.nextId;
-  state.preset        = s.preset || 'full-width';
-  state.positionMode  = s.positionMode || 'free';
-  state.designerCanvasH = s.designerCanvasH || null;  // Option C — restore authored free-mode box height (null = new → DESIGN_H)
+  state.blocks = (layout.blocks || []).map(b => ({ ...b, id: String(b.id) }));
+  state.nextId        = layout.nextId;
+  state.preset        = layout.preset || 'full-width';
+  state.positionMode  = layout.positionMode || 'free';
+  state.designerCanvasH = layout.designerCanvasH || null;  // Option C — restore authored free-mode box height (null = new → DESIGN_H)
   // state.gridRows/gridCols/gridGap/multiLimit are assigned directly here, not just
   // written into their form fields — getCellRect()/getCellMetrics() (block position/width
   // math) read straight from `state`, not from the DOM. The old code only set the form
@@ -2203,10 +2202,35 @@ function applySnapshot(snap, addToHistory) {
   // to the left — exactly the canvas-vs-live-page mismatch this was causing, since the
   // real page (FlexibleSectionRenderer.tsx) reads gridCols from the saved data directly,
   // never from stale in-memory defaults.
-  state.gridRows = s.gridRows;
-  state.gridCols = s.gridCols;
-  state.gridGap  = s.gridGap;
-  state.multiLimit = s.multiLimit;
+  state.gridRows = layout.gridRows;
+  state.gridCols = layout.gridCols;
+  state.gridGap  = layout.gridGap;
+  state.multiLimit = layout.multiLimit;
+}
+
+/**
+ * Restores designer state from a JSON snapshot string.
+ * Syncs all DOM controls to match the restored values, resets block
+ * selection, and triggers a full canvas re-render.
+ * @param {string} snap - JSON string produced by snapshotState().
+ * @param {boolean} addToHistory - If true, push the restored state onto the
+ *   history stack (useful for re-applying a snapshot as a new step).
+ */
+function applySnapshot(snap, addToHistory) {
+  const s = JSON.parse(snap);
+  // Per-breakpoint independent layouts (2026-09-11): resolve the incoming flat
+  // blob's shape (legacy flat -> desktop-only, or already per-breakpoint ->
+  // passthrough) and load the desktop variant into the flat state fields.
+  // A legacy flat blob (no "variant" key, which is what every existing snapshot
+  // — undo history, autosave, and normalized designerData init payloads — is
+  // today) resolves to { desktop: s, tablet: null, mobile: null }, so this is a
+  // byte-identical load to the pre-refactor direct field restore below.
+  const resolved = window.FlexibleBreakpointRules.resolveVariants(s);
+  state.variants.desktop = resolved.desktop;
+  state.variants.tablet  = resolved.tablet;
+  state.variants.mobile  = resolved.mobile;
+  state.activeBreakpoint = 'desktop';   // always open a section on its Desktop layout
+  loadFlatVariantIntoState(state.variants.desktop);
   // Sync DOM controls so sliders and selects match the restored state
   document.getElementById('contentMode').value  = s.contentMode;
   document.getElementById('layoutType').value   = s.layoutType;
