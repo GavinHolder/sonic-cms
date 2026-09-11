@@ -646,13 +646,27 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   const freeCanvas = useMemo(() => {
     if (!freePlateActive || !designerData) return null;
     try {
-      // cw/ch: designerCanvasW/H are invariant per breakpoint variant BY CONSTRUCTION —
-      // buildJson() (flexible-designer.html) force-writes designerCanvasW to the fixed
-      // DESKTOP_CANVAS_W (1440) for every variant snapshot regardless of which breakpoint
-      // is active when Save fires, and designerCanvasH has no per-breakpoint editing UI
-      // that could make it diverge in practice (it's derived, not a slider). Desktop is
-      // therefore a safe, stable source for these two fields specifically — see
-      // resolveTopLevelDesignerData's own doc comment for why desktop is the right
+      // cw/ch: designerCanvasW/H are effectively invariant across breakpoint variants in
+      // practice, via two DIFFERENT mechanisms — desktop is a safe, stable source for both,
+      // just not for the reason an earlier version of this comment claimed:
+      //  - designerCanvasW: snapshotFlatStateAsVariant() (flexible-designer.html, Task 3's
+      //    field list) does NOT capture designerCanvasW at all — only the variant that was
+      //    ACTIVE at the moment Save last fired gets the full flatPayload (which does
+      //    include it). Every OTHER variant simply has no designerCanvasW key. What makes
+      //    this safe is setDevicePreview(): in free mode the canvas element's actual CSS
+      //    width stays pinned to DESKTOP_CANVAS_W (1440px) even while previewing Tablet/
+      //    Mobile — it's SHRUNK via a CSS transform, never actually resized — so
+      //    buildJson()'s `canvas.offsetWidth` read is always 1440 regardless of which
+      //    device was being previewed when Save fired. Combined with resolveCanvasDim's
+      //    own `Number(raw) || fallback` behavior (a MISSING field, exactly what every
+      //    non-active variant has, falls back to the same 1440 default passed in below),
+      //    every variant resolves to 1440 either way — whether it happens to have the
+      //    field explicitly or not.
+      //  - designerCanvasH: DOES get captured per-variant by snapshotFlatStateAsVariant()
+      //    (it's in Task 3's field list), but has no per-breakpoint EDITING UI (it's
+      //    derived from the canvas element's own height, not a user-facing slider), so it
+      //    has no real path to diverge between variants in practice.
+      // See resolveTopLevelDesignerData's own doc comment for why desktop is the right
       // stand-in for section-level (non-breakpoint-varying) reads in general.
       const d = resolveTopLevelDesignerData(designerData);
       return {
@@ -1081,6 +1095,21 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
                 darkBg={darkBg}
                 plateMode
                 headerOffset={freePlateHeaderOffset}
+                // Must match the main plate's own resolvedContentMode exactly (both are
+                // the SAME section, just two overlaid layers). Without this, the isMulti
+                // fallback below (resolvedContentMode ?? effectiveData?.contentMode) falls
+                // through to effectiveData?.contentMode — which snapshotFlatStateAsVariant()
+                // (flexible-designer.html) never actually writes into a variant snapshot
+                // (contentMode is section-wide in the Designer's model; only the
+                // active-at-save variant's full flatPayload happens to carry it). For a
+                // free+multi section, any variant that ISN'T the one active when Save last
+                // fired (including one seeded via duplicateVariant) would then resolve
+                // isMulti to false here while the main plate (which DOES get
+                // resolvedContentMode) resolves it true — different contentTransform scale
+                // math and a centering offset the main plate doesn't have, so the promoted
+                // block (meant to sit exactly on top of the main plate) would render at the
+                // wrong scale/position relative to it.
+                resolvedContentMode={contentMode}
               />
             </div>,
             altEscapeHost
@@ -2055,8 +2084,15 @@ function DesignerBlocksRenderer({
       // `isDynamic = dynamicMeta.isDynamic && !isFreeMode`) — dynamicScreens/cap are
       // computed and reported UP to the parent independently of that gate, so a stale cap
       // here was a real (if narrow) bug for a free+dynamic section combo, not inert.
-      const d = effectiveDesignerData !== undefined
-        ? effectiveDesignerData
+      //
+      // Discriminator: `activeBreakpointKey !== undefined`, the SAME one the isFreeMode
+      // branch below uses (not `effectiveDesignerData !== undefined`) — a caller that opts
+      // into the shared resolution always passes all three props together (see this
+      // component's own props doc comment), so using one consistent discriminator
+      // everywhere means a future call site that only passes one of the three props can't
+      // silently take mixed "resolved here, local there" paths.
+      const d = activeBreakpointKey !== undefined
+        ? (effectiveDesignerData ?? null)
         : (typeof designerData === "string" ? JSON.parse(designerData) : designerData);
       const cap = Number((d as Record<string, unknown>)?.multiLimit);
       return {
@@ -2069,7 +2105,7 @@ function DesignerBlocksRenderer({
         cap: cap > 0 ? cap : 5,
       };
     } catch { return { isDynamic: false, cap: 5 }; }
-  }, [designerData, resolvedContentMode, effectiveDesignerData]);
+  }, [designerData, resolvedContentMode, effectiveDesignerData, activeBreakpointKey]);
   const [blockHeights, setBlockHeights] = useState<Record<string, number>>({});
   const reportBlockHeight = useCallback((blockId: string, px: number) => {
     if (!Number.isFinite(px) || px <= 0) return;
