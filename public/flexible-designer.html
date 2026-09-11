@@ -1421,6 +1421,7 @@
        consumed by components/sections/FlexibleSectionRenderer.tsx (ES module import).
        Must load before createSubElementDOM (in the <script> below) calls it. -->
   <script src="/flexible-render-rules.js"></script>
+  <script src="/flexible-breakpoint-rules.js"></script>
 </head>
 <body>
 
@@ -2012,7 +2013,17 @@ const state = {
   // #68 — section background preview on the canvas. VIEW-ONLY: never written back
   // into buildJson(); mirrors the fields FlexibleSectionRenderer reads off the section.
   sectionBg: null,        // { background, bgImageUrl, bgImageSize, bgImagePosition, bgImageRepeat, bgImageOpacity, bgMultiRepeat, gradient } | null
-  showSectionBg: true     // toggle state (default ON) — pure view preference
+  showSectionBg: true,    // toggle state (default ON) — pure view preference
+  // Per-breakpoint independent layouts (2026-09-11). state.variants holds the
+  // NON-active breakpoints' full flat state snapshots (see switchActiveBreakpoint,
+  // Task 4) — the currently-active breakpoint's data lives directly in the
+  // existing flat state fields (state.blocks, state.designerCanvasW, etc.), same
+  // as before this feature. This "snapshot swap" design means every existing
+  // function that reads state.blocks/state.designerCanvasW/etc. throughout this
+  // file needs ZERO changes — there is always exactly one valid flat state
+  // representing "whichever breakpoint is currently being edited".
+  variants: { desktop: null, tablet: null, mobile: null },
+  activeBreakpoint: 'desktop'   // 'desktop' | 'tablet' | 'mobile' — which breakpoint's data is currently loaded into the flat state fields above
 };
 let _saveTimer = null;
 
