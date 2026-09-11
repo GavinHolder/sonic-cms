@@ -2184,24 +2184,146 @@ function updateUndoBtn() {
 function undo() {
   if (state.historyPos <= 0) return;
   state.historyPos--;
-  applySnapshot(state.history[state.historyPos], false);
+  // isNewSectionLoad = false: an undo restores ONLY the active breakpoint's data
+  // and must leave the other two breakpoints' variants untouched.
+  applySnapshot(state.history[state.historyPos], false, false);
   updateUndoBtn();
+}
+
+/**
+ * ═══ SHARED BLOCK-SHAPE CONVERTERS (ONE SYSTEM PER CONCERN — CLAUDE.md) ═══
+ *
+ * This file juggles exactly TWO block shapes, and every bug in the
+ * per-breakpoint variant work traced back to those two shapes being converted
+ * by hand in more than one place:
+ *
+ *   LIVE shape      (state.blocks, undo-history snapshots, state.variants.*):
+ *                   bare x/y/w/h + gridRow/gridCol/colSpan/rowSpan/section on
+ *                   each block. This is what renderCanvas(), the drag/resize
+ *                   handlers, the layers panel and the props panel read/write.
+ *
+ *   PERSISTED shape (what buildJson() saves and what
+ *                   components/sections/FlexibleSectionRenderer.tsx reads on
+ *                   the live site): position:{row,col,colSpan,rowSpan,section}
+ *                   + pixelPos:{x,y,w,h}.
+ *
+ * Before 2026-09-11 the live->persisted direction existed only inline inside
+ * buildJson(), and the persisted->live direction only inline inside the
+ * FLEXIBLE_DESIGNER_INIT handler. When per-breakpoint variants were added, the
+ * NON-active breakpoints were captured straight off state.blocks (LIVE shape)
+ * and then persisted verbatim — so a customized Tablet/Mobile layout was saved
+ * with no pixelPos at all, and the live renderer (which reads block.pixelPos)
+ * rendered every one of its blocks collapsed at the origin. Both directions now
+ * live here and are called from every path, so the two shapes cannot drift
+ * again by construction rather than by parallel hand-maintenance.
+ *
+ * INVARIANT: state.variants.desktop/tablet/mobile always hold LIVE-shape
+ * blocks while editing; the conversion to PERSISTED shape happens exactly once,
+ * at the save boundary (buildJson), for all three variants uniformly.
+ */
+function serializeBlocksForVariant(liveBlocks) {
+  return (liveBlocks || []).map(b => {
+    // Defensive fallbacks: per the invariant above every block reaching here is
+    // already in LIVE shape, so `b.x`/`b.gridRow` are always defined and these
+    // fallbacks never fire (output is byte-identical to the pre-extraction
+    // inline mapper). They exist so that a block that somehow arrives ALREADY
+    // serialized degrades to "keep its existing position" instead of silently
+    // writing zeros — silent zeros are exactly how the variant corruption above
+    // stayed invisible until it reached a live page.
+    const pp = b.pixelPos || {};
+    const po = b.position || {};
+    return {
+      id:          b.id,
+      type:        b.type,
+      // Grid position (used for CSS Grid renderer in grid mode)
+      position:    {
+        row:      b.gridRow !== undefined ? b.gridRow : po.row,
+        col:      b.gridCol !== undefined ? b.gridCol : po.col,
+        colSpan:  b.colSpan || po.colSpan || 1,
+        rowSpan:  b.rowSpan || po.rowSpan || 1,
+        section:  b.section || po.section || 0,
+        mosaicPreset: b.mosaicPreset || po.mosaicPreset || undefined
+      },
+      // Vertical alignment within the grid cell: "top" | "center" | "bottom"
+      verticalAlign: b.verticalAlign || undefined,
+      // Pixel position (used for absolute renderer in free mode)
+      pixelPos:    {
+        x: Math.round(b.x !== undefined ? b.x : (pp.x || 0)),
+        y: Math.round(b.y !== undefined ? b.y : (pp.y || 0)),
+        w: Math.round(b.w !== undefined ? b.w : (pp.w || 300)),
+        h: Math.round(b.h !== undefined ? b.h : (pp.h || 180))
+      },
+      // Responsive positions for tablet/mobile breakpoints
+      tabletPos:      b.tabletPos || undefined,
+      mobilePos:      b.mobilePos || undefined,
+      // Responsive constraint behaviors (Hybrid B+C)
+      tabletBehavior: b.tabletBehavior || undefined,
+      mobileBehavior: b.mobileBehavior || undefined,
+      props:          b.props,
+      subElements:    b.subElements
+    };
+  });
+}
+
+/**
+ * PERSISTED (or already-LIVE) blocks -> LIVE blocks. The inverse of
+ * serializeBlocksForVariant above; see its doc comment for the two shapes.
+ *
+ * Deliberately spread-based (`...b` first, normalized fields second) rather
+ * than an explicit whitelist, so it is:
+ *   - lossless — every field the payload carried survives (verticalAlign,
+ *     tabletBehavior/mobileBehavior, manualSize, hidden, …). The old inline
+ *     INIT-handler mapper was a whitelist and silently dropped three of those;
+ *     using a whitelist here would ALSO have broken undo, whose snapshots carry
+ *     the full live block and currently survive a restore untouched.
+ *   - idempotent — running it on an already-LIVE block is a no-op, so the paths
+ *     that convert at INIT and then again on load cannot double-transform.
+ */
+function deserializeBlocksForVariant(rawBlocks) {
+  return (rawBlocks || []).map(b => {
+    const pp = b.pixelPos || {};
+    const po = b.position || null;
+    const out = {
+      ...b,
+      // Normalize all block IDs to strings.
+      // Legacy saves may use numeric IDs (e.g. 10) but inline HTML oninput handlers
+      // always pass IDs as strings from template-literal interpolation, causing
+      // find(b => b.id === blockId) to miss with strict equality.
+      id:       String(b.id),
+      type:     b.type,
+      section:  po ? (po.section || 0) : (b.section || 0),
+      gridRow:  po ? po.row : (b.gridRow || 1),
+      gridCol:  po ? po.col : (b.gridCol || 1),
+      colSpan:  po ? (po.colSpan || 1) : (b.colSpan || 1),
+      rowSpan:  po ? (po.rowSpan || 1) : (b.rowSpan || 1),
+      mosaicPreset: (po && po.mosaicPreset) || b.mosaicPreset || undefined,
+      // Restore pixel positions from pixelPos or existing x/y/w/h
+      x: pp.x !== undefined ? pp.x : (b.x || 0),
+      y: pp.y !== undefined ? pp.y : (b.y || 0),
+      w: pp.w !== undefined ? pp.w : (b.w || 300),
+      h: pp.h !== undefined ? pp.h : (b.h || 180),
+      zIndex: b.zIndex || 1,
+      props:       b.props || {},
+      subElements: b.subElements || []
+    };
+    // Drop the persisted-only keys so a live block never carries a stale copy of
+    // its own position (which would then win over the real x/y on a re-convert).
+    delete out.pixelPos;
+    delete out.position;
+    return out;
+  });
 }
 
 /**
  * Loads ONE flat variant blob (desktop/tablet/mobile shape — identical to the
  * legacy pre-2026-09-11 designerData shape) into the live, flat state fields
  * (state.blocks, state.designerCanvasW, etc.). Called for whichever breakpoint
- * is currently active — see switchActiveBreakpoint (Task 4) for how breakpoint
- * switches call this again with a different blob.
+ * is currently active — see setDevicePreview for how breakpoint switches call
+ * this again with a different blob.
  */
 function loadFlatVariantIntoState(flatBlob) {
   const layout = flatBlob || {};
-  // Normalize all block IDs to strings.
-  // Legacy saves may use numeric IDs (e.g. 10) but inline HTML oninput handlers
-  // always pass IDs as strings from template-literal interpolation, causing
-  // find(b => b.id === blockId) to miss with strict equality.
-  state.blocks = (layout.blocks || []).map(b => ({ ...b, id: String(b.id) }));
+  state.blocks = deserializeBlocksForVariant(layout.blocks);
   state.nextId        = layout.nextId;
   state.preset        = layout.preset || 'full-width';
   state.positionMode  = layout.positionMode || 'free';
@@ -2218,60 +2340,117 @@ function loadFlatVariantIntoState(flatBlob) {
   // to the left — exactly the canvas-vs-live-page mismatch this was causing, since the
   // real page (FlexibleSectionRenderer.tsx) reads gridCols from the saved data directly,
   // never from stale in-memory defaults.
-  state.gridRows = layout.gridRows;
-  state.gridCols = layout.gridCols;
-  state.gridGap  = layout.gridGap;
-  state.multiLimit = layout.multiLimit;
+  // `?? current` fallbacks: a variant blob built by snapshotFlatStateAsVariant()
+  // carries these four explicitly, but a blob that came straight off the server
+  // (buildJson's payload shape) only carries grid config for NON-free sections,
+  // nested under `grid`. Falling back to the value already in state (which
+  // renderCanvas() keeps synced with the shared DOM controls) means a breakpoint
+  // switch on a free section can never blank them out mid-flight — the exact
+  // failure the "assign these directly, don't wait for renderCanvas" comment
+  // above was written to prevent.
+  const gridCfg = layout.grid || {};
+  state.gridRows = layout.gridRows !== undefined ? layout.gridRows : (gridCfg.rows !== undefined ? gridCfg.rows : state.gridRows);
+  state.gridCols = layout.gridCols !== undefined ? layout.gridCols : (gridCfg.cols !== undefined ? gridCfg.cols : state.gridCols);
+  state.gridGap  = layout.gridGap  !== undefined ? layout.gridGap  : (gridCfg.gap  !== undefined ? gridCfg.gap  : state.gridGap);
+  state.multiLimit = layout.multiLimit !== undefined ? layout.multiLimit : state.multiLimit;
+  // edgePad deliberately keeps its original `|| 0` reset (NOT the "keep current"
+  // fallback above): it is genuinely absent from a legacy/grid payload, and
+  // "absent" must mean 0 there, not "inherit whatever the previously-opened
+  // section had". A free section's variants DO carry it (snapshotFlatStateAsVariant
+  // adds it, and toPersistedVariant carries it through to the saved payload), so
+  // it still round-trips correctly across breakpoint switches and reloads.
   state.edgePad = layout.edgePad || 0;
 }
 
 /**
- * Captures the CURRENTLY-ACTIVE breakpoint's live flat state fields (the
- * inverse of loadFlatVariantIntoState) as a plain object with the same shape
- * a saved variant blob has — used by setDevicePreview to snapshot the
- * outgoing breakpoint before swapping to a new one, and by buildJson() (Task
- * 5) to snapshot the CURRENTLY active breakpoint before serializing all three.
- * Field list MUST stay in lockstep with loadFlatVariantIntoState above (same
- * 10 fields, mirrored in the opposite direction: state.X -> result.X).
+ * Captures the CURRENTLY-ACTIVE breakpoint's live state as a variant blob —
+ * used by setDevicePreview to snapshot the outgoing breakpoint before swapping
+ * to a new one, and by buildJson() to snapshot the currently-active breakpoint
+ * before serializing all three.
+ *
+ * 2026-09-11 fix: this used to return a hand-written 10-field object that was
+ * kept "in lockstep with loadFlatVariantIntoState". That was the wrong
+ * counterpart to diff against — a variant blob is PERSISTED data, so its real
+ * counterpart is buildFlatPayload(), the function that builds what actually
+ * gets saved. The hand-written list was missing contentMode, designerCanvasW,
+ * layoutType and the section header/footer fields entirely, and carried blocks
+ * in the live (x/y/w/h) shape instead of the persisted (pixelPos) one — so
+ * every non-active breakpoint was saved as a blob the live renderer could not
+ * read. It now delegates to buildFlatPayload() so the two can never diverge,
+ * and only ADDS the editor-only fields that buildFlatPayload deliberately
+ * doesn't persist but loadFlatVariantIntoState needs to round-trip.
+ *
+ * Blocks stay in LIVE shape here (see serializeBlocksForVariant's INVARIANT):
+ * state.variants holds live-shape blocks while editing, and buildJson converts
+ * all three variants to the persisted shape in one place at save time.
  */
 function snapshotFlatStateAsVariant() {
-  return {
-    blocks: state.blocks,
-    nextId: state.nextId,
-    preset: state.preset,
-    positionMode: state.positionMode,
-    designerCanvasH: state.designerCanvasH,
-    gridRows: state.gridRows,
-    gridCols: state.gridCols,
-    gridGap: state.gridGap,
-    multiLimit: state.multiLimit,
-    edgePad: state.edgePad
-  };
+  return Object.assign(buildFlatPayload(), {
+    // Editor-only round-trip fields — not part of the persisted payload shape
+    // (the live renderer never reads them), but loadFlatVariantIntoState does.
+    blocks:     state.blocks,
+    gridRows:   state.gridRows,
+    gridCols:   state.gridCols,
+    gridGap:    state.gridGap,
+    edgePad:    state.edgePad,
+    // buildFlatPayload omits multiLimit for single-mode sections (correct for
+    // the renderer); keep the editor's own value so a breakpoint switch doesn't
+    // blank the Height slider's backing state.
+    multiLimit: state.multiLimit
+  });
 }
 
 /**
  * Restores designer state from a JSON snapshot string.
  * Syncs all DOM controls to match the restored values, resets block
  * selection, and triggers a full canvas re-render.
- * @param {string} snap - JSON string produced by snapshotState().
+ * @param {string} snap - JSON string produced by snapshotState(), or (new
+ *   section loads only) a { variant:"per-breakpoint", desktop, tablet, mobile }
+ *   wrapper built by the FLEXIBLE_DESIGNER_INIT handler.
  * @param {boolean} addToHistory - If true, push the restored state onto the
  *   history stack (useful for re-applying a snapshot as a new step).
+ * @param {boolean} [isNewSectionLoad] - TRUE only when `snap` is a whole new
+ *   section/page being opened (the INIT handler, loadAutoSave). FALSE/omitted
+ *   for an undo/redo or any other restore WITHIN the section already open.
+ *
+ *   This distinction is load-bearing, not cosmetic: snapshotState() (the undo
+ *   history) has always produced a FLAT, non-wrapped blob, and resolveVariants()
+ *   correctly classifies a flat blob as { desktop: <it>, tablet: null, mobile:
+ *   null }. Assigning all three of those onto state.variants — right for a new
+ *   section — wiped the user's customized Tablet/Mobile layouts to null on every
+ *   Ctrl+Z, and applySnapshot's trailing autoSave() then persisted that loss
+ *   immediately, silently. An undo therefore replaces ONLY the currently-active
+ *   breakpoint's variant and leaves the other two exactly as they are.
+ *
+ *   Default is the data-preserving branch: a caller that forgets this argument
+ *   keeps existing variants rather than destroying them.
  */
-function applySnapshot(snap, addToHistory) {
-  const s = JSON.parse(snap);
-  // Per-breakpoint independent layouts (2026-09-11): resolve the incoming flat
-  // blob's shape (legacy flat -> desktop-only, or already per-breakpoint ->
-  // passthrough) and load the desktop variant into the flat state fields.
-  // A legacy flat blob (no "variant" key, which is what every existing snapshot
-  // — undo history, autosave, and normalized designerData init payloads — is
-  // today) resolves to { desktop: s, tablet: null, mobile: null }, so this is a
-  // byte-identical load to the pre-refactor direct field restore below.
-  const resolved = window.FlexibleBreakpointRules.resolveVariants(s);
-  state.variants.desktop = resolved.desktop;
-  state.variants.tablet  = resolved.tablet;
-  state.variants.mobile  = resolved.mobile;
-  state.activeBreakpoint = 'desktop';   // always open a section on its Desktop layout
-  loadFlatVariantIntoState(state.variants.desktop);
+function applySnapshot(snap, addToHistory, isNewSectionLoad) {
+  const raw = JSON.parse(snap);
+  // Per-breakpoint independent layouts (2026-09-11): resolve the incoming blob's
+  // shape (legacy flat -> desktop-only, or already per-breakpoint -> passthrough).
+  // A flat blob (every undo-history entry, every autosave, and a legacy/grid init
+  // payload) resolves to { desktop: raw, tablet: null, mobile: null }, so the
+  // new-section branch below is a byte-identical load to the pre-refactor
+  // direct field restore.
+  const resolved = window.FlexibleBreakpointRules.resolveVariants(raw);
+  if (isNewSectionLoad) {
+    state.variants.desktop = resolved.desktop;
+    state.variants.tablet  = resolved.tablet;
+    state.variants.mobile  = resolved.mobile;
+    state.activeBreakpoint = 'desktop';   // always open a section on its Desktop layout
+  } else {
+    // Undo/redo (or any other in-session restore): the snapshot describes ONLY
+    // the breakpoint that was being edited when it was taken. Replace that one;
+    // never touch the other two (see isNewSectionLoad's doc above).
+    state.variants[state.activeBreakpoint] = resolved.desktop;
+  }
+  loadFlatVariantIntoState(state.variants[state.activeBreakpoint]);
+  // `s` is the flat blob that was just loaded — the snapshot itself for a flat
+  // restore, or the desktop variant for a wrapped new-section payload. Reading
+  // the DOM-control values off it (rather than off the possibly-wrapped `raw`)
+  // is what keeps the sliders/selects below correct in BOTH shapes.
+  const s = state.variants[state.activeBreakpoint] || {};
   // Sync DOM controls so sliders and selects match the restored state
   document.getElementById('contentMode').value  = s.contentMode;
   document.getElementById('layoutType').value   = s.layoutType;
@@ -2339,7 +2518,9 @@ function loadAutoSave() {
   const saved = localStorage.getItem(AUTOSAVE_KEY);
   if (!saved) return;
   try {
-    applySnapshot(saved, false);
+    // isNewSectionLoad = true: standalone (non-iframe) boot — this IS the whole
+    // document being opened, so all three variants come from this payload.
+    applySnapshot(saved, false, true);
     // Seed history with the loaded snapshot so undo doesn't go past it
     state.history    = [saved];
     state.historyPos = 0;
@@ -8748,7 +8929,16 @@ function setDevicePreview(device) {
   // touched). This is a no-op the first time this function ever runs for a
   // section (activeBreakpoint === device, e.g. clicking "Desktop" while
   // already on Desktop) — guarded below.
-  if (device !== state.activeBreakpoint) {
+  //
+  // FREE MODE ONLY — mirrors buildJson()'s own positionMode gate. Grid/preset/
+  // mosaic sections are explicitly out of scope for per-breakpoint layouts (they
+  // keep their separate per-block tabletPos/mobilePos mechanism, edited through
+  // this same toggle), and buildJson never wraps their designerData. Running the
+  // variant swap for them would snapshot/restore a variant that is never saved,
+  // so the tabletPos edits made after switching to Tablet would be discarded the
+  // moment the user switched back to Desktop. Skipping the swap entirely leaves
+  // grid/preset/mosaic behaving exactly as they did before this feature.
+  if (state.positionMode === 'free' && device !== state.activeBreakpoint) {
     // 1. Snapshot the OUTGOING breakpoint's current edits.
     state.variants[state.activeBreakpoint] = snapshotFlatStateAsVariant();
 
@@ -8840,6 +9030,15 @@ function resetActiveBreakpointToDesktop() {
     'This discards the customized ' + label + ' layout and reverts to showing the Desktop layout (scaled/reflowed) until you customize it again.',
     function() {
       state.variants[state.activeBreakpoint] = null;
+      // Hand editing back to Desktop. Without this the breakpoint stays "active"
+      // while holding null, and the autoSave() below (buildJson -> state.variants
+      // [activeBreakpoint] = snapshotFlatStateAsVariant()) immediately re-creates
+      // the variant we just discarded — the reset would revert the canvas but
+      // never actually stick, and the customized-dot would light straight back
+      // up. state.devicePreview is deliberately NOT changed: the canvas stays in
+      // Tablet/Mobile preview, now showing Desktop's layout scaled — which is
+      // exactly the fallback the user just asked to go back to.
+      state.activeBreakpoint = 'desktop';
       loadFlatVariantIntoState(state.variants.desktop);  // show the fallback (desktop) immediately
       state.selectedBlockId = null;
       state.selectedSubId   = null;
@@ -9824,23 +10023,22 @@ function copyJson() {
   });
 }
 /**
- * Serialises the current designer state to a formatted JSON string ready for
- * storage and consumption by FlexibleSectionRenderer on the live site.
+ * Builds the FLAT designerData payload object for the currently-loaded state —
+ * the shape FlexibleSectionRenderer consumes on the live site, and (for free
+ * sections) the shape each of the three per-breakpoint variants takes.
  * Always stores the DESKTOP canvas width (not tablet/mobile) so the reference
  * width is consistent regardless of which device preview is active.
  * Includes contentMode, positionMode, grid config, nextId, layoutType, and
  * a cleaned blocks array with both grid position and pixel position objects,
  * plus optional tabletPos/mobilePos breakpoint overrides.
- * @returns {string} Pretty-printed JSON string (2-space indent).
+ *
+ * Extracted out of buildJson() on 2026-09-11 so that
+ * snapshotFlatStateAsVariant() — which captures a NON-active breakpoint —
+ * produces the exact same field set and block shape as a real save, instead of
+ * a hand-maintained parallel subset that silently drifted out of sync.
+ * @returns {object} The flat payload object (NOT stringified).
  */
-function buildJson() {
-  // Per-breakpoint independent layouts (2026-09-11): the live flat state
-  // fields below represent whichever breakpoint is currently active — keep
-  // state.variants[activeBreakpoint] in sync with them before building the
-  // final payload, so the save always reflects the latest edits regardless
-  // of which breakpoint tab is open when Save/autosave fires.
-  state.variants[state.activeBreakpoint] = snapshotFlatStateAsVariant();
-
+function buildFlatPayload() {
   const canvas = document.getElementById('canvas');
   // Always store the DESKTOP canvas width — even if currently in tablet/mobile preview.
   // Using the tablet/mobile width (768/375) would corrupt the reference width on reload.
@@ -9886,42 +10084,60 @@ function buildJson() {
       if (label && href) obj.rightButton = { label, href };
       return Object.keys(obj).length ? obj : undefined;
     })(),
-    blocks:        state.blocks.map(b => ({
-      id:          b.id,
-      type:        b.type,
-      // Grid position (used for CSS Grid renderer in grid mode)
-      position:    { row:b.gridRow, col:b.gridCol, colSpan:b.colSpan||1, rowSpan:b.rowSpan||1, section:b.section||0, mosaicPreset: b.mosaicPreset || undefined },
-      // Vertical alignment within the grid cell: "top" | "center" | "bottom"
-      verticalAlign: b.verticalAlign || undefined,
-      // Pixel position (used for absolute renderer in free mode)
-      pixelPos:    { x:Math.round(b.x||0), y:Math.round(b.y||0), w:Math.round(b.w||300), h:Math.round(b.h||180) },
-      // Responsive positions for tablet/mobile breakpoints
-      tabletPos:      b.tabletPos || undefined,
-      mobilePos:      b.mobilePos || undefined,
-      // Responsive constraint behaviors (Hybrid B+C)
-      tabletBehavior: b.tabletBehavior || undefined,
-      mobileBehavior: b.mobileBehavior || undefined,
-      props:          b.props,
-      subElements:    b.subElements
-    }))
+    // SHARED live->persisted block conversion — the same function
+    // snapshotFlatStateAsVariant()'s payload goes through, so the active
+    // breakpoint and the two snapshotted ones can never end up in different
+    // block shapes (see serializeBlocksForVariant's doc comment).
+    blocks:        serializeBlocksForVariant(state.blocks)
   };
+  return flatPayload;
+}
 
+/**
+ * Converts ONE in-memory variant blob (LIVE-shape blocks — see
+ * serializeBlocksForVariant's INVARIANT) into the persisted shape the server
+ * stores and FlexibleSectionRenderer.tsx reads. Null in -> null out (an
+ * un-customized breakpoint stays null so the renderer falls back to Desktop).
+ */
+function toPersistedVariant(variantBlob) {
+  if (!variantBlob) return null;
+  return Object.assign({}, variantBlob, { blocks: serializeBlocksForVariant(variantBlob.blocks) });
+}
+
+/**
+ * Serialises the current designer state to the JSON string that is saved and
+ * consumed by FlexibleSectionRenderer on the live site. See buildFlatPayload()
+ * for the flat payload shape; free-mode sections wrap three of those (one per
+ * breakpoint) in the per-breakpoint variant envelope.
+ * @returns {string} Pretty-printed JSON string (2-space indent).
+ */
+function buildJson() {
   if (state.positionMode !== 'free') {
     // Grid/preset/mosaic — OUT OF SCOPE for this feature (see the RULING in
     // task-5-brief.md). Save in the exact original flat shape, no variant
     // wrapper — FlexibleSectionRenderer.tsx's grid/mosaic rendering path is
     // untouched by this plan and does not know how to unwrap
     // {variant:"per-breakpoint"}.
-    return JSON.stringify(flatPayload,null,2);
+    return JSON.stringify(buildFlatPayload(),null,2);
   }
 
-  // flatPayload describes whichever breakpoint is CURRENTLY active — make sure
-  // state.variants holds the CANONICAL, up-to-date copy for that breakpoint too
-  // (Step 1 already did this, but flatPayload was just independently rebuilt
-  // from the same live state.* fields, so they're consistent by construction).
-  state.variants[state.activeBreakpoint] = flatPayload;
+  // The live flat state fields represent whichever breakpoint is currently
+  // active — resync state.variants[activeBreakpoint] from them before building
+  // the payload, so the save always reflects the latest edits regardless of
+  // which breakpoint tab is open when Save/autosave fires.
+  state.variants[state.activeBreakpoint] = snapshotFlatStateAsVariant();
 
-  return JSON.stringify(window.FlexibleBreakpointRules.serializeVariants(state.variants),null,2);
+  // Convert ALL THREE variants to the persisted block shape in ONE place. Doing
+  // it here (rather than letting each variant be captured pre-serialized) is
+  // what guarantees the non-active breakpoints are saved in exactly the same
+  // shape as the active one — the 2026-09-11 bug was that only the active one
+  // went through buildJson's converter and the other two were persisted in the
+  // raw live-editing shape, with no pixelPos for the renderer to read.
+  return JSON.stringify(window.FlexibleBreakpointRules.serializeVariants({
+    desktop: toPersistedVariant(state.variants.desktop),
+    tablet:  toPersistedVariant(state.variants.tablet),
+    mobile:  toPersistedVariant(state.variants.mobile)
+  }),null,2);
 }
 /**
  * Saves the current layout to localStorage under 'cms_layout_draft' and
@@ -10190,6 +10406,52 @@ function syncFrameGuidesBtn() {
 // ═══════════════════════════════════════════════════════════
 //  IFRAME INTEGRATION (postMessage in/out)
 // ═══════════════════════════════════════════════════════════
+/**
+ * Normalizes ONE incoming flat designerData blob (a legacy/grid payload, or a
+ * single breakpoint variant out of a { variant:"per-breakpoint", … } wrapper)
+ * into the shape applySnapshot()/loadFlatVariantIntoState() expect.
+ *
+ * Spread-first (`...v`) so every field the payload carried that this function
+ * doesn't explicitly normalize — designerCanvasW/designerCanvasH, the section
+ * header/footer fields, grid/preset/layout — survives into state.variants. That
+ * matters for the NON-active breakpoints in particular: they are saved straight
+ * back out of state.variants without ever being rebuilt from live state, so any
+ * field dropped here would be dropped from that breakpoint's persisted layout.
+ *
+ * Blocks are converted to the LIVE editing shape via the shared
+ * deserializeBlocksForVariant() (see its INVARIANT note): state.variants holds
+ * live-shape blocks while editing, and buildJson() converts all three back to
+ * the persisted shape in one place at save time. That function is idempotent,
+ * so the second pass loadFlatVariantIntoState() runs on the active variant is a
+ * no-op.
+ */
+function normalizeInitVariant(v) {
+  const isFreeMode = v.positionMode === 'free' || v.layoutType === 'free';
+  const isMosaicMode = v.layout?.layoutMode === 'mosaic' || v.layoutType === 'mosaic';
+  const resolvedLayoutType = isFreeMode ? 'grid' : (isMosaicMode ? 'mosaic' : (v.layoutType || 'grid'));
+  const rawBlocks = v.blocks || [];
+  return Object.assign({}, v, {
+    contentMode:  v.contentMode  || 'single',
+    positionMode: isFreeMode ? 'free' : (isMosaicMode ? 'grid' : (v.positionMode || (v.layoutType === 'grid' || v.layoutType === 'preset' || v.layoutType === 'mosaic' ? 'grid' : 'free'))),
+    layoutType:   resolvedLayoutType,
+    gridRows:     v.grid ? v.grid.rows : (v.gridRows || 2),
+    gridCols:     v.grid ? v.grid.cols : (v.gridCols || 3),
+    gridGap:      v.grid ? v.grid.gap  : (v.gridGap  || 16),
+    multiLimit:   v.multiLimit || 3,
+    preset:       v.preset     || 'full-width',
+    mosaicRowH:   v.layout?.gridAutoRows ?? 200,
+    mosaicGap:    v.layout?.gridGap      ?? 10,
+    nextId:       v.nextId || (rawBlocks.length > 0 ? rawBlocks.length + 100 : 1),
+    // CRITICAL (carried from the previous inline mapper): manualSize flags a
+    // block whose children were manually placed/sized. If dropped, the post-load
+    // restack (fitBlockToSubElementsDOM(id,true)) re-stacks children vertically
+    // and their saved x/y are lost on every reopen (the "positions reset on
+    // save" data-loss bug). Same for hidden (Layers-panel visibility). Both now
+    // survive automatically — deserializeBlocksForVariant is spread-based.
+    blocks:       deserializeBlocksForVariant(rawBlocks)
+  });
+}
+
 window.addEventListener('message', function(e) {
   if (!e.data || e.data.type !== 'FLEXIBLE_DESIGNER_INIT') return;
   // Show "Done" button when embedded in parent
@@ -10198,54 +10460,34 @@ window.addEventListener('message', function(e) {
   // Load layout data sent from parent
   try {
     const layout = typeof e.data.payload === 'string' ? JSON.parse(e.data.payload) : e.data.payload;
-    if (layout && layout.blocks) {
-      const isFreeMode = layout.positionMode === 'free' || layout.layoutType === 'free';
-      const isMosaicMode = layout.layout?.layoutMode === 'mosaic' || layout.layoutType === 'mosaic';
-      const resolvedLayoutType = isFreeMode ? 'grid' : (isMosaicMode ? 'mosaic' : (layout.layoutType || 'grid'));
-      applySnapshot(JSON.stringify({
-        contentMode:  layout.contentMode  || 'single',
-        positionMode: isFreeMode ? 'free' : (isMosaicMode ? 'grid' : (layout.positionMode || (layout.layoutType === 'grid' || layout.layoutType === 'preset' || layout.layoutType === 'mosaic' ? 'grid' : 'free'))),
-        layoutType:   resolvedLayoutType,
-        gridRows:     layout.grid ? layout.grid.rows : (layout.gridRows || 2),
-        gridCols:     layout.grid ? layout.grid.cols : (layout.gridCols || 3),
-        gridGap:      layout.grid ? layout.grid.gap  : (layout.gridGap  || 16),
-        multiLimit:   layout.multiLimit || 3,
-        preset:       layout.preset     || 'full-width',
-        mosaicRowH:   layout.layout?.gridAutoRows ?? 200,
-        mosaicGap:    layout.layout?.gridGap      ?? 10,
-        nextId:       layout.nextId || (layout.blocks.length > 0 ? layout.blocks.length + 100 : 1),
-        blocks:       layout.blocks.map(b => {
-          const pp = b.pixelPos || {};
-          return {
-            id:       b.id,
-            type:     b.type,
-            section:  b.position ? (b.position.section||0) : (b.section||0),
-            gridRow:  b.position ? b.position.row : (b.gridRow||1),
-            gridCol:  b.position ? b.position.col : (b.gridCol||1),
-            colSpan:  b.position ? (b.position.colSpan||1) : (b.colSpan||1),
-            rowSpan:  b.position ? (b.position.rowSpan||1) : (b.rowSpan||1),
-            mosaicPreset: b.position?.mosaicPreset || b.mosaicPreset || undefined,
-            // Restore pixel positions from pixelPos or existing x/y/w/h
-            x: pp.x !== undefined ? pp.x : (b.x || 0),
-            y: pp.y !== undefined ? pp.y : (b.y || 0),
-            w: pp.w !== undefined ? pp.w : (b.w || 300),
-            h: pp.h !== undefined ? pp.h : (b.h || 180),
-            zIndex: b.zIndex || 1,
-            // CRITICAL: preserve manualSize — it flags a block whose children were
-            // manually placed/sized. If dropped here, the post-load restack
-            // (fitBlockToSubElementsDOM(id,true)) re-stacks children vertically and
-            // their saved x/y are lost on every reopen (the "positions reset on save"
-            // data-loss bug). Same for hidden (Layers-panel visibility).
-            manualSize: b.manualSize || undefined,
-            hidden: b.hidden || undefined,
-            // Restore per-breakpoint positions
-            tabletPos: b.tabletPos || undefined,
-            mobilePos: b.mobilePos || undefined,
-            props:       b.props || {},
-            subElements: b.subElements || []
-          };
-        })
-      }), false);
+    // Per-breakpoint independent layouts (2026-09-11): the incoming payload is
+    // EITHER a legacy flat blob (grid/preset/mosaic sections, and every section
+    // saved before this feature) OR the { variant:"per-breakpoint", desktop,
+    // tablet, mobile } envelope buildJson() now writes for free-mode sections.
+    // The gate below used to read `layout.blocks` off the TOP level, which a
+    // wrapped payload does not have — so reopening a free-mode section skipped
+    // this entire load body, left the designer on its empty module defaults, and
+    // the next autoSave() posted that empty state back to the parent, destroying
+    // the section. Resolve first, then gate on the DESKTOP variant's blocks.
+    const initVariants = window.FlexibleBreakpointRules.resolveVariants(layout);
+    const desktopLayout = initVariants.desktop;
+    if (desktopLayout && desktopLayout.blocks) {
+      // Each variant is normalized independently; the wrapper is rebuilt (rather
+      // than passing the raw payload through) so applySnapshot receives BOTH the
+      // editor-shaped desktop blob its DOM sync reads AND the tablet/mobile
+      // variants it must load into state.variants.
+      const normalizedDesktop = normalizeInitVariant(desktopLayout);
+      const snapshotPayload = (initVariants.tablet || initVariants.mobile)
+        ? {
+            variant: 'per-breakpoint',
+            desktop: normalizedDesktop,
+            tablet:  initVariants.tablet ? normalizeInitVariant(initVariants.tablet) : null,
+            mobile:  initVariants.mobile ? normalizeInitVariant(initVariants.mobile) : null
+          }
+        : normalizedDesktop;   // desktop-only -> byte-identical to the pre-2026-09-11 call
+      // isNewSectionLoad = true: this IS a whole new section being opened, so all
+      // three variants are replaced wholesale from this payload.
+      applySnapshot(JSON.stringify(snapshotPayload), false, true);
       // Per-breakpoint independent layouts (2026-09-11): this handler fires on a
       // genuine NEW section load (distinct from applySnapshot()'s shared
       // undo/autosave path within the SAME section — deliberately NOT reset
@@ -10262,45 +10504,56 @@ window.addEventListener('message', function(e) {
       // only refreshes the presentation (canvas width/CSS classes/toolbar
       // button active-state/indicator visibility) to match.
       setDevicePreview('desktop');
+      // Every read below is of a DESKTOP-level field, so it must come from the
+      // resolved desktop variant (`desktopLayout`), not the raw payload — on a
+      // wrapped per-breakpoint payload the raw top level holds only the envelope.
+      // The one exception is readSectionBgFromPayload() further down: the parent
+      // modal attaches `sectionBackground` to the OUTERMOST payload object, so
+      // that one deliberately still reads `layout`.
       // Cache desktop canvas width for responsive auto-scaling
-      state._desktopCanvasW = layout.designerCanvasW || null;
+      state._desktopCanvasW = desktopLayout.designerCanvasW || null;
       // Option C — adopt the section's AUTHORED free-mode design-box height. EXISTING designs
       // carry a saved designerCanvasH (an old window height); PRESERVE and use it on BOTH the
       // designer (canvas lock + letterbox) and the live renderer, so the crop is identical and
       // the layout does not jump. NEW / non-free designs leave it null → DESIGN_H fallback.
-      state.designerCanvasH = (typeof layout.designerCanvasH === 'number' && layout.designerCanvasH > 0)
-        ? layout.designerCanvasH
+      state.designerCanvasH = (typeof desktopLayout.designerCanvasH === 'number' && desktopLayout.designerCanvasH > 0)
+        ? desktopLayout.designerCanvasH
         : null;
       // Restore section header/footer fields
-      if (layout.sectionEyebrow)    { const el = document.getElementById('sectionEyebrow');    if (el) el.value = layout.sectionEyebrow; }
-      if (layout.sectionHeading)    { const el = document.getElementById('sectionHeading');    if (el) el.value = layout.sectionHeading; }
-      if (layout.sectionSubheading) { const el = document.getElementById('sectionSubheading'); if (el) el.value = layout.sectionSubheading; }
-      if (layout.sectionHeaderVariant) {
+      if (desktopLayout.sectionEyebrow)    { const el = document.getElementById('sectionEyebrow');    if (el) el.value = desktopLayout.sectionEyebrow; }
+      if (desktopLayout.sectionHeading)    { const el = document.getElementById('sectionHeading');    if (el) el.value = desktopLayout.sectionHeading; }
+      if (desktopLayout.sectionSubheading) { const el = document.getElementById('sectionSubheading'); if (el) el.value = desktopLayout.sectionSubheading; }
+      if (desktopLayout.sectionHeaderVariant) {
         const el = document.getElementById('sectionHeaderVariant');
-        if (el) el.value = layout.sectionHeaderVariant;
+        if (el) el.value = desktopLayout.sectionHeaderVariant;
         const leadRow = document.getElementById('sectionLeadRow');
-        if (leadRow) leadRow.style.display = layout.sectionHeaderVariant === 'split' ? '' : 'none';
+        if (leadRow) leadRow.style.display = desktopLayout.sectionHeaderVariant === 'split' ? '' : 'none';
         const btnC = document.getElementById('hv-centered');
         const btnS = document.getElementById('hv-split');
-        if (btnC) btnC.classList.toggle('active', layout.sectionHeaderVariant !== 'split');
-        if (btnS) btnS.classList.toggle('active', layout.sectionHeaderVariant === 'split');
+        if (btnC) btnC.classList.toggle('active', desktopLayout.sectionHeaderVariant !== 'split');
+        if (btnS) btnS.classList.toggle('active', desktopLayout.sectionHeaderVariant === 'split');
       }
-      if (layout.sectionLead) { const el = document.getElementById('sectionLead'); if (el) el.value = layout.sectionLead; }
-      if (layout.sectionFooter) {
+      if (desktopLayout.sectionLead) { const el = document.getElementById('sectionLead'); if (el) el.value = desktopLayout.sectionLead; }
+      if (desktopLayout.sectionFooter) {
         const chk = document.getElementById('sectionFooterEnabled');
         if (chk) chk.checked = true;
         const fields = document.getElementById('sectionFooterFields');
         if (fields) fields.style.display = '';
-        if (layout.sectionFooter.leftText) { const el = document.getElementById('sectionFooterLeft'); if (el) el.value = layout.sectionFooter.leftText; }
-        if (layout.sectionFooter.rightButton) {
-          const lbl = document.getElementById('sectionFooterBtnLabel'); if (lbl) lbl.value = layout.sectionFooter.rightButton.label || '';
-          const href = document.getElementById('sectionFooterBtnHref'); if (href) href.value = layout.sectionFooter.rightButton.href  || '';
+        if (desktopLayout.sectionFooter.leftText) { const el = document.getElementById('sectionFooterLeft'); if (el) el.value = desktopLayout.sectionFooter.leftText; }
+        if (desktopLayout.sectionFooter.rightButton) {
+          const lbl = document.getElementById('sectionFooterBtnLabel'); if (lbl) lbl.value = desktopLayout.sectionFooter.rightButton.label || '';
+          const href = document.getElementById('sectionFooterBtnHref'); if (href) href.value = desktopLayout.sectionFooter.rightButton.href  || '';
         }
       }
       // #68 — read the section's configured background out of the payload and
       // paint it onto the canvas (view-only; not persisted). Mirrors the fields
       // FlexibleSectionRenderer reads off the section object.
-      state.sectionBg = readSectionBgFromPayload(layout);
+      // Read the OUTERMOST payload first (FlexibleSectionEditorModal attaches
+      // `sectionBackground` there, alongside/above the variant envelope), then
+      // fall back to the desktop variant (DesignerPageEditorModal instead leaves
+      // the bg fields inline in the designer payload itself, which for a
+      // free-mode page now lives one level down inside `desktop`).
+      state.sectionBg = readSectionBgFromPayload(layout) || readSectionBgFromPayload(desktopLayout);
       applySectionBgToCanvas();
       // Re-render after a paint frame so canvas has settled dimensions.
       // Without this, getCellRect reads offsetHeight=0 on the first render

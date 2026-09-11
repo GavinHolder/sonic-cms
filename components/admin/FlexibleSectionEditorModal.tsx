@@ -32,6 +32,36 @@ import {
   openInCoolorsVisualizer,
   type HarmonyType,
 } from "@/lib/color-harmony";
+/**
+ * Serialises a resolved { desktop, tablet, mobile } back to a designerData JSON
+ * string, applying the SAME positionMode gate public/flexible-designer.html's
+ * buildJson() applies — the single rule for "may this section's designerData be
+ * wrapped in the per-breakpoint envelope?".
+ *
+ * Only `positionMode === "free"` sections may be wrapped. Grid/preset/mosaic
+ * sections are explicitly out of scope for per-breakpoint layouts, and
+ * FlexibleSectionRenderer's grid/mosaic path reads `data.grid`, `data.layoutType`,
+ * `data.layout.layoutMode`, `data.preset` etc. straight off the TOP level with no
+ * shape detection — wrapping one silently breaks its live rendering (a mosaic
+ * renders as a plain grid, a multi-mode section collapses to a single screen).
+ *
+ * buildJson() was gated for exactly this reason; every call site in THIS file
+ * previously called serializeVariants() unconditionally, which reintroduced the
+ * same defect by a different route — pressing Save (or editing a block inline)
+ * on a grid/mosaic section, without ever opening the Designer, wrapped it anyway.
+ * Routing every write through this one helper is what keeps the two files' rule
+ * identical (ONE SYSTEM PER CONCERN, CLAUDE.md).
+ */
+function serializeDesignerVariants(variants: ReturnType<typeof resolveVariants>): string {
+  const desktop = variants.desktop as { positionMode?: string } | null;
+  if (desktop?.positionMode !== "free") {
+    // Grid/preset/mosaic (or an unknown/legacy blob with no positionMode) — write
+    // back the flat, unwrapped shape, exactly as before this feature existed.
+    return JSON.stringify(variants.desktop);
+  }
+  return JSON.stringify(serializeVariants(variants));
+}
+
 // Dynamically import the preview renderer to avoid SSR issues
 const FlexibleSectionRenderer = dynamic(
   () => import("@/components/sections/FlexibleSectionRenderer"),
@@ -253,10 +283,13 @@ export default function FlexibleSectionEditorModal({
       if (!designerData) return designerData;
       const variants = resolveVariants(designerData);
       if (!variants.desktop) return designerData;
-      if (variants.desktop.contentMode !== contentMode) {
-        variants.desktop = { ...variants.desktop, contentMode };
-      }
-      return JSON.stringify(serializeVariants(variants));
+      // Nothing to patch — hand back the payload byte-for-byte. (Previously this
+      // re-serialized unconditionally, which meant merely pressing Save wrapped a
+      // grid/mosaic section's designerData in the per-breakpoint envelope. See
+      // serializeDesignerVariants below for why that breaks those sections.)
+      if (variants.desktop.contentMode === contentMode) return designerData;
+      variants.desktop = { ...variants.desktop, contentMode };
+      return serializeDesignerVariants(variants);
     })();
 
     const updated: FlexibleSection = {
@@ -502,9 +535,12 @@ export default function FlexibleSectionEditorModal({
   // These four functions are the modal's own inline "Section Elements" editor — scoped to
   // the DESKTOP variant only (see parsedDesigner's own comment below). Each resolves the
   // full {desktop, tablet, mobile} structure, mutates ONLY variants.desktop.blocks (the
-  // mutation logic itself is unchanged from before this fix), then re-serializes ALL THREE
-  // variants — so a Tablet/Mobile layout authored via "Edit in Designer" is never silently
-  // dropped by one of these inline edits. resolveVariants() already swallows malformed JSON
+  // mutation logic itself is unchanged from before this fix), then writes back through
+  // serializeDesignerVariants() — which re-serializes ALL THREE variants for a free-mode
+  // section (so a Tablet/Mobile layout authored via "Edit in Designer" is never silently
+  // dropped by an inline edit) and writes the flat, UNWRAPPED shape for a grid/preset/
+  // mosaic section (whose live rendering a wrapper would break — see that helper's own
+  // doc comment). resolveVariants() already swallows malformed JSON
   // internally (returns desktop: null) — the `if (!variants.desktop) return;` guard below
   // replaces the old try/catch's "malformed JSON — ignore" behavior with the same effect.
   const updateDesignerBlockProps = (blockId: string | number, patch: Record<string, unknown>) => {
@@ -517,7 +553,7 @@ export default function FlexibleSectionEditorModal({
         b.id === blockId ? { ...b, props: { ...(b.props || {}), ...patch } } : b
       ),
     };
-    setDesignerData(JSON.stringify(serializeVariants(variants)));
+    setDesignerData(serializeDesignerVariants(variants));
   };
 
   const updateDesignerSubElement = (blockId: string | number, subIdx: number, patch: Record<string, unknown>) => {
@@ -533,7 +569,7 @@ export default function FlexibleSectionEditorModal({
         return { ...b, subElements: subs };
       }),
     };
-    setDesignerData(JSON.stringify(serializeVariants(variants)));
+    setDesignerData(serializeDesignerVariants(variants));
   };
 
   const addDesignerSubElement = (blockId: string | number, type: string) => {
@@ -557,7 +593,7 @@ export default function FlexibleSectionEditorModal({
         return { ...b, subElements: [...(b.subElements || []), newSub] };
       }),
     };
-    setDesignerData(JSON.stringify(serializeVariants(variants)));
+    setDesignerData(serializeDesignerVariants(variants));
     setExpandedBlocks((prev) => new Set([...prev, blockId]));
   };
 
@@ -574,7 +610,7 @@ export default function FlexibleSectionEditorModal({
         return { ...b, subElements: subs };
       }),
     };
-    setDesignerData(JSON.stringify(serializeVariants(variants)));
+    setDesignerData(serializeDesignerVariants(variants));
   };
 
   // Resolve designerData through the per-breakpoint resolver once for rendering. Every
@@ -611,7 +647,10 @@ export default function FlexibleSectionEditorModal({
     const variants = resolveVariants(designerData);
     if (!variants.desktop) return designerData;
     variants.desktop = { ...variants.desktop, contentMode };
-    return JSON.stringify(serializeVariants(variants));
+    // Gated exactly like handleSave's syncedDesignerData — the preview must be fed
+    // the same shape that will actually be persisted, or a grid/mosaic section
+    // would preview through a wrapper the renderer's grid path cannot read.
+    return serializeDesignerVariants(variants);
   })();
 
   // ── Section being edited in designer ─────────────────────────

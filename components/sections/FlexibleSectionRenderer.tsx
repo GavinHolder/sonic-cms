@@ -649,21 +649,21 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
       // cw/ch: designerCanvasW/H are effectively invariant across breakpoint variants in
       // practice, via two DIFFERENT mechanisms — desktop is a safe, stable source for both,
       // just not for the reason an earlier version of this comment claimed:
-      //  - designerCanvasW: snapshotFlatStateAsVariant() (flexible-designer.html, Task 3's
-      //    field list) does NOT capture designerCanvasW at all — only the variant that was
-      //    ACTIVE at the moment Save last fired gets the full flatPayload (which does
-      //    include it). Every OTHER variant simply has no designerCanvasW key. What makes
-      //    this safe is setDevicePreview(): in free mode the canvas element's actual CSS
+      //  - designerCanvasW: as of the 2026-09-11 final-review fix wave,
+      //    snapshotFlatStateAsVariant() delegates to buildFlatPayload(), so EVERY variant
+      //    now carries designerCanvasW (previously only the variant that happened to be
+      //    ACTIVE when Save last fired had it — the shape drift that fix removed). Either
+      //    way the value is identical across variants. What makes that true — and what made
+      //    the old missing-key case safe too — is setDevicePreview(): in free mode the canvas element's actual CSS
       //    width stays pinned to DESKTOP_CANVAS_W (1440px) even while previewing Tablet/
       //    Mobile — it's SHRUNK via a CSS transform, never actually resized — so
       //    buildJson()'s `canvas.offsetWidth` read is always 1440 regardless of which
       //    device was being previewed when Save fired. Combined with resolveCanvasDim's
-      //    own `Number(raw) || fallback` behavior (a MISSING field, exactly what every
-      //    non-active variant has, falls back to the same 1440 default passed in below),
-      //    every variant resolves to 1440 either way — whether it happens to have the
-      //    field explicitly or not.
-      //  - designerCanvasH: DOES get captured per-variant by snapshotFlatStateAsVariant()
-      //    (it's in Task 3's field list), but has no per-breakpoint EDITING UI (it's
+      //    own `Number(raw) || fallback` behavior (a MISSING field falls back to the same
+      //    1440 default passed in below), every variant resolves to 1440 either way —
+      //    whether it happens to have the field explicitly or not.
+      //  - designerCanvasH: DOES get captured per-variant by snapshotFlatStateAsVariant(),
+      //    but has no per-breakpoint EDITING UI (it's
       //    derived from the canvas element's own height, not a user-facing slider), so it
       //    has no real path to diverge between variants in practice.
       // See resolveTopLevelDesignerData's own doc comment for why desktop is the right
@@ -1098,12 +1098,13 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
                 // Must match the main plate's own resolvedContentMode exactly (both are
                 // the SAME section, just two overlaid layers). Without this, the isMulti
                 // fallback below (resolvedContentMode ?? effectiveData?.contentMode) falls
-                // through to effectiveData?.contentMode — which snapshotFlatStateAsVariant()
-                // (flexible-designer.html) never actually writes into a variant snapshot
-                // (contentMode is section-wide in the Designer's model; only the
-                // active-at-save variant's full flatPayload happens to carry it). For a
-                // free+multi section, any variant that ISN'T the one active when Save last
-                // fired (including one seeded via duplicateVariant) would then resolve
+                // through to effectiveData?.contentMode. Every variant DOES carry
+                // contentMode as of the 2026-09-11 fix wave (snapshotFlatStateAsVariant now
+                // delegates to buildFlatPayload), but it is still section-wide in the
+                // Designer's model, so passing the parent's resolved value stays the
+                // authoritative path. Before that fix, any variant that ISN'T the one
+                // active when Save last fired (including one seeded via duplicateVariant)
+                // carried no contentMode at all and would resolve
                 // isMulti to false here while the main plate (which DOES get
                 // resolvedContentMode) resolves it true — different contentTransform scale
                 // math and a centering offset the main plate doesn't have, so the promoted
