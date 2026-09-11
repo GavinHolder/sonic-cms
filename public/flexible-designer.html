@@ -8594,7 +8594,19 @@ function togglePositionMode() {
   }
   // Re-apply the active device preview so the canvas width, scale and frame switch between
   // the grid (narrow canvas) and free (scaled-stage) presentations correctly.
-  if (state.devicePreview !== 'desktop') setDevicePreview(state.devicePreview);
+  // Per-breakpoint independent layouts (2026-09-11): fire whenever NOT on desktop
+  // (the original, still-needed reason above — devicePreview===activeBreakpoint
+  // in the normal Tablet/Mobile case, and this recomputes the presentation for
+  // the positionMode that was JUST toggled above) OR whenever devicePreview has
+  // desynced from state.activeBreakpoint for any reason (defense in depth — e.g.
+  // devicePreview left at 'desktop' while activeBreakpoint is not, a direction
+  // the plain !=='desktop' check can't see since it never looks at
+  // activeBreakpoint at all). A plain replacement of the check (devicePreview
+  // !== activeBreakpoint alone) was considered but rejected: in the normal,
+  // already-in-sync Tablet/Mobile case that condition is false, which would
+  // silently skip this necessary re-apply and leave the canvas on its
+  // pre-toggle frame/width.
+  if (state.devicePreview !== 'desktop' || state.devicePreview !== state.activeBreakpoint) setDevicePreview(state.devicePreview);
   renderCanvas(); applySectionBgToCanvas(); renderPropsPanel(); autoSave();
 }
 
@@ -10210,6 +10222,22 @@ window.addEventListener('message', function(e) {
           };
         })
       }), false);
+      // Per-breakpoint independent layouts (2026-09-11): this handler fires on a
+      // genuine NEW section load (distinct from applySnapshot()'s shared
+      // undo/autosave path within the SAME section — deliberately NOT reset
+      // inside applySnapshot() itself, since undo() also calls it and forcing
+      // devicePreview back to desktop on every Ctrl+Z would snap a user
+      // mid-edit-on-Tablet back to Desktop unexpectedly). applySnapshot() just
+      // reset state.activeBreakpoint to 'desktop' for the new section, but
+      // state.devicePreview is a separate field it never touches — left stale
+      // (e.g. 'tablet') if the previous section was open on Tablet/Mobile
+      // preview when the user switched sections without returning to Desktop
+      // first. Reset it here too so the two fields open every new section in
+      // sync. setDevicePreview('desktop') is a no-op for the data-swap logic
+      // (activeBreakpoint is already 'desktop' from applySnapshot above) — it
+      // only refreshes the presentation (canvas width/CSS classes/toolbar
+      // button active-state/indicator visibility) to match.
+      setDevicePreview('desktop');
       // Cache desktop canvas width for responsive auto-scaling
       state._desktopCanvasW = layout.designerCanvasW || null;
       // Option C — adopt the section's AUTHORED free-mode design-box height. EXISTING designs
