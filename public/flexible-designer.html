@@ -2206,6 +2206,7 @@ function loadFlatVariantIntoState(flatBlob) {
   state.gridCols = layout.gridCols;
   state.gridGap  = layout.gridGap;
   state.multiLimit = layout.multiLimit;
+  state.edgePad = layout.edgePad || 0;
 }
 
 /**
@@ -2240,7 +2241,6 @@ function applySnapshot(snap, addToHistory) {
   document.getElementById('colsVal').textContent = s.gridCols;
   document.getElementById('gridGap').value      = s.gridGap;
   document.getElementById('gapVal').textContent  = s.gridGap + 'px';
-  state.edgePad = s.edgePad || 0;
   document.getElementById('edgePad').value      = state.edgePad;
   document.getElementById('edgePadVal').textContent = state.edgePad + 'px';
   document.getElementById('multiLimit').value   = s.multiLimit;
