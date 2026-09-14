@@ -260,16 +260,16 @@ export default function CoverageMapViewer({
 
       // Towers are a backend package-linking concept (which packages are reachable from
       // which physical site), not a public-facing map feature — no pin marker, no
-      // name/description tooltip-popup. The radius rings below still draw (coverage-
-      // distance visualization, not tower identity), just without a marker anchoring them.
+      // name/description tooltip-popup. The radius rings below are still created but
+      // rendered invisible (opacity 0, non-interactive, no distance tooltips) by user
+      // request — mechanics kept, nothing visible on the public map.
       (mapData.towers ?? []).forEach((tower) => {
         if (!tower.lat || !tower.lng) return;
         // Procedural radius rings — one per distinct package distance of the tower's network
         const nr = tower.networkId ? networkRadii?.[tower.networkId] : undefined;
         if (nr) {
           for (const d of nr.distances) {
-            L.circle([tower.lat, tower.lng], { radius: d, color: nr.color, weight: 1, opacity: 0.7, fillColor: nr.color, fillOpacity: 0.05 })
-              .bindTooltip(`${d >= 1000 ? (d / 1000) + " km" : d + " m"}`, { sticky: true })
+            L.circle([tower.lat, tower.lng], { radius: d, color: nr.color, weight: 1, opacity: 0, fillColor: nr.color, fillOpacity: 0, interactive: false })
               .addTo(map);
           }
         }
