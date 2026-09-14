@@ -646,36 +646,30 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   const freeCanvas = useMemo(() => {
     if (!freePlateActive || !designerData) return null;
     try {
-      // cw/ch: designerCanvasW/H are effectively invariant across breakpoint variants in
-      // practice, via two DIFFERENT mechanisms — desktop is a safe, stable source for both,
-      // just not for the reason an earlier version of this comment claimed:
-      //  - designerCanvasW: as of the 2026-09-11 final-review fix wave,
-      //    snapshotFlatStateAsVariant() delegates to buildFlatPayload(), so EVERY variant
-      //    now carries designerCanvasW (previously only the variant that happened to be
-      //    ACTIVE when Save last fired had it — the shape drift that fix removed). Either
-      //    way the value is identical across variants. What makes that true — and what made
-      //    the old missing-key case safe too — is setDevicePreview(): in free mode the canvas element's actual CSS
-      //    width stays pinned to DESKTOP_CANVAS_W (1440px) even while previewing Tablet/
-      //    Mobile — it's SHRUNK via a CSS transform, never actually resized — so
-      //    buildJson()'s `canvas.offsetWidth` read is always 1440 regardless of which
-      //    device was being previewed when Save fired. Combined with resolveCanvasDim's
-      //    own `Number(raw) || fallback` behavior (a MISSING field falls back to the same
-      //    1440 default passed in below), every variant resolves to 1440 either way —
-      //    whether it happens to have the field explicitly or not.
-      //  - designerCanvasH: DOES get captured per-variant by snapshotFlatStateAsVariant(),
-      //    but has no per-breakpoint EDITING UI (it's
-      //    derived from the canvas element's own height, not a user-facing slider), so it
-      //    has no real path to diverge between variants in practice.
-      // See resolveTopLevelDesignerData's own doc comment for why desktop is the right
-      // stand-in for section-level (non-breakpoint-varying) reads in general.
-      const d = resolveTopLevelDesignerData(designerData);
+      // cw/ch (2026-09-14 fix): must come from the ACTIVE breakpoint's OWN resolved
+      // blob (effectiveDesignerData), not desktop's. The reasoning this comment used
+      // to rely on — "every variant resolves to 1440 either way, because the Designer
+      // canvas's real CSS width stayed pinned to DESKTOP_CANVAS_W even while previewing
+      // Tablet/Mobile (shrunk via CSS transform, never actually resized)" — described a
+      // real bug in flexible-designer.html's setDevicePreview()/getCanvasScale(): free-
+      // mode Tablet/Mobile was a scaled-stage PREVIEW of Desktop's 1440px canvas, never
+      // an independently-sized one, so every variant's saved designerCanvasW was in fact
+      // always 1440 regardless of breakpoint. That is now fixed at the source (Designer
+      // gives a freshly-customized Tablet/Mobile variant its own real canvas width —
+      // 768/375 by default, not a clone of Desktop's 1440 — the moment it's first
+      // customized), so a customized variant's designerCanvasW/H can now genuinely
+      // diverge from Desktop's. Reading desktop's here instead of the active variant's
+      // would size the section's true-1:1 aspect-ratio height off the WRONG box (e.g.
+      // Desktop's 1440-wide ratio applied to a Tablet layout actually authored at
+      // 768 wide) — exactly the multiLimit reasoning immediately below already
+      // correctly avoids for the same reason.
       return {
-        cw: resolveCanvasDim((d as any)?.designerCanvasW, 1440),
-        ch: resolveCanvasDim((d as any)?.designerCanvasH, DESIGN_H),
-        // multiLimit is DIFFERENT from cw/ch: it's a live, per-variant-editable slider
-        // (Task 3/4's snapshotFlatStateAsVariant captures it independently per breakpoint),
-        // so it genuinely CAN diverge between Desktop/Tablet/Mobile. Read it from the
-        // shared, already-resolved effectiveDesignerData (whichever breakpoint variant is
+        cw: resolveCanvasDim((effectiveDesignerData as any)?.designerCanvasW, 1440),
+        ch: resolveCanvasDim((effectiveDesignerData as any)?.designerCanvasH, DESIGN_H),
+        // multiLimit is a live, per-variant-editable slider (Task 3/4's
+        // snapshotFlatStateAsVariant captures it independently per breakpoint), so it
+        // genuinely CAN diverge between Desktop/Tablet/Mobile. Read it from the shared,
+        // already-resolved effectiveDesignerData (whichever breakpoint variant is
         // actually live right now — see the resolution block above), NOT desktop's copy —
         // otherwise a Tablet/Mobile variant with its own multiLimit would get an
         // aspect-ratio override sized for Desktop's band count instead of its own.

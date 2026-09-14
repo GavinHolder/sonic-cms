@@ -894,13 +894,19 @@
     .resize-handle-tr { top:4px;    right:4px; width:10px; height:10px; border-radius:50%; background:#0d6efd; border:2px solid white; cursor:nesw-resize; }
     .resize-handle-tl { top:4px;    left:4px;  width:10px; height:10px; border-radius:50%; background:#0d6efd; border:2px solid white; cursor:nwse-resize; }
     .resize-handle.disabled { opacity:0.15 !important; cursor:not-allowed; pointer-events:none; }
-    /* Mobile mode: blocks are always full-width, hide left/right/corner handles */
-    .canvas-area.device-mobile .resize-handle-right,
-    .canvas-area.device-mobile .resize-handle-left,
-    .canvas-area.device-mobile .resize-handle-br,
-    .canvas-area.device-mobile .resize-handle-bl,
-    .canvas-area.device-mobile .resize-handle-tr,
-    .canvas-area.device-mobile .resize-handle-tl { display: none; }
+    /* Grid/mosaic mobile mode: blocks are always auto-stacked full-width, so
+       horizontal/corner resize is meaningless there — hide those handles.
+       :not(.canvas-area-free) (2026-09-14) scopes this to grid/mosaic ONLY:
+       free-mode Tablet/Mobile is now a real, independently-authored canvas
+       (own designerCanvasW, blocks kept at their own manual size — see
+       setDevicePreview) where full resize must stay available, unlike
+       grid/mosaic's forced-full-width mobile stacking. */
+    .canvas-area.device-mobile:not(.canvas-area-free) .resize-handle-right,
+    .canvas-area.device-mobile:not(.canvas-area-free) .resize-handle-left,
+    .canvas-area.device-mobile:not(.canvas-area-free) .resize-handle-br,
+    .canvas-area.device-mobile:not(.canvas-area-free) .resize-handle-bl,
+    .canvas-area.device-mobile:not(.canvas-area-free) .resize-handle-tr,
+    .canvas-area.device-mobile:not(.canvas-area-free) .resize-handle-tl { display: none; }
 
     /* Span ghost */
     .span-ghost { position:absolute; background:rgba(13,110,253,0.08); border:2px dashed #0d6efd; border-radius:4px; pointer-events:none; z-index:100; }
@@ -1107,9 +1113,16 @@
     }
     .pos-btn:hover { border-color: #86b7fe !important; background: #f0f5ff !important; }
 
-    /* Device preview frame — width set inline by setDevicePreview() to avoid flex-stretch collapse */
-    .canvas-area.device-mobile  #canvas { border-left: 6px solid #6c757d !important; border-right: 6px solid #6c757d !important; border-radius: 16px !important; }
-    .canvas-area.device-tablet  #canvas { border-left: 4px solid #6c757d !important; border-right: 4px solid #6c757d !important; border-radius: 10px !important; }
+    /* Device preview frame — width set inline by setDevicePreview() to avoid flex-stretch collapse.
+       :not(.canvas-area-free) (2026-09-14) keeps the phone/tablet BORDER off free-mode canvases
+       specifically: #canvas has no box-sizing:border-box, so a border would add a few px on top
+       of the authored designerCanvasW, making canvas.offsetWidth read slightly WIDER than the
+       real canvas width free-mode code treats as ground truth (isVoltFullBleed's coverage check,
+       the Volt-drop clamp) — a discrepancy grid/mosaic never had to worry about (their per-block
+       tabletPos/mobilePos math doesn't compare against a measured offsetWidth the same way).
+       Centering (align-items) is harmless either way and stays applied to both. */
+    .canvas-area.device-mobile:not(.canvas-area-free)  #canvas { border-left: 6px solid #6c757d !important; border-right: 6px solid #6c757d !important; border-radius: 16px !important; }
+    .canvas-area.device-tablet:not(.canvas-area-free)  #canvas { border-left: 4px solid #6c757d !important; border-right: 4px solid #6c757d !important; border-radius: 10px !important; }
     .canvas-area.device-mobile,
     .canvas-area.device-tablet  { align-items: center; }
     #dev-indicator.tablet { background:#fff3cd;color:#856404;border:1px solid #ffc107; }
@@ -1976,9 +1989,27 @@ function toggleRight() {
 // ═══════════════════════════════════════════════════════════
 //  STATE
 // ═══════════════════════════════════════════════════════════
-const DESKTOP_CANVAS_W = 1440; // fixed design width — canvas is always this many px wide
+const DESKTOP_CANVAS_W = 1440; // fixed design width — DESKTOP's canvas is always this many px wide.
+                               // (Free-mode Tablet/Mobile canvases have their OWN width — see
+                               // defaultCanvasWForBreakpoint below, 2026-09-14.)
 const DESIGN_H = 900;          // fixed design-box HEIGHT for NEW free-mode designs (Option C
                                // cover plate). Existing designs keep their saved designerCanvasH.
+
+/**
+ * Default AUTHORED canvas width for a free-mode breakpoint variant that has
+ * never had its own designerCanvasW saved (a freshly-seeded Tablet/Mobile
+ * variant, or legacy data from before 2026-09-14). Matches this project's
+ * documented Desktop/Tablet/Mobile convention (lib/admin/docs-content.ts:
+ * 1440/768/375) so the Designer canvas and the live renderer's scaled-stage
+ * plate always agree on what "Tablet" and "Mobile" mean by default.
+ * @param {'desktop'|'tablet'|'mobile'} breakpoint
+ * @returns {number} Canvas width in px.
+ */
+function defaultCanvasWForBreakpoint(breakpoint) {
+  if (breakpoint === 'mobile') return 375;
+  if (breakpoint === 'tablet') return 768;
+  return DESKTOP_CANVAS_W;
+}
 const state = {
   contentMode: 'single',
   multiLimit: 3,
@@ -1991,6 +2022,14 @@ const state = {
   positionMode: 'free',   // 'free' | 'grid'  — default: free-form absolute positioning
   devicePreview: 'desktop', // 'mobile'|'tablet'|'desktop'
   _desktopCanvasW: null,    // cached desktop canvas width for responsive scaling
+  // AUTHORED free-mode canvas WIDTH for the CURRENTLY-ACTIVE breakpoint (2026-09-14 — see
+  // defaultCanvasWForBreakpoint). null means "not yet authored for this variant" (legacy data,
+  // or a variant saved before this fix) — resolved per-breakpoint (1440/768/375, matching
+  // lib/admin/docs-content.ts's documented convention) at the point of use in setDevicePreview,
+  // getCanvasScale, resetUserZoom and buildFlatPayload. Mirrors designerCanvasH's null-fallback
+  // pattern below. Grid/preset/mosaic mode ignores this field entirely (out of scope — those
+  // layouts derive their canvas width from the device-* CSS class instead, unchanged).
+  designerCanvasW: null,
   designerCanvasH: 810,     // AUTHORED free-mode design-box height. NEW free designs default to
                             // 810 (16:9 of 1440 → fills a 16:9 viewport edge-to-edge, no letterbox)
                             // and PERSIST that value. Existing designs load their saved value (which
@@ -2332,6 +2371,7 @@ function loadFlatVariantIntoState(flatBlob) {
   state.nextId        = layout.nextId;
   state.preset        = layout.preset || 'full-width';
   state.positionMode  = layout.positionMode || 'free';
+  state.designerCanvasW = layout.designerCanvasW || null;  // 2026-09-14 — restore this variant's OWN authored canvas width (null = not yet authored → defaultCanvasWForBreakpoint fallback at point of use)
   state.designerCanvasH = layout.designerCanvasH || null;  // Option C — restore authored free-mode box height (null = new → DESIGN_H)
   // state.gridRows/gridCols/gridGap/multiLimit are assigned directly here, not just
   // written into their form fields — getCellRect()/getCellMetrics() (block position/width
@@ -8826,11 +8866,13 @@ function updatePositionModeBadge() {
  */
 function getDisplayPos(block) {
   const device = state.devicePreview;
-  // Free-mode tablet/mobile is a scaled-stage VIEW: the whole desktop canvas is shrunk to
-  // the breakpoint via getCanvasScale(), so every block renders at its true desktop
-  // coordinates (an exact shrink that matches the live renderer). No per-breakpoint
-  // reposition here — desktop coords stay the single source of truth. Independent
-  // per-breakpoint position editing would need a data-model change (separate follow-up).
+  // Free-mode Tablet/Mobile (2026-09-14): each breakpoint has its OWN independent
+  // state.blocks array, swapped in by setDevicePreview (see state.variants), on
+  // its OWN real canvas (own designerCanvasW/H — no more CSS-transform shrink of
+  // Desktop's canvas). block.x/y/w/h here are ALREADY the correct values for
+  // whichever breakpoint is active, so no scaling/lookup is needed — unlike the
+  // grid-mode branches below (tabletPos/mobilePos), a separate, unrelated
+  // per-block override mechanism that free mode does not use.
   if (device !== 'desktop' && state.positionMode === 'free') {
     return { x: block.x, y: block.y, w: block.w, h: block.h };
   }
@@ -8882,9 +8924,13 @@ function getDisplayPos(block) {
  * @param {number} h - New height in canvas pixels.
  */
 function setDisplayPos(block, x, y, w, h) {
-  // Grid/mosaic per-device stacking stores overrides in mobilePos/tabletPos. Free mode is
-  // a scaled-stage preview of the single desktop layout, so edits there write the canonical
-  // desktop coords — exactly like desktop mode (desktop stays the source of truth).
+  // Grid/mosaic per-device stacking stores overrides in mobilePos/tabletPos (a
+  // separate, unrelated per-block mechanism — out of scope for per-breakpoint
+  // independent layouts). Free mode (2026-09-14) has its own independent
+  // per-breakpoint state.blocks array with a real canvas per breakpoint (see
+  // state.variants / setDevicePreview), so an edit here always writes directly
+  // into the CURRENTLY-ACTIVE breakpoint's own canonical x/y/w/h — exactly like
+  // desktop mode — regardless of which device is being edited.
   if (state.devicePreview !== 'desktop' && state.positionMode !== 'free') {
     if (state.devicePreview === 'mobile') { block.mobilePos = { x, y, w, h }; return; }
     if (state.devicePreview === 'tablet') { block.tabletPos = { x, y, w, h }; return; }
@@ -8927,8 +8973,8 @@ function autoScalePos(pos, targetW, srcW) {
  */
 function setDevicePreview(device) {
   // Per-breakpoint independent layouts (2026-09-11): before changing the
-  // PRESENTATION (existing logic below, unchanged), swap the actual EDITED
-  // DATA — snapshot the outgoing breakpoint's current flat state back into
+  // PRESENTATION (existing logic below), swap the actual EDITED DATA —
+  // snapshot the outgoing breakpoint's current flat state back into
   // state.variants, then load the incoming breakpoint's own data (seeding it
   // from Desktop via a deep clone if this is the first time it's been
   // touched). This is a no-op the first time this function ever runs for a
@@ -8950,6 +8996,25 @@ function setDevicePreview(device) {
     // 2. Seed the INCOMING breakpoint from Desktop if it's never been customized.
     if (!state.variants[device]) {
       state.variants[device] = window.FlexibleBreakpointRules.duplicateVariant(state.variants.desktop);
+      // 2026-09-14 fix: a freshly-seeded Tablet/Mobile used to inherit Desktop's
+      // BLOCKS *and* its 1440px canvas width verbatim — so even though the block
+      // array was already independent (this whole step 2), there was no real
+      // narrower canvas to author into; setDevicePreview's presentation logic
+      // below just CSS-shrunk the still-1440-wide canvas back down, and any block
+      // near the desktop-width edge started off-canvas with nothing narrower to
+      // reposition it against. Blocks stay UNSCALED on purpose (the spec
+      // explicitly rejects auto-scale/auto-clip — the admin repositions them
+      // manually against the real narrower canvas), but the CANVAS itself now
+      // immediately becomes that breakpoint's own real, independent size:
+      // designerCanvasW defaults per breakpoint (1440/768/375, see
+      // defaultCanvasWForBreakpoint) instead of cloning Desktop's 1440, and
+      // designerCanvasH resets to null (falls back to DESIGN_H) rather than
+      // inheriting Desktop's authored height — the same "new free design"
+      // fallback every brand-new section already gets.
+      if (state.variants[device]) {
+        state.variants[device].designerCanvasW = defaultCanvasWForBreakpoint(device);
+        state.variants[device].designerCanvasH = null;
+      }
     }
 
     // 3. Load the incoming breakpoint's data into the live flat state fields.
@@ -8972,16 +9037,29 @@ function setDevicePreview(device) {
   const canvas = document.getElementById('canvas');
   const canvasArea = document.querySelector('.canvas-area');
   canvasArea.classList.remove('device-mobile','device-tablet','device-desktop');
-  // Free-mode tablet/mobile is a SCALED-STAGE preview (see getCanvasScale): the canvas
-  // keeps its full desktop design width and is shrunk to the breakpoint via CSS transform.
-  // We must NOT apply the narrow-canvas device frame/centering (which assumes a 375/768-wide
-  // canvas) — that fights the scaled artboard. Grid/mosaic mode keeps the device frame.
-  const freeScaledPreview = device !== 'desktop' && state.positionMode === 'free';
-  canvasArea.classList.add(freeScaledPreview ? 'device-desktop' : `device-${device}`);
-  // Set inline width so flex-stretch doesn't collapse on absolutely-positioned content
-  if (device === 'desktop' || freeScaledPreview) canvas.style.width = DESKTOP_CANVAS_W + 'px'; // full design width; transform shrinks it
-  else if (device === 'mobile') canvas.style.width = '375px';
-  else canvas.style.width = '768px';
+  // 2026-09-14 fix: free-mode Tablet/Mobile used to ALWAYS stay tagged
+  // 'device-desktop' and keep the canvas at DESKTOP_CANVAS_W (1440px), shrunk
+  // to the breakpoint footprint purely via CSS transform (getCanvasScale) —
+  // a "scaled preview", never a real independently-sized canvas, even though
+  // step 2 above had already given that breakpoint its own block array. Free
+  // mode now gets the real device-${device} class (own width + centering,
+  // same as grid/mosaic) EXCEPT the phone/tablet border + hidden resize
+  // handles, which stay grid/mosaic-only — canvas-area-free (below) scopes
+  // those two CSS rules out for free mode: a border would inflate
+  // canvas.offsetWidth past the authored designerCanvasW (corrupting
+  // isVoltFullBleed's coverage check and the Volt-drop clamp), and free-mode
+  // blocks are independently manually-sized (not auto-stacked full-width
+  // like grid/mosaic mobile), so full drag-resize must stay available.
+  canvasArea.classList.toggle('canvas-area-free', state.positionMode === 'free');
+  canvasArea.classList.add(`device-${device}`);
+  // Set inline width so flex-stretch doesn't collapse on absolutely-positioned content.
+  // Free mode: this breakpoint's OWN authored width (state.designerCanvasW, defaulted
+  // per-breakpoint — see defaultCanvasWForBreakpoint and the seeding step above).
+  // Grid/mosaic: UNCHANGED, always the fixed 375/768/DESKTOP_CANVAS_W device widths.
+  const activeCanvasW = state.positionMode === 'free'
+    ? (state.designerCanvasW || defaultCanvasWForBreakpoint(device))
+    : (device === 'mobile' ? 375 : device === 'tablet' ? 768 : DESKTOP_CANVAS_W);
+  canvas.style.width = activeCanvasW + 'px';
   // Update active button
   ['mobile','tablet','desktop'].forEach(d => {
     document.getElementById(`dev-${d}`)?.classList.toggle('active', d === device);
@@ -8993,16 +9071,18 @@ function setDevicePreview(device) {
   if (device === 'desktop') {
     if (indicator) { indicator.style.display = 'none'; indicator.className = ''; }
     if (resetBtn)  resetBtn.style.display = 'none';
-  } else if (freeScaledPreview) {
-    // Scaled-stage preview: the real desktop layout shrunk to the breakpoint. No
-    // per-breakpoint positions are used, so the "reset device positions" action is hidden.
-    const label = device === 'tablet' ? '🔍 Tablet Preview · scaled to 768px' : '🔍 Mobile Preview · scaled to 375px';
-    if (indicator) { indicator.textContent = label; indicator.className = device; indicator.style.display = ''; }
-    if (resetBtn)  resetBtn.style.display = 'none';
   } else {
+    // 2026-09-14: free mode is now ALWAYS "editing", never a scaled read-only
+    // preview — step 2 above seeds a real, independent, real-width canvas the
+    // instant you switch here (no more "🔍 ... Preview · scaled to Npx").
     const label = device === 'tablet' ? '📱 Editing Tablet Layout' : '📱 Editing Mobile Layout';
     if (indicator) { indicator.textContent = label; indicator.className = device; indicator.style.display = ''; }
-    if (resetBtn)  resetBtn.style.display = '';
+    // #dev-reset-btn (resetDevicePositions) clears GRID/mosaic's per-block
+    // tabletPos/mobilePos overrides — a separate, unrelated mechanism, out of
+    // scope for free-mode per-breakpoint layouts (which use
+    // #dev-reset-variant-btn / resetActiveBreakpointToDesktop instead, kept in
+    // sync by updateDeviceVariantIndicators() below). Never show it in free mode.
+    if (resetBtn) resetBtn.style.display = (state.positionMode === 'free') ? 'none' : '';
   }
   // Give DOM time to reflow, then update dimensions
   setTimeout(() => { renderCanvas(); updateDimensions(); }, 50);
@@ -9823,31 +9903,42 @@ function updateDimensions() {
   applyCanvasScale();
 }
 /**
- * Calculates the CSS scale factor needed to fit the desktop canvas (DESKTOP_CANVAS_W)
- * within the available canvas wrapper width minus the ruler gutter (20 px when visible).
- * Returns 1 if tablet/mobile preview is active (those canvases already fit natively).
- * @returns {number} Scale ratio in the range (0, 1].
+ * Calculates the CSS scale factor needed to fit the ACTIVE canvas (DESKTOP_CANVAS_W
+ * for Desktop; the active breakpoint's own designerCanvasW for a free-mode
+ * Tablet/Mobile — see refW below) within the available canvas wrapper width
+ * minus the ruler gutter (20 px when visible). Returns just the user's manual
+ * zoom for grid/mosaic Tablet/Mobile (those canvases are natively the
+ * breakpoint width already — blocks re-stack — so no fit-scale applies).
+ * @returns {number} Scale ratio in the range (0, 1] (times user zoom).
  */
 function getCanvasScale() {
-  if (state.devicePreview !== 'desktop') {
-    // Free-mode tablet/mobile = SCALED-STAGE preview: #canvas keeps its full desktop
-    // design width (DESKTOP_CANVAS_W) and the WHOLE stage (blocks + overlays) is scaled
-    // down to the breakpoint footprint — a pixel-exact shrink that mirrors the live
-    // renderer's 1:1 scaled stage. Nothing clips; desktop coords stay the source of truth.
-    if (state.positionMode === 'free') {
-      const bpW = state.devicePreview === 'mobile' ? 375 : 768;
-      return (bpW / DESKTOP_CANVAS_W) * (state.userZoom || 1);
-    }
-    // Grid/mosaic mode: the canvas is natively the breakpoint width (blocks re-stack),
-    // so no fit-scale is applied — only the user's manual zoom.
+  if (state.devicePreview !== 'desktop' && state.positionMode !== 'free') {
+    // Grid/mosaic Tablet/Mobile: the canvas is natively the breakpoint width
+    // (blocks re-stack), so no fit-scale is applied — only the user's manual
+    // zoom. UNCHANGED — out of scope for the 2026-09-14 fix below.
     return state.userZoom || 1;
   }
+  // 2026-09-14 fix: free-mode Tablet/Mobile used to be a SCALED-STAGE preview
+  // — #canvas stayed at the full DESKTOP_CANVAS_W (1440) and the whole stage
+  // was shrunk to the breakpoint footprint via a fixed (bpW/DESKTOP_CANVAS_W)
+  // ratio, regardless of the actual viewport. Free mode now has a REAL,
+  // independently-sized canvas per breakpoint (own designerCanvasW — see
+  // setDevicePreview), so it goes through the exact same fit-to-viewport
+  // letterbox math Desktop already used below — just referencing the ACTIVE
+  // breakpoint's own canvas width (refW) instead of always DESKTOP_CANVAS_W.
+  // (For Desktop, refW is DESKTOP_CANVAS_W either way — state.designerCanvasW
+  // for the desktop variant is always DESKTOP_CANVAS_W, via
+  // defaultCanvasWForBreakpoint('desktop').) Grid/mosaic Desktop is
+  // unaffected: refW falls back to DESKTOP_CANVAS_W when positionMode isn't 'free'.
+  const refW = state.positionMode === 'free'
+    ? (state.designerCanvasW || defaultCanvasWForBreakpoint(state.devicePreview))
+    : DESKTOP_CANVAS_W;
   const cwrap = document.querySelector('.canvas-with-rulers');
   if (!cwrap) return state.userZoom || 1;
   const rulerW = cwrap.classList.contains('rulers-hidden') ? 0 : 20;
   const availW = cwrap.clientWidth - rulerW - 2;
   // Free + single, or free + multi/dynamic (Option C): LETTERBOX the fixed
-  // 1440×(boxH×bands) design box within the available area on BOTH axes, so the canvas keeps
+  // refW×(boxH×bands) design box within the available area on BOTH axes, so the canvas keeps
   // the authored design aspect (not the window's leftover height). Grid/preset/mosaic keep
   // the width-only fit (UNCHANGED) — those layouts reflow to fill available space by design.
   if (state.positionMode === 'free' && (state.contentMode === 'single' || state.contentMode === 'multi' || state.contentMode === 'dynamic')) {
@@ -9855,10 +9946,10 @@ function getCanvasScale() {
     const boxH = state.designerCanvasH || DESIGN_H;
     const bands = (state.contentMode === 'multi' || state.contentMode === 'dynamic') ? (state.multiLimit || 1) : 1;
     const totalH = boxH * bands;
-    const fit = Math.min(1, availW / DESKTOP_CANVAS_W, totalH > 0 ? availH / totalH : 1);
+    const fit = Math.min(1, availW / refW, totalH > 0 ? availH / totalH : 1);
     return fit * (state.userZoom || 1);
   }
-  const fitScale = Math.min(1, availW / DESKTOP_CANVAS_W);
+  const fitScale = Math.min(1, availW / refW);
   return fitScale * (state.userZoom || 1);
 }
 /**
@@ -9891,20 +9982,27 @@ function adjustUserZoom(delta) {
 }
 /** Reset user zoom to true 1:1 (combined scale = 100%) */
 function resetUserZoom() {
-  // Calculate the auto-fit scale so we can set userZoom to counteract it
+  // Calculate the auto-fit scale so we can set userZoom to counteract it.
+  // 2026-09-14: this must mirror getCanvasScale()'s own condition exactly —
+  // free-mode Tablet/Mobile now goes through the same fit-to-viewport formula
+  // as Desktop (own real canvas, own refW), not just the desktop check alone.
   const cwrap = document.querySelector('.canvas-with-rulers');
-  if (state.devicePreview === 'desktop' && cwrap) {
+  const usesFitFormula = cwrap && (state.devicePreview === 'desktop' || state.positionMode === 'free');
+  if (usesFitFormula) {
+    const refW = state.positionMode === 'free'
+      ? (state.designerCanvasW || defaultCanvasWForBreakpoint(state.devicePreview))
+      : DESKTOP_CANVAS_W;
     const rulerW = cwrap.classList.contains('rulers-hidden') ? 0 : 20;
     const availW = cwrap.clientWidth - rulerW - 2;
-    let fitScale = Math.min(1, availW / DESKTOP_CANVAS_W);
+    let fitScale = Math.min(1, availW / refW);
     // Mirror the free (single or multi/dynamic) letterbox fit so "reset zoom" lands on a true
-    // 100% of the authored 1440×(boxH×bands) box (not the width-only fit).
+    // 100% of the authored refW×(boxH×bands) box (not the width-only fit).
     if (state.positionMode === 'free' && (state.contentMode === 'single' || state.contentMode === 'multi' || state.contentMode === 'dynamic')) {
       const availH = cwrap.clientHeight - rulerW - 2;
       const boxH = state.designerCanvasH || DESIGN_H;
       const bands = (state.contentMode === 'multi' || state.contentMode === 'dynamic') ? (state.multiLimit || 1) : 1;
       const totalH = boxH * bands;
-      fitScale = Math.min(1, availW / DESKTOP_CANVAS_W, totalH > 0 ? availH / totalH : 1);
+      fitScale = Math.min(1, availW / refW, totalH > 0 ? availH / totalH : 1);
     }
     // userZoom = 1/fitScale makes getCanvasScale() return exactly 1.0 (100%)
     state.userZoom = fitScale > 0 ? 1 / fitScale : 1;
@@ -10031,8 +10129,10 @@ function copyJson() {
  * Builds the FLAT designerData payload object for the currently-loaded state —
  * the shape FlexibleSectionRenderer consumes on the live site, and (for free
  * sections) the shape each of the three per-breakpoint variants takes.
- * Always stores the DESKTOP canvas width (not tablet/mobile) so the reference
- * width is consistent regardless of which device preview is active.
+ * FREE mode stores the ACTIVE breakpoint's OWN authored canvas width (each
+ * breakpoint is a genuinely independent canvas — 2026-09-14). Grid/mosaic
+ * mode is UNCHANGED: it always stores the DESKTOP reference width regardless
+ * of which device preview is active (see the inline comment below for why).
  * Includes contentMode, positionMode, grid config, nextId, layoutType, and
  * a cleaned blocks array with both grid position and pixel position objects,
  * plus optional tabletPos/mobilePos breakpoint overrides.
@@ -10045,11 +10145,24 @@ function copyJson() {
  */
 function buildFlatPayload() {
   const canvas = document.getElementById('canvas');
-  // Always store the DESKTOP canvas width — even if currently in tablet/mobile preview.
-  // Using the tablet/mobile width (768/375) would corrupt the reference width on reload.
-  const designerCanvasW = (state.devicePreview !== 'desktop' && state._desktopCanvasW)
-    ? state._desktopCanvasW
-    : (canvas ? canvas.offsetWidth : 1200);
+  // FREE mode (2026-09-14): persist the ACTIVE breakpoint's own real canvas
+  // width — state.designerCanvasW if this variant has already authored one,
+  // else the per-breakpoint default (defaultCanvasWForBreakpoint). This is
+  // what makes a saved Tablet/Mobile variant's designerCanvasW independent of
+  // Desktop's, so the live renderer's scaled-stage plate (Task 6,
+  // FlexibleSectionRenderer.tsx) sizes each breakpoint's plate correctly.
+  //
+  // Grid/mosaic mode: UNCHANGED — always store the DESKTOP reference width
+  // regardless of which device preview is active. Using the tablet/mobile
+  // width (768/375) there would corrupt the reference width on reload, since
+  // grid/mosaic's own (separate, out-of-scope) per-block tabletPos/mobilePos
+  // mechanism scales relative to ONE stable reference width, not an
+  // independent per-breakpoint one.
+  const designerCanvasW = state.positionMode === 'free'
+    ? (state.designerCanvasW || defaultCanvasWForBreakpoint(state.devicePreview))
+    : ((state.devicePreview !== 'desktop' && state._desktopCanvasW)
+        ? state._desktopCanvasW
+        : (canvas ? canvas.offsetWidth : 1200));
   // Option C: for FREE designs store the AUTHORED design-box height (a stable constant), NOT
   // the current window-derived offsetHeight — so re-saving never re-captures the operator's
   // leftover window height. Existing designs keep their loaded value (state.designerCanvasH);

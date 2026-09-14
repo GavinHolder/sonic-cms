@@ -2008,8 +2008,8 @@ The centre column: a header/toolbar over the artboard. The canvas is a fixed **1
 | **Clear Guides** | \`clearGuidelines()\` — deletes all ruler guide lines. | — | Reset guide clutter |
 | **Undo** | \`undo()\` — step back through history; count shown; disabled when empty. | up to 10 steps · **Ctrl+Z** | Revert any edit |
 | **Desktop** | \`setDevicePreview('desktop')\` — full 1440px design width. | active by default | Design the master layout |
-| **Tablet** | 768px. Grid/mosaic = editable per-tablet positions; FREE = scaled-stage preview (read-only). | 768px | Check / adjust tablet |
-| **Mobile** | 375px. Same free-vs-grid behaviour as tablet. Resize handles hidden in mobile. | 375px | Check / adjust mobile |
+| **Tablet** | 768px. Grid/mosaic = editable per-tablet positions on the desktop canvas; FREE = a genuinely independent 768px canvas, seeded from Desktop the first time you switch, then edited separately. | 768px | Build / adjust the tablet layout |
+| **Mobile** | 375px. Same free-vs-grid split as Tablet — FREE mode is an independent 375px canvas, not a shrink of Desktop. | 375px | Build / adjust the mobile layout |
 | **Reset (device)** | \`resetDevicePositions()\` — clears tablet/mobile overrides. Appears only in grid/mosaic tablet/mobile mode. | — | Discard responsive overrides |
 | **Zoom** − / + / 1:1 | \`adjustUserZoom(±0.1)\` / \`resetUserZoom()\` (1:1 also recentres the canvas). Also the scroll wheel and Ctrl +/−/0. | 0.25–3.0 · **100%** | Zoom into detail work |
 | **Section BG toggle** (🖼) | \`toggleSectionBg()\` — overlays the section's configured background on the canvas. View-only, never saved. | on / off · **ON** | See contrast against the real BG |
@@ -2022,7 +2022,7 @@ The centre column: a header/toolbar over the artboard. The canvas is a fixed **1
 <div class="two">
   <div class="fig diagram" style="margin:0">
     <div class="fig-head"><span class="tag">Diagram</span><span class="ttl">FREE mode</span></div>
-    <div class="fig-body" style="font-size:12.5px;color:var(--muted);align-items:flex-start;text-align:left">Absolute X/Y/W/H positioning. Blocks placed anywhere; Properties shows X/Y/W/H sliders + Full-Width / Full-Height / Center. Optional pixel <b>SNAP</b> (10px, key <b>S</b>). Tablet/mobile are scaled-stage previews (the desktop art-board shrunk), so per-block responsive controls are hidden.</div>
+    <div class="fig-body" style="font-size:12.5px;color:var(--muted);align-items:flex-start;text-align:left">Absolute X/Y/W/H positioning. Blocks placed anywhere; Properties shows X/Y/W/H sliders + Full-Width / Full-Height / Center. Optional pixel <b>SNAP</b> (10px, key <b>S</b>). Tablet/Mobile are independent canvases (own 768px/375px width, own blocks), seeded from Desktop the first time you switch — not a scaled preview — so per-block responsive controls (tabletPos/mobilePos) are hidden; reposition blocks directly on that breakpoint's own canvas instead.</div>
   </div>
   <div class="fig diagram" style="margin:0">
     <div class="fig-head"><span class="tag">Diagram</span><span class="ttl">GRID mode</span></div>
@@ -2035,7 +2035,7 @@ The centre column: a header/toolbar over the artboard. The canvas is a fixed **1
 | Interaction | Behaviour |
 |-------------|-----------|
 | **Drag from library** | Drop a block/volt onto the canvas; sub-elements drop into a block being edited |
-| **Resize handles** | 8 handles on a selected/hovered block: 4 edges (N/S/E/W) + 4 corners. Hidden in mobile |
+| **Resize handles** | 8 handles on a selected/hovered block: 4 edges (N/S/E/W) + 4 corners. In GRID/mosaic mobile, side/corner handles are hidden (blocks auto-stack full-width); FREE mode keeps all 8 on every breakpoint, since each is an independently-sized canvas |
 | **Drag to move** | Blocks and sub-elements drag freely; arrow keys nudge 1px (10px with Shift) |
 | **Alignment guides** | Figma-style smart guides + snapping appear while dragging a child / multi-selection |
 | **Marquee select** | Drag on empty canvas to rubber-band select multiple sub-elements |
