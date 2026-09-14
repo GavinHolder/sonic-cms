@@ -1193,15 +1193,21 @@ export default function NetworksManager() {
                   <div className="card-body">
                     {categories.find((c) => c.id === pkgModal.pkg.categoryId)?.name?.trim().toLowerCase() === "voice" ? (
                       <div className="row">
-                        <div className="col"><label className="form-label">Airtime / Minutes Bundle</label>
-                          <input className="form-control" value={pkgModal.pkg.speedDown || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, speedDown: e.target.value, speedUp: "" } })} placeholder="e.g. 100 minutes, or Unlimited" /></div>
+                        <div className="col"><label className="form-label">Minutes Bundle</label>
+                          {/* Number only — "Minutes" is a fixed label baked into the card
+                              design, not part of this value (see Down/Up below). "Unlimited"
+                              is still accepted as a non-numeric override. */}
+                          <input className="form-control" value={pkgModal.pkg.speedDown || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, speedDown: e.target.value, speedUp: "" } })} placeholder="e.g. 100, or Unlimited" /></div>
                       </div>
                     ) : (
                       <div className="row">
-                        <div className="col"><label className="form-label">Down</label>
-                          <input className="form-control" value={pkgModal.pkg.speedDown || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, speedDown: e.target.value } })} placeholder="50 Mbps" /></div>
-                        <div className="col"><label className="form-label">Up</label>
-                          <input className="form-control" value={pkgModal.pkg.speedUp || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, speedUp: e.target.value } })} placeholder="50 Mbps" /></div>
+                        <div className="col"><label className="form-label">Down (Mbps)</label>
+                          {/* Number only — "Mbps" is a fixed label baked into the card design,
+                              not part of this value. Typing the unit here reintroduces the
+                              card-layout bug it used to cause (see VoltSlotRenderer.tsx). */}
+                          <input className="form-control" value={pkgModal.pkg.speedDown || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, speedDown: e.target.value } })} placeholder="50" /></div>
+                        <div className="col"><label className="form-label">Up (Mbps)</label>
+                          <input className="form-control" value={pkgModal.pkg.speedUp || ""} onChange={(e) => setPkgModal({ ...pkgModal, pkg: { ...pkgModal.pkg, speedUp: e.target.value } })} placeholder="50" /></div>
                       </div>
                     )}
                     <div className="row mb-0">

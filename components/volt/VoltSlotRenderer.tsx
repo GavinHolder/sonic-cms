@@ -162,6 +162,22 @@ export default function VoltSlotRenderer({ layer, canvasWidth, canvasHeight, slo
 
   if (!displayContent) return null
 
+  // speedDown/speedUp slots pair with a fixed "Mbps" label laid out as its own
+  // layer directly below (see the Ribbon Heritage card designs). Historically
+  // admins typed the unit into the value itself ("10 Mbps"), which the default
+  // render below wraps at whatever width the box allows — so the unit's
+  // position depended on the number's digit count instead of staying fixed.
+  // Strip a trailing non-numeric unit word here and force one line, so the
+  // slot always shows just the number regardless of what's stored.
+  const speedFieldHints = new Set(['speedDown', 'pkg.speedDown', 'speedUp', 'pkg.speedUp'])
+  if (typeof displayContent === 'string' && speedFieldHints.has(slotData.contentFieldHint)) {
+    const numericAmount = displayContent.match(/^-?[\d.,\s/]+/)?.[0]?.trim()
+    const clippedContent = numericAmount || displayContent
+    return (
+      <div style={{ ...style, whiteSpace: 'nowrap' }}>{clippedContent}</div>
+    )
+  }
+
   // Overflow-fit strategies keep long bound values inside the slot's own box.
   if (overflowFit === 'ellipsis') {
     return (
