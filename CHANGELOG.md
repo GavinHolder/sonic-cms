@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2026-09-14] v1.74.1 — Pricing card unit positioning + mobile sidebar fixes
+
+### Fixed
+- **Pricing cards: the "Mbps"/"Minutes" unit no longer jumps position depending on digit count** — the Down/Up speed value's unit used to be typed straight into the admin form field ("10 Mbps") and printed inline with default CSS wrapping, so whether the unit landed beside the number or wrapped onto its own line depended on the value's rendered width at a given card size. The pricing template (`CmsTemplate` "card_1", resolved live by `templateId` — not a Volt design, and not the section's own saved snapshot; see `docs/main-cms-sync-prompt.md` #196 for the full render-path writeup) now strips the value to its leading numeric run and always renders a fixed "Mbps Download"/"Mbps Upload" caption on the line below, independent of the typed value. Voice's equivalent caption corrected from "Airtime" to "Minutes". `VoltSlotRenderer.tsx` got the same defensive fix for any Volt-based card binding a speed slot. Networks admin form's Down/Up (and Voice Minutes Bundle) fields now hint at bare numbers instead of a value+unit placeholder, so new packages don't reintroduce the pattern.
+- **Mobile admin sidebar drawer was completely unusable** — the backdrop overlay that dims the page behind the drawer had a higher `z-index` than the drawer itself, so it painted on top and intercepted every tap meant for the nav links underneath. Backdrop now correctly renders behind the drawer.
+
+---
+
 ## [2026-09-11] v1.74.0 — Independent per-breakpoint layouts for Flexible sections
 
 ### Added

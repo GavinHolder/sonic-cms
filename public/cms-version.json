@@ -1,11 +1,12 @@
 {
-  "version": "1.74.0",
-  "date": "2026-09-11",
+  "version": "1.74.1",
+  "date": "2026-09-14",
   "changelog": {
-    "features": [
-      "Flexible Designer: independent Desktop/Tablet/Mobile layouts for free-canvas sections — each breakpoint is now a fully separate, independently authored canvas (own blocks, own layout) instead of a scaled or reflowed view of Desktop. Existing sections are unaffected until a breakpoint is explicitly customized. Note: Content Height Mode and Screen Limit are still shared across all three breakpoints for now, and a section with an empty Desktop layout shows nothing at any screen size even if Tablet/Mobile have content"
+    "features": [],
+    "bugfixes": [
+      "Pricing cards: the \"Mbps\"/\"Minutes\" unit no longer jumps position depending on digit count — it now always renders on a fixed line below the number, independent of the typed value's width",
+      "Mobile admin sidebar drawer was unusable — a backdrop overlay with a higher z-index than the drawer was intercepting every tap"
     ],
-    "bugfixes": [],
     "breaking": []
   }
 }
