@@ -27,4 +27,9 @@ export function resolveVariants(rawDesignerData: unknown): ResolvedVariants;
 export function pickBreakpointForWidth(screenW: number): Breakpoint;
 export function pickActiveVariant(resolved: ResolvedVariants, breakpoint: Breakpoint): ActiveVariant;
 export function duplicateVariant<T>(sourceVariantData: T | null): T | null;
+export function clampBlocksToCanvas<T extends { x?: number; y?: number; w?: number; h?: number }>(
+  blocks: T[],
+  canvasW: number,
+  canvasH: number
+): T[];
 export function serializeVariants(variants: Partial<ResolvedVariants>): SerializedVariants;

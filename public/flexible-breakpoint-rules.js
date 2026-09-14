@@ -109,6 +109,57 @@
     return JSON.parse(JSON.stringify(sourceVariantData));
   }
 
+  /**
+   * Clamps every top-level block's x/y/w/h fully inside a canvasW x canvasH box.
+   * ONE-TIME seed-time helper: the Designer calls this exactly once, right after
+   * duplicateVariant() clones Desktop's blocks into a freshly-seeded Tablet/Mobile
+   * variant, so the admin can immediately see and drag every block instead of some
+   * sitting off-canvas (unreachable — the Designer's #canvas box is a fixed-size,
+   * overflow:hidden "cover plate", not an auto-growing/scrolling one, so a block
+   * whose x/y put it past the new, narrower/shorter breakpoint canvas is genuinely
+   * invisible and undraggable, not just scrolled out of view). Desktop's blocks are
+   * authored against Desktop's own (usually much wider/taller) canvas, so verbatim
+   * coordinates routinely land outside a 768px/375px canvas.
+   *
+   * Shrinks width/height FIRST when a block is itself wider/taller than the target
+   * canvas — clamping only x/y in that case would still force it to (0,0) and leave
+   * it overflowing the far edge. Blocks are allowed to end up overlapping each other
+   * after clamping; this deliberately does NOT auto-layout or de-overlap them — the
+   * admin repositions them by hand from here, per spec.
+   *
+   * Do not call this outside seed time: once a variant has been customized, its
+   * block positions are the admin's own explicit choices (including intentionally
+   * placing something half off-canvas) and must not be silently reclamped.
+   *
+   * @param {Array<Object>} blocks - Block array to clamp (x/y/w/h in px, canvas-relative).
+   * @param {number} canvasW - Target canvas width in px.
+   * @param {number} canvasH - Target canvas height in px.
+   * @returns {Array<Object>} A new array of new block objects — does not mutate inputs.
+   */
+  function clampBlocksToCanvas(blocks, canvasW, canvasH) {
+    if (!Array.isArray(blocks)) return blocks;
+    var cw = Number(canvasW) || 0;
+    var ch = Number(canvasH) || 0;
+    if (cw <= 0 && ch <= 0) return blocks;
+    return blocks.map(function (block) {
+      var w = typeof block.w === "number" ? block.w : 0;
+      var h = typeof block.h === "number" ? block.h : 0;
+      var x = typeof block.x === "number" ? block.x : 0;
+      var y = typeof block.y === "number" ? block.y : 0;
+      if (cw > 0) {
+        w = Math.min(w, cw);
+        x = Math.max(0, Math.min(x, cw - w));
+      }
+      if (ch > 0) {
+        h = Math.min(h, ch);
+        y = Math.max(0, Math.min(y, ch - h));
+      }
+      var clamped = Object.assign({}, block);
+      clamped.x = x; clamped.y = y; clamped.w = w; clamped.h = h;
+      return clamped;
+    });
+  }
+
   function serializeVariants(variants) {
     variants = variants || {};
     return {
@@ -124,6 +175,7 @@
     pickBreakpointForWidth: pickBreakpointForWidth,
     pickActiveVariant: pickActiveVariant,
     duplicateVariant: duplicateVariant,
+    clampBlocksToCanvas: clampBlocksToCanvas,
     serializeVariants: serializeVariants,
   };
 });
