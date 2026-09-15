@@ -202,6 +202,27 @@
       });
     }
 
+    if (type === "eyebrow") {
+      // Eyebrow (small uppercase label). Defaults are the Designer canvas's own
+      // (createSubElementDOM 'eyebrow' case, public/flexible-designer.html):
+      // #0d6efd / 13px / 700 / left / uppercase / 2px tracking / 1.4 line-height.
+      // The live renderer had NO eyebrow branch at all until 2026-09-15 (the type
+      // was added to the Designer on 2026-07-03, #67, and fell into DesignerSubElement's
+      // "unknown type -> null" default), so every canvas-placed eyebrow rendered nothing
+      // on the live page. Both consumers now read these defaults from here.
+      var eFontNum = Number(p.fontSize) || 13;
+      return stripUndefined({
+        fontSize: mobile ? mobileFontClamp(eFontNum) : (eFontNum + "px"),
+        fontFamily: p.fontFamily || undefined,
+        fontWeight: p.fontWeight || "700",
+        color: p.color || "#0d6efd",
+        textAlign: p.textAlign || "left",
+        textTransform: p.textTransform || "uppercase",
+        letterSpacing: (p.letterSpacing !== undefined && p.letterSpacing !== null) ? (Number(p.letterSpacing) + "px") : "2px",
+        lineHeight: Number(p.lineHeight) || 1.4,
+      });
+    }
+
     return {};
   }
 

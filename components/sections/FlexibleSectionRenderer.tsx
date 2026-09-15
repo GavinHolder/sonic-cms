@@ -4044,6 +4044,29 @@ function DesignerSubElement({ sub, pkg, mobile, exact, darkBg }: { sub: SubEl; p
           </div>
         );
       }
+      // ── eyebrow: small uppercase label (Designer sub-element type since #67, 2026-07-03).
+      //    Until 2026-09-15 this type had NO branch here and fell into the `default: return
+      //    null` below — so an eyebrow authored on the canvas rendered NOTHING on the live
+      //    page (reported as "the Volt block covers it"; it was never a stacking issue).
+      //    Styles come from the shared computeSubElementStyle, same as heading/paragraph. ──
+      case "eyebrow": {
+        const mb   = p.marginBottom !== undefined ? `${Number(p.marginBottom)}px` : "8px";
+        const text = (p.text as string) || "";
+        const textContent = animEffect === "typewriter"
+          ? <span ref={countSpanRef} data-fulltext={text} />
+          : text;
+        return (
+          <div style={{
+            ...computeSubElementStyle("eyebrow", p, { exact, mobile, darkBg }),
+            ...outlinedStyle,
+            ...textShadowStyle,
+            marginBottom:  hasShell ? 0 : mb,
+            marginTop:     0,
+          }}>
+            {textContent}
+          </div>
+        );
+      }
       // ── paragraph: flowing text block with configurable typography ──────
       case "paragraph": {
         const mb   = p.marginBottom !== undefined ? `${Number(p.marginBottom)}px` : "8px";

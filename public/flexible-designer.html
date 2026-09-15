@@ -4100,7 +4100,9 @@ function createSubElementDOM(se, blockId) {
     }
     case 'eyebrow':
       if (p.fontFamily && p.fontFamily !== 'inherit') { const _m=p.fontFamily.match(/'([^']+)'/); if(_m) injectGoogleFont(_m[1]); }
-      preview.innerHTML = `<div class="se-eyebrow" style="color:${p.color||'#0d6efd'};font-size:${p.fontSize||13}px;font-family:${p.fontFamily||'inherit'};font-weight:${p.fontWeight||'700'};text-align:${p.textAlign||'left'};text-transform:${p.textTransform||'uppercase'};letter-spacing:${p.letterSpacing??2}px;line-height:${p.lineHeight||1.4};${outlineStyleFrag(p)}${shadowStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">EYEBROW — double-click to edit</span>')}</div>`;
+      // Shared with FlexibleSectionRenderer.tsx via computeSubElementStyle — see heading case above.
+      const _eStyle = window.FlexibleRenderRules.styleObjectToCssText(window.FlexibleRenderRules.computeSubElementStyle('eyebrow', p, { exact: true }));
+      preview.innerHTML = `<div class="se-eyebrow" style="${_eStyle}${outlineStyleFrag(p)}${shadowStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">EYEBROW — double-click to edit</span>')}</div>`;
       break;
     case 'paragraph': {
       if (p.fontFamily && p.fontFamily !== 'inherit') { const _m=p.fontFamily.match(/'([^']+)'/); if(_m) injectGoogleFont(_m[1]); }
