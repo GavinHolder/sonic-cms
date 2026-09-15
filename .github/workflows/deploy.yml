@@ -217,13 +217,19 @@ jobs:
           PORTAINER_USER="${{ secrets.PORTAINER_USERNAME }}"
           PORTAINER_USER="${PORTAINER_USER:-admin}"
           echo "🔑 Authenticating with Portainer as $PORTAINER_USER..."
-          JWT=$(curl -s -X POST "${{ secrets.PORTAINER_URL }}/api/auth" \
+          # Reachability probe first (never prints the password)
+          curl -sS -o /dev/null --max-time 20 -w "probe /api/status http=%{http_code} connect=%{time_connect}s total=%{time_total}s\n" "${{ secrets.PORTAINER_URL }}/api/status" || echo "probe failed: exit $?"
+          getent hosts "$(echo "${{ secrets.PORTAINER_URL }}" | sed -E 's#https?://##; s#[:/].*##')" || echo "DNS lookup failed"
+
+          AUTH_OUT=$(curl -sS --max-time 30 -w '\n%{http_code}' -X POST "${{ secrets.PORTAINER_URL }}/api/auth" \
             -H "Content-Type: application/json" \
-            -d "{\"username\":\"$PORTAINER_USER\",\"password\":\"${{ secrets.PORTAINER_PASSWORD }}\"}" \
-            | jq -r '.jwt')
+            -d "{\"username\":\"$PORTAINER_USER\",\"password\":\"${{ secrets.PORTAINER_PASSWORD }}\"}" 2>&1)
+          AUTH_CODE=$(printf '%s' "$AUTH_OUT" | tail -n 1)
+          AUTH_BODY=$(printf '%s' "$AUTH_OUT" | sed '$d')
+          JWT=$(printf '%s' "$AUTH_BODY" | jq -r '.jwt // empty' 2>/dev/null)
 
           if [ -z "$JWT" ] || [ "$JWT" = "null" ]; then
-            echo "❌ Portainer authentication failed — check PORTAINER_PASSWORD"
+            echo "❌ Portainer auth failed — HTTP ${AUTH_CODE}; response: $(printf '%s' "$AUTH_BODY" | head -c 300)"
             exit 1
           fi
 
