@@ -18,7 +18,7 @@ import { computeSubElementStyle, computeSubElementPosition, computeMultiBgLayers
 // Per-breakpoint independent layouts (2026-09-11) — shared shape-normalization/variant-
 // selection module (Task 1 of this feature). Companion to flexible-render-rules.js above;
 // see that file's own doc comment for the full designerData shape contract.
-import { resolveVariants, pickBreakpointForWidth, pickActiveVariant, reconcileVariantBlocks } from "../../public/flexible-breakpoint-rules.js";
+import { resolveVariants, pickBreakpointForWidth, pickActiveVariant } from "../../public/flexible-breakpoint-rules.js";
 
 const AnimBgRenderer    = dynamic(() => import("./AnimBgRenderer"), { ssr: false });
 const ScrollStageWrapper = dynamic(() => import("./scroll-stage/ScrollStageWrapper"), { ssr: false });
@@ -583,29 +583,8 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   // task-6-report.md's fix-up entry for the full trace.
   const activeBreakpointKey = pickBreakpointForWidth(mounted ? screenW : 1920);
   const resolvedDesignerVariants = useMemo(() => resolveVariants(designerData), [designerData]);
-  const { data: pickedDesignerData, isFallback: isBreakpointFallback } =
+  const { data: effectiveDesignerData, isFallback: isBreakpointFallback } =
     pickActiveVariant(resolvedDesignerVariants, activeBreakpointKey);
-  // 2026-09-15 (elements-never-vanish) — defensive self-heal of stale persisted data.
-  // A per-breakpoint variant saved before this fix may be MISSING blocks that exist on
-  // another breakpoint (variants were seeded once and never reconciled) or hold blocks/
-  // sub-elements the seed clamped off-canvas. Pass the picked variant through the ONE
-  // shared union-reconcile rule (public/flexible-breakpoint-rules.js — the same call the
-  // Designer makes at seed/switch/save/undo) so every element renders on every breakpoint.
-  // Only for genuinely per-breakpoint free-mode data: a legacy flat blob (tablet/mobile
-  // both null) or the desktop fallback is returned untouched.
-  const effectiveDesignerData = useMemo<Record<string, unknown> | null>(() => {
-    if (!pickedDesignerData || isBreakpointFallback) return pickedDesignerData;
-    const hasSiblings = !!(resolvedDesignerVariants.tablet || resolvedDesignerVariants.mobile);
-    if (!hasSiblings || pickedDesignerData.positionMode !== "free") return pickedDesignerData;
-    try {
-      const blocks = reconcileVariantBlocks(
-        (pickedDesignerData.blocks as Array<Record<string, unknown>>) || [],
-        resolvedDesignerVariants,
-        activeBreakpointKey
-      );
-      return { ...pickedDesignerData, blocks };
-    } catch { return pickedDesignerData; }
-  }, [pickedDesignerData, isBreakpointFallback, resolvedDesignerVariants, activeBreakpointKey]);
 
   // Dynamic Content Height Mode (contentMode === "dynamic") — how many 100vh "screens" this
   // section currently needs, computed live by DesignerBlocksRenderer from reported block
