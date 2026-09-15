@@ -1,6 +1,7 @@
 /**
  * SEO regression alerting — compares a freshly-completed engine run against the
- * previous one and emails the admin when something meaningfully worsened.
+ * previous one and emails `seo_alert_email` (falls back to `admin_email`) when
+ * something meaningfully worsened.
  *
  * Triggers (any one fires an alert):
  *  1. Score dropped by >= seo_alert_score_drop points (default 3).
@@ -10,6 +11,7 @@
  * Settings (system_settings):
  *  - seo_alert_enabled       : "false" disables alerting (default enabled)
  *  - seo_alert_score_drop    : integer threshold (default 3)
+ *  - seo_alert_email         : recipient (Settings → Email); blank → admin_email
  *  - seo_last_alert          : ISO timestamp of the last alert sent (written here)
  *
  * FAILURE MODES:

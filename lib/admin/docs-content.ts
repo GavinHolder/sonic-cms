@@ -2675,7 +2675,7 @@ The **Score** tab gives you a single 0–100 health number plus three sub-scores
 
 The overall score is a weighted blend of whichever sub-scores are available (On-Page 50%, Content 30%, Performance 20%).
 
-**Regression alerts:** if a scheduled audit detects the score dropping, fewer pages indexed, or more pages with issues, an email is sent to your admin address. Disable or tune the threshold in System Settings (\`seo_alert_enabled\`, \`seo_alert_score_drop\`).
+**Regression alerts:** if a scheduled audit detects the score dropping, fewer pages indexed, or more pages with issues, an email is sent to \`seo_alert_email\` (Settings → Email → SEO Alert Email), falling back to \`admin_email\` when blank. Disable or tune the threshold in System Settings (\`seo_alert_enabled\`, \`seo_alert_score_drop\`, \`seo_alert_email\`).
 
 > 💡 The **Content & Structure** crawl needs a reachable **Canonical Base URL** — set it under Site Settings or the crawl is skipped.
 

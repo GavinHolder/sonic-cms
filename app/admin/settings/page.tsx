@@ -146,6 +146,7 @@ export default function SettingsPage() {
     smtp_from: "",
     smtp_secure: "false",
     admin_email: "",
+    seo_alert_email: "",
   });
   const [emailSaving, setEmailSaving] = useState(false);
   const [emailSuccess, setEmailSuccess] = useState<string | null>(null);
@@ -1310,6 +1311,20 @@ export default function SettingsPage() {
                     All CTA and form page submissions will be forwarded to this address.
                   </div>
                   {showHelp && <HelpTip>Receives form submissions and system notifications</HelpTip>}
+
+                  <label className="form-label mt-3">SEO Alert Email</label>
+                  <input
+                    type="email"
+                    className="form-control"
+                    placeholder="developer@yourdomain.com"
+                    value={emailSettings.seo_alert_email}
+                    onChange={(e) =>
+                      setEmailSettings({ ...emailSettings, seo_alert_email: e.target.value })
+                    }
+                  />
+                  <div className="form-text">
+                    Where SEO regression alerts are sent. Leave blank to use the Admin Email.
+                  </div>
                 </div>
               </div>
 
