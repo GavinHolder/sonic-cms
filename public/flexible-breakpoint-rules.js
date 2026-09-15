@@ -170,6 +170,234 @@
     };
   }
 
+  // ── Cross-breakpoint reconciliation (2026-09-15) ───────────────────────────
+  // REQUIREMENT (hard): an element must NEVER disappear from any breakpoint
+  // canvas or the live page unless the user deleted it. Before this, a variant
+  // was seeded from Desktop exactly ONCE and never written to again — a block
+  // added on Desktop after Tablet/Mobile had been seeded existed only in
+  // Desktop, and the seed CLAMPED (never scaled) blocks and ignored
+  // sub-elements, so a sub-element authored at x=600 inside a block shrunk to
+  // 375px sat off-canvas — invisible and undraggable on both the canvas and the
+  // live plate. reconcileVariantBlocks() is the ONE shared implementation of
+  // "make this variant's block list complete and on-canvas"; the Designer
+  // (seed / breakpoint switch / save / undo) and the live renderer (self-heal
+  // of stale persisted data) both call it — no hand copies, per CLAUDE.md's
+  // ONE SYSTEM PER CONCERN rule.
+
+  var DEFAULT_CANVAS_W = { desktop: 1440, tablet: 768, mobile: 375 };
+  var DEFAULT_CANVAS_H = 900;   // mirrors DESIGN_H in both consumers
+  var MIN_BLOCK_W = 40;
+  var MIN_BLOCK_H = 24;
+  var MIN_SUB_W = 40;           // reserved visible width/height for a sub-element
+  var MIN_SUB_H = 24;
+  var BLOCK_BORDER = 2;         // .container-block border — see computeSubElementPosition
+
+  function defaultCanvasWFor(key) {
+    return DEFAULT_CANVAS_W[key] || DEFAULT_CANVAS_W.desktop;
+  }
+
+  /**
+   * The FULL authored canvas box of one variant blob: designerCanvasW (or the
+   * breakpoint default) × designerCanvasH (or 900), the latter multiplied by
+   * multiLimit for multi-mode — the same `perSectionH * multiLimit` the
+   * Designer's canvas element is sized to. Never returns 0/NaN.
+   */
+  function variantCanvasDims(variant, key) {
+    var v = variant || {};
+    var w = Number(v.designerCanvasW);
+    var h = Number(v.designerCanvasH);
+    if (!(w > 0)) w = defaultCanvasWFor(key);
+    if (!(h > 0)) h = DEFAULT_CANVAS_H;
+    var bands = v.contentMode === "multi" ? (Number(v.multiLimit) || 1) : 1;
+    return { w: w, h: h * Math.max(1, bands) };
+  }
+
+  function deepClone(obj) {
+    return JSON.parse(JSON.stringify(obj));
+  }
+
+  function num(v, fallback) {
+    var n = Number(v);
+    return typeof v === "number" || (typeof v === "string" && v !== "") ? (isNaN(n) ? fallback : n) : fallback;
+  }
+
+  // Blocks travel in two shapes (see flexible-designer.html's
+  // serializeBlocksForVariant doc): LIVE {x,y,w,h} and PERSISTED {pixelPos:{x,y,w,h}}.
+  // Read from whichever is present; write back to every shape the block carries
+  // so neither consumer's reader ever sees a stale copy.
+  function readGeom(block) {
+    var pp = block && block.pixelPos && typeof block.pixelPos === "object" ? block.pixelPos : null;
+    return {
+      x: num(pp ? pp.x : block.x, num(block.x, 0)),
+      y: num(pp ? pp.y : block.y, num(block.y, 0)),
+      w: num(pp ? pp.w : block.w, num(block.w, 300)),
+      h: num(pp ? pp.h : block.h, num(block.h, 180)),
+    };
+  }
+
+  function writeGeom(block, g) {
+    var out = Object.assign({}, block);
+    var hasPP = block && block.pixelPos && typeof block.pixelPos === "object";
+    var hasTop = typeof block.x === "number" || typeof block.y === "number" || typeof block.w === "number" || typeof block.h === "number";
+    if (hasPP) out.pixelPos = Object.assign({}, block.pixelPos, { x: g.x, y: g.y, w: g.w, h: g.h });
+    if (hasTop || !hasPP) { out.x = g.x; out.y = g.y; out.w = g.w; out.h = g.h; }
+    return out;
+  }
+
+  function padXOf(block) {
+    var p = (block && block.props) || {};
+    return p.paddingX !== undefined && p.paddingX !== null ? (Number(p.paddingX) || 0) : 20;
+  }
+
+  function clampBlockGeom(g, dstW, dstH) {
+    var w = g.w > 0 ? g.w : MIN_BLOCK_W;
+    var h = g.h > 0 ? g.h : MIN_BLOCK_H;
+    if (w > dstW) w = dstW;
+    if (h > dstH) h = dstH;
+    w = Math.round(Math.max(Math.min(MIN_BLOCK_W, dstW), w));
+    h = Math.round(Math.max(Math.min(MIN_BLOCK_H, dstH), h));
+    return {
+      x: Math.max(0, Math.min(Math.round(g.x), dstW - w)),
+      y: Math.max(0, Math.min(Math.round(g.y), dstH - h)),
+      w: w,
+      h: h,
+    };
+  }
+
+  // Inner box a sub-element may occupy inside its block (block minus 2px border
+  // both sides minus paddingX both sides; vertically the block height).
+  function subBounds(block, g) {
+    var padX = padXOf(block);
+    return {
+      maxX: Math.max(0, g.w - 2 * BLOCK_BORDER - 2 * padX - MIN_SUB_W),
+      maxY: Math.max(0, g.h - MIN_SUB_H),
+    };
+  }
+
+  function clampSub(sub, bounds) {
+    var out = Object.assign({}, sub);
+    out.x = Math.max(0, Math.min(Math.round(num(sub.x, 0)), bounds.maxX));
+    out.y = Math.max(0, Math.min(Math.round(num(sub.y, 0)), bounds.maxY));
+    return out;
+  }
+
+  function subFullyOutside(sub, bounds) {
+    var x = num(sub.x, 0), y = num(sub.y, 0);
+    var w = num(sub.w, 0), h = num(sub.h, 0);
+    return x > bounds.maxX || y > bounds.maxY || (w > 0 && x + w <= 0) || (h > 0 && y + h <= 0);
+  }
+
+  function blockFullyOutside(g, dstW, dstH) {
+    return g.w <= 0 || g.h <= 0 || g.x >= dstW || g.y >= dstH || g.x + g.w <= 0 || g.y + g.h <= 0;
+  }
+
+  function scaleSub(sub, r) {
+    var out = Object.assign({}, sub);
+    if (typeof sub.x === "number") out.x = Math.round(sub.x * r);
+    if (typeof sub.y === "number") out.y = Math.round(sub.y * r);
+    if (typeof sub.w === "number") out.w = Math.max(1, Math.round(sub.w * r));
+    if (typeof sub.h === "number") out.h = Math.max(1, Math.round(sub.h * r));
+    return out;
+  }
+
+  /**
+   * Scale a block (and its sub-elements) from a srcW-wide canvas onto a
+   * dstW-wide one, then clamp everything on-canvas / in-block.
+   */
+  function scaleAndClampBlock(block, r, dstW, dstH) {
+    var g = readGeom(block);
+    var scaled = clampBlockGeom({ x: g.x * r, y: g.y * r, w: g.w * r, h: g.h * r }, dstW, dstH);
+    var out = writeGeom(block, scaled);
+    if (Array.isArray(block.subElements)) {
+      var b = subBounds(block, scaled);
+      out.subElements = block.subElements.map(function (sub) {
+        return clampSub(scaleSub(sub, r), b);
+      });
+    }
+    return out;
+  }
+
+  /**
+   * Heal a block that already exists in the target: leave it exactly as the
+   * user positioned it UNLESS it is fully outside the canvas / zero-sized, in
+   * which case clamp it back into view. Same off-block check for sub-elements.
+   */
+  function healPresentBlock(block, dstW, dstH) {
+    var g = readGeom(block);
+    var out = block;
+    var geom = g;
+    if (blockFullyOutside(g, dstW, dstH)) {
+      geom = clampBlockGeom(g, dstW, dstH);
+      out = writeGeom(block, geom);
+    }
+    if (Array.isArray(block.subElements)) {
+      var b = subBounds(block, geom);
+      var changed = false;
+      var subs = block.subElements.map(function (sub) {
+        if (sub && subFullyOutside(sub, b)) { changed = true; return clampSub(sub, b); }
+        return sub;
+      });
+      if (changed) out = Object.assign({}, out, { subElements: subs });
+    }
+    return out;
+  }
+
+  /**
+   * reconcileVariantBlocks(targetBlocks, variants, targetKey, dims) — pure.
+   *
+   * Returns a NEW block array for `targetKey` that contains EVERY block id
+   * present in ANY of variants.desktop/tablet/mobile:
+   *   - ids already in `targetBlocks` keep their order and their user-authored
+   *     geometry untouched (healed only if fully off-canvas / zero-sized);
+   *   - ids missing from the target are deep-cloned from Desktop when Desktop
+   *     has them, else from whichever variant does, scaled by dstW/srcW (block
+   *     x/y/w/h AND every sub-element's x/y/w/h) and clamped fully on-canvas
+   *     with every sub-element clamped inside its block; appended in source
+   *     order after the existing ones.
+   * A block deleted from every variant is therefore absent from the result —
+   * deletion propagates by the caller deleting from every variant (removeBlock).
+   *
+   * @param {Array<Object>|null} targetBlocks - Target variant's current blocks (LIVE or PERSISTED shape); [] / null for a fresh seed.
+   * @param {{desktop:Object|null,tablet:Object|null,mobile:Object|null}} variants - All variant blobs (each with .blocks and canvas dims).
+   * @param {'desktop'|'tablet'|'mobile'} targetKey
+   * @param {{srcW?:number,srcH?:number,dstW?:number,dstH?:number}} [dims] - Optional overrides. dstW/dstH default to the target variant's own canvas box; srcW/srcH override the DESKTOP source box only (other sources always use their own variant's box).
+   * @returns {Array<Object>} New array; inputs are never mutated and no object refs are shared with other variants.
+   */
+  function reconcileVariantBlocks(targetBlocks, variants, targetKey, dims) {
+    variants = variants || {};
+    dims = dims || {};
+    var target = Array.isArray(targetBlocks) ? targetBlocks : [];
+    var dstBox = variantCanvasDims(variants[targetKey], targetKey);
+    var dstW = Number(dims.dstW) > 0 ? Number(dims.dstW) : dstBox.w;
+    var dstH = Number(dims.dstH) > 0 ? Number(dims.dstH) : dstBox.h;
+
+    var seen = {};
+    var result = target.map(function (b) {
+      if (b && b.id !== undefined && b.id !== null) seen[String(b.id)] = true;
+      return healPresentBlock(b, dstW, dstH);
+    });
+
+    var order = ["desktop", "tablet", "mobile"];
+    for (var i = 0; i < order.length; i++) {
+      var key = order[i];
+      if (key === targetKey) continue;
+      var src = variants[key];
+      if (!src || !Array.isArray(src.blocks)) continue;
+      var srcBox = variantCanvasDims(src, key);
+      var srcW = key === "desktop" && Number(dims.srcW) > 0 ? Number(dims.srcW) : srcBox.w;
+      var r = srcW > 0 ? dstW / srcW : 1;
+      for (var j = 0; j < src.blocks.length; j++) {
+        var b = src.blocks[j];
+        if (!b || b.id === undefined || b.id === null) continue;
+        var id = String(b.id);
+        if (seen[id]) continue;
+        seen[id] = true;
+        result.push(scaleAndClampBlock(deepClone(b), r, dstW, dstH));
+      }
+    }
+    return result;
+  }
+
   return {
     resolveVariants: resolveVariants,
     pickBreakpointForWidth: pickBreakpointForWidth,
@@ -177,5 +405,7 @@
     duplicateVariant: duplicateVariant,
     clampBlocksToCanvas: clampBlocksToCanvas,
     serializeVariants: serializeVariants,
+    variantCanvasDims: variantCanvasDims,
+    reconcileVariantBlocks: reconcileVariantBlocks,
   };
 });

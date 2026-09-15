@@ -2512,6 +2512,19 @@ function applySnapshot(snap, addToHistory, isNewSectionLoad) {
     // the breakpoint that was being edited when it was taken. Replace that one;
     // never touch the other two (see isNewSectionLoad's doc above).
     state.variants[state.activeBreakpoint] = resolved.desktop;
+    // 2026-09-15 (elements-never-vanish): an undo that restores a deleted block
+    // restores it ONLY into the active breakpoint's variant (removeBlock deleted
+    // it from all three). Union-reconcile the other free-mode variants so the
+    // restored block re-appears everywhere, scaled + clamped on-canvas by the
+    // shared rule (public/flexible-breakpoint-rules.js).
+    if (resolved.desktop && resolved.desktop.positionMode === 'free') {
+      ['desktop', 'tablet', 'mobile'].forEach(key => {
+        if (key === state.activeBreakpoint || !state.variants[key]) return;
+        state.variants[key] = Object.assign({}, state.variants[key], {
+          blocks: window.FlexibleBreakpointRules.reconcileVariantBlocks(state.variants[key].blocks, state.variants, key)
+        });
+      });
+    }
   }
   loadFlatVariantIntoState(state.variants[state.activeBreakpoint]);
   // `s` is the flat blob that was just loaded — the snapshot itself for a flat
@@ -6419,6 +6432,17 @@ function removeBlock(id,e) {
   if(e) e.stopPropagation();
   pushHistory();
   state.blocks=state.blocks.filter(b=>b.id!==id);
+  // 2026-09-15 (elements-never-vanish): Delete removes the block from EVERY
+  // free-mode breakpoint variant, not just the active one — otherwise the
+  // cross-breakpoint union-reconcile (buildJson / setDevicePreview) would
+  // faithfully bring it back from whichever variant still held it.
+  if (state.positionMode === 'free') {
+    ['desktop','tablet','mobile'].forEach(key => {
+      const v = state.variants[key];
+      if (key === state.activeBreakpoint || !v || !Array.isArray(v.blocks)) return;
+      state.variants[key] = Object.assign({}, v, { blocks: v.blocks.filter(b => String(b.id) !== String(id)) });
+    });
+  }
   if(state.selectedBlockId===id) state.selectedBlockId=null;
   if(state.bgRepositionBlockId===id) state.bgRepositionBlockId=null;
   if(state.editingBlockId===id)  exitEditMode();
@@ -9230,28 +9254,41 @@ function setDevicePreview(device) {
       // fallback every brand-new section already gets.
       if (state.variants[device]) {
         state.variants[device].designerCanvasW = defaultCanvasWForBreakpoint(device);
-        state.variants[device].designerCanvasH = null;
-        // 2026-09-14 fix: the block coordinates cloned above are still Desktop's
-        // verbatim x/y/w/h, authored against Desktop's own (1440-wide, arbitrarily
-        // tall) canvas — on THIS breakpoint's real, narrower/shorter canvas
-        // (just set above) most/all of them now land partially or fully outside
-        // it. That's not a cosmetic overflow: #canvas is a fixed-size,
-        // overflow:hidden box here (see DEVICE PREVIEW / boxH above), not an
-        // auto-growing or scrollable one, so anything past its edges is
-        // genuinely invisible and undraggable the moment the admin switches to
-        // this breakpoint for the first time. Clamp every block fully inside
-        // the new canvas ONCE, right here at seed time — never on every render,
-        // and never once state.variants[device] already existed (that branch is
-        // skipped entirely above): once the admin starts repositioning blocks on
-        // this breakpoint, their own placements (including deliberately half
-        // off-canvas) are respected as-is. Overlap after clamping is expected —
-        // this only guarantees reachability, the admin rearranges from there.
-        state.variants[device].blocks = window.FlexibleBreakpointRules.clampBlocksToCanvas(
-          state.variants[device].blocks,
-          state.variants[device].designerCanvasW,
-          state.variants[device].designerCanvasH || DESIGN_H
+        // 2026-09-15 (elements-never-vanish): the seed used to reset the canvas
+        // height to DESIGN_H (900) and CLAMP Desktop's verbatim block coordinates
+        // into the narrower box — never scaling them and never touching
+        // sub-elements — so a tall multi-mode Desktop piled its blocks at
+        // y=900-h and a sub-element authored at x=600 inside a block shrunk to
+        // 375px sat off-canvas: invisible AND undraggable (#canvas is a fixed,
+        // overflow:hidden box). Now: the canvas height follows Desktop's box
+        // proportionally (never below DESIGN_H — canvas-only, the section's live
+        // 100vh contract is untouched), and every block + sub-element is SCALED
+        // by dstW/srcW then clamped fully on-canvas / in-block by the ONE shared
+        // reconcile rule (public/flexible-breakpoint-rules.js) — the same rule
+        // the live renderer self-heals with, so canvas and live agree.
+        const srcDims = window.FlexibleBreakpointRules.variantCanvasDims(state.variants.desktop, 'desktop');
+        const dstW    = state.variants[device].designerCanvasW;
+        const bands   = state.variants.desktop && state.variants.desktop.contentMode === 'multi'
+          ? Math.max(1, Number(state.variants.desktop.multiLimit) || 1) : 1;
+        state.variants[device].designerCanvasH = Math.max(DESIGN_H, Math.round((srcDims.h / bands) * dstW / srcDims.w));
+        state.variants[device].blocks = window.FlexibleBreakpointRules.reconcileVariantBlocks(
+          [],
+          { desktop: state.variants.desktop, tablet: state.variants.tablet, mobile: state.variants.mobile, [device]: null },
+          device,
+          { dstW: dstW, dstH: state.variants[device].designerCanvasH * bands }
         );
       }
+    } else {
+      // 2026-09-15 (elements-never-vanish): this breakpoint was seeded earlier
+      // and NOTHING wrote to it since — a block added/undo-restored on another
+      // breakpoint in the meantime existed only there. Union-reconcile it
+      // against the freshly-snapshotted others: existing blocks keep the
+      // user's own positions; missing ones arrive scaled + clamped on-canvas.
+      state.variants[device] = Object.assign({}, state.variants[device], {
+        blocks: window.FlexibleBreakpointRules.reconcileVariantBlocks(
+          state.variants[device].blocks, state.variants, device
+        )
+      });
     }
 
     // 3. Load the incoming breakpoint's data into the live flat state fields.
@@ -10486,6 +10523,22 @@ function buildJson() {
   // the payload, so the save always reflects the latest edits regardless of
   // which breakpoint tab is open when Save/autosave fires.
   state.variants[state.activeBreakpoint] = snapshotFlatStateAsVariant();
+
+  // 2026-09-15 (elements-never-vanish): a Save from Desktop without ever
+  // re-visiting an already-seeded Tablet/Mobile used to persist that variant
+  // WITHOUT any block added since it was seeded — so the new element was
+  // simply absent on that breakpoint's live page. Union-reconcile every
+  // non-null variant against the others right at the save boundary (shared
+  // rule, public/flexible-breakpoint-rules.js): existing blocks keep their
+  // authored positions; missing ones are cloned, scaled and clamped on-canvas.
+  // Deleted blocks are absent from EVERY variant (removeBlock) so they stay gone.
+  ['desktop', 'tablet', 'mobile'].forEach(key => {
+    if (!state.variants[key]) return;
+    state.variants[key] = Object.assign({}, state.variants[key], {
+      blocks: window.FlexibleBreakpointRules.reconcileVariantBlocks(state.variants[key].blocks, state.variants, key)
+    });
+  });
+  if (state.variants[state.activeBreakpoint]) state.blocks = state.variants[state.activeBreakpoint].blocks;
 
   // Convert ALL THREE variants to the persisted block shape in ONE place. Doing
   // it here (rather than letting each variant be captured pre-serialized) is
