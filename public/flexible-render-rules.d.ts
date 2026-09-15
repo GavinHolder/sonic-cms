@@ -100,3 +100,16 @@ export interface MultiBgLayer {
  * doc comment in flexible-render-rules.js for the full contract.
  */
 export function computeMultiBgLayers(opts: MultiBgLayersOpts): MultiBgLayer[];
+
+/**
+ * Converts an optional 0-100 percentage pair into a CSS position value
+ * ("<x>% <y>%"), usable for both `background-position` and `object-position`.
+ * Either axis missing/non-numeric (or out of range, clamped) falls back to
+ * "center" — the pre-existing hardcoded default for every block-level
+ * cover/background image. See the doc comment in flexible-render-rules.js
+ * for the full contract (the "Reposition Background Image" feature).
+ */
+export function resolveBgPositionCss(
+  x: number | null | undefined,
+  y: number | null | undefined
+): string;

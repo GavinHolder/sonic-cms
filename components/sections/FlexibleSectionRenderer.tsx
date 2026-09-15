@@ -14,7 +14,7 @@ import { animate } from "animejs";
 // source of truth also consumed by public/flexible-designer.html (see that file's
 // <script src="/flexible-render-rules.js"> and this module's own doc comment for why
 // it exists). Plain JS + hand-written flexible-render-rules.d.ts alongside it.
-import { computeSubElementStyle, computeSubElementPosition, computeMultiBgLayers } from "../../public/flexible-render-rules.js";
+import { computeSubElementStyle, computeSubElementPosition, computeMultiBgLayers, resolveBgPositionCss } from "../../public/flexible-render-rules.js";
 // Per-breakpoint independent layouts (2026-09-11) — shared shape-normalization/variant-
 // selection module (Task 1 of this feature). Companion to flexible-render-rules.js above;
 // see that file's own doc comment for the full designerData shape contract.
@@ -3029,7 +3029,14 @@ function DesignerBlock({ block, darkBg, onContentHeight }: {
     height: heightModeAuto ? "auto" : "100%",
     overflow: heightModeAuto || isSelfSizingBlock ? "visible" : "hidden",
     borderRadius,
-    ...(bgImageSafe ? { background: `url("${bgImageSafe}") center/cover no-repeat` } : {}),
+    // Reposition Background Image feature (2026-09-15): bgImageX/bgImageY (0-100,
+    // written by the Designer's drag-to-reposition toggle — see startBgReposition
+    // in flexible-designer.html) resolve to a CSS position via the SAME shared
+    // helper the Designer canvas's createBlockPreview() uses for its 'hero'
+    // bgType:'image' case, so the admin's drag and the live page can never
+    // disagree (ONE SYSTEM PER CONCERN). Unset → "center", byte-identical to the
+    // pre-feature hardcoded default.
+    ...(bgImageSafe ? { background: `url("${bgImageSafe}") ${resolveBgPositionCss(p.bgImageX as number | undefined, p.bgImageY as number | undefined)}/cover no-repeat` } : {}),
     ...(!bgImageSafe && bgGradient ? { background: bgGradient } : {}),
     ...(borderWidthV > 0 && borderColorV ? { border: `${borderWidthV}px solid ${borderColorV}` } : {}),
     ...(borderTopWidthV > 0 && borderTopColorV ? { borderTop: `${borderTopWidthV}px solid ${borderTopColorV}` } : {}),
@@ -3202,7 +3209,13 @@ function DesignerBlock({ block, darkBg, onContentHeight }: {
         return (
           <div style={{ height: "100%", overflow: "hidden", minHeight: "200px" }}>
             {p.src
-              ? <img src={p.src as string} alt={(p.alt as string) || ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              // Reposition Background Image feature (2026-09-15): imagePosX/imagePosY
+              // (0-100, set via the Designer's drag-to-reposition toggle — see
+              // startBgReposition in flexible-designer.html) resolve to objectPosition
+              // via the SAME shared helper the Designer canvas uses for this block
+              // type's preview (createBlockPreview's 'image' case), so drag and live
+              // page can never disagree. Unset → "center", byte-identical to before.
+              ? <img src={p.src as string} alt={(p.alt as string) || ""} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: resolveBgPositionCss(p.imagePosX as number | undefined, p.imagePosY as number | undefined) }} />
               : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#adb5bd", background: "#f8f9fa" }}><i className="bi bi-image" style={{ fontSize: "3rem" }} /></div>
             }
           </div>

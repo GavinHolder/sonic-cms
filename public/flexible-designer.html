@@ -504,6 +504,19 @@
       box-shadow: 0 0 0 3px rgba(255,193,7,0.25);
       z-index: 20;
     }
+    /* Reposition Background Image feature (2026-09-15): dashed magenta outline +
+       crosshair cursor while dragging this block's bg/cover image — visually
+       distinct from the normal move (grab) / select (green) states so it's clear
+       a drag here repositions the IMAGE, not the block. Resize handles are hidden
+       entirely (startBgReposition intercepts the mousedown before they'd matter,
+       but hiding them too avoids any visual confusion about what a drag will do). */
+    .container-block.bg-repositioning {
+      border: 2px dashed #d63384;
+      box-shadow: 0 0 0 3px rgba(214,51,132,0.2);
+      cursor: crosshair;
+      z-index: 20;
+    }
+    .container-block.bg-repositioning .resize-handle { display: none; }
 
     .cb-header {
       flex-shrink: 0;
@@ -2043,6 +2056,15 @@ const state = {
   blocks: [],
   selectedBlockId: null,
   selectedSubId: null,
+  // Reposition Background Image feature (2026-09-15): id of the block currently in
+  // "drag to reposition background/cover image" mode, or null when off. Toggled by
+  // toggleBgReposition(); while set, createBlockElement's mousedown handler routes
+  // canvas drags on that block to startBgReposition() instead of startBlockMove()/
+  // resize. NEVER persisted (not part of buildJson()'s payload) — pure UI-mode state,
+  // same treatment as selectedBlockId. Cleared on block-selection change, block
+  // removal, and breakpoint switch (see selectBlock/removeBlock/setDevicePreview) so
+  // it can never linger pointed at a block that is no longer visible/selected.
+  bgRepositionBlockId: null,
   multiSel: [],         // #89 multi-select set: [{b:blockId, s:seId}]. Length>=2 = group; length<=1 uses the normal single-select path (selectedBlockId/selectedSubId)
   editingBlockId: null,
   dragSource: null,
@@ -2085,6 +2107,7 @@ let _saveTimer = null;
 const BLOCK_DEFAULTS = {
   hero:        { label:'Hero',    bgType:'color', bgColor:'#1e3a5f', bgImage:'', bgVideo:'',
                  bgGradFrom:'#1e3a5f', bgGradTo:'#312e81', bgGradAngle:135,
+                 bgImageX:50, bgImageY:50,
                  textColor:'#ffffff',
                  heading:'Hero Heading', subtext:'Subheading text',
                  headingX:50, headingY:38, subX:50, subY:52, btnX:50, btnY:67,
@@ -2095,7 +2118,7 @@ const BLOCK_DEFAULTS = {
   'text-block':{ label:'Text',    bgColor:'transparent', textColor:'#212529', glassEffect:'none', customCss:'' },
   banner:      { label:'Banner',  bgColor:'#1e3a5f', textColor:'#ffffff', heading:'Banner Text', navTarget:'', customCss:'' },
   stats:       { label:'Stats',   bgColor:'transparent', textColor:'#212529', icon:'bi-lightning-charge', number:'99%', statLabel:'Uptime', customCss:'', animateCount:true, animationDuration:1600 },
-  image:       { label:'Image',   src:'', alt:'', imageMode:'fill', customCss:'' },
+  image:       { label:'Image',   src:'', alt:'', imageMode:'fill', imagePosX:50, imagePosY:50, customCss:'' },
   video:       { label:'Video',   src:'', poster:'', autoplay:false, loop:false, customCss:'' },
   html:        { label:'HTML',    html:'<p>Custom HTML</p>', customCss:'' },
   divider:     { label:'Divider', thickness:2, dividerColor:'#dee2e6', customCss:'' },
@@ -3464,6 +3487,10 @@ function createBlockElement(block) {
   // when the group itself is selected (no child selected).
   if (block.id === state.selectedBlockId && !(_isGroupParent && state.selectedSubId)) el.classList.add('selected');
   if (block.id === state.editingBlockId)  { el.classList.add('editing','selected'); }
+  // Reposition Background Image feature (2026-09-15): hides resize handles (CSS,
+  // see .bg-repositioning .resize-handle) and shows a crosshair-cursor affordance
+  // while this block's bg/cover image is being dragged — see startBgReposition.
+  if (block.id === state.bgRepositionBlockId) el.classList.add('bg-repositioning');
   if (_hasChildren) el.classList.add('has-sub');
   if (_isGroupParent) el.classList.add('group-parent');
   // Layer visibility toggle (from Layers panel)
@@ -3503,6 +3530,12 @@ function createBlockElement(block) {
   // Drag from anywhere in the block (not just header) — exclude handles, buttons, and inputs
   el.addEventListener('mousedown', e => {
     if (e.target.closest('.resize-handle, .cb-remove, .cb-add-sub, button, input, textarea, select, .sub-element')) return;
+    // Reposition Background Image feature (2026-09-15): while this block is in
+    // "drag to reposition" mode, a canvas drag moves its bg/cover image instead
+    // of the block itself — route to startBgReposition() and skip the normal
+    // move entirely (resize handles are also hidden via .bg-repositioning, see
+    // the class toggle below).
+    if (state.bgRepositionBlockId === block.id) { startBgReposition(e, block.id); return; }
     startBlockMove(e, block.id);
   });
 
@@ -3594,7 +3627,12 @@ function createBlockPreview(block) {
       const _bgType = p.bgType || (p.bgImage ? 'image' : 'color');
       let bgStyle = '';
       if (_bgType === 'image' && p.bgImage) {
-        bgStyle = `background:url(${p.bgImage}) center/cover no-repeat`;
+        // Reposition Background Image feature (2026-09-15): bgImageX/bgImageY (0-100)
+        // resolve to a CSS position via the SAME shared helper the live renderer uses
+        // (FlexibleSectionRenderer.tsx's DesignerBlock shellStyle) — see
+        // flexible-render-rules.js's resolveBgPositionCss doc comment. Unset → "center",
+        // byte-identical to the pre-feature hardcoded default.
+        bgStyle = `background:url(${p.bgImage}) ${window.FlexibleRenderRules.resolveBgPositionCss(p.bgImageX, p.bgImageY)}/cover no-repeat`;
       } else if (_bgType === 'gradient') {
         bgStyle = `background:linear-gradient(${p.bgGradAngle??135}deg,${p.bgGradFrom||'#1e3a5f'},${p.bgGradTo||'#312e81'})`;
       } else {
@@ -3640,7 +3678,10 @@ function createBlockPreview(block) {
         wrap.innerHTML = `<div style="background:#111;position:relative;overflow:hidden;width:100%;height:100%;border-radius:4px;display:flex;align-items:center;justify-content:center;">
           <div style="text-align:center;color:#666;"><i class="bi bi-camera-video" style="font-size:28px;display:block;margin-bottom:6px;"></i><div style="font-size:11px;">Upload a video in properties</div></div></div>`;
       } else {
-        wrap.innerHTML = `<div style="${bgStyle};position:relative;overflow:hidden;width:100%;height:100%;border-radius:4px;">
+        // cb-hero-bg: stable selector startBgReposition() uses to find this block's
+        // background-image element for direct style mutation during a drag (Reposition
+        // Background Image feature, 2026-09-15) — see its own doc comment.
+        wrap.innerHTML = `<div class="cb-hero-bg" style="${bgStyle};position:relative;overflow:hidden;width:100%;height:100%;border-radius:4px;">
           <div style="position:absolute;inset:0;background:${overlayBgCss};pointer-events:none;"></div>
           <div style="position:absolute;left:${hx}%;top:${hy}%;transform:translate(-50%,-50%);z-index:1;text-align:center;max-width:90%;pointer-events:none;">
             <div style="font-size:14px;font-weight:800;color:${p.textColor||'#fff'};text-shadow:0 1px 4px rgba(0,0,0,0.5);white-space:nowrap;">${p.heading||'Hero Heading'}</div>
@@ -3709,7 +3750,14 @@ function createBlockPreview(block) {
         const _iImg = document.createElement('img');
         _iImg.src = p.src;
         _iImg.alt = p.alt || '';
-        _iImg.style.cssText = 'width:100%;height:100%;border-radius:4px;display:block;object-fit:' + (p.imageMode === 'natural' ? 'contain' : 'cover') + ';';
+        // cb-block-image: stable selector startBgReposition() uses to find this
+        // block's image element for direct style mutation during a drag (Reposition
+        // Background Image feature, 2026-09-15) — see its own doc comment.
+        _iImg.className = 'cb-block-image';
+        // objectPosition mirrors the live renderer's block-level "image" case
+        // (FlexibleSectionRenderer.tsx) via the shared resolveBgPositionCss helper —
+        // unset imagePosX/Y → "center", byte-identical to before this feature.
+        _iImg.style.cssText = 'width:100%;height:100%;border-radius:4px;display:block;object-fit:' + (p.imageMode === 'natural' ? 'contain' : 'cover') + ';object-position:' + window.FlexibleRenderRules.resolveBgPositionCss(p.imagePosX, p.imagePosY) + ';';
         wrap.appendChild(_iImg);
       } else {
         const _iDiv = document.createElement('div');
@@ -5849,6 +5897,108 @@ function startBlockMove(e, blockId) {
 }
 
 // ═══════════════════════════════════════════════════════════
+//  REPOSITION BACKGROUND IMAGE (2026-09-15)
+// ═══════════════════════════════════════════════════════════
+/**
+ * Toggles "drag to reposition background/cover image" mode for one block.
+ * While active, createBlockElement's mousedown handler routes canvas drags
+ * on THAT block to startBgReposition() instead of startBlockMove()/resize
+ * (resize handles are also hidden via the .bg-repositioning CSS class — see
+ * createBlockElement). Clicking the toggle again (or the props-panel button,
+ * which calls this same function) turns it back off. Selecting a different
+ * block, removing this block, or switching Tablet/Mobile/Desktop also clears
+ * it (see selectBlock/removeBlock/setDevicePreview) so it can never linger
+ * pointed at a block that's no longer the one on screen.
+ * @param {string} blockId
+ */
+function toggleBgReposition(blockId) {
+  state.bgRepositionBlockId = (state.bgRepositionBlockId === blockId) ? null : blockId;
+  renderCanvas();
+  renderPropsPanel();
+}
+
+/**
+ * Begins a background/cover-image reposition drag, started from
+ * createBlockElement's mousedown handler when state.bgRepositionBlockId
+ * matches this block. Updates block.props[xKey/yKey] (bgImageX/bgImageY for
+ * a 'hero' block's image background, imagePosX/imagePosY for an 'image'
+ * block) live as the mouse moves, mirrored immediately onto the actual
+ * background/image DOM node (.cb-hero-bg or .cb-block-image — see
+ * createBlockPreview) for zero-lag visual feedback, WITHOUT a full
+ * renderCanvas() per mousemove (same perf pattern as startBlockMove/
+ * startResize elsewhere in this file).
+ *
+ * Per-breakpoint scoping: this operates on state.blocks (via
+ * state.blocks.find), which — in free mode — IS the currently-active
+ * breakpoint's own independent block array (swapped by setDevicePreview /
+ * loadFlatVariantIntoState). No extra breakpoint-aware code is needed here;
+ * dragging while state.devicePreview is 'tablet'/'mobile' already writes
+ * into that breakpoint's own block, not desktop's.
+ *
+ * ASSUMPTIONS:
+ * 1. The block currently has a rendered .cb-hero-bg ('hero' type) or
+ *    .cb-block-image ('image' type) element on the canvas — true whenever
+ *    the props panel's Reposition toggle is visible at all (see
+ *    renderBgRepositionControls's callers, gated on bgImage/src being set).
+ * 2. Position is always computed from the DRAGGED ELEMENT's own
+ *    getBoundingClientRect() (recomputed on every move), never from the
+ *    mouse's raw pixel delta — scale-agnostic, matches this project's
+ *    DOM-measurement coding standard (works identically at any canvas
+ *    zoom/scale, unlike startBlockMove's canvas-scale-divided pixel maths,
+ *    which this simpler percentage-of-own-box approach doesn't need).
+ *
+ * FAILURE MODES:
+ * - Target element not found (block deleted mid-drag, or a type this
+ *   feature doesn't cover) → no-op, mousedown falls through to nothing
+ *   rather than throwing.
+ * - Zero-size element (display:none race) → rect.width/height guarded to
+ *   avoid a divide-by-zero producing NaN%; falls back to 50 (center).
+ * @param {MouseEvent} e - The initiating mousedown event.
+ * @param {string} blockId - ID of the block whose bg/cover image to reposition.
+ */
+function startBgReposition(e, blockId) {
+  const block = state.blocks.find(b => b.id === blockId);
+  if (!block) return;
+  const blockEl = document.querySelector(`.container-block[data-block-id="${blockId}"]`);
+  if (!blockEl) return;
+  const isImageBlock = block.type === 'image';
+  const target = blockEl.querySelector(isImageBlock ? '.cb-block-image' : '.cb-hero-bg');
+  if (!target) return;
+  e.preventDefault();
+  e.stopPropagation();
+  pushHistory();
+  const xKey = isImageBlock ? 'imagePosX' : 'bgImageX';
+  const yKey = isImageBlock ? 'imagePosY' : 'bgImageY';
+  const cssProp = isImageBlock ? 'objectPosition' : 'backgroundPosition';
+  document.body.style.cursor = 'crosshair';
+
+  function applyAt(clientX, clientY) {
+    const rect = target.getBoundingClientRect();
+    const relX = rect.width  ? ((clientX - rect.left) / rect.width)  * 100 : 50;
+    const relY = rect.height ? ((clientY - rect.top)  / rect.height) * 100 : 50;
+    const clampedX = Math.round(Math.max(0, Math.min(100, relX)));
+    const clampedY = Math.round(Math.max(0, Math.min(100, relY)));
+    block.props[xKey] = clampedX;
+    block.props[yKey] = clampedY;
+    target.style[cssProp] = window.FlexibleRenderRules.resolveBgPositionCss(clampedX, clampedY);
+  }
+
+  // Reposition immediately to the initial mousedown point, not just on the first move.
+  applyAt(e.clientX, e.clientY);
+
+  function onMove(ev) { applyAt(ev.clientX, ev.clientY); }
+  function onUp() {
+    document.body.style.cursor = '';
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    renderPropsPanel(); // sync the X/Y sliders to the final dragged value
+    autoSave();
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+// ═══════════════════════════════════════════════════════════
 //  RESIZE
 // ═══════════════════════════════════════════════════════════
 /**
@@ -5923,6 +6073,10 @@ function startResize(e, blockId, dir) {
  */
 function selectBlock(id) {
   clearMultiSel();  // #89 selecting a block collapses any child multi-selection
+  // Reposition Background Image feature (2026-09-15): switching to a DIFFERENT
+  // block always exits reposition mode for whichever block previously had it —
+  // it must never linger pointed at a block that's no longer selected/visible.
+  if (state.bgRepositionBlockId && state.bgRepositionBlockId !== id) state.bgRepositionBlockId = null;
   state.selectedBlockId=id; state.selectedSubId=null; renderCanvas(); renderPropsPanel(); updateMiniToolbar(); updateTextFormatToolbar();
 }
 
@@ -6264,6 +6418,7 @@ function removeBlock(id,e) {
   pushHistory();
   state.blocks=state.blocks.filter(b=>b.id!==id);
   if(state.selectedBlockId===id) state.selectedBlockId=null;
+  if(state.bgRepositionBlockId===id) state.bgRepositionBlockId=null;
   if(state.editingBlockId===id)  exitEditMode();
   renderCanvas(); renderPropsPanel(); updateBlockCount();
   autoSave();
@@ -6557,6 +6712,44 @@ function renderBlockProps(block) {
 }
 
 /**
+ * Renders the "Reposition Background" control group for a block-level
+ * background/cover image: precise X/Y sliders (same pattern as this file's
+ * existing headingX/subX/btnX rows) PLUS a "drag on canvas" toggle button
+ * that hands off to startBgReposition() for direct click-drag positioning.
+ * Shared between the 'hero' block's bgType:'image' background and the
+ * 'image' block's Fill (cover) mode — the two block-level cover-fit images
+ * reachable from this Designer today (see the 2026-09-15 "Reposition
+ * Background Image" feature's own scoping notes).
+ *
+ * The slider oninput calls renderCanvas() only (not renderPropsPanel()) so
+ * dragging a slider doesn't rebuild the panel out from under the user's own
+ * pointer — same pattern as headingX/subX/btnX above. The toggle button DOES
+ * re-render the panel (via toggleBgReposition) since its own active/inactive
+ * label needs to flip.
+ *
+ * @param {string} blockId
+ * @param {number|undefined} xVal - current X, 0-100 (undefined → 50/center)
+ * @param {number|undefined} yVal - current Y, 0-100 (undefined → 50/center)
+ * @param {string} xKey - block.props key to write X into (e.g. 'bgImageX')
+ * @param {string} yKey - block.props key to write Y into (e.g. 'bgImageY')
+ * @returns {string} HTML string for the props panel.
+ */
+function renderBgRepositionControls(blockId, xVal, yVal, xKey, yKey) {
+  const x = xVal ?? 50, y = yVal ?? 50;
+  const active = state.bgRepositionBlockId === blockId;
+  return `<div class="props-label" style="margin-top:8px;"><i class="bi bi-arrows-move"></i> Reposition</div>
+    <div class="props-row"><label>Position X</label><input class="props-input" type="range" min="0" max="100" value="${x}" oninput="updateBlockProp('${blockId}','${xKey}',parseInt(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'%'"><span class="val">${x}%</span></div>
+    <div class="props-row"><label>Position Y</label><input class="props-input" type="range" min="0" max="100" value="${y}" oninput="updateBlockProp('${blockId}','${yKey}',parseInt(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'%'"><span class="val">${y}%</span></div>
+    <div class="props-row">
+      <button type="button" onclick="toggleBgReposition('${blockId}')"
+        style="flex:1;padding:6px 0;font-size:12px;font-weight:600;border-radius:4px;cursor:pointer;border:1px solid ${active?'#0d6efd':'#dee2e6'};background:${active?'#0d6efd':'#fff'};color:${active?'#fff':'#495057'};">
+        <i class="bi bi-arrows-move"></i> ${active ? 'Done — Click Canvas to Finish' : 'Drag to Reposition on Canvas'}
+      </button>
+    </div>
+    ${active ? `<div style="font-size:11px;color:#6c757d;padding:2px 0 4px;">Drag directly on the image in the canvas below. Works on Tablet/Mobile too — positions this breakpoint's own image.</div>` : ''}`;
+}
+
+/**
  * Builds and returns the HTML string for type-specific block settings
  * (background colour, image, text overlay positions, speed inputs, etc.).
  * Called from renderBlockProps() and inlined into the settings section.
@@ -6569,6 +6762,15 @@ function renderTypeProps(block) {
     case 'hero': {
       // Background type
       const bgType = p.bgType || 'color';
+      // Reposition Background Image feature (2026-09-15): if reposition mode is
+      // active for THIS block but its background is no longer an image (BG Type
+      // switched away, or the image was cleared), exit reposition mode here —
+      // the toggle button only renders inside the bgType==='image' branch below,
+      // so without this the block would be stuck intercepting canvas drags with
+      // no visible control left to turn it back off.
+      if (state.bgRepositionBlockId === block.id && (bgType !== 'image' || !p.bgImage)) {
+        state.bgRepositionBlockId = null;
+      }
       h+=selectRow('BG Type',bgType,[['color','Solid Color'],['gradient','Gradient'],['image','Image'],['video','Video']],`updateBlockProp('${block.id}','bgType',this.value);renderCanvas();renderPropsPanel()`);
       if (bgType === 'color') {
         h+=colorRow('Background',p.bgColor||'#1e3a5f',`updateBlockProp('${block.id}','bgColor',this.value);renderCanvas()`);
@@ -6578,6 +6780,7 @@ function renderTypeProps(block) {
         h+=`<div class="props-row"><label>Angle</label><input class="props-input" type="range" min="0" max="360" value="${p.bgGradAngle??135}" oninput="updateBlockProp('${block.id}','bgGradAngle',parseInt(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'°'"><span class="val">${p.bgGradAngle??135}°</span></div>`;
       } else if (bgType === 'image') {
         h+=mediaPickerRow('BG Image',p.bgImage||'',block.id,'bgImage','image/*',true);
+        if (p.bgImage) h+=renderBgRepositionControls(block.id,p.bgImageX,p.bgImageY,'bgImageX','bgImageY');
       } else if (bgType === 'video') {
         h+=mediaPickerRow('BG Video',p.bgVideo||'',block.id,'bgVideo','video/*',true);
       }
@@ -6662,6 +6865,15 @@ function renderTypeProps(block) {
       break;
     case 'image': {
       const isCarousel = Array.isArray(p.images) && p.images.length > 0;
+      // Reposition Background Image feature (2026-09-15): same safety-clear as
+      // the 'hero' case above — if this block is no longer eligible (switched to
+      // carousel mode, Image Mode changed away from Fill/cover, or the image was
+      // cleared), exit reposition mode so it can't get stuck with an unreachable
+      // toggle (renderBgRepositionControls only renders in the non-carousel,
+      // imageMode==='fill', p.src-set branch below).
+      if (state.bgRepositionBlockId === block.id && (isCarousel || !p.src || (p.imageMode||'fill') !== 'fill')) {
+        state.bgRepositionBlockId = null;
+      }
       h+=`<div class="props-row" style="align-items:center;">
         <label style="flex:1;">Carousel mode</label>
         <input type="checkbox" style="width:18px;height:18px;cursor:pointer;" ${isCarousel?'checked':''} onchange="toggleCarouselMode('${block.id}',this.checked)">
@@ -6688,9 +6900,12 @@ function renderTypeProps(block) {
         });
         h+=`<button style="width:100%;margin-top:6px;padding:6px;border:1px dashed #0d6efd;border-radius:6px;background:none;color:#0d6efd;font-size:12px;cursor:pointer;" onclick="addCarouselImage('${block.id}')"><i class="bi bi-plus-circle me-1"></i>Add image</button></div>`;
       } else {
-        h+=selectRow('Image Mode',p.imageMode||'fill',[['fill','Fill (cover)'],['natural','Natural (center)'],['float-left','Float Left'],['float-right','Float Right']],`updateBlockProp('${block.id}','imageMode',this.value);renderCanvas()`);
+        h+=selectRow('Image Mode',p.imageMode||'fill',[['fill','Fill (cover)'],['natural','Natural (center)'],['float-left','Float Left'],['float-right','Float Right']],`updateBlockProp('${block.id}','imageMode',this.value);renderCanvas();renderPropsPanel()`);
         h+=mediaPickerRow('Image',p.src||'',block.id,'src','image/*',true);
         h+=inputRow('Alt text',p.alt||'',`updateBlockProp('${block.id}','alt',this.value)`);
+        // Reposition only makes sense in Fill (cover) mode — Natural/float modes don't
+        // crop the image, so there's nothing to reposition (see renderBgRepositionControls).
+        if (p.src && (p.imageMode||'fill') === 'fill') h+=renderBgRepositionControls(block.id,p.imagePosX,p.imagePosY,'imagePosX','imagePosY');
       }
       break;
     }
@@ -9046,6 +9261,11 @@ function setDevicePreview(device) {
     //    selection-clear after a full state replace (see line ~2281).
     state.selectedBlockId = null;
     state.selectedSubId   = null;
+    // Reposition Background Image feature (2026-09-15): also clear reposition
+    // mode — it's keyed by block id, and the outgoing breakpoint's block array
+    // is being swapped out entirely, so it must not linger pointed at a block
+    // from the breakpoint we just left.
+    state.bgRepositionBlockId = null;
   }
 
   // Cache desktop canvas width before leaving desktop mode

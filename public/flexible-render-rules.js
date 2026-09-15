@@ -370,10 +370,53 @@
     return layers;
   }
 
+  /**
+   * resolveBgPositionCss(x, y) — pure function. Converts an optional 0–100
+   * percentage pair (the "Reposition Background" feature's bgImageX/bgImageY
+   * or imagePosX/imagePosY-style prop pair — anchor = which point of the
+   * SOURCE image is aligned to that point of the box) into the CSS value used
+   * for both `background-position` (block-level cover background, e.g. the
+   * 'hero' block's bgType:'image') and `object-position` (a plain cover-fit
+   * `<img>`, e.g. the 'image' block's imageMode:'fill'). Both properties
+   * accept the same "<x>% <y>%" syntax, so one function serves both call sites.
+   *
+   * Either axis missing/non-numeric → "center", the exact CSS keyword both
+   * consumers already hardcoded before this feature — an unpositioned image
+   * (the default for every block that existed before this feature shipped)
+   * renders byte-for-byte unchanged (no regressions requirement).
+   *
+   * Consumers:
+   *   1. public/flexible-designer.html's createBlockPreview() (canvas preview
+   *      for 'hero' bgType:'image' and 'image' block imageMode:'fill')
+   *   2. FlexibleSectionRenderer.tsx's DesignerBlock shellStyle (hero bg) and
+   *      its "image" case (block-level cover `<img>`)
+   *
+   * ASSUMPTIONS:
+   * 1. x/y are already 0-100 (the Designer's drag handler and sliders both
+   *    clamp before writing the prop — see startBgReposition in
+   *    flexible-designer.html) — this function clamps again defensively so a
+   *    corrupt/out-of-range stored value (e.g. hand-edited Template import
+   *    JSON) can't produce an out-of-box CSS position.
+   *
+   * FAILURE MODES:
+   * - Non-numeric x or y (e.g. a stray string) → Number() coerces to NaN,
+   *   caught by the isFinite check → falls back to "center", never emits
+   *   "NaN% NaN%" into the stylesheet.
+   */
+  function resolveBgPositionCss(x, y) {
+    var xN = Number(x);
+    var yN = Number(y);
+    if (x == null || y == null || !isFinite(xN) || !isFinite(yN)) return "center";
+    xN = Math.max(0, Math.min(100, xN));
+    yN = Math.max(0, Math.min(100, yN));
+    return xN + "% " + yN + "%";
+  }
+
   return {
     computeSubElementStyle: computeSubElementStyle,
     computeSubElementPosition: computeSubElementPosition,
     styleObjectToCssText: styleObjectToCssText,
     computeMultiBgLayers: computeMultiBgLayers,
+    resolveBgPositionCss: resolveBgPositionCss,
   };
 });
