@@ -51,6 +51,20 @@ export interface VoltFill {
   borderOpacity?: number
   /** Corner radius in px for the glass overlay (default: 12) */
   glassBorderRadius?: number
+  /** backdrop-filter brightness % (default: 100) */
+  brightness?: number
+  /** backdrop-filter saturate % (default: 100) */
+  saturate?: number
+  /** backdrop-filter contrast % (default: 100) */
+  contrast?: number
+  /** Matte noise texture strength 0-1 (default: 0 = none) */
+  grain?: number
+  /** Top-edge sheen strength 0-1 (default: 0 = none) */
+  highlight?: number
+  /** Glass border colour hex (default: #ffffff) */
+  borderColor?: string
+  /** Glass border width in px (default: 1) */
+  borderWidth?: number
 }
 
 export interface VoltStroke {
