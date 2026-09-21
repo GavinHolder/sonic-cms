@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { requireRole } from '@/lib/api-middleware';
 
 /** Auto-create the landing page if it has been wiped (e.g. after a clean-slate reset) */
 async function ensureLandingPage(slug: string) {
@@ -76,9 +77,22 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/sections
  * Create a new section
+ *
+ * ASSUMPTIONS:
+ * 1. Identity is the httpOnly `access_token` cookie, verified by requireRole (lib/api-middleware).
+ * 2. Role hierarchy VIEWER < EDITOR < PUBLISHER < SUPER_ADMIN; EDITOR or above may write sections.
+ * 3. The guard is the first statement, so a 401/403 has no side effects (no body read, no DB
+ *    access) and a client may safely retry after refreshing its session.
+ *
+ * FAILURE MODES:
+ * - Expired 8h access token -> 401 (mitigated client-side by lib/fetch-with-refresh: refresh + one retry).
+ * - VIEWER, or a role demoted after the token was issued -> 403 (role is read from the JWT, so a
+ *   demotion only takes effect when the token expires).
  */
 export async function POST(request: NextRequest) {
   try {
+    const auth = requireRole(request, 'EDITOR');
+    if (auth instanceof NextResponse) return auth;
     const body = await request.json();
     const { pageSlug = '/', type, displayName, content, ...rest } = body;
 

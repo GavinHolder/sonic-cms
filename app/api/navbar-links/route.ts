@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { requireRole } from "@/lib/api-middleware";
 
 /** Shape returned/stored for a navbar link */
 export interface NavbarLink {
@@ -53,9 +54,23 @@ export async function GET() {
 
 /** PUT — bulk update showOnNavbar + navOrder for sections and pages.
  *  Body: { links: Array<{ type, id, label, navOrder }> }
- *  All sections/pages NOT in the list get showOnNavbar = false. */
+ *  All sections/pages NOT in the list get showOnNavbar = false.
+ *
+ *  ASSUMPTIONS:
+ *  1. Identity is the httpOnly `access_token` cookie, verified by requireRole (lib/api-middleware).
+ *  2. EDITOR or above may edit the navbar (mirrors PATCH /api/navbar).
+ *  3. The guard is the first statement, so a 401/403 has no side effects (no body read, no DB
+ *     access) and a client may safely retry after refreshing its session.
+ *
+ *  FAILURE MODES:
+ *  - Expired 8h access token -> 401 (mitigated client-side by lib/fetch-with-refresh: refresh + one retry).
+ *  - VIEWER, or a role demoted after the token was issued -> 403.
+ *  - The first statement of the transaction clears showOnNavbar for EVERY section and page, so an
+ *    unguarded call empties the public navbar. */
 export async function PUT(request: NextRequest) {
   try {
+    const auth = requireRole(request, "EDITOR");
+    if (auth instanceof NextResponse) return auth;
     const body = await request.json();
     const links: NavbarLink[] = body.links ?? [];
 

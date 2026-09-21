@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
+import { requireRole } from '@/lib/api-middleware';
 
 // Safely convert a JSON body value to a Prisma-safe Json value.
 // null → Prisma.DbNull (SQL NULL); anything else passes through.
@@ -51,12 +52,26 @@ export async function GET(
 /**
  * PUT /api/sections/[id]
  * Update a section
+ *
+ * ASSUMPTIONS:
+ * 1. Identity is the httpOnly `access_token` cookie, verified by requireRole (lib/api-middleware).
+ * 2. Role hierarchy VIEWER < EDITOR < PUBLISHER < SUPER_ADMIN; EDITOR or above may edit sections.
+ * 3. The guard is the first statement, so a 401/403 has no side effects (no params/body read, no DB
+ *    access) and a client may safely retry after refreshing its session.
+ *
+ * FAILURE MODES:
+ * - Expired 8h access token -> 401 (mitigated client-side by lib/fetch-with-refresh: refresh + one retry).
+ * - VIEWER, or a role demoted after the token was issued -> 403 (role is read from the JWT, so a
+ *   demotion only takes effect when the token expires).
+ * - `content` / `contentDraft` render on the public site, so this write must never be anonymous.
  */
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = requireRole(request, 'EDITOR');
+    if (auth instanceof NextResponse) return auth;
     const { id } = await params;
     const body = await request.json();
 
@@ -148,12 +163,25 @@ export async function PUT(
 /**
  * DELETE /api/sections/[id]
  * Delete a section
+ *
+ * ASSUMPTIONS:
+ * 1. Identity is the httpOnly `access_token` cookie, verified by requireRole (lib/api-middleware).
+ * 2. EDITOR (not PUBLISHER) is the minimum: staff could already delete sections, and this keeps
+ *    that capability while closing the anonymous path.
+ * 3. The guard is the first statement, so a 401/403 has no side effects and is safe to retry.
+ *
+ * FAILURE MODES:
+ * - Expired 8h access token -> 401 (mitigated client-side by lib/fetch-with-refresh: refresh + one retry).
+ * - VIEWER, or a role demoted after the token was issued -> 403.
+ * - The delete cascades to the section's elements and is irreversible, so it must never be anonymous.
  */
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = requireRole(request, 'EDITOR');
+    if (auth instanceof NextResponse) return auth;
     const { id } = await params;
 
     // Check if section exists
