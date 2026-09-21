@@ -313,6 +313,50 @@
       pointer-events: none;
     }
 
+    /* Option C — FRAME GUIDES. Non-interactive overlay that shows the real live-page frame
+       around the free-mode cover plate: the fixed navbar band, the padding-safe boundaries,
+       side gutters, and the next-section into-wave silhouette. Drawn in DESIGN px inside
+       #canvas, so it scales with the canvas transform. Sits behind blocks (z1). */
+    #canvas-frame-guides {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      overflow: hidden;
+      display: none;
+    }
+    #canvas-frame-guides .cfg-navband {
+      position: absolute; top: 0; left: 0; right: 0;
+      background: rgba(13,110,253,0.06);
+      border-bottom: 1px dashed rgba(13,110,253,0.45);
+    }
+    #canvas-frame-guides .cfg-label {
+      position: absolute; top: 4px; left: 8px;
+      font-size: 11px; font-weight: 600; color: rgba(13,110,253,0.75);
+      background: rgba(255,255,255,0.65); padding: 0 5px; border-radius: 3px;
+    }
+    #canvas-frame-guides .cfg-hline {
+      position: absolute; left: 0; right: 0;
+      border-top: 1px dashed rgba(111,66,193,0.5);
+    }
+    #canvas-frame-guides .cfg-hlabel {
+      position: absolute; left: 8px; transform: translateY(-50%);
+      font-size: 10px; font-weight: 600; color: rgba(111,66,193,0.8);
+      background: rgba(255,255,255,0.65); padding: 0 5px; border-radius: 3px;
+    }
+    #canvas-frame-guides .cfg-vline {
+      position: absolute; top: 0; bottom: 0;
+      border-left: 1px dashed rgba(111,66,193,0.35);
+    }
+    #canvas-frame-guides .cfg-wave {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      background: linear-gradient(to top, rgba(108,117,125,0.12), rgba(108,117,125,0));
+      border-top: 1px dashed rgba(108,117,125,0.45);
+    }
+    #canvas-frame-guides .cfg-wave .cfg-label {
+      color: rgba(108,117,125,0.9); background: rgba(255,255,255,0.6);
+    }
+
     /* Grid guides */
     #grid-overlay {
       position: absolute;
@@ -483,6 +527,23 @@
     .container-block.type-text-block:hover { border: 2px dashed rgba(13,110,253,0.35); box-shadow: none; }
     .container-block.type-text-block.selected { border: 2px dashed #20c997; box-shadow: 0 0 0 3px rgba(32,201,151,0.15); }
     .container-block.type-text-block.editing  { border: 2px dashed #ffc107; box-shadow: 0 0 0 3px rgba(255,193,7,0.2); }
+    /* Full-bleed volt background layer: strip the block frame + content padding so the
+       volt iframe reaches the canvas edges (cover-crop, no gaps), mirroring the live page
+       where a full-bleed volt is a section child at inset:0 behind the content. Applied
+       ONLY to volt blocks with the "use as background" toggle ON (class added in
+       createBlockElement); all other blocks are untouched. Geometry (absolute inset:0,
+       100%x100%) is set inline in createBlockElement. */
+    .container-block.cb-fullbleed { border: 0; border-radius: 0; box-shadow: none; outline: 0; }
+    .container-block.cb-fullbleed > .cb-content { padding: 0; border-radius: 0; }
+    /* Selection/hover box-shadow ring would sit at the canvas edge (clipped) and read as a
+       uniform gap around the volt — suppress it for the full-bleed background layer. */
+    .container-block.cb-fullbleed:hover,
+    .container-block.cb-fullbleed.selected,
+    .container-block.cb-fullbleed.editing { box-shadow: none; }
+    /* Header chrome overlays the top edge (absolute) instead of consuming flex-column
+       height, so the volt content starts at the very top canvas edge (no top gap).
+       It still appears on hover/selection as the drag handle + remove button. */
+    .container-block.cb-fullbleed > .cb-header { position: absolute; top: 0; left: 0; right: 0; width: 100%; z-index: 3; }
     /* + add sub-element button in header */
     .cb-add-sub {
       margin-left: auto;
@@ -757,6 +818,21 @@
     .se-preset-chip:hover { border-color: #0d6efd; background: #dbe8ff; }
     .se-preset-chip i { font-size: 12px; color: #0d6efd; flex-shrink: 0; }
     .se-menu-sep { height: 1px; background: #e9ecef; margin: 4px 0; }
+
+    /* #28 Right-click context menu (reuses .se-add-menu container look) */
+    #flex-ctx-menu { min-width: 188px; padding: 6px; }
+    #flex-ctx-menu .fcx-item {
+      display: flex; align-items: center; gap: 9px; padding: 7px 12px;
+      border-radius: 6px; cursor: pointer; font-size: 12px; line-height: 1.2;
+      border: 1px solid transparent; background: white; white-space: nowrap;
+      width: 100%; text-align: left; color: #212529; transition: all 0.1s;
+    }
+    #flex-ctx-menu .fcx-item i { font-size: 13px; width: 15px; text-align: center; color: #6c757d; flex-shrink: 0; }
+    #flex-ctx-menu .fcx-item:hover { background: #f0f4ff; border-color: #0d6efd; color: #0d6efd; }
+    #flex-ctx-menu .fcx-item:hover i { color: #0d6efd; }
+    #flex-ctx-menu .fcx-item.fcx-danger:hover { background: #fff5f5; border-color: #dc3545; color: #dc3545; }
+    #flex-ctx-menu .fcx-item.fcx-danger:hover i { color: #dc3545; }
+    #flex-ctx-menu .fcx-hint { padding: 6px 12px; font-size: 11px; color: #adb5bd; font-style: italic; cursor: default; }
 
     /* Media upload picker */
     .media-picker { display:flex; flex-direction:column; gap:6px; }
@@ -1192,6 +1268,39 @@
     .xyslider-row input[type=range] { flex:1; accent-color:#0d6efd; }
     .xyslider-row input[type=number] { width:58px; font-size:12px; font-weight:700; color:#0d6efd; border:1px solid #dee2e6; border-radius:4px; padding:2px 5px; text-align:right; -moz-appearance:textfield; }
     .xyslider-row input[type=number]::-webkit-outer-spin-button, .xyslider-row input[type=number]::-webkit-inner-spin-button { -webkit-appearance:none; }
+
+    /* ── RIGHT-PANEL PROPERTY-INSPECTOR OVERFLOW FIX (#68) ───────────────
+       Every property row + control must fit inside the fixed-width side panel.
+       Root causes fixed: (1) width:100%/padding controls (css-editor, action-btn,
+       inputs) lacked box-sizing:border-box so padding pushed them past the edge;
+       (2) flex rows (slider + number/value pairs, colour row) had children with
+       the default min-width:auto, so the slider refused to shrink and its
+       trailing input/value was clipped off the right edge.
+       Fix = scope box-sizing:border-box to the panel, let the SLIDER shrink
+       (min-width:0), and pin the trailing number/value at its small fixed size.
+       CSS-only; no control behaviour, values or JS touched. */
+    .right-sidebar, .right-sidebar * { box-sizing: border-box; }
+    .right-sidebar .props-section { max-width: 100%; }
+    .props-row, .xyslider-row, .color-row { min-width: 0; max-width: 100%; }
+    /* The range slider / text / select is the flexible element — allow it to
+       shrink below its content width instead of overflowing the row. */
+    .props-row .props-input,
+    .props-row .props-select,
+    .props-row .hex-in,
+    .color-row .props-input,
+    .color-row .hex-in,
+    .xyslider-row input[type=range] { min-width: 0; flex-shrink: 1; }
+    /* Trailing numeric companion + value read-out keep their small fixed size. */
+    .props-row .props-num,
+    .props-row .val,
+    .xyslider-row input[type=number] { flex-shrink: 0; }
+    /* Colour swatch stays a fixed square; hex field takes the remaining width. */
+    .color-row input[type="color"],
+    .color-null-swatch,
+    .color-token-swatch { flex-shrink: 0; }
+    /* Full-width controls honour the padded container instead of spilling over. */
+    .right-sidebar .css-editor,
+    .right-sidebar .action-btn { max-width: 100%; }
 
     /* ── SECTION CONFIG COLLAPSE ───────────── */
     #section-config-header { cursor:pointer; user-select:none; }
@@ -1659,6 +1768,8 @@
           <button class="btn btn-sm btn-outline-secondary" onclick="adjustUserZoom(0.1)" title="Zoom in (Ctrl+=)"><i class="bi bi-plus-lg"></i></button>
           <button class="btn btn-sm btn-outline-secondary" onclick="resetUserZoom()" title="Reset zoom (Ctrl+0)">1:1</button>
         </div>
+        <!-- Frame guides toggle — show/hide the navbar/padding/gutter/wave frame guides (free+single+desktop). Persisted in localStorage. -->
+        <button id="guides-toggle-btn" class="btn btn-sm btn-outline-secondary active" aria-pressed="true" onclick="toggleFrameGuides()" title="Toggle frame guides"><i class="bi bi-bounding-box"></i></button>
         <!-- #68 — Show/hide the section's configured background on the canvas (view only; does not change saved data) -->
         <button id="section-bg-toggle-btn" class="btn btn-sm btn-outline-secondary active" aria-pressed="true" onclick="toggleSectionBg()" title="Show section background on canvas (view only)"><i class="bi bi-image"></i></button>
         <button class="btn btn-sm btn-outline-secondary" onclick="previewSection()" title="Preview section in tab"><i class="bi bi-eye"></i></button>
@@ -1675,6 +1786,7 @@
         onmousedown="onCanvasMouseDown(event)"
         onclick="onCanvasClick(event)">
         <div id="canvas-section-bg" aria-hidden="true"></div>
+        <div id="canvas-frame-guides" aria-hidden="true"></div>
         <div id="grid-overlay"></div>
         <div id="guide-overlay"></div>
         <div id="dim-display">—</div>
@@ -1777,6 +1889,8 @@ function toggleRight() {
 //  STATE
 // ═══════════════════════════════════════════════════════════
 const DESKTOP_CANVAS_W = 1440; // fixed design width — canvas is always this many px wide
+const DESIGN_H = 900;          // fixed design-box HEIGHT for NEW free-mode designs (Option C
+                               // cover plate). Existing designs keep their saved designerCanvasH.
 const state = {
   contentMode: 'single',
   multiLimit: 3,
@@ -1789,6 +1903,13 @@ const state = {
   positionMode: 'free',   // 'free' | 'grid'  — default: free-form absolute positioning
   devicePreview: 'desktop', // 'mobile'|'tablet'|'desktop'
   _desktopCanvasW: null,    // cached desktop canvas width for responsive scaling
+  designerCanvasH: 810,     // AUTHORED free-mode design-box height. NEW free designs default to
+                            // 810 (16:9 of 1440 → fills a 16:9 viewport edge-to-edge, no letterbox)
+                            // and PERSIST that value. Existing designs load their saved value (which
+                            // may be null → DESIGN_H 900 fallback) via applySnapshot / the INIT load
+                            // path, so legacy null-canvas designs stay byte-identical. DESIGN_H (900)
+                            // remains the fallback for any design whose designerCanvasH is null/0.
+  showFrameGuides: true,    // Option C — draw navbar/padding/gutter/wave frame guides on the canvas
   userZoom: 1,              // manual zoom multiplier (0.25–2.0), applied on top of auto-fit scale
   blocks: [],
   selectedBlockId: null,
@@ -1871,6 +1992,7 @@ function snapshotState() {
     multiLimit:   state.multiLimit,
     preset:       state.preset,
     positionMode: state.positionMode,
+    designerCanvasH: state.designerCanvasH,  // Option C — preserve authored free-mode box height across undo/redo + autosave
     nextId:       state.nextId,
     mosaicRowH:   parseInt(document.getElementById('mosaicRowH')?.value||'200'),
     mosaicGap:    parseInt(document.getElementById('mosaicGap')?.value||'10'),
@@ -1905,7 +2027,7 @@ function autoSave() {
   // Debounce localStorage write only (avoid thrashing storage on rapid actions)
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(() => {
-    localStorage.setItem(AUTOSAVE_KEY, snapshotState());
+    safeSetItem(AUTOSAVE_KEY, snapshotState());
   }, 500);
 }
 
@@ -1971,6 +2093,7 @@ function applySnapshot(snap, addToHistory) {
   state.nextId        = s.nextId;
   state.preset        = s.preset || 'full-width';
   state.positionMode  = s.positionMode || 'free';
+  state.designerCanvasH = s.designerCanvasH || null;  // Option C — restore authored free-mode box height (null = new → DESIGN_H)
   // Sync DOM controls so sliders and selects match the restored state
   document.getElementById('contentMode').value  = s.contentMode;
   document.getElementById('layoutType').value   = s.layoutType;
@@ -2114,6 +2237,28 @@ document.addEventListener('keydown', e => {
     if (e.key === 'ArrowRight') dx =  step;
     if (e.key === 'ArrowUp')    dy = -step;
     if (e.key === 'ArrowDown')  dy =  step;
+    // #89 Multi-selection → nudge every selected child together (mirrors startGroupMove:
+    // writes x/y on each member so buildJson persists, updates the DOM, then refits parents).
+    if (multiSelCount() > 1) {
+      const members = (state.multiSel || []).map(m => {
+        const block = state.blocks.find(b => b.id === m.b);
+        const se = block && block.subElements.find(s => s.id === m.s);
+        const el = document.querySelector(`.sub-element[data-sub-id="${m.s}"]`);
+        return (block && se && el) ? { block, se, el } : null;
+      }).filter(Boolean);
+      if (members.length) {
+        e.preventDefault();
+        members.forEach(m => {
+          m.se.x = Math.max(0, (m.se.x || 0) + dx);
+          m.se.y = Math.max(0, (m.se.y || 0) + dy);
+          m.el.style.left = m.se.x + 'px'; m.el.style.top = m.se.y + 'px';
+          m.block.manualSize = true; // keep nudged positions across re-render
+        });
+        new Set(members.map(m => m.block.id)).forEach(id => fitBlockToSubElementsDOM(id));
+        autoSave();
+      }
+      return;
+    }
     // A sub-element is selected → nudge it within its parent block
     if (state.selectedSubId && state.selectedBlockId) {
       const b = state.blocks.find(b => b.id === state.selectedBlockId);
@@ -2210,6 +2355,12 @@ document.addEventListener('DOMContentLoaded', () => {
   if (window.parent === window) {
     loadAutoSave();
   }
+  // Restore the frame-guides preference (designer-wide, localStorage). Default ON when unset.
+  try {
+    const _fg = localStorage.getItem(FRAME_GUIDES_KEY);
+    if (_fg !== null) state.showFrameGuides = _fg !== '0';
+  } catch (e) {}
+  syncFrameGuidesBtn();
   // Desktop canvas is always a fixed design width — set it before first render
   const _initCanvas = document.getElementById('canvas');
   if (_initCanvas && state.devicePreview === 'desktop') _initCanvas.style.width = DESKTOP_CANVAS_W + 'px';
@@ -2272,8 +2423,19 @@ function renderCanvas() {
     // Fix: canvas-with-rulers must not clip the taller canvas in multi mode
     const cwRulers = canvasArea ? canvasArea.querySelector('.canvas-with-rulers') : null;
     if (cwRulers) cwRulers.classList.add('multi-mode');
+  } else if (state.positionMode === 'free') {
+    // Single + FREE (Option C cover plate): LOCK the design box to an explicit authored
+    // height instead of letting flex:1 fill the operator's leftover window height. The saved
+    // designerCanvasH then becomes a stable constant (existing designs keep their loaded
+    // value; new designs use DESIGN_H). getCanvasScale() letterboxes this fixed box to fit.
+    const boxH = state.designerCanvasH || DESIGN_H;
+    canvas.style.height = boxH + 'px';
+    canvas.style.minHeight = boxH + 'px';
+    if (canvasArea) { canvasArea.classList.remove('multi-scroll', 'single-scroll'); }
+    const cwRulers = canvasArea ? canvasArea.querySelector('.canvas-with-rulers') : null;
+    if (cwRulers) cwRulers.classList.remove('multi-mode');
   } else {
-    // Single mode: flex:1 fills to availH naturally — no inline height needed.
+    // Single + grid/preset/mosaic: flex:1 fills to availH naturally — UNCHANGED.
     canvas.style.height = '';
     canvas.style.minHeight = '';
     if (canvasArea) { canvasArea.classList.remove('multi-scroll', 'single-scroll'); }
@@ -2357,6 +2519,7 @@ function renderCanvas() {
   }
 
   renderGridOverlay();
+  renderFrameGuides();
   renderBlocks();
   renderGuideOverlay();
   renderLayersPanel();
@@ -2394,6 +2557,58 @@ function renderCanvas() {
       }
     }
   });
+}
+
+/**
+ * Option C — draws the FRAME GUIDES overlay (#canvas-frame-guides) so the operator sees the
+ * real live-page frame around the free-mode cover plate: the fixed navbar band, the
+ * padding-safe top/bottom boundaries, the side gutters, and the next-section into-wave
+ * silhouette. Purely visual (pointer-events:none). Drawn in DESIGN px so it scales with the
+ * canvas transform. Only shown for free + single + desktop (the cover-plate context); every
+ * other mode clears/hides it. Fed by sensible constants (navbar 100px, gutter 12px, wave
+ * 200px, padding 80px) — no new postMessage plumbing in this phase.
+ */
+function renderFrameGuides() {
+  const layer = document.getElementById('canvas-frame-guides');
+  if (!layer) return;
+  const on = state.showFrameGuides !== false
+    && state.positionMode === 'free'
+    && state.contentMode === 'single'
+    && state.devicePreview === 'desktop';
+  if (!on) { layer.style.display = 'none'; layer.replaceChildren(); return; }
+  const W = DESKTOP_CANVAS_W;                    // 1440 design px
+  const H = state.designerCanvasH || DESIGN_H;   // design-box height
+  const NAV = 100, PAD_T = 80, PAD_B = 80, WAVE = 200, GUT = 12;
+  const safeTop = Math.max(PAD_T, NAV);          // content never slides under the fixed navbar
+  const kids = [];
+  const mk = (cls, styles, text) => {
+    const el = document.createElement('div');
+    el.className = cls;
+    for (const k in styles) el.style[k] = styles[k];
+    if (text) {
+      const lbl = document.createElement('span');
+      lbl.className = 'cfg-label';
+      lbl.textContent = text;
+      el.appendChild(lbl);
+    }
+    return el;
+  };
+  // Fixed navbar band (top 100px)
+  kids.push(mk('cfg-navband', { height: NAV + 'px' }, 'navbar 100px'));
+  // Content-safe top boundary (max(paddingTop, navbar))
+  const ptLine = mk('cfg-hline', { top: safeTop + 'px' });
+  const ptLbl = document.createElement('span'); ptLbl.className = 'cfg-hlabel'; ptLbl.style.top = safeTop + 'px'; ptLbl.textContent = 'content top';
+  // Content-safe bottom boundary (height − paddingBottom)
+  const pbTop = Math.max(0, H - PAD_B);
+  const pbLine = mk('cfg-hline', { top: pbTop + 'px' });
+  const pbLbl = document.createElement('span'); pbLbl.className = 'cfg-hlabel'; pbLbl.style.top = pbTop + 'px'; pbLbl.textContent = 'content bottom';
+  // Side gutters
+  const gl = mk('cfg-vline', { left: GUT + 'px' });
+  const gr = mk('cfg-vline', { left: (W - GUT) + 'px' });
+  // Next-section into-wave silhouette (bottom ~200px)
+  const wave = mk('cfg-wave', { height: WAVE + 'px' }, 'next section ↴');
+  layer.replaceChildren(...kids, ptLine, ptLbl, pbLine, pbLbl, gl, gr, wave);
+  layer.style.display = 'block';
 }
 
 /**
@@ -2648,7 +2863,25 @@ function createBlockElement(block) {
             : _resolvedBg;
   // Use device-specific display position (auto-scaled for tablet/mobile)
   const _dp = getDisplayPos(block);
-  el.style.cssText = `left:${_dp.x}px;top:${_dp.y}px;width:${_dp.w}px;height:${_dp.h}px;z-index:${block.zIndex||1};background:${_bg};${_glass !== 'none' ? 'backdrop-filter:blur(12px);' : ''}`;
+  // Full-bleed volt → render BEHIND other blocks on the canvas (auto z-index 0, below
+  // the default z-index 1) to mirror the live section, where a full-bleed volt is a
+  // section background beneath the content. The block stays in the DOM and selectable
+  // (clickable in any area not covered by a block above it, and via the Layers panel);
+  // toggling full-bleed OFF restores its normal stacking (block.zIndex||1).
+  const _zIndex = block.props.fullBleed ? 0 : (block.zIndex || 1);
+  // Full-bleed volt breaks OUT of its grid cell AND section/content padding to cover the
+  // WHOLE canvas content box (absolute inset:0, 100%x100%) as a background layer, exactly
+  // like the live page where the volt is a section child at inset:0 behind the content
+  // (cover fit, ignores paddingTop/paddingBottom). The .cb-fullbleed class strips the block
+  // frame + content padding so the iframe reaches the canvas edges with no gaps. It stays a
+  // real, selectable/editable block (click any uncovered area, Layers panel, drag handles).
+  // Non-full-bleed blocks keep their exact grid-cell geometry (_dp) — byte-for-byte as before.
+  const _isFullBleed = !!block.props.fullBleed;
+  if (_isFullBleed) el.classList.add('cb-fullbleed');
+  const _geom = _isFullBleed
+    ? 'left:0;top:0;width:100%;height:100%;'
+    : `left:${_dp.x}px;top:${_dp.y}px;width:${_dp.w}px;height:${_dp.h}px;`;
+  el.style.cssText = `${_geom}z-index:${_zIndex};background:${_bg};${_glass !== 'none' ? 'backdrop-filter:blur(12px);' : ''}`;
   // Apply selection / editing visual states.
   const _hasChildren = block.subElements?.length > 0;
   // Organizational-parent model: a block WITH children renders no canvas box or
@@ -2927,11 +3160,6 @@ function createBlockPreview(block) {
         vIframe.setAttribute('allowtransparency', 'true');
         vIframe.loading = 'lazy';
         wrap.appendChild(vIframe);
-        // Name badge overlay
-        const vBadge = document.createElement('div');
-        vBadge.style.cssText = 'position:absolute;top:4px;left:4px;background:rgba(30,27,75,0.85);color:#a5b4fc;font-size:10px;padding:2px 7px;border-radius:10px;pointer-events:none;white-space:nowrap;max-width:90%;overflow:hidden;text-overflow:ellipsis;';
-        vBadge.textContent = '⚡ ' + (p.voltName || 'Volt');
-        wrap.appendChild(vBadge);
       } else {
         const vContainer = document.createElement('div');
         vContainer.style.cssText = 'width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;';
@@ -3097,7 +3325,31 @@ function outlineStyleFrag(p) {
   // Must NOT fall back to p.color: a white heading toggled outlined without choosing a colour
   // would inherit white and paint an invisible white outline on a light bg (#95). 1:1 with renderer.
   const col = p.outlineColor || '#000000';
-  return `color:${col};filter:url(#${ensureOutlineErodeFilter(p.outlineWidth || 1)});`;
+  // When text shadow is also enabled, append drop-shadow so the shadow traces the outlined
+  // stroke shape (not the glyph body). Merged into the single filter — never clobbered.
+  let filter = `url(#${ensureOutlineErodeFilter(p.outlineWidth || 1)})`;
+  if (p.textShadow) { const s = shadowValues(p); filter += ` drop-shadow(${s.x}px ${s.y}px ${s.b}px ${s.col})`; }
+  return `color:${col};filter:${filter};`;
+}
+
+/** {x,y,blur,color} for the opt-in text shadow, with defaults. */
+function shadowValues(p) {
+  return {
+    x:   p.shadowX    !== undefined ? p.shadowX    : 0,
+    y:   p.shadowY    !== undefined ? p.shadowY    : 2,
+    b:   p.shadowBlur !== undefined ? p.shadowBlur : 4,
+    col: p.shadowColor || '#000000',
+  };
+}
+
+/** Inline style fragment for opt-in text shadow — keeps text legible over busy backgrounds.
+ * Empty unless enabled, so existing sections render unchanged. For OUTLINED text the shadow
+ * is emitted as filter: drop-shadow via outlineStyleFrag (tracing the hollow stroke) instead
+ * of a text-shadow that would fill the transparent glyph body. 1:1 with FlexibleSectionRenderer. */
+function shadowStyleFrag(p) {
+  if (!p.textShadow || p.outlined) return '';
+  const s = shadowValues(p);
+  return `text-shadow:${s.x}px ${s.y}px ${s.b}px ${s.col};`;
 }
 
 function createSubElementDOM(se, blockId) {
@@ -3116,15 +3368,15 @@ function createSubElementDOM(se, blockId) {
   switch(se.type) {
     case 'heading':
       if (p.fontFamily && p.fontFamily !== 'inherit') { const _m=p.fontFamily.match(/'([^']+)'/); if(_m) injectGoogleFont(_m[1]); }
-      preview.innerHTML = `<div class="se-heading ${p.level||'h2'}" style="color:${p.color||''};font-size:${p.fontSize||22}px;font-family:${p.fontFamily||'inherit'};font-weight:${p.fontWeight||'700'};text-align:${p.textAlign||'left'};white-space:${p.textWrap||'normal'};line-height:${p.lineHeight||1.2};letter-spacing:${p.letterSpacing||0}px;text-transform:${p.textTransform||'none'};${outlineStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">' + (p.level||'h2').toUpperCase() + ' — double-click to edit</span>')}</div>`;
+      preview.innerHTML = `<div class="se-heading ${p.level||'h2'}" style="color:${p.color||''};font-size:${p.fontSize||22}px;font-family:${p.fontFamily||'inherit'};font-weight:${p.fontWeight||'700'};text-align:${p.textAlign||'left'};white-space:${p.textWrap||'normal'};line-height:${p.lineHeight||1.2};letter-spacing:${p.letterSpacing||0}px;text-transform:${p.textTransform||'none'};${outlineStyleFrag(p)}${shadowStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">' + (p.level||'h2').toUpperCase() + ' — double-click to edit</span>')}</div>`;
       break;
     case 'eyebrow':
       if (p.fontFamily && p.fontFamily !== 'inherit') { const _m=p.fontFamily.match(/'([^']+)'/); if(_m) injectGoogleFont(_m[1]); }
-      preview.innerHTML = `<div class="se-eyebrow" style="color:${p.color||'#0d6efd'};font-size:${p.fontSize||13}px;font-family:${p.fontFamily||'inherit'};font-weight:${p.fontWeight||'700'};text-align:${p.textAlign||'left'};text-transform:${p.textTransform||'uppercase'};letter-spacing:${p.letterSpacing??2}px;line-height:${p.lineHeight||1.4};${outlineStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">EYEBROW — double-click to edit</span>')}</div>`;
+      preview.innerHTML = `<div class="se-eyebrow" style="color:${p.color||'#0d6efd'};font-size:${p.fontSize||13}px;font-family:${p.fontFamily||'inherit'};font-weight:${p.fontWeight||'700'};text-align:${p.textAlign||'left'};text-transform:${p.textTransform||'uppercase'};letter-spacing:${p.letterSpacing??2}px;line-height:${p.lineHeight||1.4};${outlineStyleFrag(p)}${shadowStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">EYEBROW — double-click to edit</span>')}</div>`;
       break;
     case 'paragraph':
       if (p.fontFamily && p.fontFamily !== 'inherit') { const _m=p.fontFamily.match(/'([^']+)'/); if(_m) injectGoogleFont(_m[1]); }
-      preview.innerHTML = `<div class="se-paragraph" style="color:${p.color||''};font-size:${p.fontSize||14}px;font-family:${p.fontFamily||'inherit'};text-align:${p.textAlign||'left'};white-space:${p.textWrap||'pre-wrap'};line-height:${p.lineHeight||1.6};letter-spacing:${p.letterSpacing||0}px;text-transform:${p.textTransform||'none'};${outlineStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">Paragraph — double-click to edit</span>')} </div>`;
+      preview.innerHTML = `<div class="se-paragraph" style="color:${p.color||''};font-size:${p.fontSize||14}px;font-family:${p.fontFamily||'inherit'};text-align:${p.textAlign||'left'};white-space:${p.textWrap||'pre-wrap'};line-height:${p.lineHeight||1.6};letter-spacing:${p.letterSpacing||0}px;text-transform:${p.textTransform||'none'};${outlineStyleFrag(p)}${shadowStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">Paragraph — double-click to edit</span>')} </div>`;
       break;
     case 'image':
       preview.innerHTML = p.src
@@ -5043,6 +5295,11 @@ function _lyLeafRowHtml(block){
 function renderLayersPanel(){
   const host = document.getElementById('layers-content');
   if (!host) return;
+  // Preserve the sidebar scroll position across the innerHTML rebuild — the
+  // Layers panel shares its scroll container (.sidebar-scroll) with Properties,
+  // so a rebuild here would otherwise clamp scrollTop to 0 and jump to the top.
+  const scroller = host.closest('.sidebar-scroll');
+  const savedScroll = scroller ? scroller.scrollTop : 0;
   if (!state.blocks.length){
     host.innerHTML = '<div class="layers-empty">No elements yet.<br>Drag a block onto the canvas.</div>';
   } else {
@@ -5058,6 +5315,7 @@ function renderLayersPanel(){
     host.innerHTML = html;
   }
   _lyWire(host);
+  if (scroller) scroller.scrollTop = savedScroll;
 }
 
 function _lyClearDropCues(host){
@@ -5316,19 +5574,28 @@ function exitEditMode() {
  */
 function renderPropsPanel() {
   const panel=document.getElementById('props-content');
+  // Preserve the sidebar scroll position across the innerHTML rebuild below.
+  // Replacing innerHTML momentarily collapses the panel height, which clamps
+  // the scroll container's scrollTop to 0 — causing a scroll-jump to the top
+  // whenever a control (corner buttons, header-style toggle, etc.) re-renders
+  // this panel. Capture before, restore after.
+  const scroller = panel ? panel.closest('.sidebar-scroll') : null;
+  const savedScroll = scroller ? scroller.scrollTop : 0;
+  const restore = () => { if (scroller) scroller.scrollTop = savedScroll; };
   // A sub-element selection takes priority — show its type-specific props
   if (state.selectedSubId&&state.selectedBlockId) {
     const b=state.blocks.find(b=>b.id===state.selectedBlockId);
     const se=b?.subElements.find(s=>s.id===state.selectedSubId);
-    if (se) { panel.innerHTML=renderSubElementProps(b,se); return; }
+    if (se) { panel.innerHTML=renderSubElementProps(b,se); restore(); return; }
   }
   // Block selected — show block-level props (dimensions, type settings, content)
   if (state.selectedBlockId) {
     const b=state.blocks.find(b=>b.id===state.selectedBlockId);
-    if (b) { panel.innerHTML=renderBlockProps(b); return; }
+    if (b) { panel.innerHTML=renderBlockProps(b); restore(); return; }
   }
   // Nothing selected — show the empty-state placeholder
   panel.innerHTML=`<div class="no-selection"><i class="bi bi-cursor-text"></i><p>Click a block on the canvas to edit its properties, or drag a block from the library.</p></div>`;
+  restore();
 }
 
 /**
@@ -5681,6 +5948,11 @@ function renderTypeProps(block) {
         </div>
         <button class="action-btn" style="width:auto;margin-bottom:0;flex-shrink:0;background:#1e1b4b;color:#a5b4fc;border-color:#4f46e5;font-size:11px;padding:4px 8px;" onclick="openVoltModal('${block.id}')"><i class="bi bi-pencil"></i> Change</button>
       </div>`;
+      // Use-as-background (full-bleed) toggle — authoritative signal for cover fit.
+      h+=`<div class="form-check form-switch" style="font-size:12px;margin:0 0 10px;">
+        <input class="form-check-input" type="checkbox" role="switch" id="volt-fullbleed-${block.id}" ${p.fullBleed ? 'checked' : ''} onchange="setVoltFullBleed('${block.id}',this.checked)">
+        <label class="form-check-label" for="volt-fullbleed-${block.id}" style="color:#6c757d;">Use as background (full-bleed)</label>
+      </div>`;
       // Slot overrides
       h+=`<div style="margin-bottom:6px;">
         <div style="font-size:11px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Content Slots</div>`;
@@ -5962,6 +6234,7 @@ function renderSubTypeProps(bId, se) {
       h+=`<div class="props-row"><label>Line Height</label><input class="props-input" type="range" min="0.8" max="2.5" step="0.1" value="${p.lineHeight||1.2}" oninput="updateSubProp('${bId}','${se.id}','lineHeight',parseFloat(this.value));renderCanvas();this.nextElementSibling.textContent=this.value"><span class="val">${p.lineHeight||1.2}</span></div>`;
       h+=`<div class="props-row"><label>Letter Spacing</label><input class="props-input" type="range" min="-3" max="15" step="0.5" value="${p.letterSpacing||0}" oninput="updateSubProp('${bId}','${se.id}','letterSpacing',parseFloat(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.letterSpacing||0}px</span></div>`;
       h+=outlineRows(bId,se.id,p);
+      h+=textShadowRows(bId,se.id,p);
       h+=subAnimSection(bId,se.id,p);
       break;
     case 'paragraph':
@@ -5975,6 +6248,7 @@ function renderSubTypeProps(bId, se) {
       h+=`<div class="props-row"><label>Line Height</label><input class="props-input" type="range" min="1.0" max="3.0" step="0.1" value="${p.lineHeight||1.6}" oninput="updateSubProp('${bId}','${se.id}','lineHeight',parseFloat(this.value));renderCanvas();this.nextElementSibling.textContent=this.value"><span class="val">${p.lineHeight||1.6}</span></div>`;
       h+=`<div class="props-row"><label>Letter Spacing</label><input class="props-input" type="range" min="-3" max="15" step="0.5" value="${p.letterSpacing||0}" oninput="updateSubProp('${bId}','${se.id}','letterSpacing',parseFloat(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.letterSpacing||0}px</span></div>`;
       h+=outlineRows(bId,se.id,p);
+      h+=textShadowRows(bId,se.id,p);
       h+=subAnimSection(bId,se.id,p);
       break;
     case 'eyebrow':
@@ -6104,6 +6378,32 @@ function loadVoltLayersForBlock(bId) {
     });
 }
 
+// ── Volt full-bleed (background) detection ─────────────────────────────────────
+// Signal for "render this volt as a full-bleed section background": the block spans
+// the FULL canvas width AND full canvas height (i.e. the user hit both Full Width and
+// Full Height). Works in grid mode (spans the whole grid) and free mode (block box
+// covers the canvas, with a small tolerance). No explicit "background" flag exists yet
+// — this geometric signal is the closest reliable proxy. Returns false safely if the
+// canvas can't be measured, so the default aspect-locked ("contain") render is kept.
+function isVoltFullBleed(b) {
+  try {
+    if (state.positionMode !== 'free') {
+      return b.gridCol === 1 && b.gridRow === 1
+        && (b.colSpan || 1) >= state.gridCols
+        && (b.rowSpan || 1) >= state.gridRows;
+    }
+    const canvas = document.getElementById('canvas');
+    const cw = canvas ? canvas.offsetWidth  : DESKTOP_CANVAS_W;
+    const ch = canvas ? canvas.offsetHeight : 0;
+    if (!ch) return false;
+    const dp = getDisplayPos(b);
+    const TOL = 3; // px tolerance for rounding
+    const coversW = dp.x <= TOL && (dp.x + dp.w) >= cw - TOL;
+    const coversH = dp.y <= TOL && (dp.y + dp.h) >= ch - TOL;
+    return coversW && coversH;
+  } catch (e) { return false; }
+}
+
 // ── Volt preview URL builder ───────────────────────────────────────────────────
 function buildVoltPreviewUrl(b) {
   if (!b.props.voltId) return '';
@@ -6118,6 +6418,12 @@ function buildVoltPreviewUrl(b) {
   if (overrides && Object.keys(overrides).length > 0) {
     try { sp.set('overrides', btoa(JSON.stringify(overrides))); } catch(e) { /* ignore */ }
   }
+  // Full-bleed background block → cover fit (fills the cell edge-to-edge, no letterbox).
+  // Explicit toggle is authoritative: true → cover, false → contain (geometry ignored).
+  // When the flag was never set (undefined), fall back to the #82 geometry heuristic.
+  const fb = b.props.fullBleed;
+  const isFullBleed = fb === true || (fb === undefined && isVoltFullBleed(b));
+  if (isFullBleed) sp.set('fit', 'cover');
   return '/volt-preview/' + b.props.voltId + (sp.toString() ? '?' + sp.toString() : '');
 }
 
@@ -6140,6 +6446,36 @@ function updateVoltSlot(bId, key, val) {
   b.props[key] = val;
   autoSave();
   refreshVoltIframe(bId);
+}
+
+// Persist the explicit "use as background (full-bleed)" flag on the volt block.
+// This is the authoritative signal for cover fit (wins over the geometry heuristic).
+function setVoltFullBleed(bId, checked) {
+  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
+  if (!b) return;
+  b.props.fullBleed = !!checked;
+  autoSave();
+  refreshVoltIframe(bId);
+  // Reflect the new stacking AND geometry immediately (no full re-render → iframe already
+  // reloaded by refreshVoltIframe above to swap fit=contain/cover). Mirrors createBlockElement:
+  //  • ON  → z-index 0 (behind other blocks) + .cb-fullbleed frame strip + cover the WHOLE
+  //          canvas (inset:0, 100%x100%), so the volt fills edge-to-edge like the live page.
+  //  • OFF → restore normal stacking (block.zIndex||1) + drop the class + snap back to the
+  //          block's grid-cell geometry (getDisplayPos), i.e. a normal in-grid volt.
+  const _el = document.querySelector('.container-block[data-block-id="' + bId + '"]');
+  if (_el) {
+    _el.style.zIndex = checked ? '0' : String(b.zIndex || 1);
+    if (checked) {
+      _el.classList.add('cb-fullbleed');
+      _el.style.left = '0'; _el.style.top = '0';
+      _el.style.width = '100%'; _el.style.height = '100%';
+    } else {
+      _el.classList.remove('cb-fullbleed');
+      const _dp = getDisplayPos(b);
+      _el.style.left = _dp.x + 'px'; _el.style.top = _dp.y + 'px';
+      _el.style.width = _dp.w + 'px'; _el.style.height = _dp.h + 'px';
+    }
+  }
 }
 
 // ── Volt layer override helpers ────────────────────────────────────────────────
@@ -6251,15 +6587,15 @@ function pickCarouselImage(bId, idx) {
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = 'image/*';
-  input.onchange = function() {
+  input.onchange = async function() {
     const file = input.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = function(ev) {
-      updateCarouselImage(bId, idx, 'url', ev.target.result);
-      renderPropsPanel();
-    };
-    reader.readAsDataURL(file);
+    // Upload to the media library and store the returned URL — never a base64
+    // data URI (which would balloon the layout JSON past the localStorage quota).
+    const url = await uploadMediaToLibrary(file);
+    if (!url) return;
+    updateCarouselImage(bId, idx, 'url', url);
+    renderPropsPanel();
   };
   input.click();
 }
@@ -6322,15 +6658,15 @@ function pickStripImage(bId, idx) {
   var input = document.createElement('input');
   input.type = 'file';
   input.accept = 'image/*';
-  input.onchange = function() {
+  input.onchange = async function() {
     var file = input.files[0];
     if (!file) return;
-    var reader = new FileReader();
-    reader.onload = function(ev) {
-      updateStripImage(bId, idx, 'src', ev.target.result);
-      renderPropsPanel();
-    };
-    reader.readAsDataURL(file);
+    // Upload to the media library and store the returned URL — never a base64
+    // data URI (which would balloon the layout JSON past the localStorage quota).
+    var url = await uploadMediaToLibrary(file);
+    if (!url) return;
+    updateStripImage(bId, idx, 'src', url);
+    renderPropsPanel();
   };
   input.click();
 }
@@ -6687,9 +7023,125 @@ function outlineRows(bId, seId, p) {
   return h;
 }
 
+/**
+ * Text-shadow controls for text sub-elements (heading / paragraph / eyebrow).
+ * Opt-in — OFF by default so existing sections are visually unchanged. Keeps text
+ * legible over busy/photographic backgrounds. Emits the same `text-shadow` the live
+ * renderer builds from these props: `{x}px {y}px {blur}px {color}`.
+ */
+function textShadowRows(bId, seId, p) {
+  const on = !!p.textShadow;
+  let h = `<div class="props-row"><label>Text Shadow</label><input type="checkbox" ${on?'checked':''} onchange="updateSubProp('${bId}','${seId}','textShadow',this.checked);renderCanvas();renderPropsPanel()"></div>`;
+  if (on) {
+    const sc = p.shadowColor||'#000000';
+    const sb = p.shadowBlur!==undefined ? p.shadowBlur : 4;
+    const sx = p.shadowX!==undefined ? p.shadowX : 0;
+    const sy = p.shadowY!==undefined ? p.shadowY : 2;
+    h += colorRow('Shadow Colour', sc, `updateSubProp('${bId}','${seId}','shadowColor',this.value);renderCanvas()`);
+    h += `<div class="props-row"><label>Shadow Blur</label><input class="props-input" type="range" min="0" max="40" step="1" value="${sb}" oninput="updateSubProp('${bId}','${seId}','shadowBlur',parseInt(this.value)||0);renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${sb}px</span></div>`;
+    h += `<div class="props-row"><label>Offset X</label><input class="props-input" type="range" min="-20" max="20" step="1" value="${sx}" oninput="updateSubProp('${bId}','${seId}','shadowX',parseInt(this.value)||0);renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${sx}px</span></div>`;
+    h += `<div class="props-row"><label>Offset Y</label><input class="props-input" type="range" min="-20" max="20" step="1" value="${sy}" oninput="updateSubProp('${bId}','${seId}','shadowY',parseInt(this.value)||0);renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${sy}px</span></div>`;
+  }
+  return h;
+}
+
 // ── Media upload picker ───────────────────────────────────────────────────────
 window._mediaPickers = {};
 let _mediaPickerCounter = 0;
+
+/**
+ * Shows a brief, non-blocking toast at the bottom of the designer.
+ * Purely transient DOM — never persisted, never blocks Save/Done.
+ * @param {string} msg - Message to display.
+ * @param {string} [kind] - 'warn' (default) or 'error' for colour.
+ */
+function designerToast(msg, kind) {
+  try {
+    var el = document.createElement('div');
+    el.textContent = msg;
+    el.style.cssText =
+      'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:99999;' +
+      'max-width:80vw;padding:10px 16px;border-radius:8px;font-size:13px;line-height:1.4;' +
+      'color:#fff;box-shadow:0 4px 16px rgba(0,0,0,.35);pointer-events:none;' +
+      'background:' + (kind === 'error' ? '#b42318' : '#8a6d1a') + ';';
+    document.body.appendChild(el);
+    setTimeout(function () { el.remove(); }, 4000);
+  } catch (e) { /* toast is best-effort only */ }
+}
+
+/**
+ * Uploads a picked file to the media library and returns its stored URL.
+ *
+ * ASSUMPTIONS:
+ * 1. The designer runs inside an authenticated admin context, so the session
+ *    cookie is sent automatically with credentials:'include'.
+ * 2. POST /api/media/upload-simple accepts a multipart 'file' field and
+ *    returns { success:true, url } on success.
+ *
+ * FAILURE MODES:
+ * - Network/auth failure  → resolves null; caller must NOT persist base64.
+ * - Oversize / bad type   → server 400 → resolves null with a warning toast.
+ * - Missing url in body    → resolves null with a warning toast.
+ *
+ * Storing the returned URL (never a base64 data URI) keeps the layout JSON
+ * small enough for localStorage and the section record.
+ *
+ * @param {File} file - The file selected from the picker.
+ * @returns {Promise<string|null>} Stored URL, or null on any failure.
+ */
+async function uploadMediaToLibrary(file) {
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch('/api/media/upload-simple', {
+      method: 'POST',
+      credentials: 'include',
+      body: fd
+    });
+    if (!res.ok) {
+      let msg = 'Upload failed (' + res.status + ')';
+      try { const j = await res.json(); if (j && j.error) msg = j.error; } catch (e) { /* ignore */ }
+      console.warn('[flex-designer] media upload failed:', msg);
+      designerToast('Image upload failed: ' + msg + ' — not added.', 'error');
+      return null;
+    }
+    const data = await res.json();
+    if (!data || !data.url) {
+      console.warn('[flex-designer] media upload returned no url', data);
+      designerToast('Image upload failed: no URL returned — not added.', 'error');
+      return null;
+    }
+    return data.url;
+  } catch (err) {
+    console.warn('[flex-designer] media upload error:', err);
+    designerToast('Image upload failed: ' + ((err && err.message) || err) + ' — not added.', 'error');
+    return null;
+  }
+}
+
+/**
+ * Writes to localStorage, swallowing quota/security errors so a large layout
+ * can never crash the designer or block Save/Done. The design still persists
+ * to the server via the FLEXIBLE_DESIGNER_SAVE/_DONE postMessage regardless of
+ * whether the local write succeeds. Warns (once) on the first skipped write.
+ * @param {string} key
+ * @param {string} value
+ * @returns {boolean} true if written, false if the write was skipped.
+ */
+let _storageQuotaWarned = false;
+function safeSetItem(key, value) {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (err) {
+    if (!_storageQuotaWarned) {
+      _storageQuotaWarned = true;
+      console.warn('[flex-designer] localStorage write skipped (' + ((err && err.name) || 'error') + '); layout still saved to server.');
+      designerToast('Local backup skipped (browser storage full) — your design is still saved to the server.');
+    }
+    return false;
+  }
+}
 
 /**
  * Returns the inner HTML for a media picker widget: a thumbnail preview
@@ -6775,25 +7227,24 @@ function triggerMediaPick(pid) {
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = m.accept;
-  input.onchange = function() {
+  input.onchange = async function() {
     const file = input.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = function(ev) {
-      const dataUrl = ev.target.result;
-      if (m.type === 'block') {
-        updateBlockProp(m.blockId, m.propKey, dataUrl);
-        if (m.rerender) renderCanvas();
-      } else if (m.type === 'sub') {
-        updateSubProp(m.blockId, m.seId, m.propKey, dataUrl);
-        renderCanvas();
-      } else if (m.type === 'editorialObstacle') {
-        editorialUpdateObstacle(m.blockId, m.obsId, 'src', dataUrl);
-        renderCanvas();
-      }
-      renderPropsPanel();
-    };
-    reader.readAsDataURL(file);
+    // Upload to the media library and store the returned URL — never a base64
+    // data URI (which would balloon the layout JSON past the localStorage quota).
+    const url = await uploadMediaToLibrary(file);
+    if (!url) return;
+    if (m.type === 'block') {
+      updateBlockProp(m.blockId, m.propKey, url);
+      if (m.rerender) renderCanvas();
+    } else if (m.type === 'sub') {
+      updateSubProp(m.blockId, m.seId, m.propKey, url);
+      renderCanvas();
+    } else if (m.type === 'editorialObstacle') {
+      editorialUpdateObstacle(m.blockId, m.obsId, 'src', url);
+      renderCanvas();
+    }
+    renderPropsPanel();
   };
   input.click();
 }
@@ -6966,8 +7417,8 @@ function fontFamilyRow(label, currentVal, bId, sId) {
     <label style="margin-bottom:2px;">${label}</label>
     <select id="ff-sel-${safeId}" class="props-select" onchange="onDesignerFontChange('${bId}','${sId}','${safeId}',this.value)">${opts}</select>
     <div style="display:flex;gap:4px;">
-      <input id="ff-in-${safeId}" class="props-input" type="text" placeholder="Install any Google Font name..." style="flex:1;font-size:11px;">
-      <button class="action-btn" style="padding:3px 8px;font-size:11px;white-space:nowrap;" onclick="installDesignerFont('${bId}','${sId}','${safeId}')">+ Install</button>
+      <input id="ff-in-${safeId}" class="props-input" type="text" placeholder="Install any Google Font name..." style="flex:1 1 auto;min-width:80px;font-size:11px;">
+      <button class="action-btn" style="flex:0 0 auto;width:auto;padding:3px 8px;font-size:11px;white-space:nowrap;" onclick="installDesignerFont('${bId}','${sId}','${safeId}')">+ Install</button>
     </div>
   </div>`;
 }
@@ -7834,6 +8285,15 @@ function getCanvasScale() {
   if (!cwrap) return state.userZoom || 1;
   const rulerW = cwrap.classList.contains('rulers-hidden') ? 0 : 20;
   const availW = cwrap.clientWidth - rulerW - 2;
+  // Free + single (Option C): LETTERBOX the fixed 1440×boxH design box within the available
+  // area on BOTH axes, so the canvas keeps the authored design aspect (not the window's
+  // leftover height). Grid/preset/mosaic + multi keep the width-only fit (UNCHANGED).
+  if (state.positionMode === 'free' && state.contentMode === 'single') {
+    const availH = cwrap.clientHeight - rulerW - 2;
+    const boxH = state.designerCanvasH || DESIGN_H;
+    const fit = Math.min(1, availW / DESKTOP_CANVAS_W, boxH > 0 ? availH / boxH : 1);
+    return fit * (state.userZoom || 1);
+  }
   const fitScale = Math.min(1, availW / DESKTOP_CANVAS_W);
   return fitScale * (state.userZoom || 1);
 }
@@ -7869,7 +8329,14 @@ function resetUserZoom() {
   if (state.devicePreview === 'desktop' && cwrap) {
     const rulerW = cwrap.classList.contains('rulers-hidden') ? 0 : 20;
     const availW = cwrap.clientWidth - rulerW - 2;
-    const fitScale = Math.min(1, availW / DESKTOP_CANVAS_W);
+    let fitScale = Math.min(1, availW / DESKTOP_CANVAS_W);
+    // Mirror the free+single letterbox fit so "reset zoom" lands on a true 100% of the
+    // authored 1440×boxH box (not the width-only fit).
+    if (state.positionMode === 'free' && state.contentMode === 'single') {
+      const availH = cwrap.clientHeight - rulerW - 2;
+      const boxH = state.designerCanvasH || DESIGN_H;
+      fitScale = Math.min(1, availW / DESKTOP_CANVAS_W, boxH > 0 ? availH / boxH : 1);
+    }
     // userZoom = 1/fitScale makes getCanvasScale() return exactly 1.0 (100%)
     state.userZoom = fitScale > 0 ? 1 / fitScale : 1;
   } else {
@@ -7957,7 +8424,13 @@ function buildJson() {
   const designerCanvasW = (state.devicePreview !== 'desktop' && state._desktopCanvasW)
     ? state._desktopCanvasW
     : (canvas ? canvas.offsetWidth : 1200);
-  const designerCanvasH = canvas ? canvas.offsetHeight : 800;
+  // Option C: for FREE designs store the AUTHORED design-box height (a stable constant), NOT
+  // the current window-derived offsetHeight — so re-saving never re-captures the operator's
+  // leftover window height. Existing designs keep their loaded value (state.designerCanvasH);
+  // new designs get DESIGN_H. Grid/preset/mosaic keep the offsetHeight behaviour (UNCHANGED).
+  const designerCanvasH = state.positionMode === 'free'
+    ? (state.designerCanvasH || DESIGN_H)
+    : (canvas ? canvas.offsetHeight : 800);
   return JSON.stringify({
     contentMode:   state.contentMode,
     positionMode:  state.positionMode,
@@ -8015,7 +8488,7 @@ function buildJson() {
  */
 function saveLayout() {
   const json=buildJson();
-  localStorage.setItem('cms_layout_draft',json);
+  safeSetItem('cms_layout_draft',json);
   if(window.parent&&window.parent!==window){window.parent.postMessage({type:'FLEXIBLE_DESIGNER_SAVE',payload:json},'*');}
   const btn=event.target; const orig=btn.textContent;
   btn.textContent=' Saved!';
@@ -8029,7 +8502,7 @@ function saveLayout() {
  */
 function doneAndClose() {
   const json=buildJson();
-  localStorage.setItem('cms_layout_draft',json);
+  safeSetItem('cms_layout_draft',json);
   if(window.parent&&window.parent!==window){window.parent.postMessage({type:'FLEXIBLE_DESIGNER_DONE',payload:json},'*');}
 }
 /**
@@ -8208,6 +8681,26 @@ function toggleSectionBg() {
   applySectionBgToCanvas();
 }
 
+// Toggle the free-mode frame guides (navbar/padding/gutter/wave) on the canvas.
+// Persists the choice as a designer-wide UI preference (not per-section) so it
+// survives reloads. Guides only actually render in free+single+desktop — in any
+// other mode this is a harmless no-op (renderFrameGuides gates itself).
+var FRAME_GUIDES_KEY = 'flexDesignerShowGuides';
+function toggleFrameGuides() {
+  state.showFrameGuides = !state.showFrameGuides;
+  try { localStorage.setItem(FRAME_GUIDES_KEY, state.showFrameGuides ? '1' : '0'); } catch (e) {}
+  syncFrameGuidesBtn();
+  renderFrameGuides();
+}
+// Reflect state.showFrameGuides on the toolbar button (active = guides on).
+function syncFrameGuidesBtn() {
+  const btn = document.getElementById('guides-toggle-btn');
+  if (!btn) return;
+  const on = state.showFrameGuides !== false;
+  btn.classList.toggle('active', on);
+  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+}
+
 // ═══════════════════════════════════════════════════════════
 //  IFRAME INTEGRATION (postMessage in/out)
 // ═══════════════════════════════════════════════════════════
@@ -8269,6 +8762,13 @@ window.addEventListener('message', function(e) {
       }), false);
       // Cache desktop canvas width for responsive auto-scaling
       state._desktopCanvasW = layout.designerCanvasW || null;
+      // Option C — adopt the section's AUTHORED free-mode design-box height. EXISTING designs
+      // carry a saved designerCanvasH (an old window height); PRESERVE and use it on BOTH the
+      // designer (canvas lock + letterbox) and the live renderer, so the crop is identical and
+      // the layout does not jump. NEW / non-free designs leave it null → DESIGN_H fallback.
+      state.designerCanvasH = (typeof layout.designerCanvasH === 'number' && layout.designerCanvasH > 0)
+        ? layout.designerCanvasH
+        : null;
       // Restore section header/footer fields
       if (layout.sectionEyebrow)    { const el = document.getElementById('sectionEyebrow');    if (el) el.value = layout.sectionEyebrow; }
       if (layout.sectionHeading)    { const el = document.getElementById('sectionHeading');    if (el) el.value = layout.sectionHeading; }
@@ -8730,6 +9230,164 @@ window.addEventListener('message', function(e) {
     }
   }
 });
+
+// ═══════════════════════════════════════════════════════════
+//  #28 — RIGHT-CLICK CONTEXT MENU (flexible canvas)
+//  Self-contained: a body-level menu, a `contextmenu` handler on #canvas, and
+//  wiring that DELEGATES every action to existing functions — _lyAction() for
+//  duplicate/hide/delete (blocks + subs), selectBlock/selectSubElement for
+//  selection, and the app's single z-order mechanism (array order + zIndex=i+1,
+//  mirroring the block reorder in _lyHandleDrop ~line 5320-5332). No new
+//  duplicate/delete/hide logic and no clipboard/lock logic is invented.
+// ═══════════════════════════════════════════════════════════
+(function () {
+  let _fcxMenu = null;
+
+  function _fcxEnsureMenu() {
+    if (_fcxMenu) return _fcxMenu;
+    const m = document.createElement('div');
+    m.id = 'flex-ctx-menu';
+    m.className = 'se-add-menu';          // reuse the fixed/white/shadowed menu shell
+    m.style.display = 'none';
+    m.addEventListener('mousedown', e => e.stopPropagation());
+    m.addEventListener('click', e => e.stopPropagation());
+    document.body.appendChild(m);
+    _fcxMenu = m;
+    return m;
+  }
+
+  function _fcxIsOpen() { return !!_fcxMenu && _fcxMenu.style.display !== 'none'; }
+  function closeFlexCtxMenu() { if (_fcxMenu) _fcxMenu.style.display = 'none'; }
+
+  function _fcxItem(icon, label, handler, opts) {
+    opts = opts || {};
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'fcx-item' + (opts.danger ? ' fcx-danger' : '');
+    const i = document.createElement('i'); i.className = 'bi ' + icon;
+    const s = document.createElement('span'); s.textContent = label;
+    b.appendChild(i); b.appendChild(s);
+    b.addEventListener('click', () => { closeFlexCtxMenu(); handler(); });
+    return b;
+  }
+  function _fcxSep() { const d = document.createElement('div'); d.className = 'se-menu-sep'; return d; }
+  function _fcxHint(text) { const d = document.createElement('div'); d.className = 'fcx-hint'; d.textContent = text; return d; }
+
+  // z-order — mirrors the block reorder in _lyHandleDrop (~line 5320-5332), the
+  // app's ONLY z-order mechanism (state.blocks array order + zIndex = i+1).
+  function _fcxReorder(blockId, mode) {
+    const from = state.blocks.findIndex(b => b.id === blockId);
+    if (from < 0) return;
+    pushHistory();
+    const moved = state.blocks.splice(from, 1)[0];
+    let to;
+    if (mode === 'front') to = state.blocks.length;
+    else if (mode === 'back') to = 0;
+    else if (mode === 'forward') to = Math.min(state.blocks.length, from + 1);
+    else to = Math.max(0, from - 1); // backward
+    state.blocks.splice(to, 0, moved);
+    state.blocks.forEach((b, i) => b.zIndex = i + 1);
+    renderCanvas(); autoSave();
+  }
+
+  function _fcxBuildForBlock(menu, blockId) {
+    const b = state.blocks.find(x => x.id === blockId);
+    if (!b) return false;
+    menu.appendChild(_fcxItem('bi-copy', 'Duplicate', () => _lyAction('dup', 'block', blockId)));
+    menu.appendChild(_fcxItem(b.hidden ? 'bi-eye' : 'bi-eye-slash', b.hidden ? 'Show' : 'Hide', () => _lyAction('hide', 'block', blockId)));
+    menu.appendChild(_fcxSep());
+    menu.appendChild(_fcxItem('bi-front', 'Bring to front', () => _fcxReorder(blockId, 'front')));
+    menu.appendChild(_fcxItem('bi-arrow-up-short', 'Bring forward', () => _fcxReorder(blockId, 'forward')));
+    menu.appendChild(_fcxItem('bi-arrow-down-short', 'Send backward', () => _fcxReorder(blockId, 'backward')));
+    menu.appendChild(_fcxItem('bi-back', 'Send to back', () => _fcxReorder(blockId, 'back')));
+    menu.appendChild(_fcxSep());
+    menu.appendChild(_fcxItem('bi-trash3', 'Delete', () => _lyAction('del', 'block', blockId), { danger: true }));
+    return true;
+  }
+
+  function _fcxBuildForSub(menu, blockId, seId) {
+    const b = state.blocks.find(x => x.id === blockId);
+    const se = b && b.subElements && b.subElements.find(s => s.id === seId);
+    if (!se) return false;
+    menu.appendChild(_fcxItem('bi-copy', 'Duplicate', () => _lyAction('dup', 'sub', blockId, seId)));
+    menu.appendChild(_fcxItem(se.hidden ? 'bi-eye' : 'bi-eye-slash', se.hidden ? 'Show' : 'Hide', () => _lyAction('hide', 'sub', blockId, seId)));
+    menu.appendChild(_fcxSep());
+    menu.appendChild(_fcxItem('bi-trash3', 'Delete', () => _lyAction('del', 'sub', blockId, seId), { danger: true }));
+    return true;
+  }
+
+  function _fcxBuildForMultiSub(menu) {
+    const members = (state.multiSel || []).slice();
+    const n = members.length;
+    menu.appendChild(_fcxItem('bi-copy', 'Duplicate ' + n + ' elements', () => {
+      members.forEach(m => _lyDuplicateSub(m.b, m.s));
+    }));
+    menu.appendChild(_fcxSep());
+    // Mirrors the multi-select delete in the keydown handler: snapshot, clear, remove each.
+    menu.appendChild(_fcxItem('bi-trash3', 'Delete ' + n + ' elements', () => {
+      clearMultiSel();
+      state.selectedBlockId = null; state.selectedSubId = null;
+      members.forEach(m => removeSubElement(m.b, m.s));
+    }, { danger: true }));
+    return true;
+  }
+
+  function onFlexCanvasContextMenu(e) {
+    // Guide lines own their own contextmenu (delete) and stopPropagation, so this
+    // handler will not normally see them — bail defensively regardless.
+    if (e.target.closest && e.target.closest('.guide-line')) return;
+    const menu = _fcxEnsureMenu();
+    const subEl = e.target.closest ? e.target.closest('.sub-element') : null;
+    const blockEl = e.target.closest ? e.target.closest('[data-block-id]') : null;
+    menu.innerHTML = '';
+
+    if (subEl && blockEl) {
+      const seId = subEl.dataset.subId;
+      const blockId = blockEl.dataset.blockId;
+      // Honour an active multi-selection when the right-clicked child is part of it.
+      if (multiSelCount() > 1 && isInMultiSel(seId)) {
+        _fcxBuildForMultiSub(menu);
+      } else {
+        if (state.selectedSubId !== seId) selectSubElement(blockId, seId);
+        if (!_fcxBuildForSub(menu, blockId, seId)) return;
+      }
+    } else if (blockEl) {
+      const blockId = blockEl.dataset.blockId;
+      if (state.selectedBlockId !== blockId || state.selectedSubId) selectBlock(blockId);
+      if (!_fcxBuildForBlock(menu, blockId)) return;
+    } else {
+      // Empty canvas — no existing clipboard / select-all to wire, so just hint.
+      menu.appendChild(_fcxHint('Right-click an element for actions'));
+    }
+
+    e.preventDefault();
+    // Show, measure, then clamp to the viewport so it never overflows.
+    menu.style.left = '0px'; menu.style.top = '0px'; menu.style.display = 'flex';
+    const mw = menu.offsetWidth, mh = menu.offsetHeight;
+    const vw = window.innerWidth, vh = window.innerHeight, M = 6;
+    let x = e.clientX, y = e.clientY;
+    if (x + mw > vw - M) x = Math.max(M, vw - M - mw);
+    if (y + mh > vh - M) y = Math.max(M, vh - M - mh);
+    menu.style.left = x + 'px'; menu.style.top = y + 'px';
+  }
+
+  function _fcxSetup() {
+    const canvas = document.getElementById('canvas');
+    if (canvas) canvas.addEventListener('contextmenu', onFlexCanvasContextMenu);
+    // Close on: click/press elsewhere, scroll, or Escape. Escape is swallowed in
+    // capture so it does not also reach the deselect keydown while the menu is open.
+    document.addEventListener('mousedown', e => {
+      if (_fcxIsOpen() && !(_fcxMenu && _fcxMenu.contains(e.target))) closeFlexCtxMenu();
+    });
+    window.addEventListener('scroll', () => { if (_fcxIsOpen()) closeFlexCtxMenu(); }, true);
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && _fcxIsOpen()) { e.stopPropagation(); closeFlexCtxMenu(); }
+    }, true);
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _fcxSetup);
+  else _fcxSetup();
+})();
 </script>
 <div id="drop-conflict-popup">
   <div class="dcp-title">⚠️ Cell is occupied</div>

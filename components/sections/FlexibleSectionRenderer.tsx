@@ -260,6 +260,13 @@ const MOSAIC_PRESETS: Record<string, [number, number]> = {
 let styleInjected = false;
 
 /**
+ * Fixed design-box height (px) for NEW free-mode sections — the vertical half of the
+ * 1440×DESIGN_H cover plate (mirrors flexible-designer.html's DESKTOP_CANVAS_W / DESIGN_H).
+ * EXISTING sections keep their own saved `designerCanvasH`; this is only the fallback.
+ */
+const DESIGN_H = 900;
+
+/**
  * FlexibleSectionRenderer — top-level section component for the FLEXIBLE section type.
  *
  * Responsibilities:
@@ -296,9 +303,73 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   // Designer data (mockup format) — used when elements array is empty
   const designerData = (content as any).designerData as string | Record<string, unknown> | null | undefined;
 
+  // ── Free-mode section-height scoping (desktop only) ────────────────────────
+  // The 1:1 free-mode section height override (below) must apply ONLY on desktop.
+  // On mobile the FLEXIBLE section keeps its own CSS height model (height:auto +
+  // min-height:100vh via !important, section reflows to a reading stack) untouched.
+  // These mirror DesignerBlocksRenderer's own screenW/mounted so both agree on the
+  // desktop/mobile boundary. Pre-mount is treated as desktop so SSR and the first
+  // client paint render the same section style (no hydration mismatch).
+  const [screenW, setScreenW] = useState(typeof window !== "undefined" ? window.innerWidth : 1440);
+  useEffect(() => {
+    const onResize = () => setScreenW(window.innerWidth);
+    window.addEventListener("resize", onResize, { passive: true });
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  // Full-bleed volt blocks (props.fullBleed) are lifted out of the in-grid flow and
+  // drawn as section-level background layers BELOW the content wrapper (see the render
+  // below + FullBleedVoltLayer). Parsed once here (guarded) so the layer can be a direct
+  // child of <section> and cover it edge-to-edge; DesignerBlocksRenderer skips the same
+  // blocks in-grid (isFullBleedVolt) so they render exactly once, behind the other blocks.
+  const fullBleedVolts = useMemo<Array<{ id: number | string; props: Record<string, unknown> }>>(() => {
+    if (!designerData) return [];
+    try {
+      const d = typeof designerData === "string" ? JSON.parse(designerData) : designerData;
+      return ((d?.blocks as Array<{ id: number | string; type?: string; props?: Record<string, unknown> }>) || [])
+        .filter((b) => isFullBleedVolt(b))
+        .map((b) => ({ id: b.id, props: (b.props || {}) as Record<string, unknown> }));
+    } catch { return []; }
+  }, [designerData]);
+
+  // ── Free-mode cover-plate detection (Option C) ─────────────────────────────
+  // A free-mode designer section is rendered as ONE cover plate: the bg image + all
+  // blocks live inside a single fixed-px stage that is scaled to COVER the section box
+  // (max(sectionW/1440, sectionH/ch)) — so the live crop equals the designer crop and text
+  // stays registered over the image. Detected here so the parent can (a) skip the separate
+  // section-level bg-image layer and (b) mount the plate as a section-level absolute layer.
+  // Mirrors DesignerBlocksRenderer's own isFreeMode test; mosaic/empty are excluded.
+  const isFreeDesigner = useMemo(() => {
+    if (!designerData) return false;
+    try {
+      const d = typeof designerData === "string" ? JSON.parse(designerData) : designerData;
+      const free    = d?.positionMode === "free" || d?.layoutType === "free";
+      const mosaic  = (d?.layout as { layoutMode?: string } | undefined)?.layoutMode === "mosaic" || d?.layoutType === "mosaic";
+      const hasBlk  = Array.isArray(d?.blocks) && d.blocks.length > 0;
+      return !!(free && !mosaic && hasBlk);
+    } catch { return false; }
+  }, [designerData]);
+
   // Scroll Stage config — only active when contentMode === "multi" and enabled
   const scrollStage = (content as any).scrollStage as import("./scroll-stage/types").ScrollStageConfig | undefined;
   const scrollStageActive = contentMode === "multi" && scrollStage?.enabled === true && (scrollStage.zones?.length ?? 0) > 0;
+  // Free cover-plate is active only outside scroll-stage (scroll-stage owns its own layout).
+  const freePlateActive = isFreeDesigner && !scrollStageActive;
+  // The saved designer canvas dimensions for a free section — the EXACT cw×ch box the
+  // designer authored at (designerCanvasW/H, same fallbacks as DesignerBlocksRenderer).
+  // Used to drive the section's true-1:1 height via aspect-ratio (height = width·ch/cw).
+  const freeCanvas = useMemo(() => {
+    if (!freePlateActive || !designerData) return null;
+    try {
+      const d = typeof designerData === "string" ? JSON.parse(designerData) : designerData;
+      return { cw: Number((d as any)?.designerCanvasW) || 1440, ch: Number((d as any)?.designerCanvasH) || DESIGN_H };
+    } catch { return null; }
+  }, [freePlateActive, designerData]);
+  // True only when the free-mode 1:1 section-height override should apply: free plate is
+  // active AND we're on desktop. Pre-mount counts as desktop (SSR-safe, no hydration flip).
+  const freePlateDesktop = freePlateActive && (!mounted || screenW > 768) && !!freeCanvas;
   // Tracks the current scroll stage zone so content column shows only the active zone's blocks
   const [scrollStageZone, setScrollStageZone] = useState(0);
 
@@ -372,10 +443,29 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
         ...(paddingBottomMobile != null && { "--section-pb-mobile": `${paddingBottomMobile}px` }),
         position: "relative",
         ...(isBgGrad ? { background: bgColor } : {}),
+        ...(freePlateDesktop && freeCanvas && contentMode === "multi" ? {
+          // MULTI free-mode height — the section is exactly as tall as the design scaled
+          // to the viewport WIDTH (height = width · ch/cw), so the WHOLE design shows with
+          // NO cover-zoom and NO crop. aspect-ratio derives that height in pure CSS
+          // (SSR/no-JS safe — no measurement, no zero-height flash); height:auto + min/max
+          // release the 100vh + min/max-height pins from globals.css (the desktop
+          // `#snap-container section:not(.hero-carousel)` rule has NO !important, so this
+          // inline style wins). Scoped to freePlateDesktop → applied on desktop ONLY; on
+          // mobile no inline height is emitted, so the mobile CSS height model is byte-identical.
+          // SINGLE mode intentionally emits NONE of these overrides — the section keeps its
+          // globals.css 100vh pin so a single free section is exactly one screen and never
+          // scrolls; the plate contain-fits the design inside that fixed 100vh box instead.
+          aspectRatio: `${freeCanvas.cw} / ${freeCanvas.ch}`,
+          height: "auto",
+          minHeight: 0,
+          maxHeight: "none",
+        } : {}),
       } as React.CSSProperties}
     >
-      {/* Background image layer — absolute fill, z-index 0, below everything */}
-      {bgImageUrl && (
+      {/* Background image layer — absolute fill, z-index 0, below everything.
+          In free cover-plate mode the bg image is drawn INSIDE the plate instead (so
+          image + text share one scaled box and crop identically), so it is skipped here. */}
+      {bgImageUrl && !freePlateActive && (
         <div
           aria-hidden="true"
           style={{
@@ -393,6 +483,29 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
         />
       )}
 
+      {/* Free-mode COVER PLATE (Option C) — section-level layer holding the bg image +
+          every block in one fixed-px stage, scaled to COVER the section box. Mounted here
+          (a direct child of the position:relative <section>) so it fills the true 100vh —
+          NOT inside the padded .section-content-wrapper — which is what makes the live crop
+          equal the designer canvas crop. Desktop only; on mobile this instance renders null
+          and the in-wrapper instance below owns the mobile reading-stack reflow (untouched).
+          pointerEvents are re-enabled on the inner stage so links/buttons stay clickable. */}
+      {freePlateActive && (
+        <DesignerBlocksRenderer
+          designerData={designerData!}
+          darkBg={darkBg}
+          plateMode
+          bgImage={{
+            url: bgImageUrl,
+            size: bgImageSize,
+            position: bgImagePosition,
+            repeat: bgImageRepeat,
+            opacity: bgImageOpacity,
+            maskCss: bgMaskCss,
+          }}
+        />
+      )}
+
       {/* Gradient layer (content.gradient) — colour/direction/opacity from the Background tab.
           WITH a bg image it's a scrim OVER the image (z-index 1, #59). With NO image it renders
           as a standalone full-section background layer (z-index 0) so a gradient-only background
@@ -401,6 +514,16 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
       {gradCss && (
         <div aria-hidden="true" style={{ position: "absolute", inset: 0, zIndex: bgImageUrl ? 1 : 0, background: gradCss, pointerEvents: "none" }} />
       )}
+
+      {/* Full-bleed volt background layer(s) — a volt block flagged props.fullBleed is
+          hoisted out of the in-grid flow (DesignerBlocksRenderer skips it) and drawn here
+          as a SECTION-LEVEL background: absolute inset:0 over the whole section at
+          z-index 2 — ABOVE the section bg (0/1), BELOW the z-11 content wrapper — so the
+          other blocks automatically render on top. Multiple full-bleed volts stack in
+          block order. Default-off: sections without a full-bleed volt render unchanged. */}
+      {fullBleedVolts.map((fb) => (
+        <FullBleedVoltLayer key={fb.id} props={fb.props} />
+      ))}
 
       {/* Animated background layers — rendered below content (z-index 0–10).
           Disabled when a background image is set (bgImageUrl takes priority). */}
@@ -1031,7 +1154,56 @@ function canvasRefW(block: { pixelPos?: PixelPos; tabletPos?: PixelPos; mobilePo
  * Tracks window width via state so blocks re-position correctly across breakpoints.
  * Renders a graceful error message if designerData fails to parse.
  */
-function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { designerData: string | Record<string, unknown>; darkBg: boolean; scrollStageZone?: number }) {
+// ── Full-bleed volt background ──────────────────────────────────────────────
+// A volt block flagged props.fullBleed is a decorative full-section background:
+// it is lifted OUT of the in-grid block flow and drawn once by the section body as
+// a section-level layer BELOW the z-11 content wrapper (see FullBleedVoltLayer), so
+// the section's other blocks automatically sit on top with no manual z-index.
+// The same predicate is used to (a) collect these blocks in the section body and
+// (b) skip them in DesignerBlocksRenderer, so they render exactly once. voltId is
+// required — a full-bleed volt with no voltId stays in-grid (shows its placeholder).
+function isFullBleedVolt(b: { type?: string; props?: Record<string, unknown> } | undefined): boolean {
+  return !!b && b.type === "volt" && !!b.props?.fullBleed && !!b.props?.voltId;
+}
+
+// Renders a full-bleed volt as a section-level background layer: absolute, covering
+// the whole <section> (inset:0), pointerEvents:none so content above stays clickable
+// (decorative background — matches the section bg image/gradient layers). Uses
+// VoltBlock fitMode="cover" (#85) to fill the section box. Slot-building mirrors the
+// in-grid volt case (kept inline to leave that case byte-for-byte unchanged).
+function FullBleedVoltLayer({ props: p }: { props: Record<string, unknown> }) {
+  const voltId = p.voltId as string | undefined;
+  if (!voltId) return null;
+  const nested = (p.slots && typeof p.slots === "object" ? p.slots : {}) as Record<string, string>;
+  const voltSlots = {
+    title:       (p.slotTitle as string)       || nested.title       || undefined,
+    body:        (p.slotBody as string)        || nested.body        || undefined,
+    imageUrl:    (p.slotImageUrl as string)    || nested.imageUrl    || undefined,
+    imageAlt:    (p.slotImageAlt as string)    || nested.imageAlt    || undefined,
+    actionLabel: (p.slotActionLabel as string) || nested.actionLabel || undefined,
+    actionHref:  (p.slotActionHref as string)  || nested.actionHref  || undefined,
+    badge:       (p.slotBadge as string)       || nested.badge       || undefined,
+    icon:        (p.slotIcon as string)        || nested.icon        || undefined,
+  };
+  return (
+    <div aria-hidden="true" style={{ position: "absolute", inset: 0, zIndex: 2, pointerEvents: "none" }}>
+      <VoltBlock voltId={voltId} slots={voltSlots} fitMode="cover" />
+    </div>
+  );
+}
+
+function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMode, bgImage }: {
+  designerData: string | Record<string, unknown>;
+  darkBg: boolean;
+  scrollStageZone?: number;
+  // plateMode: this is the SECTION-LEVEL free cover-plate instance (desktop). It owns the
+  // desktop free render (bg image + blocks in one COVER-scaled box) and returns null on
+  // mobile. The default (plateMode falsy) in-wrapper instance is the inverse: null on
+  // desktop free, mobile reading-stack on mobile. Together they never double-render.
+  plateMode?: boolean;
+  // bgImage: section background image fields, drawn INSIDE the plate (free cover-plate only).
+  bgImage?: { url?: string; size?: string; position?: string; repeat?: string; opacity?: number; maskCss?: string | null };
+}) {
   // Hooks must be called before any conditional returns
   const [screenW, setScreenW] = useState(typeof window !== "undefined" ? window.innerWidth : 1440);
   // Update screen width on resize so responsive positions re-calculate
@@ -1044,12 +1216,16 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
   // live section is a pixel-exact scaled copy of the designer canvas (see free-mode branch).
   const stageRef = useRef<HTMLDivElement>(null);
   const [stageW, setStageW] = useState(0);
+  // stageH is only consumed by the free cover-plate (plateMode) — it measures the SECTION
+  // box height so the plate can be COVER-scaled (max of width/height ratios), not width-only.
+  const [stageH, setStageH] = useState(0);
   useEffect(() => {
     const el = stageRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(() => setStageW(el.clientWidth));
+    const ro = new ResizeObserver(() => { setStageW(el.clientWidth); setStageH(el.clientHeight); });
     ro.observe(el);
     setStageW(el.clientWidth);
+    setStageH(el.clientHeight);
     return () => ro.disconnect();
   }, []);
   // Mount gate — the free-mode mobile reflow (screenW <= 768) must only apply AFTER
@@ -1153,10 +1329,15 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
     // (which enforces min 100px navbar clearance via max(--section-pt, --navbar-height)).
     // Without this, the grid is taller than available space and content spills out.
     const containerH = isScrollStage ? "100%" : (isMulti ? `${multiLimit * 100}vh` : "calc(100vh - max(var(--section-pt, 100px), var(--navbar-height, 100px)) - var(--section-pb, 80px))");
+    // Full-bleed volt blocks are promoted to section-level background layers by the
+    // parent section body (FullBleedVoltLayer); drop them from the in-grid flow here so
+    // they render once — behind the other blocks — instead of twice. Non-full-bleed
+    // volts and every other block type are untouched.
+    const gridBlocks = blocks.filter(b => !isFullBleedVolt(b));
     // Filter blocks to active zone when in scroll stage desktop mode
     const filteredBlocks = isScrollStage
-      ? blocks.filter(b => (b.position?.section ?? 0) === scrollStageZone)
-      : blocks;
+      ? gridBlocks.filter(b => (b.position?.section ?? 0) === scrollStageZone)
+      : gridBlocks;
 
     // ── Mosaic layout mode (legacy parity) ────────────────────────────────
     // designerData authored in mosaic mode — including payloads synthesised from a
@@ -1187,13 +1368,14 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
     // was the recurring "designer ≠ live" bug.)
     if (isFreeMode) {
       const cw = data.designerCanvasW || 1440;
-      const ch = data.designerCanvasH || 900;
+      const ch = data.designerCanvasH || DESIGN_H;
 
       // ── Mobile: smart, readable reflow (≤768px, post-mount) ─────────────────
-      // Replaces the tiny scaled photograph with a single-column reading-order stack
-      // whose inter-element gaps mirror the design's grouping (adjacent/overlapping
-      // elements stay tight; far-apart ones get a normal gap). See FreeReflowStack.
+      // Single-column reading-order stack — MOBILE IS UNCHANGED by the cover-plate work.
+      // Only the in-wrapper instance (plateMode falsy) owns it; the section-level plate
+      // instance renders nothing on mobile so the stack is never duplicated or clipped.
       if (mounted && screenW <= 768) {
+        if (plateMode) return null;
         return (
           <FreeReflowStack
             blocks={filteredBlocks}
@@ -1204,21 +1386,74 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
         );
       }
 
-      // ── Desktop: 1:1 scaled stage — pixel-exact copy of the designer canvas ─────
-      const scale = (stageW || screenW || cw) / cw;
+      // ── Desktop free = TRUE 1:1 PLATE ───────────────────────────────────────
+      // The section-level plateMode instance draws on desktop; the in-wrapper instance draws
+      // nothing (the plate lives at section level so it fills the section box, not the padded
+      // content wrapper — that is what keeps the live render registered with the design box).
+      if (!plateMode) return null;
+      // Two render modes, branched cleanly on isMulti:
+      //
+      // MULTI: WIDTH-ONLY scale = a truthful 1:1 render. Plate width after scale = cw·(stageW/cw)
+      //   = stageW = the section content width, so the plate fills the width EXACTLY. The section
+      //   is separately grown to the SCALED design height (aspect-ratio on the <section>, above),
+      //   so the WHOLE design is visible with no crop and no zoom. Top-left anchored, no centering.
+      //
+      // SINGLE: WIDTH-FILL (cover) scale = sw/cw so the background fills the section edge-to-edge
+      //   (no letterbox bars). Single mode emits NO aspect-ratio override, so the section keeps its
+      //   globals.css 100vh pin with overflow:hidden and never scrolls — the design's empty BOTTOM
+      //   simply crops off-screen like background-size:cover. The design is authored top-left (text
+      //   at the TOP of the box) so it is top-left anchored with no horizontal offset, keeping the
+      //   text fully visible and registered under the fixed navbar.
+      const sw = stageW || (typeof window !== "undefined" ? window.innerWidth : cw);
+      let plateTransform: string;
+      if (isMulti) {
+        // MULTI: width-only scale — exactly as before (transform string byte-identical).
+        const scale = sw / cw;
+        plateTransform = `scale(${scale})`;
+      } else {
+        // SINGLE: WIDTH-FILL (cover) — scale section width so the background fills edge-to-edge
+        // (no letterbox bars). The section stays pinned 100vh (single mode emits no aspect-ratio
+        // override) with overflow:hidden, so the design's empty BOTTOM crops off-screen like
+        // background-size:cover; the design is top-anchored so the text is never cut. No horizontal
+        // offset. Pre-measure guard on sw above falls back to the viewport (no zero-scale flash).
+        const scale = sw / cw;
+        plateTransform = `scale(${scale})`;
+      }
       return (
         <div ref={stageRef} style={{
-          position: "relative",
-          width: "100%",
-          height: Math.round(ch * scale),
+          position: "absolute",
+          inset: 0,
+          zIndex: 12,
           overflow: "hidden",
+          pointerEvents: "none",
         }}>
           <div style={{
-            position: "absolute", top: 0, left: 0,
+            // TOP-LEFT anchored plate. The design is authored top-left (navbar band at the TOP of
+            // the cw×ch box), so pin the plate's top-left to the section's top-left and transform
+            // from there. MULTI: width-only scale, no translate. SINGLE: contain-fit scale with a
+            // horizontal-centre translate and offsetY 0 (top-anchored) so the design is centred
+            // across the width while the navbar band stays under the fixed 100px navbar.
+            position: "absolute", left: 0, top: 0,
             width: cw, height: ch,
-            transform: `scale(${scale})`,
+            transform: plateTransform,
             transformOrigin: "top left",
+            pointerEvents: "auto",
           }}>
+            {/* Background image — INSIDE the plate (inset:0 of the cw×ch box) so image + text
+                share one scaled box and crop identically. Mirrors the section-level bg layer
+                this replaces (size / position / repeat / opacity / mask). */}
+            {bgImage?.url && (
+              <div aria-hidden="true" style={{
+                position: "absolute", inset: 0, zIndex: 0,
+                backgroundImage: `url(${bgImage.url})`,
+                backgroundSize: bgImage.size || "cover",
+                backgroundPosition: bgImage.position || "center",
+                backgroundRepeat: bgImage.repeat || "no-repeat",
+                opacity: (bgImage.opacity ?? 100) / 100,
+                ...(bgImage.maskCss ? { maskImage: bgImage.maskCss, WebkitMaskImage: bgImage.maskCss } : {}),
+                pointerEvents: "none",
+              }} />
+            )}
             {filteredBlocks.map((block) => {
               // Always the DESKTOP design layout — the whole stage scales, so there is no
               // per-breakpoint reflow by default (exact 1:1). Per-breakpoint mobile layouts
@@ -1810,9 +2045,14 @@ function DesignerBlock({ block, darkBg }: {
           badge:       (p.slotBadge as string)       || nested.badge       || undefined,
           icon:        (p.slotIcon as string)        || nested.icon        || undefined,
         };
+        // Full-bleed background volt → cover fit + full box (no flex centering) so it
+        // fills the cell edge-to-edge, matching the designer preview. Off → unchanged.
+        const voltFullBleed = !!p.fullBleed;
         return (
-          <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <VoltBlock voltId={voltId} slots={voltSlots} fitMode="contain" />
+          <div style={voltFullBleed
+            ? { height: "100%", width: "100%" }
+            : { height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <VoltBlock voltId={voltId} slots={voltSlots} fitMode={voltFullBleed ? "cover" : "contain"} />
           </div>
         );
       }
@@ -2130,8 +2370,22 @@ function DesignerSubElement({ sub, mobile, exact, darkBg }: { sub: SubEl; mobile
   const outlineColor    = (p.outlineColor as string) || "#000000";
   const outlineRadius   = Number(p.outlineWidth) || 1;
   const outlineFilterId = `dsub-outline-${scopeClass}`;
+  // Text shadow (opt-in) — keeps text legible over busy/photographic backgrounds.
+  // OFF by default so existing sections are visually unchanged.
+  // For OUTLINED (hollow) text a plain text-shadow fills the transparent glyph body with a
+  // solid ghost, so instead the shadow is emitted as filter: drop-shadow(...) — which traces
+  // the rendered outline stroke — and merged into the same filter that carries the outline
+  // erode (never clobbering it). Non-outlined text keeps a normal text-shadow.
+  const shadowX     = Number(p.shadowX) || 0;
+  const shadowY     = p.shadowY    !== undefined ? Number(p.shadowY)    : 2;
+  const shadowBlur  = p.shadowBlur !== undefined ? Number(p.shadowBlur) : 4;
+  const shadowColor = (p.shadowColor as string) || "#000000";
+  const dropShadow  = `drop-shadow(${shadowX}px ${shadowY}px ${shadowBlur}px ${shadowColor})`;
   const outlinedStyle: React.CSSProperties = p.outlined
-    ? { color: outlineColor, filter: `url(#${outlineFilterId})` }
+    ? { color: outlineColor, filter: `url(#${outlineFilterId})${p.textShadow ? ` ${dropShadow}` : ""}` }
+    : {};
+  const textShadowStyle: React.CSSProperties = p.textShadow && !p.outlined
+    ? { textShadow: `${shadowX}px ${shadowY}px ${shadowBlur}px ${shadowColor}` }
     : {};
   // Hidden SVG carrying the filter def the CSS filter above references (only when outlined).
   const outlineDefs = p.outlined ? (
@@ -2295,6 +2549,7 @@ function DesignerSubElement({ sub, mobile, exact, darkBg }: { sub: SubEl; mobile
             // Designer heading: `white-space: p.textWrap||'normal'` + .se-heading break-word.
             ...(exact ? { whiteSpace: (p.textWrap as React.CSSProperties["whiteSpace"]) || ("normal" as const), overflowWrap: "break-word" as const } : {}),
             ...outlinedStyle,
+            ...textShadowStyle,
             marginBottom:  hasShell ? 0 : mb,
             marginTop:     0,
           }}>
@@ -2339,6 +2594,7 @@ function DesignerSubElement({ sub, mobile, exact, darkBg }: { sub: SubEl; mobile
             // differs from overflow-wrap, which can change where lines break.
             ...(exact ? { whiteSpace: (p.textWrap as React.CSSProperties["whiteSpace"]) || "pre-wrap", overflowWrap: "break-word" as const } : {}),
             ...outlinedStyle,
+            ...textShadowStyle,
             marginBottom:  hasShell ? 0 : mb,
             marginTop:     0,
           }}>
