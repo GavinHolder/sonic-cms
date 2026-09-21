@@ -16,6 +16,7 @@ const ALLOWED_KEYS = [
   'smtp_from',
   'smtp_secure',
   'admin_email',
+  'seo_alert_email',
 ]
 
 /** GET — return all email settings; mask the SMTP password + appearance settings */

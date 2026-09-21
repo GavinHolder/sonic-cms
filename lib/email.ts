@@ -203,6 +203,7 @@ export async function getEmailConfig(): Promise<Record<string, string>> {
           "smtp_from",
           "smtp_secure",
           "admin_email",
+          "seo_alert_email",
         ],
       },
     },
@@ -289,17 +290,19 @@ export async function sendSubmissionEmail(
 }
 
 /**
- * Send an SEO regression alert email to the admin.
+ * Send an SEO regression alert email.
+ * Recipient is `seo_alert_email` (Settings → Email → SEO Alert Email), falling
+ * back to `admin_email` when blank.
  * Called by the SEO engine when a scheduled audit detects a meaningful drop
  * (score worsening, fewer indexed pages, or more pages with issues).
- * Self-contained — does not throw if SMTP/admin email is unconfigured (returns).
+ * Self-contained — does not throw if SMTP/recipient email is unconfigured (returns).
  */
 export async function sendSeoAlertEmail(
   subject: string,
   reasons: string[]
 ): Promise<void> {
   const cfg = await getEmailConfig()
-  const recipient = cfg.admin_email
+  const recipient = (cfg.seo_alert_email || "").trim() || cfg.admin_email
   if (!recipient || reasons.length === 0) return
 
   const siteRow = await prisma.siteConfig.findFirst()
