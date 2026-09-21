@@ -2604,7 +2604,10 @@ function createBlockPreview(block) {
         const previewUrl = buildVoltPreviewUrl(block);
         const vIframe = document.createElement('iframe');
         vIframe.src = previewUrl;
-        vIframe.style.cssText = 'width:100%;height:100%;border:none;pointer-events:none;';
+        // Transparent iframe — the box shows only the Volt's own shape/content; the real
+        // canvas background shows through everywhere else.
+        vIframe.style.cssText = 'width:100%;height:100%;border:none;pointer-events:none;background:transparent;';
+        vIframe.setAttribute('allowtransparency', 'true');
         vIframe.loading = 'lazy';
         wrap.appendChild(vIframe);
         // Name badge overlay
