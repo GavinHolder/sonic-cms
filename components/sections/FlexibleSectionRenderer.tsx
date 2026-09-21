@@ -732,6 +732,24 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   const bgImagePosition = (section as any).bgImagePosition as string | undefined;
   const bgImageRepeat   = (section as any).bgImageRepeat   as string | undefined;
   const bgImageOpacity  = (section as any).bgImageOpacity  as number | undefined;
+  // Drag-to-reposition anchor for the section's OWN background image (2026-09-21) —
+  // 0-100 percentages, content JSONB (see FlexibleSectionEditorModal.tsx's matching
+  // backgroundPosX/backgroundPosY state declaration for why not a schema column).
+  // Extends the block-level "Reposition Background" feature's convention (bgImageX/Y
+  // on a 'hero' block, imagePosX/Y on an 'image' block, both already resolved via
+  // resolveBgPositionCss elsewhere in this file) to the section's own background.
+  // Computed ONCE here and fed into every section-bg render site below (the non-plate
+  // div, and the free-mode cover-plate's bgImage.position) so they can never
+  // disagree — unset (null on either axis, the default for every section that
+  // predates this feature) falls through to the legacy free-text bgImagePosition
+  // field, itself already defaulting to "center" at every call site below: BYTE-
+  // IDENTICAL rendering for every existing section, no regression.
+  const backgroundPosX = (content as any).backgroundPosX as number | undefined;
+  const backgroundPosY = (content as any).backgroundPosY as number | undefined;
+  const effectiveBgImagePosition =
+    backgroundPosX != null && backgroundPosY != null
+      ? resolveBgPositionCss(backgroundPosX, backgroundPosY)
+      : bgImagePosition;
   // "Repeat per section" (opt-in, default false — free+multi/dynamic sections only).
   // Unlike its bgImage* siblings above (real Section columns), this one is NOT a
   // schema column — it round-trips inside `content` JSONB, the same pattern already
@@ -1026,7 +1044,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
             zIndex: 0,
             backgroundImage: `url(${effectiveBgImageUrl})`,
             backgroundSize: bgImageSize || "cover",
-            backgroundPosition: bgImagePosition || "center",
+            backgroundPosition: effectiveBgImagePosition || "center",
             backgroundRepeat: bgImageRepeat || "no-repeat",
             opacity: (bgImageOpacity ?? 100) / 100,
             ...(bgMaskCss ? { maskImage: bgMaskCss, WebkitMaskImage: bgMaskCss } : {}),
@@ -1072,7 +1090,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           bgImage={{
             url: effectiveBgImageUrl,
             size: bgImageSize,
-            position: bgImagePosition,
+            position: effectiveBgImagePosition,
             repeat: bgImageRepeat,
             opacity: bgImageOpacity,
             maskCss: bgMaskCss,

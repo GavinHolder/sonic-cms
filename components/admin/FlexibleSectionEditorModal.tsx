@@ -20,6 +20,7 @@ import type { ScrollStageConfig, ScrollStageZoneConfig, ScrollStageZoneImageConf
 import { DEFAULT_LOWER_THIRD } from "@/lib/lower-third-presets";
 import { legacyToDesignerData } from "@/lib/flexible/legacy-to-designer";
 import { resolveVariants, serializeVariants } from "../../public/flexible-breakpoint-rules.js";
+import { resolveBgPositionCss } from "../../public/flexible-render-rules.js";
 import { useConfirm } from "@/components/admin/ConfirmProvider";
 import {
   PRESET_COLORS,
@@ -209,6 +210,23 @@ export default function FlexibleSectionEditorModal({
   const [bgImageRepeat, setBgImageRepeat] = useState(section.bgImageRepeat || "no-repeat");
   const [bgImageOpacity, setBgImageOpacity] = useState(section.bgImageOpacity ?? 100);
   const [bgParallax, setBgParallax] = useState(section.bgParallax || false);
+  // Drag-to-reposition anchor for the SECTION's own background image (2026-09-21) —
+  // 0-100 percentages, same convention + shared resolveBgPositionCss() resolution as
+  // the block-level "Reposition Background" feature (bgImageX/Y on a 'hero' block,
+  // imagePosX/Y on an 'image' block — see public/flexible-designer.html's
+  // startBgReposition), extended here to the section's own background. null = not
+  // yet dragged — falls back to the legacy free-text bgImagePosition field above
+  // (byte-identical default for every existing section, which never set these).
+  // Persisted inside content JSONB — same "no schema column for a first-cut,
+  // deliberately scoped feature" pattern as bgMultiRepeat just below (bgImageUrl/
+  // bgImageSize/bgImagePosition themselves ARE real Section columns, but adding new
+  // ones for this would need a migration; content JSONB needs none).
+  const [backgroundPosX, setBackgroundPosX] = useState<number | null>(
+    typeof contentAny?.backgroundPosX === "number" ? contentAny.backgroundPosX : null
+  );
+  const [backgroundPosY, setBackgroundPosY] = useState<number | null>(
+    typeof contentAny?.backgroundPosY === "number" ? contentAny.backgroundPosY : null
+  );
   // "Repeat per section" — free+multi/dynamic sections only. Tiles the bg image once
   // per 100vh band instead of stretching one copy across the whole multiLimit-band
   // design (see computeMultiBgLayers in public/flexible-render-rules.js). Persisted
@@ -349,6 +367,10 @@ export default function FlexibleSectionEditorModal({
         designerData: syncedDesignerData || null,
         layout,
         gradient,
+        // Drag-to-reposition anchor for the section's own background image — see the
+        // backgroundPosX state declaration's own comment
+        backgroundPosX,
+        backgroundPosY,
         // "Repeat per section" — see the bgMultiRepeat state declaration's own comment
         bgMultiRepeat,
         // Background-image fade/MASK (#60)
@@ -467,6 +489,8 @@ export default function FlexibleSectionEditorModal({
             bgImagePosition,
             bgImageRepeat,
             bgImageOpacity,
+            backgroundPosX,
+            backgroundPosY,
             bgMultiRepeat,
             gradient: backgroundType === "gradient"
               ? { enabled: true, type: "preset", preset: { direction: gradientDirection, startOpacity: gradientStartOpacity, endOpacity: gradientEndOpacity, color: gradientColor } }
@@ -497,6 +521,7 @@ export default function FlexibleSectionEditorModal({
     }
   }, [designerData, contentMode, layout, draftKey, section, confirm,
       backgroundType, background, bgImageUrl, bgImageSize, bgImagePosition, bgImageRepeat, bgImageOpacity, bgMultiRepeat,
+      backgroundPosX, backgroundPosY,
       gradientDirection, gradientStartOpacity, gradientEndOpacity, gradientColor]);
 
   useEffect(() => {
@@ -1124,6 +1149,28 @@ export default function FlexibleSectionEditorModal({
                         <div className="col-md-6">
                           <label className="form-label">Background Position</label>
                           <input type="text" className="form-control" value={bgImagePosition} onChange={(e) => setBgImagePosition(e.target.value)} placeholder="center, top left, 50% 50%" />
+                          <small className="text-muted d-block mt-1">Ignored once a drag position is set below.</small>
+                        </div>
+                      </div>
+                      <div className="row mb-4">
+                        <div className="col-12">
+                          <label className="form-label">Reposition Background</label>
+                          <BackgroundRepositionPreview
+                            imageUrl={bgImageUrl}
+                            size={bgImageSize}
+                            x={backgroundPosX}
+                            y={backgroundPosY}
+                            onChange={(nx, ny) => { setBackgroundPosX(nx); setBackgroundPosY(ny); }}
+                          />
+                          {backgroundPosX != null && (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-secondary mt-2"
+                              onClick={() => { setBackgroundPosX(null); setBackgroundPosY(null); }}
+                            >
+                              <i className="bi bi-arrow-counterclockwise me-1" />Clear drag position (use Background Position field instead)
+                            </button>
+                          )}
                         </div>
                       </div>
                       <div className="row mb-4">
@@ -2031,6 +2078,142 @@ const SUB_ELEMENT_SCHEMAS: Record<string, FieldDef[]> = {
     { key: "customCss",    label: "Custom CSS", type: "textarea" },
   ],
 };
+
+// ─── Section background drag-to-reposition preview ─────────────────────────────
+
+/**
+ * BackgroundRepositionPreview — drag-to-reposition control for a SECTION's own
+ * background image, editable here in FlexibleSectionEditorModal.tsx's Background
+ * tab. Companion to public/flexible-designer.html's block-level "Reposition
+ * Background" feature (2026-09-15: startBgReposition() + renderBgRepositionControls(),
+ * covering a 'hero' block's bgType:'image' background and an 'image' block's
+ * Fill/cover mode) — extended here to the section's own background, which those two
+ * never touch. Uses the SAME 0-100% anchor convention, resolved via the shared
+ * resolveBgPositionCss() helper in public/flexible-render-rules.js (reused, not
+ * duplicated — ONE SYSTEM PER CONCERN, CLAUDE.md) so the preview here and the live
+ * page (FlexibleSectionRenderer.tsx) can never disagree about what a given x/y means.
+ *
+ * There is no live shared "canvas" to drag on here (unlike flexible-designer.html's
+ * iframe canvas, which is the actual rendered page at 1:1) — this renders its OWN
+ * preview box showing the image at the chosen backgroundSize, and derives the drag
+ * position from THIS box's own getBoundingClientRect() on every pointer move (never a
+ * raw mouse-delta), mirroring startBgReposition()'s own "measure from the dragged
+ * element's own rect, not pixel delta" rule so the math is correct at any box size —
+ * the underlying percentage-of-rect calculation is a few lines of boilerplate event
+ * handling (not a "concern" with drift risk the way CSS-value resolution is), so it is
+ * re-implemented here rather than factored into a cross-runtime shared module: this
+ * file compiles as React/TSX, flexible-designer.html's own version runs as a plain
+ * vanilla-JS <script> inside a sandboxed iframe — two different runtimes with no
+ * practical shared-module boundary between them.
+ *
+ * ASSUMPTIONS:
+ * 1. x/y are 0-100 percentages, or null meaning "no drag position set yet" — the
+ *    caller (this file's handleSave / FLEXIBLE_DESIGNER_INIT payload) treats null as
+ *    "fall back to the legacy free-text Background Position field", exactly mirroring
+ *    resolveBgPositionCss's own "unset -> center" default one level up.
+ * FAILURE MODES:
+ * - No imageUrl -> renders an empty placeholder box; drag is a no-op (nothing to
+ *   position), matching startBgReposition's own "target element not found -> no-op".
+ */
+function BackgroundRepositionPreview({
+  imageUrl,
+  size,
+  x,
+  y,
+  onChange,
+}: {
+  imageUrl: string;
+  size: string;
+  x: number | null;
+  y: number | null;
+  onChange: (x: number, y: number) => void;
+}) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [dragging, setDragging] = useState(false);
+  const displayX = x ?? 50;
+  const displayY = y ?? 50;
+
+  const applyAt = (clientX: number, clientY: number) => {
+    if (!imageUrl) return;
+    const rect = boxRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const relX = rect.width ? ((clientX - rect.left) / rect.width) * 100 : 50;
+    const relY = rect.height ? ((clientY - rect.top) / rect.height) * 100 : 50;
+    onChange(
+      Math.round(Math.max(0, Math.min(100, relX))),
+      Math.round(Math.max(0, Math.min(100, relY)))
+    );
+  };
+
+  useEffect(() => {
+    if (!dragging) return;
+    const onMove = (e: MouseEvent) => applyAt(e.clientX, e.clientY);
+    const onUp = () => setDragging(false);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dragging]);
+
+  return (
+    <div>
+      <div
+        ref={boxRef}
+        onMouseDown={(e) => {
+          if (!imageUrl) return;
+          e.preventDefault();
+          setDragging(true);
+          applyAt(e.clientX, e.clientY);
+        }}
+        style={{
+          position: "relative",
+          width: "100%",
+          height: 140,
+          borderRadius: 6,
+          border: "1px solid #dee2e6",
+          backgroundColor: "#f8f9fa",
+          backgroundImage: imageUrl ? `url(${imageUrl})` : undefined,
+          backgroundSize: size || "cover",
+          backgroundPosition: resolveBgPositionCss(x ?? undefined, y ?? undefined),
+          backgroundRepeat: "no-repeat",
+          cursor: imageUrl ? (dragging ? "grabbing" : "grab") : "default",
+          userSelect: "none",
+        }}
+        title={imageUrl ? "Drag to reposition the background image" : "Add an image above to enable repositioning"}
+      >
+        {imageUrl ? (
+          <div
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              left: `${displayX}%`,
+              top: `${displayY}%`,
+              width: 14,
+              height: 14,
+              marginLeft: -7,
+              marginTop: -7,
+              borderRadius: "50%",
+              border: "2px solid #fff",
+              background: "#0d6efd",
+              boxShadow: "0 0 0 1px rgba(0,0,0,0.35)",
+              pointerEvents: "none",
+            }}
+          />
+        ) : (
+          <div className="d-flex align-items-center justify-content-center h-100 text-muted small">
+            No image set
+          </div>
+        )}
+      </div>
+      <small className="text-muted d-block mt-1">
+        {imageUrl ? `Drag on the preview to reposition (${displayX}%, ${displayY}%).` : "Set a Section Background Image above to enable repositioning."}
+      </small>
+    </div>
+  );
+}
 
 // ─── Media picker control (image / video with upload + gallery) ───────────────
 
