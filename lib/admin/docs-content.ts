@@ -341,14 +341,15 @@ Controls the section's background appearance — a solid colour, a preset swatch
 | Opacity | 0–100% | 100% | Image transparency |
 | Parallax | on/off | off | Scroll parallax depth effect |
 
-### Reposition Background (drag-to-position)
+### Reposition Background (drag-to-position, per screen size)
 
 Once a background image is set, a **Reposition Background** preview box appears below the **Size** and **Position** fields. It shows the photo with a draggable dot on it — drag the dot to choose which part of the image stays visible when the section crops or covers it.
 
-- Sets **one position shared across Desktop, Tablet, and Mobile** — a section's own background image does not support a separate crop per screen size.
-- **Clear drag position** removes the drag-set position and reverts to whatever the plain-text **Position** field above is set to (e.g. \`center\`, \`top left\`, \`50% 50%\`).
+- The position is set **independently for Desktop, Tablet, and Mobile**. A badge above the preview box (e.g. "Tablet position") shows which screen size you're currently positioning — switch it with the same **Preview as: Desktop / Tablet / Mobile** tabs that control the live preview pane next to it.
+- A screen size that hasn't been dragged yet shows an **"Inherited (from Desktop)"** badge and previews Desktop's own position — it isn't stuck at plain center, and dragging it sets its own independent override without touching the other two.
+- **Clear [Desktop/Tablet/Mobile] drag position** removes only the currently-selected screen size's override. Clearing Desktop reverts to whatever the plain-text **Position** field above is set to; clearing Tablet or Mobile reverts to inheriting Desktop's position instead.
 
-> 💡 Use this when the 9-grid **Position** presets aren't precise enough — e.g. keeping a face or product in frame on a wide photo that gets cropped tightly on smaller sections.
+> 💡 Use this when the 9-grid **Position** presets aren't precise enough — e.g. keeping a face or product in frame on a wide photo, then re-dragging the Tablet/Mobile position separately if that same crop cuts the subject off on a narrower screen.
 
 ---
 
