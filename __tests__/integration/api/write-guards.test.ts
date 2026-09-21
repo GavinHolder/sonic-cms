@@ -183,9 +183,13 @@ describe.each(CASES)('$name', (c) => {
     expectDbUntouched()
   })
 
-  it('lets an EDITOR past the guard (status is neither 401 nor 403)', async () => {
+  // Exact success status, not "not 401/403": a 500 would also slip past that weaker check.
+  // With the seeded mocks all six handlers answer 200 { success: true }.
+  it('lets an EDITOR through to a 200 success response', async () => {
     const res = await c.call(makeRequest(c, cookieFor(UserRole.EDITOR)))
-    expect([401, 403]).not.toContain(res.status)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.success).toBe(true)
   })
 })
 
@@ -199,6 +203,7 @@ describe('public reads stay anonymous', () => {
 
   it('GET /api/site-config works without a cookie', async () => {
     const res = await siteConfigGET()
+    // TODO(phase2): assert credential fields absent once GET selects public columns
     expect(res.status).toBe(200)
   })
 })
@@ -229,7 +234,9 @@ describe('site-config write payload', () => {
 
   const upsertArgs = () => db.siteConfig.upsert.mock.calls[0][0]
 
-  describe.each([UserRole.EDITOR, UserRole.PUBLISHER])('as %s', (role) => {
+  // The Google credential keys are stripped for EVERY role, SUPER_ADMIN included: PUT /api/settings/google
+  // is their only writer (it encrypts); a write through site-config would store them in plaintext.
+  describe.each([UserRole.EDITOR, UserRole.PUBLISHER, UserRole.SUPER_ADMIN])('as %s', (role) => {
     it.each(WRITERS)('%s drops id and every Google credential key on update AND create', async (method, handler) => {
       const res = await handler(siteConfigRequest(method, HOSTILE_BODY, role))
       expect(res.status).toBe(200)
@@ -238,21 +245,14 @@ describe('site-config write payload', () => {
       expect(upsertArgs().update).toEqual({ tagline: 'New tagline' })
       expect(upsertArgs().create).toEqual({ id: 'singleton', tagline: 'New tagline' })
     })
-  })
 
-  it.each(WRITERS)('%s lets SUPER_ADMIN write the Google credentials but still drops id', async (method, handler) => {
-    const res = await handler(siteConfigRequest(method, HOSTILE_BODY, UserRole.SUPER_ADMIN))
-    expect(res.status).toBe(200)
-    const { id: _dropped, ...expected } = HOSTILE_BODY
-    expect(upsertArgs().update).toEqual(expected)
-    expect(upsertArgs().create).toEqual({ id: 'singleton', ...expected })
-  })
-
-  it.each(WRITERS)('%s keeps homePage writable for an EDITOR and revalidates the homepage tag', async (method, handler) => {
-    const res = await handler(siteConfigRequest(method, { homePage: 'about', googleClientId: 'x' }, UserRole.EDITOR))
-    expect(res.status).toBe(200)
-    expect(upsertArgs().update).toEqual({ homePage: 'about' })
-    expect(revalidateTag).toHaveBeenCalledWith('homepage-config', 'max')
+    it.each(WRITERS)('%s keeps homePage writable and revalidates the homepage tag', async (method, handler) => {
+      const res = await handler(siteConfigRequest(method, { homePage: 'about', googleClientId: 'x' }, role))
+      expect(res.status).toBe(200)
+      expect(upsertArgs().update).toEqual({ homePage: 'about' })
+      expect(upsertArgs().create).toEqual({ id: 'singleton', homePage: 'about' })
+      expect(revalidateTag).toHaveBeenCalledWith('homepage-config', 'max')
+    })
   })
 
   it.each(WRITERS)('%s passes unrelated keys through unchanged', async (method, handler) => {
