@@ -23,6 +23,22 @@ const CardTabsBlock             = dynamic(() => import("@/components/sections/bl
 const ProductGridBlock         = dynamic(() => import("@/components/sections/blocks/ProductGridBlock"), { ssr: false });
 const TemplateBlock            = dynamic(() => import("@/components/sections/blocks/TemplateBlock"), { ssr: false });
 
+/** Shape returned by GET /api/templates/[id]/content — see that route's own
+ *  doc comment for why it's a separate public surface from the admin-only
+ *  GET /api/templates. */
+interface TemplateLibContent {
+  customHtml: string;
+  customCss: string;
+  mediaSlots: Record<string, string>;
+}
+/** Module-level, not per-component-instance — multiple "template" blocks
+ *  (even across different sections on the same page) commonly link the same
+ *  library template, so this avoids a redundant fetch per instance. Cleared
+ *  only by a full page reload, which is fine: picking up a library edit made
+ *  DURING the current page view isn't a requirement this is solving, only
+ *  "don't render a stale snapshot from whenever this section was last saved." */
+const templateContentCache = new Map<string, TemplateLibContent>();
+
 interface FlexibleSectionRendererProps {
   section: FlexibleSection;
 }
@@ -415,6 +431,56 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   const bgImageRepeat   = (section as any).bgImageRepeat   as string | undefined;
   const bgImageOpacity  = (section as any).bgImageOpacity  as number | undefined;
 
+  // ── Background Override (generic renderer capability) ──────────────────────────
+  // Lets a TemplateBlock's own sandboxed-iframe content swap THIS section's background
+  // image live — e.g. a pricing template with Service Category / Product Type tabs,
+  // where each Product Type can have its own admin-set background (Product Types admin
+  // → Background Image, see /api/packages' productTypeBackgroundUrl). Mirrors the
+  // existing "content-height" channel in TemplateBlock.tsx: same source tag, same '*'
+  // targetOrigin rationale (opaque sandboxed-iframe origin, non-sensitive payload), same
+  // defensive validation style. Reusable by ANY TemplateBlock content, not just the
+  // pricing card — nothing here is pricing-specific.
+  //
+  // MESSAGE CONTRACT — a template author's own <script> sends, whenever the active
+  // tab/selection's background should change:
+  //   window.parent.postMessage(
+  //     { source: 'sonic-cms-template', type: 'background-override', imageUrl: '<url>' | null },
+  //     '*'
+  //   )
+  // imageUrl: a string swaps this section's rendered background image to that URL.
+  // null reverts to the section's own normally-configured bgImageUrl (below). There is
+  // no separate "clear" signal — null IS clear, since "no override in effect" and
+  // "explicitly clear the override" are the same state here.
+  //
+  // Scoped per-section: a page can hold multiple sections, each with their own
+  // TemplateBlock (and a TemplateBlock could in principle hold more than one nested
+  // iframe context in future), so the listener only accepts a message whose event.source
+  // matches an <iframe> that is an actual DOM descendant of THIS section's own root
+  // (sectionRef) — never a message that happens to bubble up from an unrelated section's
+  // block elsewhere on the page.
+  const [bgOverrideUrl, setBgOverrideUrl] = useState<string | null>(null);
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      const data = event.data as unknown;
+      if (!data || typeof data !== "object") return;
+      const msg = data as { source?: unknown; type?: unknown; imageUrl?: unknown };
+      if (msg.source !== "sonic-cms-template" || msg.type !== "background-override") return;
+      if (msg.imageUrl !== null && typeof msg.imageUrl !== "string") return;
+      const sectionEl = sectionRef.current;
+      if (!sectionEl) return;
+      const iframes = Array.from(sectionEl.querySelectorAll("iframe"));
+      const fromThisSection = iframes.some((f) => event.source === f.contentWindow);
+      if (!fromThisSection) return;
+      setBgOverrideUrl(msg.imageUrl || null);
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+  // Effective background image URL — an active override wins over the section's own
+  // configured bgImageUrl; null override (the default/reverted state) falls through to it.
+  const effectiveBgImageUrl = bgOverrideUrl ?? bgImageUrl;
+
+
   // Inject shared card/animation CSS once — avoids duplicate <style> tags on re-renders
   useEffect(() => {
     if (styleInjected) return;
@@ -564,9 +630,19 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           // `#snap-container section:not(.hero-carousel)` rule has NO !important, so this
           // inline style wins). Scoped to freePlateDesktop → applied on desktop ONLY; on
           // mobile no inline height is emitted, so the mobile CSS height model is byte-identical.
+          //
           // SINGLE mode intentionally emits NONE of these overrides — the section keeps its
-          // globals.css 100vh pin so a single free section is exactly one screen and never
-          // scrolls; the plate contain-fits the design inside that fixed 100vh box instead.
+          // globals.css 100vh pin so a single free section is exactly one screen and NEVER
+          // scrolls, a hard CMS-wide rule (single section = exactly 100vh; multi = N×100vh
+          // via multiLimit). A 2026-09-04 attempt (`736e864`) let single sections grow past
+          // 100vh to avoid cropping bottom-anchored content — that broke the hard rule (the
+          // page needed extra scroll before the next section's snap point) and was reverted
+          // the same day once the violation was reported. Single mode's plate instead fills
+          // this fixed 100vh box via NON-UNIFORM scale (see that branch in
+          // DesignerBlocksRenderer) — width and height each scale to fill exactly, so there
+          // is neither crop nor letterbox gutters, at the cost of mild image stretch on
+          // off-ratio viewports (accepted trade-off, 2026-09-04, after both CONTAIN-fit's
+          // gutters and width-fill-and-grow's 100vh violation were rejected).
           aspectRatio: `${freeCanvas.cw} / ${freeCanvas.ch}`,
           height: "auto",
           minHeight: 0,
@@ -582,15 +658,24 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
     >
       {/* Background image layer — absolute fill, z-index 0, below everything.
           In free cover-plate mode the bg image is drawn INSIDE the plate instead (so
-          image + text share one scaled box and crop identically), so it is skipped here. */}
-      {bgImageUrl && !freePlateActive && (
+          image + text share one scaled box and crop identically), so it is skipped here —
+          but ONLY when the plate is actually rendering. The plate is desktop-only
+          (FREE_MODE_REFLOW_BREAKPOINT — mobile drops it entirely for FreeReflowStack's
+          plain reading-order stack, which never carried a background of its own), so on
+          mobile a free-canvas section had NO background layer at all: neither this one
+          (skipped, since freePlateActive stays true regardless of viewport) nor the
+          plate's (returns null on mobile) ever rendered it. `freePlateDesktop` already
+          encodes "plate is actually active right now" (freePlateActive AND desktop
+          width) — using it here instead of the plain data-driven freePlateActive is the
+          exact fix: same skip on desktop, but now shows on mobile too. */}
+      {effectiveBgImageUrl && !freePlateDesktop && (
         <div
           aria-hidden="true"
           style={{
             position: "absolute",
             inset: 0,
             zIndex: 0,
-            backgroundImage: `url(${bgImageUrl})`,
+            backgroundImage: `url(${effectiveBgImageUrl})`,
             backgroundSize: bgImageSize || "cover",
             backgroundPosition: bgImagePosition || "center",
             backgroundRepeat: bgImageRepeat || "no-repeat",
@@ -614,8 +699,19 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           darkBg={darkBg}
           plateMode
           headerOffset={freePlateHeaderOffset}
+          // Dynamic Content Height Mode on a free-mode section — this plate instance is
+          // the ONLY one that actually renders the blocks (the non-plate call below always
+          // returns null in free mode, see its own onDynamicScreensChange gating), so it's
+          // the only instance that ever receives real reportBlockHeight() calls from a
+          // self-sizing block (TemplateBlock/CardTabsBlock/ProductGridBlock). Without these
+          // two props, dynamicMeta.isDynamic falls back to designerData.contentMode (often
+          // stale) and this instance's live-measured dynamicScreens was never reported
+          // anywhere — the section silently stayed pinned to 1 screen no matter how tall
+          // the content actually rendered (see the null instance's matching comment below).
+          resolvedContentMode={contentMode}
+          onDynamicScreensChange={contentMode === "dynamic" ? setDynamicScreens : undefined}
           bgImage={{
-            url: bgImageUrl,
+            url: effectiveBgImageUrl,
             size: bgImageSize,
             position: bgImagePosition,
             repeat: bgImageRepeat,
@@ -660,7 +756,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           is visible on the live page — not just when an image is present. The #60 image mask
           stays on the image layer above, untouched. */}
       {gradCss && (
-        <div aria-hidden="true" style={{ position: "absolute", inset: 0, zIndex: bgImageUrl ? 1 : 0, background: gradCss, pointerEvents: "none" }} />
+        <div aria-hidden="true" style={{ position: "absolute", inset: 0, zIndex: effectiveBgImageUrl ? 1 : 0, background: gradCss, pointerEvents: "none" }} />
       )}
 
       {/* Full-bleed volt background layer(s) — a volt block flagged props.fullBleed is
@@ -674,8 +770,9 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
       ))}
 
       {/* Animated background layers — rendered below content (z-index 0–10).
-          Disabled when a background image is set (bgImageUrl takes priority). */}
-      {animBg?.enabled && !bgImageUrl && (
+          Disabled when a background image is set (bgImageUrl takes priority) — also
+          disabled while a background-override is active, for the same reason. */}
+      {animBg?.enabled && !effectiveBgImageUrl && (
         <AnimBgRenderer
           config={animBg}
           colorPalette={section.colorPalette}
@@ -736,7 +833,17 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           <div className="container-fluid">
             {/* If we have designer data (mockup block format), render that first */}
             {designerData
-              ? <DesignerBlocksRenderer designerData={designerData} darkBg={darkBg} onDynamicScreensChange={contentMode === "dynamic" ? setDynamicScreens : undefined} />
+              ? <DesignerBlocksRenderer designerData={designerData} darkBg={darkBg} resolvedContentMode={contentMode}
+                  // In free mode THIS instance always renders null on desktop (see
+                  // isFreeMode's own "if (!plateMode) return null" branch) — it never mounts
+                  // a single block, so its own dynamicScreens is permanently stuck at 1. The
+                  // free-mode plate instance above is the one that actually renders blocks
+                  // and owns onDynamicScreensChange for that case; wiring it here too would
+                  // have this always-1 instance race the plate's real value and stomp it
+                  // back to 1 on every render (exactly the bug that kept a free-mode Dynamic
+                  // section pinned to a single 100vh screen no matter how tall its content
+                  // actually was).
+                  onDynamicScreensChange={(contentMode === "dynamic" && !isFreeDesigner) ? setDynamicScreens : undefined} />
               : <>
                   {mosaicMode
                     ? <MosaicLayout elements={elements} layout={layout as any} darkBg={darkBg} />
@@ -1319,6 +1426,20 @@ function isFullBleedVolt(b: { type?: string; props?: Record<string, unknown> } |
 // (decorative background — matches the section bg image/gradient layers). Uses
 // VoltBlock fitMode="cover" (#85) to fill the section box. Slot-building mirrors the
 // in-grid volt case (kept inline to leave that case byte-for-byte unchanged).
+//
+// overflow:hidden on the wrapper (below) is NOT redundant with VoltBlock's own
+// internal clipping. VoltBlock (fitMode="cover") only clips to ITS OWN container when
+// the volt's canvasOverflow !== "visible"; a volt authored with canvasOverflow:"visible"
+// (an intentional per-design "let this layer bleed past the canvas edge" option)
+// deliberately sets its own container to overflow:"visible" and relies on an ANCESTOR
+// for the real clip boundary. FLEXIBLE sections get wrapped in TriangleSectionWrapper
+// whenever section.triangleEnabled, which sets the <section>'s own overflow to
+// "visible" via direct DOM style (so the triangle shape can bleed upward into the
+// PREVIOUS section) — without an independent overflow:hidden here, a full-bleed volt
+// with canvasOverflow:"visible" on a triangleEnabled section would render fully
+// unclipped, visibly bigger than / cut off from its section's real box. Same class of
+// bug as f7b4acd (DynamicSection.tsx's whole-section-Volt layer) and mirrors the
+// backgroundVoltId layer above (line ~854), which already carries this overflow:hidden.
 function FullBleedVoltLayer({ props: p }: { props: Record<string, unknown> }) {
   const voltId = p.voltId as string | undefined;
   if (!voltId) return null;
@@ -1335,13 +1456,13 @@ function FullBleedVoltLayer({ props: p }: { props: Record<string, unknown> }) {
   };
   const productId = (p.productId as string) || undefined;
   return (
-    <div aria-hidden="true" style={{ position: "absolute", inset: 0, zIndex: 2, pointerEvents: "none" }}>
+    <div aria-hidden="true" style={{ position: "absolute", inset: 0, overflow: "hidden", zIndex: 2, pointerEvents: "none" }}>
       <VoltBlock voltId={voltId} slots={voltSlots} fitMode="cover" productId={productId} />
     </div>
   );
 }
 
-function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMode, bgImage, headerOffset, onDynamicScreensChange }: {
+function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMode, bgImage, headerOffset, onDynamicScreensChange, resolvedContentMode }: {
   designerData: string | Record<string, unknown>;
   darkBg: boolean;
   scrollStageZone?: number;
@@ -1349,11 +1470,32 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
   // "how many 100vh screens does this section need right now" number up to the parent
   // FlexibleSectionRenderer, which owns the actual <section> DOM node and applies it as a
   // CSS custom property (see the outer <section> style + globals.css [data-content-mode
-  // "dynamic"]). Undefined for every other DesignerBlocksRenderer call site (free-mode
-  // plate, promoted-plate, scroll-stage) — dynamic mode is scoped to the standard
-  // grid/preset (non-free) designer layout, the same path Multi mode's own
-  // containerH/multiLimit logic already lives in.
+  // "dynamic"]). Wired to the free-mode PLATE call site too (the one that actually
+  // renders blocks in free mode and gets real reportBlockHeight() reports) — the
+  // non-plate call site is gated OFF for free mode instead, since it always renders
+  // null there and would otherwise report a permanently-stuck "1" and stomp the
+  // plate's real value. Undefined for promoted-plate and scroll-stage, which don't
+  // support Dynamic Content Height Mode.
   onDynamicScreensChange?: (screens: number) => void;
+  // resolvedContentMode: the PARENT's already-resolved contentMode (section.contentMode ||
+  // content.contentMode || "single") — the SAME value the outer <section>'s own
+  // data-content-mode attribute uses. Passed down so dynamicMeta.isDynamic (below) checks
+  // THIS instead of re-deriving its own copy from designerData.contentMode.
+  //
+  // Those two are NOT guaranteed to agree: FlexibleSectionEditorModal's "Content Height
+  // Mode" toggle (Single/Multi/Dynamic) writes its choice to content.contentMode on save,
+  // but designerData is a separately-maintained blob (round-tripped through the vanilla-JS
+  // canvas editor) saved alongside it — nothing keeps designerData's OWN embedded
+  // contentMode field in sync with the toggle. A section can end up with
+  // content.contentMode: "dynamic" (correct, drives the visible DOM attribute) while
+  // designerData.contentMode is still a stale "single" underneath it — which silently
+  // gated dynamicScreens' entire computation to always return 1, no matter how tall the
+  // content actually grew. Confirmed directly against production DB before this fix:
+  // content.contentMode was "dynamic", content.designerData.contentMode was "single".
+  // Falls back to designerData.contentMode only when this prop is genuinely absent (the
+  // few call sites — free-mode plate, promoted-plate, scroll-stage — that don't pass it,
+  // where dynamic mode was never in scope anyway).
+  resolvedContentMode?: string;
   // plateMode: this is the SECTION-LEVEL free cover-plate instance (desktop). It owns the
   // desktop free render (bg image + blocks in one COVER-scaled box) and returns null on
   // mobile. The default (plateMode falsy) in-wrapper instance is the inverse: null on
@@ -1420,13 +1562,16 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
       const d = typeof designerData === "string" ? JSON.parse(designerData) : designerData;
       const cap = Number((d as Record<string, unknown>)?.multiLimit);
       return {
-        isDynamic: (d as Record<string, unknown>)?.contentMode === "dynamic",
+        // Prefer the parent's already-resolved contentMode (see resolvedContentMode's own
+        // doc comment above) — falls back to designerData's own copy only when the caller
+        // genuinely didn't pass one.
+        isDynamic: (resolvedContentMode ?? (d as Record<string, unknown>)?.contentMode) === "dynamic",
         // Reuses the existing multiLimit field/UI as the safety cap — defaults to 5
         // screens when the admin hasn't set one for a Dynamic section.
         cap: cap > 0 ? cap : 5,
       };
     } catch { return { isDynamic: false, cap: 5 }; }
-  }, [designerData]);
+  }, [designerData, resolvedContentMode]);
   const [blockHeights, setBlockHeights] = useState<Record<string, number>>({});
   const reportBlockHeight = useCallback((blockId: string, px: number) => {
     if (!Number.isFinite(px) || px <= 0) return;
@@ -1536,7 +1681,14 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
     }
 
     const isFreeMode = data.positionMode === "free" || data.layoutType === "free";
-    const isMulti    = data.contentMode === "multi";
+    // Same resolvedContentMode-over-designerData preference as dynamicMeta.isDynamic above,
+    // and for the identical reason — data.contentMode is designerData's own possibly-stale
+    // embedded copy (see resolvedContentMode's doc comment on this component's props).
+    // Multi mode has the exact same latent bug Dynamic mode had: a section correctly
+    // switched to "multi" via content.contentMode, whose designerData blob wasn't updated
+    // to match, would silently compute isMulti as false here and use the wrong (single-
+    // screen) height math despite showing as Multi everywhere else.
+    const isMulti    = (resolvedContentMode ?? data.contentMode) === "multi";
     // Dynamic mode is scoped to the non-free designer layout (same path Multi's own
     // containerH/multiLimit logic lives in) — dynamicMeta/dynamicScreens are computed by
     // the unconditional hooks above (must run before this try block's early returns).
@@ -1623,33 +1775,58 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
       // nothing (the plate lives at section level so it fills the section box, not the padded
       // content wrapper — that is what keeps the live render registered with the design box).
       if (!plateMode) return null;
-      // Two render modes, branched cleanly on isMulti:
+      // Two render modes, branched on isMulti:
       //
       // MULTI: WIDTH-ONLY scale = a truthful 1:1 render. Plate width after scale = cw·(stageW/cw)
       //   = stageW = the section content width, so the plate fills the width EXACTLY. The section
       //   is separately grown to the SCALED design height (aspect-ratio on the <section>, above),
       //   so the WHOLE design is visible with no crop and no zoom. Top-left anchored, no centering.
+      //   Multi mode has no fixed-height contract to protect (multiLimit already lets it span
+      //   N×100vh), so growing it to the design's true height is safe.
       //
-      // SINGLE: WIDTH-FILL (cover) scale = sw/cw so the background fills the section edge-to-edge
-      //   (no letterbox bars). Single mode emits NO aspect-ratio override, so the section keeps its
-      //   globals.css 100vh pin with overflow:hidden and never scrolls — the design's empty BOTTOM
-      //   simply crops off-screen like background-size:cover. The design is authored top-left (text
-      //   at the TOP of the box) so it is top-left anchored with no horizontal offset, keeping the
-      //   text fully visible and registered under the fixed navbar.
+      // SINGLE (and any other free-canvas content mode, e.g. an unsupported "dynamic" free
+      //   combination): the background image and the content blocks (cards, text, buttons —
+      //   anything the visitor reads or clicks) are TWO SEPARATE layers with two separate
+      //   transforms, not one shared plate transform. They used to share one: a single
+      //   non-uniform scale(sx,sy) killed the letterbox gutters on the background, but
+      //   applied that SAME sx≠sy distortion to every content block too — stretching the
+      //   pricing cards' chevrons/buttons/text out of proportion (reported live, 2026-09-04,
+      //   same day as the non-uniform fix). Cards and background are explicitly separate
+      //   concerns (user directive, 2026-09-04: "the bg and product cards are two separate
+      //   things ... fixed separately") and must never share a distortable transform again:
+      //   - BACKGROUND layer: NON-UNIFORM scale(sx,sy) — sx=width/cw, sy=height/ch — fills
+      //     both axes exactly, no letterbox gutters, no crop. Stretch is fine here; it's a
+      //     decorative photo, not something with straight lines/right angles a viewer reads.
+      //   - CONTENT layer: UNIFORM scale = min(widthRatio, heightRatio) (contain-fit,
+      //     horizontally centred when height-constrained) — the exact same math the section
+      //     used before any of this letterbox work started. Cards, buttons and text always
+      //     render at their true undistorted aspect ratio; the trade-off is the content box
+      //     doesn't always reach the section's edges on an off-ratio viewport, which is
+      //     strictly preferable to visibly warped UI.
+      // Both layers sit on the same cw×ch coordinate system (the Designer canvas), so a
+      // block's pixelPos still means the same thing on-canvas — only which transform
+      // renders it changed.
       const sw = stageW || (typeof window !== "undefined" ? window.innerWidth : cw);
-      let plateTransform: string;
+      let bgTransform: string;
+      let contentTransform: string;
+      let contentLeft = 0;
       if (isMulti) {
-        // MULTI: width-only scale — exactly as before (transform string byte-identical).
+        // MULTI: width-only scale — exactly as before (transform string byte-identical) —
+        // for both layers (multi has no letterbox/distortion tension: the section grows to
+        // the scaled height via aspect-ratio above, so width-only scale alone is exact).
         const scale = sw / cw;
-        plateTransform = `scale(${scale})`;
+        bgTransform = `scale(${scale})`;
+        contentTransform = `scale(${scale})`;
       } else {
-        // SINGLE: WIDTH-FILL (cover) — scale section width so the background fills edge-to-edge
-        // (no letterbox bars). The section stays pinned 100vh (single mode emits no aspect-ratio
-        // override) with overflow:hidden, so the design's empty BOTTOM crops off-screen like
-        // background-size:cover; the design is top-anchored so the text is never cut. No horizontal
-        // offset. Pre-measure guard on sw above falls back to the viewport (no zero-scale flash).
-        const scale = sw / cw;
-        plateTransform = `scale(${scale})`;
+        const sh = stageH || (typeof window !== "undefined" ? window.innerHeight : ch);
+        const scaleX = sw / cw;
+        const scaleY = sh / ch;
+        bgTransform = `scale(${scaleX}, ${scaleY})`;
+        const scale = Math.min(scaleX, scaleY);
+        contentTransform = `scale(${scale})`;
+        if (scaleY < scaleX) {
+          contentLeft = Math.max(0, (sw - cw * scale) / 2);
+        }
       }
       return (
         <div ref={stageRef} style={{
@@ -1662,33 +1839,33 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
           overflow: "hidden",
           pointerEvents: "none",
         }}>
+          {/* Background layer — non-uniform scale(sx,sy), fills the box exactly (see the
+              doc comment above for why this is intentionally split from the content layer). */}
+          {bgImage?.url && (
+            <div aria-hidden="true" style={{
+              position: "absolute", left: 0, top: 0,
+              width: cw, height: ch,
+              transform: bgTransform,
+              transformOrigin: "top left",
+              zIndex: 0,
+              backgroundImage: `url(${bgImage.url})`,
+              backgroundSize: bgImage.size || "cover",
+              backgroundPosition: bgImage.position || "center",
+              backgroundRepeat: bgImage.repeat || "no-repeat",
+              opacity: (bgImage.opacity ?? 100) / 100,
+              ...(bgImage.maskCss ? { maskImage: bgImage.maskCss, WebkitMaskImage: bgImage.maskCss } : {}),
+              pointerEvents: "none",
+            }} />
+          )}
           <div style={{
-            // TOP-LEFT anchored plate. The design is authored top-left (navbar band at the TOP of
-            // the cw×ch box), so pin the plate's top-left to the section's top-left and transform
-            // from there. MULTI: width-only scale, no translate. SINGLE: contain-fit scale with a
-            // horizontal-centre translate and offsetY 0 (top-anchored) so the design is centred
-            // across the width while the navbar band stays under the fixed 100px navbar.
-            position: "absolute", left: 0, top: 0,
+            // TOP-LEFT anchored content plate — always UNIFORM scale (never the background's
+            // non-uniform transform), so every card/button/text block renders undistorted.
+            position: "absolute", left: contentLeft, top: 0,
             width: cw, height: ch,
-            transform: plateTransform,
+            transform: contentTransform,
             transformOrigin: "top left",
             pointerEvents: "auto",
           }}>
-            {/* Background image — INSIDE the plate (inset:0 of the cw×ch box) so image + text
-                share one scaled box and crop identically. Mirrors the section-level bg layer
-                this replaces (size / position / repeat / opacity / mask). */}
-            {bgImage?.url && (
-              <div aria-hidden="true" style={{
-                position: "absolute", inset: 0, zIndex: 0,
-                backgroundImage: `url(${bgImage.url})`,
-                backgroundSize: bgImage.size || "cover",
-                backgroundPosition: bgImage.position || "center",
-                backgroundRepeat: bgImage.repeat || "no-repeat",
-                opacity: (bgImage.opacity ?? 100) / 100,
-                ...(bgImage.maskCss ? { maskImage: bgImage.maskCss, WebkitMaskImage: bgImage.maskCss } : {}),
-                pointerEvents: "none",
-              }} />
-            )}
             {filteredBlocks.map((block) => {
               // Always the DESKTOP design layout — the whole stage scales, so there is no
               // per-breakpoint reflow by default (exact 1:1). Per-breakpoint mobile layouts
@@ -1732,13 +1909,42 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
                 ));
               }
               // Non-container block (hero, image, packages, etc.): whole block at its design px box.
+              //
+              // SELF_SIZING_TYPES (template/card-tabs/product-grid — see that Set's own doc
+              // comment) are the one exception: hard-clipping them to the authored pos.h with
+              // overflow:hidden is exactly the bug #131 already fixed for the MOBILE reflow
+              // stack, just never carried over to this desktop path. A template block bound to
+              // a live pricing grid has content whose real height depends on which tab/term is
+              // selected and what's currently expanded — an admin-authored fixed box can only
+              // ever be right for ONE of those states. When it's wrong: too-tall content gets
+              // silently clipped (a card cut off mid-price) and — since the wrapper clips the
+              // BOX but the iframe inside still has its own overflowing internal document —
+              // the iframe shows ITS OWN internal scrollbar at the clip boundary, which reads
+              // as "why is there a scrollbar, nothing needs to scroll" from outside. Any height
+              // CHANGE while clipped (a tab switch to a taller package set, a hover-reveal
+              // growing a card) reads as "stuck, then jumps" — the fixed box doesn't move, so
+              // the change is invisible until it crosses the clip line, then suddenly isn't.
+              //
+              // Fix: reuse the SAME blockHeights/reportBlockHeight state this component already
+              // maintains for Dynamic Content Height Mode (just below) — SELF_SIZING_TYPES leaves
+              // report their live content height via the same onContentHeight channel
+              // TemplateBlock/CardTabsBlock/ProductGridBlock already speak, and this box grows
+              // to match instead of clipping. Every other block type (image, video, hero, etc.)
+              // is completely untouched — same fixed pos.h + overflow:hidden as before.
+              const isSelfSizing = SELF_SIZING_TYPES.has(block.type);
+              const liveH = isSelfSizing ? blockHeights[String(block.id)] : undefined;
               return (
                 <div key={block.id} style={{
                   position: "absolute",
-                  left: pos.x, top: pos.y, width: pos.w, height: pos.h,
-                  overflow: "hidden",
+                  left: pos.x, top: pos.y, width: pos.w,
+                  height: liveH || pos.h,
+                  overflow: isSelfSizing ? "visible" : "hidden",
                 }}>
-                  <DesignerBlock block={block} darkBg={darkBg} />
+                  <DesignerBlock
+                    block={block}
+                    darkBg={darkBg}
+                    onContentHeight={isSelfSizing ? reportBlockHeight : undefined}
+                  />
                 </div>
               );
             })}
@@ -1938,6 +2144,38 @@ function DesignerBlock({ block, darkBg, onContentHeight }: {
     return () => { ro.disconnect(); if (debounceTimer) clearTimeout(debounceTimer); };
   }, [block.type, blockId, onContentHeight]);
 
+
+  // ── Template block: resolve content LIVE from the library, not the stored
+  // copy ────────────────────────────────────────────────────────────────────
+  // block.props.customHtml/customCss are a SNAPSHOT taken when the admin last
+  // picked this template from the "Change template" dropdown
+  // (applyTemplateSelection in flexible-designer.html), not a live link — that
+  // copy silently goes stale the moment the library template changes after the
+  // fact (see docs/main-cms-sync-prompt.md #145 for the incident this caused).
+  // Fetching the CURRENT library content by templateId here makes it a live
+  // reference instead: one source of truth, no copy to drift. Falls back to
+  // the stored customHtml/customCss while the fetch is in flight or if it
+  // fails, so there's still something to render immediately and this can
+  // never make a working section blank. A section with no templateId (older,
+  // hand-authored inline HTML) never enters this effect at all — untouched.
+  const templateId = (p.templateId as string | undefined) || undefined;
+  const [resolvedTemplate, setResolvedTemplate] = useState<TemplateLibContent | null>(null);
+  useEffect(() => {
+    if (block.type !== "template" || !templateId) { setResolvedTemplate(null); return; }
+    const cached = templateContentCache.get(templateId);
+    if (cached) { setResolvedTemplate(cached); return; }
+    let alive = true;
+    fetch(`/api/templates/${encodeURIComponent(templateId)}/content`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: TemplateLibContent | null) => {
+        if (!alive || !data) return;
+        templateContentCache.set(templateId, data);
+        setResolvedTemplate(data);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [block.type, templateId]);
+
   // ── Stats countUp animation ──────────────────────────────────────────────
   // Triggered once when the stats block first enters the viewport.
   // Extracts the leading numeric part from p.number (e.g. "20+" → 20, "15" → 15)
@@ -2035,9 +2273,30 @@ function DesignerBlock({ block, darkBg, onContentHeight }: {
   else if (cardEffect !== "none") shellClasses.push(`db-effect-${cardEffect}`);
   if (boxShadowPre !== "none") shellClasses.push(`db-shadow-${boxShadowPre}`);
 
-  const heightAuto = (p?.heightMode as string) === "auto";
+  // SELF_SIZING_TYPES (template/card-tabs/product-grid) needs overflow:visible at
+  // THIS shell too, regardless of the admin's actual heightMode setting — this
+  // shell is a SEPARATE overflow:hidden wrapper nested inside the free-mode
+  // absolute box that already respects isSelfSizing (see that box's own comment a
+  // few hundred lines up). Fixing only the outer box left this inner one still
+  // clipping a self-sizing block's hover-reveal/live-height content whenever
+  // heightMode wasn't explicitly "auto" — found by walking the real rendered
+  // ancestor chain of a live "template" block and finding overflow:hidden here.
+  //
+  // height stays height:100% for self-sizing blocks specifically — do NOT switch
+  // it to "auto" the way heightMode="auto" does. The iframe inside (TemplateBlock)
+  // has its own height:100%, which needs THIS shell to have a real, definite
+  // pixel height to resolve against; making this shell height:auto breaks that
+  // chain (a percentage height against an auto-height ancestor computes as
+  // nothing, i.e. the iframe's own intrinsic/UA-default ~150px) and collapsed
+  // the whole card to a sliver in production — caught immediately from the
+  // live page and reverted here within the same fix.
+  const heightModeAuto = (p?.heightMode as string) === "auto";
+  const isSelfSizingBlock = SELF_SIZING_TYPES.has(block.type);
   const shellStyle: React.CSSProperties = {
-    position: "relative", height: heightAuto ? "auto" : "100%", overflow: heightAuto ? "visible" : "hidden", borderRadius,
+    position: "relative",
+    height: heightModeAuto ? "auto" : "100%",
+    overflow: heightModeAuto || isSelfSizingBlock ? "visible" : "hidden",
+    borderRadius,
     ...(bgImageSafe ? { background: `url("${bgImageSafe}") center/cover no-repeat` } : {}),
     ...(!bgImageSafe && bgGradient ? { background: bgGradient } : {}),
     ...(borderWidthV > 0 && borderColorV ? { border: `${borderWidthV}px solid ${borderColorV}` } : {}),
@@ -2083,7 +2342,7 @@ function DesignerBlock({ block, darkBg, onContentHeight }: {
         return (
           <div style={{
             background: cardBg, color: (p.textColor as string) || tc,
-            height: heightAuto ? "auto" : "100%", ...cardGlassStyle,
+            height: heightModeAuto ? "auto" : "100%", ...cardGlassStyle,
             display: "flex", flexDirection: "column", gap: blockGap,
             ...blockPadding("24px", "24px"),
           }}>
@@ -2392,7 +2651,9 @@ function DesignerBlock({ block, darkBg, onContentHeight }: {
 
       // ── template: renders an admin-imported "Section Block" HTML template as a block ──
       case "template": {
-        const templateId = p.templateId as string | undefined;
+        // templateId/resolvedTemplate come from the component-level hook above —
+        // declared once there (not re-derived here) so the effect and this render
+        // path can never read two different values for the same block.
         if (!templateId) {
           return (
             <div style={{ padding: "20px", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#6c757d" }}>
@@ -2422,11 +2683,17 @@ function DesignerBlock({ block, darkBg, onContentHeight }: {
               .replace(/\{\{cms\.youtube\}\}/g, cmsSite.youtube ?? "")
               .replace(/\{\{cms\.tiktok\}\}/g, cmsSite.tiktok ?? "")
           : input;
-        const templateMediaSlots = (p.mediaSlots && typeof p.mediaSlots === "object" ? p.mediaSlots : {}) as Record<string, string>;
+        // resolvedTemplate is the LIVE library content (see the component-level
+        // effect above) — falls back to the block's own stored snapshot while
+        // that fetch is in flight or if it fails, so there's still something to
+        // render immediately rather than a blank block.
+        const effectiveHtml = resolvedTemplate ? resolvedTemplate.customHtml : ((p.customHtml as string) || "");
+        const effectiveCss  = resolvedTemplate ? resolvedTemplate.customCss  : ((p.customCss as string) || "");
+        const templateMediaSlots = (resolvedTemplate?.mediaSlots ?? (p.mediaSlots && typeof p.mediaSlots === "object" ? p.mediaSlots : {})) as Record<string, string>;
         const applyMediaSlots = (input: string) =>
           input.replace(/\{\{cms\.media\.([a-z0-9_-]+)\}\}/g, (_, slotName: string) => templateMediaSlots[slotName] ?? "");
-        const templateHtml = applyMediaSlots(applyCmsVars((p.customHtml as string) || ""));
-        const templateCss  = applyMediaSlots(applyCmsVars((p.customCss as string) || ""));
+        const templateHtml = applyMediaSlots(applyCmsVars(effectiveHtml));
+        const templateCss  = applyMediaSlots(applyCmsVars(effectiveCss));
         // `block` here isn't typed with an `id` field (see the narrowed param type above), but
         // the runtime designer block object always has one — used as the remount key so
         // switching which template/product is bound doesn't reuse a stale iframe.
@@ -2733,8 +3000,15 @@ function FreeReflowStack({ blocks, designerCanvasW, containerW, darkBg }: {
   // scaleGuess ≈ how much the design is compressed horizontally into the phone column.
   const scaleGuess = designerCanvasW > 0 ? containerW / designerCanvasW : 0.26;
 
+  // 12px, not the original 20px — this sits inside the shared `.container-fluid`
+  // wrapper (FlexibleSectionRenderer.tsx), which already contributes its own default
+  // Bootstrap gutter (12px/side). The two were stacking to 32px/side (64px total on a
+  // 375px phone), squeezing a self-sizing block like the pricing widget's iframe down
+  // to 311px — not enough room for its own tab row, cutting off the last tab.
+  // 12px/side here (24px/side combined with the gutter) still gives every block real
+  // breathing room from the screen edge, just not doubled.
   return (
-    <div style={{ display: "flex", flexDirection: "column", width: "100%", padding: "0 20px" }}>
+    <div style={{ display: "flex", flexDirection: "column", width: "100%", padding: "0 12px" }}>
       {ordered.map((leaf, i) => {
         const prev = i > 0 ? ordered[i - 1] : null;
         let marginTop = 0;
