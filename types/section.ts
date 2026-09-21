@@ -242,6 +242,16 @@ export interface BaseSectionConfig {
   bgImageOpacity?: number; // 0-100, default 100
   bgParallax?: boolean; // default false
 
+  // "Repeat per section" — free+multi/dynamic sections only. Tiles the bg image once
+  // per 100vh band instead of stretching one copy across the whole multiLimit-band
+  // design (see computeMultiBgLayers in public/flexible-render-rules.js). Unlike its
+  // bgImage* siblings above (real Section columns), this is NOT a schema column —
+  // persisted inside `content` JSONB (no schema column — same pattern as bgMaskEnabled
+  // just below). Default false/undefined = today's existing "cover the whole design"
+  // behaviour, unchanged. Deliberately out of scope for grid/preset/mosaic multi-mode
+  // sections (YAGNI).
+  bgMultiRepeat?: boolean; // default false
+
   // Background image fade/MASK (#60) — fades the bg IMAGE to transparent along an
   // alpha gradient (mask-image), revealing the section/page colour behind it. This
   // is distinct from the gradient OVERLAY (content.gradient) which tints with colour.

@@ -1403,6 +1403,10 @@
     /* Stretched block indicator */
     .container-block.preview-stretch .cb-header::after { content:'← STRETCH →';font-size:9px;font-weight:700;color:#198754;margin-left:auto;padding-right:4px;opacity:0.7; }
   </style>
+  <!-- Shared heading/paragraph/button style formula — single source of truth also
+       consumed by components/sections/FlexibleSectionRenderer.tsx (ES module import).
+       Must load before createSubElementDOM (in the <script> below) calls it. -->
+  <script src="/flexible-render-rules.js"></script>
 </head>
 <body>
 
@@ -1456,7 +1460,7 @@
                 <div class="d-flex align-items-center gap-2">
                   <label class="form-label mb-0 small" id="multiLimitLabel">Height</label>
                   <input type="range" class="form-range flex-1" id="multiLimit" min="2" max="10" value="3"
-                    oninput="document.getElementById('multiLimitVal').textContent=this.value; renderCanvas(); autoSave();">
+                    oninput="document.getElementById('multiLimitVal').textContent=this.value; renderCanvas(); applySectionBgToCanvas(); autoSave();">
                   <span class="slider-value" id="multiLimitVal">3</span>
                   <small class="text-muted">×100vh</small>
                 </div>
@@ -1983,7 +1987,7 @@ const state = {
   _guideIdCounter: 0,
   // #68 — section background preview on the canvas. VIEW-ONLY: never written back
   // into buildJson(); mirrors the fields FlexibleSectionRenderer reads off the section.
-  sectionBg: null,        // { background, bgImageUrl, bgImageSize, bgImagePosition, bgImageRepeat, bgImageOpacity, gradient } | null
+  sectionBg: null,        // { background, bgImageUrl, bgImageSize, bgImagePosition, bgImageRepeat, bgImageOpacity, bgMultiRepeat, gradient } | null
   showSectionBg: true     // toggle state (default ON) — pure view preference
 };
 let _saveTimer = null;
@@ -2609,9 +2613,17 @@ function renderCanvas() {
   const availH = canvasArea ? canvasArea.clientHeight - (headerEl ? headerEl.offsetHeight : 0) - RULER_H : window.innerHeight - RULER_H;
 
   if (isMultiLike) {
-    // Multi/Dynamic mode: canvas height = N × one-section height so all sections scroll within the area
-    canvas.style.height = `${availH * state.multiLimit}px`;
-    canvas.style.minHeight = `${availH * state.multiLimit}px`;
+    // Multi/Dynamic + FREE (Option C, same fix as single+free below): LOCK each band to the
+    // authored designerCanvasH instead of the operator's live clientHeight — buildJson()
+    // already saves a stable designerCanvasH for every free-positioned section regardless of
+    // contentMode, but until this fix the multi-mode canvas ignored it and re-measured the
+    // live panel on every load, so the SAME saved section rendered a different total canvas
+    // height (and thus different per-band proportions/background aspect) depending on
+    // whichever operator's window/pane happened to be open. getCanvasScale() below mirrors
+    // this with its own multi+free letterbox case.
+    const perSectionH = state.positionMode === 'free' ? (state.designerCanvasH || DESIGN_H) : availH;
+    canvas.style.height = `${perSectionH * state.multiLimit}px`;
+    canvas.style.minHeight = `${perSectionH * state.multiLimit}px`;
     if (canvasArea) { canvasArea.classList.add('multi-scroll'); canvasArea.classList.remove('single-scroll'); }
     // Fix: canvas-with-rulers must not clip the taller canvas in multi mode
     const cwRulers = canvasArea ? canvasArea.querySelector('.canvas-with-rulers') : null;
@@ -3632,18 +3644,27 @@ function createSubElementDOM(se, blockId) {
   const preview = document.createElement('div');
   const p = se.props;
   switch(se.type) {
-    case 'heading':
+    case 'heading': {
       if (p.fontFamily && p.fontFamily !== 'inherit') { const _m=p.fontFamily.match(/'([^']+)'/); if(_m) injectGoogleFont(_m[1]); }
-      preview.innerHTML = `<div class="se-heading ${p.level||'h2'}" style="color:${p.color||''};font-size:${p.fontSize||22}px;font-family:${p.fontFamily||'inherit'};font-weight:${p.fontWeight||'700'};text-align:${p.textAlign||'left'};white-space:${p.textWrap||'normal'};line-height:${p.lineHeight||1.2};letter-spacing:${p.letterSpacing||0}px;text-transform:${p.textTransform||'none'};${outlineStyleFrag(p)}${shadowStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">' + (p.level||'h2').toUpperCase() + ' — double-click to edit</span>')}</div>`;
+      // Shared with FlexibleSectionRenderer.tsx via computeSubElementStyle (window.FlexibleRenderRules,
+      // loaded from /flexible-render-rules.js) — the Designer canvas always renders in `exact` mode.
+      const _hStyle = window.FlexibleRenderRules.styleObjectToCssText(window.FlexibleRenderRules.computeSubElementStyle('heading', p, { exact: true }));
+      preview.innerHTML = `<div class="se-heading ${p.level||'h2'}" style="${_hStyle}${outlineStyleFrag(p)}${shadowStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">' + (p.level||'h2').toUpperCase() + ' — double-click to edit</span>')}</div>`;
       break;
+    }
     case 'eyebrow':
       if (p.fontFamily && p.fontFamily !== 'inherit') { const _m=p.fontFamily.match(/'([^']+)'/); if(_m) injectGoogleFont(_m[1]); }
-      preview.innerHTML = `<div class="se-eyebrow" style="color:${p.color||'#0d6efd'};font-size:${p.fontSize||13}px;font-family:${p.fontFamily||'inherit'};font-weight:${p.fontWeight||'700'};text-align:${p.textAlign||'left'};text-transform:${p.textTransform||'uppercase'};letter-spacing:${p.letterSpacing??2}px;line-height:${p.lineHeight||1.4};${outlineStyleFrag(p)}${shadowStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">EYEBROW — double-click to edit</span>')}</div>`;
+      // Shared with FlexibleSectionRenderer.tsx via computeSubElementStyle — see heading case above.
+      const _eStyle = window.FlexibleRenderRules.styleObjectToCssText(window.FlexibleRenderRules.computeSubElementStyle('eyebrow', p, { exact: true }));
+      preview.innerHTML = `<div class="se-eyebrow" style="${_eStyle}${outlineStyleFrag(p)}${shadowStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">EYEBROW — double-click to edit</span>')}</div>`;
       break;
-    case 'paragraph':
+    case 'paragraph': {
       if (p.fontFamily && p.fontFamily !== 'inherit') { const _m=p.fontFamily.match(/'([^']+)'/); if(_m) injectGoogleFont(_m[1]); }
-      preview.innerHTML = `<div class="se-paragraph" style="color:${p.color||''};font-size:${p.fontSize||14}px;font-family:${p.fontFamily||'inherit'};text-align:${p.textAlign||'left'};white-space:${p.textWrap||'pre-wrap'};line-height:${p.lineHeight||1.6};letter-spacing:${p.letterSpacing||0}px;text-transform:${p.textTransform||'none'};${outlineStyleFrag(p)}${shadowStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">Paragraph — double-click to edit</span>')} </div>`;
+      // Shared with FlexibleSectionRenderer.tsx via computeSubElementStyle — see heading case above.
+      const _pStyle = window.FlexibleRenderRules.styleObjectToCssText(window.FlexibleRenderRules.computeSubElementStyle('paragraph', p, { exact: true }));
+      preview.innerHTML = `<div class="se-paragraph" style="${_pStyle}${outlineStyleFrag(p)}${shadowStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">Paragraph — double-click to edit</span>')} </div>`;
       break;
+    }
     case 'image':
       preview.innerHTML = p.src
         ? `<img src="${p.src}" style="width:100%;border-radius:4px;max-height:60px;object-fit:cover;" alt="${p.alt||''}">`
@@ -3653,23 +3674,19 @@ function createSubElementDOM(se, blockId) {
       // Derive variant: seed data may omit variant but always set bgColor/textColor.
       // Match FlexibleSectionRenderer: bgColor is always the button background.
       const _bv = p.variant === 'outline' ? 'outline' : p.variant === 'ghost' ? 'ghost' : 'filled';
-      const _px = p.paddingX    !== undefined ? Number(p.paddingX)    : 20;
-      const _py = p.paddingY    !== undefined ? Number(p.paddingY)    : 8;
-      const _br = p.borderRadius !== undefined ? String(Number(p.borderRadius)) + 'px' : '6px';
-      const _mt = p.marginTop   !== undefined ? String(Number(p.marginTop))   + 'px' : '4px';
       const _bg = p.bgColor    || '#0d6efd';
       const _tc = p.textColor  || (_bv === 'filled' ? '#ffffff' : _bg);
       const _btn = document.createElement('div');
       _btn.className = 'se-button ' + _bv;
+      // Shared with FlexibleSectionRenderer.tsx via computeSubElementStyle — background/
+      // padding/borderRadius/marginTop/display/textAlign/fontSize/fontWeight come from
+      // there; outline/ghost then override background/border/color below exactly as
+      // before (the live renderer has no outline/ghost equivalent — bgColor is always
+      // the button background there, per the comment above).
+      Object.assign(_btn.style, window.FlexibleRenderRules.computeSubElementStyle('button', p, { exact: true }));
       if (_bv === 'outline') { _btn.style.border = '2px solid ' + _bg; _btn.style.background = 'transparent'; }
       else if (_bv === 'ghost') { _btn.style.background = 'transparent'; }
-      else { _btn.style.background = _bg; }
       _btn.style.color = _tc;
-      _btn.style.padding = _py + 'px ' + _px + 'px';
-      _btn.style.borderRadius = _br;
-      _btn.style.marginTop = _mt;
-      _btn.style.display = 'block';
-      _btn.style.textAlign = 'center';
       if (p.icon) { const _ic = document.createElement('i'); _ic.className = 'bi ' + p.icon; _btn.appendChild(_ic); _btn.appendChild(document.createTextNode(' ')); }
       _btn.appendChild(document.createTextNode(p.text || 'Button'));
       preview.appendChild(_btn);
@@ -5582,7 +5599,7 @@ function _lyGroupRowHtml(block){
   const sel = (state.selectedBlockId===block.id && !state.selectedSubId) ? ' selected' : '';
   const hid = block.hidden ? ' layer-hidden' : '';
   const label = block.props?.label || block.type;
-  return `<div class="layer-row layer-group${sel}${hid}" draggable="true" data-layer-row data-kind="block" data-block-id="${_lyEsc(block.id)}">
+  return `<div class="layer-row layer-group${sel}${hid}" draggable="true" data-layer-row data-kind="block" data-block-id="${_lyEsc(block.id)}" data-block-type="${_lyEsc(block.type)}">
     <span class="layer-caret${collapsed?' collapsed':''}" data-caret>&#9662;</span>
     <i class="layer-icon bi bi-collection" title="Parent group — ${block.subElements.length} element(s)"></i>
     <span class="layer-name" data-name>${_lyEsc(label)}</span>
@@ -5611,7 +5628,7 @@ function _lyLeafRowHtml(block){
   const sel = (state.selectedBlockId===block.id && !state.selectedSubId) ? ' selected' : '';
   const hid = block.hidden ? ' layer-hidden' : '';
   const label = block.props?.label || block.type;
-  return `<div class="layer-row layer-leaf${sel}${hid}" draggable="true" data-layer-row data-kind="block" data-block-id="${_lyEsc(block.id)}">
+  return `<div class="layer-row layer-leaf${sel}${hid}" draggable="true" data-layer-row data-kind="block" data-block-id="${_lyEsc(block.id)}" data-block-type="${_lyEsc(block.type)}">
     <span class="layer-caret" style="visibility:hidden">&bull;</span>
     <i class="layer-icon bi ${getBlockIcon(block.type)}"></i>
     <span class="layer-name" data-name>${_lyEsc(label)}</span>
@@ -5635,6 +5652,16 @@ function renderLayersPanel(){
     host.innerHTML = '<div class="layers-empty">No elements yet.<br>Drag a block onto the canvas.</div>';
   } else {
     let html = '';
+    // EVERY block in state.blocks gets a row here, unconditionally — this loop never
+    // filters by type. A block with children (subElements.length > 0, e.g. a text-block
+    // container holding a heading/paragraph) renders as a ".layer-group" row; a childless
+    // block renders as a ".layer-leaf" row instead (same data-block-id, tagged with
+    // data-block-type for reliable lookup either way). 'volt' blocks are ALWAYS childless
+    // (they reference an external Volt design rather than containing sub-elements), so a
+    // volt block is expected to appear as a leaf row, never a group row. A DOM check that
+    // only queries '.layer-row.layer-group' will therefore always miss volt blocks (and any
+    // other block before its first child is added) even though they are present — query
+    // '.layer-row' (or the '[data-block-type]' attribute) to check for a specific block.
     state.blocks.forEach(block => {
       if (block.subElements?.length > 0){
         html += _lyGroupRowHtml(block);
@@ -8225,7 +8252,7 @@ function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'
 //  OTHER CONTROLS
 // ═══════════════════════════════════════════════════════════
 /** Called when the content mode radio changes (single/multi). Re-renders and saves. */
-function onModeChange()   { renderCanvas(); autoSave(); }
+function onModeChange()   { renderCanvas(); applySectionBgToCanvas(); autoSave(); }
 /** Called when the layout type radio changes (grid/preset/mosaic/free). Re-renders and saves. */
 function onLayoutChange() {
   pushHistory();
@@ -8324,7 +8351,7 @@ function togglePositionMode() {
   // Re-apply the active device preview so the canvas width, scale and frame switch between
   // the grid (narrow canvas) and free (scaled-stage) presentations correctly.
   if (state.devicePreview !== 'desktop') setDevicePreview(state.devicePreview);
-  renderCanvas(); renderPropsPanel(); autoSave();
+  renderCanvas(); applySectionBgToCanvas(); renderPropsPanel(); autoSave();
 }
 
 /**
@@ -9291,13 +9318,16 @@ function getCanvasScale() {
   if (!cwrap) return state.userZoom || 1;
   const rulerW = cwrap.classList.contains('rulers-hidden') ? 0 : 20;
   const availW = cwrap.clientWidth - rulerW - 2;
-  // Free + single (Option C): LETTERBOX the fixed 1440×boxH design box within the available
-  // area on BOTH axes, so the canvas keeps the authored design aspect (not the window's
-  // leftover height). Grid/preset/mosaic + multi keep the width-only fit (UNCHANGED).
-  if (state.positionMode === 'free' && state.contentMode === 'single') {
+  // Free + single, or free + multi/dynamic (Option C): LETTERBOX the fixed
+  // 1440×(boxH×bands) design box within the available area on BOTH axes, so the canvas keeps
+  // the authored design aspect (not the window's leftover height). Grid/preset/mosaic keep
+  // the width-only fit (UNCHANGED) — those layouts reflow to fill available space by design.
+  if (state.positionMode === 'free' && (state.contentMode === 'single' || state.contentMode === 'multi' || state.contentMode === 'dynamic')) {
     const availH = cwrap.clientHeight - rulerW - 2;
     const boxH = state.designerCanvasH || DESIGN_H;
-    const fit = Math.min(1, availW / DESKTOP_CANVAS_W, boxH > 0 ? availH / boxH : 1);
+    const bands = (state.contentMode === 'multi' || state.contentMode === 'dynamic') ? (state.multiLimit || 1) : 1;
+    const totalH = boxH * bands;
+    const fit = Math.min(1, availW / DESKTOP_CANVAS_W, totalH > 0 ? availH / totalH : 1);
     return fit * (state.userZoom || 1);
   }
   const fitScale = Math.min(1, availW / DESKTOP_CANVAS_W);
@@ -9339,12 +9369,14 @@ function resetUserZoom() {
     const rulerW = cwrap.classList.contains('rulers-hidden') ? 0 : 20;
     const availW = cwrap.clientWidth - rulerW - 2;
     let fitScale = Math.min(1, availW / DESKTOP_CANVAS_W);
-    // Mirror the free+single letterbox fit so "reset zoom" lands on a true 100% of the
-    // authored 1440×boxH box (not the width-only fit).
-    if (state.positionMode === 'free' && state.contentMode === 'single') {
+    // Mirror the free (single or multi/dynamic) letterbox fit so "reset zoom" lands on a true
+    // 100% of the authored 1440×(boxH×bands) box (not the width-only fit).
+    if (state.positionMode === 'free' && (state.contentMode === 'single' || state.contentMode === 'multi' || state.contentMode === 'dynamic')) {
       const availH = cwrap.clientHeight - rulerW - 2;
       const boxH = state.designerCanvasH || DESIGN_H;
-      fitScale = Math.min(1, availW / DESKTOP_CANVAS_W, boxH > 0 ? availH / boxH : 1);
+      const bands = (state.contentMode === 'multi' || state.contentMode === 'dynamic') ? (state.multiLimit || 1) : 1;
+      const totalH = boxH * bands;
+      fitScale = Math.min(1, availW / DESKTOP_CANVAS_W, totalH > 0 ? availH / totalH : 1);
     }
     // userZoom = 1/fitScale makes getCanvasScale() return exactly 1.0 (100%)
     state.userZoom = fitScale > 0 ? 1 / fitScale : 1;
@@ -9667,7 +9699,7 @@ function readSectionBgFromPayload(layout) {
   if (!layout || typeof layout !== 'object') return null;
   const src = (layout.sectionBackground && typeof layout.sectionBackground === 'object')
     ? layout.sectionBackground : layout;
-  const KEYS = ['background','bgImageUrl','bgImageSize','bgImagePosition','bgImageRepeat','bgImageOpacity','gradient'];
+  const KEYS = ['background','bgImageUrl','bgImageSize','bgImagePosition','bgImageRepeat','bgImageOpacity','bgMultiRepeat','gradient'];
   const has = KEYS.some(k => src[k] !== undefined && src[k] !== null && src[k] !== '');
   if (!has) return null;
   return {
@@ -9677,6 +9709,11 @@ function readSectionBgFromPayload(layout) {
     bgImagePosition: src.bgImagePosition,
     bgImageRepeat:   src.bgImageRepeat,
     bgImageOpacity:  src.bgImageOpacity,
+    // "Repeat per section" (opt-in, default false) — tile the bg image once per
+    // 100vh band instead of stretching one copy across the whole multi-band
+    // design. View-only here (see this block's own header comment); the real
+    // editable toggle lives in FlexibleSectionEditorModal.tsx's Background tab.
+    bgMultiRepeat:   src.bgMultiRepeat === true,
     gradient:        src.gradient || null
   };
 }
@@ -9709,19 +9746,58 @@ function applySectionBgToCanvas() {
   // ever concatenated into HTML.
   const children = [];
   if (bg.bgImageUrl) {
-    const size = bg.bgImageSize || 'cover';
-    const pos  = bg.bgImagePosition || 'center';
-    const rep  = bg.bgImageRepeat || 'no-repeat';
-    const opN  = Number(bg.bgImageOpacity);
-    const op   = (bg.bgImageOpacity == null || !Number.isFinite(opN)) ? 1 : opN / 100;
-    const img = document.createElement('div');
-    img.className = 'csb-image';
-    img.style.backgroundImage    = "url('" + cssUrl(bg.bgImageUrl) + "')";
-    img.style.backgroundSize     = String(size);
-    img.style.backgroundPosition = String(pos);
-    img.style.backgroundRepeat   = String(rep);
-    img.style.opacity            = String(op);
-    children.push(img);
+    // "Repeat per section" (opt-in, default off — YAGNI-scoped to free+multi/dynamic
+    // only; grid/preset/mosaic multi-mode never takes this branch): tile the SAME
+    // image once per 100vh band instead of stretching one copy across the whole
+    // multiLimit-band design. Geometry computed by the shared module so this stays
+    // in sync with FlexibleSectionRenderer.tsx's identical repeat branch (ONE SYSTEM
+    // PER CONCERN — see flexible-render-rules.js's own doc comment on
+    // computeMultiBgLayers). The non-repeat / non-multi / non-free default path
+    // below is UNCHANGED — same single .csb-image div as before this feature.
+    const isMultiLikeBg = (state.contentMode === 'multi' || state.contentMode === 'dynamic') && state.positionMode === 'free';
+    if (isMultiLikeBg && bg.bgMultiRepeat) {
+      const layers = window.FlexibleRenderRules.computeMultiBgLayers({
+        ch: state.designerCanvasH || DESIGN_H,
+        multiLimit: state.multiLimit || 1,
+        repeat: true,
+        bgImageUrl: bg.bgImageUrl,
+        bgImageSize: bg.bgImageSize,
+        bgImagePosition: bg.bgImagePosition,
+        bgImageRepeat: bg.bgImageRepeat,
+        bgImageOpacity: bg.bgImageOpacity,
+      });
+      // SECURITY (#68): style-PROPERTY assignment only, same as the single-layer
+      // branch below — computeMultiBgLayers already sanitized the URL, but the
+      // assignment method (never innerHTML) is what actually makes it XSS-safe.
+      layers.forEach(function (layer) {
+        const img = document.createElement('div');
+        img.className = 'csb-image';
+        img.style.left   = '0';
+        img.style.top    = layer.top + 'px';
+        img.style.width  = '100%';
+        img.style.height = layer.height + 'px';
+        img.style.backgroundImage    = layer.backgroundImage || '';
+        img.style.backgroundSize     = String(layer.backgroundSize);
+        img.style.backgroundPosition = String(layer.backgroundPosition);
+        img.style.backgroundRepeat   = String(layer.backgroundRepeat);
+        img.style.opacity            = String(layer.opacity);
+        children.push(img);
+      });
+    } else {
+      const size = bg.bgImageSize || 'cover';
+      const pos  = bg.bgImagePosition || 'center';
+      const rep  = bg.bgImageRepeat || 'no-repeat';
+      const opN  = Number(bg.bgImageOpacity);
+      const op   = (bg.bgImageOpacity == null || !Number.isFinite(opN)) ? 1 : opN / 100;
+      const img = document.createElement('div');
+      img.className = 'csb-image';
+      img.style.backgroundImage    = "url('" + cssUrl(bg.bgImageUrl) + "')";
+      img.style.backgroundSize     = String(size);
+      img.style.backgroundPosition = String(pos);
+      img.style.backgroundRepeat   = String(rep);
+      img.style.opacity            = String(op);
+      children.push(img);
+    }
   }
   // Gradient layer (content.gradient). Over a bg image it's a scrim; with NO image it
   // renders as a standalone full-section background layer — mirroring the renderer so a
@@ -10243,6 +10319,51 @@ function closeVoltModal() {
   iframe.src = '';
 }
 
+/**
+ * Entry point for the outer "✕ Close" button and the modal backdrop click —
+ * the two paths that used to call closeVoltModal() directly and silently discard
+ * any unsaved edits made inside the embedded Volt Studio iframe (that iframe's own
+ * Save/Done buttons are unaffected by this and keep working exactly as before).
+ *
+ * Asks the iframe (via postMessage) whether it has unsaved changes before tearing
+ * it down. If it reports dirty, shows the shared non-native confirm modal so the
+ * user has to explicitly choose to discard; otherwise (or if the iframe doesn't
+ * answer in time — e.g. still loading) closes immediately, matching prior behavior.
+ */
+function requestCloseVoltModal() {
+  const modal = document.getElementById('volt-modal');
+  const iframe = document.getElementById('volt-modal-iframe');
+  if (!modal || !modal.classList.contains('vm-open') || !iframe || !iframe.src || !iframe.contentWindow) {
+    closeVoltModal();
+    return;
+  }
+  let responded = false;
+  let timer = null;
+  function onMsg(e) {
+    if (!e.data || e.data.type !== 'VOLT_DESIGNER_DIRTY_STATE') return;
+    try { if (e.source !== iframe.contentWindow) return; } catch (_) { return; }
+    responded = true;
+    clearTimeout(timer);
+    window.removeEventListener('message', onMsg);
+    if (e.data.isDirty) {
+      showConfirmModal(
+        'Unsaved Changes',
+        'This Volt design has unsaved changes.<br><small class="text-muted">Closing now will discard them. Use Save or Done inside Volt Studio to keep your edits.</small>',
+        function() { closeVoltModal(); }
+      );
+    } else {
+      closeVoltModal();
+    }
+  }
+  window.addEventListener('message', onMsg);
+  timer = setTimeout(function() {
+    if (responded) return;
+    window.removeEventListener('message', onMsg);
+    closeVoltModal();
+  }, 400);
+  iframe.contentWindow.postMessage({ type: 'VOLT_DESIGNER_QUERY_DIRTY' }, '*');
+}
+
 function createNewVoltFromCanvas() {
   const block = { id: null, props: { voltId: null, voltName: 'New Volt', voltThumbnail: null } };
   _voltModalBlockId = '__new__';
@@ -10481,12 +10602,12 @@ window.addEventListener('message', function(e) {
 
 <!-- Volt Studio Modal Overlay -->
 <div id="volt-modal">
-  <div id="volt-modal-overlay" onclick="closeVoltModal()"></div>
+  <div id="volt-modal-overlay" onclick="requestCloseVoltModal()"></div>
   <div id="volt-modal-frame">
     <div id="volt-modal-header">
       <i class="bi bi-lightning-charge" style="color:#818cf8;font-size:15px;"></i>
       <span id="volt-modal-title">Volt Studio</span>
-      <button id="volt-modal-close" onclick="closeVoltModal()">✕ Close</button>
+      <button id="volt-modal-close" onclick="requestCloseVoltModal()">✕ Close</button>
     </div>
     <iframe id="volt-modal-iframe" src="" frameborder="0" allow="*"></iframe>
   </div>

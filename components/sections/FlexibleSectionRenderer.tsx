@@ -9,6 +9,11 @@ import type { AnimBgConfig } from "@/lib/anim-bg/types";
 import { DEFAULT_ANIM_BG_CONFIG } from "@/lib/anim-bg/defaults";
 import { designerBlockToElement } from "@/lib/flexible/legacy-to-designer";
 import { animate } from "animejs";
+// Shared heading/paragraph/button style + free-canvas position formula — the single
+// source of truth also consumed by public/flexible-designer.html (see that file's
+// <script src="/flexible-render-rules.js"> and this module's own doc comment for why
+// it exists). Plain JS + hand-written flexible-render-rules.d.ts alongside it.
+import { computeSubElementStyle, computeSubElementPosition, computeMultiBgLayers } from "../../public/flexible-render-rules.js";
 
 const AnimBgRenderer    = dynamic(() => import("./AnimBgRenderer"), { ssr: false });
 const ScrollStageWrapper = dynamic(() => import("./scroll-stage/ScrollStageWrapper"), { ssr: false });
@@ -424,7 +429,14 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
     if (!freePlateActive || !designerData) return null;
     try {
       const d = typeof designerData === "string" ? JSON.parse(designerData) : designerData;
-      return { cw: resolveCanvasDim((d as any)?.designerCanvasW, 1440), ch: resolveCanvasDim((d as any)?.designerCanvasH, DESIGN_H) };
+      // multiLimit read from the same parsed JSON (no second JSON.parse) — mirrors
+      // DesignerBlocksRenderer's own `data.multiLimit || 1` so the outer aspect-ratio
+      // override can span the full N×100vh plate, not just one band's ch.
+      return {
+        cw: resolveCanvasDim((d as any)?.designerCanvasW, 1440),
+        ch: resolveCanvasDim((d as any)?.designerCanvasH, DESIGN_H),
+        multiLimit: Number((d as any)?.multiLimit) || 1,
+      };
     } catch { return null; }
   }, [freePlateActive, designerData]);
   // True only when the free-mode 1:1 section-height override should apply: free plate is
@@ -445,6 +457,13 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   const bgImagePosition = (section as any).bgImagePosition as string | undefined;
   const bgImageRepeat   = (section as any).bgImageRepeat   as string | undefined;
   const bgImageOpacity  = (section as any).bgImageOpacity  as number | undefined;
+  // "Repeat per section" (opt-in, default false — free+multi/dynamic sections only).
+  // Unlike its bgImage* siblings above (real Section columns), this one is NOT a
+  // schema column — it round-trips inside `content` JSONB, the same pattern already
+  // established for bgMaskEnabled/backgroundVoltId just below (no migration for a
+  // first-cut, deliberately scoped feature — see FlexibleSectionEditorModal.tsx's
+  // matching content.bgMultiRepeat read/write for the editable Background-tab toggle).
+  const bgMultiRepeat  = (content as any).bgMultiRepeat === true;
 
   // ── Background Override (generic renderer capability) ──────────────────────────
   // Lets a TemplateBlock's own sandboxed-iframe content swap THIS section's background
@@ -658,7 +677,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           // is neither crop nor letterbox gutters, at the cost of mild image stretch on
           // off-ratio viewports (accepted trade-off, 2026-09-04, after both CONTAIN-fit's
           // gutters and width-fill-and-grow's 100vh violation were rejected).
-          aspectRatio: `${freeCanvas.cw} / ${freeCanvas.ch}`,
+          aspectRatio: `${freeCanvas.cw} / ${freeCanvas.ch * (freeCanvas.multiLimit || 1)}`,
           height: "auto",
           minHeight: 0,
           maxHeight: "none",
@@ -732,6 +751,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
             repeat: bgImageRepeat,
             opacity: bgImageOpacity,
             maskCss: bgMaskCss,
+            multiRepeat: bgMultiRepeat,
           }}
         />
       )}
@@ -1517,7 +1537,7 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
   // desktop free, mobile reading-stack on mobile. Together they never double-render.
   plateMode?: boolean;
   // bgImage: section background image fields, drawn INSIDE the plate (free cover-plate only).
-  bgImage?: { url?: string; size?: string; position?: string; repeat?: string; opacity?: number; maskCss?: string | null };
+  bgImage?: { url?: string; size?: string; position?: string; repeat?: string; opacity?: number; maskCss?: string | null; multiRepeat?: boolean };
   // headerOffset: px height of this section's separate CMS "Section Header" (measured live
   // by the caller), single content-mode only. The plate is a z-index-12 layer painted ABOVE
   // the z-index-11 .section-content-wrapper that holds that header, with no innate awareness
@@ -1776,6 +1796,12 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
     if (isFreeMode) {
       const cw = resolveCanvasDim(data.designerCanvasW, 1440);
       const ch = resolveCanvasDim(data.designerCanvasH, DESIGN_H);
+      // FREE+MULTI plates span multiLimit stacked 100vh bands sharing ONE cw×chTotal
+      // coordinate space (matches the Designer canvas's own designerCanvasH*multiLimit
+      // sizing, public/flexible-designer.html:2677-2678) — chTotal is the FULL plate
+      // extent used for the background/content box heights below. Single mode leaves
+      // multiLimit===1 so chTotal===ch, a no-op.
+      const chTotal = isMulti ? ch * multiLimit : ch;
 
       // ── Mobile: smart, readable reflow (<768px, post-mount) ─────────────────
       // Single-column reading-order stack — MOBILE IS UNCHANGED by the cover-plate work.
@@ -1865,26 +1891,68 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
           {/* Background layer — non-uniform scale(sx,sy), fills the box exactly (see the
               doc comment above for why this is intentionally split from the content layer). */}
           {bgImage?.url && (
-            <div aria-hidden="true" style={{
-              position: "absolute", left: 0, top: 0,
-              width: cw, height: ch,
-              transform: bgTransform,
-              transformOrigin: "top left",
-              zIndex: 0,
-              backgroundImage: `url(${bgImage.url})`,
-              backgroundSize: bgImage.size || "cover",
-              backgroundPosition: bgImage.position || "center",
-              backgroundRepeat: bgImage.repeat || "no-repeat",
-              opacity: (bgImage.opacity ?? 100) / 100,
-              ...(bgImage.maskCss ? { maskImage: bgImage.maskCss, WebkitMaskImage: bgImage.maskCss } : {}),
-              pointerEvents: "none",
-            }} />
+            isMulti && bgImage.multiRepeat ? (
+              // "Repeat per section" (opt-in, default false — free+multi/dynamic only):
+              // tile the SAME image once per 100vh band instead of stretching one copy
+              // across the whole multiLimit-band design. Geometry computed by the shared
+              // module so this stays in sync with flexible-designer.html's identical
+              // repeat branch in applySectionBgToCanvas() (ONE SYSTEM PER CONCERN — see
+              // flexible-render-rules.js's own doc comment on computeMultiBgLayers).
+              // bgTransform is applied ONCE, to this OUTER wrapper only — never per-band
+              // — so each band's top offset scales correctly instead of the scale
+              // compounding a second time on top of an already-scaled offset.
+              <div aria-hidden="true" style={{
+                position: "absolute", left: 0, top: 0,
+                width: cw, height: chTotal,
+                transform: bgTransform,
+                transformOrigin: "top left",
+                zIndex: 0,
+                pointerEvents: "none",
+              }}>
+                {computeMultiBgLayers({
+                  ch, multiLimit, repeat: true,
+                  bgImageUrl: bgImage.url,
+                  bgImageSize: bgImage.size,
+                  bgImagePosition: bgImage.position,
+                  bgImageRepeat: bgImage.repeat,
+                  bgImageOpacity: bgImage.opacity,
+                  maskCss: bgImage.maskCss,
+                }).map((layer, i) => (
+                  <div key={i} aria-hidden="true" style={{
+                    position: "absolute", left: 0, top: layer.top,
+                    width: cw, height: layer.height,
+                    backgroundImage: layer.backgroundImage,
+                    backgroundSize: layer.backgroundSize,
+                    backgroundPosition: layer.backgroundPosition,
+                    backgroundRepeat: layer.backgroundRepeat,
+                    opacity: layer.opacity,
+                    ...(layer.maskCss ? { maskImage: layer.maskCss, WebkitMaskImage: layer.maskCss } : {}),
+                    pointerEvents: "none",
+                  }} />
+                ))}
+              </div>
+            ) : (
+              <div aria-hidden="true" style={{
+                position: "absolute", left: 0, top: 0,
+                width: cw, height: chTotal,
+                transform: bgTransform,
+                transformOrigin: "top left",
+                zIndex: 0,
+                backgroundImage: `url(${bgImage.url})`,
+                backgroundSize: bgImage.size || "cover",
+                backgroundPosition: bgImage.position || "center",
+                backgroundRepeat: bgImage.repeat || "no-repeat",
+                opacity: (bgImage.opacity ?? 100) / 100,
+                ...(bgImage.maskCss ? { maskImage: bgImage.maskCss, WebkitMaskImage: bgImage.maskCss } : {}),
+                pointerEvents: "none",
+              }} />
+            )
           )}
           <div style={{
             // TOP-LEFT anchored content plate — always UNIFORM scale (never the background's
             // non-uniform transform), so every card/button/text block renders undistorted.
             position: "absolute", left: contentLeft, top: 0,
-            width: cw, height: ch,
+            width: cw, height: chTotal,
             transform: contentTransform,
             transformOrigin: "top left",
             pointerEvents: "auto",
@@ -1913,19 +1981,16 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
                 // canvas does — it can never left-clip (the old #79 cutoff came from
                 // clipping, which this wrapper doesn't do).
                 const bp   = (block.props || {}) as Record<string, unknown>;
-                const padT = Number(bp.paddingTop ?? 16);
-                const padX = Number(bp.paddingX   ?? 20);
                 return subs.map((sub, si) => (
                   <div key={String(block.id) + "-" + si} style={{
-                    position: "absolute",
-                    left: (pos.x || 0) + 2 + padX + (sub.x || 0),
-                    top:  (pos.y || 0) + 2 + padT + (sub.y || 0),
-                    width: sub.w != null ? sub.w : Math.max((pos.w || 0) - 2 * padX, 0),
-                    minWidth: 60,
-                    height: sub.h != null ? sub.h : undefined,
-                    padding: "6px 10px",
-                    border: "1px solid transparent",
-                    boxSizing: "border-box",
+                    ...computeSubElementPosition(pos, sub, bp),
+                    // Same explicit stacking level the non-container branch below gives its
+                    // block wrapper (see zIndex doc comment on the `blocks` type above). Without
+                    // this, every sub-element here paints at implicit z-index:auto, which always
+                    // loses to ANY sibling block carrying an explicit z-index (e.g. a Volt/image
+                    // block) regardless of the actual numbers — "Send to back" on that sibling
+                    // can never put it behind a container block's (text/text-block/card) content.
+                    zIndex: block.zIndex ?? (index + 1),
                   }}>
                     <DesignerSubElement sub={sub} exact darkBg={darkBg} />
                   </div>
@@ -3299,21 +3364,33 @@ function DesignerSubElement({ sub, mobile, exact, darkBg }: { sub: SubEl; mobile
           : text;
         return (
           <div style={{
-            fontSize:      mobile ? mobileFontClamp(Number(p.fontSize) || 22) : `${Number(p.fontSize) || 22}px`,
-            fontFamily:    (p.fontFamily as string) || undefined,
-            fontWeight:    (p.fontWeight as string) || "700",
-            // exact: designer headings resolve an un-set colour to #212529 (.se-heading),
-            // NOT the inherited theme colour — except on dark section backgrounds.
-            color:         (p.color as string) || (exact && !darkBg ? "#212529" : undefined),
-            textAlign:     (p.textAlign as React.CSSProperties["textAlign"]) || (exact ? "left" : undefined),
-            // exact: designer heading default line-height is 1.2 (`p.lineHeight||1.2`);
-            // inheriting the page's 1.5 made an 80px heading 120px tall vs 96px on canvas.
-            lineHeight:    p.lineHeight !== undefined ? Number(p.lineHeight) : (exact ? 1.2 : undefined),
-            letterSpacing: p.letterSpacing !== undefined ? `${Number(p.letterSpacing)}px` : (exact ? "0px" : undefined),
-            textTransform: (p.textTransform as React.CSSProperties["textTransform"]) || (exact ? "none" : undefined),
-            // Match the designer canvas white-space so line breaks land identically (#79).
-            // Designer heading: `white-space: p.textWrap||'normal'` + .se-heading break-word.
-            ...(exact ? { whiteSpace: (p.textWrap as React.CSSProperties["whiteSpace"]) || ("normal" as const), overflowWrap: "break-word" as const } : {}),
+            // Shared with the Designer canvas (public/flexible-designer.html) via
+            // computeSubElementStyle — see its doc comment in flexible-render-rules.js
+            // for exactly which defaults `exact`/`mobile`/`darkBg` each resolve to.
+            ...computeSubElementStyle("heading", p, { exact, mobile, darkBg }),
+            ...outlinedStyle,
+            ...textShadowStyle,
+            marginBottom:  hasShell ? 0 : mb,
+            marginTop:     0,
+          }}>
+            {textContent}
+          </div>
+        );
+      }
+      // ── eyebrow: small uppercase label (Designer sub-element type since #67, 2026-07-03).
+      //    Until 2026-09-15 this type had NO branch here and fell into the `default: return
+      //    null` below — so an eyebrow authored on the canvas rendered NOTHING on the live
+      //    page (reported as "the Volt block covers it"; it was never a stacking issue).
+      //    Styles come from the shared computeSubElementStyle, same as heading/paragraph. ──
+      case "eyebrow": {
+        const mb   = p.marginBottom !== undefined ? `${Number(p.marginBottom)}px` : "8px";
+        const text = (p.text as string) || "";
+        const textContent = animEffect === "typewriter"
+          ? <span ref={countSpanRef} data-fulltext={text} />
+          : text;
+        return (
+          <div style={{
+            ...computeSubElementStyle("eyebrow", p, { exact, mobile, darkBg }),
             ...outlinedStyle,
             ...textShadowStyle,
             marginBottom:  hasShell ? 0 : mb,
@@ -3334,31 +3411,13 @@ function DesignerSubElement({ sub, mobile, exact, darkBg }: { sub: SubEl; mobile
           : animEffect === "typewriter"
           ? <span ref={countSpanRef} data-fulltext={text} />
           : text;
-        // In `exact` (desktop 1:1) and `mobile` (reflow) modes the wrapper/column width is
-        // authoritative — the designer never applies a paragraph maxWidth, so honouring it
-        // here would wrap the text narrower than the canvas, growing an extra line and making
-        // a neighbouring absolute element overlap on the live page (#79). Suppress it.
-        const constrainWidth = !exact && !mobile && !!p.maxWidth && Number(p.maxWidth) > 0;
         return (
           <p style={{
-            // exact: designer paragraph defaults are 14px / line-height 1.6
-            // (`p.fontSize||14`, `p.lineHeight||1.6`) — not the renderer's legacy 15/1.65.
-            fontSize:      mobile ? mobileFontClamp(Number(p.fontSize) || 15) : `${Number(p.fontSize) || (exact ? 14 : 15)}px`,
-            fontFamily:    (p.fontFamily as string) || undefined,
-            fontWeight:    (p.fontWeight as string) || undefined,
-            color:         (p.color as string) || (exact && !darkBg ? "#212529" : undefined),
-            textAlign:     (p.textAlign as React.CSSProperties["textAlign"]) || (exact ? "left" : undefined),
-            lineHeight:    p.lineHeight !== undefined ? Number(p.lineHeight) : (exact ? 1.6 : 1.65),
-            letterSpacing: p.letterSpacing !== undefined ? `${Number(p.letterSpacing)}px` : (exact ? "0px" : undefined),
-            textTransform: (p.textTransform as React.CSSProperties["textTransform"]) || (exact ? "none" : undefined),
-            maxWidth:      constrainWidth ? `${Number(p.maxWidth)}px` : undefined,
-            marginLeft:    constrainWidth ? "auto" : undefined,
-            marginRight:   constrainWidth ? "auto" : undefined,
-            // Match the designer's `.se-paragraph` wrapping (pre-wrap keeps authored line
-            // breaks; break-word prevents long tokens from widening the box) so height is 1:1.
-            // No word-break here — the designer never sets it, and its min-content sizing
-            // differs from overflow-wrap, which can change where lines break.
-            ...(exact ? { whiteSpace: (p.textWrap as React.CSSProperties["whiteSpace"]) || "pre-wrap", overflowWrap: "break-word" as const } : {}),
+            // Shared with the Designer canvas (public/flexible-designer.html) via
+            // computeSubElementStyle — including the maxWidth-suppression-under-exact
+            // rule (#79: the wrapper/column width is authoritative in exact/mobile
+            // modes, so a paragraph maxWidth would wrap narrower than the canvas).
+            ...computeSubElementStyle("paragraph", p, { exact, mobile, darkBg }),
             ...outlinedStyle,
             ...textShadowStyle,
             marginBottom:  hasShell ? 0 : mb,
@@ -3370,24 +3429,20 @@ function DesignerSubElement({ sub, mobile, exact, darkBg }: { sub: SubEl; mobile
       }
       // ── button: anchor styled as a button, navigates to navTarget ────────
       case "button": {
-        const px   = p.paddingX     !== undefined ? Number(p.paddingX)     : 20;
-        const py   = p.paddingY     !== undefined ? Number(p.paddingY)     : 8;
-        const br   = p.borderRadius !== undefined ? `${Number(p.borderRadius)}px` : "6px";
-        const mt   = p.marginTop    !== undefined ? `${Number(p.marginTop)}px`    : "4px";
         const icon = p.icon as string | undefined;
         return (
           <a href={String(p.navTarget || "#")} style={{
-            display:        "inline-block",
-            alignSelf:      "center",
-            width:          "fit-content",
-            background:     (p.bgColor   as string) || "#0d6efd",
-            color:          (p.textColor as string) || "#fff",
-            padding:        `${py}px ${px}px`,
-            borderRadius:   br,
-            textDecoration: "none",
-            fontWeight:     600,
-            fontSize:       "14px",
-            marginTop:      mt,
+            // exact: the designer canvas renders the button as a block-level div that fills
+            // its sub-element wrapper and centers its text (`_btn.style.display='block';
+            // _btn.style.textAlign='center'` in createSubElementDOM, public/flexible-designer.html)
+            // — not an inline-block sized to its own text. The free-canvas wrapper (~line 2218)
+            // is position:absolute, not flex, so the old alignSelf:"center" here was inert and
+            // the button rendered narrow + left-aligned instead of matching the canvas. Only
+            // override for `exact` — the flex-column card/banner/stats layouts below still want
+            // a content-sized, alignSelf-centered button and are untouched.
+            // exact: designer's .se-button class default is 12px — createSubElementDOM never
+            // overrides it inline for the button branch. The old fixed 14px overstated it.
+            ...computeSubElementStyle("button", p, { exact }),
           }}>
             {icon && <i className={`bi ${icon} me-1`} />}
             {(p.text as string) || "Button"}

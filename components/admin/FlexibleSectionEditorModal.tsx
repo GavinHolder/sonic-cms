@@ -186,6 +186,12 @@ function FlexibleSectionEditorModalInner({
   const [bgImageRepeat, setBgImageRepeat] = useState(section.bgImageRepeat || "no-repeat");
   const [bgImageOpacity, setBgImageOpacity] = useState(section.bgImageOpacity ?? 100);
   const [bgParallax, setBgParallax] = useState(section.bgParallax || false);
+  // "Repeat per section" — free+multi/dynamic sections only. Tiles the bg image once
+  // per 100vh band instead of stretching one copy across the whole multiLimit-band
+  // design (see computeMultiBgLayers in public/flexible-render-rules.js). Persisted
+  // inside content JSONB — same pattern as bgMaskEnabled just below (no schema column
+  // for a first-cut, deliberately scoped feature).
+  const [bgMultiRepeat, setBgMultiRepeat] = useState(contentAny?.bgMultiRepeat === true);
   // Background-image fade/MASK (#60) — persisted inside content JSONB
   const [bgMaskEnabled, setBgMaskEnabled] = useState(contentAny?.bgMaskEnabled === true);
   const [bgMaskDirection, setBgMaskDirection] = useState(contentAny?.bgMaskDirection || "bottom");
@@ -307,6 +313,8 @@ function FlexibleSectionEditorModalInner({
         designerData: syncedDesignerData || null,
         layout,
         gradient,
+        // "Repeat per section" — see the bgMultiRepeat state declaration's own comment
+        bgMultiRepeat,
         // Background-image fade/MASK (#60)
         bgMaskEnabled,
         bgMaskDirection,
@@ -324,51 +332,123 @@ function FlexibleSectionEditorModalInner({
   const handleDesignerMessage = useCallback((e: MessageEvent) => {
     if (!e.data?.type) return;
     if (e.data.type === "FLEXIBLE_DESIGNER_READY") {
-      // Check for unsaved draft first (survives unexpected designer closes)
-      let draft: string | null = null;
-      try { draft = localStorage.getItem(draftKey); } catch {}
-      // Legacy sections (seeded as content.elements + mosaic layout, no designerData)
-      // open blank in the canvas. Synthesise an editable designerData payload from the
-      // legacy content so the canvas is populated. Returns "" when there are no legacy
-      // elements. We DON'T setDesignerData here — real designerData is written only when
-      // the user saves in the designer, so nothing is mutated until they confirm.
-      const legacySynth = !designerData ? legacyToDesignerData(section.content as Record<string, unknown>) : "";
-      const initPayload = draft || designerData || legacySynth || JSON.stringify({
-        contentMode,
-        layoutType: layout.type || "preset",
-        grid: { rows: 2, cols: 3, gap: 16 },
-        preset: layout.preset || "2-col-split",
-        blocks: [],
-      });
-      // #68 — forward the section's configured background so the designer canvas can
-      // preview it (view-only in the designer). Mirrors the fields FlexibleSectionRenderer
-      // reads off the section: solid/preset colour, bg image + sizing, and gradient overlay.
-      let payloadWithBg = initPayload;
-      try {
-        const obj = JSON.parse(initPayload);
-        obj.sectionBackground = {
-          background: backgroundType === "solid" ? background : "transparent",
-          bgImageUrl: bgImageUrl || "",
-          bgImageSize,
-          bgImagePosition,
-          bgImageRepeat,
-          bgImageOpacity,
-          gradient: backgroundType === "gradient"
-            ? { enabled: true, type: "preset", preset: { direction: gradientDirection, startOpacity: gradientStartOpacity, endOpacity: gradientEndOpacity, color: gradientColor } }
-            : undefined,
-        };
-        payloadWithBg = JSON.stringify(obj);
-      } catch { /* non-JSON payload — send as-is */ }
-      iframeRef.current?.contentWindow?.postMessage(
-        { type: "FLEXIBLE_DESIGNER_INIT", payload: payloadWithBg },
-        "*"
-      );
+      // Resolve the init payload asynchronously — a stale draft may need a user
+      // decision (see below) before we can safely post FLEXIBLE_DESIGNER_INIT.
+      (async () => {
+        // Read any unsaved draft (survives unexpected designer closes). Written as
+        // an envelope { payload, savedAt } (see FLEXIBLE_DESIGNER_SAVE/DONE below) so
+        // its age can be compared against the section's own last real save. A draft
+        // stored before this fix (or otherwise malformed) has no savedAt — treat it
+        // as maximally stale (savedAt=0) rather than trusting it outright.
+        let draftPayload: string | null = null;
+        let draftSavedAt = 0;
+        try {
+          const raw = localStorage.getItem(draftKey);
+          if (raw) {
+            try {
+              const parsed = JSON.parse(raw);
+              if (parsed && typeof parsed === "object" && typeof parsed.payload === "string") {
+                draftPayload = parsed.payload;
+                draftSavedAt = typeof parsed.savedAt === "number" ? parsed.savedAt : 0;
+              } else {
+                draftPayload = raw; // legacy envelope-less draft
+              }
+            } catch {
+              draftPayload = raw; // legacy raw-string draft (pre-fix format)
+            }
+          }
+        } catch {}
+
+        // Section's own last real save, from the server (fetched fresh whenever the
+        // sections list is loaded) — the anchor a draft's age is judged against.
+        const sectionUpdatedAt = (() => {
+          const raw = (section as any)?.updatedAt;
+          const t = raw ? new Date(raw).getTime() : NaN;
+          return Number.isFinite(t) ? t : 0;
+        })();
+
+        let useDraft = false;
+        if (draftPayload) {
+          if (draftSavedAt >= sectionUpdatedAt) {
+            // Draft is at least as new as the section's last real save — genuine
+            // unsaved work that nothing has since superseded. Safe to resume as-is.
+            useDraft = true;
+          } else {
+            // The section was saved (by this user or anyone else, in this browser or
+            // another) AFTER this draft was written — the draft is stale. Trusting it
+            // unconditionally here is the exact bug: it would silently show old
+            // content over newer real data. Ask instead of guessing either way.
+            const resume = await confirm({
+              title: "Unsaved draft found",
+              message: draftSavedAt
+                ? `This section has an unsaved draft from ${new Date(draftSavedAt).toLocaleString()} that predates the current saved version. Resume the draft, or discard it and use the current version?`
+                : `This section has an old unsaved draft that predates the current saved version. Resume the draft, or discard it and use the current version?`,
+              confirmText: "Resume draft",
+              cancelText: "Discard and use current version",
+              variant: "warning",
+            });
+            useDraft = resume;
+            if (!resume) {
+              try { localStorage.removeItem(draftKey); } catch {}
+            }
+          }
+        }
+
+        if (useDraft && draftPayload) {
+          // Bring the resolved choice into designerData so every other part of the
+          // modal (block accordion, "N blocks" summary, live preview) agrees with
+          // what's actually loaded into the designer canvas, instead of the two
+          // silently disagreeing the way the bug reproduced.
+          setDesignerData(draftPayload);
+          setSectionDirty(true); // resumed draft isn't persisted to the section yet
+        }
+
+        // Legacy sections (seeded as content.elements + mosaic layout, no designerData)
+        // open blank in the canvas. Synthesise an editable designerData payload from the
+        // legacy content so the canvas is populated. Returns "" when there are no legacy
+        // elements. We DON'T setDesignerData here — real designerData is written only when
+        // the user saves in the designer, so nothing is mutated until they confirm.
+        const legacySynth = !designerData ? legacyToDesignerData(section.content as Record<string, unknown>) : "";
+        const initPayload = (useDraft ? draftPayload : null) || designerData || legacySynth || JSON.stringify({
+          contentMode,
+          layoutType: layout.type || "preset",
+          grid: { rows: 2, cols: 3, gap: 16 },
+          preset: layout.preset || "2-col-split",
+          blocks: [],
+        });
+        // #68 — forward the section's configured background so the designer canvas can
+        // preview it (view-only in the designer). Mirrors the fields FlexibleSectionRenderer
+        // reads off the section: solid/preset colour, bg image + sizing, and gradient overlay.
+        let payloadWithBg = initPayload;
+        try {
+          const obj = JSON.parse(initPayload);
+          obj.sectionBackground = {
+            background: backgroundType === "solid" ? background : "transparent",
+            bgImageUrl: bgImageUrl || "",
+            bgImageSize,
+            bgImagePosition,
+            bgImageRepeat,
+            bgImageOpacity,
+            bgMultiRepeat,
+            gradient: backgroundType === "gradient"
+              ? { enabled: true, type: "preset", preset: { direction: gradientDirection, startOpacity: gradientStartOpacity, endOpacity: gradientEndOpacity, color: gradientColor } }
+              : undefined,
+          };
+          payloadWithBg = JSON.stringify(obj);
+        } catch { /* non-JSON payload — send as-is */ }
+        iframeRef.current?.contentWindow?.postMessage(
+          { type: "FLEXIBLE_DESIGNER_INIT", payload: payloadWithBg },
+          "*"
+        );
+      })();
     }
     if (e.data.type === "FLEXIBLE_DESIGNER_SAVE" || e.data.type === "FLEXIBLE_DESIGNER_DONE") {
       setDesignerData(e.data.payload);
       setSectionDirty(true);   // designer saved, but the section still needs saving to persist
-      // Persist to draft so data survives if modal closes unexpectedly
-      try { localStorage.setItem(draftKey, e.data.payload); } catch {}
+      // Persist to draft — as { payload, savedAt } so a later reopen can tell whether
+      // this draft is actually newer than the section's last real save — so data
+      // survives if modal closes unexpectedly.
+      try { localStorage.setItem(draftKey, JSON.stringify({ payload: e.data.payload, savedAt: Date.now() })); } catch {}
       if (e.data.type === "FLEXIBLE_DESIGNER_DONE") {
         setShowDesigner(false);
       }
@@ -378,8 +458,8 @@ function FlexibleSectionEditorModalInner({
       setShowDesigner(false);
       setActiveTab("preview");
     }
-  }, [designerData, contentMode, layout, draftKey, section,
-      backgroundType, background, bgImageUrl, bgImageSize, bgImagePosition, bgImageRepeat, bgImageOpacity,
+  }, [designerData, contentMode, layout, draftKey, section, confirm,
+      backgroundType, background, bgImageUrl, bgImageSize, bgImagePosition, bgImageRepeat, bgImageOpacity, bgMultiRepeat,
       gradientDirection, gradientStartOpacity, gradientEndOpacity, gradientColor]);
 
   useEffect(() => {
@@ -464,6 +544,12 @@ function FlexibleSectionEditorModalInner({
     if (typeof designerData === "object") return designerData;
     try { return JSON.parse(designerData as string); } catch { return null; }
   })();
+  // "Repeat per section" is scoped to free+multi/dynamic sections only (grid/preset/
+  // mosaic multi-mode sections don't get this toggle — YAGNI). positionMode lives
+  // inside designerData (the vanilla-JS canvas editor's own state), not in this
+  // component's own React state, hence reading it off parsedDesigner here.
+  const isMultiFreeBg = (contentMode === "multi" || contentMode === "dynamic")
+    && (parsedDesigner as { positionMode?: string } | null)?.positionMode === "free";
   // Same designerData/contentMode sync as handleSave (see its own comment) — applied here
   // too so the LIVE PREVIEW pane while editing matches what actually gets persisted, rather
   // than the preview showing correct Dynamic/Multi behavior only after a save+reload.
@@ -975,6 +1061,19 @@ function FlexibleSectionEditorModalInner({
                           <label className="form-check-label" htmlFor="flex-bgParallax">Enable Parallax Effect</label>
                         </div>
                       </div>
+
+                      {/* "Repeat per section" — Multi/Dynamic + Free-positioning designs only.
+                          Tiles the image once per 100vh band instead of stretching one copy
+                          across the whole multi-section design. */}
+                      {isMultiFreeBg && (
+                        <div className="mb-4">
+                          <div className="form-check form-switch">
+                            <input className="form-check-input" type="checkbox" id="flex-bgMultiRepeat" checked={bgMultiRepeat} onChange={(e) => setBgMultiRepeat(e.target.checked)} />
+                            <label className="form-check-label" htmlFor="flex-bgMultiRepeat">Repeat per section</label>
+                          </div>
+                          <small className="text-muted d-block mt-1">Tile this image once per 100vh section instead of stretching one image across the whole multi-section design.</small>
+                        </div>
+                      )}
 
                       {/* Fade image to transparent (alpha mask) — #60 */}
                       <div className="mb-3">
