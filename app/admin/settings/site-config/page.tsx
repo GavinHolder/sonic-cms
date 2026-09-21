@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useToast } from "@/components/admin/ToastProvider";
 import MediaPickerModal from "@/components/admin/MediaPickerModal";
+import { fetchWithRefresh } from "@/lib/fetch-with-refresh";
 
 interface SiteConfig {
   companyName: string;
@@ -120,7 +121,7 @@ function SiteConfigForm() {
   async function save() {
     setSaving(true);
     try {
-      const res = await fetch("/api/site-config", {
+      const res = await fetchWithRefresh("/api/site-config", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(config),

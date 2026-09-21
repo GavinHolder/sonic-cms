@@ -12,6 +12,7 @@
  */
 
 import type { SectionConfig, SectionType } from "@/types/section";
+import { fetchWithRefresh } from "@/lib/fetch-with-refresh";
 
 /**
  * Get all sections for a page from database API
@@ -48,7 +49,7 @@ export async function createSection(
   data: Partial<SectionConfig>
 ): Promise<SectionConfig | null> {
   try {
-    const response = await fetch('/api/sections', {
+    const response = await fetchWithRefresh('/api/sections', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -85,7 +86,7 @@ export async function updateSection(
   updates: Partial<SectionConfig>
 ): Promise<boolean> {
   try {
-    const response = await fetch(`/api/sections/${sectionId}`, {
+    const response = await fetchWithRefresh(`/api/sections/${sectionId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
@@ -109,7 +110,7 @@ export async function updateSection(
  */
 export async function deleteSection(sectionId: string): Promise<boolean> {
   try {
-    const response = await fetch(`/api/sections/${sectionId}`, {
+    const response = await fetchWithRefresh(`/api/sections/${sectionId}`, {
       method: 'DELETE',
     });
 
@@ -240,7 +241,7 @@ export async function clearAllSections(pageSlug: string): Promise<boolean> {
     );
     const results = await Promise.all(
       deletable.map((s) =>
-        fetch(`/api/sections/${s.id}`, { method: "DELETE" })
+        fetchWithRefresh(`/api/sections/${s.id}`, { method: "DELETE" })
           .then((r) => r.ok)
           .catch(() => false)
       )
@@ -278,7 +279,7 @@ export async function reorderSections(
     }
 
     // Call reorder API
-    const response = await fetch("/api/sections/reorder", {
+    const response = await fetchWithRefresh("/api/sections/reorder", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

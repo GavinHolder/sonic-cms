@@ -7,6 +7,7 @@ import { getPages } from "@/lib/page-manager";
 import type { PageType } from "@/types/page";
 import type { NavbarConfig, NavbarCtaButton } from "@/lib/navbar-config";
 import NavbarLinksEditor from "@/components/admin/NavbarLinksEditor";
+import { fetchWithRefresh } from "@/lib/fetch-with-refresh";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -194,7 +195,7 @@ export default function NavbarEditorPage() {
     setNavbarStyle(style);
     setStyleSaving(true);
     try {
-      const res = await fetch("/api/site-config", {
+      const res = await fetchWithRefresh("/api/site-config", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ navbarStyle: style }),

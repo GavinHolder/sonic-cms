@@ -131,6 +131,8 @@ export default function PageEditor({ params }: { params: Promise<{ slug: string 
       await reloadSections();
       setShowCreateModal(false);
       setSuccessMessage(`${getSectionTypeLabel(selectedType)} created successfully!`);
+    } else {
+      setErrorMessage("Failed to create section — nothing was saved.");
     }
   };
 
@@ -144,9 +146,10 @@ export default function PageEditor({ params }: { params: Promise<{ slug: string 
       message: `Are you sure you want to delete "${section.displayName || section.type}"?\n\nThis action cannot be undone.`,
       variant: "danger",
       onConfirm: async () => {
-        await deleteSection(id);
+        const ok = await deleteSection(id);
         await reloadSections();
-        setSuccessMessage("Section deleted");
+        if (ok) setSuccessMessage("Section deleted");
+        else setErrorMessage("Failed to delete section — it was not removed.");
       },
     });
   };
@@ -154,9 +157,10 @@ export default function PageEditor({ params }: { params: Promise<{ slug: string 
   const handleToggleEnabled = async (id: string) => {
     const section = sections.find((s) => s.id === id);
     if (!section) return;
-    await toggleSectionEnabled(id, section.enabled);
+    const ok = await toggleSectionEnabled(id, section.enabled);
     await reloadSections();
-    setSuccessMessage(section.enabled ? "Section disabled" : "Section enabled");
+    if (ok) setSuccessMessage(section.enabled ? "Section disabled" : "Section enabled");
+    else setErrorMessage("Failed to update section — the change was not stored.");
   };
 
   const handleMoveUp = async (id: string) => {
@@ -179,9 +183,10 @@ export default function PageEditor({ params }: { params: Promise<{ slug: string 
       expectedInput: "YES",
       onConfirm: async (input) => {
         if (input === "YES") {
-          await clearAllSections(slug);
+          const ok = await clearAllSections(slug);
           await reloadSections();
-          setSuccessMessage("All sections cleared");
+          if (ok) setSuccessMessage("All sections cleared");
+          else setErrorMessage("Failed to clear all sections — some were not removed.");
         }
       },
     });

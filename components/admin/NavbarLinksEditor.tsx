@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/admin/ToastProvider";
+import { fetchWithRefresh } from "@/lib/fetch-with-refresh";
 
 interface NavItem {
   type: "section" | "page";
@@ -105,7 +106,7 @@ export default function NavbarLinksEditor() {
   async function save() {
     setSaving(true);
     try {
-      const res = await fetch("/api/navbar-links", {
+      const res = await fetchWithRefresh("/api/navbar-links", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ links: navItems.map((n, i) => ({ ...n, navOrder: i })) }),

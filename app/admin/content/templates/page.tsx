@@ -5,6 +5,7 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import StandalonePageEditorModal from "@/components/admin/StandalonePageEditorModal";
 import type { StandaloneEditorSaveData } from "@/components/admin/StandalonePageEditorModal";
 import { useConfirm } from "@/components/admin/ConfirmProvider";
+import { fetchWithRefresh } from "@/lib/fetch-with-refresh";
 
 interface CmsTemplate {
   id: string;
@@ -107,7 +108,7 @@ function UseAsPageModal({ template, onClose, onCreated }: UseAsPageModalProps) {
         // For section templates: add the template's section to the new page
         if (pageRes.ok && template.templateType === "section") {
           const sectionData = template.data as Record<string, unknown>;
-          await fetch("/api/sections", {
+          await fetchWithRefresh("/api/sections", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ pageSlug: slug, ...sectionData }),
@@ -123,7 +124,7 @@ function UseAsPageModal({ template, onClose, onCreated }: UseAsPageModalProps) {
       }
 
       if (setAsHome) {
-        await fetch("/api/site-config", {
+        await fetchWithRefresh("/api/site-config", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ homePage: slug }),

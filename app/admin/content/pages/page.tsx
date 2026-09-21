@@ -19,6 +19,7 @@ import {
 } from "@/lib/page-manager";
 import type { PageConfig, PageType, PDFPageConfig, FormPageConfig, DesignerPageConfig, StandalonePageConfig } from "@/types/page";
 import Link from "next/link";
+import { fetchWithRefresh } from "@/lib/fetch-with-refresh";
 
 type FilterType = "all" | "full" | "pdf" | "form" | "designer" | "standalone" | "feature" | "policy" | "submissions";
 
@@ -263,7 +264,7 @@ export default function PagesManager() {
   const handleSetHomePage = async (slug: string | null) => {
     setHomePageSaving(true);
     try {
-      const res = await fetch("/api/site-config", {
+      const res = await fetchWithRefresh("/api/site-config", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ homePage: slug }),
@@ -271,6 +272,8 @@ export default function PagesManager() {
       if (res.ok) {
         setHomePage(slug);
         setSuccessMessage(slug ? `/${slug} set as homepage` : "Homepage cleared — using default landing page");
+      } else {
+        setSuccessMessage("Failed to update homepage");
       }
     } catch {
       setSuccessMessage("Failed to update homepage");

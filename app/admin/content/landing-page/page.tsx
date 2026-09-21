@@ -231,6 +231,8 @@ export default function LandingPageManager() {
       await reloadSections();
       setShowCreateModal(false);
       setSuccessMessage(`${displayName} created successfully!`);
+    } else {
+      setErrorMessage("Failed to create section — nothing was saved.");
     }
   };
 
@@ -245,6 +247,8 @@ export default function LandingPageManager() {
     if (newSection) {
       await reloadSections();
       setSuccessMessage(`${displayName} created successfully!`);
+    } else {
+      setErrorMessage("Failed to create section — nothing was saved.");
     }
   };
 
@@ -258,9 +262,10 @@ export default function LandingPageManager() {
       message: `Are you sure you want to delete "${section.displayName || section.type}"?\n\nThis action cannot be undone.`,
       variant: "danger",
       onConfirm: async () => {
-        await deleteSection(id);
+        const ok = await deleteSection(id);
         await reloadSections();
-        setSuccessMessage("Section deleted");
+        if (ok) setSuccessMessage("Section deleted");
+        else setErrorMessage("Failed to delete section — it was not removed.");
       },
     });
   };
@@ -269,9 +274,10 @@ export default function LandingPageManager() {
     const section = sections.find((s) => s.id === id);
     if (!section) return;
 
-    await toggleSectionEnabled(id, section.enabled);
+    const ok = await toggleSectionEnabled(id, section.enabled);
     await reloadSections();
-    setSuccessMessage(!section.enabled ? "Section enabled" : "Section disabled");
+    if (ok) setSuccessMessage(!section.enabled ? "Section enabled" : "Section disabled");
+    else setErrorMessage("Failed to update section — the change was not stored.");
   };
 
   const handleMoveUp = async (id: string) => {
@@ -341,11 +347,14 @@ export default function LandingPageManager() {
       onConfirm: async (input) => {
         if (input === "YES") {
           // Delete all sections one by one
+          const results: boolean[] = [];
           for (const section of sections) {
-            await deleteSection(section.id);
+            results.push(await deleteSection(section.id));
           }
           await reloadSections();
-          setSuccessMessage("All sections cleared");
+          const failed = results.filter((ok) => !ok).length;
+          if (failed === 0) setSuccessMessage("All sections cleared");
+          else setErrorMessage(`Failed to delete ${failed} of ${results.length} sections — the rest were removed.`);
         }
       },
     });
@@ -864,10 +873,11 @@ export default function LandingPageManager() {
           title={`Load ${showTemplatePickerFor.type} Template`}
           onSelect={async (t: CmsTemplate) => {
             const data = t.data as Record<string, unknown>;
-            await (await import("@/lib/section-manager")).updateSection(showTemplatePickerFor.id, data);
+            const ok = await (await import("@/lib/section-manager")).updateSection(showTemplatePickerFor.id, data);
             await reloadSections();
             setShowTemplatePickerFor(null);
-            setSuccessMessage(`Template "${t.name}" applied!`);
+            if (ok) setSuccessMessage(`Template "${t.name}" applied!`);
+            else setErrorMessage(`Failed to apply template "${t.name}" — changes were not stored.`);
           }}
           onCancel={() => setShowTemplatePickerFor(null)}
         />
