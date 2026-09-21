@@ -291,6 +291,43 @@
   }
 
   /**
+   * scaleBlockToCanvas(block, srcDims, dstDims): pure. Scales ONE block (+ its
+   * sub-elements) from a srcDims.w-wide source canvas onto a dstDims.w x
+   * dstDims.h destination canvas — the exact ratio+clamp math
+   * reconcileVariantBlocks() already applies to a newly-appended (missing)
+   * block, factored out here so a second caller (the Designer's per-block
+   * "Reset to proportional from Desktop" action, public/flexible-designer.html)
+   * can recompute the SAME geometry for one already-existing block without a
+   * second hand-copy of the math (ONE SYSTEM PER CONCERN, CLAUDE.md).
+   * reconcileVariantBlocks() itself now delegates to this function too, so the
+   * two call sites can never drift apart.
+   *
+   * ASSUMPTIONS:
+   * 1. `block` is in either LIVE ({x,y,w,h}) or PERSISTED ({pixelPos:{...}})
+   *    shape (see readGeom/writeGeom) — the returned block keeps that same shape.
+   * 2. `srcDims.h` is not used: clamping is only ever against the DESTINATION
+   *    box (matches scaleAndClampBlock/clampBlockGeom, which never reads a
+   *    source height either) — accepted anyway so a caller can pass the same
+   *    {w,h} shape variantCanvasDims() returns for both src and dst.
+   *
+   * FAILURE MODES:
+   * - srcDims/dstDims missing or non-positive width -> ratio falls back to 1
+   *   (no scaling), mirroring reconcileVariantBlocks' own `srcW > 0 ? dstW/srcW : 1` guard.
+   * - non-positive dstDims.w/h -> clampBlockGeom's own min-size floor still applies.
+   * @param {Object} block - source block (any shape readGeom/writeGeom understands).
+   * @param {{w:number}} srcDims - source canvas width.
+   * @param {{w:number,h:number}} dstDims - destination canvas box.
+   * @returns {Object} a NEW block object; source is never mutated.
+   */
+  function scaleBlockToCanvas(block, srcDims, dstDims) {
+    var srcW = srcDims && Number(srcDims.w) > 0 ? Number(srcDims.w) : 0;
+    var dstW = dstDims && Number(dstDims.w) > 0 ? Number(dstDims.w) : 0;
+    var dstH = dstDims && Number(dstDims.h) > 0 ? Number(dstDims.h) : 0;
+    var r = srcW > 0 ? dstW / srcW : 1;
+    return scaleAndClampBlock(JSON.parse(JSON.stringify(block)), r, dstW, dstH);
+  }
+
+  /**
    * reconcileVariantBlocks(targetBlocks, variants, targetKey, dims): pure, ADDITIVE.
    *
    * ASSUMPTIONS:
@@ -333,14 +370,13 @@
       var src = variants[key];
       if (!src || !Array.isArray(src.blocks)) continue;
       var srcW = key === "desktop" && Number(dims.srcW) > 0 ? Number(dims.srcW) : variantCanvasDims(src, key).w;
-      var r = srcW > 0 ? dstW / srcW : 1;
       for (var j = 0; j < src.blocks.length; j++) {
         var b = src.blocks[j];
         if (!b || typeof b !== "object" || b.id === undefined || b.id === null) continue;
         var id = String(b.id);
         if (seen[id]) continue;
         seen[id] = true;
-        result.push(scaleAndClampBlock(JSON.parse(JSON.stringify(b)), r, dstW, dstH));
+        result.push(scaleBlockToCanvas(b, { w: srcW }, { w: dstW, h: dstH }));
       }
     }
     return result;
@@ -369,6 +405,7 @@
     duplicateVariant: duplicateVariant,
     clampBlocksToCanvas: clampBlocksToCanvas,
     variantCanvasDims: variantCanvasDims,
+    scaleBlockToCanvas: scaleBlockToCanvas,
     reconcileVariantBlocks: reconcileVariantBlocks,
     removeBlockId: removeBlockId,
     serializeVariants: serializeVariants,

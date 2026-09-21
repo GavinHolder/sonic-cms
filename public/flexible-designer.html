@@ -1038,6 +1038,8 @@
     .action-btn.full-h:hover { background: #a7f3d0; }
     .action-btn.reset  { background: #f8d7da; color: #842029; }
     .action-btn.reset:hover  { background: #f5c2c7; }
+    .action-btn.sync-desktop { background: #e0cffc; color: #59359a; }
+    .action-btn.sync-desktop:hover { background: #d0bdfa; }
     .action-btn.danger { background: #dc3545; color: white; }
     .action-btn.danger:hover { background: #bb2d3b; }
     .action-btn.edit-mode { background: #fff3cd; color: #856404; border: 1px solid #ffc107; }
@@ -6643,6 +6645,7 @@ function renderBlockProps(block) {
         <button class="action-btn full-h mb-0" style="flex:1;" onclick="setBlockPosFull('${block.id}','fullHeight')">↕ Full Height</button>
       </div>
       <button class="action-btn reset mt-2" onclick="setBlockPosFull('${block.id}','center')">⊕ Center on Canvas</button>
+      ${(state.activeBreakpoint !== 'desktop' && blockExistsOnDesktop(block.id)) ? `<button class="action-btn sync-desktop mt-2" onclick="resetBlockToDesktopProportional('${block.id}')" title="Discard this block's own ${state.activeBreakpoint} position/size and recompute it fresh from Desktop, scaled to this canvas."><i class="bi bi-arrow-repeat"></i> Reset Size/Position to Match Desktop</button>` : ''}
       <div class="props-row" style="align-items:center;margin-top:8px;">
         <label style="flex:1;" title="Render this element in front of the section's Lower Third band (opt-in). Off = stays behind it.">In front of Lower Third</label>
         <input type="checkbox" style="width:18px;height:18px;cursor:pointer;" ${block.aboveLowerThird ? 'checked' : ''} onchange="setBlockAboveLowerThird('${block.id}',this.checked)">
@@ -9057,6 +9060,82 @@ function setBlockPosFull(blockId, action) {
 }
 
 /**
+ * True when a block with this id exists on the DESKTOP variant — i.e. there
+ * is something for resetBlockToDesktopProportional() to derive from. Reads
+ * state.variants.desktop directly (not state.blocks, which holds whichever
+ * breakpoint is currently active) so it works correctly no matter which
+ * breakpoint is on screen when renderBlockProps() calls this to decide
+ * whether to show the "Reset Size/Position to Match Desktop" button.
+ * @param {string} blockId
+ * @returns {boolean}
+ */
+function blockExistsOnDesktop(blockId) {
+  const dv = state.variants && state.variants.desktop;
+  return !!(dv && Array.isArray(dv.blocks) && dv.blocks.some(b => b && String(b.id) === String(blockId)));
+}
+
+/**
+ * "Reset Size/Position to Match Desktop" (2026-09-21) — Tablet/Mobile only,
+ * one block at a time. Discards THIS block's own stored position/size on the
+ * currently-active (non-desktop) breakpoint and recomputes it fresh from
+ * Desktop's own stored geometry, scaled to the current canvas — the exact
+ * same scale+clamp math reconcileVariantBlocks() already applies to a block
+ * that's MISSING from a breakpoint entirely, factored out as
+ * FlexibleBreakpointRules.scaleBlockToCanvas() so this button and that
+ * reconciliation can never compute two different answers for the same inputs
+ * (ONE SYSTEM PER CONCERN — see flexible-breakpoint-rules.js's own header).
+ *
+ * Deliberately explicit and admin-triggered rather than automatic:
+ * reconcileVariantBlocks() (2026-09-21) never touches a block already present
+ * on the target breakpoint, even one left badly proportioned by an earlier
+ * buggy auto-seed (c75fcce, reverted in 4f69022, and before that 9902aa1) —
+ * e.g. the Kuluntu Connect section's Volt "glass card" block, whose Mobile
+ * layout nearly fills the canvas width instead of matching Desktop's
+ * proportions. This action is the admin's manual, reversible opt-in to
+ * re-derive it, one block at a time, without silently touching every other
+ * block on the breakpoint (which may have been hand-placed on purpose).
+ *
+ * No confirmation dialog (CLAUDE.md forbids window.confirm and this project's
+ * own in-app modals are reserved for destructive, non-undoable actions, e.g.
+ * resetActiveBreakpointToDesktop's whole-variant discard) — pushHistory()
+ * below makes this a normal, Ctrl+Z-undoable action, same as every other
+ * one-click canvas action in this file (setBlockPosFull, startResize, etc.).
+ *
+ * ASSUMPTIONS:
+ * 1. Only meaningful off Desktop and when the block also exists on Desktop —
+ *    the calling button is hidden otherwise (renderBlockProps gates on
+ *    state.activeBreakpoint !== 'desktop' && blockExistsOnDesktop(block.id));
+ *    both are re-checked here too, defensively.
+ * 2. state.blocks is the LIVE array for the CURRENTLY-ACTIVE breakpoint (see
+ *    loadFlatVariantIntoState) — replacing one entry in it is a normal live
+ *    edit, autoSave() persists it as part of this breakpoint's own variant.
+ *
+ * FAILURE MODES:
+ * - blockId missing from state.blocks (deleted mid-panel-render) -> no-op.
+ * - blockId missing from state.variants.desktop.blocks -> no-op (button
+ *   should already be hidden; defensive re-check here too).
+ * @param {string} blockId
+ */
+function resetBlockToDesktopProportional(blockId) {
+  if (state.activeBreakpoint === 'desktop') return;
+  const idx = state.blocks.findIndex(b => String(b.id) === String(blockId));
+  if (idx === -1) return;
+  const desktopVariant = state.variants.desktop;
+  const desktopBlock = desktopVariant && Array.isArray(desktopVariant.blocks)
+    ? desktopVariant.blocks.find(b => b && String(b.id) === String(blockId))
+    : null;
+  if (!desktopBlock) return;
+
+  pushHistory();
+  const srcDims = window.FlexibleBreakpointRules.variantCanvasDims(desktopVariant, 'desktop');
+  const dstDims = window.FlexibleBreakpointRules.variantCanvasDims(snapshotFlatStateAsVariant(), state.activeBreakpoint);
+  const fresh = window.FlexibleBreakpointRules.scaleBlockToCanvas(desktopBlock, srcDims, dstDims);
+  // Preserve this block's OWN selection/edit-mode state — only geometry changed.
+  state.blocks = state.blocks.map((b, i) => (i === idx ? fresh : b));
+  renderCanvas(); renderPropsPanel(); autoSave();
+}
+
+/**
  * Toggles between 'free' (absolute pixel) and 'grid' (CSS grid snap) position
  * modes. When switching TO grid mode, snaps every existing block to the nearest
  * grid cell using findCell() on each block's current centre point. Pushes undo
@@ -10724,7 +10803,7 @@ function readSectionBgFromPayload(layout) {
   if (!layout || typeof layout !== 'object') return null;
   const src = (layout.sectionBackground && typeof layout.sectionBackground === 'object')
     ? layout.sectionBackground : layout;
-  const KEYS = ['background','bgImageUrl','bgImageSize','bgImagePosition','bgImageRepeat','bgImageOpacity','bgMultiRepeat','gradient'];
+  const KEYS = ['background','bgImageUrl','bgImageSize','bgImagePosition','bgImageRepeat','bgImageOpacity','backgroundPosX','backgroundPosY','bgMultiRepeat','gradient'];
   const has = KEYS.some(k => src[k] !== undefined && src[k] !== null && src[k] !== '');
   if (!has) return null;
   return {
@@ -10734,6 +10813,12 @@ function readSectionBgFromPayload(layout) {
     bgImagePosition: src.bgImagePosition,
     bgImageRepeat:   src.bgImageRepeat,
     bgImageOpacity:  src.bgImageOpacity,
+    // Drag-to-reposition anchor (2026-09-21), 0-100 or null — see
+    // FlexibleSectionEditorModal.tsx's backgroundPosX state declaration. View-only
+    // here (see this block's own header comment); the real editable drag control
+    // lives in that file's Background tab (BackgroundRepositionPreview).
+    backgroundPosX:  typeof src.backgroundPosX === 'number' ? src.backgroundPosX : null,
+    backgroundPosY:  typeof src.backgroundPosY === 'number' ? src.backgroundPosY : null,
     // "Repeat per section" (opt-in, default false) — tile the bg image once per
     // 100vh band instead of stretching one copy across the whole multi-band
     // design. View-only here (see this block's own header comment); the real
@@ -10770,6 +10855,15 @@ function applySectionBgToCanvas() {
   // `cover;"></div><img src=x onerror=...>` cannot break out. No section-bg field is
   // ever concatenated into HTML.
   const children = [];
+  // Drag-to-reposition anchor (2026-09-21) takes priority over the legacy free-text
+  // bgImagePosition when set — SAME resolution FlexibleSectionRenderer.tsx's own
+  // effectiveBgImagePosition applies (ONE SYSTEM PER CONCERN — resolveBgPositionCss
+  // is the single shared resolver). Unset (either axis null, the default for every
+  // section that predates this feature) falls through to bg.bgImagePosition
+  // unchanged — byte-identical to before this feature.
+  const effectiveBgPos = (bg.backgroundPosX != null && bg.backgroundPosY != null)
+    ? window.FlexibleRenderRules.resolveBgPositionCss(bg.backgroundPosX, bg.backgroundPosY)
+    : bg.bgImagePosition;
   if (bg.bgImageUrl) {
     // "Repeat per section" (opt-in, default off — YAGNI-scoped to free+multi/dynamic
     // only; grid/preset/mosaic multi-mode never takes this branch): tile the SAME
@@ -10787,7 +10881,7 @@ function applySectionBgToCanvas() {
         repeat: true,
         bgImageUrl: bg.bgImageUrl,
         bgImageSize: bg.bgImageSize,
-        bgImagePosition: bg.bgImagePosition,
+        bgImagePosition: effectiveBgPos,
         bgImageRepeat: bg.bgImageRepeat,
         bgImageOpacity: bg.bgImageOpacity,
       });
@@ -10810,7 +10904,7 @@ function applySectionBgToCanvas() {
       });
     } else {
       const size = bg.bgImageSize || 'cover';
-      const pos  = bg.bgImagePosition || 'center';
+      const pos  = effectiveBgPos || 'center';
       const rep  = bg.bgImageRepeat || 'no-repeat';
       const opN  = Number(bg.bgImageOpacity);
       const op   = (bg.bgImageOpacity == null || !Number.isFinite(opN)) ? 1 : opN / 100;
