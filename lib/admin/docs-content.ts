@@ -341,6 +341,15 @@ Controls the section's background appearance — a solid colour, a preset swatch
 | Opacity | 0–100% | 100% | Image transparency |
 | Parallax | on/off | off | Scroll parallax depth effect |
 
+### Reposition Background (drag-to-position)
+
+Once a background image is set, a **Reposition Background** preview box appears below the **Size** and **Position** fields. It shows the photo with a draggable dot on it — drag the dot to choose which part of the image stays visible when the section crops or covers it.
+
+- Sets **one position shared across Desktop, Tablet, and Mobile** — a section's own background image does not support a separate crop per screen size.
+- **Clear drag position** removes the drag-set position and reverts to whatever the plain-text **Position** field above is set to (e.g. \`center\`, \`top left\`, \`50% 50%\`).
+
+> 💡 Use this when the 9-grid **Position** presets aren't precise enough — e.g. keeping a face or product in frame on a wide photo that gets cropped tightly on smaller sections.
+
 ---
 
 ## CSS Gradient Backgrounds
@@ -1209,6 +1218,8 @@ When a heading or paragraph has no content yet, the canvas shows a **dimmed ital
 | Shadow | Drop shadow preset |
 | Animation | Entry animation type |
 
+> 💡 With **Image Mode → Fill (cover)**, a **Drag to Reposition on Canvas** control becomes available — see **10a. Reposition on Canvas** below.
+
 ### Image Carousel / Multi-image Slider
 
 Toggle **Carousel mode** in the Properties panel to turn any Image block into a multi-image slider.
@@ -1403,6 +1414,26 @@ A full-height hero banner element within a flexible section — stretches to fil
 | Overlay | Color overlay opacity |
 
 **Sub-element positioning:** Each sub-element (heading, paragraph, each button) has its own **X / Y offset sliders** in the Properties panel for precise placement within the hero block. The parent block auto-resizes to fit all sub-elements.
+
+> 💡 A Hero's background image supports **drag-to-reposition** — see **10a. Reposition on Canvas** below.
+
+---
+
+## 10a. Reposition on Canvas (drag-to-focus backgrounds)
+
+Lets you choose exactly which part of a photo stays in frame when a block's shape crops it. Available on two block types:
+
+- A **Hero** block's own background image
+- An **Image** block with **Image Mode → Fill (cover)**
+
+### How to use
+
+1. Select the block (Hero, or an Image block set to Fill mode) on the canvas
+2. In the Properties panel, find **Drag to Reposition on Canvas** and click it — the button label changes to **Done — Click Canvas to Finish** while active
+3. Click-drag directly on the block, in the canvas, to slide the image's focal point
+4. Click the button again (or click elsewhere on the canvas) to finish
+
+> ⚠️ **Independent per breakpoint** — unlike a section's own background image (Section Editor → Background tab, which shares one position across all screen sizes), this position is saved **separately for Desktop, Tablet, and Mobile**. Repositioning while viewing the Tablet canvas only affects Tablet — switch to the Mobile view and reposition again if its focal point also needs to move.
 
 ---
 
