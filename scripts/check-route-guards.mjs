@@ -14,18 +14,23 @@
  * (imported from lib/api-middleware / lib/volt-3d-auth), immediately followed by
  *     if (X instanceof Response | NextResponse) return X;
  * and nothing before that guard reads the request body (.json/.formData/...), touches
- * prisma / fetch / fs, or returns early. Nested, conditional, inverted (`if (e) return e`),
- * ignored-result or after-side-effect guards are NOT guarded.
+ * prisma / fetch / fs, or returns early. The ONLY await/call allowed before the guard is
+ * reading the handler's own route params (`const { id } = await params`, `await ctx.params`);
+ * any other await/call/`new` before it means NOT guarded. Nested, conditional, inverted
+ * (`if (e) return e`), ignored-result, non-`const` (`let auth = ...`) or after-side-effect
+ * guards are NOT guarded.
  *
  * Any export form other than `export [async] function POST(...)` for a mutating method
  * name (`export const POST = ...`, `export { x as POST }`, `export * from`, default
- * export) is reported as an "unrecognized export form" violation.
+ * export) is reported as an "unrecognized export form" violation. A route file with a
+ * syntax error is reported as a violation of its own (its handlers cannot be analyzed).
  *
  * ASSUMPTIONS:
  *  1. Route handlers live in files named route.{ts,tsx,js,jsx,mts,mjs} under app/.
  *  2. Guards are called by their imported name (aliasing a guard makes it unrecognized,
  *     which fails closed).
- *  3. `typescript` resolves from node_modules (devDependency).
+ *  3. `typescript` resolves from node_modules (devDependency) and still exposes
+ *     `SourceFile.parseDiagnostics` (checked at runtime; the scan throws if it does not).
  *
  * FAILURE MODES:
  *  - Recognizer too strict  -> false violation -> CI fails -> fix the route or add a
@@ -33,11 +38,14 @@
  *  - Recognizer too loose   -> unguarded write ships silently; the synthetic-fixture
  *    tests in __tests__/unit/api/route-guards.test.ts pin every rejected shape.
  *  - Stale allowlist entry  -> reported as a warning only; never fails the run.
+ *  - Unreadable directory   -> the scan THROWS (with the path) instead of skipping it, so a
+ *    permissions problem can never turn into a silent pass.
+ *  - Zero route files       -> the CLI exits non-zero (wrong root / moved app dir), never PASS.
  *
  * CLI:  node scripts/check-route-guards.mjs [--no-allowlist] [--all] [rootDir]
  *   --no-allowlist  ignore BASELINE_ALLOWLIST (lists every unguarded handler)
  *   --all           also list guarded handlers
- * Exit code 1 when any violation exists.
+ * Exit code 1 when any violation exists, no route files are found, or a directory cannot be read.
  */
 
 import fs from "node:fs";
@@ -46,6 +54,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import ts from "typescript";
 
 export const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+/** Pseudo-method used for the per-file violation raised when a route file has syntax errors. */
+export const SYNTAX_ERROR_METHOD = "SYNTAX-ERROR";
 
 const GUARD_MODULES = {
   requireRole: /(^|\/)api-middleware$/,
@@ -100,8 +111,9 @@ function walkRouteFiles(rootDir) {
     let entries;
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
-    } catch {
-      return;
+    } catch (err) {
+      // Never skip a directory we cannot read: that would silently drop its routes from the scan.
+      throw new Error(`route-guards: cannot read directory ${dir}: ${err instanceof Error ? err.message : err}`, { cause: err });
     }
     entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
     for (const entry of entries) {
@@ -168,7 +180,7 @@ function collectImports(sf) {
       if (re && re.test(spec)) guardLocals.add(el.name.text);
     }
   }
-  return { guardLocals, riskyLocals };
+  return { guardLocals, riskyLocals, sf };
 }
 
 function isFunctionLike(n) {
@@ -217,6 +229,86 @@ function findUnsafeBeforeGuard(statements, ctx) {
     if (found) break;
   }
   return found;
+}
+
+/**
+ * How the handler reaches Next's route params: `{ params }` / `{ params: p }` in its second
+ * parameter (`local` holds the bound name) or `ctx.params` (`ctxName` holds `ctx`).
+ */
+function paramsSourceOf(fn) {
+  const local = new Set();
+  let ctxName = null;
+  const second = fn.parameters[1];
+  if (second && ts.isIdentifier(second.name)) ctxName = second.name.text;
+  else if (second && ts.isObjectBindingPattern(second.name)) {
+    for (const el of second.name.elements) {
+      const key = el.propertyName ?? el.name;
+      if (!el.dotDotDotToken && ts.isIdentifier(key) && key.text === "params" && ts.isIdentifier(el.name)) {
+        local.add(el.name.text);
+      }
+    }
+  }
+  return { local, ctxName };
+}
+
+/** `params` / `await params` / `ctx.params` / `await ctx.params` of THIS handler (nothing else). */
+function isParamsRead(expr, src) {
+  const e = unwrap(expr);
+  if (ts.isIdentifier(e)) return src.local.has(e.text);
+  return (
+    ts.isPropertyAccessExpression(e) &&
+    ts.isIdentifier(e.expression) &&
+    src.ctxName !== null &&
+    e.expression.text === src.ctxName &&
+    e.name.text === "params"
+  );
+}
+
+/** `const { id } = await params;`-style statement: every declarator just reads the route params. */
+function isParamsDestructure(stmt, src) {
+  return (
+    ts.isVariableStatement(stmt) &&
+    stmt.declarationList.declarations.every((d) => d.initializer && isParamsRead(d.initializer, src))
+  );
+}
+
+/**
+ * Catch-all second pass: any await / call / `new` / tagged template that runs before the
+ * guard, except reading the handler's own route params. Runs after findUnsafeBeforeGuard so
+ * the more specific reasons (body read, prisma, early return) still win.
+ */
+function findUnexpectedCallBeforeGuard(statements, ctx, src) {
+  let found = null;
+  const visit = (n) => {
+    if (found) return;
+    if (ts.isAwaitExpression(n) || ts.isCallExpression(n) || ts.isNewExpression(n) || ts.isTaggedTemplateExpression(n)) {
+      const text = n.getText(ctx.sf).replace(/\s+/g, " ");
+      found = `an await/call that is not a route-params read (\`${text.length > 60 ? `${text.slice(0, 57)}...` : text}\`)`;
+      return;
+    }
+    ts.forEachChild(n, visit);
+  };
+  for (const s of statements) {
+    if (isParamsDestructure(s, src)) {
+      // the initializer is the allowed params read; the binding pattern itself must still be call-free
+      for (const d of s.declarationList.declarations) visit(d.name);
+    } else visit(s);
+    if (found) break;
+  }
+  return found;
+}
+
+/** `let auth = requireRole(...)` / `var` / `const { role } = requireRole(...)`: a guard call bound the wrong way. */
+function isNonConstGuardBinding(stmt, ctx) {
+  if (!ts.isVariableStatement(stmt)) return false;
+  const list = stmt.declarationList;
+  if ((list.flags & ts.NodeFlags.Const) !== 0 && list.declarations.length === 1 && ts.isIdentifier(list.declarations[0].name)) {
+    return false;
+  }
+  return list.declarations.some((d) => {
+    const call = d.initializer && unwrap(d.initializer);
+    return !!call && ts.isCallExpression(call) && ts.isIdentifier(call.expression) && ctx.guardLocals.has(call.expression.text);
+  });
 }
 
 function guardBindingName(stmt, ctx) {
@@ -275,12 +367,19 @@ function analyzeHandler(fn, ctx) {
     levels.push({ stmts: tries[0].tryBlock.statements, outerBefore: body.slice(0, body.indexOf(tries[0])) });
   }
 
+  const src = paramsSourceOf(fn);
   let reason = null;
   for (const { stmts, outerBefore } of levels) {
     for (let i = 0; i < stmts.length; i++) {
       const name = guardBindingName(stmts[i], ctx);
-      if (name === null) continue;
-      const unsafe = findUnsafeBeforeGuard([...outerBefore, ...stmts.slice(0, i)], ctx);
+      if (name === null) {
+        if (isNonConstGuardBinding(stmts[i], ctx)) {
+          reason = "guard result must be bound with a single `const` identifier (`const auth = requireRole(...)`), not `let`/`var`/destructuring";
+        }
+        continue;
+      }
+      const before = [...outerBefore, ...stmts.slice(0, i)];
+      const unsafe = findUnsafeBeforeGuard(before, ctx) ?? findUnexpectedCallBeforeGuard(before, ctx, src);
       if (unsafe) {
         reason = `guard runs after ${unsafe}`;
         continue;
@@ -364,6 +463,30 @@ function analyzeFile(rootDir, absPath) {
   const text = fs.readFileSync(absPath, "utf8");
   const sf = ts.createSourceFile(absPath, text, ts.ScriptTarget.Latest, true, scriptKindFor(absPath));
   const rel = path.relative(rootDir, absPath).split(path.sep).join("/");
+
+  // A file the parser cannot read cleanly must not silently yield "zero handlers": raise one
+  // violation for the file itself (it cannot be allowlisted: only mutating METHOD keys are valid).
+  // `parseDiagnostics` is a TypeScript-internal field, so fail loudly if it ever disappears.
+  const diagnostics = sf.parseDiagnostics;
+  if (!Array.isArray(diagnostics)) {
+    throw new Error("route-guards: the installed typescript no longer exposes SourceFile.parseDiagnostics; update scripts/check-route-guards.mjs");
+  }
+  if (diagnostics.length > 0) {
+    const first = diagnostics[0];
+    const line = sf.getLineAndCharacterOfPosition(first.start ?? 0).line + 1;
+    const msg = ts.flattenDiagnosticMessageText(first.messageText, " ");
+    const more = diagnostics.length > 1 ? `; +${diagnostics.length - 1} more` : "";
+    return [
+      {
+        key: `${rel}#${SYNTAX_ERROR_METHOD}`,
+        file: rel,
+        method: SYNTAX_ERROR_METHOD,
+        guarded: false,
+        reason: `syntax error, handlers cannot be analyzed (TS${first.code} at line ${line}: ${msg}${more})`,
+      },
+    ];
+  }
+
   const ctx = collectImports(sf);
   return mutatingExports(sf).map(({ method, fn, problem }) => {
     const key = `${rel}#${method}`;
@@ -429,7 +552,17 @@ function main(argv) {
   const positional = argv.filter((a) => !a.startsWith("--"));
   const here = path.dirname(fileURLToPath(import.meta.url));
   const rootDir = positional[0] ? path.resolve(positional[0]) : path.resolve(here, "..");
-  const result = scanRoutes(rootDir, flags.has("--no-allowlist") ? { allowlist: {} } : {});
+  let result;
+  try {
+    result = scanRoutes(rootDir, flags.has("--no-allowlist") ? { allowlist: {} } : {});
+  } catch (err) {
+    console.error(`FAIL: ${err instanceof Error ? err.message : err}`);
+    return 1;
+  }
+  if (result.files === 0) {
+    console.error(`FAIL: no route files found under ${path.join(rootDir, "app")} (wrong root, or the app directory moved). Refusing to pass vacuously.`);
+    return 1;
+  }
 
   console.log(
     `Route guard scan: ${result.files} route files, ${result.handlers.length} mutating handlers ` +

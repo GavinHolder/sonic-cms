@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -11,6 +12,7 @@ import { scanRoutes, BASELINE_ALLOWLIST } from '../../../scripts/check-route-gua
 // also runnable as `node scripts/check-route-guards.mjs`).
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')
+const cliPath = path.join(repoRoot, 'scripts', 'check-route-guards.mjs')
 
 // ── Real tree ────────────────────────────────────────────────────────────────
 
@@ -316,6 +318,119 @@ export async function PUT(request: NextRequest) {
 }
 `,
     expect: { POST: 'violation', PUT: 'violation' },
+    reason: /single `const` identifier/, // `let auth = requireRole(...)` must say "const", not "nested"
+  },
+  {
+    dir: 'params-before-guard',
+    source:
+      PREAMBLE +
+      `export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const auth = requireRole(request, 'EDITOR')
+  if (auth instanceof NextResponse) return auth
+  return NextResponse.json({ id })
+}
+export async function PATCH(request: NextRequest, { params: routeParams }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await routeParams
+    const auth = requireRole(request, 'EDITOR')
+    if (auth instanceof NextResponse) return auth
+    return NextResponse.json({ id })
+  } catch { return NextResponse.json({}, { status: 500 }) }
+}
+export async function DELETE(request: NextRequest, ctx: { params: { id: string } }) {
+  const { id } = ctx.params
+  const auth = requireRole(request, 'EDITOR')
+  if (auth instanceof NextResponse) return auth
+  return NextResponse.json({ id })
+}
+export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const { id: rawId } = await context.params
+  const auth = requireAuth(request)
+  if (auth instanceof Response) return auth
+  return NextResponse.json({ rawId })
+}
+`,
+    expect: { PUT: 'guarded', PATCH: 'guarded', DELETE: 'guarded', POST: 'guarded' },
+  },
+  {
+    dir: 'await-before-guard',
+    source:
+      PREAMBLE +
+      `declare function getSession(): Promise<unknown>
+declare function cookies(): { get(name: string): unknown }
+declare function lookup(id: string): Promise<unknown>
+export async function POST(request: NextRequest) {
+  const session = await getSession()
+  const auth = requireRole(request, 'EDITOR')
+  if (auth instanceof NextResponse) return auth
+  return NextResponse.json({ session })
+}
+export async function PUT(request: NextRequest) {
+  const token = cookies().get('access_token')
+  const auth = requireRole(request, 'EDITOR')
+  if (auth instanceof NextResponse) return auth
+  return NextResponse.json({ token })
+}
+export async function PATCH(request: NextRequest) {
+  const url = new URL(request.url)
+  const auth = requireRole(request, 'EDITOR')
+  if (auth instanceof NextResponse) return auth
+  return NextResponse.json({ url: url.pathname })
+}
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const extra = await lookup(id)
+  const auth = requireRole(request, 'EDITOR')
+  if (auth instanceof NextResponse) return auth
+  return NextResponse.json({ extra })
+}
+`,
+    expect: { POST: 'violation', PUT: 'violation', PATCH: 'violation', DELETE: 'violation' },
+    reason: /guard runs after an await\/call that is not a route-params read/,
+  },
+  {
+    dir: 'foreign-params-before-guard',
+    source:
+      PREAMBLE +
+      `declare const other: { params: Promise<{ id: string }> }
+declare function compute(): string
+declare function stash(p: unknown): Promise<{ id: string }>
+export async function POST(request: NextRequest) {
+  const { id } = await other.params
+  const auth = requireRole(request, 'EDITOR')
+  if (auth instanceof NextResponse) return auth
+  return NextResponse.json({ id })
+}
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id = compute() } = await params
+  const auth = requireRole(request, 'EDITOR')
+  if (auth instanceof NextResponse) return auth
+  return NextResponse.json({ id })
+}
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await stash(await params)
+  const auth = requireRole(request, 'EDITOR')
+  if (auth instanceof NextResponse) return auth
+  return NextResponse.json({ id })
+}
+`,
+    expect: { POST: 'violation', PUT: 'violation', PATCH: 'violation' },
+    reason: /guard runs after an await\/call/,
+  },
+  {
+    dir: 'syntax-error',
+    source:
+      PREAMBLE +
+      `export async function POST(request: NextRequest) {
+  const auth = requireRole(request, 'EDITOR')
+  if (auth instanceof NextResponse) return auth
+  const broken =
+}
+`,
+    // exactly ONE per-file violation (not a "guarded" POST recovered from a broken AST)
+    expect: { 'SYNTAX-ERROR': 'violation' },
+    reason: /syntax error/,
   },
   {
     dir: 'comment-and-string-tricks',
@@ -470,14 +585,82 @@ describe('route guard scan — recognizer on synthetic fixtures', () => {
     expect(r.handlers.find((h: { key: string }) => h.key === 'app/api/guarded-try/route.ts#POST')?.status).toBe('guarded')
   })
 
-  it('does not treat a missing app/ directory as a pass-with-warnings crash', () => {
-    const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'route-guards-empty-'))
-    try {
-      const r = scanRoutes(empty, { allowlist: {} })
-      expect(r.files).toBe(0)
-      expect(r.violations).toEqual([])
-    } finally {
-      fs.rmSync(empty, { recursive: true, force: true })
-    }
+})
+
+// ── Empty / unreadable roots must fail loudly, never pass vacuously ─────────
+
+describe('route guard scan — empty or unreadable roots', () => {
+  const made: string[] = []
+  const tmpRoot = () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'route-guards-root-'))
+    made.push(dir)
+    return dir
+  }
+  const cli = (root: string) => spawnSync(process.execPath, [cliPath, root], { encoding: 'utf8' })
+  const guardedRoute = `import { NextRequest, NextResponse } from 'next/server'
+import { requireRole } from '@/lib/api-middleware'
+export async function POST(request: NextRequest) {
+  const auth = requireRole(request, 'EDITOR')
+  if (auth instanceof NextResponse) return auth
+  return NextResponse.json({ ok: true })
+}
+`
+
+  afterAll(() => {
+    for (const dir of made) fs.rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('throws, naming the path, when the app/ directory is missing', () => {
+    expect(() => scanRoutes(tmpRoot(), { allowlist: {} })).toThrow(/cannot read directory .*app/)
+  })
+
+  it('throws, naming the path, when app is a file instead of a directory', () => {
+    const root = tmpRoot()
+    fs.writeFileSync(path.join(root, 'app'), 'not a directory', 'utf8')
+    expect(() => scanRoutes(root, { allowlist: {} })).toThrow(/cannot read directory .*app/)
+  })
+
+  it('reports zero files for an app/ tree with no route files (callers must treat that as failure)', () => {
+    const root = tmpRoot()
+    fs.mkdirSync(path.join(root, 'app', 'api', 'empty'), { recursive: true })
+    const r = scanRoutes(root, { allowlist: {} })
+    expect(r.files).toBe(0)
+    expect(r.handlers).toEqual([])
+  })
+
+  it('CLI exits non-zero when no route files are found', () => {
+    const root = tmpRoot()
+    fs.mkdirSync(path.join(root, 'app', 'api'), { recursive: true })
+    const res = cli(root)
+    expect(res.status).toBe(1)
+    expect(res.stderr).toMatch(/no route files found/)
+    expect(res.stdout).not.toMatch(/PASS/)
+  })
+
+  it('CLI exits non-zero when the app directory cannot be read', () => {
+    const res = cli(tmpRoot())
+    expect(res.status).toBe(1)
+    expect(res.stderr).toMatch(/cannot read directory/)
+    expect(res.stdout).not.toMatch(/PASS/)
+  })
+
+  it('CLI exits non-zero on an unguarded mutating handler', () => {
+    const root = tmpRoot()
+    const dir = path.join(root, 'app', 'api', 'open')
+    fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(path.join(dir, 'route.ts'), `export async function POST(request: Request) { return Response.json(await request.json()) }\n`, 'utf8')
+    const res = cli(root)
+    expect(res.status).toBe(1)
+    expect(res.stdout).toMatch(/1 VIOLATIONS/)
+  })
+
+  it('CLI exits zero on a fully guarded tree (so the exit code is not always 1)', () => {
+    const root = tmpRoot()
+    const dir = path.join(root, 'app', 'api', 'ok')
+    fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(path.join(dir, 'route.ts'), guardedRoute, 'utf8')
+    const res = cli(root)
+    expect(res.status).toBe(0)
+    expect(res.stdout).toMatch(/PASS/)
   })
 })
