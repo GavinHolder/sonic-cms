@@ -135,6 +135,32 @@ section[data-content-mode="multi"] .section-content-wrapper {
   height: auto !important;
 }
 
+/* Dynamic Content Height Mode: same scroll-snap mechanic as Multi, but the height is a
+   live-computed `N × 100vh`. FlexibleSectionRenderer.tsx sets --dynamic-screens on the
+   <section> from the tallest height a block reports (TemplateBlock's postMessage contract);
+   it defaults to 1 so a section with no report yet (SSR / first paint) is exactly one screen.
+   The admin's multiLimit is a HARD CAP: content beyond it is clipped with overflow:hidden,
+   the same clip Single mode uses. Mobile releases dynamic sections to natural height via the
+   flexible-section rule further down (same as single), so nothing is hidden on phones. */
+#snap-container section[data-content-mode="dynamic"],
+section[data-content-mode="dynamic"] {
+  height: calc(var(--dynamic-screens, 1) * 100vh) !important;
+  min-height: 100vh;
+  max-height: calc(var(--dynamic-screens, 1) * 100vh) !important;
+  overflow: hidden !important;
+  scroll-snap-align: start;
+  scroll-snap-stop: normal;
+}
+
+/* Dynamic-section content wrapper clips at the section's own cap (like Single mode). */
+#snap-container section[data-content-mode="dynamic"] .section-content-wrapper,
+section[data-content-mode="dynamic"] .section-content-wrapper {
+  overflow: hidden !important;
+  flex: unset !important;
+  min-height: unset !important;
+  height: auto !important;
+}
+
 /* Gavin branch: CSS custom properties for dynamic CMS values */
 .cms-section {
   position: relative; /* Required for absolutely-positioned children (AnimBgRenderer, overlays) */
