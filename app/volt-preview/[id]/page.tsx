@@ -54,9 +54,13 @@ export default async function VoltPreviewPage({ params, searchParams }: PageProp
   // boundary into the parent Designer canvas. Plain CSS values only (a resolved hex/
   // gradient string, a URL, size/position keywords) — never HTML, so no sanitization
   // needed beyond what React's style prop already guarantees.
-  const bg = sp.bg || undefined;
-  const bgGradient = sp.bgGradient || undefined;
-  const bgImage = sp.bgImage || undefined;
+  // `bg=0` (2026-09-21, Flexible Designer canvas) = background forwarding OFF:
+  // every bg* param is ignored and the document stays fully transparent so the
+  // parent canvas's own background shows through around the Volt's shape.
+  const bgOff = sp.bg === "0";
+  const bg = !bgOff && sp.bg ? sp.bg : undefined;
+  const bgGradient = !bgOff && sp.bgGradient ? sp.bgGradient : undefined;
+  const bgImage = !bgOff && sp.bgImage ? sp.bgImage : undefined;
   const bgImageSize = sp.bgImageSize || "cover";
   const bgImagePosition = sp.bgImagePosition || "center";
 

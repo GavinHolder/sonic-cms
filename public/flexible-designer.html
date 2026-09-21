@@ -3792,7 +3792,10 @@ function createBlockPreview(block) {
         const previewUrl = buildVoltPreviewUrl(block);
         const vIframe = document.createElement('iframe');
         vIframe.src = previewUrl;
-        vIframe.style.cssText = 'width:100%;height:100%;border:none;pointer-events:none;';
+        // 2026-09-21: transparent iframe — the box shows only the Volt's own
+        // shape/content; the real canvas background shows through everywhere else.
+        vIframe.style.cssText = 'width:100%;height:100%;border:none;pointer-events:none;background:transparent;';
+        vIframe.setAttribute('allowtransparency', 'true');
         vIframe.loading = 'lazy';
         wrap.appendChild(vIframe);
       } else {
@@ -7764,6 +7767,9 @@ function isVoltFullBleed(b) {
 }
 
 // ── Volt preview URL builder ───────────────────────────────────────────────────
+// 2026-09-21: see buildVoltPreviewUrl — the Designer canvas never paints the
+// section background inside a Volt block's preview iframe.
+const DESIGNER_FORWARDS_SECTION_BG = false;
 function buildVoltPreviewUrl(b) {
   if (!b.props.voltId) return '';
   const sp = new URLSearchParams();
@@ -7800,8 +7806,22 @@ function buildVoltPreviewUrl(b) {
   // forwarding it unconditionally made the section's real bg image/color show
   // through the shape's transparent or uncovered areas instead of nothing.
   // Fails safe (no bg forwarded) if the map hasn't loaded yet for this voltId.
+  //
+  // 2026-09-21: forwarding is OFF for the Designer canvas. Painting the real
+  // section background inside the Volt's iframe showed a second, mis-scaled
+  // copy of the section bg inside the block's box (the iframe is block-sized,
+  // the section bg is canvas-sized). The canvas now shows ONLY the Volt's own
+  // shape/content, transparent elsewhere so the real canvas bg shows through;
+  // a glass fill therefore renders as its tint over the UNBLURRED canvas bg
+  // here (backdrop-filter cannot reach through an iframe) — accepted for the
+  // Designer, the live page (VoltRenderer in-document) still frosts for real.
+  // `bg=0` tells /volt-preview to ignore every bg* param; the forwarding
+  // mechanism itself is kept (behind DESIGNER_FORWARDS_SECTION_BG) for any
+  // other consumer that wants an in-iframe backdrop.
   const hasGlassLayer = !!(window.__voltGlassMap && window.__voltGlassMap[b.props.voltId]);
-  if (hasGlassLayer && state.sectionBg && state.showSectionBg !== false) {
+  if (!DESIGNER_FORWARDS_SECTION_BG) {
+    sp.set('bg', '0');
+  } else if (hasGlassLayer && state.sectionBg && state.showSectionBg !== false) {
     const baseVal = resolveBgColor(state.sectionBg.background);
     if (baseVal && baseVal !== 'transparent') sp.set('bg', baseVal);
     if (state.sectionBg.bgImageUrl) {
