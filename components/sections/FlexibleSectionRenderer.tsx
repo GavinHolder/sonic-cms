@@ -287,6 +287,21 @@ let styleInjected = false;
 const DESIGN_H = 900;
 
 /**
+ * Floor (px) for a resolved free-mode designer canvas dimension (designerCanvasW/H).
+ * Guards against corrupted stored data — e.g. a stray `5` instead of `1440` — producing a
+ * runaway scale() factor (containerWidth / cw) that stretches the background/content by
+ * hundreds of times. 200 is far below any realistic authored canvas size (mobile designs
+ * are ~320px+) but comfortably above corruption-scale garbage values. Does NOT change the
+ * `|| fallback` behavior for a legitimately absent field — only clamps a present-but-absurd one.
+ */
+const MIN_FREE_CANVAS_DIM = 200;
+
+/** Resolves a stored free-mode canvas dimension: absent/NaN/0 falls back, present values are floored. */
+function resolveCanvasDim(raw: unknown, fallback: number): number {
+  return Math.max(Number(raw) || fallback, MIN_FREE_CANVAS_DIM);
+}
+
+/**
  * Free-mode reflow breakpoint (px) — below this, a free-mode section renders through
  * FreeReflowStack (single-column, content-driven reading order) instead of the desktop
  * 1:1 plate (fixed cw×ch canvas, uniformly CSS-scaled to fit the viewport). Was 768,
@@ -409,7 +424,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
     if (!freePlateActive || !designerData) return null;
     try {
       const d = typeof designerData === "string" ? JSON.parse(designerData) : designerData;
-      return { cw: Number((d as any)?.designerCanvasW) || 1440, ch: Number((d as any)?.designerCanvasH) || DESIGN_H };
+      return { cw: resolveCanvasDim((d as any)?.designerCanvasW, 1440), ch: resolveCanvasDim((d as any)?.designerCanvasH, DESIGN_H) };
     } catch { return null; }
   }, [freePlateActive, designerData]);
   // True only when the free-mode 1:1 section-height override should apply: free plate is
@@ -1673,6 +1688,14 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
       mobilePos?: PixelPos;
       props?: Record<string, unknown>;
       subElements?: SubEl[];
+      // zIndex: stacking order the Designer canvas already paints by (see
+      // flexible-designer.html createBlockElement(), which sets a real CSS
+      // z-index from this same field). Previously unused here — this renderer
+      // painted purely in array order (implicit z-index:auto) instead, so a
+      // block whose zIndex diverged from its array position (e.g. after
+      // duplicate/"send to back") stacked correctly on the canvas but
+      // backwards on the live page/admin preview.
+      zIndex?: number;
     }> = data.blocks || [];
 
     // Nothing to render — return null to avoid empty DOM nodes
@@ -1751,8 +1774,8 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
     // positions at every width. (Percent-positions + px-fonts could never be 1:1; that drift
     // was the recurring "designer ≠ live" bug.)
     if (isFreeMode) {
-      const cw = data.designerCanvasW || 1440;
-      const ch = data.designerCanvasH || DESIGN_H;
+      const cw = resolveCanvasDim(data.designerCanvasW, 1440);
+      const ch = resolveCanvasDim(data.designerCanvasH, DESIGN_H);
 
       // ── Mobile: smart, readable reflow (<768px, post-mount) ─────────────────
       // Single-column reading-order stack — MOBILE IS UNCHANGED by the cover-plate work.
@@ -1866,7 +1889,7 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
             transformOrigin: "top left",
             pointerEvents: "auto",
           }}>
-            {filteredBlocks.map((block) => {
+            {filteredBlocks.map((block, index) => {
               // Always the DESKTOP design layout — the whole stage scales, so there is no
               // per-breakpoint reflow by default (exact 1:1). Per-breakpoint mobile layouts
               // are a future opt-in.
@@ -1939,6 +1962,9 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
                   left: pos.x, top: pos.y, width: pos.w,
                   height: liveH || pos.h,
                   overflow: isSelfSizing ? "visible" : "hidden",
+                  // Honor the Designer canvas's own stacking order (see zIndex doc comment
+                  // on the `blocks` type above) instead of implicit array-order painting.
+                  zIndex: block.zIndex ?? (index + 1),
                 }}>
                   <DesignerBlock
                     block={block}
@@ -2022,7 +2048,7 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
             alignContent: "start",
           }}
         >
-          {filteredBlocks.map((block) => {
+          {filteredBlocks.map((block, index) => {
             const pos           = block.position || { row: 1, col: 1, colSpan: 1, rowSpan: 1, section: 0 };
             // In scroll stage mode blocks are already filtered to active zone — no section offset needed
             const sectionOffset = isScrollStage ? 0 : (pos.section || 0) * rows;
@@ -2037,6 +2063,10 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
                 minHeight: 0,
                 // Allow slight overflow for decorative elements that extend beyond their bounds
                 overflow: "visible",
+                // Honor the Designer canvas's own stacking order (see zIndex doc comment
+                // on the `blocks` type above) instead of implicit array-order painting.
+                // Grid items apply z-index even at position:static, so no position change needed.
+                zIndex: block.zIndex ?? (index + 1),
               }}>
                 <DesignerBlock block={block} darkBg={darkBg} onContentHeight={isDynamic ? reportBlockHeight : undefined} />
               </div>
@@ -2058,8 +2088,15 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
         gap: `${gap ?? 16}px`,
         minHeight: gridH,
       }}>
-        {filteredBlocks.map((block) => (
-          <div key={block.id} style={{ flex: isMulti ? `0 0 calc(${100 / multiLimit}%)` : (isDynamic ? "0 0 auto" : "1 1 280px"), minWidth: 0 }}>
+        {filteredBlocks.map((block, index) => (
+          <div key={block.id} style={{
+            flex: isMulti ? `0 0 calc(${100 / multiLimit}%)` : (isDynamic ? "0 0 auto" : "1 1 280px"),
+            minWidth: 0,
+            // Honor the Designer canvas's own stacking order (see zIndex doc comment
+            // on the `blocks` type above) instead of implicit array-order painting.
+            // Flex items apply z-index even at position:static, so no position change needed.
+            zIndex: block.zIndex ?? (index + 1),
+          }}>
             <DesignerBlock block={block} darkBg={darkBg} onContentHeight={isDynamic ? reportBlockHeight : undefined} />
           </div>
         ))}

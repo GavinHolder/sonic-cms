@@ -622,6 +622,11 @@
       transition: border-color 0.12s, box-shadow 0.12s, background 0.12s;
       box-sizing: border-box;
       min-width: 60px;
+      /* WYSIWYG font: the live page renders free-positioned text in the site's brand body font
+         (--cms-body-font from lib/brand-tokens.ts). loadBrandFont() below sets that variable from
+         the site's brand tokens and loads the webfont; until it resolves (or if the fetch fails)
+         the canvas keeps the standalone page's system font. A per-element fontFamily still wins. */
+      font-family: var(--cms-body-font, inherit);
     }
     .sub-element:hover { border-color: rgba(13,110,253,0.5); background: rgba(13,110,253,0.04); }
     .sub-element.selected { border-color: #20c997; background: rgba(32,201,151,0.04); box-shadow: 0 0 0 2px rgba(32,201,151,0.3); }
@@ -1417,6 +1422,8 @@
     <button class="btn btn-sm btn-outline-primary" id="guides-btn" onclick="toggleGuides()" title="Show / Hide grid guides"><i class="bi bi-grid"></i></button>
     <!-- Pixel-grid snap toggle (free mode) -->
     <button class="btn btn-sm btn-outline-secondary" id="snap-btn" onclick="toggleSnapGrid()" title="Grid snap OFF — press S to toggle" style="letter-spacing:0.3px;">SNAP</button>
+    <!-- Smart alignment-guide snap toggle (#48 — lines onto other elements while dragging) -->
+    <button class="btn btn-sm btn-primary" id="align-guides-btn" onclick="toggleAlignGuides()" title="Alignment guides ON — press G to toggle. Hold Ctrl while dragging for a one-off precise move." style="letter-spacing:0.3px;"><i class="bi bi-magnet-fill"></i></button>
     <!-- Utilities (icon-only) -->
     <button class="btn btn-sm btn-outline-primary" onclick="toggleJson()" title="JSON Output"><i class="bi bi-code-slash"></i></button>
     <button class="btn btn-sm btn-outline-danger" onclick="clearAll()" title="Clear entire canvas"><i class="bi bi-trash"></i></button>
@@ -1959,6 +1966,14 @@ const state = {
   snapGrid: false,      // pixel-grid snap in free mode (S key or toolbar button)
   snapSize: 10,         // snap increment in px
   subElementSnap: false, // snap sub-elements to 8px grid when dragging inside parent
+  // #48 smart alignment guides (the lines that appear when a dragged sub-element
+  // lines up with another element's edge/center) — was always-on with no toggle;
+  // now a real preference like snapGrid/subElementSnap above. Default true so
+  // existing designer sessions see no behavior change until explicitly turned off.
+  // Held Ctrl during a drag ALSO suppresses this live, on top of the toggle, for a
+  // one-off precise placement without changing the saved preference — see the
+  // ev.ctrlKey checks in startSubElementMove/startGroupMove/startBlockMove.
+  alignGuides: true,
   isResizing: false,
   nextId: 1,
   navOptions: [],
@@ -2303,6 +2318,11 @@ document.addEventListener('keydown', e => {
       !e.target.closest('input, textarea, [contenteditable="true"], select')) {
     e.preventDefault(); toggleSnapGrid(); return;
   }
+  // G — toggle smart alignment guides (skip when typing in inputs)
+  if (e.key === 'g' && !e.ctrlKey && !e.metaKey &&
+      !e.target.closest('input, textarea, [contenteditable="true"], select')) {
+    e.preventDefault(); toggleAlignGuides(); return;
+  }
   // #89 Escape — clear the current selection (single or multi) when not typing.
   if (e.key === 'Escape' && !e.target.closest('input, textarea, [contenteditable="true"], select')) {
     if (multiSelCount() || state.selectedSubId || state.selectedBlockId) {
@@ -2507,6 +2527,7 @@ function loadVoltDesignsIfNeeded() {
 
 document.addEventListener('DOMContentLoaded', () => {
   loadNavOptions();
+  loadBrandFont();
   loadNetworks();
   loadAllPackages();
   loadProductTypes();
@@ -3313,6 +3334,17 @@ function createBlockPreview(block) {
         _cBadge.textContent = '\uD83D\uDDBC ' + _cImgs.length + ' images';
         _cWrap.appendChild(_cBadge);
         wrap.appendChild(_cWrap);
+      } else if (p.src) {
+        // Single (non-carousel) image with a picked src — render the actual
+        // image so the canvas preview reflects what was chosen in the media
+        // picker (previously this branch always showed the placeholder text
+        // below regardless of p.src, making the canvas look unchanged after
+        // picking an image).
+        const _iImg = document.createElement('img');
+        _iImg.src = p.src;
+        _iImg.alt = p.alt || '';
+        _iImg.style.cssText = 'width:100%;height:100%;border-radius:4px;display:block;object-fit:' + (p.imageMode === 'natural' ? 'contain' : 'cover') + ';';
+        wrap.appendChild(_iImg);
       } else {
         const _iDiv = document.createElement('div');
         _iDiv.className = 'cb-prev-image';
@@ -3874,7 +3906,11 @@ function startSubElementMove(e, blockId, seId) {
     // anywhere (including negative offsets). Positions persist as x/y + manualSize.
     let newX = Math.round(origX + dx);
     let newY = Math.round(origY + dy);
-    if (state.subElementSnap) {
+    // Ctrl held = raw precise positioning: skip BOTH the 8px sub-element grid and
+    // the alignment-guide snap below, live for the rest of this drag — release
+    // Ctrl mid-drag and snapping resumes immediately, same as the axis-lock
+    // pattern already used for top-level block dragging (startBlockMove).
+    if (state.subElementSnap && !ev.ctrlKey) {
       const sg = 8;
       newX = Math.round(newX / sg) * sg;
       newY = Math.round(newY / sg) * sg;
@@ -3882,11 +3918,13 @@ function startSubElementMove(e, blockId, seId) {
     // #48 smart alignment snap: map tentative position → canvas-local top-left,
     // snap onto the single nearest guide per axis (with hysteresis), reposition
     // the persistent guide DIVs. No per-tick DOM churn — _sgUpdate just moves them.
-    if (_sgCtx.ok) {
+    if (_sgCtx.ok && !ev.ctrlKey) {
       const w = seEl.offsetWidth, h = seEl.offsetHeight;
       const snap = _sgUpdate(_sgCtx, _originLeft + newX, _originTop + newY, w, h);
       newX += Math.round(snap.dx);
       newY += Math.round(snap.dy);
+    } else {
+      _sgHideV(); _sgHideH(); // Ctrl-suppressed or guides off — make sure no stale guide line lingers on screen
     }
     se.x = newX;
     se.y = newY;
@@ -4034,15 +4072,18 @@ function startGroupMove(e, clickBlockId, clickSeId) {
     moved = true;
     // #48 snap the group bbox onto the single nearest guide per axis (hysteresis);
     // apply the same nudge to every member. _sgUpdate repositions the guide DIVs.
+    // Ctrl held = raw precise positioning for the whole group, same as single-drag.
     let adx = dx, ady = dy;
-    if (_grpHasBox) {
+    if (_grpHasBox && !ev.ctrlKey) {
       const snap = _sgUpdate(_sgCtx, _grpL + dx, _grpT + dy, _grpR - _grpL, _grpB - _grpT);
       adx = dx + snap.dx; ady = dy + snap.dy;
+    } else if (_grpHasBox) {
+      _sgHideV(); _sgHideH(); // Ctrl-suppressed — no stale guide line while dragging raw
     }
     members.forEach(m => {
       let nx = Math.round(m.origX + adx);
       let ny = Math.round(m.origY + ady);
-      if (state.subElementSnap) { const g = 8; nx = Math.round(nx / g) * g; ny = Math.round(ny / g) * g; }
+      if (state.subElementSnap && !ev.ctrlKey) { const g = 8; nx = Math.round(nx / g) * g; ny = Math.round(ny / g) * g; }
       m.se.x = nx; m.se.y = ny;
       m.el.style.left = nx + 'px'; m.el.style.top = ny + 'px';
     });
@@ -4319,9 +4360,14 @@ function _sgBegin(excludeSet) {
   const canvas = document.getElementById('canvas');
   const cRect = canvas ? canvas.getBoundingClientRect() : null;
   const scale = getCanvasScale();
+  const empty = { x: { el: [], canvas: [] }, y: { el: [], canvas: [] } };
+  // Toggle OFF (state.alignGuides) means every caller's `ctx.ok` check below (and
+  // _sgUpdate's own no-op when !ctx.ok) already short-circuits the whole system —
+  // one gate here instead of touching every call site. Skips _sgEnsureGuides/
+  // _sgHideV/_sgHideH too since there's nothing to show or hide when it's off.
+  if (!state.alignGuides) return { ok: false, cRect: null, scale, targets: empty, sx: { tgt: null }, sy: { tgt: null } };
   _sgEnsureGuides();
   _sgHideV(); _sgHideH();
-  const empty = { x: { el: [], canvas: [] }, y: { el: [], canvas: [] } };
   if (!cRect) return { ok: false, cRect: null, scale, targets: empty, sx: { tgt: null }, sy: { tgt: null } };
   return { ok: true, cRect, scale, targets: _sgBuildTargets(excludeSet, cRect, scale), sx: { tgt: null }, sy: { tgt: null } };
 }
@@ -5330,8 +5376,11 @@ function startBlockMove(e, blockId) {
         if (Math.abs(dx) >= Math.abs(dy)) axNy = _moveDP.y; // lock to horizontal
         else axNx = _moveDP.x;                               // lock to vertical
       }
-      const _nx = Math.max(0, Math.min(canvasW - dragDispW, snapToGrid(axNx)));
-      const _ny = Math.max(0, Math.min(canvasH - dragDispH, snapToGrid(axNy)));
+      // Ctrl also suppresses the pixel-grid snap below (on top of the axis-lock
+      // above) — raw precise positioning for a fine nudge, same behavior as the
+      // sub-element drag handlers (startSubElementMove/startGroupMove).
+      const _nx = Math.max(0, Math.min(canvasW - dragDispW, e.ctrlKey ? axNx : snapToGrid(axNx)));
+      const _ny = Math.max(0, Math.min(canvasH - dragDispH, e.ctrlKey ? axNy : snapToGrid(axNy)));
       setDisplayPos(block, _nx, _ny, dragDispW, dragDispH);
       if (el) { el.style.left=`${_nx}px`; el.style.top=`${_ny}px`; }
       // Update props panel X/Y live
@@ -5675,6 +5724,10 @@ function _lyDuplicateBlock(blockId){
   copy.x = (copy.x||0)+20; copy.y = (copy.y||0)+20; copy.zIndex = (copy.zIndex||1)+1;
   const idx = state.blocks.indexOf(b);
   state.blocks.splice(idx+1, 0, copy);
+  // Reindex zIndex to match array position (same invariant _fcxReorder/_lyHandleDrop
+  // enforce) — otherwise the bumped copy.zIndex above can leave every later block's
+  // stored zIndex stale relative to its true array position.
+  state.blocks.forEach((b,i)=> b.zIndex = i+1);
   state.selectedBlockId = copy.id; state.selectedSubId = null;
   renderCanvas(); renderPropsPanel(); autoSave();
 }
@@ -6239,42 +6292,66 @@ function renderTypeProps(block) {
         <input class="form-check-input" type="checkbox" role="switch" id="volt-fullbleed-${block.id}" ${p.fullBleed ? 'checked' : ''} onchange="setVoltFullBleed('${block.id}',this.checked)">
         <label class="form-check-label" for="volt-fullbleed-${block.id}" style="color:#6c757d;">Use as background (full-bleed)</label>
       </div>`;
-      // Slot overrides
-      h+=`<div style="margin-bottom:6px;">
-        <div style="font-size:11px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Content Slots</div>`;
-      // Linked Product picker — bind this card to a coverage-plugin Package so slots
-      // whose field hint is pkg.name/pkg.price/pkg.speed… auto-populate from the product.
-      {
-        const _prods = window.__allPackages || [];
-        const _curProd = p.productId || '';
-        const _byNet = {};
-        _prods.forEach(function(pr){ const k = pr.networkName || 'Other'; (_byNet[k] = _byNet[k] || []).push(pr); });
-        let _prodOpts = `<option value="">— None (manual text) —</option>`;
-        Object.keys(_byNet).forEach(function(net){
-          _prodOpts += `<optgroup label="${escHtml(net)}">`;
-          _byNet[net].forEach(function(pr){
-            _prodOpts += `<option value="${escHtml(pr.id)}"${pr.id===_curProd?' selected':''}>${escHtml(pr.name)}</option>`;
-          });
-          _prodOpts += `</optgroup>`;
-        });
-        h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;margin-bottom:8px;">
-          <label style="margin-bottom:3px;font-size:12px;font-weight:600;"><i class="bi bi-box-seam me-1"></i>Linked Product</label>
-          <select class="props-input" style="font-size:12px;" onchange="updateVoltProduct('${block.id}',this.value)">${_prodOpts}</select>
-          <div style="font-size:10px;color:#9ca3af;margin-top:4px;line-height:1.5;">Binds slots with field hints <code>pkg.name</code>, <code>pkg.price</code>, <code>pkg.speed</code>, <code>pkg.period</code>, <code>pkg.options</code>&hellip; to this product's live values.${_prods.length?'':'<br><em>No packages loaded yet.</em>'}</div>
-        </div>`;
-      }
-      h+=inputRow('Title', p.slotTitle||'', `updateVoltSlot('${block.id}','slotTitle',this.value)`, 'Override title…');
-      h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;margin-bottom:8px;">
-        <label style="margin-bottom:3px;font-size:12px;">Body</label>
-        <textarea class="props-input" rows="3" style="resize:vertical;font-size:12px;" placeholder="Override body text…" oninput="updateVoltSlot('${block.id}','slotBody',this.value)">${escHtml(p.slotBody||'')}</textarea>
-      </div>`;
-      h+=inputRow('Icon', p.slotIcon||'', `updateVoltSlot('${block.id}','slotIcon',this.value)`, 'bi-star or emoji…');
-      h+=mediaPickerRow('Image', p.slotImageUrl||'', block.id, 'slotImageUrl', 'image/*', true);
-      h+=inputRow('Action label', p.slotActionLabel||'', `updateVoltSlot('${block.id}','slotActionLabel',this.value)`, 'Button text…');
-      h+=`</div>`;
-      // Layer color overrides
+      // Slot overrides — only offer the fields for content slots this Volt design
+      // actually declares (layers of type 'slot', each tagged with a slotData.slotType
+      // of title/body/icon/image/action in Volt Studio — see volt-designer.html's
+      // mkSlot()/_slotTypeLabels). Previously this section always rendered every
+      // field (Linked Product, Title, Body, Icon, Image, Action label) regardless of
+      // what the selected Volt actually declared, so a purely visual design with NO
+      // slot layers (e.g. a glass/blur panel) still showed a full set of irrelevant
+      // product-card binding fields with nothing to bind to.
       if (p.voltId) {
         loadVoltLayersForBlock(block.id); // no-op if already loading/loaded
+        const _slotCache = _voltLayerCache[p.voltId];
+        if (!_slotCache || _slotCache.loading) {
+          h+=`<div style="margin-bottom:6px;"><div style="font-size:11px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Content Slots</div><div style="font-size:11px;color:#adb5bd;font-style:italic;">Loading…</div></div>`;
+        } else {
+          const _slotTypes = new Set(
+            (_slotCache.layers || [])
+              .filter(function(l){ return l.type === 'slot' && l.slotData && l.slotData.slotType; })
+              .map(function(l){ return l.slotData.slotType; })
+          );
+          if (_slotTypes.size === 0) {
+            h+=`<div style="margin-bottom:6px;"><div style="font-size:11px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Content Slots</div><div style="font-size:11px;color:#adb5bd;font-style:italic;">This Volt design has no content slots — it's a purely visual design with no text/image/product fields to bind.</div></div>`;
+          } else {
+            h+=`<div style="margin-bottom:6px;">
+              <div style="font-size:11px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Content Slots</div>`;
+            // Linked Product picker — bind this card to a coverage-plugin Package so slots
+            // whose field hint is pkg.name/pkg.price/pkg.speed… auto-populate from the product.
+            // Only relevant when the design has at least one slot to bind into.
+            {
+              const _prods = window.__allPackages || [];
+              const _curProd = p.productId || '';
+              const _byNet = {};
+              _prods.forEach(function(pr){ const k = pr.networkName || 'Other'; (_byNet[k] = _byNet[k] || []).push(pr); });
+              let _prodOpts = `<option value="">— None (manual text) —</option>`;
+              Object.keys(_byNet).forEach(function(net){
+                _prodOpts += `<optgroup label="${escHtml(net)}">`;
+                _byNet[net].forEach(function(pr){
+                  _prodOpts += `<option value="${escHtml(pr.id)}"${pr.id===_curProd?' selected':''}>${escHtml(pr.name)}</option>`;
+                });
+                _prodOpts += `</optgroup>`;
+              });
+              h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;margin-bottom:8px;">
+                <label style="margin-bottom:3px;font-size:12px;font-weight:600;"><i class="bi bi-box-seam me-1"></i>Linked Product</label>
+                <select class="props-input" style="font-size:12px;" onchange="updateVoltProduct('${block.id}',this.value)">${_prodOpts}</select>
+                <div style="font-size:10px;color:#9ca3af;margin-top:4px;line-height:1.5;">Binds slots with field hints <code>pkg.name</code>, <code>pkg.price</code>, <code>pkg.speed</code>, <code>pkg.period</code>, <code>pkg.options</code>&hellip; to this product's live values.${_prods.length?'':'<br><em>No packages loaded yet.</em>'}</div>
+              </div>`;
+            }
+            if (_slotTypes.has('title')) h+=inputRow('Title', p.slotTitle||'', `updateVoltSlot('${block.id}','slotTitle',this.value)`, 'Override title…');
+            if (_slotTypes.has('body')) h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;margin-bottom:8px;">
+              <label style="margin-bottom:3px;font-size:12px;">Body</label>
+              <textarea class="props-input" rows="3" style="resize:vertical;font-size:12px;" placeholder="Override body text…" oninput="updateVoltSlot('${block.id}','slotBody',this.value)">${escHtml(p.slotBody||'')}</textarea>
+            </div>`;
+            if (_slotTypes.has('icon')) h+=inputRow('Icon', p.slotIcon||'', `updateVoltSlot('${block.id}','slotIcon',this.value)`, 'bi-star or emoji…');
+            if (_slotTypes.has('image')) h+=mediaPickerRow('Image', p.slotImageUrl||'', block.id, 'slotImageUrl', 'image/*', true);
+            if (_slotTypes.has('action')) h+=inputRow('Action label', p.slotActionLabel||'', `updateVoltSlot('${block.id}','slotActionLabel',this.value)`, 'Button text…');
+            h+=`</div>`;
+          }
+        }
+      }
+      // Layer color overrides
+      if (p.voltId) {
         const cached = _voltLayerCache[p.voltId];
         const overrides = p.voltLayerOverrides || {};
         const hasOverrides = Object.keys(overrides).length > 0;
@@ -7443,8 +7520,19 @@ function resolveDropConflict(choice) {
   }
 
   if (!isMove) {
-    // New drop: the block was never added to state.blocks — push it now
-    state.blocks.push(block);
+    // New drop: the block was never added to state.blocks — push it now.
+    // 'replace' means "send to back": insert at the FRONT of the array so the
+    // live renderer's array-order-derived zIndex (FlexibleSectionRenderer.tsx)
+    // paints it behind everything else, matching the zIndex=1 intent set above
+    // (previously this always pushed to the END, which the live renderer's
+    // then-array-order-only painting read as FRONTMOST — the opposite of what
+    // 'replace'/"send to back" intended). 'stack' means frontmost, so it's
+    // still appended at the end.
+    if (choice === 'replace') state.blocks.unshift(block);
+    else state.blocks.push(block);
+    // Reindex so stored zIndex always matches array position — same invariant
+    // _fcxReorder / _lyHandleDrop / _lyDuplicateBlock already enforce.
+    state.blocks.forEach((b,i)=> b.zIndex = i+1);
   }
   // For moves, block is already in state.blocks at its new position;
   // the zIndex update above is all that is needed.
@@ -7993,6 +8081,32 @@ function injectAllDesignerFonts() {
  * No-ops for 'inherit' or empty values.
  * @param {string} family - Plain font family name (e.g. 'Poppins', NOT "'Poppins', sans-serif").
  */
+// ── Canvas WYSIWYG font (brand-token driven) ──────────────────────────────────────────────
+// This standalone page has its own system-ui body font, but the live site renders text in the
+// brand body font chosen in Brand Tokens (typography.bodyFont -> --cms-body-font). Two text
+// blocks placed edge-to-edge can look clean here yet overlap live when the glyph widths differ.
+// Instead of hard-coding a family, read the site's own brand tokens (same-origin admin API, the
+// Designer runs inside the admin) and mirror what app/layout.tsx does: define --cms-body-font
+// and load the same Google Font (same weights as brandTokensToFontUrl). Fails safe: no tokens /
+// offline / not logged in -> the canvas simply keeps its fallback font.
+function loadBrandFont() {
+  fetch('/api/admin/brand-tokens', { credentials: 'include' })
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(r.status); })
+    .then(function(json){
+      const t = json && json.data && json.data.typography;
+      const body = t && typeof t.bodyFont === 'string' ? t.bodyFont.trim() : '';
+      if (!body || /["'<>;{}]/.test(body)) return;
+      document.documentElement.style.setProperty('--cms-body-font', "'" + body + "', system-ui, sans-serif");
+      const system = ['Arial','Helvetica','Times New Roman','Georgia','Courier New','system-ui'];
+      if (system.indexOf(body) !== -1 || document.getElementById('gf-brand-body')) return;
+      const l = document.createElement('link');
+      l.id = 'gf-brand-body'; l.rel = 'stylesheet';
+      l.href = 'https://fonts.googleapis.com/css2?family=' + encodeURIComponent(body) + ':wght@300;400;500;600;700;800;900&display=swap';
+      document.head.appendChild(l);
+    })
+    .catch(function(){});
+}
+
 function injectGoogleFont(family) {
   if (family === 'inherit' || !family) return;
   const id = 'gf-' + family.replace(/\s+/g, '-');
@@ -9302,6 +9416,20 @@ function toggleSnapGrid() {
 function snapToGrid(v) {
   if (!state.snapGrid || state.positionMode !== 'free') return v;
   return Math.round(v / state.snapSize) * state.snapSize;
+}
+/** Toggle the #48 smart alignment-guide snap (lines onto other elements' edges/
+ * centers while dragging a sub-element). Updates toolbar button state; no redraw
+ * needed since guides only exist mid-drag (_sgBegin builds/tears them down). */
+function toggleAlignGuides() {
+  state.alignGuides = !state.alignGuides;
+  const btn = document.getElementById('align-guides-btn');
+  if (btn) {
+    btn.classList.toggle('btn-primary', state.alignGuides);
+    btn.classList.toggle('btn-outline-secondary', !state.alignGuides);
+    btn.title = state.alignGuides
+      ? 'Alignment guides ON — press G to toggle. Hold Ctrl while dragging for a one-off precise move.'
+      : 'Alignment guides OFF — press G to toggle';
+  }
 }
 /**
  * Toggles the pixel rulers along the canvas edges by toggling the
