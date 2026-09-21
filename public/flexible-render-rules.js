@@ -391,10 +391,136 @@
     return layers;
   }
 
+  /**
+   * resolveBgPositionCss(x, y) — pure function. Converts an optional 0–100
+   * percentage pair (the "Reposition Background" feature's bgImageX/bgImageY
+   * or imagePosX/imagePosY-style prop pair — anchor = which point of the
+   * SOURCE image is aligned to that point of the box) into the CSS value used
+   * for both `background-position` (block-level cover background, e.g. the
+   * 'hero' block's bgType:'image') and `object-position` (a plain cover-fit
+   * `<img>`, e.g. the 'image' block's imageMode:'fill'). Both properties
+   * accept the same "<x>% <y>%" syntax, so one function serves both call sites.
+   *
+   * Either axis missing/non-numeric → "center", the exact CSS keyword both
+   * consumers already hardcoded before this feature — an unpositioned image
+   * (the default for every block that existed before this feature shipped)
+   * renders byte-for-byte unchanged (no regressions requirement).
+   *
+   * Consumers:
+   *   1. public/flexible-designer.html's createBlockPreview() (canvas preview
+   *      for 'hero' bgType:'image' and 'image' block imageMode:'fill')
+   *   2. FlexibleSectionRenderer.tsx's DesignerBlock shellStyle (hero bg) and
+   *      its "image" case (block-level cover `<img>`)
+   *
+   * ASSUMPTIONS:
+   * 1. x/y are already 0-100 (the Designer's drag handler and sliders both
+   *    clamp before writing the prop — see startBgReposition in
+   *    flexible-designer.html) — this function clamps again defensively so a
+   *    corrupt/out-of-range stored value (e.g. hand-edited Template import
+   *    JSON) can't produce an out-of-box CSS position.
+   *
+   * FAILURE MODES:
+   * - Non-numeric x or y (e.g. a stray string) → Number() coerces to NaN,
+   *   caught by the isFinite check → falls back to "center", never emits
+   *   "NaN% NaN%" into the stylesheet.
+   */
+  function resolveBgPositionCss(x, y) {
+    var xN = Number(x);
+    var yN = Number(y);
+    if (x == null || y == null || !isFinite(xN) || !isFinite(yN)) return "center";
+    xN = Math.max(0, Math.min(100, xN));
+    yN = Math.max(0, Math.min(100, yN));
+    return xN + "% " + yN + "%";
+  }
+
+  /**
+   * resolveBackgroundPosForBreakpoint(backgroundPos, breakpoint, legacyX, legacyY)
+   * — pure function. Picks which {x,y} pair a SECTION's own "Reposition
+   * Background" drag position should use for a given breakpoint, given the
+   * per-breakpoint override object plus the pre-per-breakpoint legacy flat
+   * fields. Feed the returned {x,y} straight into resolveBgPositionCss(x,y)
+   * above (this function does NOT format CSS — one dumb formatter, one
+   * resolution-order picker, per ONE SYSTEM PER CONCERN, CLAUDE.md).
+   *
+   * Added 2026-09-21 when the section-level "Reposition Background" feature
+   * (dc7435d, #205 — see docs/main-cms-sync-prompt.md) was changed from ONE
+   * shared position for all screen sizes to an independent position per
+   * breakpoint, matching how the block-level "Reposition Background" feature
+   * (#197, bgImageX/Y on a 'hero' block) already works naturally (it lives
+   * inside each breakpoint's own designerData variant). Section-level
+   * backgroundPosX/Y is NOT inside a per-breakpoint designerData variant —
+   * it lives in content JSONB directly — so it needs its OWN small
+   * per-breakpoint container: content.backgroundPos = { desktop, tablet,
+   * mobile }, each entry {x,y} (0-100) or null ("not yet customized for
+   * this breakpoint").
+   *
+   * CONTRACT (mirrors public/flexible-breakpoint-rules.js's pickActiveVariant
+   * fallback semantics, so this reads the same way to anyone already familiar
+   * with that file):
+   *   1. backgroundPos[breakpoint] is a valid {x,y} pair → use it (an
+   *      explicit override for this exact breakpoint always wins).
+   *   2. Else, for tablet/mobile only, backgroundPos.desktop is a valid
+   *      {x,y} pair → fall back to it (an un-customized breakpoint inherits
+   *      Desktop's explicit position rather than snapping to plain center).
+   *   3. Else fall back to the legacy flat legacyX/legacyY pair (every
+   *      section saved before this feature exists in exactly this shape:
+   *      backgroundPos is absent entirely) — applies to EVERY breakpoint,
+   *      desktop included, so a legacy section renders byte-identical to
+   *      before this feature shipped.
+   *   4. Else {x: null, y: null} → resolveBgPositionCss(null, null) yields
+   *      "center", the pre-existing default for a section with no drag
+   *      position set at all.
+   *
+   * ASSUMPTIONS:
+   * 1. backgroundPos, when present, is a plain object with up to 3 keys
+   *    (desktop/tablet/mobile), each either {x:number,y:number} or
+   *    null/undefined/absent — the exact shape FlexibleSectionEditorModal.tsx
+   *    writes on save. A malformed entry (missing axis, non-numeric) is
+   *    treated as absent (falls through to the next resolution step) rather
+   *    than emitting a partial/garbage position.
+   * 2. breakpoint is always one of "desktop" | "tablet" | "mobile" (the same
+   *    3-value domain as pickBreakpointForWidth/previewViewport elsewhere in
+   *    this codebase).
+   *
+   * FAILURE MODES:
+   * - backgroundPos is null/undefined/not an object (every section that
+   *   predates this feature) → step 1/2 both no-op, step 3 (legacy flat
+   *   fallback) applies — matches the pre-feature behavior exactly.
+   * - Desktop's own resolution also has no explicit override AND no legacy
+   *   value → {x: null, y: null}, i.e. "center", same as today.
+   */
+  function resolveBackgroundPosForBreakpoint(backgroundPos, breakpoint, legacyX, legacyY) {
+    function validPoint(p) {
+      if (!p || typeof p !== "object") return null;
+      if (p.x == null || p.y == null) return null;
+      var xN = Number(p.x);
+      var yN = Number(p.y);
+      if (!isFinite(xN) || !isFinite(yN)) return null;
+      return { x: xN, y: yN };
+    }
+
+    var bp = backgroundPos && typeof backgroundPos === "object" ? backgroundPos : null;
+
+    var own = bp ? validPoint(bp[breakpoint]) : null;
+    if (own) return own;
+
+    if (breakpoint !== "desktop") {
+      var desktopOverride = bp ? validPoint(bp.desktop) : null;
+      if (desktopOverride) return desktopOverride;
+    }
+
+    var legacy = validPoint({ x: legacyX, y: legacyY });
+    if (legacy) return legacy;
+
+    return { x: null, y: null };
+  }
+
   return {
     computeSubElementStyle: computeSubElementStyle,
     computeSubElementPosition: computeSubElementPosition,
     styleObjectToCssText: styleObjectToCssText,
     computeMultiBgLayers: computeMultiBgLayers,
+    resolveBgPositionCss: resolveBgPositionCss,
+    resolveBackgroundPosForBreakpoint: resolveBackgroundPosForBreakpoint,
   };
 });

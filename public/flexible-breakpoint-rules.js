@@ -160,6 +160,366 @@
     });
   }
 
+  // ── Cross-breakpoint reconciliation — SEED-TIME ONLY (2026-09-21 decision,
+  //    see docs/main-cms-sync-prompt.md) ──
+  // HISTORY: this started as an AMBIENT, ongoing reconcile — called on every
+  // breakpoint switch, every autosave, every undo, and even on every live page
+  // render — that additively appended/unioned blocks and sub-elements missing
+  // from a non-active breakpoint variant, on the theory that content should
+  // never silently "disappear" between Desktop/Tablet/Mobile. Three rounds of
+  // fixes (c75fcce reverted, then two same-day extensions) never fully closed
+  // the gap, and the user explicitly ended the approach as a "futile exercise":
+  // breakpoints are now fully INDEPENDENT after their initial seed. Going back
+  // and forth trying to keep them ambiently in sync was judged not worth it —
+  // the admin re-adds elements per breakpoint, or clicks the manual per-block
+  // "Reset Size/Position to Match Desktop" action, and that is the ONLY way
+  // content syncs across breakpoints from here on.
+  //
+  // WHAT REMAINS: reconcileVariantBlocks()/unionBlockSubElements() are still
+  // used, but ONLY for the one-time seed of a freshly-created Tablet/Mobile
+  // variant (public/flexible-designer.html's setDevicePreview, seeding from an
+  // empty target so the seed is a full scaled+clamped copy of Desktop — not an
+  // ongoing sync) and by scaleBlockToCanvas() (used by both that seed path and
+  // the manual per-block reset button). Do NOT re-wire these into an ambient
+  // call site (autosave, breakpoint switch of an already-seeded variant, undo,
+  // or the live renderer) — that is exactly what was removed.
+  //
+  // INVARIANTS (still true of what remains):
+  //   - every block already in the target stays at the same index, same order;
+  //     it is the SAME object reference (no heal, no clamp, ever) UNLESS another
+  //     variant's copy of that same block id has a sub-element it doesn't —
+  //     then it is a NEW shallow-copied block whose OWN existing subElements
+  //     keep their exact references/order/position, with only the missing ones
+  //     appended (scaled relative to this block's own untouched geometry);
+  //   - block ids missing from the target entirely are appended (scaled +
+  //     clamped clones, full content via JSON deep-clone before geometry is
+  //     overwritten);
+  //   - inputs are never mutated; appended clones share no refs with sources.
+
+  var DEFAULT_CANVAS_W = { desktop: 1440, tablet: 768, mobile: 375 };
+  var DEFAULT_CANVAS_H = 900; // mirrors DESIGN_H in both consumers
+  var MIN_BLOCK_W = 40;
+  var MIN_BLOCK_H = 24;
+  var MIN_SUB_W = 40;
+  var MIN_SUB_H = 24;
+  var BLOCK_BORDER = 2; // .container-block border
+
+  function isNum(v) {
+    return typeof v === "number" && isFinite(v);
+  }
+
+  /**
+   * Full authored canvas box of one variant blob: designerCanvasW (or the
+   * breakpoint default) x designerCanvasH (or 900) x multiLimit when multi.
+   * Never returns 0/NaN.
+   */
+  function variantCanvasDims(variant, key) {
+    var v = variant || {};
+    var w = Number(v.designerCanvasW);
+    var h = Number(v.designerCanvasH);
+    if (!(w > 0)) w = DEFAULT_CANVAS_W[key] || DEFAULT_CANVAS_W.desktop;
+    if (!(h > 0)) h = DEFAULT_CANVAS_H;
+    var bands = v.contentMode === "multi" ? Math.max(1, Number(v.multiLimit) || 1) : 1;
+    return { w: w, h: h * bands };
+  }
+
+  // Blocks travel in two shapes: LIVE {x,y,w,h} (Designer state) and PERSISTED
+  // {pixelPos:{x,y,w,h}} (saved JSON / live renderer). A live block never
+  // carries pixelPos and a persisted one never carries top-level x/y, so: a
+  // top-level value wins when present, else pixelPos, else a safe default.
+  function readGeom(block) {
+    var b = block || {};
+    var pp = b.pixelPos && typeof b.pixelPos === "object" ? b.pixelPos : {};
+    function pick(k, dflt) {
+      var raw = b[k] !== undefined && b[k] !== null && b[k] !== "" ? b[k] : pp[k];
+      if (raw === undefined || raw === null || raw === "") return dflt;
+      var n = Number(raw);
+      return isFinite(n) ? n : dflt;
+    }
+    return { x: pick("x", 0), y: pick("y", 0), w: pick("w", 300), h: pick("h", 180) };
+  }
+
+  // Write geometry back into whichever shape(s) the block already carries
+  // (LIVE top-level when neither is present). Returns a new object.
+  function writeGeom(block, g) {
+    var out = Object.assign({}, block);
+    var hasPP = !!(block.pixelPos && typeof block.pixelPos === "object");
+    var hasTop = block.x !== undefined || block.y !== undefined || block.w !== undefined || block.h !== undefined;
+    if (hasPP) out.pixelPos = Object.assign({}, block.pixelPos, { x: g.x, y: g.y, w: g.w, h: g.h });
+    if (hasTop || !hasPP) { out.x = g.x; out.y = g.y; out.w = g.w; out.h = g.h; }
+    return out;
+  }
+
+  function clampBlockGeom(g, dstW, dstH) {
+    var w = Math.round(g.w > 0 ? g.w : MIN_BLOCK_W);
+    var h = Math.round(g.h > 0 ? g.h : MIN_BLOCK_H);
+    w = Math.min(Math.max(w, MIN_BLOCK_W), dstW);
+    h = Math.min(Math.max(h, MIN_BLOCK_H), dstH);
+    return {
+      x: Math.max(0, Math.min(Math.round(g.x), dstW - w)),
+      y: Math.max(0, Math.min(Math.round(g.y), dstH - h)),
+      w: w,
+      h: h,
+    };
+  }
+
+  function scaleSub(sub, r) {
+    var out = Object.assign({}, sub);
+    if (isNum(sub.x)) out.x = Math.round(sub.x * r);
+    if (isNum(sub.y)) out.y = Math.round(sub.y * r);
+    if (isNum(sub.w)) out.w = Math.max(1, Math.round(sub.w * r));
+    if (isNum(sub.h)) out.h = Math.max(1, Math.round(sub.h * r));
+    return out;
+  }
+
+  // Sub-elements are FREE children (may legitimately sit outside the parent
+  // box), so a scaled child that is still on-CANVAS keeps its proportional
+  // spot. Only a child that would land off-canvas is pulled inside its (already
+  // on-canvas) block, which guarantees it is visible and draggable.
+  function placeSub(sub, block, g, dstW, dstH) {
+    var p = (block && block.props) || {};
+    var padX = p.paddingX !== undefined && p.paddingX !== null ? Number(p.paddingX) || 0 : 20;
+    var sx = isNum(sub.x) ? sub.x : 0;
+    var sy = isNum(sub.y) ? sub.y : 0;
+    var ax = g.x + BLOCK_BORDER + padX + sx;
+    var ay = g.y + sy;
+    if (ax >= 0 && ay >= 0 && ax <= dstW - MIN_SUB_W && ay <= dstH - MIN_SUB_H) return sub;
+    var out = Object.assign({}, sub);
+    var maxX = Math.max(0, g.w - 2 * BLOCK_BORDER - 2 * padX - MIN_SUB_W);
+    var maxY = Math.max(0, g.h - MIN_SUB_H);
+    out.x = Math.max(0, Math.min(sx, maxX));
+    out.y = Math.max(0, Math.min(sy, maxY));
+    if (isNum(out.w) && out.w > g.w) out.w = g.w;
+    return out;
+  }
+
+  /** Scale a (cloned) block + sub-elements by r onto a dstW x dstH canvas, clamped on-canvas. */
+  function scaleAndClampBlock(block, r, dstW, dstH) {
+    var g = readGeom(block);
+    var scaled = clampBlockGeom({ x: g.x * r, y: g.y * r, w: g.w * r, h: g.h * r }, dstW, dstH);
+    var out = writeGeom(block, scaled);
+    if (Array.isArray(block.subElements)) {
+      out.subElements = block.subElements.map(function (sub) {
+        if (!sub || typeof sub !== "object") return sub;
+        return placeSub(scaleSub(sub, r), block, scaled, dstW, dstH);
+      });
+    }
+    return out;
+  }
+
+  /**
+   * scaleBlockToCanvas(block, srcDims, dstDims): pure. Scales ONE block (+ its
+   * sub-elements) from a srcDims.w-wide source canvas onto a dstDims.w x
+   * dstDims.h destination canvas — the exact ratio+clamp math
+   * reconcileVariantBlocks() already applies to a newly-appended (missing)
+   * block, factored out here so a second caller (the Designer's per-block
+   * "Reset to proportional from Desktop" action, public/flexible-designer.html)
+   * can recompute the SAME geometry for one already-existing block without a
+   * second hand-copy of the math (ONE SYSTEM PER CONCERN, CLAUDE.md).
+   * reconcileVariantBlocks() itself now delegates to this function too, so the
+   * two call sites can never drift apart.
+   *
+   * ASSUMPTIONS:
+   * 1. `block` is in either LIVE ({x,y,w,h}) or PERSISTED ({pixelPos:{...}})
+   *    shape (see readGeom/writeGeom) — the returned block keeps that same shape.
+   * 2. `srcDims.h` is not used: clamping is only ever against the DESTINATION
+   *    box (matches scaleAndClampBlock/clampBlockGeom, which never reads a
+   *    source height either) — accepted anyway so a caller can pass the same
+   *    {w,h} shape variantCanvasDims() returns for both src and dst.
+   *
+   * FAILURE MODES:
+   * - srcDims/dstDims missing or non-positive width -> ratio falls back to 1
+   *   (no scaling), mirroring reconcileVariantBlocks' own `srcW > 0 ? dstW/srcW : 1` guard.
+   * - non-positive dstDims.w/h -> clampBlockGeom's own min-size floor still applies.
+   * @param {Object} block - source block (any shape readGeom/writeGeom understands).
+   * @param {{w:number}} srcDims - source canvas width.
+   * @param {{w:number,h:number}} dstDims - destination canvas box.
+   * @returns {Object} a NEW block object; source is never mutated.
+   */
+  function scaleBlockToCanvas(block, srcDims, dstDims) {
+    var srcW = srcDims && Number(srcDims.w) > 0 ? Number(srcDims.w) : 0;
+    var dstW = dstDims && Number(dstDims.w) > 0 ? Number(dstDims.w) : 0;
+    var dstH = dstDims && Number(dstDims.h) > 0 ? Number(dstDims.h) : 0;
+    var r = srcW > 0 ? dstW / srcW : 1;
+    return scaleAndClampBlock(JSON.parse(JSON.stringify(block)), r, dstW, dstH);
+  }
+
+  /**
+   * unionBlockSubElements(targetBlock, variants, targetKey, dstW, dstH): pure.
+   *
+   * Second reconcile granularity (2026-09-21, round 2 — see docs/main-cms-sync-prompt.md
+   * for the incident this closes): reconcileVariantBlocks() below only ever matched
+   * blocks by id at the TOP LEVEL — once a block id existed in the target, the whole
+   * block (including its subElements array) was returned untouched, even if another
+   * breakpoint's copy of that SAME block id had since gained sub-elements the target
+   * never got (e.g. Desktop's text-block grew a second heading after Tablet was
+   * seeded). This unions the target block's OWN subElements (kept, same references,
+   * same order) with any sub-element id present on another variant's copy of the same
+   * block id but missing from the target's copy — scaled and placed relative to the
+   * TARGET block's own actual (untouched) geometry, never Desktop's.
+   *
+   * ASSUMPTIONS:
+   * 1. Sub-element ids are unique within a block's subElements array and stable
+   *    across breakpoints (mirrors the block-id assumption above) — confirmed
+   *    against real designerData shapes (`se-<n>` in free-mode, `e<n>` in preset
+   *    templates), see public/flexible-designer.html's `subElements.find(s => s.id
+   *    === ...)` call sites.
+   * 2. The scale ratio for an appended sub-element is the TARGET block's own
+   *    current width over the SOURCE block's own width (not a canvas-level ratio)
+   *    — the target block's geometry is never touched by this function, so an
+   *    appended child must be scaled against the box it is actually landing in,
+   *    not the box its source block happened to have.
+   *
+   * FAILURE MODES this fixes (see docs/main-cms-sync-prompt.md entry for this fix):
+   * - A block present on Tablet/Mobile with fewer subElements than Desktop's same
+   *   block id permanently showed only the stale subset (missing heading/icon/
+   *   paragraph) — this was the actual cause of "half the content missing on
+   *   toggle", not a missing top-level block in the confirmed repro case.
+   * - A container block (text-block/card) renders its own background box only
+   *   when subElements.length === 0 (FlexibleSectionRenderer.tsx); a stale lower
+   *   sub-element count on Tablet/Mobile could flip that render branch and show
+   *   an extra background box Desktop never had. Backfilling the missing
+   *   sub-elements here also fixes that render-branch mismatch as a side effect.
+   *
+   * @param {Object} targetBlock - a block already present in the target array (untouched).
+   * @param {{desktop?:Object|null,tablet?:Object|null,mobile?:Object|null}} variants - source blobs.
+   * @param {'desktop'|'tablet'|'mobile'} targetKey
+   * @param {number} dstW - target canvas width (for placeSub's on-canvas check).
+   * @param {number} dstH - target canvas height (for placeSub's on-canvas check).
+   * @returns {Object} targetBlock unchanged (SAME reference) if nothing was missing,
+   *   else a NEW shallow-copied block whose subElements is targetBlock's own array
+   *   (same items, same order, same references) concatenated with the appended clones.
+   */
+  function unionBlockSubElements(targetBlock, variants, targetKey, dstW, dstH) {
+    var existingSubs = Array.isArray(targetBlock.subElements) ? targetBlock.subElements : [];
+    var seenSub = {};
+    for (var s = 0; s < existingSubs.length; s++) {
+      var sb = existingSubs[s];
+      if (sb && typeof sb === "object" && sb.id !== undefined && sb.id !== null) {
+        seenSub[String(sb.id)] = true;
+      }
+    }
+
+    var g = readGeom(targetBlock); // target block's OWN existing geometry — never touched
+    var appended = [];
+    var order = ["desktop", "tablet", "mobile"];
+    for (var i = 0; i < order.length; i++) {
+      var key = order[i];
+      if (key === targetKey) continue;
+      var src = variants[key];
+      if (!src || !Array.isArray(src.blocks)) continue;
+      var srcBlock = null;
+      for (var j = 0; j < src.blocks.length; j++) {
+        var cand = src.blocks[j];
+        if (cand && typeof cand === "object" && cand.id !== undefined && cand.id !== null &&
+            String(cand.id) === String(targetBlock.id)) {
+          srcBlock = cand;
+          break;
+        }
+      }
+      if (!srcBlock || !Array.isArray(srcBlock.subElements)) continue;
+      var srcG = readGeom(srcBlock);
+      var r = srcG.w > 0 ? g.w / srcG.w : 1;
+      for (var k = 0; k < srcBlock.subElements.length; k++) {
+        var sub = srcBlock.subElements[k];
+        if (!sub || typeof sub !== "object" || sub.id === undefined || sub.id === null) continue;
+        var subId = String(sub.id);
+        if (seenSub[subId]) continue;
+        seenSub[subId] = true;
+        // Full deep clone FIRST (content/props/icon-src/colour survive verbatim),
+        // geometry overwritten on top by scaleSub/placeSub — same pattern as
+        // scaleBlockToCanvas's JSON.parse(JSON.stringify(block)) below.
+        var clone = JSON.parse(JSON.stringify(sub));
+        appended.push(placeSub(scaleSub(clone, r), targetBlock, g, dstW, dstH));
+      }
+    }
+
+    if (appended.length === 0) return targetBlock; // nothing missing — same reference
+    var out = Object.assign({}, targetBlock);
+    out.subElements = existingSubs.concat(appended);
+    return out;
+  }
+
+  /**
+   * reconcileVariantBlocks(targetBlocks, variants, targetKey, dims): pure, ADDITIVE.
+   *
+   * ASSUMPTIONS:
+   *   1. Block ids are unique within a variant and stable across variants.
+   *   2. Source and target blocks are in the same shape (both LIVE in the
+   *      Designer, both PERSISTED in the renderer); an appended clone keeps its
+   *      source shape.
+   *   3. variants[targetKey] is only read for the target canvas box (its
+   *      .blocks are ignored; `targetBlocks` is the target list).
+   * FAILURE MODES:
+   *   - missing/NaN canvas dims -> breakpoint defaults (1440/768/375 x 900);
+   *   - null/garbage block entries in a source -> skipped; in the target -> kept as-is;
+   *   - zero/negative/NaN source geometry -> min-size floor + clamp.
+   *
+   * @param {Array<Object>|null} targetBlocks - target variant blocks; [] / null for a fresh seed.
+   * @param {{desktop?:Object|null,tablet?:Object|null,mobile?:Object|null}} variants - source blobs (+ target blob for its dims).
+   * @param {'desktop'|'tablet'|'mobile'} targetKey
+   * @param {{srcW?:number,dstW?:number,dstH?:number}} [dims] - dstW/dstH override the target box; srcW overrides the DESKTOP source width only.
+   * @returns {Array<Object>} NEW array: every existing target block at the SAME
+   *   index in the SAME order — the SAME reference when it already has every
+   *   sub-element another variant has for that block id, else a new shallow
+   *   copy with the missing sub-elements unioned in (see unionBlockSubElements)
+   *   — then appended clones of whole block ids missing entirely (Desktop
+   *   first, then the other variant).
+   */
+  function reconcileVariantBlocks(targetBlocks, variants, targetKey, dims) {
+    variants = variants || {};
+    dims = dims || {};
+    var target = Array.isArray(targetBlocks) ? targetBlocks : [];
+    var dstBox = variantCanvasDims(variants[targetKey], targetKey);
+    var dstW = Number(dims.dstW) > 0 ? Number(dims.dstW) : dstBox.w;
+    var dstH = Number(dims.dstH) > 0 ? Number(dims.dstH) : dstBox.h;
+
+    var seen = {};
+    for (var t = 0; t < target.length; t++) {
+      var tb0 = target[t];
+      if (tb0 && tb0.id !== undefined && tb0.id !== null) seen[String(tb0.id)] = true;
+    }
+
+    // Existing blocks stay at the same index, same order — union missing
+    // sub-elements into each (same reference back when there's nothing to add).
+    var result = target.map(function (tb) {
+      if (!tb || typeof tb !== "object" || tb.id === undefined || tb.id === null) return tb;
+      return unionBlockSubElements(tb, variants, targetKey, dstW, dstH);
+    });
+
+    var order = ["desktop", "tablet", "mobile"];
+    for (var i = 0; i < order.length; i++) {
+      var key = order[i];
+      if (key === targetKey) continue;
+      var src = variants[key];
+      if (!src || !Array.isArray(src.blocks)) continue;
+      var srcW = key === "desktop" && Number(dims.srcW) > 0 ? Number(dims.srcW) : variantCanvasDims(src, key).w;
+      for (var j = 0; j < src.blocks.length; j++) {
+        var b = src.blocks[j];
+        if (!b || typeof b !== "object" || b.id === undefined || b.id === null) continue;
+        var id = String(b.id);
+        if (seen[id]) continue;
+        seen[id] = true;
+        result.push(scaleBlockToCanvas(b, { w: srcW }, { w: dstW, h: dstH }));
+      }
+    }
+    return result;
+  }
+
+  // 2026-09-21 (SUPERSEDED — see docs/main-cms-sync-prompt.md): blocksChanged()
+  // used to detect whether reconcileVariantBlocks() actually changed a non-active
+  // variant (by reference, not just length) so callers could skip a no-op write.
+  // Removed — its only callers (buildJson's/applySnapshot's/setDevicePreview's
+  // ongoing non-active-variant reconcile, and FlexibleSectionRenderer's self-heal)
+  // were all removed per the same decision; reconcileVariantBlocks() itself is
+  // still used, but only at one-time seed, where its result is always written.
+
+  /** Returns a new block array without `id` (string-compared). Pure. */
+  function removeBlockId(blocks, id) {
+    if (!Array.isArray(blocks)) return blocks;
+    return blocks.filter(function (b) { return !b || String(b.id) !== String(id); });
+  }
+
   function serializeVariants(variants) {
     variants = variants || {};
     return {
@@ -176,6 +536,10 @@
     pickActiveVariant: pickActiveVariant,
     duplicateVariant: duplicateVariant,
     clampBlocksToCanvas: clampBlocksToCanvas,
+    variantCanvasDims: variantCanvasDims,
+    scaleBlockToCanvas: scaleBlockToCanvas,
+    reconcileVariantBlocks: reconcileVariantBlocks,
+    removeBlockId: removeBlockId,
     serializeVariants: serializeVariants,
   };
 });

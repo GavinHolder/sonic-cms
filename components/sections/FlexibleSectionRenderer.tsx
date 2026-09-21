@@ -13,7 +13,7 @@ import { animate } from "animejs";
 // source of truth also consumed by public/flexible-designer.html (see that file's
 // <script src="/flexible-render-rules.js"> and this module's own doc comment for why
 // it exists). Plain JS + hand-written flexible-render-rules.d.ts alongside it.
-import { computeSubElementStyle, computeSubElementPosition, computeMultiBgLayers } from "../../public/flexible-render-rules.js";
+import { computeSubElementStyle, computeSubElementPosition, computeMultiBgLayers, resolveBgPositionCss, resolveBackgroundPosForBreakpoint } from "../../public/flexible-render-rules.js";
 // Per-breakpoint independent layouts (2026-09-11) — shared shape-normalization/variant-
 // selection module (Task 1 of this feature). Companion to flexible-render-rules.js above;
 // see that file's own doc comment for the full designerData shape contract.
@@ -457,8 +457,16 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   // task-6-report.md's fix-up entry for the full trace.
   const activeBreakpointKey = pickBreakpointForWidth(mounted ? screenW : 1920);
   const resolvedDesignerVariants = useMemo(() => resolveVariants(designerData), [designerData]);
-  const { data: effectiveDesignerData, isFallback: isBreakpointFallback } =
+  const { data: pickedDesignerData, isFallback: isBreakpointFallback } =
     pickActiveVariant(resolvedDesignerVariants, activeBreakpointKey);
+  // 2026-09-21 (SUPERSEDED — see docs/main-cms-sync-prompt.md): this used to be a
+  // useMemo that additively self-healed a Tablet/Mobile variant by appending/unioning
+  // in any block/sub-element present on Desktop but missing here. Removed per explicit
+  // user decision — the live page now renders exactly what is stored for the resolved
+  // breakpoint variant, no injection. A breakpoint that is missing content shows
+  // exactly that; the admin syncs it manually in the Designer (per-block "Reset
+  // Size/Position to Match Desktop") rather than relying on ambient healing here.
+  const effectiveDesignerData = pickedDesignerData;
 
   // Dynamic Content Height Mode (contentMode === "dynamic") — how many 100vh "screens" this
   // section currently needs, computed live by DesignerBlocksRenderer from reported block
@@ -579,6 +587,43 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   const bgImagePosition = (section as any).bgImagePosition as string | undefined;
   const bgImageRepeat   = (section as any).bgImageRepeat   as string | undefined;
   const bgImageOpacity  = (section as any).bgImageOpacity  as number | undefined;
+  // Drag-to-reposition anchor for the section's OWN background image (2026-09-21,
+  // made independent per breakpoint later the same day — see
+  // resolveBackgroundPosForBreakpoint's doc comment in flexible-render-rules.js and
+  // docs/main-cms-sync-prompt.md for the full history) — 0-100 percentages, content
+  // JSONB (see FlexibleSectionEditorModal.tsx's matching backgroundPos state
+  // declaration for why not a schema column). Extends the block-level "Reposition
+  // Background" feature's convention (bgImageX/Y on a 'hero' block, imagePosX/Y on an
+  // 'image' block, both already resolved via resolveBgPositionCss elsewhere in this
+  // file) to the section's own background.
+  //
+  // content.backgroundPos = { desktop, tablet, mobile } — each entry an explicit
+  // {x,y} override or null ("not customized for this breakpoint yet"). Resolved for
+  // the ACTUAL rendering breakpoint via the shared resolveBackgroundPosForBreakpoint()
+  // picker (never hand-rolled here — ONE SYSTEM PER CONCERN, CLAUDE.md), using
+  // activeBreakpointKey — the SAME already-resolved breakpoint (pickBreakpointForWidth
+  // over screenW, computed once above) every other per-breakpoint decision in this
+  // component reads, so this can never disagree with them about which breakpoint is
+  // "active" right now. legacyX/legacyY (the pre-per-breakpoint flat fields) are kept
+  // as the final fallback layer so a section saved before this feature existed (no
+  // backgroundPos key at all) renders BYTE-IDENTICAL at every breakpoint — computed
+  // ONCE here and fed into every section-bg render site below (the non-plate div, and
+  // the free-mode cover-plate's bgImage.position) so they can never disagree.
+  const backgroundPos = (content as any).backgroundPos as
+    | { desktop: { x: number; y: number } | null; tablet: { x: number; y: number } | null; mobile: { x: number; y: number } | null }
+    | undefined;
+  const legacyBackgroundPosX = (content as any).backgroundPosX as number | undefined;
+  const legacyBackgroundPosY = (content as any).backgroundPosY as number | undefined;
+  const resolvedBackgroundPos = resolveBackgroundPosForBreakpoint(
+    backgroundPos ?? null,
+    activeBreakpointKey,
+    legacyBackgroundPosX ?? null,
+    legacyBackgroundPosY ?? null
+  );
+  const effectiveBgImagePosition =
+    resolvedBackgroundPos.x != null && resolvedBackgroundPos.y != null
+      ? resolveBgPositionCss(resolvedBackgroundPos.x, resolvedBackgroundPos.y)
+      : bgImagePosition;
   // "Repeat per section" (opt-in, default false — free+multi/dynamic sections only).
   // Unlike its bgImage* siblings above (real Section columns), this one is NOT a
   // schema column — it round-trips inside `content` JSONB, the same pattern already
@@ -855,7 +900,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
             zIndex: 0,
             backgroundImage: `url(${effectiveBgImageUrl})`,
             backgroundSize: bgImageSize || "cover",
-            backgroundPosition: bgImagePosition || "center",
+            backgroundPosition: effectiveBgImagePosition || "center",
             backgroundRepeat: bgImageRepeat || "no-repeat",
             opacity: (bgImageOpacity ?? 100) / 100,
             ...(bgMaskCss ? { maskImage: bgMaskCss, WebkitMaskImage: bgMaskCss } : {}),
@@ -901,7 +946,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           bgImage={{
             url: effectiveBgImageUrl,
             size: bgImageSize,
-            position: bgImagePosition,
+            position: effectiveBgImagePosition,
             repeat: bgImageRepeat,
             opacity: bgImageOpacity,
             maskCss: bgMaskCss,
@@ -2716,7 +2761,14 @@ function DesignerBlock({ block, darkBg, onContentHeight }: {
     height: heightModeAuto ? "auto" : "100%",
     overflow: heightModeAuto || isSelfSizingBlock ? "visible" : "hidden",
     borderRadius,
-    ...(bgImageSafe ? { background: `url("${bgImageSafe}") center/cover no-repeat` } : {}),
+    // Reposition Background Image feature (2026-09-15): bgImageX/bgImageY (0-100,
+    // written by the Designer's drag-to-reposition toggle — see startBgReposition
+    // in flexible-designer.html) resolve to a CSS position via the SAME shared
+    // helper the Designer canvas's createBlockPreview() uses for its 'hero'
+    // bgType:'image' case, so the admin's drag and the live page can never
+    // disagree (ONE SYSTEM PER CONCERN). Unset → "center", byte-identical to the
+    // pre-feature hardcoded default.
+    ...(bgImageSafe ? { background: `url("${bgImageSafe}") ${resolveBgPositionCss(p.bgImageX as number | undefined, p.bgImageY as number | undefined)}/cover no-repeat` } : {}),
     ...(!bgImageSafe && bgGradient ? { background: bgGradient } : {}),
     ...(borderWidthV > 0 && borderColorV ? { border: `${borderWidthV}px solid ${borderColorV}` } : {}),
     ...(borderTopWidthV > 0 && borderTopColorV ? { borderTop: `${borderTopWidthV}px solid ${borderTopColorV}` } : {}),
@@ -2889,7 +2941,13 @@ function DesignerBlock({ block, darkBg, onContentHeight }: {
         return (
           <div style={{ height: "100%", overflow: "hidden", minHeight: "200px" }}>
             {p.src
-              ? <img src={p.src as string} alt={(p.alt as string) || ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              // Reposition Background Image feature (2026-09-15): imagePosX/imagePosY
+              // (0-100, set via the Designer's drag-to-reposition toggle — see
+              // startBgReposition in flexible-designer.html) resolve to objectPosition
+              // via the SAME shared helper the Designer canvas uses for this block
+              // type's preview (createBlockPreview's 'image' case), so drag and live
+              // page can never disagree. Unset → "center", byte-identical to before.
+              ? <img src={p.src as string} alt={(p.alt as string) || ""} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: resolveBgPositionCss(p.imagePosX as number | undefined, p.imagePosY as number | undefined) }} />
               : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#adb5bd", background: "#f8f9fa" }}><i className="bi bi-image" style={{ fontSize: "3rem" }} /></div>
             }
           </div>
