@@ -14,7 +14,7 @@ import { animate } from "animejs";
 // source of truth also consumed by public/flexible-designer.html (see that file's
 // <script src="/flexible-render-rules.js"> and this module's own doc comment for why
 // it exists). Plain JS + hand-written flexible-render-rules.d.ts alongside it.
-import { computeSubElementStyle, computeSubElementPosition, computeMultiBgLayers, resolveBgPositionCss } from "../../public/flexible-render-rules.js";
+import { computeSubElementStyle, computeSubElementPosition, computeMultiBgLayers, resolveBgPositionCss, resolveBackgroundPosForBreakpoint } from "../../public/flexible-render-rules.js";
 // Per-breakpoint independent layouts (2026-09-11) — shared shape-normalization/variant-
 // selection module (Task 1 of this feature). Companion to flexible-render-rules.js above;
 // see that file's own doc comment for the full designerData shape contract.
@@ -718,23 +718,42 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   const bgImagePosition = (section as any).bgImagePosition as string | undefined;
   const bgImageRepeat   = (section as any).bgImageRepeat   as string | undefined;
   const bgImageOpacity  = (section as any).bgImageOpacity  as number | undefined;
-  // Drag-to-reposition anchor for the section's OWN background image (2026-09-21) —
-  // 0-100 percentages, content JSONB (see FlexibleSectionEditorModal.tsx's matching
-  // backgroundPosX/backgroundPosY state declaration for why not a schema column).
-  // Extends the block-level "Reposition Background" feature's convention (bgImageX/Y
-  // on a 'hero' block, imagePosX/Y on an 'image' block, both already resolved via
-  // resolveBgPositionCss elsewhere in this file) to the section's own background.
-  // Computed ONCE here and fed into every section-bg render site below (the non-plate
-  // div, and the free-mode cover-plate's bgImage.position) so they can never
-  // disagree — unset (null on either axis, the default for every section that
-  // predates this feature) falls through to the legacy free-text bgImagePosition
-  // field, itself already defaulting to "center" at every call site below: BYTE-
-  // IDENTICAL rendering for every existing section, no regression.
-  const backgroundPosX = (content as any).backgroundPosX as number | undefined;
-  const backgroundPosY = (content as any).backgroundPosY as number | undefined;
+  // Drag-to-reposition anchor for the section's OWN background image (2026-09-21,
+  // made independent per breakpoint later the same day — see
+  // resolveBackgroundPosForBreakpoint's doc comment in flexible-render-rules.js and
+  // docs/main-cms-sync-prompt.md for the full history) — 0-100 percentages, content
+  // JSONB (see FlexibleSectionEditorModal.tsx's matching backgroundPos state
+  // declaration for why not a schema column). Extends the block-level "Reposition
+  // Background" feature's convention (bgImageX/Y on a 'hero' block, imagePosX/Y on an
+  // 'image' block, both already resolved via resolveBgPositionCss elsewhere in this
+  // file) to the section's own background.
+  //
+  // content.backgroundPos = { desktop, tablet, mobile } — each entry an explicit
+  // {x,y} override or null ("not customized for this breakpoint yet"). Resolved for
+  // the ACTUAL rendering breakpoint via the shared resolveBackgroundPosForBreakpoint()
+  // picker (never hand-rolled here — ONE SYSTEM PER CONCERN, CLAUDE.md), using
+  // activeBreakpointKey — the SAME already-resolved breakpoint (pickBreakpointForWidth
+  // over screenW, computed once above) every other per-breakpoint decision in this
+  // component reads, so this can never disagree with them about which breakpoint is
+  // "active" right now. legacyX/legacyY (the pre-per-breakpoint flat fields) are kept
+  // as the final fallback layer so a section saved before this feature existed (no
+  // backgroundPos key at all) renders BYTE-IDENTICAL at every breakpoint — computed
+  // ONCE here and fed into every section-bg render site below (the non-plate div, and
+  // the free-mode cover-plate's bgImage.position) so they can never disagree.
+  const backgroundPos = (content as any).backgroundPos as
+    | { desktop: { x: number; y: number } | null; tablet: { x: number; y: number } | null; mobile: { x: number; y: number } | null }
+    | undefined;
+  const legacyBackgroundPosX = (content as any).backgroundPosX as number | undefined;
+  const legacyBackgroundPosY = (content as any).backgroundPosY as number | undefined;
+  const resolvedBackgroundPos = resolveBackgroundPosForBreakpoint(
+    backgroundPos ?? null,
+    activeBreakpointKey,
+    legacyBackgroundPosX ?? null,
+    legacyBackgroundPosY ?? null
+  );
   const effectiveBgImagePosition =
-    backgroundPosX != null && backgroundPosY != null
-      ? resolveBgPositionCss(backgroundPosX, backgroundPosY)
+    resolvedBackgroundPos.x != null && resolvedBackgroundPos.y != null
+      ? resolveBgPositionCss(resolvedBackgroundPos.x, resolvedBackgroundPos.y)
       : bgImagePosition;
   // "Repeat per section" (opt-in, default false — free+multi/dynamic sections only).
   // Unlike its bgImage* siblings above (real Section columns), this one is NOT a

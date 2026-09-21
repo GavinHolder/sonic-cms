@@ -113,3 +113,39 @@ export function resolveBgPositionCss(
   x: number | null | undefined,
   y: number | null | undefined
 ): string;
+
+/** One breakpoint's drag-to-reposition override for a section's own background image. */
+export interface BackgroundPosPoint {
+  x: number;
+  y: number;
+}
+
+/**
+ * Per-breakpoint override container for a FLEXIBLE section's own background
+ * image position (content.backgroundPos). Each entry is an explicit {x,y}
+ * override, or null meaning "not yet customized for this breakpoint — falls
+ * back per resolveBackgroundPosForBreakpoint's contract". Mirrors the
+ * {desktop,tablet,mobile} shape flexible-breakpoint-rules.js's
+ * resolveVariants()/pickActiveVariant() already use for per-breakpoint
+ * designerData, for consistency across the codebase's per-breakpoint data.
+ */
+export interface BackgroundPosVariants {
+  desktop: BackgroundPosPoint | null;
+  tablet: BackgroundPosPoint | null;
+  mobile: BackgroundPosPoint | null;
+}
+
+/**
+ * Resolves which {x,y} pair to use for a SECTION's own background position
+ * at a given breakpoint: an explicit per-breakpoint override, else (for
+ * tablet/mobile) Desktop's own override, else the legacy pre-per-breakpoint
+ * flat backgroundPosX/backgroundPosY pair, else {x:null,y:null} ("center").
+ * Feed the result straight into resolveBgPositionCss(x, y) above. See the
+ * doc comment in flexible-render-rules.js for the full contract.
+ */
+export function resolveBackgroundPosForBreakpoint(
+  backgroundPos: BackgroundPosVariants | Partial<BackgroundPosVariants> | null | undefined,
+  breakpoint: "desktop" | "tablet" | "mobile",
+  legacyX: number | null | undefined,
+  legacyY: number | null | undefined
+): { x: number | null; y: number | null };

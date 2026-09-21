@@ -20,7 +20,8 @@ import type { ScrollStageConfig, ScrollStageZoneConfig, ScrollStageZoneImageConf
 import { DEFAULT_LOWER_THIRD } from "@/lib/lower-third-presets";
 import { legacyToDesignerData } from "@/lib/flexible/legacy-to-designer";
 import { resolveVariants, serializeVariants } from "../../public/flexible-breakpoint-rules.js";
-import { resolveBgPositionCss } from "../../public/flexible-render-rules.js";
+import { resolveBgPositionCss, resolveBackgroundPosForBreakpoint } from "../../public/flexible-render-rules.js";
+import type { BackgroundPosVariants } from "../../public/flexible-render-rules.js";
 import { useConfirm } from "@/components/admin/ConfirmProvider";
 import {
   PRESET_COLORS,
@@ -210,23 +211,62 @@ export default function FlexibleSectionEditorModal({
   const [bgImageRepeat, setBgImageRepeat] = useState(section.bgImageRepeat || "no-repeat");
   const [bgImageOpacity, setBgImageOpacity] = useState(section.bgImageOpacity ?? 100);
   const [bgParallax, setBgParallax] = useState(section.bgParallax || false);
-  // Drag-to-reposition anchor for the SECTION's own background image (2026-09-21) —
-  // 0-100 percentages, same convention + shared resolveBgPositionCss() resolution as
-  // the block-level "Reposition Background" feature (bgImageX/Y on a 'hero' block,
-  // imagePosX/Y on an 'image' block — see public/flexible-designer.html's
-  // startBgReposition), extended here to the section's own background. null = not
-  // yet dragged — falls back to the legacy free-text bgImagePosition field above
-  // (byte-identical default for every existing section, which never set these).
-  // Persisted inside content JSONB — same "no schema column for a first-cut,
-  // deliberately scoped feature" pattern as bgMultiRepeat just below (bgImageUrl/
-  // bgImageSize/bgImagePosition themselves ARE real Section columns, but adding new
-  // ones for this would need a migration; content JSONB needs none).
-  const [backgroundPosX, setBackgroundPosX] = useState<number | null>(
-    typeof contentAny?.backgroundPosX === "number" ? contentAny.backgroundPosX : null
-  );
-  const [backgroundPosY, setBackgroundPosY] = useState<number | null>(
-    typeof contentAny?.backgroundPosY === "number" ? contentAny.backgroundPosY : null
-  );
+  // Drag-to-reposition anchor for the SECTION's own background image (2026-09-21,
+  // made independent per breakpoint later the same day — see docs/main-cms-sync-prompt.md
+  // and resolveBackgroundPosForBreakpoint's doc comment in flexible-render-rules.js for
+  // the full history) — 0-100 percentages per breakpoint, same convention + shared
+  // resolveBgPositionCss() resolution as the block-level "Reposition Background" feature
+  // (bgImageX/Y on a 'hero' block, imagePosX/Y on an 'image' block — see
+  // public/flexible-designer.html's startBgReposition), extended here to the section's
+  // own background.
+  //
+  // Shape: { desktop, tablet, mobile }, each entry {x,y} or null ("not yet customized for
+  // this breakpoint — falls back", exactly like flexible-breakpoint-rules.js's own
+  // resolveVariants()/pickActiveVariant() {desktop,tablet,mobile} shape for designerData —
+  // reused here for consistency across the codebase's per-breakpoint data, see that
+  // module's own doc comment). Persisted inside content JSONB at content.backgroundPos —
+  // same "no schema column for a first-cut, deliberately scoped feature" pattern as
+  // bgMultiRepeat just below (bgImageUrl/bgImageSize/bgImagePosition themselves ARE real
+  // Section columns, but adding new ones for this would need a migration; content JSONB
+  // needs none).
+  //
+  // Legacy compat: a section saved before per-breakpoint support (content.backgroundPos
+  // absent, only the flat content.backgroundPosX/backgroundPosY pair — dc7435d/#205) is
+  // migrated forward HERE, in local state only, as Desktop's initial value — Tablet/Mobile
+  // start at null (no override yet), which resolveBackgroundPosForBreakpoint below treats
+  // as "inherit Desktop", so nothing regresses for any breakpoint on an untouched legacy
+  // section (byte-identical rendering — see the shared resolver's own contract).
+  const legacyBackgroundPosX: number | null =
+    typeof contentAny?.backgroundPosX === "number" ? contentAny.backgroundPosX : null;
+  const legacyBackgroundPosY: number | null =
+    typeof contentAny?.backgroundPosY === "number" ? contentAny.backgroundPosY : null;
+  const [backgroundPos, setBackgroundPos] = useState<BackgroundPosVariants>(() => {
+    const normalizePoint = (p: unknown): { x: number; y: number } | null => {
+      if (!p || typeof p !== "object") return null;
+      const px = (p as { x?: unknown }).x;
+      const py = (p as { y?: unknown }).y;
+      return typeof px === "number" && typeof py === "number" ? { x: px, y: py } : null;
+    };
+    const raw = contentAny?.backgroundPos;
+    if (raw && typeof raw === "object") {
+      return {
+        desktop: normalizePoint(raw.desktop) ??
+          (legacyBackgroundPosX != null && legacyBackgroundPosY != null
+            ? { x: legacyBackgroundPosX, y: legacyBackgroundPosY }
+            : null),
+        tablet: normalizePoint(raw.tablet),
+        mobile: normalizePoint(raw.mobile),
+      };
+    }
+    return {
+      desktop:
+        legacyBackgroundPosX != null && legacyBackgroundPosY != null
+          ? { x: legacyBackgroundPosX, y: legacyBackgroundPosY }
+          : null,
+      tablet: null,
+      mobile: null,
+    };
+  });
   // "Repeat per section" — free+multi/dynamic sections only. Tiles the bg image once
   // per 100vh band instead of stretching one copy across the whole multiLimit-band
   // design (see computeMultiBgLayers in public/flexible-render-rules.js). Persisted
@@ -367,10 +407,18 @@ export default function FlexibleSectionEditorModal({
         designerData: syncedDesignerData || null,
         layout,
         gradient,
-        // Drag-to-reposition anchor for the section's own background image — see the
-        // backgroundPosX state declaration's own comment
-        backgroundPosX,
-        backgroundPosY,
+        // Drag-to-reposition anchor for the section's own background image, independent
+        // per breakpoint — see the backgroundPos state declaration's own comment.
+        backgroundPos,
+        // Legacy mirror, kept equal to Desktop's resolved position — see the
+        // legacyBackgroundPosX/Y consts' own comment. Any code that still reads the old
+        // flat fields directly (this modal's own FLEXIBLE_DESIGNER_INIT sectionBackground
+        // payload to the Designer canvas preview, and any section saved before this
+        // per-breakpoint upgrade existed) keeps working: a plain reader gets Desktop's
+        // value, and resolveBackgroundPosForBreakpoint's legacy-fallback parameter is fed
+        // this same pair for every breakpoint on a truly legacy (backgroundPos-less) row.
+        backgroundPosX: backgroundPos.desktop?.x ?? null,
+        backgroundPosY: backgroundPos.desktop?.y ?? null,
         // "Repeat per section" — see the bgMultiRepeat state declaration's own comment
         bgMultiRepeat,
         // Background-image fade/MASK (#60)
@@ -489,8 +537,12 @@ export default function FlexibleSectionEditorModal({
             bgImagePosition,
             bgImageRepeat,
             bgImageOpacity,
-            backgroundPosX,
-            backgroundPosY,
+            // Designer-canvas preview is Desktop-only (view-only there), so mirror
+            // Desktop's resolved position, same as the persisted legacy backgroundPosX/Y
+            // mirror in handleSave above — flexible-designer.html's own reader of this
+            // payload (resolveSectionBg) is untouched by the per-breakpoint upgrade.
+            backgroundPosX: backgroundPos.desktop?.x ?? null,
+            backgroundPosY: backgroundPos.desktop?.y ?? null,
             bgMultiRepeat,
             gradient: backgroundType === "gradient"
               ? { enabled: true, type: "preset", preset: { direction: gradientDirection, startOpacity: gradientStartOpacity, endOpacity: gradientEndOpacity, color: gradientColor } }
@@ -521,7 +573,7 @@ export default function FlexibleSectionEditorModal({
     }
   }, [designerData, contentMode, layout, draftKey, section, confirm,
       backgroundType, background, bgImageUrl, bgImageSize, bgImagePosition, bgImageRepeat, bgImageOpacity, bgMultiRepeat,
-      backgroundPosX, backgroundPosY,
+      backgroundPos,
       gradientDirection, gradientStartOpacity, gradientEndOpacity, gradientColor]);
 
   useEffect(() => {
@@ -1154,21 +1206,49 @@ export default function FlexibleSectionEditorModal({
                       </div>
                       <div className="row mb-4">
                         <div className="col-12">
-                          <label className="form-label">Reposition Background</label>
+                          <label className="form-label d-flex align-items-center gap-2 flex-wrap">
+                            Reposition Background
+                            {/* Breakpoint-scoped indicator — reuses the SAME "Preview as"
+                                Desktop/Tablet/Mobile switcher driving the live preview pane
+                                (previewViewport, SectionLivePreview below) rather than a
+                                second breakpoint UI, per the per-breakpoint background
+                                position feature's design (2026-09-21). */}
+                            <span className="badge bg-primary bg-opacity-10 text-primary">
+                              <i
+                                className={`bi me-1 ${
+                                  previewViewport === "desktop" ? "bi-laptop" : previewViewport === "tablet" ? "bi-tablet" : "bi-phone"
+                                }`}
+                              />
+                              {previewViewport.charAt(0).toUpperCase() + previewViewport.slice(1)} position
+                            </span>
+                            {backgroundPos[previewViewport] == null && (
+                              <span className="badge bg-secondary bg-opacity-10 text-secondary">
+                                Inherited{previewViewport !== "desktop" ? " from Desktop" : ""}
+                              </span>
+                            )}
+                          </label>
                           <BackgroundRepositionPreview
                             imageUrl={bgImageUrl}
                             size={bgImageSize}
-                            x={backgroundPosX}
-                            y={backgroundPosY}
-                            onChange={(nx, ny) => { setBackgroundPosX(nx); setBackgroundPosY(ny); }}
+                            x={resolveBackgroundPosForBreakpoint(backgroundPos, previewViewport, legacyBackgroundPosX, legacyBackgroundPosY).x}
+                            y={resolveBackgroundPosForBreakpoint(backgroundPos, previewViewport, legacyBackgroundPosX, legacyBackgroundPosY).y}
+                            onChange={(nx, ny) =>
+                              setBackgroundPos((prev) => ({ ...prev, [previewViewport]: { x: nx, y: ny } }))
+                            }
                           />
-                          {backgroundPosX != null && (
+                          <small className="text-muted d-block mt-1">
+                            Switch &quot;Preview as&quot; in the live preview pane to set a different crop position for
+                            Desktop, Tablet, and Mobile independently.
+                          </small>
+                          {backgroundPos[previewViewport] != null && (
                             <button
                               type="button"
                               className="btn btn-sm btn-outline-secondary mt-2"
-                              onClick={() => { setBackgroundPosX(null); setBackgroundPosY(null); }}
+                              onClick={() => setBackgroundPos((prev) => ({ ...prev, [previewViewport]: null }))}
                             >
-                              <i className="bi bi-arrow-counterclockwise me-1" />Clear drag position (use Background Position field instead)
+                              <i className="bi bi-arrow-counterclockwise me-1" />
+                              Clear {previewViewport.charAt(0).toUpperCase() + previewViewport.slice(1)} drag position
+                              {previewViewport === "desktop" ? " (use Background Position field instead)" : " (inherit Desktop's instead)"}
                             </button>
                           )}
                         </div>
