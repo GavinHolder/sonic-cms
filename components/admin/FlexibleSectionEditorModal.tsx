@@ -17,6 +17,7 @@ import MotionElementEditor, { createDefaultMotionElement } from "@/components/ad
 import { defaultScrollStage, defaultZone, defaultThreeZone } from "@/components/sections/scroll-stage/types";
 import type { ScrollStageConfig, ScrollStageZoneConfig, ScrollStageZoneImageConfig, ScrollStageZoneThreeConfig } from "@/components/sections/scroll-stage/types";
 import { DEFAULT_LOWER_THIRD } from "@/lib/lower-third-presets";
+import { legacyToDesignerData } from "@/lib/flexible/legacy-to-designer";
 import {
   PRESET_COLORS,
   generatePalette,
@@ -266,7 +267,13 @@ export default function FlexibleSectionEditorModal({
       // Check for unsaved draft first (survives unexpected designer closes)
       let draft: string | null = null;
       try { draft = localStorage.getItem(draftKey); } catch {}
-      const initPayload = draft || designerData || JSON.stringify({
+      // Legacy sections (seeded as content.elements + mosaic layout, no designerData)
+      // open blank in the canvas. Synthesise an editable designerData payload from the
+      // legacy content so the canvas is populated. Returns "" when there are no legacy
+      // elements. We DON'T setDesignerData here — real designerData is written only when
+      // the user saves in the designer, so nothing is mutated until they confirm.
+      const legacySynth = !designerData ? legacyToDesignerData(section.content as Record<string, unknown>) : "";
+      const initPayload = draft || designerData || legacySynth || JSON.stringify({
         contentMode,
         layoutType: layout.type || "preset",
         grid: { rows: 2, cols: 3, gap: 16 },
@@ -291,7 +298,7 @@ export default function FlexibleSectionEditorModal({
       setShowDesigner(false);
       setActiveTab("preview");
     }
-  }, [designerData, contentMode, layout, draftKey]);
+  }, [designerData, contentMode, layout, draftKey, section]);
 
   useEffect(() => {
     window.addEventListener("message", handleDesignerMessage);

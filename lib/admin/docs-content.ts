@@ -972,6 +972,8 @@ The block panel on the left contains **16 element types**. **Card, Banner, and S
 
 - **contact-form** — A contact form block that submits to the site's contact email via \`/api/contact\`. Configure which fields are visible (name, email, phone, message, subject), the submit button label, and the success message shown after submission. Styled to work on both light and dark backgrounds.
 - **how-steps** — A numbered process step card. Displays a large step number (e.g. "01") in a coloured circle, a bold title, and a description. Includes a dashed connector line extending to the right — set \`isLast: true\` on the final step to hide the connector. Use 3–4 of these in a row grid for a "How It Works" section.
+- **card content fields** — A card's **Eyebrow / Heading / Subheading / Body / Card Number / Chips** are editable directly in the Designer's card properties panel (chips are entered comma-separated). These render via the mosaic/card renderer and show in the live Preview tab.
+- **legacy sections open automatically** — Sections authored before the Designer (stored as legacy elements + a mosaic layout) now load straight into the canvas instead of showing blank. Edit them and **Save & Close** to convert the section to standard Designer data — the public page renders identically before and after.
 
 ---
 
