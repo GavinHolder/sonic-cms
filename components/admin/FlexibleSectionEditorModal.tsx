@@ -64,6 +64,9 @@ export default function FlexibleSectionEditorModal({
     if (!raw) return null;
     return typeof raw === "string" ? raw : JSON.stringify(raw);
   });
+  // True after the designer reports Save/Done but the SECTION hasn't been persisted yet.
+  // Drives the footer "unsaved" warning + a close guard so designer work isn't silently lost.
+  const [sectionDirty, setSectionDirty] = useState(false);
   // Draft key — persists unsaved designer work to localStorage so it survives unexpected closes
   const draftKey = `cms_flexible_draft_${section.id}`;
   // Track which designer blocks are expanded in the accordion
@@ -184,6 +187,10 @@ export default function FlexibleSectionEditorModal({
 
   // ── Save ──────────────────────────────────────────────────────
   const handleCancel = () => {
+    // Guard against silently discarding designer work that hasn't been saved to the section.
+    if (sectionDirty && !window.confirm(
+      "You saved changes in the designer, but the SECTION hasn't been saved yet.\n\nClose and lose those changes?"
+    )) return;
     try { localStorage.removeItem(draftKey); } catch {}
     onCancel();
   };
@@ -191,6 +198,7 @@ export default function FlexibleSectionEditorModal({
   const handleSave = (shouldClose = true) => {
     // Clear draft — data is now properly committed to section storage
     try { localStorage.removeItem(draftKey); } catch {}
+    setSectionDirty(false);   // section persisted — no longer dirty
     const gradient = backgroundType === "gradient"
       ? { enabled: true, type: "preset" as const, preset: { direction: gradientDirection as any, startOpacity: gradientStartOpacity, endOpacity: gradientEndOpacity, color: gradientColor } }
       : undefined;
@@ -287,6 +295,7 @@ export default function FlexibleSectionEditorModal({
     }
     if (e.data.type === "FLEXIBLE_DESIGNER_SAVE" || e.data.type === "FLEXIBLE_DESIGNER_DONE") {
       setDesignerData(e.data.payload);
+      setSectionDirty(true);   // designer saved, but the section still needs saving to persist
       // Persist to draft so data survives if modal closes unexpectedly
       try { localStorage.setItem(draftKey, e.data.payload); } catch {}
       if (e.data.type === "FLEXIBLE_DESIGNER_DONE") {
@@ -1253,6 +1262,12 @@ export default function FlexibleSectionEditorModal({
 
             {/* Footer */}
             <div className="modal-footer">
+              {sectionDirty && (
+                <div style={{ marginRight: "auto", display: "flex", alignItems: "center", gap: 8, color: "#b45309", fontWeight: 600, fontSize: 13 }}>
+                  <i className="bi bi-exclamation-triangle-fill" />
+                  <span>Unsaved — designer changes aren&apos;t saved until you click <strong>Save</strong> here</span>
+                </div>
+              )}
               <button type="button" className="btn btn-secondary" onClick={handleCancel}>
                 <i className="bi bi-x-circle me-2" />Cancel
               </button>

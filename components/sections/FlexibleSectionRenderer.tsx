@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useEffect, useRef, useState, useCallback, useId } from "react";
+import { useEffect, useRef, useState, useCallback, useId, useMemo } from "react";
 import dynamic from "next/dynamic";
 import type { FlexibleSection, FlexibleElement, FlexibleAnimationType } from "@/types/section";
 import type { AnimBgConfig } from "@/lib/anim-bg/types";
@@ -1002,6 +1002,57 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
     window.addEventListener("resize", onResize, { passive: true });
     return () => window.removeEventListener("resize", onResize);
   }, []);
+  // Measured width of the free-mode stage container — drives the 1:1 scale factor so the
+  // live section is a pixel-exact scaled copy of the designer canvas (see free-mode branch).
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [stageW, setStageW] = useState(0);
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => setStageW(el.clientWidth));
+    ro.observe(el);
+    setStageW(el.clientWidth);
+    return () => ro.disconnect();
+  }, []);
+
+  // ── Google Font loading ───────────────────────────────────────────────────
+  // The designer stores a chosen font as props.fontFamily (e.g. "'Poppins', sans-serif")
+  // and the render path applies it as CSS — but nothing LOADS the webfont in the
+  // published page. Without the stylesheet the browser falls back to the default
+  // family, so a saved font appears to "revert to default" on save/reload.
+  // Collect every family referenced by blocks + sub-elements and inject the
+  // matching Google Fonts stylesheet once (guarded by a derived id).
+  // TODO(custom-fonts): user-UPLOADED font files (not Google Fonts) need a stored
+  // @font-face source (URL/API) before they can load here — out of scope for now.
+  const designerFonts = useMemo(() => {
+    const GENERIC = new Set(["inherit", "sans-serif", "serif", "monospace", "cursive", "fantasy", "system-ui", "ui-sans-serif", "ui-serif", "ui-monospace"]);
+    const fams = new Set<string>();
+    const add = (v: unknown) => {
+      if (typeof v !== "string") return;
+      const m = v.match(/'([^']+)'/) || v.match(/^([^,]+)/);
+      const name = (m ? m[1] : v).trim().replace(/^["']|["']$/g, "");
+      if (!name || name.startsWith("-") || GENERIC.has(name.toLowerCase())) return;
+      fams.add(name);
+    };
+    try {
+      const d = typeof designerData === "string" ? JSON.parse(designerData) : designerData;
+      for (const b of ((d?.blocks as Array<{ props?: Record<string, unknown>; subElements?: Array<{ props?: Record<string, unknown> }> }>) || [])) {
+        add(b?.props?.fontFamily);
+        for (const se of (b?.subElements || [])) add(se?.props?.fontFamily);
+      }
+    } catch { /* parse errors handled in the render try/catch below */ }
+    return [...fams];
+  }, [designerData]);
+  useEffect(() => {
+    for (const fam of designerFonts) {
+      const id = "gf-" + fam.replace(/\s+/g, "-");
+      if (document.getElementById(id)) continue;
+      const l = document.createElement("link");
+      l.id = id; l.rel = "stylesheet";
+      l.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(fam).replace(/%20/g, "+")}:wght@400;700&display=swap`;
+      document.head.appendChild(l);
+    }
+  }, [designerFonts]);
 
   try {
     const data = typeof designerData === 'string' ? JSON.parse(designerData) : designerData;
@@ -1062,37 +1113,63 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
       );
     }
 
-    // ── Free / absolute positioning mode ──────────────────────────────────
+    // ── Free / absolute positioning mode — 1:1 SCALED STAGE ────────────────
+    // The designer canvas is a fixed cw×ch px stage with px fonts. To render EXACTLY like
+    // the designer at any viewport, we reproduce that stage in absolute PX (children exactly
+    // as designed) and scale the WHOLE stage by (containerWidth / cw). The live section is
+    // then a pixel-exact scaled photograph of the canvas — identical wrapping, sizes and
+    // positions at every width. (Percent-positions + px-fonts could never be 1:1; that drift
+    // was the recurring "designer ≠ live" bug.)
     if (isFreeMode) {
-      // cw/ch are the canvas dimensions recorded by the designer at save time
-      const cw = data.designerCanvasW || 1200;
-      const ch = data.designerCanvasH || 800;
-
+      const cw = data.designerCanvasW || 1440;
+      const ch = data.designerCanvasH || 900;
+      const scale = (stageW || screenW || cw) / cw;
       return (
-        <div style={{
+        <div ref={stageRef} style={{
           position: "relative",
           width: "100%",
-          height: containerH,
-          minHeight: containerH,
+          height: Math.round(ch * scale),
           overflow: "hidden",
         }}>
-          {filteredBlocks.map((block) => {
-            // Pick the responsive position set and reference canvas width for this block
-            const pos = pickPos(block, screenW);
-            const refW = canvasRefW(block, cw, screenW);
-            return (
-              <div key={block.id} style={{
-                position: "absolute",
-                left:   pct(pos.x, refW),
-                top:    pct(pos.y, ch),
-                width:  pct(pos.w, refW),
-                height: pct(pos.h, ch),
-                overflow: "hidden",
-              }}>
-                <DesignerBlock block={block} darkBg={darkBg} />
-              </div>
-            );
-          })}
+          <div style={{
+            position: "absolute", top: 0, left: 0,
+            width: cw, height: ch,
+            transform: `scale(${scale})`,
+            transformOrigin: "top left",
+          }}>
+            {filteredBlocks.map((block) => {
+              // Always the DESKTOP design layout — the whole stage scales, so there is no
+              // per-breakpoint reflow by default (exact 1:1). Per-breakpoint mobile layouts
+              // are a future opt-in.
+              const pos = block.pixelPos || { x: 0, y: 0, w: 300, h: 180 };
+              const subs = (block.subElements || []) as SubEl[];
+              const isContainer = block.type === "text" || block.type === "text-block" || block.type === "card";
+              if (isContainer && subs.length > 0) {
+                // Free-form children in ABSOLUTE design px (block origin + child offset).
+                return subs.map((sub, si) => (
+                  <div key={String(block.id) + "-" + si} style={{
+                    position: "absolute",
+                    left: (pos.x || 0) + (sub.x || 0),
+                    top:  (pos.y || 0) + (sub.y || 0),
+                    width: sub.w != null ? sub.w : "auto",
+                    height: sub.h != null ? sub.h : undefined,
+                  }}>
+                    <DesignerSubElement sub={sub} />
+                  </div>
+                ));
+              }
+              // Non-container block (hero, image, packages, etc.): whole block at its design px box.
+              return (
+                <div key={block.id} style={{
+                  position: "absolute",
+                  left: pos.x, top: pos.y, width: pos.w, height: pos.h,
+                  overflow: "hidden",
+                }}>
+                  <DesignerBlock block={block} darkBg={darkBg} />
+                </div>
+              );
+            })}
+          </div>
         </div>
       );
     }
@@ -1214,7 +1291,7 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
  * - Scroll-triggered entrance animation via IntersectionObserver
  * - Content delegation to renderInner() which switches on block.type
  */
-type SubEl = { type: string; props?: Record<string, unknown>; x?: number; y?: number; w?: number | null };
+type SubEl = { type: string; props?: Record<string, unknown>; x?: number; y?: number; w?: number | null; h?: number | null };
 
 /**
  * Groups sub-elements into columns by clustering their x positions.
