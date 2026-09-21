@@ -83,7 +83,11 @@ public/uploads/
 .superpowers/
 
 # ad-hoc scripts and screenshots (local dev only)
-/scripts/
+# `/scripts/*` (not `/scripts/`) so individual files can be re-included: git cannot re-include
+# a file whose parent directory is itself ignored.
+/scripts/*
+!/scripts/check-route-guards.mjs
+!/scripts/verify-write-guards.sh
 /screenshots/
 
 # backup archives (generated via admin panel)
