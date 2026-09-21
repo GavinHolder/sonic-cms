@@ -13,6 +13,8 @@ interface ImageFieldWithUploadProps {
   helpText?: string;
   acceptedTypes?: string;
   previewMaxHeight?: string;
+  /** "video" = media library filtered to videos, upload accepts video/*, preview is a <video>. Default "image". */
+  mediaType?: "image" | "video";
 }
 
 /**
@@ -26,9 +28,12 @@ export default function ImageFieldWithUpload({
   placeholder = "/images/example.jpg",
   required = false,
   helpText,
-  acceptedTypes = "image/*",
+  acceptedTypes,
   previewMaxHeight = "150px",
+  mediaType = "image",
 }: ImageFieldWithUploadProps) {
+  const isVideo = mediaType === "video";
+  const uploadAccept = acceptedTypes ?? (isVideo ? "video/*" : "image/*");
   const [showMediaPicker, setShowMediaPicker] = useState(false);
   const [showMediaUpload, setShowMediaUpload] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -72,22 +77,45 @@ export default function ImageFieldWithUpload({
           <i className="bi bi-cloud-upload me-1"></i>
           Upload
         </button>
+        {value && (
+          <button
+            type="button"
+            className="btn btn-outline-danger"
+            onClick={() => handleChange("")}
+            title={`Clear this ${isVideo ? "video" : "image"} (empties the field only — does not delete the file from the media library)`}
+          >
+            <i className="bi bi-x-lg me-1"></i>
+            Clear
+          </button>
+        )}
       </div>
       {helpText && <div className="form-text">{helpText}</div>}
 
-      {/* Image Preview */}
+      {/* Image / Video Preview */}
       {value && (
         <div className="mt-2">
           {imgError ? (
             <div className="alert alert-warning d-flex align-items-center gap-2 py-2 mb-0">
-              <i className="bi bi-image text-warning flex-shrink-0"></i>
+              <i className={`bi ${isVideo ? "bi-camera-video" : "bi-image"} text-warning flex-shrink-0`}></i>
               <div style={{ minWidth: 0, flex: 1 }}>
-                <strong>Image not found</strong>
+                <strong>{isVideo ? "Video" : "Image"} not found</strong>
                 <div className="small text-muted" style={{ wordBreak: "break-all" }}>
                   Path: {value}
                 </div>
               </div>
             </div>
+          ) : isVideo ? (
+            <video
+              key={value}
+              src={value}
+              muted
+              playsInline
+              preload="metadata"
+              controls
+              className="img-thumbnail"
+              style={{ maxHeight: previewMaxHeight, width: "auto", maxWidth: "100%" }}
+              onError={() => setImgError(true)}
+            />
           ) : (
             <img
               key={value}
@@ -106,7 +134,7 @@ export default function ImageFieldWithUpload({
         isOpen={showMediaPicker}
         onClose={() => setShowMediaPicker(false)}
         onSelect={(url) => { setImgError(false); handleChange(url); }}
-        filterType="image"
+        filterType={mediaType}
       />
 
       {/* Media Upload Modal */}
@@ -114,7 +142,7 @@ export default function ImageFieldWithUpload({
         isOpen={showMediaUpload}
         onClose={() => setShowMediaUpload(false)}
         onUploadComplete={(url) => { setImgError(false); handleChange(url); }}
-        acceptedTypes={acceptedTypes}
+        acceptedTypes={uploadAccept}
       />
     </>
   );

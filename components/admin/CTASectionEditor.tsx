@@ -856,17 +856,13 @@ export default function CTASectionEditor({
                 {/* Image Background */}
                 {backgroundType === "image" && (
                   <div className="mb-4">
-                    <label className="form-label fw-semibold">Background Image URL</label>
-                    <input
-                      type="text"
-                      className="form-control"
+                    <ImageFieldWithUpload
+                      label="Background Image"
                       value={backgroundImage}
-                      onChange={(e) => setBackgroundImage(e.target.value)}
+                      onChange={setBackgroundImage}
                       placeholder="/images/hero-bg.jpg"
+                      helpText="Browse the Media Library, upload a new image, or paste an image URL/path."
                     />
-                    <small className="form-text text-muted">
-                      Path to background image
-                    </small>
                   </div>
                 )}
 
@@ -874,31 +870,24 @@ export default function CTASectionEditor({
                 {backgroundType === "video" && (
                   <>
                     <div className="mb-4">
-                      <label className="form-label fw-semibold">Background Video URL</label>
-                      <input
-                        type="text"
-                        className="form-control"
+                      <ImageFieldWithUpload
+                        label="Background Video"
+                        mediaType="video"
                         value={backgroundVideo}
-                        onChange={(e) => setBackgroundVideo(e.target.value)}
+                        onChange={setBackgroundVideo}
                         placeholder="/videos/hero-video.mp4"
+                        helpText="Browse the Media Library, upload a video (MP4 recommended), or paste a video URL/path."
                       />
-                      <small className="form-text text-muted">
-                        Path to video file (MP4 recommended)
-                      </small>
                     </div>
 
                     <div className="mb-4">
-                      <label className="form-label fw-semibold">Video Poster Image</label>
-                      <input
-                        type="text"
-                        className="form-control"
+                      <ImageFieldWithUpload
+                        label="Video Poster Image"
                         value={videoPoster}
-                        onChange={(e) => setVideoPoster(e.target.value)}
+                        onChange={setVideoPoster}
                         placeholder="/images/video-poster.jpg"
+                        helpText="Image shown before the video loads."
                       />
-                      <small className="form-text text-muted">
-                        Image shown before video loads
-                      </small>
                     </div>
                   </>
                 )}
@@ -1472,17 +1461,13 @@ export default function CTASectionEditor({
                     </h6>
 
                     <div className="mb-4">
-                      <label className="form-label fw-semibold">Background Image URL</label>
-                      <input
-                        type="text"
-                        className="form-control"
+                      <ImageFieldWithUpload
+                        label="Background Image"
                         value={bgImageUrl}
-                        onChange={(e) => setBgImageUrl(e.target.value)}
+                        onChange={setBgImageUrl}
                         placeholder="https://example.com/background.jpg"
+                        helpText="Background image for the entire section — browse the Media Library, upload, or paste a URL."
                       />
-                      <small className="form-text text-muted">
-                        Background image for the entire section
-                      </small>
                     </div>
 
                     {bgImageUrl && (
