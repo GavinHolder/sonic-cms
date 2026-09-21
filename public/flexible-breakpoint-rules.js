@@ -160,31 +160,31 @@
     });
   }
 
-  // ── Additive cross-breakpoint reconciliation (2026-09-21, re-land of c75fcce;
-  //    extended same-day, round 2, to sub-element granularity — see
-  //    docs/main-cms-sync-prompt.md) ──
-  // REQUIREMENT (hard, two halves):
-  //   1. an element never disappears from any breakpoint canvas or the live page
-  //      unless the user deleted it (delete removes it from all three);
-  //   2. an element stays EXACTLY where the user put it.
-  // The first attempt (c75fcce, reverted in 4f69022) broke half 2: it "healed"
-  // blocks/sub-elements that were ALREADY in the target (sub-elements are FREE
-  // children, legitimately outside their parent box, so the heal clamped them
-  // back on every autosave) and wrote its output back into the Designer live
-  // state.blocks. This version is PURELY ADDITIVE.
+  // ── Cross-breakpoint reconciliation — SEED-TIME ONLY (2026-09-21 decision,
+  //    see docs/main-cms-sync-prompt.md) ──
+  // HISTORY: this started as an AMBIENT, ongoing reconcile — called on every
+  // breakpoint switch, every autosave, every undo, and even on every live page
+  // render — that additively appended/unioned blocks and sub-elements missing
+  // from a non-active breakpoint variant, on the theory that content should
+  // never silently "disappear" between Desktop/Tablet/Mobile. Three rounds of
+  // fixes (c75fcce reverted, then two same-day extensions) never fully closed
+  // the gap, and the user explicitly ended the approach as a "futile exercise":
+  // breakpoints are now fully INDEPENDENT after their initial seed. Going back
+  // and forth trying to keep them ambiently in sync was judged not worth it —
+  // the admin re-adds elements per breakpoint, or clicks the manual per-block
+  // "Reset Size/Position to Match Desktop" action, and that is the ONLY way
+  // content syncs across breakpoints from here on.
   //
-  // ROUND 1 (whole-block only) shipped 2026-09-21 and was re-reported the same
-  // day: a block already present in the target was skipped ENTIRELY, including
-  // its subElements — so a block that exists on all three breakpoints but whose
-  // Tablet/Mobile copy was saved before Desktop gained more sub-elements (a new
-  // heading, an icon badge) stayed permanently short those sub-elements. ROUND 2
-  // (unionBlockSubElements, below) closes that gap: matching now recurses one
-  // level deeper, unioning subElements within an already-matched block id, not
-  // just matching block ids at the top level. Both consumers (Designer canvas +
-  // live renderer) share this one function, so the fix applies to both without
-  // a second hand-copy (ONE SYSTEM PER CONCERN, CLAUDE.md).
+  // WHAT REMAINS: reconcileVariantBlocks()/unionBlockSubElements() are still
+  // used, but ONLY for the one-time seed of a freshly-created Tablet/Mobile
+  // variant (public/flexible-designer.html's setDevicePreview, seeding from an
+  // empty target so the seed is a full scaled+clamped copy of Desktop — not an
+  // ongoing sync) and by scaleBlockToCanvas() (used by both that seed path and
+  // the manual per-block reset button). Do NOT re-wire these into an ambient
+  // call site (autosave, breakpoint switch of an already-seeded variant, undo,
+  // or the live renderer) — that is exactly what was removed.
   //
-  // INVARIANTS:
+  // INVARIANTS (still true of what remains):
   //   - every block already in the target stays at the same index, same order;
   //     it is the SAME object reference (no heal, no clamp, ever) UNLESS another
   //     variant's copy of that same block id has a sub-element it doesn't —
@@ -195,8 +195,6 @@
   //     clamped clones, full content via JSON deep-clone before geometry is
   //     overwritten);
   //   - inputs are never mutated; appended clones share no refs with sources.
-  // Callers (Designer) must additionally never pass the ACTIVE breakpoint live
-  // state.blocks as a target: only non-active variants are reconciled.
 
   var DEFAULT_CANVAS_W = { desktop: 1440, tablet: 768, mobile: 375 };
   var DEFAULT_CANVAS_H = 900; // mirrors DESIGN_H in both consumers
@@ -508,29 +506,13 @@
     return result;
   }
 
-  /**
-   * True when `next` (a reconcileVariantBlocks() result) differs from `prev`
-   * (the array passed in as targetBlocks) — by length OR because at least one
-   * index holds a different object reference (a block that had sub-elements
-   * unioned into it, per unionBlockSubElements, is a NEW reference at its same
-   * index; an untouched block is the SAME reference). A plain `.length` compare
-   * (the pre-2026-09-21-round-2 check in both consumers) misses a sub-element-only
-   * change, since appending a sub-element to an existing block never changes the
-   * top-level blocks array length — that gap is exactly what let the "existing
-   * block, stale sub-elements" bug slip past both call sites' bail-out check.
-   * @param {Array<Object>} next
-   * @param {Array<Object>} prev
-   * @returns {boolean}
-   */
-  function blocksChanged(next, prev) {
-    var a = Array.isArray(next) ? next : [];
-    var b = Array.isArray(prev) ? prev : [];
-    if (a.length !== b.length) return true;
-    for (var i = 0; i < a.length; i++) {
-      if (a[i] !== b[i]) return true;
-    }
-    return false;
-  }
+  // 2026-09-21 (SUPERSEDED — see docs/main-cms-sync-prompt.md): blocksChanged()
+  // used to detect whether reconcileVariantBlocks() actually changed a non-active
+  // variant (by reference, not just length) so callers could skip a no-op write.
+  // Removed — its only callers (buildJson's/applySnapshot's/setDevicePreview's
+  // ongoing non-active-variant reconcile, and FlexibleSectionRenderer's self-heal)
+  // were all removed per the same decision; reconcileVariantBlocks() itself is
+  // still used, but only at one-time seed, where its result is always written.
 
   /** Returns a new block array without `id` (string-compared). Pure. */
   function removeBlockId(blocks, id) {
@@ -557,7 +539,6 @@
     variantCanvasDims: variantCanvasDims,
     scaleBlockToCanvas: scaleBlockToCanvas,
     reconcileVariantBlocks: reconcileVariantBlocks,
-    blocksChanged: blocksChanged,
     removeBlockId: removeBlockId,
     serializeVariants: serializeVariants,
   };

@@ -59,12 +59,5 @@ export function reconcileVariantBlocks<T extends Record<string, unknown>>(
   targetKey: Breakpoint,
   dims?: ReconcileDims
 ): T[];
-/**
- * True when `next` (a reconcileVariantBlocks() result) differs from `prev` — by length OR because at
- * least one index holds a different object reference. Use this instead of a plain `.length` compare to
- * decide whether reconcile changed anything: a block that only gained unioned-in sub-elements keeps the
- * top-level array length unchanged but is a new reference at its index, which a length-only check misses.
- */
-export function blocksChanged<T>(next: T[] | null | undefined, prev: T[] | null | undefined): boolean;
 /** New block array without `id` (string-compared). Pure. */
 export function removeBlockId<T extends { id?: unknown }>(blocks: T[], id: unknown): T[];

@@ -18,7 +18,7 @@ import { computeSubElementStyle, computeSubElementPosition, computeMultiBgLayers
 // Per-breakpoint independent layouts (2026-09-11) — shared shape-normalization/variant-
 // selection module (Task 1 of this feature). Companion to flexible-render-rules.js above;
 // see that file's own doc comment for the full designerData shape contract.
-import { resolveVariants, pickBreakpointForWidth, pickActiveVariant, reconcileVariantBlocks, blocksChanged } from "../../public/flexible-breakpoint-rules.js";
+import { resolveVariants, pickBreakpointForWidth, pickActiveVariant } from "../../public/flexible-breakpoint-rules.js";
 
 const AnimBgRenderer    = dynamic(() => import("./AnimBgRenderer"), { ssr: false });
 const ScrollStageWrapper = dynamic(() => import("./scroll-stage/ScrollStageWrapper"), { ssr: false });
@@ -585,37 +585,14 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   const resolvedDesignerVariants = useMemo(() => resolveVariants(designerData), [designerData]);
   const { data: pickedDesignerData, isFallback: isBreakpointFallback } =
     pickActiveVariant(resolvedDesignerVariants, activeBreakpointKey);
-  // 2026-09-21 (additive per-breakpoint reconcile) — defensive self-heal of stale
-  // persisted data: a Tablet/Mobile variant saved before the Designer reconciled at
-  // the save boundary may be MISSING blocks that exist on Desktop, OR may be missing
-  // individual sub-elements within a block id it already has (round 2 of this fix,
-  // same day — see docs/main-cms-sync-prompt.md: a block present on all breakpoints
-  // can still be short a heading/icon/paragraph Desktop later gained). Append/union
-  // them (scaled + clamped clones, shared rule in public/flexible-breakpoint-rules.js)
-  // so no element is absent from a breakpoint's live page. PURELY ADDITIVE: every
-  // block/sub-element the variant already has renders exactly as authored. Only for a
-  // genuinely per-breakpoint free-mode variant; a legacy flat blob / the desktop
-  // fallback is returned untouched.
-  const effectiveDesignerData = useMemo<Record<string, unknown> | null>(() => {
-    if (!pickedDesignerData || isBreakpointFallback || activeBreakpointKey === "desktop") return pickedDesignerData;
-    if (pickedDesignerData.positionMode !== "free" || !resolvedDesignerVariants.desktop) return pickedDesignerData;
-    try {
-      const own = (pickedDesignerData.blocks as Array<Record<string, unknown>>) || [];
-      const blocks = reconcileVariantBlocks(
-        own,
-        { desktop: resolvedDesignerVariants.desktop, [activeBreakpointKey]: pickedDesignerData },
-        activeBreakpointKey
-      );
-      // NOT a plain `blocks.length === own.length` check: a block already present
-      // that gained unioned-in sub-elements keeps the array LENGTH unchanged (it's
-      // the same top-level block count) but is a new object reference at its index
-      // — blocksChanged() catches that; a length-only check silently discarded
-      // exactly this case (the confirmed round-2 bug).
-      return blocksChanged(blocks, own) ? { ...pickedDesignerData, blocks } : pickedDesignerData;
-    } catch {
-      return pickedDesignerData;
-    }
-  }, [pickedDesignerData, isBreakpointFallback, resolvedDesignerVariants, activeBreakpointKey]);
+  // 2026-09-21 (SUPERSEDED — see docs/main-cms-sync-prompt.md): this used to be a
+  // useMemo that additively self-healed a Tablet/Mobile variant by appending/unioning
+  // in any block/sub-element present on Desktop but missing here. Removed per explicit
+  // user decision — the live page now renders exactly what is stored for the resolved
+  // breakpoint variant, no injection. A breakpoint that is missing content shows
+  // exactly that; the admin syncs it manually in the Designer (per-block "Reset
+  // Size/Position to Match Desktop") rather than relying on ambient healing here.
+  const effectiveDesignerData = pickedDesignerData;
 
   // Dynamic Content Height Mode (contentMode === "dynamic") — how many 100vh "screens" this
   // section currently needs, computed live by DesignerBlocksRenderer from reported block

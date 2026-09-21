@@ -2514,15 +2514,11 @@ function applySnapshot(snap, addToHistory, isNewSectionLoad) {
     // the breakpoint that was being edited when it was taken. Replace that one;
     // never touch the other two (see isNewSectionLoad's doc above).
     state.variants[state.activeBreakpoint] = resolved.desktop;
-    // 2026-09-21: an undo that restores a deleted block restores it only into
-    // the active breakpoint (removeBlock deleted it from all three). Append it
-    // back onto the NON-active variants only; the active one is loaded verbatim
-    // from the snapshot just below.
-    if (resolved.desktop && resolved.desktop.positionMode === 'free') {
-      ['desktop', 'tablet', 'mobile'].forEach(key => {
-        if (key !== state.activeBreakpoint) state.variants[key] = reconcileNonActiveVariant(key, state.variants);
-      });
-    }
+    // 2026-09-21 (SUPERSEDED — see docs/main-cms-sync-prompt.md): undo used to
+    // additionally reconcile the NON-active variants against the restored one.
+    // Removed per explicit user decision — an undo now touches only the
+    // active breakpoint's own variant; the other two are left exactly as they
+    // are, same as every other edit in the Designer.
   }
   loadFlatVariantIntoState(state.variants[state.activeBreakpoint]);
   // `s` is the flat blob that was just loaded — the snapshot itself for a flat
@@ -6433,16 +6429,12 @@ function removeBlock(id,e) {
   if(e) e.stopPropagation();
   pushHistory();
   state.blocks=state.blocks.filter(b=>b.id!==id);
-  // 2026-09-21: Delete removes the block from EVERY free-mode breakpoint variant,
-  // otherwise the additive cross-breakpoint reconcile (buildJson /
-  // setDevicePreview) would faithfully bring it back from a variant still holding it.
-  if (state.positionMode === 'free') {
-    ['desktop','tablet','mobile'].forEach(key => {
-      const v = state.variants[key];
-      if (key === state.activeBreakpoint || !v || !Array.isArray(v.blocks)) return;
-      state.variants[key] = Object.assign({}, v, { blocks: window.FlexibleBreakpointRules.removeBlockId(v.blocks, id) });
-    });
-  }
+  // 2026-09-21 (SUPERSEDED — see docs/main-cms-sync-prompt.md): automatic
+  // cross-breakpoint delete propagation removed per explicit user decision.
+  // Breakpoints are independent after their initial seed; deleting a block now
+  // only affects the currently active breakpoint's own array. If the same
+  // element still exists on another breakpoint, the admin removes it there too
+  // (or uses "Reset Size/Position to Match Desktop" to resync first).
   if(state.selectedBlockId===id) state.selectedBlockId=null;
   if(state.bgRepositionBlockId===id) state.bgRepositionBlockId=null;
   if(state.editingBlockId===id)  exitEditMode();
@@ -9382,14 +9374,12 @@ function setDevicePreview(device) {
           device
         );
       }
-    } else {
-      // 2026-09-21: this breakpoint was seeded earlier — a block added (or
-      // undo-restored) on another breakpoint since then exists only there.
-      // Append the missing ids (sources = the fresh outgoing snapshot from step 1
-      // + the third variant). device !== activeBreakpoint here, so this is a
-      // NON-active variant; its existing blocks are returned untouched.
-      state.variants[device] = reconcileNonActiveVariant(device, state.variants);
     }
+    // 2026-09-21 (SUPERSEDED — see docs/main-cms-sync-prompt.md): an "else"
+    // branch here used to reconcile an ALREADY-seeded variant against the
+    // other breakpoints on every switch. Removed per explicit user decision —
+    // breakpoints are independent after their initial seed; an already-seeded
+    // variant is shown exactly as stored, no ambient reconcile on switch.
 
     // 3. Load the incoming breakpoint's data into the live flat state fields.
     loadFlatVariantIntoState(state.variants[device]);
@@ -10596,35 +10586,10 @@ function buildFlatPayload() {
  * stores and FlexibleSectionRenderer.tsx reads. Null in -> null out (an
  * un-customized breakpoint stays null so the renderer falls back to Desktop).
  */
-/**
- * 2026-09-21 (additive per-breakpoint reconcile, re-land of the reverted c75fcce).
- * Returns a copy of ONE NON-ACTIVE variant blob with any block ids it is
- * missing appended (scaled + clamped clones, shared rule in
- * public/flexible-breakpoint-rules.js). Blocks the variant already has are the
- * same objects, same order, geometry untouched.
- *
- * INVARIANT (the c75fcce snap-back regression): this is NEVER called for the
- * active breakpoint and its result is NEVER written into state.blocks — the
- * active breakpoint is always the live state.blocks, untouched.
- * @param {'desktop'|'tablet'|'mobile'} key - must not be state.activeBreakpoint
- * @param {{desktop:Object|null,tablet:Object|null,mobile:Object|null}} sources - variant blobs to source missing blocks from
- * @returns {Object|null} new variant blob (or the input when null / nothing to do / on error)
- */
-function reconcileNonActiveVariant(key, sources) {
-  const v = sources[key];
-  if (!v || key === state.activeBreakpoint || !Array.isArray(v.blocks)) return v || null;
-  try {
-    const blocks = window.FlexibleBreakpointRules.reconcileVariantBlocks(v.blocks, sources, key);
-    // NOT a plain length compare: a block already present that gained unioned-in
-    // sub-elements (round 2 of this fix, same day — see
-    // docs/main-cms-sync-prompt.md) keeps the top-level block count unchanged but
-    // is a new object reference at its index. blocksChanged() catches that; a
-    // length-only check silently discarded exactly this case.
-    return window.FlexibleBreakpointRules.blocksChanged(blocks, v.blocks) ? Object.assign({}, v, { blocks: blocks }) : v;
-  } catch (err) {
-    return v;
-  }
-}
+// 2026-09-21 (SUPERSEDED — see docs/main-cms-sync-prompt.md): reconcileNonActiveVariant()
+// used to append missing blocks/sub-elements into non-active variants at save time.
+// Removed per explicit user decision — buildJson now serialises each variant exactly
+// as stored, with no cross-variant writes.
 
 function toPersistedVariant(variantBlob) {
   if (!variantBlob) return null;
@@ -10660,28 +10625,15 @@ function buildJson() {
   // shape as the active one — the 2026-09-11 bug was that only the active one
   // went through buildJson's converter and the other two were persisted in the
   // raw live-editing shape, with no pixelPos for the renderer to read.
-  // 2026-09-21 (additive per-breakpoint reconcile): a block added on the active
-  // breakpoint after another breakpoint was seeded used to be simply absent from
-  // that breakpoint's saved variant (and so from its live page). At the save
-  // boundary, the two NON-active variants get any missing ids appended, sourced
-  // from the fresh snapshot of the live state taken just above. The ACTIVE
-  // variant is serialised straight from live state.blocks, and NOTHING here is
-  // written back into state.blocks or re-rendered — buildJson runs on every
-  // autosave, and the reverted c75fcce's write-back + heal is exactly what made
-  // moved elements snap back.
-  const out = { desktop: null, tablet: null, mobile: null };
-  ['desktop', 'tablet', 'mobile'].forEach(key => {
-    out[key] = key === state.activeBreakpoint
-      ? state.variants[key]
-      : reconcileNonActiveVariant(key, state.variants);
-    // Keep the appended blocks on the non-active variant so a later switch to it
-    // shows the very same placement that was saved (non-active only, never live).
-    if (key !== state.activeBreakpoint && out[key]) state.variants[key] = out[key];
-  });
+  // 2026-09-21 (SUPERSEDED — see docs/main-cms-sync-prompt.md): this used to also
+  // reconcile the two non-active variants against each other on every save,
+  // appending any block/sub-element they were missing. Removed per explicit user
+  // decision — breakpoints are fully independent after their initial seed; each
+  // variant is serialised exactly as stored, no cross-variant writes.
   return JSON.stringify(window.FlexibleBreakpointRules.serializeVariants({
-    desktop: toPersistedVariant(out.desktop),
-    tablet:  toPersistedVariant(out.tablet),
-    mobile:  toPersistedVariant(out.mobile)
+    desktop: toPersistedVariant(state.variants.desktop),
+    tablet:  toPersistedVariant(state.variants.tablet),
+    mobile:  toPersistedVariant(state.variants.mobile)
   }),null,2);
 }
 /**
