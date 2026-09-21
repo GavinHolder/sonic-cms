@@ -1911,6 +1911,8 @@ const state = {
                             // remains the fallback for any design whose designerCanvasH is null/0.
   showFrameGuides: true,    // Option C — draw navbar/padding/gutter/wave frame guides on the canvas
   userZoom: 1,              // manual zoom multiplier (0.25–2.0), applied on top of auto-fit scale
+  panX: 0, panY: 0,         // VIEW-ONLY canvas pan offset (screen px), middle-mouse-drag. Never
+                             // persisted — excluded from buildJson() same as userZoom/showGuides.
   blocks: [],
   selectedBlockId: null,
   selectedSubId: null,
@@ -2173,13 +2175,63 @@ function loadAutoSave() {
 }
 
 // Keyboard shortcut: Ctrl+Z / Cmd+Z
-// Ctrl+scroll to zoom canvas
-document.addEventListener('wheel', e => {
-  if (e.ctrlKey || e.metaKey) {
+// Wheel-to-zoom canvas — plain scroll zooms (no Ctrl/Cmd required), matching
+// Volt Studio's canvas-wrap wheel behavior (public/volt-designer.html ~4629).
+// Scoped to .canvas-with-rulers (not document) so it never hijacks scrolling
+// over other UI (properties panel, sidebars) — only Volt's canvas-wrap-scoped
+// listener is the equivalent there too.
+// EXCEPTION: when the canvas area is actually scrollable — multi-section mode
+// or the mobile-stacking preview, where .canvas-area gets the 'multi-scroll' /
+// 'mobile-scroll' class (see setContentMode()/mobile-stack rendering, ~2494 /
+// ~2594) — plain wheel keeps scrolling natively so content below the fold
+// stays reachable; Ctrl/Cmd+wheel force-zooms even then. Zoom is cursor-
+// centered via zoomAtCursor() (~8575), matching Volt's zoomAtPoint()/
+// _wrapFocal() pattern (~4599-4612).
+(function() {
+  const cwrap = document.querySelector('.canvas-with-rulers');
+  if (!cwrap) return;
+  cwrap.addEventListener('wheel', e => {
+    const canvasArea = document.querySelector('.canvas-area');
+    const scrollable = canvasArea &&
+      (canvasArea.classList.contains('multi-scroll') || canvasArea.classList.contains('mobile-scroll')) &&
+      canvasArea.scrollHeight > canvasArea.clientHeight + 1;
+    if (!(e.ctrlKey || e.metaKey) && scrollable) return; // let native scroll reach content below the fold
     e.preventDefault();
-    adjustUserZoom(e.deltaY < 0 ? 0.1 : -0.1);
-  }
-}, { passive: false });
+    zoomAtCursor(e.deltaY < 0 ? 1.1 : 1 / 1.1, e.clientX, e.clientY);
+  }, { passive: false });
+})();
+
+// ── Middle-mouse-button drag-to-pan ─────────────────────────────────────────
+// Matches Volt Studio's navigation pattern (public/volt-designer.html ~4573-4594):
+// records the start cursor + start pan, then moves the canvas by the raw
+// screen-px cursor delta. Pan is a screen-space translate applied BEFORE scale
+// (transform: translate() scale()), so the delta is added directly — not
+// divided by zoom. e.preventDefault() on the middle mousedown suppresses the
+// browser's native autoscroll. Left-click (button 0) is untouched — that's
+// handled entirely by onCanvasMouseDown/startMarquee/block-drag elsewhere.
+(function() {
+  let _midPan = null; // {sx, sy, px, py} — start cursor + start pan (screen px)
+  const cwrap = document.querySelector('.canvas-with-rulers');
+  if (!cwrap) return;
+  cwrap.addEventListener('mousedown', e => {
+    if (e.button !== 1) return;
+    e.preventDefault();
+    _midPan = { sx: e.clientX, sy: e.clientY, px: state.panX || 0, py: state.panY || 0 };
+    cwrap.style.setProperty('cursor', 'grabbing', 'important');
+  });
+  window.addEventListener('mousemove', e => {
+    if (!_midPan) return;
+    e.preventDefault();
+    state.panX = _midPan.px + (e.clientX - _midPan.sx);
+    state.panY = _midPan.py + (e.clientY - _midPan.sy);
+    applyCanvasScale();
+  });
+  window.addEventListener('mouseup', () => {
+    if (!_midPan) return;
+    _midPan = null;
+    cwrap.style.removeProperty('cursor');
+  });
+})();
 
 document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
@@ -2470,8 +2522,15 @@ function renderCanvas() {
       b.gridCol  = Math.max(1, Math.min(b.gridCol  || 1, state.gridCols));
       b.colSpan  = Math.max(1, Math.min(b.colSpan  || 1, state.gridCols - b.gridCol + 1));
       b.rowSpan  = Math.max(1, Math.min(b.rowSpan  || 1, state.gridRows - b.gridRow + 1));
-      if (state.devicePreview !== 'mobile') {
-        // Desktop / tablet: recalculate pixel position from clamped grid coordinates.
+      if (state.devicePreview === 'tablet' && b.tabletPos) {
+        // TABLET FIX: this block was deliberately placed/sized on tablet (has a saved
+        // tabletPos). Keep its tablet coordinates instead of re-snapping to the grid on
+        // every re-render — otherwise adjusting anything on tablet would fling the block
+        // back to its grid cell. Rendering already reads tabletPos via getDisplayPos();
+        // syncing the canonical fields here keeps drag/resize math consistent.
+        b.x = b.tabletPos.x; b.y = b.tabletPos.y; b.w = b.tabletPos.w; b.h = b.tabletPos.h;
+      } else if (state.devicePreview !== 'mobile') {
+        // Desktop / tablet (auto-flow): recalculate pixel position from clamped grid coordinates.
         // Preserve w/h if the user manually resized the block via drag handles.
         const { cx, cy, cw, ch } = getCellRect(b.gridRow, b.gridCol, b.colSpan, b.rowSpan, b.section);
         b.x = cx; b.y = cy;
@@ -3860,6 +3919,11 @@ function onCanvasMouseDown(e) {
 function startMarquee(e) {
   const canvas = document.getElementById('canvas');
   if (!canvas) return;
+  // Suppress the browser's native text-selection drag (same as startSubElementMove /
+  // startGroupMove do). Without this, dragging on empty canvas highlights the whole
+  // page and the native selection repaints/flickers as the cursor sweeps over content.
+  e.preventDefault();
+  const _prevUserSelect = document.body.style.userSelect;
   const rect = canvas.getBoundingClientRect();
   const s = getCanvasScale();
   const startLX = (e.clientX - rect.left) / s, startLY = (e.clientY - rect.top) / s;
@@ -3868,6 +3932,7 @@ function startMarquee(e) {
 
   const onMove = ev => {
     if (!active && Math.abs(ev.clientX - startCX) < 4 && Math.abs(ev.clientY - startCY) < 4) return;
+    if (!active) { document.body.style.userSelect = 'none'; } // belt-and-suspenders once drag begins
     active = true;
     if (!box) { box = document.createElement('div'); box.className = 'marquee-box'; canvas.appendChild(box); }
     const curLX = (ev.clientX - rect.left) / s, curLY = (ev.clientY - rect.top) / s;
@@ -3879,6 +3944,7 @@ function startMarquee(e) {
   const onUp = ev => {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    document.body.style.userSelect = _prevUserSelect; // always restore, even on plain click
     if (box) box.remove();
     if (!active) return; // plain click → let onCanvasClick handle deselect
     _suppressCanvasClick = true;
@@ -4732,7 +4798,10 @@ function onCanvasDrop(e) {
     const _drop_scale = getCanvasScale();
     const x = (e.clientX - rect.left) / _drop_scale;
     const y = (e.clientY - rect.top)  / _drop_scale;
-    const blockW = 300, blockH = 200;
+    const _voltCW = state.dragSource.canvasWidth || DESKTOP_CANVAS_W;
+    const _voltCH = state.dragSource.canvasHeight || DESIGN_H;
+    const blockW = 300;
+    const blockH = Math.max(80, Math.min(600, Math.round(blockW * (_voltCH / _voltCW))));
     const blockX = Math.max(0, Math.min(canvas.offsetWidth  - blockW, x - blockW/2));
     const blockY = Math.max(0, Math.min(canvas.offsetHeight - blockH, y - blockH/2));
     const src = state.dragSource;
@@ -4879,9 +4948,18 @@ function getCellMetrics() {
   // Section height = available canvas area height for both single and multi modes.
   // Single: canvas.offsetHeight (naturally fills available space).
   // Multi: canvas.offsetHeight / multiLimit (each stacked section = same available height).
-  const sectionH = state.contentMode === 'multi'
+  let sectionH = state.contentMode === 'multi'
     ? Math.round(canvas.offsetHeight / state.multiLimit)
     : canvas.offsetHeight;
+  // TABLET FIX: on tablet the canvas WIDTH is halved (768 vs desktop 1440) while its
+  // HEIGHT stays desktop-tall, so horizontal spacing compresses but vertical row gaps
+  // stay desktop-tall — an accent word on the next grid row ends up far below its heading.
+  // Scale the vertical basis (sectionH → cellH) by the SAME width ratio the horizontal
+  // axis already uses so cellH compresses in lockstep with cellW. Tablet-only, grid-only
+  // (free-mode is a uniformly-scaled stage; mosaic positions itself independently).
+  if (state.devicePreview === 'tablet' && state.positionMode !== 'free' && state.layoutType !== 'mosaic') {
+    sectionH = sectionH * (rawCw / DESKTOP_CANVAS_W);
+  }
   const gap = state.gridGap;
   return { cw, sectionH, gap,
     cellW: (cw - gap*(state.gridCols-1)) / state.gridCols,
@@ -5706,6 +5784,10 @@ function renderBlockProps(block) {
         <button class="action-btn full-h mb-0" style="flex:1;" onclick="setBlockPosFull('${block.id}','fullHeight')">↕ Full Height</button>
       </div>
       <button class="action-btn reset mt-2" onclick="setBlockPosFull('${block.id}','center')">⊕ Center on Canvas</button>
+      <div class="props-row" style="align-items:center;margin-top:8px;">
+        <label style="flex:1;" title="Render this element in front of the section's Lower Third band (opt-in). Off = stays behind it.">In front of Lower Third</label>
+        <input type="checkbox" style="width:18px;height:18px;cursor:pointer;" ${block.aboveLowerThird ? 'checked' : ''} onchange="setBlockAboveLowerThird('${block.id}',this.checked)">
+      </div>
     </div>`;
   } else if (state.layoutType === 'mosaic') {
     // ── Mosaic mode: size preset picker ───────────────────────────────────
@@ -6353,6 +6435,18 @@ function showCustomNav(el, id) {
  * @param {*} v - New value to assign.
  */
 function updateBlockProp(bId,k,v) { const b=state.blocks.find(b=>b.id==bId); if(b) { b.props[k]=v; autoSave(); } } // eslint-disable-line eqeqeq
+
+// Persist the per-block "render in front of the Lower Third" flag (top-level on the block,
+// like block.zIndex/hidden). ON → the live renderer re-draws this block in a plate that sits
+// above the section's Lower Third band; OFF (default) → deletes the flag so the block keeps
+// its normal stacking (behind the lower third). Undo-able (pushHistory) + autosaved.
+function setBlockAboveLowerThird(bId, checked) {
+  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
+  if (!b) return;
+  pushHistory();
+  if (checked) b.aboveLowerThird = true; else delete b.aboveLowerThird;
+  renderCanvas(); renderPropsPanel(); autoSave();
+}
 
 // ── Volt layer cache ──────────────────────────────────────────────────────────
 // Maps voltId → { layers: VoltLayer[], loading: bool }
@@ -7705,7 +7799,8 @@ function setDisplayPos(block, x, y, w, h) {
 
 /**
  * Proportionally scales a desktop pixel position to a narrower target canvas
- * width. Scales x and w by the width ratio; preserves y and h unchanged.
+ * width. Scales x/w AND y/h by the same width ratio (uniform shrink) so the
+ * block keeps its aspect and vertical placement when re-enabled.
  * The resulting w is clamped to targetW - 16 to keep a minimum margin.
  * @param {{x:number, y:number, w:number, h:number}} pos - Original desktop position.
  * @param {number} targetW - Target canvas width in pixels (e.g. 375 for mobile).
@@ -7716,9 +7811,9 @@ function autoScalePos(pos, targetW, srcW) {
   const scale = targetW / (srcW || 1200);
   return {
     x: Math.round(Math.max(0, pos.x * scale)),
-    y: pos.y,
+    y: Math.round(Math.max(0, pos.y * scale)),
     w: Math.min(Math.round(pos.w * scale), targetW - 16),
-    h: pos.h
+    h: Math.round(pos.h * scale)
   };
 }
 
@@ -8152,7 +8247,10 @@ function renderVoltLib(volts) {
 }
 
 function onVoltDragStart(e, volt) {
-  state.dragSource = { kind: 'lib-volt', voltId: volt.id, voltName: volt.name, voltThumbnail: volt.thumbnail || null };
+  state.dragSource = {
+    kind: 'lib-volt', voltId: volt.id, voltName: volt.name, voltThumbnail: volt.thumbnail || null,
+    canvasWidth: volt.canvasWidth || DESKTOP_CANVAS_W, canvasHeight: volt.canvasHeight || DESIGN_H
+  };
   e.dataTransfer.effectAllowed = 'copy';
 }
 // Preset definitions: grid config + zone blocks to auto-place
@@ -8305,9 +8403,12 @@ function applyCanvasScale() {
   const canvas = document.getElementById('canvas');
   if (!canvas) return;
   const scale = getCanvasScale();
-  if (scale !== 1) {
+  const panX = state.panX || 0, panY = state.panY || 0;
+  if (scale !== 1 || panX !== 0 || panY !== 0) {
     canvas.style.transformOrigin = 'top left';
-    canvas.style.transform = 'scale(' + scale + ')';
+    // translate() first/outer, scale() second/inner — pan happens in screen-space
+    // before the zoom, matching Volt Studio's applyZoom() composition.
+    canvas.style.transform = 'translate(' + panX + 'px,' + panY + 'px) scale(' + scale + ')';
   } else {
     canvas.style.transform = '';
     canvas.style.transformOrigin = '';
@@ -8342,6 +8443,43 @@ function resetUserZoom() {
   } else {
     state.userZoom = 1;
   }
+  state.panX = 0;
+  state.panY = 0;
+  applyCanvasScale();
+}
+/**
+ * Zoom-to-cursor: multiplies state.userZoom by `factor` while keeping the
+ * point under the cursor (clientX, clientY) stationary on screen, matching
+ * Volt Studio's zoomAtPoint()/_wrapFocal() pattern (public/volt-designer.html
+ * ~4599-4612). Adapted for this canvas's transform composition — translate()
+ * OUTER, scale() INNER, transform-origin: top left (see applyCanvasScale()) —
+ * which is a different composition than Volt's flex-centered/center-origin
+ * artboard, so the pan-recompute uses screen-space deltas from the canvas's
+ * CURRENT (already-transformed) bounding rect rather than Volt's
+ * wrapper-center-relative offsets; the two are algebraically equivalent
+ * (see decision rationale in the commit that introduced this function), just
+ * expressed in terms available here without re-deriving the untransformed
+ * grid-cell origin (rulers gutter, etc).
+ * ASSUMPTIONS:
+ *  - #canvas is the only transformed element (transform-origin top left).
+ *  - state.panX/state.panY are in the same screen-px units as
+ *    getBoundingClientRect() deltas (true — see the middle-mouse-drag pan
+ *    handler above, which writes them directly from clientX/clientY deltas).
+ *  - factor is a small multiplicative step (~1.1 / 1÷1.1) — one wheel notch.
+ */
+function zoomAtCursor(factor, clientX, clientY) {
+  const canvas = document.getElementById('canvas');
+  if (!canvas) return;
+  const oldZoom = state.userZoom || 1;
+  const newZoom = Math.max(0.25, Math.min(3.0, oldZoom * factor));
+  if (newZoom === oldZoom) return; // already clamped at min/max — nothing to do
+  const rect = canvas.getBoundingClientRect();
+  const dx = clientX - rect.left; // cursor offset from canvas's CURRENT (transformed) top-left
+  const dy = clientY - rect.top;
+  const ratio = newZoom / oldZoom;
+  state.panX = (state.panX || 0) + dx * (1 - ratio);
+  state.panY = (state.panY || 0) + dy * (1 - ratio);
+  state.userZoom = newZoom;
   applyCanvasScale();
 }
 /**
@@ -9215,7 +9353,7 @@ window.addEventListener('message', function(e) {
       fetch(apiUrl, {
         method: method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: payload.name, layers: payload.layers, states: payload.states, isPublic: payload.isPublic, mood: payload.mood, elementType: payload.elementType, thumbnail: payload.thumbnail })
+        body: JSON.stringify({ name: payload.name, layers: payload.layers, states: payload.states, isPublic: payload.isPublic, mood: payload.mood, elementType: payload.elementType, thumbnail: payload.thumbnail, voltType: payload.voltType, flipCard: payload.flipCard, canvasWidth: payload.canvasWidth, canvasHeight: payload.canvasHeight, designerData: payload })
       }).then(function(r) { return r.json(); }).then(function(json) {
         const saved = json.data && json.data.volt ? json.data.volt : null;
         if (saved && block) {
