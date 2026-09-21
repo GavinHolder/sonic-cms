@@ -19,6 +19,9 @@ const InteractiveProductCard   = dynamic(() => import("@/components/sections/blo
 const ScrollStoryBlock         = dynamic(() => import("@/components/sections/blocks/ScrollStoryBlock"), { ssr: false });
 const EditorialBlock           = dynamic(() => import("@/components/sections/blocks/EditorialBlock"), { ssr: false });
 const GalleryCtaBlock          = dynamic(() => import("@/components/sections/blocks/GalleryCtaBlock"), { ssr: false });
+const CardTabsBlock             = dynamic(() => import("@/components/sections/blocks/CardTabsBlock"), { ssr: false });
+const ProductGridBlock         = dynamic(() => import("@/components/sections/blocks/ProductGridBlock"), { ssr: false });
+const TemplateBlock            = dynamic(() => import("@/components/sections/blocks/TemplateBlock"), { ssr: false });
 
 interface FlexibleSectionRendererProps {
   section: FlexibleSection;
@@ -268,6 +271,24 @@ let styleInjected = false;
 const DESIGN_H = 900;
 
 /**
+ * Free-mode reflow breakpoint (px) — below this, a free-mode section renders through
+ * FreeReflowStack (single-column, content-driven reading order) instead of the desktop
+ * 1:1 plate (fixed cw×ch canvas, uniformly CSS-scaled to fit the viewport). Was 768,
+ * which only covered phones — a 768-991px TABLET viewport fell into the desktop-plate
+ * branch and got the full desktop design shrunk to fit (scale = viewport/cw, e.g.
+ * 768/1440 ≈ 0.53), reading as "the page is just zoomed out" rather than a real tablet
+ * layout. 992 matches the tablet ceiling already used elsewhere in this file (see
+ * pickPos/canvasRefW's screenW <= 991 for the grid-mode tabletPos convention) so
+ * "tablet" means the same width range everywhere in the FLEXIBLE renderer. Both call
+ * sites below (freePlateDesktop's screenW >= threshold and the reflow gate's
+ * screenW < threshold) must stay in sync — they decide the SAME branch from opposite
+ * sides (section-height override vs. block layout), so a mismatch here reproduces the
+ * exact "designer canvas vs. live page disagree" class of bug already fixed once this
+ * session for the free-mode canvas position sync.
+ */
+const FREE_MODE_REFLOW_BREAKPOINT = 992;
+
+/**
  * FlexibleSectionRenderer — top-level section component for the FLEXIBLE section type.
  *
  * Responsibilities:
@@ -320,6 +341,13 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
+  // Dynamic Content Height Mode (contentMode === "dynamic") — how many 100vh "screens" this
+  // section currently needs, computed live by DesignerBlocksRenderer from reported block
+  // content heights and reported back up here so it can be applied to the actual <section>
+  // DOM node (see the --dynamic-screens custom property below + globals.css
+  // [data-content-mode="dynamic"]). Starts at 1 so SSR/first paint is never NaN/0vh.
+  const [dynamicScreens, setDynamicScreens] = useState(1);
+
   // Full-bleed volt blocks (props.fullBleed) are lifted out of the in-grid flow and
   // drawn as section-level background layers BELOW the content wrapper (see the render
   // below + FullBleedVoltLayer). Parsed once here (guarded) so the layer can be a direct
@@ -370,7 +398,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   }, [freePlateActive, designerData]);
   // True only when the free-mode 1:1 section-height override should apply: free plate is
   // active AND we're on desktop. Pre-mount counts as desktop (SSR-safe, no hydration flip).
-  const freePlateDesktop = freePlateActive && (!mounted || screenW >= 768) && !!freeCanvas;
+  const freePlateDesktop = freePlateActive && (!mounted || screenW >= FREE_MODE_REFLOW_BREAKPOINT) && !!freeCanvas;
   // Tracks the current scroll stage zone so content column shows only the active zone's blocks
   const [scrollStageZone, setScrollStageZone] = useState(0);
 
@@ -437,6 +465,48 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   }, []);
   const altLayerActive = mounted && freePlateActive && hasLowerThird && hasPromotedAlt && !!altEscapeHost;
 
+  // ── Section Header vs. free-mode plate collision guard ─────────────────────
+  // The free-mode cover plate (below) is a SECTION-LEVEL layer painted at z-index 12,
+  // ABOVE .section-content-wrapper's z-index 11 — and it is always top-anchored at the
+  // section's own y:0, with zero knowledge of the separate CMS "Section Header" (this
+  // section's sectionHeading/eyebrow/subheading fields, rendered inside the z-11 wrapper
+  // below). When both are configured on the same section, the plate's own content (often
+  // an opaque block background) paints directly over the header text — worse the more the
+  // heading wraps, since a taller heading reaches further down into the plate's territory
+  // while the plate's own top-anchored position never moves to compensate (#zindex-compositing).
+  // Fix: measure the header's REAL rendered height (ResizeObserver — mirrors the stageRef
+  // pattern already used for the plate's own scale math below) and inset the plate's top by
+  // that amount so the free canvas starts where the header actually ends, not at y:0.
+  // Scoped to SINGLE content mode only — MULTI mode's plate height is separately grown via
+  // aspect-ratio to fit the whole design with no crop, and offsetting its top without also
+  // growing that height would clip the design's bottom by the same amount, a regression this
+  // fix must not introduce. Single mode's plate already crops any overflow at the bottom
+  // (documented "background-size:cover"-style behaviour), so shrinking it from the top is
+  // consistent with its existing crop semantics. Zero-cost / no-op for the (majority) case of
+  // no sectionHeading or non-free-mode sections — headerH stays 0.
+  const headerElRef = useRef<HTMLDivElement>(null);
+  const [headerH, setHeaderH] = useState(0);
+  useEffect(() => {
+    const el = headerElRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    // Measured as the header's bottom edge minus the SECTION's own top edge (not just the
+    // header's own offsetHeight) — the header sits inside .section-content-wrapper's padded
+    // box (padding-top: max(--section-pt, --navbar-height), typically ~100px of navbar
+    // clearance), while the plate is a section-level layer with no such padding. Using only
+    // offsetHeight silently dropped that padding from the offset, leaving a partial overlap
+    // (the plate's top still landed above the header's real bottom edge).
+    const measure = () => {
+      const sectionEl = sectionRef.current;
+      if (!sectionEl) { setHeaderH(el.offsetHeight); return; }
+      setHeaderH(Math.max(0, el.getBoundingClientRect().bottom - sectionEl.getBoundingClientRect().top));
+    };
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    measure();
+    return () => ro.disconnect();
+  }, [sectionHeading, sectionSubheading, sectionEyebrow]);
+  const freePlateHeaderOffset = freePlateActive && contentMode !== "multi" && !!sectionHeading ? headerH : 0;
+
   // Resolve the background to a CSS color/gradient string and determine text contrast
   const bgColor  = resolveBgColor(background);
   const darkBg   = isDarkBackground(background);
@@ -502,6 +572,12 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           minHeight: 0,
           maxHeight: "none",
         } : {}),
+        // Dynamic Content Height Mode — the live-computed screen count, read by globals.css's
+        // [data-content-mode="dynamic"] rule (height/max-height: calc(var(--dynamic-screens) *
+        // 100vh)). A plain custom property (not a regular longhand) so it isn't fighting that
+        // rule's own !important — see the comment there for why. Single/Multi sections don't
+        // emit this at all (contentMode !== "dynamic"), so they are completely unaffected.
+        ...(contentMode === "dynamic" ? { "--dynamic-screens": dynamicScreens } : {}),
       } as React.CSSProperties}
     >
       {/* Background image layer — absolute fill, z-index 0, below everything.
@@ -537,6 +613,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           designerData={(altLayerActive ? baseDesignerData : designerData!) as string | Record<string, unknown>}
           darkBg={darkBg}
           plateMode
+          headerOffset={freePlateHeaderOffset}
           bgImage={{
             url: bgImageUrl,
             size: bgImageSize,
@@ -570,6 +647,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
                 designerData={promotedDesignerData as string | Record<string, unknown>}
                 darkBg={darkBg}
                 plateMode
+                headerOffset={freePlateHeaderOffset}
               />
             </div>,
             altEscapeHost
@@ -623,7 +701,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
       >
         {/* Section header — above content when sectionHeading is configured */}
         {sectionHeading && !scrollStageActive && (
-          <div className="container-fluid">
+          <div className="container-fluid" ref={headerElRef}>
             <SectionHeader
               heading={sectionHeading}
               subheading={sectionSubheading}
@@ -658,7 +736,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           <div className="container-fluid">
             {/* If we have designer data (mockup block format), render that first */}
             {designerData
-              ? <DesignerBlocksRenderer designerData={designerData} darkBg={darkBg} />
+              ? <DesignerBlocksRenderer designerData={designerData} darkBg={darkBg} onDynamicScreensChange={contentMode === "dynamic" ? setDynamicScreens : undefined} />
               : <>
                   {mosaicMode
                     ? <MosaicLayout elements={elements} layout={layout as any} darkBg={darkBg} />
@@ -1255,17 +1333,27 @@ function FullBleedVoltLayer({ props: p }: { props: Record<string, unknown> }) {
     badge:       (p.slotBadge as string)       || nested.badge       || undefined,
     icon:        (p.slotIcon as string)        || nested.icon        || undefined,
   };
+  const productId = (p.productId as string) || undefined;
   return (
     <div aria-hidden="true" style={{ position: "absolute", inset: 0, zIndex: 2, pointerEvents: "none" }}>
-      <VoltBlock voltId={voltId} slots={voltSlots} fitMode="cover" />
+      <VoltBlock voltId={voltId} slots={voltSlots} fitMode="cover" productId={productId} />
     </div>
   );
 }
 
-function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMode, bgImage }: {
+function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMode, bgImage, headerOffset, onDynamicScreensChange }: {
   designerData: string | Record<string, unknown>;
   darkBg: boolean;
   scrollStageZone?: number;
+  // onDynamicScreensChange: contentMode === "dynamic" only. Reports the freshly-computed
+  // "how many 100vh screens does this section need right now" number up to the parent
+  // FlexibleSectionRenderer, which owns the actual <section> DOM node and applies it as a
+  // CSS custom property (see the outer <section> style + globals.css [data-content-mode
+  // "dynamic"]). Undefined for every other DesignerBlocksRenderer call site (free-mode
+  // plate, promoted-plate, scroll-stage) — dynamic mode is scoped to the standard
+  // grid/preset (non-free) designer layout, the same path Multi mode's own
+  // containerH/multiLimit logic already lives in.
+  onDynamicScreensChange?: (screens: number) => void;
   // plateMode: this is the SECTION-LEVEL free cover-plate instance (desktop). It owns the
   // desktop free render (bg image + blocks in one COVER-scaled box) and returns null on
   // mobile. The default (plateMode falsy) in-wrapper instance is the inverse: null on
@@ -1273,6 +1361,15 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
   plateMode?: boolean;
   // bgImage: section background image fields, drawn INSIDE the plate (free cover-plate only).
   bgImage?: { url?: string; size?: string; position?: string; repeat?: string; opacity?: number; maskCss?: string | null };
+  // headerOffset: px height of this section's separate CMS "Section Header" (measured live
+  // by the caller), single content-mode only. The plate is a z-index-12 layer painted ABOVE
+  // the z-index-11 .section-content-wrapper that holds that header, with no innate awareness
+  // of it — without this the plate's own top-anchored content paints over the header text
+  // whenever the two occupy the same vertical space (worse the more the heading wraps).
+  // Insets the plate's top by this amount so the free canvas starts below the header instead.
+  // 0/undefined (the default) reproduces the exact prior behaviour — every existing free-mode
+  // section without a Section Header, and every multi-mode section, is untouched.
+  headerOffset?: number;
 }) {
   // Hooks must be called before any conditional returns
   const [screenW, setScreenW] = useState(typeof window !== "undefined" ? window.innerWidth : 1440);
@@ -1304,6 +1401,61 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
   // both, so it stays the pre-mount default.
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
+
+  // ── Dynamic Content Height Mode ────────────────────────────────────────────
+  // contentMode === "dynamic" reuses Multi's exact scroll-snap mechanic (a section is
+  // still N×100vh, still scroll-snap-align:start/stop:normal — see globals.css
+  // [data-content-mode="dynamic"]) but N is computed LIVE from whichever block reports the
+  // tallest actually-rendered content, instead of being a fixed number the admin picked.
+  // Two reporting channels feed the same blockHeights map:
+  //  - "template" blocks (sandboxed iframe, opaque origin) report via postMessage — see
+  //    TemplateBlock.tsx's onContentHeight / documented message contract.
+  //  - "card-tabs"/"product-grid" blocks (same-origin React, no iframe boundary) report via
+  //    a ResizeObserver on their own rendered container — see DesignerBlock below.
+  // A section can hold >1 dynamic-capable block; height is driven by whichever block
+  // CURRENTLY reports the tallest content, so one block shrinking (e.g. switching to a
+  // shorter tab) never incorrectly shrinks the section out from under a still-tall sibling.
+  const dynamicMeta = useMemo(() => {
+    try {
+      const d = typeof designerData === "string" ? JSON.parse(designerData) : designerData;
+      const cap = Number((d as Record<string, unknown>)?.multiLimit);
+      return {
+        isDynamic: (d as Record<string, unknown>)?.contentMode === "dynamic",
+        // Reuses the existing multiLimit field/UI as the safety cap — defaults to 5
+        // screens when the admin hasn't set one for a Dynamic section.
+        cap: cap > 0 ? cap : 5,
+      };
+    } catch { return { isDynamic: false, cap: 5 }; }
+  }, [designerData]);
+  const [blockHeights, setBlockHeights] = useState<Record<string, number>>({});
+  const reportBlockHeight = useCallback((blockId: string, px: number) => {
+    if (!Number.isFinite(px) || px <= 0) return;
+    setBlockHeights((prev) => (prev[blockId] === px ? prev : { ...prev, [blockId]: px }));
+  }, []);
+  // Viewport height, tracked live (mirrors screenW above) — needed to convert a reported
+  // px height into a count of 100vh "screens". Only tracked while dynamic mode is active.
+  const [viewportH, setViewportH] = useState(typeof window !== "undefined" ? window.innerHeight : 900);
+  useEffect(() => {
+    if (!dynamicMeta.isDynamic) return;
+    const onResize = () => setViewportH(window.innerHeight);
+    window.addEventListener("resize", onResize, { passive: true });
+    return () => window.removeEventListener("resize", onResize);
+  }, [dynamicMeta.isDynamic]);
+  const dynamicScreens = useMemo(() => {
+    if (!dynamicMeta.isDynamic) return 1;
+    const tallest = Object.values(blockHeights).reduce((m, v) => Math.max(m, v), 0);
+    // Before any block has reported a height (SSR / first paint), fall back to a single
+    // screen — must never be NaN or 0vh. Once a report arrives, clamp the computed need
+    // into [1, cap]; beyond the cap the section stops growing and the outer <section>'s
+    // fixed max-height + overflow:hidden (globals.css) clips the rest — the same fallback
+    // behavior Single mode already uses for oversized content, reused as-is here.
+    if (tallest <= 0) return 1;
+    return Math.max(1, Math.min(dynamicMeta.cap, Math.ceil(tallest / Math.max(viewportH, 1))));
+  }, [dynamicMeta, blockHeights, viewportH]);
+  useEffect(() => {
+    onDynamicScreensChange?.(dynamicScreens);
+  }, [dynamicScreens, onDynamicScreensChange]);
+
 
   // ── Google Font loading ───────────────────────────────────────────────────
   // The designer stores a chosen font as props.fontFamily (e.g. "'Poppins', sans-serif")
@@ -1385,6 +1537,10 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
 
     const isFreeMode = data.positionMode === "free" || data.layoutType === "free";
     const isMulti    = data.contentMode === "multi";
+    // Dynamic mode is scoped to the non-free designer layout (same path Multi's own
+    // containerH/multiLimit logic lives in) — dynamicMeta/dynamicScreens are computed by
+    // the unconditional hooks above (must run before this try block's early returns).
+    const isDynamic  = dynamicMeta.isDynamic && !isFreeMode;
     // multiLimit defines how many 100vh screens the section spans in multi mode
     const multiLimit = isMulti ? (data.multiLimit || 1) : 1;
     // -1 = mobile signal: show all zones stacked, normal multi layout
@@ -1398,7 +1554,13 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
     // Use max() to match the actual padding-top applied by .section-content-wrapper
     // (which enforces min 100px navbar clearance via max(--section-pt, --navbar-height)).
     // Without this, the grid is taller than available space and content spills out.
-    const containerH = isScrollStage ? "100%" : (isMulti ? `${multiLimit * 100}vh` : "calc(100vh - max(var(--section-pt, 100px), var(--navbar-height, 100px)) - var(--section-pb, 80px))");
+    // Dynamic: same `N × 100vh` formula as Multi, but N (dynamicScreens) is the LIVE
+    // computed value from reported block heights, not the admin's fixed multiLimit.
+    const containerH = isScrollStage
+      ? "100%"
+      : isDynamic
+        ? `${dynamicScreens * 100}vh`
+        : (isMulti ? `${multiLimit * 100}vh` : "calc(100vh - max(var(--section-pt, 100px), var(--navbar-height, 100px)) - var(--section-pb, 80px))");
     // Full-bleed volt blocks are promoted to section-level background layers by the
     // parent section body (FullBleedVoltLayer); drop them from the in-grid flow here so
     // they render once — behind the other blocks — instead of twice. Non-full-bleed
@@ -1444,7 +1606,7 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
       // Single-column reading-order stack — MOBILE IS UNCHANGED by the cover-plate work.
       // Only the in-wrapper instance (plateMode falsy) owns it; the section-level plate
       // instance renders nothing on mobile so the stack is never duplicated or clipped.
-      if (mounted && screenW < 768) {
+      if (mounted && screenW < FREE_MODE_REFLOW_BREAKPOINT) {
         if (plateMode) return null;
         return (
           <FreeReflowStack
@@ -1492,7 +1654,10 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
       return (
         <div ref={stageRef} style={{
           position: "absolute",
-          inset: 0,
+          top: headerOffset || 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
           zIndex: 12,
           overflow: "hidden",
           pointerEvents: "none",
@@ -1619,7 +1784,16 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
         // Visual block types that benefit from filling available space (have aspect ratios
         // or are designed to scale). All other types (text, card, button, etc.) are
         // content-driven and should collapse to their natural height.
-        const FILL_TYPES = new Set(["volt", "image", "3d-object", "video", "canvas", "photo-card", "coverage-map", "projects-gallery", "gallery-cta"]);
+        // "template" MUST be here too: TemplateBlock renders an <iframe style="height:100%">
+        // (see components/sections/blocks/TemplateBlock.tsx) — a percentage height on a
+        // replaced element can never resolve inside an 'auto' grid track (no definite size
+        // to resolve against), so the browser falls back to the iframe's UA-default intrinsic
+        // box (300×150px). That silently squashed every "template" block (e.g. a pricing
+        // grid with tab bars) to ~150px tall with clipped overflow — the tab bar/cards past
+        // that point were never visible on the live page even though the row's own content
+        // needed 500-700px. '1fr' resolves against the grid's definite minHeight instead,
+        // giving the iframe a real height to fill.
+        const FILL_TYPES = new Set(["volt", "image", "3d-object", "video", "canvas", "photo-card", "coverage-map", "projects-gallery", "gallery-cta", "template"]);
         return Array.from({ length: totalRows }, (_, i) => {
           const types = rowTypes[i + 1];
           // A row gets '1fr' only if it contains a visual/fill block type.
@@ -1658,7 +1832,7 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
                 // Allow slight overflow for decorative elements that extend beyond their bounds
                 overflow: "visible",
               }}>
-                <DesignerBlock block={block} darkBg={darkBg} />
+                <DesignerBlock block={block} darkBg={darkBg} onContentHeight={isDynamic ? reportBlockHeight : undefined} />
               </div>
             );
           })}
@@ -1667,18 +1841,20 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone, plateMo
     }
 
     // Preset / fallback: flex layout
-    // In multi mode blocks stack vertically, each taking an equal fraction of the total height
+    // In multi mode blocks stack vertically, each taking an equal fraction of the total height.
+    // Dynamic mode also stacks vertically, but each block keeps its own natural height (there's
+    // no fixed N to divide evenly by — N is computed FROM the content, not authored up front).
     return (
       <div style={{
         display: "flex",
-        flexDirection: isMulti ? "column" : "row",
-        flexWrap: isMulti ? "nowrap" : "wrap",
+        flexDirection: (isMulti || isDynamic) ? "column" : "row",
+        flexWrap: (isMulti || isDynamic) ? "nowrap" : "wrap",
         gap: `${gap ?? 16}px`,
         minHeight: gridH,
       }}>
         {filteredBlocks.map((block) => (
-          <div key={block.id} style={{ flex: isMulti ? `0 0 calc(${100 / multiLimit}%)` : "1 1 280px", minWidth: 0 }}>
-            <DesignerBlock block={block} darkBg={darkBg} />
+          <div key={block.id} style={{ flex: isMulti ? `0 0 calc(${100 / multiLimit}%)` : (isDynamic ? "0 0 auto" : "1 1 280px"), minWidth: 0 }}>
+            <DesignerBlock block={block} darkBg={darkBg} onContentHeight={isDynamic ? reportBlockHeight : undefined} />
           </div>
         ))}
       </div>
@@ -1721,9 +1897,12 @@ function groupSubsByColumn(subs: SubEl[]): SubEl[][] {
     .map(k => buckets.get(k)!.sort((a, b) => (a.y ?? 0) - (b.y ?? 0)));
 }
 
-function DesignerBlock({ block, darkBg }: {
+function DesignerBlock({ block, darkBg, onContentHeight }: {
   block: { type: string; props?: Record<string, unknown>; subElements?: SubEl[] };
   darkBg: boolean;
+  // Dynamic Content Height Mode only (see FlexibleSectionRenderer/DesignerBlocksRenderer) —
+  // undefined for every Single/Multi section, so this block's render is byte-identical there.
+  onContentHeight?: (blockId: string, px: number) => void;
 }) {
   const blockRef    = useRef<HTMLDivElement>(null);
   // Stats countUp: ref to the number display element
@@ -1733,6 +1912,31 @@ function DesignerBlock({ block, darkBg }: {
   // Default text colour based on the section's background luminance
   const tc = darkBg ? "#fff" : "#212529";
   const subs = block.subElements || [];
+  // Runtime designer blocks always carry an `id` (not part of the narrow prop type above —
+  // same cast used elsewhere in this file, e.g. the "template" case's blockDomId).
+  const blockId = String((block as unknown as { id?: string | number }).id ?? "");
+
+  // ── Dynamic Content Height Mode: same-origin native blocks (card-tabs/product-grid) ──────
+  // These render as normal React DOM (no iframe boundary), so — unlike "template" blocks,
+  // which need postMessage — their own rendered container height can be measured directly
+  // with a ResizeObserver. Debounced ~100ms so a burst of resize events from a tab-switch
+  // reflow doesn't thrash the parent's state on every intermediate frame.
+  const contentHeightRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!onContentHeight) return;
+    if (block.type !== "card-tabs" && block.type !== "product-grid") return;
+    const el = contentHeightRef.current;
+    if (!el || !blockId || typeof ResizeObserver === "undefined") return;
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const ro = new ResizeObserver((entries) => {
+      const h = entries[0]?.contentRect?.height;
+      if (!h) return;
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => onContentHeight(blockId, h), 100);
+    });
+    ro.observe(el);
+    return () => { ro.disconnect(); if (debounceTimer) clearTimeout(debounceTimer); };
+  }, [block.type, blockId, onContentHeight]);
 
   // ── Stats countUp animation ──────────────────────────────────────────────
   // Triggered once when the stats block first enters the viewport.
@@ -2118,12 +2322,138 @@ function DesignerBlock({ block, darkBg }: {
         // Full-bleed background volt → cover fit + full box (no flex centering) so it
         // fills the cell edge-to-edge, matching the designer preview. Off → unchanged.
         const voltFullBleed = !!p.fullBleed;
+        // Optional data-bound product: VoltBlock fetches the package and auto-populates
+        // slots bound to pkg.* field hints. Undefined → manual slot text only (unchanged).
+        const voltProductId = (p.productId as string) || undefined;
         return (
           <div style={voltFullBleed
             ? { height: "100%", width: "100%" }
             : { height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <VoltBlock voltId={voltId} slots={voltSlots} fitMode={voltFullBleed ? "cover" : "contain"} />
+            <VoltBlock voltId={voltId} slots={voltSlots} fitMode={voltFullBleed ? "cover" : "contain"} productId={voltProductId} />
           </div>
+        );
+      }
+
+      // ── card-tabs: auto-populating Product Type -> Network -> Term grid of live
+      // packages (see CardTabsBlock.tsx). Falls back to a legacy manually-authored
+      // tabs[] shape when productTypeSlugs isn't set — CardTabsBlock itself decides
+      // which mode to render, so this case just passes both shapes through as-is. ──
+      case "card-tabs": {
+        const ctSlugs = p.productTypeSlugs as string[] | undefined;
+        const ctTabs = p.tabs as import("@/components/sections/blocks/CardTabsBlock").CardTabsTab[] | undefined;
+        if ((!ctSlugs || ctSlugs.length === 0) && (!ctTabs || ctTabs.length === 0)) {
+          return (
+            <div style={{ padding: "20px", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#6c757d" }}>
+              <span style={{ fontSize: "12px" }}>No product types configured</span>
+            </div>
+          );
+        }
+        {
+          const ctBlock = (
+            <CardTabsBlock
+              content={{
+                productTypeSlugs: ctSlugs,
+                voltId: p.voltId as string | undefined,
+                tabs: ctTabs,
+                minCardWidth: p.minCardWidth as number | undefined,
+                cardAspectRatio: p.cardAspectRatio as string | undefined,
+              }}
+              darkBg={darkBg}
+            />
+          );
+          // Dynamic Content Height Mode: wrap with the ResizeObserver-measured container
+          // (see contentHeightRef above) ONLY when a report callback was actually passed
+          // down (contentMode === "dynamic") — Single/Multi sections render the block
+          // exactly as before, no extra wrapper div. Deliberately no explicit height here
+          // (would clamp the very measurement it needs to make) — natural content sizing.
+          return onContentHeight ? <div ref={contentHeightRef}>{ctBlock}</div> : ctBlock;
+        }
+      }
+
+      // ── product-grid: 3-layer Product Type → Network → Category drill-down grid of
+      // existing Volt card designs, each bound to a live package via VoltBlock's productId ──
+      case "product-grid": {
+        const pgSlugs = p.productTypeSlugs as string[] | undefined;
+        const pgVoltId = p.voltId as string | undefined;
+        if (!pgSlugs || pgSlugs.length === 0) {
+          return (
+            <div style={{ padding: "20px", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#6c757d" }}>
+              <span style={{ fontSize: "12px" }}>No product types configured</span>
+            </div>
+          );
+        }
+        {
+          const pgBlock = <ProductGridBlock content={{ productTypeSlugs: pgSlugs, voltId: pgVoltId, minCardWidth: p.minCardWidth as number | undefined, heading: p.heading as string | undefined }} darkBg={darkBg} />;
+          // Dynamic Content Height Mode — see the identical wrapping in the "card-tabs"
+          // case above for the full rationale.
+          return onContentHeight ? <div ref={contentHeightRef}>{pgBlock}</div> : pgBlock;
+        }
+      }
+
+      // ── template: renders an admin-imported "Section Block" HTML template as a block ──
+      case "template": {
+        const templateId = p.templateId as string | undefined;
+        if (!templateId) {
+          return (
+            <div style={{ padding: "20px", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#6c757d" }}>
+              <span style={{ fontSize: "12px" }}>No template selected</span>
+            </div>
+          );
+        }
+        /* SECURITY: admin-only CMS content — same trust model as the existing volt/html block
+           types above (no new sanitization added; content is authored via Templates admin). */
+        const cmsSite = typeof window !== "undefined" ? (window as any).__CMS_SITE : undefined;
+        const applyCmsVars = (input: string) => cmsSite
+          ? input
+              .replace(/\{\{cms\.logo\}\}/g, cmsSite.logoUrl ?? "")
+              .replace(/\{\{cms\.company\}\}/g, cmsSite.companyName ?? "")
+              .replace(/\{\{cms\.tagline\}\}/g, cmsSite.tagline ?? "")
+              .replace(/\{\{cms\.phone\}\}/g, cmsSite.phone ?? "")
+              .replace(/\{\{cms\.email\}\}/g, cmsSite.email ?? "")
+              .replace(/\{\{cms\.address\}\}/g, cmsSite.address ?? "")
+              .replace(/\{\{cms\.city\}\}/g, cmsSite.city ?? "")
+              .replace(/\{\{cms\.postal\}\}/g, cmsSite.postalCode ?? "")
+              .replace(/\{\{cms\.country\}\}/g, cmsSite.country ?? "")
+              .replace(/\{\{cms\.copyright\}\}/g, cmsSite.copyrightText ?? "")
+              .replace(/\{\{cms\.facebook\}\}/g, cmsSite.facebook ?? "")
+              .replace(/\{\{cms\.instagram\}\}/g, cmsSite.instagram ?? "")
+              .replace(/\{\{cms\.twitter\}\}/g, cmsSite.twitter ?? "")
+              .replace(/\{\{cms\.linkedin\}\}/g, cmsSite.linkedin ?? "")
+              .replace(/\{\{cms\.youtube\}\}/g, cmsSite.youtube ?? "")
+              .replace(/\{\{cms\.tiktok\}\}/g, cmsSite.tiktok ?? "")
+          : input;
+        const templateMediaSlots = (p.mediaSlots && typeof p.mediaSlots === "object" ? p.mediaSlots : {}) as Record<string, string>;
+        const applyMediaSlots = (input: string) =>
+          input.replace(/\{\{cms\.media\.([a-z0-9_-]+)\}\}/g, (_, slotName: string) => templateMediaSlots[slotName] ?? "");
+        const templateHtml = applyMediaSlots(applyCmsVars((p.customHtml as string) || ""));
+        const templateCss  = applyMediaSlots(applyCmsVars((p.customCss as string) || ""));
+        // `block` here isn't typed with an `id` field (see the narrowed param type above), but
+        // the runtime designer block object always has one — used as the remount key so
+        // switching which template/product is bound doesn't reuse a stale iframe.
+        const blockDomId = (block as unknown as { id?: string }).id || templateId;
+        const templateProductId = p.productId as string | undefined;
+        const templateNetworkSlug = p.networkSlug as string | undefined;
+        const templateNetworkName = p.networkName as string | undefined;
+        const templateProductTypeSlugs = p.productTypeSlugs as string[] | undefined;
+        // "Template Options" ({{tpl.*}} tokens + --tpl-* CSS vars, set via the Designer's
+        // Template Options panel). Substitution itself lives in TemplateBlock (shared with
+        // the Designer's own /template-preview canvas route) so the two render sites can
+        // never drift — this call site only needs to read the prop and pass it through.
+        const templateOptions = (p.templateOptions && typeof p.templateOptions === "object" ? p.templateOptions : {}) as Record<string, string>;
+        // The {{pkg.*}} layer (optional live product binding) needs its own client fetch —
+        // split into TemplateBlock so that hook isn't called conditionally inside this switch.
+        return (
+          <TemplateBlock
+            key={blockDomId}
+            html={templateHtml}
+            css={templateCss}
+            productId={templateProductId}
+            networkSlug={templateNetworkSlug}
+            networkName={templateNetworkName}
+            productTypeSlugs={templateProductTypeSlugs}
+            templateOptions={templateOptions}
+            onContentHeight={onContentHeight ? (px: number) => onContentHeight(blockDomId, px) : undefined}
+          />
         );
       }
 
@@ -2302,12 +2632,30 @@ type ReflowLeaf = {
   node: React.ReactNode;
   aspect?: number | null; // non-container block design aspect (w/h), else null
   minH?: number;          // non-container block fallback min-height when no aspect
+  selfSizing?: boolean;   // true for template/card-tabs/product-grid — see SELF_SIZING_TYPES
+  blockId?: string;       // id used to key this leaf's live-reported content height
 };
 
 /**
- * FreeReflowStack — the free-mode MOBILE layout (≤768px). Instead of shrinking the whole
- * designer canvas into a tiny scaled photograph, it lays the design's leaves out as a
- * single readable column:
+ * Block types whose real content height on mobile can differ wildly from their desktop
+ * aspect ratio — a "template" block bound to a multi-card pricing grid is a good example:
+ * on desktop the cards sit side by side in a short, wide box; stacked single-column on
+ * mobile (FreeReflowStack, single-column always) the SAME cards need several times that
+ * height. Forcing these into `aspectRatio: designW/designH` (the treatment every other
+ * free-mode block gets below) reproduces the exact box the desktop design used and clips
+ * everything past it via the wrapper's overflow:hidden — a card cut off mid-price, or
+ * only the first of three cards visible at all. These three types instead get a
+ * content-driven height (see reportHeight/liveHeights in FreeReflowStack) — the same
+ * onContentHeight channel Dynamic Content Height Mode already uses for these exact block
+ * types elsewhere in this file (DesignerBlock's card-tabs/product-grid ResizeObserver and
+ * "template" case's postMessage wiring), just consumed here instead of by the section.
+ */
+const SELF_SIZING_TYPES = new Set(["template", "card-tabs", "product-grid"]);
+
+/**
+ * FreeReflowStack — the free-mode MOBILE+TABLET layout (< FREE_MODE_REFLOW_BREAKPOINT).
+ * Instead of shrinking the whole designer canvas into a tiny scaled photograph, it lays
+ * the design's leaves out as a single readable column:
  *  1. Collect leaves — every sub-element of a container block (absolute box = block
  *     pixelPos + sub {x,y,w,h}) and every non-container block (its pixelPos box).
  *  2. Order them in READING ORDER — top banded to ~24px rows, then left-to-right.
@@ -2316,11 +2664,25 @@ type ReflowLeaf = {
  *     elements that overlapped or sat adjacent (e.g. a paragraph and the emphasized
  *     heading continuing its sentence) render tight and read as connected, while
  *     far-apart elements keep a normal gap. Fonts become readable fluid clamps (mobile).
+ *  4. SELF_SIZING_TYPES (template/card-tabs/product-grid) skip the aspect-ratio box
+ *     every other block gets and instead grow to their own live-reported content height
+ *     — see reportHeight below and SELF_SIZING_TYPES' doc comment for why.
  */
 function FreeReflowStack({ blocks, designerCanvasW, containerW, darkBg }: {
   blocks: ReflowBlock[]; designerCanvasW: number; containerW: number; darkBg: boolean;
 }) {
   const isContainerType = (t: string) => t === "text" || t === "text-block" || t === "card";
+
+  // Live content height per self-sizing leaf (keyed by block id), reported by
+  // DesignerBlock's own onContentHeight channel (postMessage for "template", a
+  // ResizeObserver for "card-tabs"/"product-grid" — same mechanism Dynamic Content
+  // Height Mode already uses elsewhere in this file). Undefined until the first report
+  // lands, so those leaves start at a placeholder minHeight and grow once real content
+  // height is known — never a fixed aspect-ratio box that can clip a multi-card grid.
+  const [liveHeights, setLiveHeights] = useState<Record<string, number>>({});
+  const reportHeight = useCallback((id: string, px: number) => {
+    setLiveHeights((h) => (h[id] === px ? h : { ...h, [id]: px }));
+  }, []);
 
   const leaves: ReflowLeaf[] = [];
   for (const block of blocks) {
@@ -2337,6 +2699,16 @@ function FreeReflowStack({ blocks, designerCanvasW, containerW, darkBg }: {
           textAlign: (sub.props?.textAlign as React.CSSProperties["textAlign"]) || undefined,
           node: <DesignerSubElement key={String(block.id) + "-" + si} sub={sub} mobile />,
         });
+      });
+    } else if (SELF_SIZING_TYPES.has(block.type)) {
+      const blockId = String((block as unknown as { id?: string | number }).id ?? "");
+      leaves.push({
+        top: pos.y || 0, left: pos.x || 0, width: pos.w, height: pos.h,
+        textAlign: undefined,
+        selfSizing: true,
+        blockId,
+        minH: liveHeights[blockId] ?? 240, // placeholder for one card until the real report lands
+        node: <DesignerBlock key={block.id} block={block} darkBg={darkBg} onContentHeight={reportHeight} />,
       });
     } else {
       const aspect = pos.w > 0 && pos.h > 0 ? pos.w / pos.h : null;
@@ -2375,9 +2747,22 @@ function FreeReflowStack({ blocks, designerCanvasW, containerW, darkBg }: {
           <div key={i} style={{ width: "100%", marginTop, textAlign: leaf.textAlign }}>
             {isBlock ? (
               <div style={{
-                position: "relative", width: "100%", overflow: "hidden",
+                position: "relative", width: "100%",
+                // selfSizing leaves need overflow:visible, not hidden — the height below
+                // is a live-reported value (or a starting placeholder before the first
+                // report lands), and clipping to it would silently hide real content on
+                // any undershoot instead of the brief, self-correcting visual overlap
+                // visible gives instead. Every other leaf keeps the original hidden
+                // (their box is the design's own aspect ratio, never underestimated).
+                overflow: leaf.selfSizing ? "visible" : "hidden",
                 ...(leaf.aspect ? { aspectRatio: `${leaf.aspect}` } : {}),
-                ...(leaf.minH != null ? { minHeight: leaf.minH } : {}),
+                // selfSizing: an explicit `height` (not minHeight) — a percentage height
+                // on the "template" leaf's own <iframe> (height:100%, see TemplateBlock)
+                // only resolves against a DEFINITE containing-block height; minHeight
+                // alone leaves the computed height 'auto' (indeterminate), so the iframe
+                // would fall back to its 300×150 UA default — the exact bug already fixed
+                // once for grid-mode template blocks (see FILL_TYPES above).
+                ...(leaf.selfSizing ? { height: leaf.minH } : leaf.minH != null ? { minHeight: leaf.minH } : {}),
               }}>
                 {leaf.node}
               </div>

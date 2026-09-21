@@ -6,7 +6,7 @@ import { requireRole } from "@/lib/api-middleware";
 const CreateSchema = z.object({
   name:         z.string().min(1).max(120),
   description:  z.string().max(500).optional().nullable(),
-  templateType: z.enum(["standalone", "section", "page"]),
+  templateType: z.enum(["standalone", "section", "page", "block"]),
   sectionType:  z.string().optional().nullable(),
   thumbnail:    z.string().url().optional().nullable(),
   data:         z.record(z.string(), z.unknown()),

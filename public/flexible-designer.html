@@ -151,11 +151,18 @@
     /* ── LIB TABS ────────────────────────────────── */
     .lib-tabs {
       display: flex;
+      flex-wrap: wrap;
+      row-gap: 2px;
       border-bottom: 2px solid #e9ecef;
       margin-bottom: 10px;
     }
     .lib-tab {
-      flex: 1;
+      /* Grow to fill spare width, but settle around a third of the row so 5
+         tabs wrap 3-then-2 instead of squeezing onto one line and clipping
+         the last label (the original flex:1/nowrap combo did exactly that
+         once "Templates" made it a 5th tab). */
+      flex: 1 1 33%;
+      min-width: 58px;
       padding: 6px 4px;
       text-align: center;
       font-size: 11px;
@@ -1436,15 +1443,20 @@
               <select class="form-select form-select-sm mb-2" id="contentMode" onchange="onModeChange()">
                 <option value="single">Single Section (100vh)</option>
                 <option value="multi">Multi Section (Tall — scrollable)</option>
+                <option value="dynamic">Dynamic (auto-fit content)</option>
               </select>
               <div id="multi-limit-row" style="display:none;">
                 <div class="d-flex align-items-center gap-2">
-                  <label class="form-label mb-0 small">Height</label>
+                  <label class="form-label mb-0 small" id="multiLimitLabel">Height</label>
                   <input type="range" class="form-range flex-1" id="multiLimit" min="2" max="10" value="3"
                     oninput="document.getElementById('multiLimitVal').textContent=this.value; renderCanvas(); autoSave();">
                   <span class="slider-value" id="multiLimitVal">3</span>
                   <small class="text-muted">×100vh</small>
                 </div>
+                <!-- Dynamic mode: the live public page computes the actual screen count from
+                     rendered content (see FlexibleSectionRenderer.tsx); this slider becomes the
+                     safety CAP on that computation, not a fixed size — relabeled below via
+                     onModeChange() so the same field/UI is reused for both meanings. -->
               </div>
             </div>
 
@@ -1592,6 +1604,7 @@
               <div class="lib-tab active" id="tab-containers" onclick="switchLibTab('containers')">Blocks</div>
               <div class="lib-tab" id="tab-sub" onclick="switchLibTab('sub')">Sub-Els</div>
               <div class="lib-tab" id="tab-volt" onclick="switchLibTab('volt')">⚡ Volt</div>
+              <div class="lib-tab" id="tab-templates" onclick="switchLibTab('templates')">📄 Templates</div>
               <div class="lib-tab" id="tab-layouts" onclick="switchLibTab('layouts')">Layouts</div>
             </div>
 
@@ -1657,6 +1670,16 @@
                 <div class="ec-name">Photo Strip</div>
                 <span class="ec-badge container">Block</span>
               </div>
+              <div class="element-card" draggable="true" ondragstart="onLibDragStart(event,'card-tabs')">
+                <div class="ec-icon">🗂️</div>
+                <div class="ec-name">Card Tabs</div>
+                <span class="ec-badge container">Block</span>
+              </div>
+              <div class="element-card" draggable="true" ondragstart="onLibDragStart(event,'product-grid')">
+                <div class="ec-icon">🗂️</div>
+                <div class="ec-name">Product Grid</div>
+                <span class="ec-badge container">Block</span>
+              </div>
             </div>
 
             <!-- Sub-elements -->
@@ -1713,6 +1736,19 @@
                 <i class="bi bi-plus-lg me-1"></i>Create New Volt
               </button>
               <div id="volt-lib-items"></div>
+            </div>
+
+            <!-- Section Templates -->
+            <div id="lib-templates" style="display:none;">
+              <div id="template-lib-loading" class="sub-lock-notice">
+                <i class="bi bi-hourglass-split"></i>
+                Loading templates…
+              </div>
+              <div id="template-lib-empty" class="sub-lock-notice" style="display:none;">
+                <i class="bi bi-file-earmark-text"></i>
+                No section templates yet. Import one via Templates → Import, choose "Section Block" scope.
+              </div>
+              <div id="template-lib-items"></div>
             </div>
 
             <!-- Layout Presets -->
@@ -1955,9 +1991,12 @@ const BLOCK_DEFAULTS = {
   html:        { label:'HTML',    html:'<p>Custom HTML</p>', customCss:'' },
   divider:     { label:'Divider', thickness:2, dividerColor:'#dee2e6', customCss:'' },
   volt:        { label:'Volt', bgColor:'transparent', voltId:'', voltName:'', voltThumbnail:null, voltLayerOverrides:{}, customCss:'' },
+  'card-tabs': { label:'Card Tabs', productTypeSlugs:[], voltId:'', voltName:'', minCardWidth:260, customCss:'' },
+  template:    { label:'Template', templateId:'', templateName:'', templateThumbnail:null, customHtml:'<p>Section template</p>', customCss:'', mediaSlots:{}, productId:'', productName:'', networkSlug:'', networkName:'', productTypeSlugs:[], templateOptions:{} },
   editorial:   { label:'Editorial', text:'Start typing your editorial content here. This text will flow around any obstacle images you place in the block. You can use multiple obstacles — each with its own position, size, and alpha hull tracing for precise text wrapping.', fontFamily:'Merriweather', fontSize:18, lineHeight:1.6, textColor:'#212529', bgColor:'transparent', obstacles:[], customCss:'' },
   steps:       { label:'Steps', steps:[{number:'01',heading:'Discovery',subtext:'We analyse your requirements and technical constraints.'},{number:'02',heading:'Design',subtext:'We prototype and validate the solution with stakeholders.'},{number:'03',heading:'Build',subtext:'We implement, test, and deploy the solution.'}], stepsNumberWidth:100, stepsDividers:true, stepsLastDivider:false, customCss:'' },
   'photo-strip':{ label:'Photo Strip', images:[{src:'',alt:''},{src:'',alt:''},{src:'',alt:''}], columns:3, height:220, gap:4, hoverBrightness:true, customCss:'' },
+  'product-grid': { label:'Product Grid', productTypeSlugs:[], minCardWidth:260, voltId:'', voltName:'', heading:'', customCss:'' },
 };
 
 const SUB_DEFAULTS = {
@@ -2096,6 +2135,22 @@ function applySnapshot(snap, addToHistory) {
   state.preset        = s.preset || 'full-width';
   state.positionMode  = s.positionMode || 'free';
   state.designerCanvasH = s.designerCanvasH || null;  // Option C — restore authored free-mode box height (null = new → DESIGN_H)
+  // state.gridRows/gridCols/gridGap/multiLimit are assigned directly here, not just
+  // written into their form fields — getCellRect()/getCellMetrics() (block position/width
+  // math) read straight from `state`, not from the DOM. The old code only set the form
+  // fields and relied on a later renderCanvas() call to read them back INTO state (it
+  // does, at the top of renderCanvas()) — fragile: any block-position computation that
+  // runs before that first renderCanvas() call after a snapshot restore silently used
+  // whatever state.gridCols/gridRows already held (the module-level default, gridCols:3),
+  // not the section's actual saved column count. A block saved as "col 1 of 1" would then
+  // measure itself against 3 columns and render at roughly a third of the width, aligned
+  // to the left — exactly the canvas-vs-live-page mismatch this was causing, since the
+  // real page (FlexibleSectionRenderer.tsx) reads gridCols from the saved data directly,
+  // never from stale in-memory defaults.
+  state.gridRows = s.gridRows;
+  state.gridCols = s.gridCols;
+  state.gridGap  = s.gridGap;
+  state.multiLimit = s.multiLimit;
   // Sync DOM controls so sliders and selects match the restored state
   document.getElementById('contentMode').value  = s.contentMode;
   document.getElementById('layoutType').value   = s.layoutType;
@@ -2398,8 +2453,63 @@ function loadNavOptions() {
 // ═══════════════════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════════════════
+// Coverage-plugin networks + packages, for the Packages block + card→package binding.
+window.__networks = [];
+function loadNetworks() {
+  fetch('/api/networks', { credentials: 'include' })
+    .then(r => r.ok ? r.json() : [])
+    .then(d => { window.__networks = Array.isArray(d) ? d : []; })
+    .catch(() => {});
+}
+
+// All active packages (id, name, networkName) for the volt "Linked Product" picker.
+window.__allPackages = [];
+function loadAllPackages() {
+  fetch('/api/packages?all=1', { credentials: 'include' })
+    .then(r => r.ok ? r.json() : { packages: [] })
+    .then(d => {
+      window.__allPackages = (d && Array.isArray(d.packages)) ? d.packages : [];
+      // If a volt block is currently selected, re-render so the picker is populated.
+      try { if (state.selectedBlockId) renderPropsPanel(); } catch (e) { /* ignore */ }
+    })
+    .catch(() => {});
+}
+
+// Active product types (id, name, slug, color) for the Product Grid block's type picker.
+window.__productTypes = [];
+function loadProductTypes() {
+  fetch('/api/product-types', { credentials: 'include' })
+    .then(r => r.ok ? r.json() : [])
+    .then(d => {
+      window.__productTypes = Array.isArray(d) ? d : [];
+      try { if (state.selectedBlockId) renderPropsPanel(); } catch (e) { /* ignore */ }
+    })
+    .catch(() => {});
+}
+
+// Volt designs (id, name) for the Product Grid block's card-design picker. Lazy-loaded
+// on first use (not at init) since it's only needed when a product-grid block is selected.
+window.__voltDesigns = [];
+const _pgVoltDesigns = { loaded: false, loading: false };
+function loadVoltDesignsIfNeeded() {
+  if (_pgVoltDesigns.loaded || _pgVoltDesigns.loading) return;
+  _pgVoltDesigns.loading = true;
+  fetch('/api/volt', { credentials: 'include' })
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(json => {
+      _pgVoltDesigns.loaded = true;
+      _pgVoltDesigns.loading = false;
+      window.__voltDesigns = json.data?.volts || [];
+      try { if (state.selectedBlockId) renderPropsPanel(); } catch (e) { /* ignore */ }
+    })
+    .catch(() => { _pgVoltDesigns.loading = false; });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   loadNavOptions();
+  loadNetworks();
+  loadAllPackages();
+  loadProductTypes();
   // Only restore autosave when running standalone (not embedded in admin iframe).
   // When embedded, FLEXIBLE_DESIGNER_INIT provides the correct per-section data —
   // loading the shared autosave here would briefly flash stale data from the last
@@ -2455,9 +2565,19 @@ function renderCanvas() {
 
   const canvas = document.getElementById('canvas');
   const canvasArea = canvas.closest('.canvas-area');
+  // Dynamic mode's canvas is a STATIC design surface (no live product data driving it in the
+  // designer), so it deliberately reuses Multi's exact rendering here — shown at its cap
+  // height (state.multiLimit × availH), same multi-band block placement. The actual live
+  // auto-fit only happens on the real public page (FlexibleSectionRenderer.tsx); don't
+  // duplicate that logic here. See also globals.css [data-content-mode="dynamic"].
+  const isMultiLike = state.contentMode === 'multi' || state.contentMode === 'dynamic';
   // Apply mode class so CSS can style single vs multi borders differently
   canvas.className = state.contentMode === 'single' ? 'mode-single' : 'mode-multi';
-  document.getElementById('multi-limit-row').style.display = state.contentMode === 'multi' ? 'block' : 'none';
+  document.getElementById('multi-limit-row').style.display = isMultiLike ? 'block' : 'none';
+  // Same field/UI as Multi's fixed height, but it means something different for Dynamic
+  // (a safety CAP the live page clamps to, not a size it's forced to) — relabel accordingly.
+  const multiLimitLabelEl = document.getElementById('multiLimitLabel');
+  if (multiLimitLabelEl) multiLimitLabelEl.textContent = state.contentMode === 'dynamic' ? 'Max screens (safety cap)' : 'Height';
 
   // Section height = available canvas area height (same for single and multi).
   // This ensures each section fills exactly the visible designer area — no cells spill past section boundaries.
@@ -2467,8 +2587,8 @@ function renderCanvas() {
   // Subtract toolbar and ruler heights from the available container height
   const availH = canvasArea ? canvasArea.clientHeight - (headerEl ? headerEl.offsetHeight : 0) - RULER_H : window.innerHeight - RULER_H;
 
-  if (state.contentMode === 'multi') {
-    // Multi mode: canvas height = N × one-section height so all sections scroll within the area
+  if (isMultiLike) {
+    // Multi/Dynamic mode: canvas height = N × one-section height so all sections scroll within the area
     canvas.style.height = `${availH * state.multiLimit}px`;
     canvas.style.minHeight = `${availH * state.multiLimit}px`;
     if (canvasArea) { canvasArea.classList.add('multi-scroll'); canvasArea.classList.remove('single-scroll'); }
@@ -2500,6 +2620,9 @@ function renderCanvas() {
   if (state.contentMode === 'single') {
     badge.className = 'mode-badge single';
     badge.textContent = 'Single Section — 100vh';
+  } else if (state.contentMode === 'dynamic') {
+    badge.className = 'mode-badge multi';
+    badge.textContent = `Dynamic Section — up to ${state.multiLimit}×100vh`;
   } else {
     badge.className = 'mode-badge multi';
     badge.textContent = `Multi Section — ${state.multiLimit}×100vh`;
@@ -2514,7 +2637,7 @@ function renderCanvas() {
   // In free mode or mosaic mode: blocks keep their stored x/y/w/h — no grid snap applied here.
   // Mosaic positioning is handled entirely in renderMosaicBlocks().
   if (state.positionMode !== 'free' && state.layoutType !== 'mosaic') {
-    const maxSection = state.contentMode === 'multi' ? state.multiLimit - 1 : 0;
+    const maxSection = isMultiLike ? state.multiLimit - 1 : 0;
     state.blocks.forEach(b => {
       // Clamp all grid coordinates to valid bounds after grid dimension changes
       b.section  = Math.max(0, Math.min(b.section  || 0, maxSection));
@@ -2538,8 +2661,8 @@ function renderCanvas() {
       }
     });
     // Restore natural canvas height + remove mobile-scroll when not in mobile stacking mode
-    // (only for single-section; multi-section height was already set above)
-    if (state.devicePreview !== 'mobile' && state.contentMode !== 'multi') {
+    // (only for single-section; multi/dynamic-section height was already set above)
+    if (state.devicePreview !== 'mobile' && !isMultiLike) {
       canvas.style.height    = '';
       canvas.style.minHeight = '';
     }
@@ -2690,7 +2813,8 @@ function renderGridOverlay() {
   if (state.devicePreview === 'mobile') return;
 
   const { cellW, cellH, sectionH, gap, offsetX } = getCellMetrics();
-  const sectionCount = state.contentMode === 'multi' ? state.multiLimit : 1;
+  // Dynamic mode's canvas reuses Multi's rendering (see renderCanvas's isMultiLike comment).
+  const sectionCount = (state.contentMode === 'multi' || state.contentMode === 'dynamic') ? state.multiLimit : 1;
 
   for (let s = 0; s < sectionCount; s++) {
     const sectionOffset = s * sectionH;
@@ -3203,6 +3327,9 @@ function createBlockPreview(block) {
     case 'html':
       wrap.innerHTML = `<div class="cb-prev-html">${escHtml(p.html||'').substring(0,60)}…</div>`;
       break;
+    case 'template':
+      wrap.innerHTML = `<div class="cb-prev-html">${escHtml(p.templateName||'Template')}</div>`;
+      break;
     case 'divider':
       wrap.innerHTML = `<div style="padding:10px 0;"><hr style="border-top:${p.thickness}px solid ${p.dividerColor};margin:0;"></div>`;
       break;
@@ -3314,6 +3441,54 @@ function createBlockPreview(block) {
       }
       psHtml += '</div>';
       wrap.innerHTML = psHtml;
+      break;
+    }
+    case 'card-tabs': {
+      // Legacy manually-authored sections (p.tabs, no productTypeSlugs) still get the
+      // old tab/card-count summary; auto-populating ones (the current default) show
+      // which product types + Volt design drive them, mirroring product-grid's preview.
+      if (!p.productTypeSlugs && p.tabs) {
+        var ctLegacyTabs = p.tabs || [];
+        var ctTabsHtml = ctLegacyTabs.map(function(t){
+          var nets = t.groupByNetwork ? Array.from(new Set((t.cards||[]).map(function(c){ return c.networkLabel; }).filter(Boolean))) : [];
+          var terms = t.groupByTerm ? Array.from(new Set((t.cards||[]).map(function(c){ return c.term; }).filter(Boolean))) : [];
+          var bits = [];
+          if (nets.length > 1) bits.push(nets.length + ' sub-tabs');
+          if (terms.length > 1) bits.push(terms.length + ' terms');
+          var suffix = bits.length ? ' <span style="opacity:.55;">(' + bits.join(', ') + ')</span>' : '';
+          return '<span style="padding:3px 9px;border-radius:999px;background:rgba(255,255,255,0.1);margin-right:4px;">' + escHtml(t.label||'Tab') + suffix + '</span>';
+        }).join('');
+        var ctCardCount = ctLegacyTabs.reduce(function(sum,t){ return sum + (t.cards||[]).length; }, 0);
+        wrap.innerHTML = '<div style="padding:10px 4px;">' +
+          '<div style="font-size:11px;color:#4f46e5;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;"><i class="bi bi-ui-radios"></i> Card Tabs <span style="opacity:.5;">(legacy manual)</span></div>' +
+          '<div style="font-size:11px;margin-bottom:8px;">' + (ctTabsHtml || '<em style="opacity:.5;">No tabs yet</em>') + '</div>' +
+          '<div style="font-size:10px;opacity:.5;">' + ctLegacyTabs.length + ' tab' + (ctLegacyTabs.length===1?'':'s') + ' &middot; ' + ctCardCount + ' card' + (ctCardCount===1?'':'s') + '</div></div>';
+        break;
+      }
+      var ctTypes2 = (window.__productTypes || []).filter(function(t){ return (p.productTypeSlugs||[]).indexOf(t.slug) !== -1; });
+      var ctNames2 = ctTypes2.map(function(t){ return escHtml(t.name); }).join(', ');
+      wrap.innerHTML = '<div style="padding:10px 4px;">' +
+        '<div style="font-size:11px;color:#4f46e5;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;"><i class="bi bi-ui-radios"></i> Card Tabs' + (ctNames2 ? ' — ' + ctNames2 : ' — pick product type(s)') + '</div>' +
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
+          (p.voltId
+            ? '<div style="flex:1;min-width:' + (p.minCardWidth||260) + 'px;border:1px dashed rgba(255,255,255,0.25);border-radius:10px;padding:14px;font-size:11px;opacity:.7;">Volt card: ' + escHtml(p.voltName||p.voltId) + '</div>'
+            : '<div style="flex:1;border:1px dashed rgba(255,255,255,0.25);border-radius:10px;padding:14px;font-size:11px;opacity:.6;">No Volt card design selected</div>') +
+        '</div>' +
+        '<div style="font-size:10px;opacity:.45;margin-top:8px;">Auto-populated: Product Type → Network → Term, live from Networks &amp; Packages</div></div>';
+      break;
+    }
+    case 'product-grid': {
+      var pgTypes = (window.__productTypes || []).filter(function(t){ return (p.productTypeSlugs||[]).indexOf(t.slug) !== -1; });
+      var pgNames = pgTypes.map(function(t){ return escHtml(t.name); }).join(', ');
+      wrap.innerHTML = '<div style="padding:10px 4px;">' +
+        '<div style="font-size:11px;color:#E31E24;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;">🗂️ Product Card Grid' + (pgNames ? ' — ' + pgNames : ' — pick product type(s)') + '</div>' +
+        (p.heading ? '<div style="font-family:var(--display,sans-serif);text-transform:uppercase;font-size:18px;margin-bottom:10px;">' + escHtml(p.heading) + '</div>' : '') +
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
+          (p.voltId
+            ? '<div style="flex:1;min-width:' + (p.minCardWidth||260) + 'px;border:1px dashed rgba(255,255,255,0.25);border-radius:10px;padding:14px;font-size:11px;opacity:.7;">Volt card: ' + escHtml(p.voltName||p.voltId) + '</div>'
+            : '<div style="flex:1;border:1px dashed rgba(255,255,255,0.25);border-radius:10px;padding:14px;font-size:11px;opacity:.6;">No Volt card design selected</div>') +
+        '</div>' +
+        '<div style="font-size:10px;opacity:.45;margin-top:8px;">Renders live packages, grouped by product type → network, using the selected Volt card</div></div>';
       break;
     }
     default:
@@ -4825,6 +5000,35 @@ function onCanvasDrop(e) {
     return;
   }
 
+  if (state.dragSource.kind === 'lib-template') {
+    const rect = canvas.getBoundingClientRect();
+    const _drop_scale = getCanvasScale();
+    const x = (e.clientX - rect.left) / _drop_scale;
+    const y = (e.clientY - rect.top)  / _drop_scale;
+    const blockW = 300;
+    const blockH = 300;
+    const blockX = Math.max(0, Math.min(canvas.offsetWidth  - blockW, x - blockW/2));
+    const blockY = Math.max(0, Math.min(canvas.offsetHeight - blockH, y - blockH/2));
+    const src = state.dragSource;
+    pushHistory();
+    const block = {
+      id: `block-${state.nextId++}`,
+      type: 'template',
+      section: 0, gridRow: 1, gridCol: 1, colSpan: 1, rowSpan: 1,
+      x: blockX, y: blockY, w: blockW, h: blockH,
+      zIndex: 1,
+      props: { ...BLOCK_DEFAULTS['template'], templateId: src.templateId, templateName: src.templateName, templateThumbnail: src.templateThumbnail, customHtml: src.customHtml, customCss: src.customCss, mediaSlots: src.mediaSlots },
+      subElements: []
+    };
+    state.blocks.push(block);
+    selectBlock(block.id);
+    renderCanvas();
+    updateBlockCount();
+    autoSave();
+    state.dragSource = null;
+    return;
+  }
+
   if (state.dragSource.kind === 'lib-block') {
     const canvasArea = canvas.closest('.canvas-area');
     const rect = canvas.getBoundingClientRect();
@@ -4948,7 +5152,7 @@ function getCellMetrics() {
   // Section height = available canvas area height for both single and multi modes.
   // Single: canvas.offsetHeight (naturally fills available space).
   // Multi: canvas.offsetHeight / multiLimit (each stacked section = same available height).
-  let sectionH = state.contentMode === 'multi'
+  let sectionH = (state.contentMode === 'multi' || state.contentMode === 'dynamic')
     ? Math.round(canvas.offsetHeight / state.multiLimit)
     : canvas.offsetHeight;
   // TABLET FIX: on tablet the canvas WIDTH is halved (768 vs desktop 1440) while its
@@ -4998,7 +5202,7 @@ function getCellRect(row, col, colSpan=1, rowSpan=1, section=0) {
  */
 function findCell(x, y) {
   const { gap, cellW, cellH, sectionH } = getCellMetrics();
-  const maxSection = state.contentMode === 'multi' ? state.multiLimit - 1 : 0;
+  const maxSection = (state.contentMode === 'multi' || state.contentMode === 'dynamic') ? state.multiLimit - 1 : 0;
   // Determine which stacked section the Y coordinate falls into
   const section = Math.max(0, Math.min(maxSection, Math.floor(y / sectionH)));
   const localY = y - section * sectionH;
@@ -5024,7 +5228,7 @@ function highlightDropCell(e, excludeId) {
   // rect is viewport-relative — e.clientY - rect.top already accounts for canvas scroll
   const _hdc_s = getCanvasScale();
   const { row, col, section } = findCell((e.clientX-rect.left)/_hdc_s, (e.clientY-rect.top)/_hdc_s);
-  const sectionCount = state.contentMode === 'multi' ? state.multiLimit : 1;
+  const sectionCount = (state.contentMode === 'multi' || state.contentMode === 'dynamic') ? state.multiLimit : 1;
   const cellLabel = sectionCount > 1 ? `S${section+1}R${row}C${col}` : `R${row}C${col}`;
   const occupied = wouldOverlapExisting(row, col, 1, 1, section, excludeId);
   // Find the guide cell element by its text label and apply the highlight class
@@ -5079,7 +5283,7 @@ function startBlockMove(e, blockId) {
   const dragDispH = _moveDP.h;
   document.body.style.cursor = 'grabbing';
 
-  const sectionCount = state.contentMode === 'multi' ? state.multiLimit : 1;
+  const sectionCount = (state.contentMode === 'multi' || state.contentMode === 'dynamic') ? state.multiLimit : 1;
   const canvasW = canvas.offsetWidth;
   const canvasH = canvas.offsetHeight;
 
@@ -5710,7 +5914,7 @@ function renderBlockProps(block) {
   // Pixel dimensions for designers
   const dimW = Math.round(block.w);
   const dimH = Math.round(block.h);
-  const sectionLabel = (state.contentMode==='multi' && block.section !== undefined)
+  const sectionLabel = ((state.contentMode==='multi' || state.contentMode==='dynamic') && block.section !== undefined)
     ? ` · Section ${(block.section||0)+1}`
     : '';
   h+=`<div class="props-section" style="background:#f0f7ff;border-color:#b6d4fe;">
@@ -6038,6 +6242,27 @@ function renderTypeProps(block) {
       // Slot overrides
       h+=`<div style="margin-bottom:6px;">
         <div style="font-size:11px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Content Slots</div>`;
+      // Linked Product picker — bind this card to a coverage-plugin Package so slots
+      // whose field hint is pkg.name/pkg.price/pkg.speed… auto-populate from the product.
+      {
+        const _prods = window.__allPackages || [];
+        const _curProd = p.productId || '';
+        const _byNet = {};
+        _prods.forEach(function(pr){ const k = pr.networkName || 'Other'; (_byNet[k] = _byNet[k] || []).push(pr); });
+        let _prodOpts = `<option value="">— None (manual text) —</option>`;
+        Object.keys(_byNet).forEach(function(net){
+          _prodOpts += `<optgroup label="${escHtml(net)}">`;
+          _byNet[net].forEach(function(pr){
+            _prodOpts += `<option value="${escHtml(pr.id)}"${pr.id===_curProd?' selected':''}>${escHtml(pr.name)}</option>`;
+          });
+          _prodOpts += `</optgroup>`;
+        });
+        h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;margin-bottom:8px;">
+          <label style="margin-bottom:3px;font-size:12px;font-weight:600;"><i class="bi bi-box-seam me-1"></i>Linked Product</label>
+          <select class="props-input" style="font-size:12px;" onchange="updateVoltProduct('${block.id}',this.value)">${_prodOpts}</select>
+          <div style="font-size:10px;color:#9ca3af;margin-top:4px;line-height:1.5;">Binds slots with field hints <code>pkg.name</code>, <code>pkg.price</code>, <code>pkg.speed</code>, <code>pkg.period</code>, <code>pkg.options</code>&hellip; to this product's live values.${_prods.length?'':'<br><em>No packages loaded yet.</em>'}</div>
+        </div>`;
+      }
       h+=inputRow('Title', p.slotTitle||'', `updateVoltSlot('${block.id}','slotTitle',this.value)`, 'Override title…');
       h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;margin-bottom:8px;">
         <label style="margin-bottom:3px;font-size:12px;">Body</label>
@@ -6087,6 +6312,87 @@ function renderTypeProps(block) {
         }
         h+=`</div>`;
       }
+      break;
+    }
+    case 'template': {
+      const tName = p.templateName || 'No template selected';
+      loadTemplateLibIfNeeded(); // no-op if already loading/loaded
+      const tOptions = _templateLib.items.map(function(t){
+        return `<option value="${escHtml(t.id)}"${t.id===p.templateId?' selected':''}>${escHtml(t.name)}</option>`;
+      }).join('');
+      h+=`<div style="display:flex;align-items:center;gap:8px;padding:4px 0 10px;border-bottom:1px solid #e9ecef;margin-bottom:10px;">
+        <i class="bi bi-file-earmark-text" style="color:#084298;font-size:18px;flex-shrink:0;"></i>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12px;font-weight:700;color:#212529;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(tName)}</div>
+          ${p.templateId ? `<div style="font-size:10px;color:#adb5bd;">ID: ${escHtml(p.templateId.substring(0,8))}&hellip;</div>` : ''}
+        </div>
+      </div>`;
+      h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;">
+        <label style="margin-bottom:3px;font-size:12px;">Change template</label>
+        <select class="props-input" style="font-size:12px;" onchange="applyTemplateSelection('${block.id}',this.value)">
+          <option value="">— Select a Section Block template —</option>
+          ${tOptions}
+        </select>
+        <div style="font-size:10px;color:#9ca3af;margin-top:4px;">Content is edited in Templates admin, not here.</div>
+      </div>`;
+      (function() {
+        const tplProds = window.__allPackages || [];
+        const tplByNet = {};
+        tplProds.forEach(function(pr){ const k = pr.networkName || 'Other'; (tplByNet[k] = tplByNet[k] || []).push(pr); });
+        let prodOpts = `<option value="">— None (static content only) —</option>`;
+        Object.keys(tplByNet).forEach(function(net){
+          prodOpts += `<optgroup label="${escHtml(net)}">`;
+          tplByNet[net].forEach(function(pr){ prodOpts += `<option value="${escHtml(pr.id)}"${pr.id===p.productId?' selected':''}>${escHtml(pr.name)}</option>`; });
+          prodOpts += `</optgroup>`;
+        });
+        h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;margin-top:10px;padding-top:10px;border-top:1px solid #e9ecef;">
+          <label style="margin-bottom:3px;font-size:12px;">Linked Product <span style="font-weight:400;color:#9ca3af;">(optional — single-product templates)</span></label>
+          <select class="props-select" style="font-size:12px;" onchange="var pr=(window.__allPackages||[]).find(function(x){return x.id===this.value;});updateBlockProp('${block.id}','productId',this.value);updateBlockProp('${block.id}','productName',pr?pr.name:'');renderCanvas()">
+            ${prodOpts}
+          </select>
+          <div style="font-size:10px;color:#9ca3af;margin-top:4px;line-height:1.5;">
+            When set, write <code>{{pkg.name}}</code>, <code>{{pkg.price}}</code>, <code>{{pkg.period}}</code>,
+            <code>{{pkg.speed}}</code>, <code>{{pkg.speedDown}}</code>, <code>{{pkg.speedUp}}</code>,
+            <code>{{pkg.options}}</code>, <code>{{pkg.network}}</code>, <code>{{pkg.id}}</code> anywhere in
+            the template's HTML/CSS (Templates admin) — same token names as a data-bound Volt card slot.
+            They fill in from this <strong>one</strong> product live on the site.
+          </div>
+        </div>`;
+
+        const tplNets = window.__networks || [];
+        let netOpts = `<option value="">— None —</option>`;
+        tplNets.forEach(function(n){ netOpts += `<option value="${escHtml(n.slug)}"${n.slug===p.networkSlug?' selected':''}>${escHtml(n.name)} (${escHtml(n.category)})</option>`; });
+        const tplTypes = window.__productTypes || [];
+        const tplSelectedTypes = Array.isArray(p.productTypeSlugs) ? p.productTypeSlugs : [];
+        h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;margin-top:10px;padding-top:10px;border-top:1px solid #e9ecef;">
+          <label style="margin-bottom:3px;font-size:12px;">Linked Network <span style="font-weight:400;color:#9ca3af;">(optional — everything on one network)</span></label>
+          <select class="props-select" style="font-size:12px;" onchange="var n=(window.__networks||[]).find(function(x){return x.slug===this.value;});updateBlockProp('${block.id}','networkSlug',this.value);updateBlockProp('${block.id}','networkName',n?n.name:'');renderCanvas()">
+            ${netOpts}
+          </select>
+        </div>
+        <div class="props-row" style="flex-direction:column;align-items:stretch;margin-top:8px;">
+          <label style="margin-bottom:3px;font-size:12px;">Linked Product Types <span style="font-weight:400;color:#9ca3af;">(optional — pick one or more for the template's own top-level tabs)</span></label>
+          ${tplTypes.length
+            ? '<div style="display:flex;flex-direction:column;gap:4px;max-height:140px;overflow-y:auto;border:1px solid #e9ecef;border-radius:6px;padding:6px;">' + tplTypes.map(function(t){
+                var checked = tplSelectedTypes.indexOf(t.slug) !== -1 ? 'checked' : '';
+                return `<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;"><input type="checkbox" ${checked} onchange="var b=state.blocks.find(function(x){return x.id=='${block.id}';});var cur=(b&&Array.isArray(b.props.productTypeSlugs)?b.props.productTypeSlugs:[]).slice();var i=cur.indexOf('${t.slug}');if(this.checked){if(i===-1)cur.push('${t.slug}');}else if(i!==-1){cur.splice(i,1);}updateBlockProp('${block.id}','productTypeSlugs',cur);renderCanvas();"> ${escHtml(t.name)}</label>`;
+              }).join('') + '</div>'
+            : '<div style="font-size:11px;color:#9ca3af;">No product types yet — create one in <strong>Plugins → Coverage Maps → Networks &amp; Packages</strong>.</div>'}
+          <div style="font-size:10px;color:#9ca3af;margin-top:4px;line-height:1.5;">
+            For a template with <strong>multiple cards and its own tab UI</strong> (self-contained, not
+            single-product tokens): pick Product Type(s) and/or a Network here — the CMS fetches the
+            matching packages for you and hands them to your template as
+            <code>window.CMS_TEMPLATE.packages</code> (each item has id/name/price/period/speedDown/
+            speedUp/term/features/networkName/categoryName/productTypeName). Picking more than one
+            Product Type is what lets your template build its own top-level category tabs (e.g. Residential /
+            Business / Enterprise) — group the array by <code>productTypeSlug</code> yourself. Read the array
+            in your template's own &lt;script&gt; and build the cards/tabs yourself. Don't call
+            <code>fetch()</code> for packages from inside your template — the sandbox blocks it (no
+            <code>allow-same-origin</code>, by design); the array is provided instead.
+          </div>
+        </div>`;
+      })();
+      h += renderTemplateOptionsPanel(block, p);
       break;
     }
     case 'editorial': {
@@ -6196,6 +6502,53 @@ function renderTypeProps(block) {
         </div>`;
       });
       h+=`</div>`;
+      break;
+    }
+    case 'card-tabs': {
+      // Auto-populating: pick which Product Types feed this block and one Volt card
+      // design — every active package under those types appears automatically,
+      // organized into Product Type -> Network -> Term tabs, and stays current as
+      // packages are added/edited/removed (no manual per-card binding, unlike the
+      // legacy shape this replaces — see CardTabsBlock.tsx for the fallback render
+      // path that still supports sections saved the old way).
+      loadVoltDesignsIfNeeded();
+      var ctTypes = window.__productTypes || [];
+      var ctSelected = p.productTypeSlugs || [];
+      h+=`<div style="margin-top:4px;"><label style="font-size:11px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Product types</label>`;
+      if (ctTypes.length) {
+        h += '<div style="display:flex;flex-direction:column;gap:4px;max-height:140px;overflow-y:auto;">' + ctTypes.map(function(t){
+          var checked = ctSelected.indexOf(t.slug) !== -1 ? 'checked' : '';
+          return `<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;"><input type="checkbox" ${checked} onchange="var b=state.blocks.find(function(x){return x.id=='${block.id}';});var cur=(b&&Array.isArray(b.props.productTypeSlugs)?b.props.productTypeSlugs:[]).slice();var i=cur.indexOf('${t.slug}');if(this.checked){if(i===-1)cur.push('${t.slug}');}else if(i!==-1){cur.splice(i,1);}updateBlockProp('${block.id}','productTypeSlugs',cur);renderCanvas();"> ${escHtml(t.name)}</label>`;
+        }).join('') + '</div>';
+      } else {
+        h += '<div style="font-size:11px;color:#9ca3af;">No product types yet — create one in <strong>Plugins → Coverage Maps → Networks &amp; Packages</strong>.</div>';
+      }
+      h += '</div>';
+      var ctVoltOpts = [['','— Pick a Volt card design —']].concat((window.__voltDesigns||[]).map(function(v){ return [v.id, v.name]; }));
+      h+=selectRow('Card design (Volt)', p.voltId||'', ctVoltOpts, `var _v=(window.__voltDesigns||[]).find(function(x){return x.id===this.value;});updateBlockProp('${block.id}','voltId',this.value);updateBlockProp('${block.id}','voltName',_v?_v.name:'');renderCanvas()`);
+      h+=selectRow('Min card width', String(p.minCardWidth||260), [['200','200px'],['220','220px'],['260','260px'],['300','300px'],['340','340px']], `updateBlockProp('${block.id}','minCardWidth',parseInt(this.value));renderCanvas()`);
+      h+=`<div style="font-size:11px;color:#9ca3af;padding:6px 0;line-height:1.6;">Renders one tab per selected product type (e.g. Residential/Business/Enterprise), auto-split into sub-tabs by network and term-tabs by contract term wherever a group spans more than one value. New packages under these types appear automatically — nothing to re-edit here. Manage product types in <strong>Plugins → Coverage Maps → Networks &amp; Packages</strong>.</div>`;
+      break;
+    }
+    case 'product-grid': {
+      var _ptypes = window.__productTypes || [];
+      var _selectedTypes = p.productTypeSlugs || [];
+      loadVoltDesignsIfNeeded();
+      h+=`<div style="margin-top:8px;"><label style="font-size:11px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Product types</label>`;
+      if (_ptypes.length) {
+        h += '<div style="display:flex;flex-direction:column;gap:4px;max-height:140px;overflow-y:auto;">' + _ptypes.map(function(t){
+          var checked = _selectedTypes.indexOf(t.slug) !== -1 ? 'checked' : '';
+          return `<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;"><input type="checkbox" ${checked} onchange="var b=state.blocks.find(function(x){return x.id=='${block.id}';});var cur=(b&&Array.isArray(b.props.productTypeSlugs)?b.props.productTypeSlugs:[]).slice();var i=cur.indexOf('${t.slug}');if(this.checked){if(i===-1)cur.push('${t.slug}');}else if(i!==-1){cur.splice(i,1);}updateBlockProp('${block.id}','productTypeSlugs',cur);renderCanvas();"> ${escHtml(t.name)}</label>`;
+        }).join('') + '</div>';
+      } else {
+        h += '<div style="font-size:11px;color:#9ca3af;">No product types yet — create one in <strong>Plugins → Coverage Maps → Networks &amp; Packages</strong>.</div>';
+      }
+      h += '</div>';
+      var _voltOpts = [['','— Pick a Volt card design —']].concat((window.__voltDesigns||[]).map(function(v){ return [v.id, v.name]; }));
+      h+=selectRow('Card design (Volt)', p.voltId||'', _voltOpts, `var _v=(window.__voltDesigns||[]).find(function(x){return x.id===this.value;});updateBlockProp('${block.id}','voltId',this.value);updateBlockProp('${block.id}','voltName',_v?_v.name:'');renderCanvas()`);
+      h+=selectRow('Min card width', String(p.minCardWidth||260), [['200','200px'],['220','220px'],['260','260px'],['300','300px'],['340','340px']], `updateBlockProp('${block.id}','minCardWidth',parseInt(this.value));renderCanvas()`);
+      h+=inputRow('Heading (optional)', p.heading||'', `updateBlockProp('${block.id}','heading',this.value);renderCanvas()`,'Section heading');
+      h+=`<div style="font-size:11px;color:#9ca3af;padding:6px 0;line-height:1.6;">Renders one tab per selected product type, grouped by network, using the chosen Volt card design. Manage product types in <strong>Plugins → Coverage Maps → Networks &amp; Packages</strong>.</div>`;
       break;
     }
   }
@@ -6436,6 +6789,112 @@ function showCustomNav(el, id) {
  */
 function updateBlockProp(bId,k,v) { const b=state.blocks.find(b=>b.id==bId); if(b) { b.props[k]=v; autoSave(); } } // eslint-disable-line eqeqeq
 
+// ─── Card Tabs block (tab-switched grid of existing Volt card designs) ───────
+// Isolated Volt-list cache — deliberately separate from _voltLib (the drag-library
+// panel's cache) so this feature never touches that panel's load/render behaviour.
+const _cardTabsVoltLib = { loaded: false, loading: false, list: [] };
+function loadCardTabsVoltLib() {
+  if (_cardTabsVoltLib.loaded || _cardTabsVoltLib.loading) return;
+  _cardTabsVoltLib.loading = true;
+  fetch('/api/volt')
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(json => {
+      _cardTabsVoltLib.loaded = true;
+      _cardTabsVoltLib.loading = false;
+      _cardTabsVoltLib.list = (json.data && json.data.volts) || [];
+      const sel = state.blocks.find(b => b.id === state.selectedBlockId);
+      if (sel && sel.type === 'card-tabs') renderPropsPanel();
+    })
+    .catch(() => { _cardTabsVoltLib.loading = false; });
+}
+function _cardTabsUid() { return 'ct' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function addCardTab(bId) {
+  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
+  if (!b) return;
+  pushHistory();
+  const tabs = b.props.tabs || (b.props.tabs = []);
+  tabs.push({ key: _cardTabsUid(), label: 'Tab ' + (tabs.length + 1), cards: [{ id: _cardTabsUid() }] });
+  autoSave(); renderCanvas(); renderPropsPanel();
+}
+function removeCardTab(bId, tIdx) {
+  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
+  if (!b || !b.props.tabs) return;
+  pushHistory();
+  b.props.tabs.splice(tIdx, 1);
+  autoSave(); renderCanvas(); renderPropsPanel();
+}
+function renameCardTab(bId, tIdx, label) {
+  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
+  if (!b || !b.props.tabs || !b.props.tabs[tIdx]) return;
+  b.props.tabs[tIdx].label = label;
+  autoSave(); renderCanvas();
+}
+function moveCardTab(bId, tIdx, dir) {
+  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
+  if (!b || !b.props.tabs) return;
+  const tabs = b.props.tabs;
+  const newIdx = tIdx + dir;
+  if (newIdx < 0 || newIdx >= tabs.length) return;
+  pushHistory();
+  const moved = tabs.splice(tIdx, 1)[0];
+  tabs.splice(newIdx, 0, moved);
+  autoSave(); renderCanvas(); renderPropsPanel();
+}
+function addCardTabCard(bId, tIdx) {
+  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
+  if (!b || !b.props.tabs || !b.props.tabs[tIdx]) return;
+  pushHistory();
+  b.props.tabs[tIdx].cards.push({ id: _cardTabsUid() });
+  autoSave(); renderCanvas(); renderPropsPanel();
+}
+function removeCardTabCard(bId, tIdx, cIdx) {
+  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
+  if (!b || !b.props.tabs || !b.props.tabs[tIdx]) return;
+  pushHistory();
+  b.props.tabs[tIdx].cards.splice(cIdx, 1);
+  autoSave(); renderCanvas(); renderPropsPanel();
+}
+function updateCardTabCardVolt(bId, tIdx, cIdx, voltId) {
+  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
+  if (!b || !b.props.tabs || !b.props.tabs[tIdx]) return;
+  const card = b.props.tabs[tIdx].cards[cIdx];
+  if (!card) return;
+  if (voltId) card.voltId = voltId; else delete card.voltId;
+  autoSave(); renderCanvas();
+}
+function updateCardTabCardProduct(bId, tIdx, cIdx, productId) {
+  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
+  if (!b || !b.props.tabs || !b.props.tabs[tIdx]) return;
+  const card = b.props.tabs[tIdx].cards[cIdx];
+  if (!card) return;
+  if (productId) {
+    card.productId = productId;
+    // Captured now (rather than looked up at render time) so the live site's
+    // groupByNetwork/groupByTerm sub-tabs need no extra fetch — see
+    // CardTabsCard.networkLabel / CardTabsCard.term.
+    const pr = (window.__allPackages || []).find(function(x){ return x.id === productId; });
+    if (pr && pr.networkName) card.networkLabel = pr.networkName; else delete card.networkLabel;
+    if (pr && pr.term) card.term = pr.term; else delete card.term;
+  } else {
+    delete card.productId;
+    delete card.networkLabel;
+    delete card.term;
+  }
+  autoSave(); renderCanvas();
+}
+function toggleCardTabGroupByNetwork(bId, tIdx, checked) {
+  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
+  if (!b || !b.props.tabs || !b.props.tabs[tIdx]) return;
+  if (checked) b.props.tabs[tIdx].groupByNetwork = true; else delete b.props.tabs[tIdx].groupByNetwork;
+  autoSave(); renderCanvas(); renderPropsPanel();
+}
+function toggleCardTabGroupByTerm(bId, tIdx, checked) {
+  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
+  if (!b || !b.props.tabs || !b.props.tabs[tIdx]) return;
+  if (checked) b.props.tabs[tIdx].groupByTerm = true; else delete b.props.tabs[tIdx].groupByTerm;
+  autoSave(); renderCanvas(); renderPropsPanel();
+}
+
 // Persist the per-block "render in front of the Lower Third" flag (top-level on the block,
 // like block.zIndex/hidden). ON → the live renderer re-draws this block in a plate that sits
 // above the section's Lower Third band; OFF (default) → deletes the flag so the block keeps
@@ -6508,6 +6967,8 @@ function buildVoltPreviewUrl(b) {
   if (b.props.slotImageUrl)    sp.set('imageUrl', b.props.slotImageUrl);
   if (b.props.slotImageAlt)    sp.set('imageAlt', b.props.slotImageAlt);
   if (b.props.slotActionLabel) sp.set('actionLabel', b.props.slotActionLabel);
+  // Linked product → preview resolves its live values into pkg.* slots.
+  if (b.props.productId) sp.set('productId', b.props.productId);
   const overrides = b.props.voltLayerOverrides;
   if (overrides && Object.keys(overrides).length > 0) {
     try { sp.set('overrides', btoa(JSON.stringify(overrides))); } catch(e) { /* ignore */ }
@@ -6538,6 +6999,16 @@ function updateVoltSlot(bId, key, val) {
   const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
   if (!b) return;
   b.props[key] = val;
+  autoSave();
+  refreshVoltIframe(bId);
+}
+
+// Bind (or unbind) this volt block to a coverage-plugin Package. An empty value
+// clears the link so the card falls back to its manual slot text.
+function updateVoltProduct(bId, val) {
+  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
+  if (!b) return;
+  if (val) b.props.productId = val; else delete b.props.productId;
   autoSave();
   refreshVoltIframe(bId);
 }
@@ -7570,7 +8041,7 @@ function installDesignerFont(bId, sId, safeId) {
  * @returns {string} Bootstrap icon class (e.g. 'bi-layout-text-window').
  */
 function getBlockIcon(type) {
-  return {hero:'bi-layout-text-window',card:'bi-card-text','text-block':'bi-text-paragraph',banner:'bi-megaphone',stats:'bi-graph-up',image:'bi-image',video:'bi-play-circle',html:'bi-code-slash',divider:'bi-dash-lg',volt:'bi-lightning-charge',editorial:'bi-newspaper'}[type]||'bi-square';
+  return {hero:'bi-layout-text-window',card:'bi-card-text','text-block':'bi-text-paragraph',banner:'bi-megaphone',stats:'bi-graph-up',image:'bi-image',video:'bi-play-circle',html:'bi-code-slash',divider:'bi-dash-lg',volt:'bi-lightning-charge',editorial:'bi-newspaper',template:'bi-file-earmark-text'}[type]||'bi-square';
 }
 /**
  * Converts a hex colour and an integer opacity value (0–100) to a CSS rgba()
@@ -8106,12 +8577,15 @@ function switchLibTab(tab) {
   document.getElementById('lib-containers').style.display = tab==='containers'?'block':'none';
   document.getElementById('lib-sub').style.display        = tab==='sub'?'block':'none';
   document.getElementById('lib-volt').style.display       = tab==='volt'?'block':'none';
+  document.getElementById('lib-templates').style.display  = tab==='templates'?'block':'none';
   document.getElementById('lib-layouts').style.display    = tab==='layouts'?'block':'none';
   document.getElementById('tab-containers').className = 'lib-tab'+(tab==='containers'?' active':'');
   document.getElementById('tab-sub').className        = 'lib-tab'+(tab==='sub'?' active':'');
   document.getElementById('tab-volt').className       = 'lib-tab'+(tab==='volt'?' active':'');
+  document.getElementById('tab-templates').className  = 'lib-tab'+(tab==='templates'?' active':'');
   document.getElementById('tab-layouts').className    = 'lib-tab'+(tab==='layouts'?' active':'');
   if (tab === 'volt') loadVoltLibIfNeeded();
+  if (tab === 'templates') loadTemplateLibIfNeeded();
   if (tab === 'layouts') renderLayoutsTab();
 }
 
@@ -8253,6 +8727,285 @@ function onVoltDragStart(e, volt) {
   };
   e.dataTransfer.effectAllowed = 'copy';
 }
+
+// ─── Section Template Library ────────────────────────────────────────────────
+const _templateLib = { loaded: false, loading: false, items: [] };
+
+function loadTemplateLibIfNeeded() {
+  if (_templateLib.loaded || _templateLib.loading) return;
+  _templateLib.loading = true;
+  fetch('/api/templates?type=block')
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(json => {
+      _templateLib.loaded = true;
+      _templateLib.loading = false;
+      _templateLib.items = json.data || [];
+      renderTemplateLib(_templateLib.items);
+      // Re-render props panel if a template block is currently selected, so the
+      // inline "Change" select has options once the library has loaded.
+      const _selBlock = state.blocks.find(function(b){ return b.id === state.selectedBlockId; });
+      if (_selBlock && _selBlock.type === 'template') renderPropsPanel();
+    })
+    .catch(() => {
+      _templateLib.loading = false;
+      const el = document.getElementById('template-lib-loading');
+      if (el) { el.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Failed to load templates.'; }
+    });
+}
+
+/**
+ * Applies a different block-scoped template to an existing 'template' block
+ * without deleting/re-adding it — sets templateId/templateName/templateThumbnail/
+ * customHtml/customCss/mediaSlots together, then re-renders canvas + props panel.
+ * @param {string} bId - Block id.
+ * @param {string} templateId - Selected CmsTemplate id from _templateLib.items.
+ */
+function applyTemplateSelection(bId, templateId) {
+  const b = state.blocks.find(function(x){ return x.id == bId; }); // eslint-disable-line eqeqeq
+  if (!b) return;
+  const tpl = _templateLib.items.find(function(t){ return t.id === templateId; });
+  if (!tpl) return;
+  const data = tpl.data || {};
+  pushHistory();
+  b.props.templateId = tpl.id;
+  b.props.templateName = tpl.name;
+  b.props.templateThumbnail = tpl.thumbnail || null;
+  b.props.customHtml = data.customHtml || '';
+  b.props.customCss = data.customCss || '';
+  b.props.mediaSlots = data.mediaSlots || {};
+  // A different template's {{tpl.*}}/--tpl-* keys are almost never the same set as the
+  // one being replaced — carrying stale values forward would silently apply the old
+  // template's admin-entered text/colors to keys the new template never declared.
+  b.props.templateOptions = {};
+  renderCanvas();
+  renderPropsPanel();
+  autoSave();
+}
+
+// ─── Template Options (generic {{tpl.*}} token + --tpl-* CSS var authoring convention) ──
+// Any uploaded Section Block template can opt into Designer-editable text/spacing/color
+// WITHOUT hand-editing its own HTML/CSS/JS per instance, by using two conventions the
+// template author writes once:
+//   1. `{{tpl.<key>}}` or `{{tpl.<key>|Default text}}` anywhere in the template's HTML,
+//      or inside a JS string literal in its own inline script tag — substituted
+//      server/client-side as raw text before the script ever runs (see applyTplTokens
+//      in TemplateBlock.tsx).
+//   2. `--tpl-<key>: <default>;` as a CSS custom property (normally on :root) in the
+//      template's CSS — detected here and exposed as a number/color/text field; the
+//      admin's value is emitted as a ":root{--tpl-key:value}" override style block
+//      placed after the template's own style block.
+// Values are stored in block.props.templateOptions (flat Record<string,string>) —
+// {{tpl.*}} keys are plain identifiers, --tpl-* keys keep their leading "--tpl-" so the
+// two namespaces can never collide in that one flat map.
+
+/**
+ * Scans a template's raw HTML + CSS source for the two authoring conventions above and
+ * returns one field descriptor per unique key found (first occurrence wins for a repeated
+ * key/default pair — a template author using the same key twice should use the same
+ * default both times).
+ * @returns {Array<{key:string, label:string, kind:'text'|'number'|'color', default:string, unit:string}>}
+ */
+/** Turns a kebab-case --tpl-* suffix ("text-color", "tab-2-active-bg") into a readable
+ * field label ("Text Color", "Tab 2 Active Background") for the Template Options panel. */
+function humanizeTplLabel(suffix) {
+  return suffix.split('-').map(function(w) {
+    if (w === 'bg') return 'Background';
+    return w.charAt(0).toUpperCase() + w.slice(1);
+  }).join(' ');
+}
+
+function scanTemplateOptionFields(html, css) {
+  const fields = [];
+  const seen = {};
+  const tokenRe = /\{\{tpl\.([a-zA-Z0-9_]+)(?:\|([^}]*))?\}\}/g;
+  [html || '', css || ''].forEach(function(src) {
+    tokenRe.lastIndex = 0;
+    let m;
+    while ((m = tokenRe.exec(src))) {
+      const key = m[1];
+      if (seen[key]) continue;
+      seen[key] = true;
+      fields.push({ key: key, label: key, kind: 'text', default: m[2] || '', unit: '' });
+    }
+  });
+  // Scan html+css together, not css alone: a single-file .html import (the normal path —
+  // see /api/templates/import) always returns css:'' with everything, including any
+  // <style> block, folded into html. Scanning css only would silently find zero --tpl-*
+  // declarations for every such template.
+  const cssScanSrc = (html || '') + '\n' + (css || '');
+
+  // Opt-in "pick one of N" fields: a template author writes
+  //   /* @options: Label One=value-one | Label Two=value-two */
+  //   --tpl-key: value-one;
+  // immediately above the declaration (an option without "=" uses its own text as
+  // both label and value, e.g. "none | rotate | shimmer"). Values can be full CSS
+  // values (font stacks, keywords, etc.), not just simple tokens — a plain number/
+  // boolean/color field can't express "pick a named animation mode", and a free
+  // text field would force the admin to type an exact string with no guidance.
+  // Runs BEFORE the generic scan below and marks matched keys as seen, so it's
+  // purely additive — a template with no @options comments scans exactly as it
+  // did before this existed.
+  const selectRe = /\/\*\s*@options:\s*([^*]+?)\s*\*\/\s*\n?\s*--tpl-([a-zA-Z0-9-]+)\s*:\s*([^;]+);/g;
+  let mSel;
+  while ((mSel = selectRe.exec(cssScanSrc))) {
+    const cssKey = '--tpl-' + mSel[2];
+    if (seen[cssKey]) continue;
+    seen[cssKey] = true;
+    const options = mSel[1].split('|').map(function(part) {
+      const p = part.trim();
+      const eq = p.indexOf('=');
+      return eq === -1 ? { label: p, value: p } : { label: p.slice(0, eq).trim(), value: p.slice(eq + 1).trim() };
+    });
+    fields.push({ key: cssKey, label: humanizeTplLabel(mSel[2]), kind: 'select', default: mSel[3].trim(), options: options });
+  }
+
+  const cssVarRe = /--tpl-([a-zA-Z0-9-]+)\s*:\s*([^;]+);/g;
+  let m2;
+  while ((m2 = cssVarRe.exec(cssScanSrc))) {
+    const cssKey = '--tpl-' + m2[1];
+    if (seen[cssKey]) continue;
+    seen[cssKey] = true;
+    const val = m2[2].trim();
+    let kind = 'text', unit = '';
+    if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(val)) {
+      kind = 'color';
+    } else if (val === '0' || val === '1') {
+      // A bare unitless 0/1 default is a template author's convention for a two-way
+      // toggle driven entirely by CSS calc() (e.g. --tpl-tab-shape: 0|1 switching a
+      // pill vs. segmented tab look) — render it as a checkbox, not a number spinner.
+      kind = 'boolean';
+    } else {
+      const numMatch = val.match(/^(-?[\d.]+)(px|em|rem|%|vw|vh|deg|s|ms)?$/);
+      if (numMatch) { kind = 'number'; unit = numMatch[2] || ''; }
+    }
+    fields.push({ key: cssKey, label: humanizeTplLabel(m2[1]), kind: kind, default: val, unit: unit });
+  }
+  return fields;
+}
+
+/** Renders the "Template Options" property-panel section for a selected `template` block.
+ * Returns '' (no section rendered) when the template declares no {{tpl.*}}/--tpl-* keys. */
+function renderTemplateOptionsPanel(block, p) {
+  const fields = scanTemplateOptionFields(p.customHtml, p.customCss);
+  if (!fields.length) return '';
+  const opts = (p.templateOptions && typeof p.templateOptions === 'object') ? p.templateOptions : {};
+  let out = `<div class="props-row" style="flex-direction:column;align-items:stretch;margin-top:10px;padding-top:10px;border-top:1px solid #e9ecef;">
+    <label style="margin-bottom:3px;font-size:12px;font-weight:600;">Template Options</label>
+    <div style="font-size:10px;color:#9ca3af;margin-bottom:6px;line-height:1.5;">
+      Detected from this template's <code>{{tpl.*}}</code> tokens and <code>--tpl-*</code> CSS variables.
+      Leave a field blank/at default to keep the template's own value.
+    </div>`;
+  fields.forEach(function(f) {
+    const cur = opts[f.key] !== undefined ? opts[f.key] : '';
+    if (f.kind === 'color') {
+      const swatch = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(cur) ? cur : (f.default || '#000000');
+      out += `<div class="props-row" style="margin-bottom:6px;">
+        <label style="flex:1;font-size:11px;">${escHtml(f.label)}</label>
+        <input type="color" class="props-input" style="width:44px;height:26px;padding:1px;flex:none;" value="${escHtml(swatch)}" onchange="updateTemplateOption('${block.id}','${escHtml(f.key)}',this.value)">
+      </div>`;
+    } else if (f.kind === 'boolean') {
+      const checked = (cur !== '' ? cur : f.default) === '1';
+      out += `<div class="props-row" style="margin-bottom:6px;">
+        <label style="flex:1;font-size:11px;">${escHtml(f.label)}</label>
+        <input type="checkbox" ${checked ? 'checked' : ''} onchange="updateTemplateOption('${block.id}','${escHtml(f.key)}', this.checked ? '1' : '0')">
+      </div>`;
+    } else if (f.kind === 'number') {
+      const numVal = cur ? parseFloat(cur) : '';
+      out += `<div class="props-row" style="margin-bottom:6px;">
+        <label style="flex:1;font-size:11px;">${escHtml(f.label)}${f.unit ? ' (' + escHtml(f.unit) + ')' : ''}</label>
+        <input type="number" class="props-num" placeholder="${escHtml(f.default)}" value="${numVal === '' ? '' : escHtml(String(numVal))}"
+          onchange="updateTemplateOption('${block.id}','${escHtml(f.key)}', this.value === '' ? '' : (this.value + '${escHtml(f.unit)}'))">
+      </div>`;
+    } else if (f.kind === 'select') {
+      const selected = cur !== '' ? cur : f.default;
+      out += `<div class="props-row" style="margin-bottom:6px;">
+        <label style="flex:1;font-size:11px;">${escHtml(f.label)}</label>
+        <select class="props-input" style="flex:none;width:auto;max-width:160px;" onchange="updateTemplateOption('${block.id}','${escHtml(f.key)}',this.value)">
+          ${f.options.map(function(o) {
+            return `<option value="${escHtml(o.value)}" ${o.value === selected ? 'selected' : ''}>${escHtml(o.label)}</option>`;
+          }).join('')}
+        </select>
+      </div>`;
+    } else {
+      out += `<div class="props-row" style="flex-direction:column;align-items:stretch;margin-bottom:6px;">
+        <label style="margin-bottom:2px;font-size:11px;">${escHtml(f.label)}</label>
+        <input type="text" class="props-input" placeholder="${escHtml(f.default || 'Default: (none)')}" value="${escHtml(cur)}" onchange="updateTemplateOption('${block.id}','${escHtml(f.key)}',this.value)">
+      </div>`;
+    }
+  });
+  out += `</div>`;
+  return out;
+}
+
+/** Sets or clears one key in block.props.templateOptions, then re-renders canvas + saves.
+ * Clearing (empty string) deletes the key so the template's own default takes back over,
+ * rather than persisting an explicit empty override. */
+function updateTemplateOption(bId, key, value) {
+  const b = state.blocks.find(function(x){ return x.id === bId; });
+  if (!b) return;
+  const opts = Object.assign({}, (b.props.templateOptions && typeof b.props.templateOptions === 'object') ? b.props.templateOptions : {});
+  if (value === '' || value === null || value === undefined) {
+    delete opts[key];
+  } else {
+    opts[key] = String(value);
+  }
+  updateBlockProp(bId, 'templateOptions', opts);
+  renderCanvas();
+}
+
+function renderTemplateLib(templates) {
+  const loading = document.getElementById('template-lib-loading');
+  const empty   = document.getElementById('template-lib-empty');
+  const items   = document.getElementById('template-lib-items');
+  if (!items) return;
+  if (loading) loading.style.display = 'none';
+  items.innerHTML = '';
+  if (!templates.length) { if (empty) empty.style.display = ''; return; }
+  templates.forEach(t => {
+    const card = document.createElement('div');
+    card.className = 'element-card';
+    card.draggable = true;
+    card.addEventListener('dragstart', e => onTemplateDragStart(e, t));
+
+    const preview = document.createElement('div');
+    preview.style.cssText = 'width:32px;height:32px;flex-shrink:0;border-radius:4px;overflow:hidden;border:1px solid #dee2e6;display:flex;align-items:center;justify-content:center;background:#f8f9fa;';
+    if (t.thumbnail) {
+      const img = document.createElement('img');
+      img.src = t.thumbnail;
+      img.style.cssText = 'width:100%;height:100%;object-fit:contain;';
+      preview.appendChild(img);
+    } else {
+      const ic = document.createElement('i');
+      ic.className = 'bi bi-file-earmark-text';
+      ic.style.cssText = 'font-size:14px;color:#6c757d;opacity:0.5;';
+      preview.appendChild(ic);
+    }
+
+    const name = document.createElement('div');
+    name.className = 'ec-name';
+    name.textContent = t.name;
+
+    const badge = document.createElement('span');
+    badge.className = 'ec-badge';
+    badge.style.cssText = 'background:#cfe2ff;color:#084298;';
+    badge.textContent = 'Template';
+
+    card.appendChild(preview);
+    card.appendChild(name);
+    card.appendChild(badge);
+    items.appendChild(card);
+  });
+}
+
+function onTemplateDragStart(e, tpl) {
+  const data = tpl.data || {};
+  state.dragSource = {
+    kind: 'lib-template', templateId: tpl.id, templateName: tpl.name, templateThumbnail: tpl.thumbnail || null,
+    customHtml: data.customHtml || '', customCss: data.customCss || '', mediaSlots: data.mediaSlots || {}
+  };
+  e.dataTransfer.effectAllowed = 'copy';
+}
+
 // Preset definitions: grid config + zone blocks to auto-place
 const PRESET_DEFS = {
   'full-width':    { rows:1, cols:1, gap:0,
@@ -8574,7 +9327,9 @@ function buildJson() {
     positionMode:  state.positionMode,
     designerCanvasW,
     designerCanvasH,
-    multiLimit:    state.contentMode==='multi' ? state.multiLimit : undefined,
+    // Dynamic mode also saves multiLimit — it's the safety CAP the live page clamps its
+    // live-computed screen count to (see FlexibleSectionRenderer.tsx), not a fixed size.
+    multiLimit:    (state.contentMode==='multi' || state.contentMode==='dynamic') ? state.multiLimit : undefined,
     nextId:        state.nextId,
     layoutType:    state.positionMode==='free' ? 'free' : state.layoutType,
     grid:          state.positionMode!=='free' && state.layoutType==='grid' ? {rows:state.gridRows,cols:state.gridCols,gap:state.gridGap} : undefined,
