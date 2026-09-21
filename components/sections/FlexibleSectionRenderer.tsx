@@ -329,6 +329,34 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   const darkBg   = isDarkBackground(background);
   // Gradient backgrounds require the `background` shorthand instead of `background-color`
   const isBgGrad = isGradient(bgColor);
+  // Section gradient OVERLAY (content.gradient, set in the Background tab). It was saved
+  // but never drawn, so a gradient configured over a bg image did nothing (#59). Build the
+  // CSS here and render it as a scrim over the image below.
+  const gradCfg = (content as any).gradient as { enabled?: boolean; preset?: { direction?: string; color?: string; startOpacity?: number; endOpacity?: number } } | undefined;
+  const gradCss: string | null = (() => {
+    const p = gradCfg?.preset;
+    if (!p) return null;
+    const so = p.startOpacity ?? 0, eo = p.endOpacity ?? 0;
+    if (so <= 0 && eo <= 0) return null;
+    const h = (p.color || "#000000").replace("#", "");
+    const r = parseInt(h.slice(0, 2), 16) || 0, g = parseInt(h.slice(2, 4), 16) || 0, b = parseInt(h.slice(4, 6), 16) || 0;
+    const DIR: Record<string, string> = { top: "to top", bottom: "to bottom", left: "to left", right: "to right", topLeft: "to top left", topRight: "to top right", bottomLeft: "to bottom left", bottomRight: "to bottom right" };
+    return `linear-gradient(${DIR[p.direction || "bottom"] || "to bottom"}, rgba(${r},${g},${b},${so / 100}), rgba(${r},${g},${b},${eo / 100}))`;
+  })();
+
+  // Background-image fade/MASK (#60). Fades the bg IMAGE to transparent along an
+  // alpha gradient so it blends into the section/page colour behind it (distinct from
+  // the gradient OVERLAY above, which tints with colour). Applied to the image layer
+  // ONLY. Default-off: unset/false → no mask (back-compat, unchanged behaviour).
+  const bgMaskEnabled   = (content as any).bgMaskEnabled === true;
+  const bgMaskCss: string | null = (() => {
+    if (!bgMaskEnabled) return null;
+    const DIR: Record<string, string> = { top: "to top", bottom: "to bottom", left: "to left", right: "to right" };
+    const dir   = DIR[((content as any).bgMaskDirection as string) || "bottom"] || "to bottom";
+    const start = Math.max(0, Math.min(100, (content as any).bgMaskStart ?? 0));
+    const end   = Math.max(0, Math.min(100, (content as any).bgMaskEnd   ?? 100));
+    return `linear-gradient(${dir}, black ${start}%, transparent ${end}%)`;
+  })();
 
   return (
     <section
@@ -359,9 +387,19 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
             backgroundPosition: bgImagePosition || "center",
             backgroundRepeat: bgImageRepeat || "no-repeat",
             opacity: (bgImageOpacity ?? 100) / 100,
+            ...(bgMaskCss ? { maskImage: bgMaskCss, WebkitMaskImage: bgMaskCss } : {}),
             pointerEvents: "none",
           }}
         />
+      )}
+
+      {/* Gradient layer (content.gradient) — colour/direction/opacity from the Background tab.
+          WITH a bg image it's a scrim OVER the image (z-index 1, #59). With NO image it renders
+          as a standalone full-section background layer (z-index 0) so a gradient-only background
+          is visible on the live page — not just when an image is present. The #60 image mask
+          stays on the image layer above, untouched. */}
+      {gradCss && (
+        <div aria-hidden="true" style={{ position: "absolute", inset: 0, zIndex: bgImageUrl ? 1 : 0, background: gradCss, pointerEvents: "none" }} />
       )}
 
       {/* Animated background layers — rendered below content (z-index 0–10).
@@ -1014,6 +1052,12 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
     setStageW(el.clientWidth);
     return () => ro.disconnect();
   }, []);
+  // Mount gate — the free-mode mobile reflow (screenW <= 768) must only apply AFTER
+  // hydration, otherwise SSR (which has no window) and the first client paint disagree
+  // and React throws a hydration mismatch. Desktop scaled-stage renders identically on
+  // both, so it stays the pre-mount default.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   // ── Google Font loading ───────────────────────────────────────────────────
   // The designer stores a chosen font as props.fontFamily (e.g. "'Poppins', sans-serif")
@@ -1024,32 +1068,53 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
   // matching Google Fonts stylesheet once (guarded by a derived id).
   // TODO(custom-fonts): user-UPLOADED font files (not Google Fonts) need a stored
   // @font-face source (URL/API) before they can load here — out of scope for now.
+  // Each family is loaded with the UNION of weights actually used by elements of
+  // that family (plus 400/700 defaults) — requesting only 400;700 made e.g. a
+  // fontWeight 300 paragraph fall back to synthetic/400, wrapping differently
+  // than the designer canvas (#90).
   const designerFonts = useMemo(() => {
     const GENERIC = new Set(["inherit", "sans-serif", "serif", "monospace", "cursive", "fantasy", "system-ui", "ui-sans-serif", "ui-serif", "ui-monospace"]);
-    const fams = new Set<string>();
-    const add = (v: unknown) => {
+    const famWeights = new Map<string, Set<number>>();
+    const normWeight = (w: unknown): number | null => {
+      if (typeof w === "number" && Number.isFinite(w)) return w;
+      if (typeof w === "string") {
+        const t = w.trim().toLowerCase();
+        if (t === "bold") return 700;
+        if (t === "normal" || t === "regular") return 400;
+        const n = parseInt(t, 10);
+        if (Number.isFinite(n)) return n;
+      }
+      return null;
+    };
+    const add = (props?: Record<string, unknown>) => {
+      const v = props?.fontFamily;
       if (typeof v !== "string") return;
       const m = v.match(/'([^']+)'/) || v.match(/^([^,]+)/);
       const name = (m ? m[1] : v).trim().replace(/^["']|["']$/g, "");
       if (!name || name.startsWith("-") || GENERIC.has(name.toLowerCase())) return;
-      fams.add(name);
+      let ws = famWeights.get(name);
+      if (!ws) { ws = new Set([400, 700]); famWeights.set(name, ws); }
+      const w = normWeight(props?.fontWeight);
+      if (w !== null && w >= 100 && w <= 900) ws.add(Math.round(w / 100) * 100);
     };
     try {
       const d = typeof designerData === "string" ? JSON.parse(designerData) : designerData;
       for (const b of ((d?.blocks as Array<{ props?: Record<string, unknown>; subElements?: Array<{ props?: Record<string, unknown> }> }>) || [])) {
-        add(b?.props?.fontFamily);
-        for (const se of (b?.subElements || [])) add(se?.props?.fontFamily);
+        add(b?.props);
+        for (const se of (b?.subElements || [])) add(se?.props);
       }
     } catch { /* parse errors handled in the render try/catch below */ }
-    return [...fams];
+    // css2 API requires the wght@ list in ascending order
+    return [...famWeights.entries()].map(([family, ws]) => ({ family, weights: [...ws].sort((a, b) => a - b) }));
   }, [designerData]);
   useEffect(() => {
-    for (const fam of designerFonts) {
-      const id = "gf-" + fam.replace(/\s+/g, "-");
+    for (const { family, weights } of designerFonts) {
+      const wght = weights.join(";");
+      const id = "gf-" + family.replace(/\s+/g, "-") + "-" + weights.join("_");
       if (document.getElementById(id)) continue;
       const l = document.createElement("link");
       l.id = id; l.rel = "stylesheet";
-      l.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(fam).replace(/%20/g, "+")}:wght@400;700&display=swap`;
+      l.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family).replace(/%20/g, "+")}:wght@${wght}&display=swap`;
       document.head.appendChild(l);
     }
   }, [designerFonts]);
@@ -1123,6 +1188,23 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
     if (isFreeMode) {
       const cw = data.designerCanvasW || 1440;
       const ch = data.designerCanvasH || 900;
+
+      // ── Mobile: smart, readable reflow (≤768px, post-mount) ─────────────────
+      // Replaces the tiny scaled photograph with a single-column reading-order stack
+      // whose inter-element gaps mirror the design's grouping (adjacent/overlapping
+      // elements stay tight; far-apart ones get a normal gap). See FreeReflowStack.
+      if (mounted && screenW <= 768) {
+        return (
+          <FreeReflowStack
+            blocks={filteredBlocks}
+            designerCanvasW={cw}
+            containerW={stageW || screenW || cw}
+            darkBg={darkBg}
+          />
+        );
+      }
+
+      // ── Desktop: 1:1 scaled stage — pixel-exact copy of the designer canvas ─────
       const scale = (stageW || screenW || cw) / cw;
       return (
         <div ref={stageRef} style={{
@@ -1145,16 +1227,37 @@ function DesignerBlocksRenderer({ designerData, darkBg, scrollStageZone }: { des
               const subs = (block.subElements || []) as SubEl[];
               const isContainer = block.type === "text" || block.type === "text-block" || block.type === "card";
               if (isContainer && subs.length > 0) {
-                // Free-form children in ABSOLUTE design px (block origin + child offset).
+                // ── Designer-chrome geometry — measured 1:1 against the canvas ──────
+                // The canvas does NOT place a child's text at (block.x + se.x): the
+                // designer's .container-block has a 2px border, its .cb-content applies
+                // the block's padding props (paddingTop/Bottom ?? 16, paddingX ?? 20),
+                // and every .sub-element wrapper adds a 1px border + 6px 10px padding
+                // (box-sizing: border-box, min-width 60px). So on the canvas the text
+                // box actually sits at block + child + (2+padX+1+10, 2+padT+1+6) and
+                // FLOWING text wraps at (se.w − 22)px, not se.w. Reproducing these
+                // wrapper metrics — instead of raw (block.x+se.x, width se.w) — is what
+                // makes live positions AND line breaks land exactly like the canvas.
+                // A null se.w fills the padded content box, exactly like the designer's
+                // `calc(100% - 0px)` inside .sub-elements-list (= pos.w − 2·padX).
+                // No overflow:hidden here, so an oversized heading wraps like the
+                // canvas does — it can never left-clip (the old #79 cutoff came from
+                // clipping, which this wrapper doesn't do).
+                const bp   = (block.props || {}) as Record<string, unknown>;
+                const padT = Number(bp.paddingTop ?? 16);
+                const padX = Number(bp.paddingX   ?? 20);
                 return subs.map((sub, si) => (
                   <div key={String(block.id) + "-" + si} style={{
                     position: "absolute",
-                    left: (pos.x || 0) + (sub.x || 0),
-                    top:  (pos.y || 0) + (sub.y || 0),
-                    width: sub.w != null ? sub.w : "auto",
+                    left: (pos.x || 0) + 2 + padX + (sub.x || 0),
+                    top:  (pos.y || 0) + 2 + padT + (sub.y || 0),
+                    width: sub.w != null ? sub.w : Math.max((pos.w || 0) - 2 * padX, 0),
+                    minWidth: 60,
                     height: sub.h != null ? sub.h : undefined,
+                    padding: "6px 10px",
+                    border: "1px solid transparent",
+                    boxSizing: "border-box",
                   }}>
-                    <DesignerSubElement sub={sub} />
+                    <DesignerSubElement sub={sub} exact darkBg={darkBg} />
                   </div>
                 ));
               }
@@ -1863,12 +1966,185 @@ function DesignerBlock({ block, darkBg }: {
  * - Per-element entrance animations (countUp, zoomIn, pulse, fadeIn, slideUp,
  *   bounceIn, blurIn, typewriter) triggered on first viewport intersection
  */
-function DesignerSubElement({ sub }: { sub: SubEl }) {
+/**
+ * Estimate a sub-element's rendered height (in design px) when its height is auto/unset.
+ * Only used to WEIGHT the reflow gap between stacked elements, so an approximate line
+ * count is sufficient — it never sets an actual box height.
+ */
+function estimateSubHeight(sub: SubEl, w: number): number {
+  const p = sub.props || {};
+  const fs = Number(p.fontSize) || (sub.type === "heading" ? 22 : sub.type === "icon" ? 48 : 15);
+  const lh = Number(p.lineHeight) || (sub.type === "heading" ? 1.2 : 1.6);
+  if (sub.type === "icon") return Number(p.size) || 48;
+  if (sub.type === "paragraph" || sub.type === "heading") {
+    const text = String(p.text || "");
+    const cpl  = Math.max(1, Math.floor(w / (fs * 0.52))); // ~chars per line at this size
+    const lines = Math.max(1, Math.ceil(text.length / cpl));
+    return fs * lh * lines;
+  }
+  return fs * lh;
+}
+
+type ReflowBlock = { id: number; type: string; pixelPos?: PixelPos; props?: Record<string, unknown>; subElements?: SubEl[] };
+type ReflowLeaf = {
+  top: number; left: number; width: number; height: number;
+  textAlign: React.CSSProperties["textAlign"];
+  node: React.ReactNode;
+  aspect?: number | null; // non-container block design aspect (w/h), else null
+  minH?: number;          // non-container block fallback min-height when no aspect
+};
+
+/**
+ * FreeReflowStack — the free-mode MOBILE layout (≤768px). Instead of shrinking the whole
+ * designer canvas into a tiny scaled photograph, it lays the design's leaves out as a
+ * single readable column:
+ *  1. Collect leaves — every sub-element of a container block (absolute box = block
+ *     pixelPos + sub {x,y,w,h}) and every non-container block (its pixelPos box).
+ *  2. Order them in READING ORDER — top banded to ~24px rows, then left-to-right.
+ *  3. Stack them full-width; the GAP between two consecutive leaves mirrors how close
+ *     they were in the design: rendered = clamp(4, originalGap * scaleGuess, 28). So
+ *     elements that overlapped or sat adjacent (e.g. a paragraph and the emphasized
+ *     heading continuing its sentence) render tight and read as connected, while
+ *     far-apart elements keep a normal gap. Fonts become readable fluid clamps (mobile).
+ */
+function FreeReflowStack({ blocks, designerCanvasW, containerW, darkBg }: {
+  blocks: ReflowBlock[]; designerCanvasW: number; containerW: number; darkBg: boolean;
+}) {
+  const isContainerType = (t: string) => t === "text" || t === "text-block" || t === "card";
+
+  const leaves: ReflowLeaf[] = [];
+  for (const block of blocks) {
+    const pos  = block.pixelPos || { x: 0, y: 0, w: 300, h: 180 };
+    const subs = (block.subElements || []) as SubEl[];
+    if (isContainerType(block.type) && subs.length > 0) {
+      subs.forEach((sub, si) => {
+        const w = sub.w != null ? sub.w : pos.w;
+        const h = sub.h != null ? sub.h : estimateSubHeight(sub, w);
+        leaves.push({
+          top: (pos.y || 0) + (sub.y || 0),
+          left: (pos.x || 0) + (sub.x || 0),
+          width: w, height: h,
+          textAlign: (sub.props?.textAlign as React.CSSProperties["textAlign"]) || undefined,
+          node: <DesignerSubElement key={String(block.id) + "-" + si} sub={sub} mobile />,
+        });
+      });
+    } else {
+      const aspect = pos.w > 0 && pos.h > 0 ? pos.w / pos.h : null;
+      leaves.push({
+        top: pos.y || 0, left: pos.x || 0, width: pos.w, height: pos.h,
+        textAlign: undefined,
+        aspect,
+        minH: aspect ? undefined : Math.max(80, Math.min(pos.h || 0, 420)),
+        node: <DesignerBlock key={block.id} block={block} darkBg={darkBg} />,
+      });
+    }
+  }
+
+  // Reading order: band the top to ~24px rows so near-level elements read left-to-right,
+  // then fall back to source order for exact ties.
+  const band = (y: number) => Math.round(y / 24);
+  const ordered = leaves
+    .map((leaf, i) => ({ leaf, i }))
+    .sort((a, b) => band(a.leaf.top) - band(b.leaf.top) || a.leaf.left - b.leaf.left || a.i - b.i)
+    .map((x) => x.leaf);
+
+  // scaleGuess ≈ how much the design is compressed horizontally into the phone column.
+  const scaleGuess = designerCanvasW > 0 ? containerW / designerCanvasW : 0.26;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", width: "100%", padding: "0 20px" }}>
+      {ordered.map((leaf, i) => {
+        const prev = i > 0 ? ordered[i - 1] : null;
+        let marginTop = 0;
+        if (prev) {
+          const originalGap = leaf.top - (prev.top + prev.height);
+          marginTop = Math.max(4, Math.min(28, originalGap * scaleGuess));
+        }
+        const isBlock = leaf.aspect !== undefined || leaf.minH !== undefined;
+        return (
+          <div key={i} style={{ width: "100%", marginTop, textAlign: leaf.textAlign }}>
+            {isBlock ? (
+              <div style={{
+                position: "relative", width: "100%", overflow: "hidden",
+                ...(leaf.aspect ? { aspectRatio: `${leaf.aspect}` } : {}),
+                ...(leaf.minH != null ? { minHeight: leaf.minH } : {}),
+              }}>
+                {leaf.node}
+              </div>
+            ) : leaf.node}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Fluid font size for the free-mode mobile reflow. Maps a fixed design px size to a
+ * `clamp(floor, vw, designPx)` so headings/paragraphs are readable on small screens
+ * (never the tiny scaled-down px they'd get from the desktop stage) yet never exceed
+ * their designed size on wider phones. floor and vw formulas are fixed by spec.
+ */
+function mobileFontClamp(px: number): string {
+  const floor = Math.round(Math.min(Math.max(14, px * 0.5), 44));
+  const vw = (px / 14.4) * 1.55;
+  return `clamp(${floor}px, ${vw.toFixed(2)}vw, ${px}px)`;
+}
+
+/**
+ * DesignerSubElement flags:
+ * - `exact`  (desktop free stage): reproduce the designer canvas 1:1 — the wrapper
+ *   width governs wrapping, so suppress the paragraph maxWidth the designer never
+ *   applies, match its white-space (pre-wrap + break-word) so line breaks land
+ *   identically, and apply the designer's own text-metric DEFAULTS (heading
+ *   line-height 1.2, paragraph 14px/1.6, text-align left, letter-spacing 0,
+ *   text-transform none, #212529 text) instead of inheriting the site theme's —
+ *   the canvas resolves un-set props to those values, so inheriting anything else
+ *   changes wrap width/line height and breaks the 1:1 match.
+ * - `darkBg` (with exact): keeps the default text colour inherited on dark section
+ *   backgrounds (the white designer canvas can't represent those) so default-colour
+ *   text never renders near-black on black.
+ * - `mobile` (free reflow): render readable fluid fonts via mobileFontClamp and let
+ *   text wrap naturally at full column width.
+ */
+function DesignerSubElement({ sub, mobile, exact, darkBg }: { sub: SubEl; mobile?: boolean; exact?: boolean; darkBg?: boolean }) {
   const uid    = useId();
   // Sanitise the React useId string (contains colons) for use as a CSS class name
   const scopeClass = `dsub-${uid.replace(/:/g, "")}`;
   const styleRef   = useRef<HTMLStyleElement>(null);
   const p      = sub.props || {};
+
+  // Outlined text — CLEAN hollow outline via the hero's feMorphology technique (#95).
+  // -webkit-text-stroke centres the stroke ON the glyph contour, so heavy fonts paint
+  // stray internal lines where contours self-approach (R leg/bowl, W inner Vs, B bowls).
+  // Instead: render the glyphs FILLED in the outline colour and apply an SVG filter —
+  // erode(SourceAlpha) composited OUT of SourceGraphic — leaving a constant-width hollow
+  // band that follows the glyph for ANY font with zero junction artifacts. Same filter
+  // structure as HeroCarousel.renderRowInner; applied here as a CSS `filter: url(#id)`
+  // on the text element itself so multi-line text works and layout metrics are untouched.
+  // The designer canvas (createSubElementDOM) applies the identical filter → 1:1.
+  // Outline colour: explicit p.outlineColor, else #000000 (the default shown in the props
+  // panel + floating toolbar colour pickers). It must NOT fall back to the glyph colour —
+  // a white heading toggled "outlined" without picking a colour would inherit white and
+  // paint an invisible white hollow outline on a light background (#95 regression). thickness = erode radius.
+  const outlineColor    = (p.outlineColor as string) || "#000000";
+  const outlineRadius   = Number(p.outlineWidth) || 1;
+  const outlineFilterId = `dsub-outline-${scopeClass}`;
+  const outlinedStyle: React.CSSProperties = p.outlined
+    ? { color: outlineColor, filter: `url(#${outlineFilterId})` }
+    : {};
+  // Hidden SVG carrying the filter def the CSS filter above references (only when outlined).
+  const outlineDefs = p.outlined ? (
+    <svg aria-hidden="true" focusable="false" width={0} height={0}
+         style={{ position: "absolute", width: 0, height: 0, overflow: "hidden" }}>
+      <defs>
+        <filter id={outlineFilterId} x="-25%" y="-25%" width="150%" height="150%">
+          <feMorphology in="SourceAlpha" operator="erode" radius={outlineRadius} result="eroded" />
+          <feComposite in="SourceGraphic" in2="eroded" operator="out" />
+        </filter>
+      </defs>
+    </svg>
+  ) : null;
 
   // ── Animation props ───────────────────────────────────────────────────────
   const animEffect   = (p.animEffect   as string) || "none";
@@ -2003,14 +2279,22 @@ function DesignerSubElement({ sub }: { sub: SubEl }) {
           : text;
         return (
           <div style={{
-            fontSize:      `${Number(p.fontSize) || 22}px`,
+            fontSize:      mobile ? mobileFontClamp(Number(p.fontSize) || 22) : `${Number(p.fontSize) || 22}px`,
             fontFamily:    (p.fontFamily as string) || undefined,
             fontWeight:    (p.fontWeight as string) || "700",
-            color:         (p.color as string) || undefined,
-            textAlign:     (p.textAlign as React.CSSProperties["textAlign"]) || undefined,
-            lineHeight:    p.lineHeight !== undefined ? Number(p.lineHeight) : undefined,
-            letterSpacing: p.letterSpacing !== undefined ? `${Number(p.letterSpacing)}px` : undefined,
-            textTransform: (p.textTransform as React.CSSProperties["textTransform"]) || undefined,
+            // exact: designer headings resolve an un-set colour to #212529 (.se-heading),
+            // NOT the inherited theme colour — except on dark section backgrounds.
+            color:         (p.color as string) || (exact && !darkBg ? "#212529" : undefined),
+            textAlign:     (p.textAlign as React.CSSProperties["textAlign"]) || (exact ? "left" : undefined),
+            // exact: designer heading default line-height is 1.2 (`p.lineHeight||1.2`);
+            // inheriting the page's 1.5 made an 80px heading 120px tall vs 96px on canvas.
+            lineHeight:    p.lineHeight !== undefined ? Number(p.lineHeight) : (exact ? 1.2 : undefined),
+            letterSpacing: p.letterSpacing !== undefined ? `${Number(p.letterSpacing)}px` : (exact ? "0px" : undefined),
+            textTransform: (p.textTransform as React.CSSProperties["textTransform"]) || (exact ? "none" : undefined),
+            // Match the designer canvas white-space so line breaks land identically (#79).
+            // Designer heading: `white-space: p.textWrap||'normal'` + .se-heading break-word.
+            ...(exact ? { whiteSpace: (p.textWrap as React.CSSProperties["whiteSpace"]) || ("normal" as const), overflowWrap: "break-word" as const } : {}),
+            ...outlinedStyle,
             marginBottom:  hasShell ? 0 : mb,
             marginTop:     0,
           }}>
@@ -2029,19 +2313,32 @@ function DesignerSubElement({ sub }: { sub: SubEl }) {
           : animEffect === "typewriter"
           ? <span ref={countSpanRef} data-fulltext={text} />
           : text;
+        // In `exact` (desktop 1:1) and `mobile` (reflow) modes the wrapper/column width is
+        // authoritative — the designer never applies a paragraph maxWidth, so honouring it
+        // here would wrap the text narrower than the canvas, growing an extra line and making
+        // a neighbouring absolute element overlap on the live page (#79). Suppress it.
+        const constrainWidth = !exact && !mobile && !!p.maxWidth && Number(p.maxWidth) > 0;
         return (
           <p style={{
-            fontSize:      `${Number(p.fontSize) || 15}px`,
+            // exact: designer paragraph defaults are 14px / line-height 1.6
+            // (`p.fontSize||14`, `p.lineHeight||1.6`) — not the renderer's legacy 15/1.65.
+            fontSize:      mobile ? mobileFontClamp(Number(p.fontSize) || 15) : `${Number(p.fontSize) || (exact ? 14 : 15)}px`,
             fontFamily:    (p.fontFamily as string) || undefined,
             fontWeight:    (p.fontWeight as string) || undefined,
-            color:         (p.color as string) || undefined,
-            textAlign:     (p.textAlign as React.CSSProperties["textAlign"]) || undefined,
-            lineHeight:    p.lineHeight !== undefined ? Number(p.lineHeight) : 1.65,
-            letterSpacing: p.letterSpacing !== undefined ? `${Number(p.letterSpacing)}px` : undefined,
-            textTransform: (p.textTransform as React.CSSProperties["textTransform"]) || undefined,
-            maxWidth:      p.maxWidth && Number(p.maxWidth) > 0 ? `${Number(p.maxWidth)}px` : undefined,
-            marginLeft:    p.maxWidth && Number(p.maxWidth) > 0 ? "auto" : undefined,
-            marginRight:   p.maxWidth && Number(p.maxWidth) > 0 ? "auto" : undefined,
+            color:         (p.color as string) || (exact && !darkBg ? "#212529" : undefined),
+            textAlign:     (p.textAlign as React.CSSProperties["textAlign"]) || (exact ? "left" : undefined),
+            lineHeight:    p.lineHeight !== undefined ? Number(p.lineHeight) : (exact ? 1.6 : 1.65),
+            letterSpacing: p.letterSpacing !== undefined ? `${Number(p.letterSpacing)}px` : (exact ? "0px" : undefined),
+            textTransform: (p.textTransform as React.CSSProperties["textTransform"]) || (exact ? "none" : undefined),
+            maxWidth:      constrainWidth ? `${Number(p.maxWidth)}px` : undefined,
+            marginLeft:    constrainWidth ? "auto" : undefined,
+            marginRight:   constrainWidth ? "auto" : undefined,
+            // Match the designer's `.se-paragraph` wrapping (pre-wrap keeps authored line
+            // breaks; break-word prevents long tokens from widening the box) so height is 1:1.
+            // No word-break here — the designer never sets it, and its min-content sizing
+            // differs from overflow-wrap, which can change where lines break.
+            ...(exact ? { whiteSpace: (p.textWrap as React.CSSProperties["whiteSpace"]) || "pre-wrap", overflowWrap: "break-word" as const } : {}),
+            ...outlinedStyle,
             marginBottom:  hasShell ? 0 : mb,
             marginTop:     0,
           }}>
@@ -2116,7 +2413,7 @@ function DesignerSubElement({ sub }: { sub: SubEl }) {
       case "icon":
         return (
           <i className={`bi ${(p.iconName as string) || "bi-star"}`} style={{
-            fontSize:   `${Number(p.size) || 48}px`,
+            fontSize:   mobile ? mobileFontClamp(Number(p.size) || 48) : `${Number(p.size) || 48}px`,
             color:      (p.color as string) || "#0d6efd",
             display:    "block",
             textAlign:  (p.textAlign as React.CSSProperties["textAlign"]) || "left",
@@ -2147,15 +2444,17 @@ function DesignerSubElement({ sub }: { sub: SubEl }) {
     marginBottom: p.marginBottom !== undefined ? `${Number(p.marginBottom)}px` : "8px",
   };
 
-  // Build the content node (shell or bare)
+  // Build the content node (shell or bare). outlineDefs (hidden 0×0 svg) hosts the
+  // feMorphology filter that outlined heading/paragraph text references (#95).
   const contentNode = hasShell
     ? (
       <div className={scopeClass} style={shellStyle}>
         {customCss && <style ref={styleRef} />}
+        {outlineDefs}
         {inner()}
       </div>
     )
-    : <>{inner()}</>;
+    : <>{outlineDefs}{inner()}</>;
 
   // When an animation effect is active, wrap in a ref div so anime.js can target it
   if (animEffect !== "none") {

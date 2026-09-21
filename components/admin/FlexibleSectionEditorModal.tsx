@@ -18,6 +18,7 @@ import { defaultScrollStage, defaultZone, defaultThreeZone } from "@/components/
 import type { ScrollStageConfig, ScrollStageZoneConfig, ScrollStageZoneImageConfig, ScrollStageZoneThreeConfig } from "@/components/sections/scroll-stage/types";
 import { DEFAULT_LOWER_THIRD } from "@/lib/lower-third-presets";
 import { legacyToDesignerData } from "@/lib/flexible/legacy-to-designer";
+import { ConfirmProvider, useConfirm } from "@/components/admin/ConfirmProvider";
 import {
   PRESET_COLORS,
   generatePalette,
@@ -44,12 +45,26 @@ interface FlexibleSectionEditorModalProps {
 
 type ActiveTab = "content" | "background" | "animation" | "overlay" | "triangle" | "lower-third" | "motion" | "spacing" | "scroll-stage" | "preview";
 
-export default function FlexibleSectionEditorModal({
+/**
+ * Self-contained confirm-dialog scope. The admin layout does not mount a global
+ * <ConfirmProvider>, so the editor wraps itself — useConfirm() below then renders
+ * the in-app confirm modal instead of a native window.confirm.
+ */
+export default function FlexibleSectionEditorModal(props: FlexibleSectionEditorModalProps) {
+  return (
+    <ConfirmProvider>
+      <FlexibleSectionEditorModalInner {...props} />
+    </ConfirmProvider>
+  );
+}
+
+function FlexibleSectionEditorModalInner({
   section,
   onSave,
   onCancel,
   allSections = [],
 }: FlexibleSectionEditorModalProps) {
+  const confirm = useConfirm();
   // ── Section meta ──────────────────────────────────────────────
   const [displayName, setDisplayName] = useState(section.displayName || "Flexible Section");
   const [activeTab, setActiveTab] = useState<ActiveTab>("content");
@@ -171,6 +186,11 @@ export default function FlexibleSectionEditorModal({
   const [bgImageRepeat, setBgImageRepeat] = useState(section.bgImageRepeat || "no-repeat");
   const [bgImageOpacity, setBgImageOpacity] = useState(section.bgImageOpacity ?? 100);
   const [bgParallax, setBgParallax] = useState(section.bgParallax || false);
+  // Background-image fade/MASK (#60) — persisted inside content JSONB
+  const [bgMaskEnabled, setBgMaskEnabled] = useState(contentAny?.bgMaskEnabled === true);
+  const [bgMaskDirection, setBgMaskDirection] = useState(contentAny?.bgMaskDirection || "bottom");
+  const [bgMaskStart, setBgMaskStart] = useState<number>(contentAny?.bgMaskStart ?? 0);
+  const [bgMaskEnd, setBgMaskEnd] = useState<number>(contentAny?.bgMaskEnd ?? 100);
 
   // ── Motion Elements + Lower Third ────────────────────────────
   const [motionElements, setMotionElements] = useState<MotionElement[]>(
@@ -186,11 +206,18 @@ export default function FlexibleSectionEditorModal({
   );
 
   // ── Save ──────────────────────────────────────────────────────
-  const handleCancel = () => {
+  const handleCancel = async () => {
     // Guard against silently discarding designer work that hasn't been saved to the section.
-    if (sectionDirty && !window.confirm(
-      "You saved changes in the designer, but the SECTION hasn't been saved yet.\n\nClose and lose those changes?"
-    )) return;
+    if (sectionDirty) {
+      const discard = await confirm({
+        title: "Unsaved designer changes",
+        message: "You saved changes in the designer, but the SECTION hasn't been saved yet. Close and lose those changes?",
+        confirmText: "Discard changes",
+        cancelText: "Cancel",
+        variant: "danger",
+      });
+      if (!discard) return;
+    }
     try { localStorage.removeItem(draftKey); } catch {}
     onCancel();
   };
@@ -219,14 +246,14 @@ export default function FlexibleSectionEditorModal({
       triangleSide,
       triangleShape,
       triangleHeight,
-      triangleTargetId: triangleTargetId || undefined,
+      triangleTargetId: triangleTargetId ?? "",
       triangleGradientType,
       triangleColor1,
       triangleColor2,
       triangleAlpha1,
       triangleAlpha2,
       triangleAngle,
-      triangleImageUrl: triangleImageUrl || undefined,
+      triangleImageUrl: triangleImageUrl ?? "",
       triangleImageSize,
       triangleImagePos,
       triangleImageOpacity,
@@ -234,7 +261,7 @@ export default function FlexibleSectionEditorModal({
       triangleImageY,
       triangleImageScale,
       hoverTextEnabled,
-      hoverText: hoverText || undefined,
+      hoverText: hoverText ?? "",
       hoverTextStyle,
       hoverFontSize,
       hoverFontFamily,
@@ -242,7 +269,7 @@ export default function FlexibleSectionEditorModal({
       hoverAnimateBehind,
       hoverAlwaysShow,
       hoverOffsetX,
-      bgImageUrl: bgImageUrl || undefined,
+      bgImageUrl: bgImageUrl ?? "",
       bgImageSize,
       bgImagePosition,
       bgImageRepeat,
@@ -260,6 +287,11 @@ export default function FlexibleSectionEditorModal({
         designerData: designerData || null,
         layout,
         gradient,
+        // Background-image fade/MASK (#60)
+        bgMaskEnabled,
+        bgMaskDirection,
+        bgMaskStart,
+        bgMaskEnd,
         ...(overlayEnabled ? { overlay: { heading: overlayHeading, subheading: overlaySubheading, animation: overlayAnimation, position: overlayPosition } } : {}),
         animBg,
         scrollStage,
@@ -288,8 +320,27 @@ export default function FlexibleSectionEditorModal({
         preset: layout.preset || "2-col-split",
         blocks: [],
       });
+      // #68 — forward the section's configured background so the designer canvas can
+      // preview it (view-only in the designer). Mirrors the fields FlexibleSectionRenderer
+      // reads off the section: solid/preset colour, bg image + sizing, and gradient overlay.
+      let payloadWithBg = initPayload;
+      try {
+        const obj = JSON.parse(initPayload);
+        obj.sectionBackground = {
+          background: backgroundType === "solid" ? background : "transparent",
+          bgImageUrl: bgImageUrl || "",
+          bgImageSize,
+          bgImagePosition,
+          bgImageRepeat,
+          bgImageOpacity,
+          gradient: backgroundType === "gradient"
+            ? { enabled: true, type: "preset", preset: { direction: gradientDirection, startOpacity: gradientStartOpacity, endOpacity: gradientEndOpacity, color: gradientColor } }
+            : undefined,
+        };
+        payloadWithBg = JSON.stringify(obj);
+      } catch { /* non-JSON payload — send as-is */ }
       iframeRef.current?.contentWindow?.postMessage(
-        { type: "FLEXIBLE_DESIGNER_INIT", payload: initPayload },
+        { type: "FLEXIBLE_DESIGNER_INIT", payload: payloadWithBg },
         "*"
       );
     }
@@ -307,7 +358,9 @@ export default function FlexibleSectionEditorModal({
       setShowDesigner(false);
       setActiveTab("preview");
     }
-  }, [designerData, contentMode, layout, draftKey, section]);
+  }, [designerData, contentMode, layout, draftKey, section,
+      backgroundType, background, bgImageUrl, bgImageSize, bgImagePosition, bgImageRepeat, bgImageOpacity,
+      gradientDirection, gradientStartOpacity, gradientEndOpacity, gradientColor]);
 
   useEffect(() => {
     window.addEventListener("message", handleDesignerMessage);
@@ -872,6 +925,36 @@ export default function FlexibleSectionEditorModal({
                           <label className="form-check-label" htmlFor="flex-bgParallax">Enable Parallax Effect</label>
                         </div>
                       </div>
+
+                      {/* Fade image to transparent (alpha mask) — #60 */}
+                      <div className="mb-3">
+                        <div className="form-check form-switch">
+                          <input className="form-check-input" type="checkbox" id="flex-bgMask" checked={bgMaskEnabled} onChange={(e) => setBgMaskEnabled(e.target.checked)} />
+                          <label className="form-check-label" htmlFor="flex-bgMask">Fade image to transparent (gradient mask)</label>
+                        </div>
+                        <small className="text-muted d-block mt-1">Fades the background image to transparent so it blends into the section colour. Different from the colour gradient overlay.</small>
+                      </div>
+                      {bgMaskEnabled && (
+                        <div className="row mb-4">
+                          <div className="col-md-4">
+                            <label className="form-label">Fade Direction</label>
+                            <select className="form-select" value={bgMaskDirection} onChange={(e) => setBgMaskDirection(e.target.value)}>
+                              <option value="top">To Top</option>
+                              <option value="bottom">To Bottom</option>
+                              <option value="left">To Left</option>
+                              <option value="right">To Right</option>
+                            </select>
+                          </div>
+                          <div className="col-md-4">
+                            <label className="form-label">Opaque Until: {bgMaskStart}%</label>
+                            <input type="range" className="form-range" min={0} max={100} value={bgMaskStart} onChange={(e) => setBgMaskStart(Number(e.target.value))} />
+                          </div>
+                          <div className="col-md-4">
+                            <label className="form-label">Fully Faded At: {bgMaskEnd}%</label>
+                            <input type="range" className="form-range" min={0} max={100} value={bgMaskEnd} onChange={(e) => setBgMaskEnd(Number(e.target.value))} />
+                          </div>
+                        </div>
+                      )}
                     </>
                   )}
 

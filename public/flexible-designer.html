@@ -293,6 +293,26 @@
     }
     #canvas.drag-over { outline: 3px solid rgba(13,110,253,0.5); }
 
+    /* #68 — Section background preview layer. Sits behind grid guides (z1),
+       blocks (z>=1) and toolbars; purely visual (pointer-events:none) so it never
+       interferes with selection, drag, marquee, guides, resize or toolbars.
+       Hidden by default; JS reveals it only when a bg is configured and the toggle is ON. */
+    #canvas-section-bg {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      border-radius: inherit;
+      overflow: hidden;
+      display: none;
+    }
+    #canvas-section-bg .csb-image,
+    #canvas-section-bg .csb-scrim {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
     /* Grid guides */
     #grid-overlay {
       position: absolute;
@@ -537,6 +557,16 @@
     }
     .sub-element:hover { border-color: rgba(13,110,253,0.5); background: rgba(13,110,253,0.04); }
     .sub-element.selected { border-color: #20c997; background: rgba(32,201,151,0.04); box-shadow: 0 0 0 2px rgba(32,201,151,0.3); }
+    /* #89 marquee rubber-band — brand blue, matches the designer's #0d6efd chrome (no new colours) */
+    .marquee-box { position: absolute; z-index: 9998; border: 1px solid #0d6efd; background: rgba(13,110,253,0.10); border-radius: 2px; pointer-events: none; }
+    /* #48 Smart alignment guides — exactly ONE vertical + ONE horizontal reusable
+       line. Live inside #canvas (scaled), positioned in canvas-local coords. JS sets
+       position + span (v: top/height, h: left/width) and toggles display; the DIVs are
+       never re-created per move (that was the old flicker source). Thin brand-blue,
+       above content, below the marquee (9998). Hidden by default + on drop. */
+    .smart-guide { position: absolute; z-index: 9995; pointer-events: none; display: none; }
+    .smart-guide.v { width: 0; border-left: 1px solid #0d6efd; }
+    .smart-guide.h { height: 0; border-top: 1px solid #0d6efd; }
 
     .se-anim-badge {
       position: absolute;
@@ -806,6 +836,9 @@
     }
     .props-row label { font-size: 12px; color: #495057; min-width: 70px; flex-shrink: 0; }
     .props-row .val  { font-size: 12px; font-weight: 700; color: #0d6efd; min-width: 28px; text-align: right; }
+    /* Typed numeric companion for range sliders (#70) — type an exact value instead of dragging. */
+    .props-row .props-num { width: 52px; flex-shrink: 0; font-size: 12px; font-weight: 700; color: #0d6efd; text-align: center; height: 26px; padding: 0 2px; border: 1px solid #dee2e6; border-radius: 5px; background: #fff; }
+    .props-row .props-num:focus { outline: none; border-color: #0d6efd; box-shadow: 0 0 0 2px rgba(13,110,253,0.12); }
     .btn-icon-sm { width:26px;height:26px;border-radius:4px;border:1px solid #dee2e6;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0; }
     .btn-icon-sm:hover { background:#f1f3f5; }
     .btn-danger-sm { border-color:#fca5a5;color:#dc2626; }
@@ -1120,6 +1153,39 @@
     .dev-btn.active { border-color: #0d6efd; background: #e7f0ff; color: #0d6efd; }
     .dev-btn:hover:not(.active) { border-color: #adb5bd; background: #f8f9fa; color: #495057; }
 
+    /* ── Task #86: unified toolbar / canvas control-bar button sizing ──
+       Normalizes SIZE/SHAPE only — semantic colours (Save=blue, Done=green,
+       trash=red, FREE pill=green) come from Bootstrap variants / .free and are
+       left intact. */
+    #toolbar .ms-auto .btn,
+    #toolbar .ms-auto .dev-btn,
+    #toolbar .ms-auto .pos-mode-badge,
+    .canvas-panel-header .ms-auto .btn,
+    .canvas-panel-header .ms-auto .dev-btn {
+      height: 30px;
+      min-width: 30px;
+      padding: 0 9px;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      box-sizing: border-box;
+    }
+    /* Uniform glyph size for all icon buttons in both bars */
+    #toolbar .ms-auto .btn i,
+    #toolbar .ms-auto .dev-btn i,
+    .canvas-panel-header .ms-auto .btn i,
+    .canvas-panel-header .ms-auto .dev-btn i {
+      font-size: 15px;
+      line-height: 1;
+    }
+    /* FREE state pill keeps its rounded badge shape (meaning preserved) */
+    #toolbar .ms-auto .pos-mode-badge { border-radius: 20px; padding: 0 11px; }
+
     /* X/Y/W/H position inputs in props panel */
     .xyslider-row { display:flex; align-items:center; gap:6px; margin-bottom:7px; }
     .xyslider-row label { font-size:11px; font-weight:700; color:#6c757d; min-width:16px; text-align:right; }
@@ -1139,9 +1205,22 @@
     #canvas-empty-hint p { font-size:13px;color:#c8cdd4;margin:0;font-weight:600; }
     #canvas-empty-hint small { font-size:11px;color:#dee2e6; }
 
-    /* ── BLOCK MINI-TOOLBAR ─────────────────── */
-    #block-mini-toolbar { position:absolute;z-index:500;background:white;border:1px solid #dee2e6;border-radius:8px;box-shadow:0 3px 14px rgba(0,0,0,0.13);padding:3px;gap:1px;display:none;flex-direction:column;align-items:center; }
+    /* ── BLOCK MINI-TOOLBAR (#92: collapsed "+" pill just outside the element's
+       right-middle; hovering expands the action column vertically) ── */
+    #block-mini-toolbar { position:fixed;z-index:600;display:none;flex-direction:column;align-items:center;gap:0; }
     #block-mini-toolbar.mtt-visible { display:flex; }
+    /* fm-flip-y is set by anchorFloatingMenu (the floating-menu standard) when
+       the menu must grow UP instead of down — pill stays put via column-reverse */
+    #block-mini-toolbar.fm-flip-y { flex-direction:column-reverse; }
+    .fm-flip-y { flex-direction:column-reverse; }
+    .fm-flip-x { flex-direction:row-reverse; }
+    #block-mini-toolbar:hover { gap:4px; }
+    /* Collapsed pill — same visual language as the toolbar buttons (.mtt-btn):
+       white, subtle border+shadow, dark glyph, brand-blue hover accent */
+    .mtt-toggle { display:flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid #dee2e6;border-radius:50%;background:#fff;color:#495057;font-size:14px;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,0.14);flex-shrink:0;transition:background 0.15s,color 0.15s,border-color 0.15s; }
+    #block-mini-toolbar:hover .mtt-toggle { background:#f0f4ff;color:#0d6efd;border-color:#b6cdf5; }
+    .mtt-body { display:flex;flex-direction:column;align-items:center;gap:1px;background:white;border:0 solid #dee2e6;border-radius:8px;box-shadow:0 3px 14px rgba(0,0,0,0.13);padding:0 3px;max-height:0;opacity:0;overflow:hidden;transition:max-height 0.2s ease, opacity 0.15s ease, padding 0.2s ease, border-width 0.2s ease; }
+    #block-mini-toolbar:hover .mtt-body { max-height:240px;opacity:1;padding:3px;border-width:1px; }
     .mtt-btn { display:flex;align-items:center;justify-content:center;width:26px;height:26px;border:none;border-radius:5px;background:white;cursor:pointer;font-size:13px;color:#495057;transition:all 0.1s; }
     .mtt-btn:hover { background:#f0f4ff;color:#0d6efd; }
     .mtt-btn.mtt-add { color:#198754;font-size:15px; }
@@ -1150,6 +1229,30 @@
     .mtt-btn.mtt-add:hover { background:#d1e7dd;color:#0a3622; }
     .mtt-btn.mtt-danger:hover { background:#fff0f0;color:#dc3545; }
     .mtt-sep { height:1px;width:16px;background:#e9ecef;margin:1px 0;flex-shrink:0; }
+    /* ── Floating text FORMAT toolbar (#92: collapsed "A" pill at the selected
+       element's top-right corner; hovering expands the bar horizontally —
+       leftward across the top of the element by default, .tft-flip grows right) ── */
+    #text-format-toolbar { position:fixed;z-index:600;display:none;align-items:center;flex-wrap:nowrap;gap:0; }
+    #text-format-toolbar.tft-visible { display:flex; }
+    /* fm-flip-x is set by anchorFloatingMenu (the floating-menu standard) when
+       the bar must grow RIGHT instead of left — pill stays put via row-reverse */
+    #text-format-toolbar.fm-flip-x { flex-direction:row-reverse; }
+    #text-format-toolbar:hover { gap:4px; }
+    /* Collapsed pill — same visual language as the toolbar buttons (.tft-btn):
+       white, subtle border+shadow, dark glyph, brand-blue hover accent */
+    .tft-toggle { display:flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid #dee2e6;border-radius:50%;background:#fff;color:#495057;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,0.14);flex-shrink:0;line-height:1;transition:background 0.15s,color 0.15s,border-color 0.15s; }
+    #text-format-toolbar:hover .tft-toggle { background:#eef2ff;color:#0d6efd;border-color:#b6cdf5; }
+    #text-format-toolbar .tft-body { display:flex;align-items:center;gap:6px;flex-wrap:nowrap;background:#fff;border:0 solid #dee2e6;border-radius:9px;box-shadow:0 4px 18px rgba(0,0,0,0.16);padding:5px 0;max-width:0;opacity:0;overflow:hidden;transition:max-width 0.22s ease, opacity 0.16s ease, padding 0.22s ease, border-width 0.22s ease; }
+    #text-format-toolbar:hover .tft-body { max-width:min(880px, calc(100vw - 70px));opacity:1;padding:5px 7px;border-width:1px; }
+    #text-format-toolbar .tft-group { display:flex;align-items:center;gap:2px; }
+    #text-format-toolbar .tft-sep { width:1px;height:22px;background:#e9ecef;flex-shrink:0; }
+    #text-format-toolbar .tft-btn { display:flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 5px;border:1px solid transparent;border-radius:5px;background:#f8f9fa;cursor:pointer;font-size:12px;color:#495057;line-height:1; }
+    #text-format-toolbar .tft-btn:hover { background:#eef2ff;color:#0d6efd; }
+    #text-format-toolbar .tft-btn.active { background:#0d6efd;color:#fff; }
+    #text-format-toolbar select.tft-sel { height:24px;max-width:120px;border:1px solid #dee2e6;border-radius:5px;font-size:11px;background:#fff;color:#212529;padding:0 4px; }
+    #text-format-toolbar input.tft-num { width:44px;height:24px;border:1px solid #dee2e6;border-radius:5px;font-size:11px;text-align:center;padding:0 2px; }
+    #text-format-toolbar input.tft-color { width:26px;height:24px;border:1px solid #dee2e6;border-radius:5px;padding:0;background:#fff;cursor:pointer; }
+    #text-format-toolbar .tft-lbl { font-size:10px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:.4px; }
     /* ── Volt Studio Modal ─────────────────────────────────────────── */
     #volt-modal { position:fixed;inset:0;z-index:9999;display:none;flex-direction:column; }
     #volt-modal.vm-open { display:flex; }
@@ -1197,7 +1300,7 @@
     <!-- Guides toggle (icon-only) -->
     <button class="btn btn-sm btn-outline-primary" id="guides-btn" onclick="toggleGuides()" title="Show / Hide grid guides"><i class="bi bi-grid"></i></button>
     <!-- Pixel-grid snap toggle (free mode) -->
-    <button class="btn btn-sm btn-outline-secondary" id="snap-btn" onclick="toggleSnapGrid()" title="Grid snap OFF — press S to toggle" style="font-size:10px;padding:2px 7px;font-weight:600;letter-spacing:0.3px;">SNAP</button>
+    <button class="btn btn-sm btn-outline-secondary" id="snap-btn" onclick="toggleSnapGrid()" title="Grid snap OFF — press S to toggle" style="letter-spacing:0.3px;">SNAP</button>
     <!-- Utilities (icon-only) -->
     <button class="btn btn-sm btn-outline-primary" onclick="toggleJson()" title="JSON Output"><i class="bi bi-code-slash"></i></button>
     <button class="btn btn-sm btn-outline-danger" onclick="clearAll()" title="Clear entire canvas"><i class="bi bi-trash"></i></button>
@@ -1545,7 +1648,7 @@
         </div>
         <!-- Device editing indicator + reset -->
         <span id="dev-indicator" style="display:none;font-size:11px;font-weight:600;padding:2px 7px;border-radius:10px;"></span>
-        <button id="dev-reset-btn" style="display:none;" class="btn btn-sm btn-outline-secondary" onclick="resetDevicePositions()" title="Clear device-specific positions and revert to auto-scaled desktop layout" style="font-size:11px;">↺ Reset</button>
+        <button id="dev-reset-btn" style="display:none;" class="btn btn-sm btn-outline-secondary" onclick="resetDevicePositions()" title="Clear device-specific positions and revert to auto-scaled desktop layout">↺ Reset</button>
         <!-- Divider before preview to prevent accidental clicks -->
         <div style="width:1px;height:20px;background:rgba(255,255,255,0.15);margin:0 4px;flex-shrink:0;"></div>
         <!-- Preview -->
@@ -1554,8 +1657,10 @@
           <button class="btn btn-sm btn-outline-secondary" onclick="adjustUserZoom(-0.1)" title="Zoom out (Ctrl+-)"><i class="bi bi-dash-lg"></i></button>
           <span id="zoom-label" style="font-size:11px;font-weight:700;min-width:36px;text-align:center;color:#495057;">100%</span>
           <button class="btn btn-sm btn-outline-secondary" onclick="adjustUserZoom(0.1)" title="Zoom in (Ctrl+=)"><i class="bi bi-plus-lg"></i></button>
-          <button class="btn btn-sm btn-outline-secondary" onclick="resetUserZoom()" title="Reset zoom (Ctrl+0)" style="font-size:10px;padding:2px 5px;">1:1</button>
+          <button class="btn btn-sm btn-outline-secondary" onclick="resetUserZoom()" title="Reset zoom (Ctrl+0)">1:1</button>
         </div>
+        <!-- #68 — Show/hide the section's configured background on the canvas (view only; does not change saved data) -->
+        <button id="section-bg-toggle-btn" class="btn btn-sm btn-outline-secondary active" aria-pressed="true" onclick="toggleSectionBg()" title="Show section background on canvas (view only)"><i class="bi bi-image"></i></button>
         <button class="btn btn-sm btn-outline-secondary" onclick="previewSection()" title="Preview section in tab"><i class="bi bi-eye"></i></button>
       </div>
     </div>
@@ -1567,7 +1672,9 @@
         ondragover="onCanvasDragOver(event)"
         ondragleave="onCanvasDragLeave(event)"
         ondrop="onCanvasDrop(event)"
+        onmousedown="onCanvasMouseDown(event)"
         onclick="onCanvasClick(event)">
+        <div id="canvas-section-bg" aria-hidden="true"></div>
         <div id="grid-overlay"></div>
         <div id="guide-overlay"></div>
         <div id="dim-display">—</div>
@@ -1577,14 +1684,18 @@
           <small>Use the Block Library on the left &nbsp;&middot;&nbsp; Drag blocks onto the canvas</small>
         </div>
         <div id="block-mini-toolbar">
-          <button class="mtt-btn mtt-add" id="mtt-add-btn" title="Add Sub-Element" onclick="mttAdd()" style="display:none"><i class="bi bi-plus-lg"></i></button>
-          <div class="mtt-sep mtt-add-sep" id="mtt-add-sep" style="display:none"></div>
-          <button class="mtt-btn" title="Edit Content" onclick="mttEdit()"><i class="bi bi-pencil"></i></button>
-          <button class="mtt-btn" title="Duplicate Block" onclick="mttDuplicate()"><i class="bi bi-copy"></i></button>
-          <button class="mtt-btn" id="mtt-snap-btn" title="Snap sub-elements to 8px grid" onclick="mttToggleSubSnap()" style="display:none"><i class="bi bi-magnet"></i></button>
-          <div class="mtt-sep"></div>
-          <button class="mtt-btn mtt-danger" title="Delete Block" onclick="mttDelete()"><i class="bi bi-trash3"></i></button>
+          <button type="button" class="mtt-toggle fm-toggle" title="Block actions (hover to expand)" onclick="event.stopPropagation()"><i class="bi bi-plus-lg"></i></button>
+          <div class="mtt-body fm-body">
+            <button class="mtt-btn mtt-add" id="mtt-add-btn" title="Add Sub-Element" onclick="mttAdd()" style="display:none"><i class="bi bi-plus-lg"></i></button>
+            <div class="mtt-sep mtt-add-sep" id="mtt-add-sep" style="display:none"></div>
+            <button class="mtt-btn" title="Edit Content" onclick="mttEdit()"><i class="bi bi-pencil"></i></button>
+            <button class="mtt-btn" title="Duplicate Block" onclick="mttDuplicate()"><i class="bi bi-copy"></i></button>
+            <button class="mtt-btn" id="mtt-snap-btn" title="Snap sub-elements to 8px grid" onclick="mttToggleSubSnap()" style="display:none"><i class="bi bi-magnet"></i></button>
+            <div class="mtt-sep"></div>
+            <button class="mtt-btn mtt-danger" title="Delete Block" onclick="mttDelete()"><i class="bi bi-trash3"></i></button>
+          </div>
         </div>
+        <div id="text-format-toolbar"></div>
       </div>
     </div>
   </div><!-- end canvas-area -->
@@ -1682,6 +1793,7 @@ const state = {
   blocks: [],
   selectedBlockId: null,
   selectedSubId: null,
+  multiSel: [],         // #89 multi-select set: [{b:blockId, s:seId}]. Length>=2 = group; length<=1 uses the normal single-select path (selectedBlockId/selectedSubId)
   editingBlockId: null,
   dragSource: null,
   showGuides: true,
@@ -1694,7 +1806,11 @@ const state = {
   history: [],
   historyPos: -1,
   guidelines: [],
-  _guideIdCounter: 0
+  _guideIdCounter: 0,
+  // #68 — section background preview on the canvas. VIEW-ONLY: never written back
+  // into buildJson(); mirrors the fields FlexibleSectionRenderer reads off the section.
+  sectionBg: null,        // { background, bgImageUrl, bgImageSize, bgImagePosition, bgImageRepeat, bgImageOpacity, gradient } | null
+  showSectionBg: true     // toggle state (default ON) — pure view preference
 };
 let _saveTimer = null;
 
@@ -1957,9 +2073,29 @@ document.addEventListener('keydown', e => {
       !e.target.closest('input, textarea, [contenteditable="true"], select')) {
     e.preventDefault(); toggleSnapGrid(); return;
   }
+  // #89 Escape — clear the current selection (single or multi) when not typing.
+  if (e.key === 'Escape' && !e.target.closest('input, textarea, [contenteditable="true"], select')) {
+    if (multiSelCount() || state.selectedSubId || state.selectedBlockId) {
+      e.preventDefault();
+      clearMultiSel();
+      state.selectedBlockId = null; state.selectedSubId = null;
+      if (state.editingBlockId) exitEditMode();
+      renderCanvas(); renderPropsPanel(); updateTextFormatToolbar(); updateMiniToolbar();
+    }
+    return;
+  }
   // Delete / Backspace — delete selected element (skip when typing in inputs)
   if ((e.key === 'Delete' || e.key === 'Backspace') &&
       !e.target.closest('input, textarea, [contenteditable="true"], select')) {
+    // #89 multi-selection → delete every selected child
+    if (multiSelCount() > 1) {
+      e.preventDefault();
+      const victims = state.multiSel.slice();
+      clearMultiSel();
+      state.selectedBlockId = null; state.selectedSubId = null;
+      victims.forEach(m => removeSubElement(m.b, m.s));
+      return;
+    }
     if (state.selectedSubId && state.selectedBlockId) {
       e.preventDefault();
       removeSubElement(state.selectedBlockId, state.selectedSubId);
@@ -2532,7 +2668,8 @@ function createBlockElement(block) {
   // Responsive behavior visual states
   const _device = state.devicePreview;
   const _behavior = _device === 'mobile' ? (block.mobileBehavior||'auto') : _device === 'tablet' ? (block.tabletBehavior||'auto') : 'auto';
-  if (_device !== 'desktop') {
+  // Free mode ignores per-block behavior (pure scaled stage); only grid/mosaic applies it.
+  if (_device !== 'desktop' && state.positionMode !== 'free') {
     if (_dp.hidden)             el.classList.add('preview-hidden');
     if (_behavior === 'stretch') el.classList.add('preview-stretch');
   }
@@ -2544,8 +2681,8 @@ function createBlockElement(block) {
   hdrIc.className = 'bi ' + getBlockIcon(block.type);
   hdr.appendChild(hdrIc);
   hdr.appendChild(document.createTextNode(' ' + (block.props.label || block.type)));
-  // Responsive behavior badge (non-desktop only, non-auto only)
-  if (_device !== 'desktop' && _behavior !== 'auto') {
+  // Responsive behavior badge (grid/mosaic non-desktop only, non-auto only)
+  if (_device !== 'desktop' && state.positionMode !== 'free' && _behavior !== 'auto') {
     const badge = document.createElement('span');
     badge.className = 'cb-behavior-badge ' + _behavior;
     badge.textContent = _behavior === 'hide' ? 'HIDDEN' : '↔ STRETCH';
@@ -2907,6 +3044,62 @@ function createBlockPreview(block) {
  * @param {string} blockId - The ID of the parent block.
  * @returns {HTMLElement} The .sub-element div ready to insert into the canvas.
  */
+/**
+ * #95: clean hollow outlined text — the hero's feMorphology technique.
+ * -webkit-text-stroke centres the stroke ON the glyph contour, so heavy fonts paint
+ * stray internal lines at junctions (R leg/bowl, W inner Vs). Instead outlined text is
+ * rendered FILLED in the outline colour with a CSS `filter: url(#id)` referencing an
+ * SVG filter: erode(SourceAlpha) composited OUT of SourceGraphic → a constant-width
+ * hollow band that follows the glyph for ANY font, zero junction artifacts.
+ * FlexibleSectionRenderer.DesignerSubElement applies the identical filter → canvas
+ * and live page render 1:1. Filters are shared per erode radius, created on demand
+ * inside a hidden 0×0 <svg> appended to <body>.
+ */
+function ensureOutlineErodeFilter(radius) {
+  const r  = Number(radius) || 1;
+  const id = 'fd-outline-erode-r' + String(r).replace('.', 'p');
+  if (!document.getElementById(id)) {
+    const ns = 'http://www.w3.org/2000/svg';
+    let host = document.getElementById('fd-outline-filter-defs');
+    if (!host) {
+      host = document.createElementNS(ns, 'svg');
+      host.id = 'fd-outline-filter-defs';
+      host.setAttribute('aria-hidden', 'true');
+      host.setAttribute('width', '0');
+      host.setAttribute('height', '0');
+      // Must stay rendered (not display:none) or browsers disable the filter refs
+      host.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;';
+      document.body.appendChild(host);
+    }
+    const f = document.createElementNS(ns, 'filter');
+    f.id = id;
+    f.setAttribute('x', '-25%'); f.setAttribute('y', '-25%');
+    f.setAttribute('width', '150%'); f.setAttribute('height', '150%');
+    const morph = document.createElementNS(ns, 'feMorphology');
+    morph.setAttribute('in', 'SourceAlpha');
+    morph.setAttribute('operator', 'erode');
+    morph.setAttribute('radius', String(r));
+    morph.setAttribute('result', 'eroded');
+    const comp = document.createElementNS(ns, 'feComposite');
+    comp.setAttribute('in', 'SourceGraphic');
+    comp.setAttribute('in2', 'eroded');
+    comp.setAttribute('operator', 'out');
+    f.appendChild(morph); f.appendChild(comp);
+    host.appendChild(f);
+  }
+  return id;
+}
+
+/** Inline style fragment for outlined text (#95) — filled glyphs in the outline colour + erode filter. */
+function outlineStyleFrag(p) {
+  if (!p.outlined) return '';
+  // Explicit outlineColor, else #000000 (the default the props-panel + toolbar pickers show).
+  // Must NOT fall back to p.color: a white heading toggled outlined without choosing a colour
+  // would inherit white and paint an invisible white outline on a light bg (#95). 1:1 with renderer.
+  const col = p.outlineColor || '#000000';
+  return `color:${col};filter:url(#${ensureOutlineErodeFilter(p.outlineWidth || 1)});`;
+}
+
 function createSubElementDOM(se, blockId) {
   const el = document.createElement('div');
   el.className = 'sub-element' + (se.id === state.selectedSubId ? ' selected' : '');
@@ -2923,15 +3116,15 @@ function createSubElementDOM(se, blockId) {
   switch(se.type) {
     case 'heading':
       if (p.fontFamily && p.fontFamily !== 'inherit') { const _m=p.fontFamily.match(/'([^']+)'/); if(_m) injectGoogleFont(_m[1]); }
-      preview.innerHTML = `<div class="se-heading ${p.level||'h2'}" style="color:${p.color||''};font-size:${p.fontSize||22}px;font-family:${p.fontFamily||'inherit'};font-weight:${p.fontWeight||'700'};text-align:${p.textAlign||'left'};white-space:${p.textWrap||'normal'};line-height:${p.lineHeight||1.2};letter-spacing:${p.letterSpacing||0}px;text-transform:${p.textTransform||'none'};">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">' + (p.level||'h2').toUpperCase() + ' — double-click to edit</span>')}</div>`;
+      preview.innerHTML = `<div class="se-heading ${p.level||'h2'}" style="color:${p.color||''};font-size:${p.fontSize||22}px;font-family:${p.fontFamily||'inherit'};font-weight:${p.fontWeight||'700'};text-align:${p.textAlign||'left'};white-space:${p.textWrap||'normal'};line-height:${p.lineHeight||1.2};letter-spacing:${p.letterSpacing||0}px;text-transform:${p.textTransform||'none'};${outlineStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">' + (p.level||'h2').toUpperCase() + ' — double-click to edit</span>')}</div>`;
       break;
     case 'eyebrow':
       if (p.fontFamily && p.fontFamily !== 'inherit') { const _m=p.fontFamily.match(/'([^']+)'/); if(_m) injectGoogleFont(_m[1]); }
-      preview.innerHTML = `<div class="se-eyebrow" style="color:${p.color||'#0d6efd'};font-size:${p.fontSize||13}px;font-family:${p.fontFamily||'inherit'};font-weight:${p.fontWeight||'700'};text-align:${p.textAlign||'left'};text-transform:${p.textTransform||'uppercase'};letter-spacing:${p.letterSpacing??2}px;line-height:${p.lineHeight||1.4};">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">EYEBROW — double-click to edit</span>')}</div>`;
+      preview.innerHTML = `<div class="se-eyebrow" style="color:${p.color||'#0d6efd'};font-size:${p.fontSize||13}px;font-family:${p.fontFamily||'inherit'};font-weight:${p.fontWeight||'700'};text-align:${p.textAlign||'left'};text-transform:${p.textTransform||'uppercase'};letter-spacing:${p.letterSpacing??2}px;line-height:${p.lineHeight||1.4};${outlineStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">EYEBROW — double-click to edit</span>')}</div>`;
       break;
     case 'paragraph':
       if (p.fontFamily && p.fontFamily !== 'inherit') { const _m=p.fontFamily.match(/'([^']+)'/); if(_m) injectGoogleFont(_m[1]); }
-      preview.innerHTML = `<div class="se-paragraph" style="color:${p.color||''};font-size:${p.fontSize||14}px;font-family:${p.fontFamily||'inherit'};text-align:${p.textAlign||'left'};white-space:${p.textWrap||'pre-wrap'};line-height:${p.lineHeight||1.6};letter-spacing:${p.letterSpacing||0}px;text-transform:${p.textTransform||'none'};">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">Paragraph — double-click to edit</span>')} </div>`;
+      preview.innerHTML = `<div class="se-paragraph" style="color:${p.color||''};font-size:${p.fontSize||14}px;font-family:${p.fontFamily||'inherit'};text-align:${p.textAlign||'left'};white-space:${p.textWrap||'pre-wrap'};line-height:${p.lineHeight||1.6};letter-spacing:${p.letterSpacing||0}px;text-transform:${p.textTransform||'none'};${outlineStyleFrag(p)}">${(p.text ? escHtml(p.text) : '<span style="opacity:0.3;font-style:italic;">Paragraph — double-click to edit</span>')} </div>`;
       break;
     case 'image':
       preview.innerHTML = p.src
@@ -3004,6 +3197,19 @@ function createSubElementDOM(se, blockId) {
   el.addEventListener('mousedown', e => {
     if (e.target.closest('.se-remove, button, input, textarea, .se-inline-input, [contenteditable="true"]')) return;
     e.stopPropagation();
+    // #89 Shift-click toggles this element in/out of the multi-selection (additive). No drag.
+    if (e.shiftKey) {
+      e.preventDefault();
+      toggleMultiSelect(blockId, se.id);
+      return;
+    }
+    // #89 Plain press on a member of an existing 2+ selection → drag the whole group together.
+    if (multiSelCount() > 1 && isInMultiSel(se.id)) {
+      startGroupMove(e, blockId, se.id);
+      return;
+    }
+    // Plain single-select — collapse any multi-selection so behaviour is EXACTLY as before.
+    clearMultiSel();
     selectSubElement(blockId, se.id);
     startSubElementMove(e, blockId, se.id);
   });
@@ -3153,6 +3359,15 @@ function startSubElementMove(e, blockId, seId) {
   const startMY = e.clientY;
   let moved = false;
 
+  // #48 smart-guide setup: build the drag context ONCE (canvas rect/scale + static
+  // alignment targets + per-axis hysteresis state + the two reusable guide DIVs).
+  // _originLeft/_originTop map a tentative block-relative newX/newY to the element's
+  // canvas-local top-left so we can test its edges against the targets.
+  const _sgCtx = _sgBegin(new Set([seId]));
+  const _sgStartRect = seEl.getBoundingClientRect();
+  const _originLeft = _sgCtx.cRect ? (_sgStartRect.left - _sgCtx.cRect.left) / _sgCtx.scale - origX : 0;
+  const _originTop  = _sgCtx.cRect ? (_sgStartRect.top  - _sgCtx.cRect.top)  / _sgCtx.scale - origY : 0;
+
   const onMove = ev => {
     const _sem_s = getCanvasScale();
     const dx = (ev.clientX - startMX) / _sem_s;
@@ -3178,17 +3393,31 @@ function startSubElementMove(e, blockId, seId) {
       newX = Math.round(newX / sg) * sg;
       newY = Math.round(newY / sg) * sg;
     }
+    // #48 smart alignment snap: map tentative position → canvas-local top-left,
+    // snap onto the single nearest guide per axis (with hysteresis), reposition
+    // the persistent guide DIVs. No per-tick DOM churn — _sgUpdate just moves them.
+    if (_sgCtx.ok) {
+      const w = seEl.offsetWidth, h = seEl.offsetHeight;
+      const snap = _sgUpdate(_sgCtx, _originLeft + newX, _originTop + newY, w, h);
+      newX += Math.round(snap.dx);
+      newY += Math.round(snap.dy);
+    }
     se.x = newX;
     se.y = newY;
     seEl.style.left = se.x + 'px';
     seEl.style.top  = se.y + 'px';
     // Live-resize parent block (grows AND shrinks) in all directions while dragging
     fitBlockToSubElementsDOM(blockId);
+    // #75 keep floating toolbars anchored to the element as it moves (guards no-op
+    // when nothing is selected / the format bar is hidden)
+    positionTextFormatToolbar(seEl);
+    updateMiniToolbar();
   };
 
   const onUp = () => {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
+    _sgEnd(); // #48 hide alignment guides on drop (DIVs persist, just display:none)
     if (moved) {
       // Mark the block as manually laid out so the post-render restack
       // (renderCanvas → fitBlockToSubElementsDOM(id, true)) does NOT reset this
@@ -3197,6 +3426,9 @@ function startSubElementMove(e, blockId, seId) {
       block.manualSize = true;
       // Final accurate measurement after drag ends — DOM has settled
       fitBlockToSubElementsDOM(blockId);
+      // #75 re-anchor floating toolbars to the element's final resting spot
+      positionTextFormatToolbar(seEl);
+      updateMiniToolbar();
       autoSave();
       renderPropsPanel();
     }
@@ -3205,6 +3437,430 @@ function startSubElementMove(e, blockId, seId) {
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
 }
+
+// ═══════════════════════════════════════════════════════════
+//  #89 MULTI-SELECT — shift-click + marquee + group move
+//  state.multiSel holds the FULL set as [{b:blockId, s:seId}] whenever 2+
+//  children are selected. When 0–1 are selected the app uses the ordinary
+//  single-select path (selectedBlockId/selectedSubId) so single-select drag,
+//  resize, format bar, and outlined-text rendering behave EXACTLY as before.
+//  Selected chrome reuses the EXISTING `.sub-element.selected` class — no new
+//  styles invented. The primary (last-touched) member stays in
+//  selectedBlockId/selectedSubId so the props panel/keyboard keep working.
+// ═══════════════════════════════════════════════════════════
+function multiSelCount() { return state.multiSel ? state.multiSel.length : 0; }
+function isInMultiSel(seId) { return !!(state.multiSel && state.multiSel.some(m => m.s === seId)); }
+
+/** Removes every element from the multi-selection and strips its outline class. */
+function clearMultiSel() {
+  if (!state.multiSel || !state.multiSel.length) return;
+  state.multiSel.forEach(m => document.querySelector(`.sub-element[data-sub-id="${m.s}"]`)?.classList.remove('selected'));
+  state.multiSel = [];
+}
+/** Re-applies the existing `.selected` outline to every current multi-selection member. */
+function paintMultiSel() {
+  (state.multiSel || []).forEach(m => document.querySelector(`.sub-element[data-sub-id="${m.s}"]`)?.classList.add('selected'));
+}
+/** Sets the primary (last) selection from the current set, or clears it when empty. */
+function _syncPrimaryFromMultiSel() {
+  if (state.multiSel && state.multiSel.length) {
+    const last = state.multiSel[state.multiSel.length - 1];
+    state.selectedBlockId = last.b;
+    state.selectedSubId   = last.s;
+  } else {
+    state.selectedBlockId = null;
+    state.selectedSubId   = null;
+  }
+}
+
+/**
+ * Toggles a sub-element in/out of the multi-selection (Shift-click, additive).
+ * Seeds the set with any pre-existing single selection so Shift-clicking a
+ * second element yields BOTH, matching the standard designer selection model.
+ */
+function toggleMultiSelect(blockId, seId) {
+  if (!state.multiSel) state.multiSel = [];
+  // Seed with the current single selection so the first shift-click is additive to it.
+  if (state.multiSel.length === 0 && state.selectedSubId && state.selectedSubId !== seId) {
+    state.multiSel.push({ b: state.selectedBlockId, s: state.selectedSubId });
+    document.querySelector(`.sub-element[data-sub-id="${state.selectedSubId}"]`)?.classList.add('selected');
+  }
+  const idx = state.multiSel.findIndex(m => m.s === seId);
+  const el  = document.querySelector(`.sub-element[data-sub-id="${seId}"]`);
+  if (idx >= 0) { state.multiSel.splice(idx, 1); el?.classList.remove('selected'); }
+  else          { state.multiSel.push({ b: blockId, s: seId }); el?.classList.add('selected'); }
+  _syncPrimaryFromMultiSel();
+  renderPropsPanel();
+  updateMiniToolbar();        // hides per-element toolbars automatically when 2+ selected
+  updateTextFormatToolbar();
+}
+
+/**
+ * Drags EVERY multi-selected child together by a single delta. Reuses the exact
+ * scale/dead-zone/snap math of startSubElementMove so each element moves as it
+ * would on its own, then persists x/y for all of them (buildJson reads x/y) and
+ * grows/shrinks every affected parent block on drop.
+ * @param {MouseEvent} e - mousedown on a member of the selection.
+ * @param {string} clickBlockId - block of the pressed element (for no-drag collapse).
+ * @param {string} clickSeId - the pressed element (for no-drag collapse).
+ */
+function startGroupMove(e, clickBlockId, clickSeId) {
+  const members = (state.multiSel || []).map(m => {
+    const block = state.blocks.find(b => b.id === m.b);
+    const se = block && block.subElements.find(s => s.id === m.s);
+    const el = document.querySelector(`.sub-element[data-sub-id="${m.s}"]`);
+    return (block && se && el) ? { block, se, el, origX: se.x || 0, origY: se.y || 0 } : null;
+  }).filter(Boolean);
+  if (!members.length) return;
+  e.preventDefault();
+  const startMX = e.clientX, startMY = e.clientY;
+  const affectedBlocks = new Set(members.map(m => m.block.id));
+  let moved = false;
+
+  // #48 smart-guide setup for group drag: build the drag context ONCE (targets
+  // exclude the selected members) and capture the group's start bounding box in
+  // canvas-local coords. The whole group snaps as one — the bbox nudge found by
+  // _sgUpdate is applied to every member equally.
+  const _sgCtx = _sgBegin(new Set(members.map(m => m.se.id)));
+  let _grpL = Infinity, _grpT = Infinity, _grpR = -Infinity, _grpB = -Infinity;
+  if (_sgCtx.ok) {
+    members.forEach(m => {
+      const r = _seCanvasLocalRect(m.el, _sgCtx.cRect, _sgCtx.scale);
+      if (!r) return;
+      _grpL = Math.min(_grpL, r.left); _grpT = Math.min(_grpT, r.top);
+      _grpR = Math.max(_grpR, r.left + r.width); _grpB = Math.max(_grpB, r.top + r.height);
+    });
+  }
+  const _grpHasBox = _sgCtx.ok && _grpL !== Infinity;
+
+  const onMove = ev => {
+    const s = getCanvasScale();
+    const dx = (ev.clientX - startMX) / s;
+    const dy = (ev.clientY - startMY) / s;
+    // Same 3px dead-zone as single-drag so a plain click on a member doesn't drift the group.
+    if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
+    if (!moved) {
+      // Convert any full-width members to explicit px width once (mirrors startSubElementMove).
+      members.forEach(m => {
+        if (m.se.w === null || m.se.w === undefined) { m.se.w = m.el.offsetWidth; m.el.style.width = m.se.w + 'px'; }
+      });
+    }
+    moved = true;
+    // #48 snap the group bbox onto the single nearest guide per axis (hysteresis);
+    // apply the same nudge to every member. _sgUpdate repositions the guide DIVs.
+    let adx = dx, ady = dy;
+    if (_grpHasBox) {
+      const snap = _sgUpdate(_sgCtx, _grpL + dx, _grpT + dy, _grpR - _grpL, _grpB - _grpT);
+      adx = dx + snap.dx; ady = dy + snap.dy;
+    }
+    members.forEach(m => {
+      let nx = Math.round(m.origX + adx);
+      let ny = Math.round(m.origY + ady);
+      if (state.subElementSnap) { const g = 8; nx = Math.round(nx / g) * g; ny = Math.round(ny / g) * g; }
+      m.se.x = nx; m.se.y = ny;
+      m.el.style.left = nx + 'px'; m.el.style.top = ny + 'px';
+    });
+    affectedBlocks.forEach(id => fitBlockToSubElementsDOM(id));
+  };
+
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    _sgEnd(); // #48 hide alignment guides on drop (DIVs persist, just display:none)
+    if (moved) {
+      // Persist: mark blocks manual so the restack doesn't reset dragged Y, remeasure, save.
+      members.forEach(m => { m.block.manualSize = true; });
+      affectedBlocks.forEach(id => fitBlockToSubElementsDOM(id));
+      autoSave();
+      renderPropsPanel();
+    } else {
+      // No drag → a plain click on one member collapses to selecting just that one.
+      clearMultiSel();
+      selectSubElement(clickBlockId, clickSeId);
+    }
+  };
+
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+// Suppress the click that trailing-fires after a marquee drag (it would hit
+// onCanvasClick and wipe the fresh marquee selection).
+let _suppressCanvasClick = false;
+
+/**
+ * Canvas-background mousedown → begin a marquee ONLY when the press starts on
+ * empty canvas (same guard as onCanvasClick). Block/sub-element mousedowns
+ * either stopPropagation or start on a non-canvas target, so they never reach here.
+ */
+function onCanvasMouseDown(e) {
+  if (e.button !== 0) return;
+  const id = e.target.id;
+  if (e.target !== document.getElementById('canvas') && id !== 'grid-overlay' && id !== 'guide-overlay') return;
+  startMarquee(e);
+}
+
+/**
+ * Draws a rubber-band rectangle on empty canvas; on mouse-up selects every
+ * sub-element whose on-screen rect intersects it. A 4px dead-zone preserves the
+ * plain click-to-deselect behaviour of onCanvasClick.
+ */
+function startMarquee(e) {
+  const canvas = document.getElementById('canvas');
+  if (!canvas) return;
+  const rect = canvas.getBoundingClientRect();
+  const s = getCanvasScale();
+  const startLX = (e.clientX - rect.left) / s, startLY = (e.clientY - rect.top) / s;
+  const startCX = e.clientX, startCY = e.clientY;
+  let box = null, active = false;
+
+  const onMove = ev => {
+    if (!active && Math.abs(ev.clientX - startCX) < 4 && Math.abs(ev.clientY - startCY) < 4) return;
+    active = true;
+    if (!box) { box = document.createElement('div'); box.className = 'marquee-box'; canvas.appendChild(box); }
+    const curLX = (ev.clientX - rect.left) / s, curLY = (ev.clientY - rect.top) / s;
+    box.style.left   = Math.min(startLX, curLX) + 'px';
+    box.style.top    = Math.min(startLY, curLY) + 'px';
+    box.style.width  = Math.abs(curLX - startLX) + 'px';
+    box.style.height = Math.abs(curLY - startLY) + 'px';
+  };
+  const onUp = ev => {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    if (box) box.remove();
+    if (!active) return; // plain click → let onCanvasClick handle deselect
+    _suppressCanvasClick = true;
+    finishMarquee({
+      left:   Math.min(startCX, ev.clientX), right:  Math.max(startCX, ev.clientX),
+      top:    Math.min(startCY, ev.clientY), bottom: Math.max(startCY, ev.clientY),
+    });
+  };
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+/** Selects all sub-elements intersecting the marquee rect (client coords). */
+function finishMarquee(mRect) {
+  const canvas = document.getElementById('canvas');
+  const found = [];
+  canvas.querySelectorAll('.sub-element').forEach(el => {
+    const r = el.getBoundingClientRect();
+    const hit = !(r.right < mRect.left || r.left > mRect.right || r.bottom < mRect.top || r.top > mRect.bottom);
+    if (!hit) return;
+    const seId = el.dataset.subId;
+    const bId  = el.closest('[data-block-id]')?.dataset.blockId;
+    if (seId && bId) found.push({ b: bId, s: seId });
+  });
+  clearMultiSel();
+  state.selectedBlockId = null; state.selectedSubId = null;
+  if (found.length === 1) {
+    // Single hit → ordinary single selection (identical to a normal click).
+    selectSubElement(found[0].b, found[0].s);
+  } else if (found.length > 1) {
+    state.multiSel = found;
+    paintMultiSel();
+    _syncPrimaryFromMultiSel();
+    renderPropsPanel(); updateMiniToolbar(); updateTextFormatToolbar();
+  } else {
+    // Empty marquee → clear everything.
+    renderCanvas(); renderPropsPanel(); updateTextFormatToolbar();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  #48 SMART ALIGNMENT GUIDES + SNAPPING (child drag / group drag)  [rewritten]
+//  Figma/Sketch-style guides while a child (or multi-selection) is dragged.
+//  Behaviour (fixing the old "flashes lines all over / glitchy" UX):
+//    • At most ONE vertical + ONE horizontal guide at a time — the single nearest
+//      snap target per axis, and only when the dragged element is actually snapped
+//      onto it (within threshold). No line for far/partial proximity.
+//    • Two PERSISTENT guide DIVs (#smart-guide-v / #smart-guide-h) created once and
+//      reused — each move only repositions + toggles their display. We never
+//      remove-and-re-append guide DOM per tick (that was the flicker source).
+//    • Hysteresis: once snapped to a target, we keep it until an edge drifts past
+//      SMART_RELEASE_PX, so the guide doesn't flip between near-equidistant targets.
+//    • Priority: element edge/centre first, canvas centre only as fallback.
+//  Everything is computed in CANVAS-LOCAL coords (unscaled px) so it stays correct
+//  at any zoom/fit-scale. Guides are hidden (not destroyed) on drop.
+// ═══════════════════════════════════════════════════════════
+const SMART_SNAP_PX = 6;    // canvas-local px: snap ONTO a target within this distance
+const SMART_RELEASE_PX = 9; // canvas-local px: stay snapped until an edge drifts past this (hysteresis)
+
+/**
+ * Converts a DOM element's on-screen rect into canvas-local coords (unscaled).
+ * Returns null for zero-size (e.g. hidden) elements so they never become targets.
+ * @param {Element} el - the element to measure.
+ * @param {DOMRect} cRect - canvas getBoundingClientRect (visual/scaled).
+ * @param {number} scale - current canvas scale from getCanvasScale().
+ */
+function _seCanvasLocalRect(el, cRect, scale) {
+  const r = el.getBoundingClientRect();
+  if (!r.width && !r.height) return null;
+  return {
+    left: (r.left - cRect.left) / scale,
+    top:  (r.top  - cRect.top)  / scale,
+    width:  r.width  / scale,
+    height: r.height / scale,
+  };
+}
+
+/**
+ * Ensures the two reusable guide DIVs exist inside #canvas and returns them.
+ * Idempotent: reuses existing ones by id (so there are ever only two), and
+ * re-attaches them if a canvas re-render orphaned them. Never creates per move.
+ */
+function _sgEnsureGuides() {
+  const canvas = document.getElementById('canvas');
+  if (!canvas) return null;
+  let v = document.getElementById('smart-guide-v');
+  if (!v) { v = document.createElement('div'); v.id = 'smart-guide-v'; v.className = 'smart-guide v'; v.style.display = 'none'; }
+  if (v.parentElement !== canvas) canvas.appendChild(v);
+  let h = document.getElementById('smart-guide-h');
+  if (!h) { h = document.createElement('div'); h.id = 'smart-guide-h'; h.className = 'smart-guide h'; h.style.display = 'none'; }
+  if (h.parentElement !== canvas) canvas.appendChild(h);
+  return { v, h };
+}
+
+/** Positions + shows the single vertical guide at canvas-local x, spanning [top, top+height]. */
+function _sgPlaceV(x, top, height) {
+  const v = document.getElementById('smart-guide-v');
+  if (!v) return;
+  v.style.left = x + 'px';
+  v.style.top = top + 'px';
+  v.style.height = Math.max(0, height) + 'px';
+  v.style.display = 'block';
+}
+/** Positions + shows the single horizontal guide at canvas-local y, spanning [left, left+width]. */
+function _sgPlaceH(y, left, width) {
+  const h = document.getElementById('smart-guide-h');
+  if (!h) return;
+  h.style.top = y + 'px';
+  h.style.left = left + 'px';
+  h.style.width = Math.max(0, width) + 'px';
+  h.style.display = 'block';
+}
+function _sgHideV() { const v = document.getElementById('smart-guide-v'); if (v) v.style.display = 'none'; }
+function _sgHideH() { const h = document.getElementById('smart-guide-h'); if (h) h.style.display = 'none'; }
+
+/**
+ * Builds the snap targets (canvas-local) from every sub-element except excludeSet,
+ * plus the canvas centre. Each target carries its perpendicular extent {min,max}
+ * so the drawn guide can span exactly the aligned element (element→element span)
+ * or the full canvas dimension (canvas-centre). Split into `el` (element edges/
+ * centres — preferred) and `canvas` (centre — fallback). Built ONCE per drag.
+ * @param {Set<string>} excludeSet - sub-element ids to skip (the dragged one[s]).
+ * @param {DOMRect} cRect - canvas getBoundingClientRect.
+ * @param {number} scale - current canvas scale.
+ * @returns {{x:{el:Array,canvas:Array}, y:{el:Array,canvas:Array}}}
+ */
+function _sgBuildTargets(excludeSet, cRect, scale) {
+  const x = { el: [], canvas: [] }, y = { el: [], canvas: [] };
+  const canvas = document.getElementById('canvas');
+  if (!canvas) return { x, y };
+  canvas.querySelectorAll('.sub-element').forEach(el => {
+    if (excludeSet.has(el.dataset.subId)) return;
+    const r = _seCanvasLocalRect(el, cRect, scale);
+    if (!r) return;
+    const l = r.left, t = r.top, rr = r.left + r.width, b = r.top + r.height;
+    // vertical-guide targets (X positions); perpendicular span = element's Y extent
+    x.el.push({ pos: l, min: t, max: b }, { pos: (l + rr) / 2, min: t, max: b }, { pos: rr, min: t, max: b });
+    // horizontal-guide targets (Y positions); perpendicular span = element's X extent
+    y.el.push({ pos: t, min: l, max: rr }, { pos: (t + b) / 2, min: l, max: rr }, { pos: b, min: l, max: rr });
+  });
+  // Canvas centre lines (clientWidth/Height are layout px = canvas-local space).
+  const cw = canvas.clientWidth, ch = canvas.clientHeight;
+  x.canvas.push({ pos: cw / 2, min: 0, max: ch });
+  y.canvas.push({ pos: ch / 2, min: 0, max: cw });
+  return { x, y };
+}
+
+/**
+ * Finds the nearest target within `thresh` for any of the moving edges.
+ * @returns {{delta:number, tgt:Object}|null} delta = target.pos - matchedEdge.
+ */
+function _sgNearest(edges, list, thresh) {
+  let best = thresh, delta = 0, tgt = null;
+  for (let i = 0; i < list.length; i++) {
+    const t = list[i];
+    for (let j = 0; j < edges.length; j++) {
+      const d = t.pos - edges[j], a = d < 0 ? -d : d;
+      if (a <= best) { best = a; delta = d; tgt = t; }
+    }
+  }
+  return tgt ? { delta, tgt } : null;
+}
+
+/**
+ * Resolves ONE axis: returns the nudge (delta) + the single locked target (or
+ * null). Hysteresis first — if a target is already locked in `state`, keep it
+ * until every edge is past SMART_RELEASE_PX; otherwise search element targets
+ * (preferred) then canvas centre (fallback) within SMART_SNAP_PX.
+ * @param {number[]} edges - moving edges on this axis (e.g. left/centre/right).
+ * @param {{el:Array,canvas:Array}} axisTargets
+ * @param {{tgt:Object|null}} state - per-axis hysteresis state (mutated).
+ */
+function _sgAxis(edges, axisTargets, state) {
+  if (state.tgt) {
+    let best = Infinity, bestEdge = edges[0];
+    for (let j = 0; j < edges.length; j++) {
+      const a = Math.abs(state.tgt.pos - edges[j]);
+      if (a < best) { best = a; bestEdge = edges[j]; }
+    }
+    if (best <= SMART_RELEASE_PX) return { delta: state.tgt.pos - bestEdge, tgt: state.tgt };
+    state.tgt = null; // drifted off — release and re-search this tick
+  }
+  let pick = _sgNearest(edges, axisTargets.el, SMART_SNAP_PX);
+  if (!pick) pick = _sgNearest(edges, axisTargets.canvas, SMART_SNAP_PX);
+  if (pick) { state.tgt = pick.tgt; return pick; }
+  return { delta: 0, tgt: null };
+}
+
+/**
+ * Begins a smart-guide drag session: measures the canvas, builds static targets
+ * excluding the dragged element(s), ensures the two reusable guide DIVs exist and
+ * are hidden, and returns the drag context (also exposing cRect/scale for callers
+ * that need canvas-local origin maths). Targets are static for the whole drag.
+ * @param {Set<string>} excludeSet - sub-element ids being dragged.
+ */
+function _sgBegin(excludeSet) {
+  const canvas = document.getElementById('canvas');
+  const cRect = canvas ? canvas.getBoundingClientRect() : null;
+  const scale = getCanvasScale();
+  _sgEnsureGuides();
+  _sgHideV(); _sgHideH();
+  const empty = { x: { el: [], canvas: [] }, y: { el: [], canvas: [] } };
+  if (!cRect) return { ok: false, cRect: null, scale, targets: empty, sx: { tgt: null }, sy: { tgt: null } };
+  return { ok: true, cRect, scale, targets: _sgBuildTargets(excludeSet, cRect, scale), sx: { tgt: null }, sy: { tgt: null } };
+}
+
+/**
+ * Per-move update: given the dragged element/group's tentative canvas-local
+ * top-left + size, resolves one snap target per axis, repositions/toggles the two
+ * persistent guide DIVs (spanning target↔element, or full canvas for a centre
+ * target), and returns the local-space nudge to apply.
+ * @returns {{dx:number, dy:number}}
+ */
+function _sgUpdate(ctx, left, top, width, height) {
+  if (!ctx || !ctx.ok) return { dx: 0, dy: 0 };
+  const rx = _sgAxis([left, left + width / 2, left + width], ctx.targets.x, ctx.sx);
+  const ry = _sgAxis([top, top + height / 2, top + height], ctx.targets.y, ctx.sy);
+  const dx = rx.delta, dy = ry.delta;
+  if (rx.tgt) {
+    // vertical guide spans the union of the target's Y extent and the snapped element's Y extent
+    const eTop = top + dy, eBot = top + dy + height;
+    const gTop = Math.min(rx.tgt.min, eTop), gBot = Math.max(rx.tgt.max, eBot);
+    _sgPlaceV(rx.tgt.pos, gTop, gBot - gTop);
+  } else _sgHideV();
+  if (ry.tgt) {
+    const eL = left + dx, eR = left + dx + width;
+    const gL = Math.min(ry.tgt.min, eL), gR = Math.max(ry.tgt.max, eR);
+    _sgPlaceH(ry.tgt.pos, gL, gR - gL);
+  } else _sgHideH();
+  return { dx, dy };
+}
+
+/** Ends a smart-guide drag session: hide both guides (DIVs persist for reuse). */
+function _sgEnd() { _sgHideV(); _sgHideH(); }
 
 /**
  * Begins a right-edge drag to resize the width of a text sub-element.
@@ -4162,6 +4818,11 @@ function startBlockMove(e, blockId) {
         if (c.textContent === cellLabel) c.classList.add(occupied ? 'drop-occupied' : 'drop-hover');
       });
     }
+    // #75 keep the block's floating toolbars tracking it during the drag
+    // (updateMiniToolbar re-reads the block pos we just set; the format bar
+    // call is a no-op unless a text child is selected + visible)
+    updateMiniToolbar();
+    positionTextFormatToolbar();
   }
   function onUp(e) {
     document.body.style.cursor = '';
@@ -4265,7 +4926,8 @@ function startResize(e, blockId, dir) {
  * @param {string} id - ID of the block to select.
  */
 function selectBlock(id) {
-  state.selectedBlockId=id; state.selectedSubId=null; renderCanvas(); renderPropsPanel(); updateMiniToolbar();
+  clearMultiSel();  // #89 selecting a block collapses any child multi-selection
+  state.selectedBlockId=id; state.selectedSubId=null; renderCanvas(); renderPropsPanel(); updateMiniToolbar(); updateTextFormatToolbar();
 }
 
 /**
@@ -4277,6 +4939,7 @@ function selectBlock(id) {
  * @param {string} sId - ID of the sub-element to select.
  */
 function selectSubElement(bId, sId) {
+  clearMultiSel();  // #89 a fresh single selection collapses any multi-selection
   const prevBlockId = state.selectedBlockId;
   const prevSubId   = state.selectedSubId;
   state.selectedBlockId = bId;
@@ -4293,6 +4956,7 @@ function selectSubElement(bId, sId) {
   renderPropsPanel();
   renderLayersPanel();
   updateMiniToolbar();   // keep the parent's add-child/dup/delete toolbar in sync (#41)
+  updateTextFormatToolbar();  // show/anchor the floating format bar for text children (#39/#42/#63)
 }
 
 /**
@@ -4301,10 +4965,14 @@ function selectSubElement(bId, sId) {
  * @param {MouseEvent} e - The canvas click event.
  */
 function onCanvasClick(e) {
+  // #89 swallow the click that trailing-fires right after a marquee drag so it
+  // doesn't wipe the selection the marquee just made.
+  if (_suppressCanvasClick) { _suppressCanvasClick = false; return; }
   if (e.target===document.getElementById('canvas')||e.target===document.getElementById('grid-overlay')) {
+    clearMultiSel();
     state.selectedBlockId=null; state.selectedSubId=null;
     if (state.editingBlockId) exitEditMode();
-    renderCanvas(); renderPropsPanel();
+    renderCanvas(); renderPropsPanel(); updateTextFormatToolbar();
   }
 }
 
@@ -4675,8 +5343,10 @@ function renderBlockProps(block) {
   const isEdit=state.editingBlockId===block.id;
   let h='';
 
-  // ── Responsive Behavior (tablet/mobile preview only) ──────────────────────
-  if (state.devicePreview !== 'desktop') {
+  // ── Responsive Behavior (grid/mosaic tablet/mobile preview only) ──────────
+  // Free mode is a pixel-exact scaled stage that mirrors the renderer (no per-block
+  // reflow), so per-block auto/stretch/hide controls only apply to grid/mosaic stacking.
+  if (state.devicePreview !== 'desktop' && state.positionMode !== 'free') {
     const dev = state.devicePreview;
     const behavior = dev === 'mobile' ? (block.mobileBehavior||'auto') : (block.tabletBehavior||'auto');
     const devLabel = dev === 'mobile' ? '📱 Mobile' : '💻 Tablet';
@@ -5080,7 +5750,7 @@ function renderTypeProps(block) {
       // Font family
       h += selectRow('Font Family', p.fontFamily||'Merriweather', EDITORIAL_FONTS, `updateBlockProp('${block.id}','fontFamily',this.value);renderCanvas()`);
       // Font size
-      h += `<div class="props-row"><label>Font Size</label><input class="props-input" type="range" min="12" max="36" step="1" value="${p.fontSize||18}" oninput="updateBlockProp('${block.id}','fontSize',parseInt(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.fontSize||18}px</span></div>`;
+      h += `<div class="props-row"><label>Font Size</label><input class="props-input" type="range" min="12" max="36" step="1" value="${p.fontSize||18}" oninput="updateBlockProp('${block.id}','fontSize',parseInt(this.value));renderCanvas();this.nextElementSibling.value=this.value"><input type="number" class="props-num" min="8" max="400" value="${p.fontSize||18}" oninput="const v=parseInt(this.value)||18;updateBlockProp('${block.id}','fontSize',v);renderCanvas();this.previousElementSibling.value=Math.min(v,this.previousElementSibling.max)"></div>`;
       // Line height
       h += `<div class="props-row"><label>Line Height</label><input class="props-input" type="range" min="1.0" max="2.5" step="0.05" value="${p.lineHeight||1.6}" oninput="updateBlockProp('${block.id}','lineHeight',parseFloat(this.value));renderCanvas();this.nextElementSibling.textContent=parseFloat(this.value).toFixed(2)"><span class="val">${(p.lineHeight||1.6).toFixed(2)}</span></div>`;
       // Text color
@@ -5284,36 +5954,39 @@ function renderSubTypeProps(bId, se) {
       h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;margin-bottom:8px;"><input class="props-input" type="text" value="${escHtml(p.text||'')}" oninput="updateSubProp('${bId}','${se.id}','text',this.value);renderCanvas()" placeholder="Enter heading text..."></div>`;
       h+=selectRow('Level',p.level||'h2',[['h1','H1'],['h2','H2'],['h3','H3'],['h4','H4'],['h5','H5'],['h6','H6']],`updateSubProp('${bId}','${se.id}','level',this.value);renderCanvas()`);
       h+=colorRow('Color',p.color||'',`updateSubProp('${bId}','${se.id}','color',this.value);renderCanvas()`);
-      h+=`<div class="props-row"><label>Font Size</label><input class="props-input" type="range" min="12" max="96" value="${p.fontSize||22}" oninput="updateSubProp('${bId}','${se.id}','fontSize',parseInt(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.fontSize||22}px</span></div>`;
+      h+=`<div class="props-row"><label>Font Size</label><input class="props-input" type="range" min="12" max="96" value="${p.fontSize||22}" oninput="updateSubProp('${bId}','${se.id}','fontSize',parseInt(this.value));renderCanvas();this.nextElementSibling.value=this.value"><input type="number" class="props-num" min="8" max="400" value="${p.fontSize||22}" oninput="const v=parseInt(this.value)||22;updateSubProp('${bId}','${se.id}','fontSize',v);renderCanvas();this.previousElementSibling.value=Math.min(v,this.previousElementSibling.max)"></div>`;
       h+=fontFamilyRow('Font Family', p.fontFamily||'inherit', bId, se.id);
       h+=selectRow('Align',p.textAlign||'left',[['left','Left'],['center','Center'],['right','Right']],`updateSubProp('${bId}','${se.id}','textAlign',this.value);renderCanvas()`);
       h+=selectRow('Weight',p.fontWeight||'700',[['300','300 Light'],['400','400 Regular'],['500','500 Medium'],['600','600 Semibold'],['700','700 Bold'],['800','800 Extra Bold'],['900','900 Black']],`updateSubProp('${bId}','${se.id}','fontWeight',this.value);renderCanvas()`);
       h+=selectRow('Text Wrap',p.textWrap||'normal',[['normal','Wrap (default)'],['break-all','Break anywhere'],['nowrap','Single line']],`updateSubProp('${bId}','${se.id}','textWrap',this.value);renderCanvas()`);
       h+=`<div class="props-row"><label>Line Height</label><input class="props-input" type="range" min="0.8" max="2.5" step="0.1" value="${p.lineHeight||1.2}" oninput="updateSubProp('${bId}','${se.id}','lineHeight',parseFloat(this.value));renderCanvas();this.nextElementSibling.textContent=this.value"><span class="val">${p.lineHeight||1.2}</span></div>`;
       h+=`<div class="props-row"><label>Letter Spacing</label><input class="props-input" type="range" min="-3" max="15" step="0.5" value="${p.letterSpacing||0}" oninput="updateSubProp('${bId}','${se.id}','letterSpacing',parseFloat(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.letterSpacing||0}px</span></div>`;
+      h+=outlineRows(bId,se.id,p);
       h+=subAnimSection(bId,se.id,p);
       break;
     case 'paragraph':
       h+=`<div class="props-label"><i class="bi bi-paragraph"></i> Paragraph Text</div>`;
       h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;margin-bottom:8px;"><textarea class="css-editor" style="min-height:100px;" oninput="updateSubProp('${bId}','${se.id}','text',this.value);renderCanvas()" placeholder="Enter paragraph text...">${escHtml(p.text||'')}</textarea></div>`;
       h+=colorRow('Color',p.color||'',`updateSubProp('${bId}','${se.id}','color',this.value);renderCanvas()`);
-      h+=`<div class="props-row"><label>Font Size</label><input class="props-input" type="range" min="10" max="96" value="${p.fontSize||14}" oninput="updateSubProp('${bId}','${se.id}','fontSize',parseInt(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.fontSize||14}px</span></div>`;
+      h+=`<div class="props-row"><label>Font Size</label><input class="props-input" type="range" min="10" max="96" value="${p.fontSize||14}" oninput="updateSubProp('${bId}','${se.id}','fontSize',parseInt(this.value));renderCanvas();this.nextElementSibling.value=this.value"><input type="number" class="props-num" min="8" max="400" value="${p.fontSize||14}" oninput="const v=parseInt(this.value)||14;updateSubProp('${bId}','${se.id}','fontSize',v);renderCanvas();this.previousElementSibling.value=Math.min(v,this.previousElementSibling.max)"></div>`;
       h+=fontFamilyRow('Font Family', p.fontFamily||'inherit', bId, se.id);
       h+=selectRow('Align',p.textAlign||'left',[['left','Left'],['center','Center'],['right','Right'],['justify','Justify']],`updateSubProp('${bId}','${se.id}','textAlign',this.value);renderCanvas()`);
       h+=selectRow('Text Wrap',p.textWrap||'pre-wrap',[['pre-wrap','Wrap (keep line breaks)'],['normal','Wrap (auto only)'],['nowrap','Single line']],`updateSubProp('${bId}','${se.id}','textWrap',this.value);renderCanvas()`);
       h+=`<div class="props-row"><label>Line Height</label><input class="props-input" type="range" min="1.0" max="3.0" step="0.1" value="${p.lineHeight||1.6}" oninput="updateSubProp('${bId}','${se.id}','lineHeight',parseFloat(this.value));renderCanvas();this.nextElementSibling.textContent=this.value"><span class="val">${p.lineHeight||1.6}</span></div>`;
       h+=`<div class="props-row"><label>Letter Spacing</label><input class="props-input" type="range" min="-3" max="15" step="0.5" value="${p.letterSpacing||0}" oninput="updateSubProp('${bId}','${se.id}','letterSpacing',parseFloat(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.letterSpacing||0}px</span></div>`;
+      h+=outlineRows(bId,se.id,p);
       h+=subAnimSection(bId,se.id,p);
       break;
     case 'eyebrow':
       h+=`<div class="props-label"><i class="bi bi-fonts"></i> Eyebrow Text</div>`;
       h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;margin-bottom:8px;"><input class="props-input" type="text" value="${escHtml(p.text||'')}" oninput="updateSubProp('${bId}','${se.id}','text',this.value);renderCanvas()" placeholder="Enter eyebrow label..."></div>`;
       h+=colorRow('Color',p.color||'#0d6efd',`updateSubProp('${bId}','${se.id}','color',this.value);renderCanvas()`);
-      h+=`<div class="props-row"><label>Font Size</label><input class="props-input" type="range" min="9" max="28" value="${p.fontSize||13}" oninput="updateSubProp('${bId}','${se.id}','fontSize',parseInt(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.fontSize||13}px</span></div>`;
+      h+=`<div class="props-row"><label>Font Size</label><input class="props-input" type="range" min="9" max="28" value="${p.fontSize||13}" oninput="updateSubProp('${bId}','${se.id}','fontSize',parseInt(this.value));renderCanvas();this.nextElementSibling.value=this.value"><input type="number" class="props-num" min="8" max="400" value="${p.fontSize||13}" oninput="const v=parseInt(this.value)||13;updateSubProp('${bId}','${se.id}','fontSize',v);renderCanvas();this.previousElementSibling.value=Math.min(v,this.previousElementSibling.max)"></div>`;
       h+=fontFamilyRow('Font Family', p.fontFamily||'inherit', bId, se.id);
       h+=selectRow('Align',p.textAlign||'left',[['left','Left'],['center','Center'],['right','Right']],`updateSubProp('${bId}','${se.id}','textAlign',this.value);renderCanvas()`);
       h+=selectRow('Case',p.textTransform||'uppercase',[['uppercase','UPPERCASE'],['none','As typed'],['lowercase','lowercase'],['capitalize','Capitalize']],`updateSubProp('${bId}','${se.id}','textTransform',this.value);renderCanvas()`);
       h+=`<div class="props-row"><label>Letter Spacing</label><input class="props-input" type="range" min="0" max="15" step="0.5" value="${p.letterSpacing??2}" oninput="updateSubProp('${bId}','${se.id}','letterSpacing',parseFloat(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.letterSpacing??2}px</span></div>`;
+      h+=outlineRows(bId,se.id,p);
       h+=subAnimSection(bId,se.id,p);
       break;
     case 'image':
@@ -5341,7 +6014,7 @@ function renderSubTypeProps(bId, se) {
     case 'icon':
       h+=inputRow('Icon (bi-...)',p.iconName||'bi-star',`updateSubProp('${bId}','${se.id}','iconName',this.value);renderCanvas()`,'e.g. bi-wifi');
       h+=`<div class="props-row"><label>Preview</label><i class="bi ${escHtml(p.iconName||'bi-star')}" style="font-size:24px;color:${p.color||'#0d6efd'};margin-left:8px;vertical-align:middle;"></i></div>`;
-      h+=`<div class="props-row"><label>Size</label><input class="props-input" type="range" min="16" max="96" value="${p.size||48}" oninput="updateSubProp('${bId}','${se.id}','size',parseInt(this.value));renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.size||48}px</span></div>`;
+      h+=`<div class="props-row"><label>Size</label><input class="props-input" type="range" min="16" max="96" value="${p.size||48}" oninput="updateSubProp('${bId}','${se.id}','size',parseInt(this.value));renderCanvas();this.nextElementSibling.value=this.value"><input type="number" class="props-num" min="8" max="400" value="${p.size||48}" oninput="const v=parseInt(this.value)||48;updateSubProp('${bId}','${se.id}','size',v);renderCanvas();this.previousElementSibling.value=Math.min(v,this.previousElementSibling.max)"></div>`;
       h+=colorRow('Colour',p.color||'#0d6efd',`updateSubProp('${bId}','${se.id}','color',this.value);renderCanvas()`);
       h+=selectRow('Align',p.textAlign||'left',[['left','Left'],['center','Center'],['right','Right']],`updateSubProp('${bId}','${se.id}','textAlign',this.value);renderCanvas()`);
       h+=subAnimSection(bId,se.id,p);
@@ -5991,6 +6664,29 @@ function selectRow(label,value,options,onchange) {
   return `<div class="props-row"><label>${label}</label><select class="props-select" onchange="${onchange}">${opts}</select></div>`;
 }
 
+/**
+ * Builds the "Outline" controls for a TEXT sub-element (heading/paragraph/eyebrow):
+ * an on/off toggle, plus width + colour rows when enabled. (#81 — makes the
+ * outlined-text feature discoverable in the properties panel rather than only via
+ * the small floating format-toolbar icon.) Binds to the SAME props the toolbar +
+ * renderer already use — `outlined` (flag), `outlineWidth` (px = erode radius),
+ * `outlineColor` — so both controls stay in sync; canvas + renderer draw the clean
+ * hollow outline via the shared feMorphology erode filter (#95).
+ * @param {string} bId - Parent block id.
+ * @param {string} seId - Sub-element id.
+ * @param {Object} p - Sub-element props object.
+ * @returns {string} HTML string for the outline props rows.
+ */
+function outlineRows(bId, seId, p) {
+  const on = !!p.outlined;
+  let h = `<div class="props-row"><label>Outline</label><input type="checkbox" ${on?'checked':''} onchange="updateSubProp('${bId}','${seId}','outlined',this.checked);renderCanvas();renderPropsPanel()"></div>`;
+  if (on) {
+    h += `<div class="props-row"><label>Outline Width</label><input class="props-input" type="range" min="0.5" max="8" step="0.5" value="${p.outlineWidth||1}" oninput="updateSubProp('${bId}','${seId}','outlineWidth',parseFloat(this.value)||1);renderCanvas();this.nextElementSibling.textContent=this.value+'px'"><span class="val">${p.outlineWidth||1}px</span></div>`;
+    h += colorRow('Outline Colour', p.outlineColor||'#000000', `updateSubProp('${bId}','${seId}','outlineColor',this.value);renderCanvas()`);
+  }
+  return h;
+}
+
 // ── Media upload picker ───────────────────────────────────────────────────────
 window._mediaPickers = {};
 let _mediaPickerCounter = 0;
@@ -6454,6 +7150,9 @@ function togglePositionMode() {
       b.colSpan = 1; b.rowSpan = 1;
     });
   }
+  // Re-apply the active device preview so the canvas width, scale and frame switch between
+  // the grid (narrow canvas) and free (scaled-stage) presentations correctly.
+  if (state.devicePreview !== 'desktop') setDevicePreview(state.devicePreview);
   renderCanvas(); renderPropsPanel(); autoSave();
 }
 
@@ -6487,6 +7186,14 @@ function updatePositionModeBadge() {
  */
 function getDisplayPos(block) {
   const device = state.devicePreview;
+  // Free-mode tablet/mobile is a scaled-stage VIEW: the whole desktop canvas is shrunk to
+  // the breakpoint via getCanvasScale(), so every block renders at its true desktop
+  // coordinates (an exact shrink that matches the live renderer). No per-breakpoint
+  // reposition here — desktop coords stay the single source of truth. Independent
+  // per-breakpoint position editing would need a data-model change (separate follow-up).
+  if (device !== 'desktop' && state.positionMode === 'free') {
+    return { x: block.x, y: block.y, w: block.w, h: block.h };
+  }
   const canvas = document.getElementById('canvas');
   if (device === 'mobile') {
     const behavior = block.mobileBehavior || 'auto';
@@ -6535,9 +7242,14 @@ function getDisplayPos(block) {
  * @param {number} h - New height in canvas pixels.
  */
 function setDisplayPos(block, x, y, w, h) {
-  if (state.devicePreview === 'mobile')  { block.mobilePos = { x, y, w, h }; }
-  else if (state.devicePreview === 'tablet') { block.tabletPos = { x, y, w, h }; }
-  else { block.x = x; block.y = y; block.w = w; block.h = h; }
+  // Grid/mosaic per-device stacking stores overrides in mobilePos/tabletPos. Free mode is
+  // a scaled-stage preview of the single desktop layout, so edits there write the canonical
+  // desktop coords — exactly like desktop mode (desktop stays the source of truth).
+  if (state.devicePreview !== 'desktop' && state.positionMode !== 'free') {
+    if (state.devicePreview === 'mobile') { block.mobilePos = { x, y, w, h }; return; }
+    if (state.devicePreview === 'tablet') { block.tabletPos = { x, y, w, h }; return; }
+  }
+  block.x = x; block.y = y; block.w = w; block.h = h;
 }
 
 /**
@@ -6582,11 +7294,16 @@ function setDevicePreview(device) {
   const canvas = document.getElementById('canvas');
   const canvasArea = document.querySelector('.canvas-area');
   canvasArea.classList.remove('device-mobile','device-tablet','device-desktop');
-  canvasArea.classList.add(`device-${device}`);
+  // Free-mode tablet/mobile is a SCALED-STAGE preview (see getCanvasScale): the canvas
+  // keeps its full desktop design width and is shrunk to the breakpoint via CSS transform.
+  // We must NOT apply the narrow-canvas device frame/centering (which assumes a 375/768-wide
+  // canvas) — that fights the scaled artboard. Grid/mosaic mode keeps the device frame.
+  const freeScaledPreview = device !== 'desktop' && state.positionMode === 'free';
+  canvasArea.classList.add(freeScaledPreview ? 'device-desktop' : `device-${device}`);
   // Set inline width so flex-stretch doesn't collapse on absolutely-positioned content
-  if (device === 'mobile')  canvas.style.width = '375px';
-  else if (device === 'tablet') canvas.style.width = '768px';
-  else canvas.style.width = DESKTOP_CANVAS_W + 'px'; // desktop: fixed design width
+  if (device === 'desktop' || freeScaledPreview) canvas.style.width = DESKTOP_CANVAS_W + 'px'; // full design width; transform shrinks it
+  else if (device === 'mobile') canvas.style.width = '375px';
+  else canvas.style.width = '768px';
   // Update active button
   ['mobile','tablet','desktop'].forEach(d => {
     document.getElementById(`dev-${d}`)?.classList.toggle('active', d === device);
@@ -6596,6 +7313,12 @@ function setDevicePreview(device) {
   const resetBtn  = document.getElementById('dev-reset-btn');
   if (device === 'desktop') {
     if (indicator) { indicator.style.display = 'none'; indicator.className = ''; }
+    if (resetBtn)  resetBtn.style.display = 'none';
+  } else if (freeScaledPreview) {
+    // Scaled-stage preview: the real desktop layout shrunk to the breakpoint. No
+    // per-breakpoint positions are used, so the "reset device positions" action is hidden.
+    const label = device === 'tablet' ? '🔍 Tablet Preview · scaled to 768px' : '🔍 Mobile Preview · scaled to 375px';
+    if (indicator) { indicator.textContent = label; indicator.className = device; indicator.style.display = ''; }
     if (resetBtn)  resetBtn.style.display = 'none';
   } else {
     const label = device === 'tablet' ? '📱 Editing Tablet Layout' : '📱 Editing Mobile Layout';
@@ -7094,7 +7817,19 @@ function updateDimensions() {
  * @returns {number} Scale ratio in the range (0, 1].
  */
 function getCanvasScale() {
-  if (state.devicePreview !== 'desktop') return state.userZoom || 1;
+  if (state.devicePreview !== 'desktop') {
+    // Free-mode tablet/mobile = SCALED-STAGE preview: #canvas keeps its full desktop
+    // design width (DESKTOP_CANVAS_W) and the WHOLE stage (blocks + overlays) is scaled
+    // down to the breakpoint footprint — a pixel-exact shrink that mirrors the live
+    // renderer's 1:1 scaled stage. Nothing clips; desktop coords stay the source of truth.
+    if (state.positionMode === 'free') {
+      const bpW = state.devicePreview === 'mobile' ? 375 : 768;
+      return (bpW / DESKTOP_CANVAS_W) * (state.userZoom || 1);
+    }
+    // Grid/mosaic mode: the canvas is natively the breakpoint width (blocks re-stack),
+    // so no fit-scale is applied — only the user's manual zoom.
+    return state.userZoom || 1;
+  }
   const cwrap = document.querySelector('.canvas-with-rulers');
   if (!cwrap) return state.userZoom || 1;
   const rulerW = cwrap.classList.contains('rulers-hidden') ? 0 : 20;
@@ -7350,6 +8085,130 @@ function showConfirmModal(title, bodyHtml, onConfirm) {
 }
 
 // ═══════════════════════════════════════════════════════════
+//  #68 — SECTION BACKGROUND PREVIEW ON CANVAS (view-only)
+//  Mirrors the exact fields FlexibleSectionRenderer reads off the section object:
+//    - background            → resolveBgColor() presets / raw colour / gradient string
+//    - bgImageUrl + bgImageSize/Position/Repeat/Opacity → absolute bg-image layer
+//    - content.gradient(.preset) → gradient scrim, drawn only when a bg image is present
+//  None of this is written back into buildJson(); it is a pure viewing aid.
+// ═══════════════════════════════════════════════════════════
+function resolveBgColor(bg) {
+  // Mirror of FlexibleSectionRenderer.resolveBgColor — keep in sync.
+  const BG_PRESETS = {
+    white:'#ffffff', gray:'#f8f9fa', blue:'#1e3a5f', lightblue:'#e8f4fd',
+    transparent:'transparent', dark:'#0d1117',
+    midnight:'linear-gradient(135deg, #0f0c29, #302b63, #24243e)',
+    teal:'linear-gradient(135deg, #0d4a4a, #0a2a2a)',
+    purple:'linear-gradient(135deg, #2d1b69, #11073f)'
+  };
+  if (!bg) return '#ffffff';
+  return BG_PRESETS[bg] || bg;
+}
+function isGradient(v) {
+  return !!v && (v.includes('gradient') || v.startsWith('linear-') || v.startsWith('radial-'));
+}
+// Mirror of the renderer's content.gradient → CSS scrim builder (#59 parity).
+function sectionGradCss(gradient) {
+  const p = gradient && gradient.preset;
+  if (!p) return null;
+  // Coerce opacity fields to finite numbers (defense-in-depth: values may come from
+  // untrusted Template import). The scrim string is only ever assigned via the
+  // .style.background PROPERTY, so it cannot inject HTML regardless.
+  const soN = Number(p.startOpacity), eoN = Number(p.endOpacity);
+  const so = (p.startOpacity == null || !Number.isFinite(soN)) ? 0 : soN;
+  const eo = (p.endOpacity   == null || !Number.isFinite(eoN)) ? 0 : eoN;
+  if (so <= 0 && eo <= 0) return null;
+  const h = String(p.color || '#000000').replace('#', '');
+  const r = parseInt(h.slice(0, 2), 16) || 0, g = parseInt(h.slice(2, 4), 16) || 0, b = parseInt(h.slice(4, 6), 16) || 0;
+  const DIR = { top:'to top', bottom:'to bottom', left:'to left', right:'to right', topLeft:'to top left', topRight:'to top right', bottomLeft:'to bottom left', bottomRight:'to bottom right' };
+  return `linear-gradient(${DIR[p.direction || 'bottom'] || 'to bottom'}, rgba(${r},${g},${b},${so / 100}), rgba(${r},${g},${b},${eo / 100}))`;
+}
+// Neutralise a URL so it can't break out of the url('...') context.
+function cssUrl(u) { return String(u == null ? '' : u).replace(/["'()\\\n\r]/g, ''); }
+// Pull section bg fields out of the incoming designer payload. Supports both a flat
+// section config and a nested `sectionBackground` object. Returns null when the payload
+// carries no bg info (canvas then keeps its default white — unchanged behaviour).
+function readSectionBgFromPayload(layout) {
+  if (!layout || typeof layout !== 'object') return null;
+  const src = (layout.sectionBackground && typeof layout.sectionBackground === 'object')
+    ? layout.sectionBackground : layout;
+  const KEYS = ['background','bgImageUrl','bgImageSize','bgImagePosition','bgImageRepeat','bgImageOpacity','gradient'];
+  const has = KEYS.some(k => src[k] !== undefined && src[k] !== null && src[k] !== '');
+  if (!has) return null;
+  return {
+    background:      src.background,
+    bgImageUrl:      src.bgImageUrl || '',
+    bgImageSize:     src.bgImageSize,
+    bgImagePosition: src.bgImagePosition,
+    bgImageRepeat:   src.bgImageRepeat,
+    bgImageOpacity:  src.bgImageOpacity,
+    gradient:        src.gradient || null
+  };
+}
+// Paint (or clear) the #canvas-section-bg layer from state.sectionBg + state.showSectionBg.
+function applySectionBgToCanvas() {
+  const layer = document.getElementById('canvas-section-bg');
+  if (!layer) return;
+  const bg = state.sectionBg;
+  const on = state.showSectionBg !== false;
+  // Keep the toolbar toggle in sync (disabled when there is nothing to show).
+  const btn = document.getElementById('section-bg-toggle-btn');
+  if (btn) {
+    btn.classList.toggle('active', on && !!bg);
+    btn.setAttribute('aria-pressed', (on && !!bg) ? 'true' : 'false');
+    btn.disabled = !bg;
+    btn.style.opacity = bg ? '' : '0.5';
+  }
+  if (!bg || !on) { layer.style.display = 'none'; layer.replaceChildren(); layer.style.background = ''; return; }
+
+  // Base solid colour / gradient (mirrors the section element's own background).
+  const baseVal = resolveBgColor(bg.background);
+  layer.style.background = (baseVal && baseVal !== 'transparent') ? baseVal : 'transparent';
+  layer.style.display = 'block';
+
+  // SECURITY (#68): build bg layers via DOM + style-PROPERTY assignment, never innerHTML.
+  // Section-bg fields (bgImageSize/Position/Repeat, gradient) can arrive from untrusted
+  // Template JSON import. Assigning to a CSSStyleDeclaration property makes the browser
+  // reject an invalid value as CSS — it is never parsed as HTML — so markup like
+  // `cover;"></div><img src=x onerror=...>` cannot break out. No section-bg field is
+  // ever concatenated into HTML.
+  const children = [];
+  if (bg.bgImageUrl) {
+    const size = bg.bgImageSize || 'cover';
+    const pos  = bg.bgImagePosition || 'center';
+    const rep  = bg.bgImageRepeat || 'no-repeat';
+    const opN  = Number(bg.bgImageOpacity);
+    const op   = (bg.bgImageOpacity == null || !Number.isFinite(opN)) ? 1 : opN / 100;
+    const img = document.createElement('div');
+    img.className = 'csb-image';
+    img.style.backgroundImage    = "url('" + cssUrl(bg.bgImageUrl) + "')";
+    img.style.backgroundSize     = String(size);
+    img.style.backgroundPosition = String(pos);
+    img.style.backgroundRepeat   = String(rep);
+    img.style.opacity            = String(op);
+    children.push(img);
+  }
+  // Gradient layer (content.gradient). Over a bg image it's a scrim; with NO image it
+  // renders as a standalone full-section background layer — mirroring the renderer so a
+  // gradient-only background is visible on the canvas exactly as on the live page.
+  // Built via createElement + style-PROPERTY assignment (never innerHTML) — XSS-safe (#68).
+  const grad = sectionGradCss(bg.gradient);
+  if (grad) {
+    const scrim = document.createElement('div');
+    scrim.className = 'csb-scrim'; // .csb-scrim = position:absolute; inset:0 (full fill)
+    scrim.style.background = grad; // property assignment — HTML-injection-safe
+    children.push(scrim);
+  }
+  layer.replaceChildren(...children);
+}
+// Toolbar toggle — flips the view-only preference. Never mutates saved section data.
+function toggleSectionBg() {
+  if (!state.sectionBg) return;
+  state.showSectionBg = !state.showSectionBg;
+  applySectionBgToCanvas();
+}
+
+// ═══════════════════════════════════════════════════════════
 //  IFRAME INTEGRATION (postMessage in/out)
 // ═══════════════════════════════════════════════════════════
 window.addEventListener('message', function(e) {
@@ -7436,11 +8295,16 @@ window.addEventListener('message', function(e) {
           const href = document.getElementById('sectionFooterBtnHref'); if (href) href.value = layout.sectionFooter.rightButton.href  || '';
         }
       }
+      // #68 — read the section's configured background out of the payload and
+      // paint it onto the canvas (view-only; not persisted). Mirrors the fields
+      // FlexibleSectionRenderer reads off the section object.
+      state.sectionBg = readSectionBgFromPayload(layout);
+      applySectionBgToCanvas();
       // Re-render after a paint frame so canvas has settled dimensions.
       // Without this, getCellRect reads offsetHeight=0 on the first render
       // (message fires before the browser paints the iframe layout), causing
       // all grid blocks to stack at y=0 instead of their correct row positions.
-      requestAnimationFrame(() => { renderCanvas(); renderRulers(); });
+      requestAnimationFrame(() => { renderCanvas(); renderRulers(); applySectionBgToCanvas(); });
     }
   } catch(err) {
     console.warn('[FlexibleDesigner] Could not apply init data:', err);
@@ -7493,43 +8357,121 @@ function toggleSectionFooter() {
 // ═══════════════════════════════════════════════════════════
 //  BLOCK MINI-TOOLBAR
 // ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+// THE FLOATING-MENU STANDARD (#92) — ALL floating menus MUST use this helper.
+// One system, no per-menu positioning one-offs: any future floating menu
+// (image options, link options, …) gets context-awareness for free by calling
+// anchorFloatingMenu with its own corner/expand options.
+//
+//   anchorFloatingMenu(menuEl, targetEl, {
+//     corner:        'top-right' | 'top-left' | 'right-middle'   (anchor point on the target)
+//     expand:        'horizontal' | 'vertical'                   (hover grow direction)
+//     gap:           px between target edge and collapsed pill   (default 6)
+//     collapsedSize: pill diameter in px                         (default 28)
+//   })
+//
+// MENU MARKUP CONTRACT: the menu element contains a `.fm-body` (the expandable
+// content, styled with max-width/max-height:0 + opacity:0, revealed by the
+// menu's :hover rule) and a `.fm-toggle` (the always-visible collapsed pill).
+// Collapse/expand is pure CSS :hover — this helper only anchors and clamps.
+//
+// WHAT THE HELPER GUARANTEES:
+//   • menuEl is parented to <body>: position:fixed then truly means viewport.
+//     NEVER leave a floating menu inside the transform-scaled #canvas — the
+//     CSS transform becomes the containing block and re-scales/re-offsets
+//     every coordinate (#83 root cause).
+//   • All coords come from targetEl.getBoundingClientRect() — viewport px,
+//     correct at ANY canvas zoom (zoom is baked into client rects).
+//   • The collapsed pill sits OUTSIDE the target (never covering content).
+//   • Expansion direction auto-flips + clamps so the expanded menu stays
+//     fully on-screen: horizontal grows LEFT by default (right-anchored),
+//     `.fm-flip-x` grows RIGHT; vertical grows DOWN by default (top-anchored),
+//     `.fm-flip-y` grows UP. Flip classes use row/column-reverse so the pill
+//     stays put at its anchor while the body grows away from it.
+//   • Re-anchoring = just call again (selection change, drag move, scroll,
+//     resize — the existing call sites already do this).
+// ════════════════════════════════════════════════════════════════════════════
+function anchorFloatingMenu(menuEl, targetEl, opts) {
+  if (!menuEl || !targetEl || !targetEl.getBoundingClientRect) return;
+  const o = Object.assign({ corner: 'top-right', expand: 'horizontal', gap: 6, collapsedSize: 28 }, opts || {});
+  if (menuEl.parentElement !== document.body) document.body.appendChild(menuEl);
+  const r = targetEl.getBoundingClientRect();
+  const BTN = o.collapsedSize, GAP = o.gap, M = 6; // M = viewport safety margin
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const body = menuEl.querySelector('.fm-body');
+  // The collapsed body is hidden by overflow (max-width/height:0), NOT
+  // display:none — so scrollWidth/scrollHeight still report the full expanded
+  // content size, letting us clamp for the EXPANDED footprint up front.
+  const area = document.querySelector('.canvas-area');
+  const minLeft = Math.max(M, area ? area.getBoundingClientRect().left + 4 : M);
+
+  if (o.expand === 'horizontal') {
+    // Expanded width = body content + body side padding + pill + hover gap.
+    const fullW = ((body && body.scrollWidth) || 620) + 14 + BTN + 4;
+    const expH = Math.max(BTN, ((body && body.scrollHeight) || 26) + 12);
+    const anchorX = o.corner.indexOf('left') >= 0 ? r.left : r.right;
+    // Default: bar's right edge pinned at the anchor → grows LEFT across the
+    // top of the target. Flip to grow RIGHT when the left edge would overflow.
+    const flip = (anchorX - fullW) < minLeft;
+    menuEl.classList.toggle('fm-flip-x', flip);
+    if (flip) {
+      let left = Math.max(M, anchorX - BTN); // pill stays at the corner
+      if (left + fullW > vw - M) left = Math.max(M, vw - fullW - M);
+      menuEl.style.left = left + 'px'; menuEl.style.right = '';
+    } else {
+      menuEl.style.right = Math.max(M, vw - anchorX) + 'px'; menuEl.style.left = '';
+    }
+    // Bottom edge pinned just ABOVE the target's top edge (bottom-anchored so
+    // a taller expanded bar grows upward, never onto the target). Clamp the
+    // expanded top on-screen.
+    let bottom = vh - (r.top - GAP);
+    bottom = Math.min(bottom, vh - expH - M);
+    if (bottom < M) bottom = M;
+    menuEl.style.bottom = bottom + 'px'; menuEl.style.top = '';
+  } else {
+    // vertical: pill just OUTSIDE the target's right edge.
+    const expH = BTN + 4 + ((body && body.scrollHeight) || 170) + 8;
+    let left = r.right + GAP;
+    if (left + BTN > vw - M) left = vw - BTN - M;
+    menuEl.style.left = left + 'px'; menuEl.style.right = '';
+    // Pill centre: target's vertical middle ('right-middle') or top corner.
+    const cy = o.corner === 'right-middle' ? r.top + r.height / 2 : r.top + BTN / 2;
+    // Grow DOWN by default; grow UP when the bottom would overflow AND there
+    // is headroom above (otherwise stay down, clamped).
+    const growUp = (cy - BTN / 2 + expH) > (vh - M) && (cy + BTN / 2 - expH) >= M;
+    menuEl.classList.toggle('fm-flip-y', growUp);
+    if (growUp) {
+      menuEl.style.bottom = Math.max(M, vh - (cy + BTN / 2)) + 'px'; menuEl.style.top = '';
+    } else {
+      menuEl.style.top = Math.min(Math.max(M, cy - BTN / 2), Math.max(M, vh - expH - M)) + 'px';
+      menuEl.style.bottom = '';
+    }
+  }
+}
+
 function updateMiniToolbar() {
+  // #92 redesign: the mini action toolbar is a small collapsed "+" pill sitting
+  // just OUTSIDE the selected element's RIGHT edge, vertically CENTRED on it.
+  // Hovering the pill expands the full action column (add/edit/duplicate/snap/
+  // delete) downward via CSS max-height (upward via .fm-flip-y when the
+  // viewport bottom is too close). Anchoring/clamping is delegated to
+  // anchorFloatingMenu — the floating-menu standard. The toolbar still shows
+  // for parent blocks (#41), anchored to the selected CHILD when one is
+  // selected (#80), else the block's own node.
   const tb = document.getElementById('block-mini-toolbar');
   if (!tb) return;
-  const b = state.blocks.find(b => b.id === state.selectedBlockId);
+  // #89 hide the per-element action toolbar while a multi-selection is active — avoids clutter.
+  if (multiSelCount() > 1) { tb.classList.remove('mtt-visible'); return; }
+  const b = state.blocks.find(x => x.id === state.selectedBlockId);
   if (!b) { tb.classList.remove('mtt-visible'); return; }
-  // Organizational-parent model: the parent renders no dashed box/chrome on the canvas,
-  // BUT the author still needs on-canvas add-child / duplicate / delete — so the
-  // mini-toolbar DOES show for parent blocks too, anchored to the children's bounding
-  // box. It's just a small side toolbar (not the old parent chrome), so no clutter
-  // returns. It appears whenever the block is selected — including when one of its
-  // children is selected (selectedBlockId is the parent) — making "add another child"
-  // one click away. (#41 restores this after #34 hid it.)
-  const dp = getDisplayPos(b);
   const canvas = document.getElementById('canvas');
-  const canvasW = canvas ? canvas.offsetWidth : 1440;
-  const MARGIN = 6;
-  const tbH = 92; // approx: 3×26px buttons + 1px sep + padding
-  const tbW = 32;
-  const canvasH = canvas ? canvas.offsetHeight : 900;
-  // Default: place the toolbar on the RIGHT of the block. Auto-flip to the LEFT
-  // when there isn't enough room before the canvas right edge (prevents overflow).
-  const preferRightX = dp.x + dp.w + MARGIN;
-  let leftX;
-  if (preferRightX + tbW <= canvasW - MARGIN) {
-    leftX = preferRightX;                 // room on the right
-  } else {
-    leftX = dp.x - tbW - MARGIN;          // flip to the left of the block
-    if (leftX < MARGIN) leftX = MARGIN;   // clamp inside canvas
-  }
-  // Align the toolbar TOP with the element's top; clamp so it stays on-canvas.
-  let topY = dp.y;
-  if (topY < 4) topY = 4;
-  if (topY + tbH > canvasH - 4) topY = Math.max(4, canvasH - tbH - 4);
-  tb.style.left = leftX + 'px';
-  tb.style.top = topY + 'px';
-  tb.classList.add('mtt-visible');
-  // Show + add button only for blocks that support sub-elements
+  let node = state.selectedSubId
+    ? document.querySelector(`.sub-element[data-sub-id="${state.selectedSubId}"]`)
+    : null;
+  if (!node && canvas) node = canvas.querySelector(`[data-block-id="${b.id}"]`);
+  if (!node) { tb.classList.remove('mtt-visible'); return; }
+  // Button visibility per block type (unchanged from #41/#80). Set BEFORE
+  // anchoring so the body's measured height reflects the visible buttons.
   const supportsAdd = ['card','text-block','text','banner','stats'].includes(b.type);
   const addBtn = document.getElementById('mtt-add-btn');
   const addSep = document.getElementById('mtt-add-sep');
@@ -7541,6 +8483,115 @@ function updateMiniToolbar() {
     snapBtn.classList.toggle('mtt-snap-active', !!state.subElementSnap);
     snapBtn.title = state.subElementSnap ? 'Sub-element snap ON (8px grid) — click to disable' : 'Snap sub-elements to 8px grid';
   }
+  tb.classList.add('mtt-visible');
+  anchorFloatingMenu(tb, node, { corner: 'right-middle', expand: 'vertical', gap: 8, collapsedSize: 28 });
+}
+
+// ── Floating text FORMAT toolbar (#39/#42/#63) ─────────────────────────────
+// A single quick-format bar that appears next to the currently-selected TEXT
+// child (heading/paragraph/eyebrow) and writes via updateSubProp(). Anchored to
+// the child's on-canvas rect (fixes #63 which anchored to the block instead).
+const _TFT_TEXT_TYPES = ['heading','paragraph','eyebrow'];
+let _tftListenersWired = false;
+
+function _tftEnsureListeners() {
+  if (_tftListenersWired) return;
+  _tftListenersWired = true;
+  // Reposition (not rebuild) on scroll/resize so BOTH floating toolbars track
+  // their element (#92 — the mini "+" toolbar is now viewport-fixed too).
+  const reposition = () => { positionTextFormatToolbar(); updateMiniToolbar(); };
+  window.addEventListener('scroll', reposition, true);
+  window.addEventListener('resize', reposition);
+}
+
+function updateTextFormatToolbar() {
+  const tb = document.getElementById('text-format-toolbar');
+  if (!tb) return;
+  // #83 root cause: the bar was a child of the transform-scaled #canvas. A CSS
+  // transform makes that element the containing block for position:fixed, so
+  // the viewport coords we computed were re-offset AND re-scaled — the bar
+  // drifted down-right onto the content below the selected child. Reparent to
+  // <body> once so fixed truly means viewport (renderCanvas never wipes it).
+  if (tb.parentElement !== document.body) document.body.appendChild(tb);
+  _tftEnsureListeners();
+  // #89 hide the per-element text format bar while a multi-selection is active.
+  if (multiSelCount() > 1) { tb.classList.remove('tft-visible'); return; }
+  const bId = state.selectedBlockId, sId = state.selectedSubId;
+  if (!bId || !sId) { tb.classList.remove('tft-visible'); return; }
+  const b = state.blocks.find(x => x.id === bId);
+  const se = b && b.subElements && b.subElements.find(x => x.id === sId);
+  if (!se || !_TFT_TEXT_TYPES.includes(se.type)) { tb.classList.remove('tft-visible'); return; }
+  const node = document.querySelector(`.sub-element[data-sub-id="${sId}"]`);
+  if (!node) { tb.classList.remove('tft-visible'); return; }
+  const p = se.props || {};
+  injectAllDesignerFonts();
+
+  const curTT = p.textTransform || (se.type === 'eyebrow' ? 'uppercase' : 'none');
+  const cases = [['none','Tt','As typed'],['uppercase','AB','UPPERCASE'],['lowercase','ab','lowercase'],['capitalize','Ab','Capitalize']];
+  const caseBtns = cases.map(([v,lbl,ti]) => `<button type="button" class="tft-btn${curTT===v?' active':''}" data-tt="${v}" title="${ti}">${lbl}</button>`).join('');
+  // Text-align group (#87) — bound to the same textAlign prop the props panel uses.
+  const curAlign = p.textAlign || 'left';
+  const aligns = [['left','bi-text-left','Align left'],['center','bi-text-center','Align centre'],['right','bi-text-right','Align right'],['justify','bi-justify','Justify']];
+  const alignBtns = aligns.map(([v,ic,ti]) => `<button type="button" class="tft-btn${curAlign===v?' active':''}" data-al="${v}" title="${ti}"><i class="bi ${ic}"></i></button>`).join('');
+  const curFont = p.fontFamily || 'inherit';
+  const fontOpts = DESIGNER_FONTS_SORTED.map(([v,l]) => `<option value="${escHtml(v)}" style="font-family:${v}" ${curFont===v?'selected':''}>${l}</option>`).join('');
+  const defSize = se.type === 'heading' ? 22 : (se.type === 'eyebrow' ? 13 : 14);
+  const defColor = se.type === 'eyebrow' ? '#0d6efd' : '#212529';
+  const outlined = !!p.outlined;
+  const outlineExtra = outlined
+    ? `<input type="color" class="tft-color" id="tft-ocolor" value="${p.outlineColor||'#000000'}" title="Outline colour"><input type="number" class="tft-num" id="tft-owidth" min="0.5" max="8" step="0.5" value="${p.outlineWidth||1}" title="Outline width (px)">`
+    : '';
+  // #92: content lives in a collapsible .tft-body; the round "A" pill is the
+  // always-visible collapsed state. DOM order [body][toggle] + right-anchoring
+  // makes the bar grow LEFT on hover; .tft-flip (row-reverse + left-anchoring)
+  // makes it grow RIGHT when the left edge would overflow the canvas.
+  tb.innerHTML =
+    `<div class="tft-body fm-body">` +
+    `<div class="tft-group" id="tft-case">${caseBtns}</div>` +
+    `<div class="tft-sep"></div>` +
+    `<div class="tft-group" id="tft-align">${alignBtns}</div>` +
+    `<div class="tft-sep"></div>` +
+    `<select class="tft-sel" id="tft-font" title="Font family">${fontOpts}</select>` +
+    `<input type="number" class="tft-num" id="tft-size" min="8" max="120" value="${p.fontSize||defSize}" title="Font size (px)">` +
+    `<input type="color" class="tft-color" id="tft-color" value="${p.color||defColor}" title="Text colour">` +
+    `<div class="tft-sep"></div>` +
+    `<button type="button" class="tft-btn${outlined?' active':''}" id="tft-outline" title="Toggle text outline"><i class="bi bi-type"></i></button>` +
+    outlineExtra +
+    `</div>` +
+    `<button type="button" class="tft-toggle fm-toggle" title="Text format (hover to expand)">A</button>`;
+
+  const apply = (k, v) => { updateSubProp(bId, sId, k, v); renderCanvas(); updateTextFormatToolbar(); };
+  tb.querySelectorAll('#tft-case .tft-btn').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); apply('textTransform', btn.dataset.tt); }));
+  tb.querySelectorAll('#tft-align .tft-btn').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); apply('textAlign', btn.dataset.al); }));
+  tb.querySelector('#tft-font')?.addEventListener('change', e => { e.stopPropagation(); const v = e.target.value; updateSubProp(bId, sId, 'fontFamily', v); const _m = v.match(/'([^']+)'/); if (_m) injectGoogleFont(_m[1]); renderCanvas(); updateTextFormatToolbar(); });
+  tb.querySelector('#tft-size')?.addEventListener('change', e => { e.stopPropagation(); apply('fontSize', parseInt(e.target.value) || defSize); });
+  tb.querySelector('#tft-color')?.addEventListener('change', e => { e.stopPropagation(); apply('color', e.target.value); });
+  tb.querySelector('#tft-outline')?.addEventListener('click', e => { e.stopPropagation(); apply('outlined', !outlined); });
+  tb.querySelector('#tft-ocolor')?.addEventListener('change', e => { e.stopPropagation(); apply('outlineColor', e.target.value); });
+  tb.querySelector('#tft-owidth')?.addEventListener('change', e => { e.stopPropagation(); apply('outlineWidth', parseFloat(e.target.value) || 1); });
+  // Keep clicks inside the bar from bubbling to the canvas (which would deselect).
+  tb.onmousedown = ev => ev.stopPropagation();
+  tb.onclick = ev => ev.stopPropagation();
+
+  tb.classList.add('tft-visible');
+  positionTextFormatToolbar(node);
+}
+
+function positionTextFormatToolbar(nodeArg) {
+  // #92 redesign (supersedes the #83 docked bar): a collapsed round "A" pill
+  // anchored to the selected text child's TOP-RIGHT corner, sitting fully
+  // ABOVE the element. Hovering expands the full format bar HORIZONTALLY —
+  // leftward across the top of the element by default, flipping right
+  // (.fm-flip-x) when the canvas left edge is too close. All anchor math,
+  // reparenting to <body>, and on-screen clamping is delegated to
+  // anchorFloatingMenu — the floating-menu standard.
+  const tb = document.getElementById('text-format-toolbar');
+  if (!tb || !tb.classList.contains('tft-visible')) return;
+  const node = (nodeArg && nodeArg.getBoundingClientRect)
+    ? nodeArg
+    : (state.selectedSubId ? document.querySelector(`.sub-element[data-sub-id="${state.selectedSubId}"]`) : null);
+  if (!node) { tb.classList.remove('tft-visible'); return; }
+  anchorFloatingMenu(tb, node, { corner: 'top-right', expand: 'horizontal', gap: 6, collapsedSize: 28 });
 }
 
 function mttAdd() {
