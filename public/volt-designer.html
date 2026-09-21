@@ -503,6 +503,10 @@
   <div class="ctx-sep"></div>
   <div class="ctx-item danger" id="ctx-delete"><i class="bi bi-trash"></i> Delete</div>
 </div>
+  <!-- Shared glass-fill CSS builder - single source of truth also consumed by
+       components/volt/VoltRenderer.tsx (ES module import). Must load before
+       renderCanvas (in the <script> below) paints a .glass-overlay. -->
+  <script src="/volt-glass-rules.js"></script>
   <script>
   (function(){
     'use strict';
@@ -819,6 +823,7 @@
       while(svgEl.firstChild)svgEl.removeChild(svgEl.firstChild);
       artboard.querySelectorAll('.slot-overlay').forEach(function(e){e.remove();});
       artboard.querySelectorAll('.text-overlay').forEach(function(e){e.remove();});
+      artboard.querySelectorAll('.glass-overlay').forEach(function(e){e.remove();});
       // Apply canvas background colour
       artboard.style.background=state.element.canvasBackground||'white';
       var CW=state.element.canvasWidth,CH=state.element.canvasHeight;
@@ -898,7 +903,11 @@
             fill.gradient.stops.forEach(function(st){var _s=svgNs('stop');_s.setAttribute('offset',st.position+'%');_s.setAttribute('stop-color',st.color);_s.setAttribute('stop-opacity',st.opacity!=null?st.opacity:1);_gEl.appendChild(_s);});
             _gDefs.appendChild(_gEl);svgEl.insertBefore(_gDefs,svgEl.firstChild);
           }
-          var _fAttr=_isGrad?'url(#cg-'+layer.id+')':(fill&&fill.type==='solid')?fill.color:(fill&&fill.type==='glass'?'rgba(100,200,255,0.25)':'none');
+          // Glass fills paint nothing here (same as VoltSvgLayer.tsx's isGlass skip in the
+          // real renderer). The real frosted look is the HTML backdrop-filter overlay appended
+          // after the shape below (mirrors VoltRenderer.tsx renderGlassOverlays); this path
+          // stays an invisible hit-target only (isPointInFill is geometry-based).
+          var _fAttr=_isGrad?'url(#cg-'+layer.id+')':(fill&&fill.type==='solid')?fill.color:'none';
           path.setAttribute('fill',_fAttr);path.setAttribute('fill-opacity',(_isGrad||fill&&fill.type==='glass')?1:(fill?fill.opacity:1));path.setAttribute('fill-rule',dispFillRule);
           if(layer.vectorData.stroke){
             var s=layer.vectorData.stroke;path.setAttribute('stroke',s.color);path.setAttribute('stroke-opacity',s.opacity);path.setAttribute('stroke-linecap',s.cap||'round');path.setAttribute('stroke-linejoin',s.join||'round');if(s.dash&&s.dash.length)path.setAttribute('stroke-dasharray',s.dash.map(function(n){return (n/(CW/100)).toFixed(3);}).join(' '));else path.removeAttribute('stroke-dasharray');
@@ -934,6 +943,21 @@
             g.setAttribute('clip-path','url(#'+_crId+')');
           }
           g.appendChild(path);svgEl.appendChild(g);
+          // -- Glass fill: real HTML backdrop-filter overlay ---------------------------
+          // Mirrors VoltRenderer.tsx renderGlassOverlays: a plain rectangle sized off the
+          // layer's own bounding box (not clipped to the path, same as the live renderer),
+          // positioned in canvas px like the text overlays. The surface CSS comes from the
+          // shared builder in /volt-glass-rules.js - the same function VoltRenderer.tsx
+          // calls - so canvas and live page can't drift.
+          if(fill&&fill.type==='glass'&&!isCutterEditVis){
+            var _gSurf=window.VoltGlassRules.styleObjectToCssText(window.VoltGlassRules.buildVoltGlassStyle(fill));
+            var _gDiv=document.createElement('div');_gDiv.className='glass-overlay';_gDiv.id='glass-overlay-'+layer.id;
+            _gDiv.style.cssText='position:absolute;left:'+topx(_lx,CW)+'px;top:'+topx(_ly,CH)+'px;width:'+topx(_lw,CW)+'px;height:'+topx(_lh,CH)+'px;'+_gSurf+'pointer-events:none;box-sizing:border-box;';
+            _gDiv.style.opacity=_lop!=null?_lop:1;
+            if(_lrot){_gDiv.style.transform='rotate('+_lrot+'deg)';_gDiv.style.transformOrigin='center center';}
+            if(layer.blendMode&&layer.blendMode!=='normal')_gDiv.style.mixBlendMode=layer.blendMode;
+            artboard.appendChild(_gDiv);
+          }
         }
         if(layer.type==='slot'){
           var _sd=layer.slotData||{};var _st=_sd.slotType||'title';
@@ -3054,39 +3078,72 @@
             if(angSl){angSl.addEventListener('input',function(e){_setAngle(e.target.value);angInp.value=e.target.value;});angSl.addEventListener('change',function(){pushHistory();markDirty();});}
           }
         }else if(isGlass){
-          // Glass controls: blur, bg color+opacity, border radius
-          var glassGrid=document.createElement('div');glassGrid.className='row g-1';
-          // Blur
-          var blurCol=document.createElement('div');blurCol.className='col-6';
-          var blurLbl=document.createElement('label');blurLbl.className='prop-label';blurLbl.textContent='Blur (px)';
-          var blurInp=document.createElement('input');blurInp.type='number';blurInp.id='prop-glass-blur';blurInp.className='form-control form-control-sm';blurInp.value=fill.blur!=null?fill.blur:12;blurInp.min='0';blurInp.max='80';blurInp.step='1';blurInp.style.fontSize='10px';
-          blurInp.addEventListener('change',function(e){var i=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i<0)return;pushHistory();_mutFill0(i,function(f){f.blur=parseFloat(e.target.value)||12;});markDirty();});
-          blurCol.appendChild(blurLbl);blurCol.appendChild(blurInp);glassGrid.appendChild(blurCol);
-          // Border radius
-          var radCol=document.createElement('div');radCol.className='col-6';
-          var radLbl=document.createElement('label');radLbl.className='prop-label';radLbl.textContent='Radius (px)';
-          var radInp=document.createElement('input');radInp.type='number';radInp.id='prop-glass-radius';radInp.className='form-control form-control-sm';radInp.value=fill.glassBorderRadius!=null?fill.glassBorderRadius:12;radInp.min='0';radInp.max='200';radInp.step='1';radInp.style.fontSize='10px';
-          radInp.addEventListener('change',function(e){var i=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i<0)return;pushHistory();_mutFill0(i,function(f){f.glassBorderRadius=parseFloat(e.target.value)||0;});markDirty();});
-          radCol.appendChild(radLbl);radCol.appendChild(radInp);glassGrid.appendChild(radCol);
-          sec.appendChild(glassGrid);
+          // Glass controls. Every value is rendered by the shared builder in
+          // /volt-glass-rules.js (window.VoltGlassRules) - the same one VoltRenderer.tsx uses.
+          var _GR=window.VoltGlassRules;var _GD=_GR.VOLT_GLASS_DEFAULTS;
+          function _gIdx(){return state.element.layers.findIndex(function(l){return l.id===layer.id;});}
+          function _gCommit(){pushHistory();markDirty();}
+          // Blank/garbage -> the builder default (never 0, so clearing "100" to retype
+          // Brightness doesn't flash the panel black mid-edit).
+          function _gNumOf(v,d){var n=parseFloat(v);return isNaN(n)?d:n;}
+          function _gCur(k){return fill[k]!=null?fill[k]:_GD[k];}
+          /** Label + number input (min 0, NO max - typed values are unlimited) + synced slider. */
+          function _gNumRow(label,key,sMin,sMax,step,idAttr){
+            var wrap=document.createElement('div');wrap.style.marginBottom='6px';
+            var lb=document.createElement('label');lb.className='prop-label';lb.textContent=label;
+            var row=document.createElement('div');row.className='d-flex align-items-center gap-2';
+            var n=document.createElement('input');n.type='number';n.id=idAttr||('prop-glass-'+key);n.className='form-control form-control-sm';n.value=_gCur(key);n.min='0';n.step=String(step);n.style.cssText='width:60px;flex:0 0 auto;font-size:10px;';
+            var sl=document.createElement('input');sl.type='range';sl.className='form-range';sl.min=sMin;sl.max=sMax;sl.step=step;sl.value=n.value;sl.style.flex='1';
+            function _apply(v){var i=_gIdx();if(i<0)return;_mutFill0(i,function(f){f[key]=v;});renderCanvas();}
+            n.addEventListener('input',function(){sl.value=n.value;_apply(_gNumOf(n.value,_GD[key]));});
+            sl.addEventListener('input',function(){n.value=sl.value;_apply(_gNumOf(sl.value,_GD[key]));});
+            n.addEventListener('change',_gCommit);sl.addEventListener('change',_gCommit);
+            row.appendChild(n);row.appendChild(sl);wrap.appendChild(lb);wrap.appendChild(row);
+            return wrap;
+          }
+          /** Sub-group label - reuses .prop-label (uppercase 10px) so nothing new is styled. */
+          function _gSub(t){var d=document.createElement('div');d.className='prop-label mt-2';d.textContent=t;return d;}
+          // -- Presets row: merge preset values over the current fill (radius untouched) --
+          var _gPre=document.createElement('div');_gPre.className='btn-group w-100 mb-2';_gPre.setAttribute('role','group');
+          _GR.VOLT_GLASS_PRESETS.forEach(function(p){
+            var pb=document.createElement('button');pb.type='button';pb.id='prop-glass-preset-'+p.id;pb.className='btn btn-sm btn-outline-secondary';pb.style.fontSize='9px';pb.style.padding='3px 5px';pb.textContent=p.label;pb.title='Apply '+p.label+' preset';
+            pb.addEventListener('click',function(){var i=_gIdx();if(i<0)return;_mutFill0(i,function(f){Object.keys(p.values).forEach(function(k){f[k]=p.values[k];});});renderCanvas();pushHistory();markDirty();renderProps();});
+            _gPre.appendChild(pb);
+          });
+          sec.appendChild(_gPre);
+          // -- Backdrop: what the glass does to the content behind it --
+          sec.appendChild(_gSub('Backdrop'));
+          sec.appendChild(_gNumRow('Blur (px)','blur',0,200,1));
+          sec.appendChild(_gNumRow('Brightness (%)','brightness',0,300,1));
+          sec.appendChild(_gNumRow('Saturate (%)','saturate',0,300,1));
+          sec.appendChild(_gNumRow('Contrast (%)','contrast',0,300,1));
+          // -- Surface: the glass pane itself --
+          sec.appendChild(_gSub('Surface'));
           // Tint color + opacity
           var tintRow=document.createElement('div');tintRow.className='d-flex align-items-center gap-2 mt-1';
           var tintPk=document.createElement('input');tintPk.type='color';tintPk.id='prop-glass-color';tintPk.value=fill.color||'#ffffff';tintPk.style.cssText='width:26px;height:26px;border-radius:4px;border:2px solid #dee2e6;padding:0;cursor:pointer;';
           var tintOp=document.createElement('input');tintOp.type='range';tintOp.id='prop-glass-opacity';tintOp.min='0';tintOp.max='1';tintOp.step='0.01';tintOp.value=fill.opacity!=null?fill.opacity:0.15;tintOp.style.flex='1';tintOp.className='form-range';
           var tintLbl=document.createElement('span');tintLbl.style.cssText='font-size:10px;color:#6c757d;white-space:nowrap;';tintLbl.textContent='Tint';
           tintRow.appendChild(tintLbl);tintRow.appendChild(tintPk);tintRow.appendChild(tintOp);sec.appendChild(tintRow);
-          // Border opacity
+          sec.appendChild(_gNumRow('Grain','grain',0,1,0.01));
+          sec.appendChild(_gNumRow('Highlight','highlight',0,1,0.01));
+          // Border colour + opacity
           var borRow=document.createElement('div');borRow.className='d-flex align-items-center gap-2 mt-1';
+          var borPk=document.createElement('input');borPk.type='color';borPk.id='prop-glass-border-color';borPk.value=fill.borderColor||'#ffffff';borPk.style.cssText='width:26px;height:26px;border-radius:4px;border:2px solid #dee2e6;padding:0;cursor:pointer;';
           var borOp=document.createElement('input');borOp.type='range';borOp.id='prop-glass-border-opacity';borOp.min='0';borOp.max='1';borOp.step='0.01';borOp.value=fill.borderOpacity!=null?fill.borderOpacity:0.3;borOp.style.flex='1';borOp.className='form-range';
           var borLbl=document.createElement('span');borLbl.style.cssText='font-size:10px;color:#6c757d;white-space:nowrap;';borLbl.textContent='Border';
-          borRow.appendChild(borLbl);borRow.appendChild(borOp);sec.appendChild(borRow);
-          // Bind glass events
-          tintPk.addEventListener('input',function(e){var i=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i<0)return;_mutFill0(i,function(f){f.color=e.target.value;});renderCanvas();});
-          tintPk.addEventListener('change',function(){pushHistory();markDirty();});
-          tintOp.addEventListener('input',function(e){var i=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i<0)return;_mutFill0(i,function(f){f.opacity=parseFloat(e.target.value);});renderCanvas();});
-          tintOp.addEventListener('change',function(){pushHistory();markDirty();});
-          borOp.addEventListener('input',function(e){var i=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i<0)return;_mutFill0(i,function(f){f.borderOpacity=parseFloat(e.target.value);});renderCanvas();});
-          borOp.addEventListener('change',function(){pushHistory();markDirty();});
+          borRow.appendChild(borLbl);borRow.appendChild(borPk);borRow.appendChild(borOp);sec.appendChild(borRow);
+          sec.appendChild(_gNumRow('Border width (px)','borderWidth',0,10,0.5));
+          sec.appendChild(_gNumRow('Radius (px)','glassBorderRadius',0,200,1,'prop-glass-radius'));
+          // Bind colour/alpha events
+          tintPk.addEventListener('input',function(e){var i=_gIdx();if(i<0)return;_mutFill0(i,function(f){f.color=e.target.value;});renderCanvas();});
+          tintPk.addEventListener('change',_gCommit);
+          tintOp.addEventListener('input',function(e){var i=_gIdx();if(i<0)return;_mutFill0(i,function(f){f.opacity=parseFloat(e.target.value);});renderCanvas();});
+          tintOp.addEventListener('change',_gCommit);
+          borPk.addEventListener('input',function(e){var i=_gIdx();if(i<0)return;_mutFill0(i,function(f){f.borderColor=e.target.value;});renderCanvas();});
+          borPk.addEventListener('change',_gCommit);
+          borOp.addEventListener('input',function(e){var i=_gIdx();if(i<0)return;_mutFill0(i,function(f){f.borderOpacity=parseFloat(e.target.value);});renderCanvas();});
+          borOp.addEventListener('change',_gCommit);
         } else {
           // Solid fill: existing controls
           var _bsFill=mkBrandSwatches(function(c){var i=state.element.layers.findIndex(function(l){return l.id===layer.id;});if(i<0)return;pushHistory();_mutFill0(i,function(f){f.color=c;});var _fpk=document.getElementById('prop-fill-color-picker');var _ftx=document.getElementById('prop-fill-color');if(_fpk)_fpk.value=c;if(_ftx)_ftx.value=c;renderCanvas();markDirty();});
@@ -4837,6 +4894,23 @@
         var CW=state.element.canvasWidth,CH=state.element.canvasHeight;
         bg.setAttribute('x','0');bg.setAttribute('y','0');bg.setAttribute('width',CW);bg.setAttribute('height',CH);bg.setAttribute('fill','white');
         clone.insertBefore(bg,clone.firstChild);
+        // Glass fills paint fill:none in the SVG pass (the real look is an HTML overlay), so
+        // embed the .glass-overlay divs or a glass shape would thumbnail as invisible. Best-
+        // effort: any failure still returns the shape-only thumbnail.
+        try{
+          var _thArt=document.getElementById('artboard');
+          var _thGlass=_thArt?Array.prototype.slice.call(_thArt.querySelectorAll('.glass-overlay')):[];
+          if(_thGlass.length){
+            var _thFo=svgNs('foreignObject');
+            _thFo.setAttribute('x','0');_thFo.setAttribute('y','0');_thFo.setAttribute('width',CW);_thFo.setAttribute('height',CH);
+            var _thWrap=document.createElement('div');
+            _thWrap.setAttribute('xmlns','http://www.w3.org/1999/xhtml');
+            _thWrap.style.cssText='position:relative;width:'+CW+'px;height:'+CH+'px;';
+            _thGlass.forEach(function(ov){_thWrap.appendChild(ov.cloneNode(true));});
+            _thFo.appendChild(_thWrap);
+            clone.appendChild(_thFo);
+          }
+        }catch(eGlassThumb){/* shape-only thumbnail still returns below */}
         var xml=new XMLSerializer().serializeToString(clone);
         return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(xml);
       }catch(e){return null;}

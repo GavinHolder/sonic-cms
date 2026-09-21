@@ -5,6 +5,10 @@ import { sortLayersByZ } from '@/lib/volt/volt-utils'
 import { personalityToAnimeConfig } from '@/lib/volt/personality-to-anime'
 import VoltSvgLayer from './VoltSvgLayer'
 import VoltSlotRenderer from './VoltSlotRenderer'
+// Shared glass-fill CSS builder — the SAME plain-JS module public/volt-designer.html
+// loads via <script src="/volt-glass-rules.js"> (one shared function, no hand-duplicated
+// logic). Hand-written volt-glass-rules.d.ts alongside it.
+import { buildVoltGlassStyle } from '../../public/volt-glass-rules.js'
 
 // Anime.js v4 animate() returns an Animation instance with a .cancel() method.
 type AnimeAnimation = { cancel: () => void }
@@ -817,14 +821,8 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
       .filter(l => l.type === 'vector' && l.visible !== false && l.vectorData?.fills?.[0]?.type === 'glass')
       .map(layer => {
         const fill = layer.vectorData!.fills[0]
-        const blur = fill.blur ?? 12
-        const bgOpacity = fill.opacity ?? 0.15
-        const borderOpacity = fill.borderOpacity ?? 0.3
-        const radius = fill.glassBorderRadius ?? 12
-        const bgColor = fill.color ?? '#ffffff'
-        const r = parseInt(bgColor.slice(1, 3), 16) || 255
-        const g = parseInt(bgColor.slice(3, 5), 16) || 255
-        const b = parseInt(bgColor.slice(5, 7), 16) || 255
+        // Glass surface (backdrop-filter, tint/grain, border, radius, highlight)
+        // comes from the shared builder — see public/volt-glass-rules.js.
         return (
           <div
             key={`glass-${layer.id}`}
@@ -834,11 +832,7 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
               top: `${layer.y}%`,
               width: `${layer.width}%`,
               height: `${layer.height}%`,
-              backdropFilter: `blur(${blur}px)`,
-              WebkitBackdropFilter: `blur(${blur}px)`,
-              backgroundColor: `rgba(${r},${g},${b},${bgOpacity})`,
-              border: `1px solid rgba(255,255,255,${borderOpacity})`,
-              borderRadius: `${radius}px`,
+              ...buildVoltGlassStyle(fill),
               opacity: layer.opacity ?? 1,
               pointerEvents: 'none',
             }}
