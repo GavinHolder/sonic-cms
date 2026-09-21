@@ -121,8 +121,21 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // TODO: Currently using localStorage-based auth, so skip JWT validation
-  // When implementing proper backend auth with Phase 1, uncomment the code below
+  // WARNING: do NOT simply uncomment the block below (the old TODO that said so was stale).
+  // Auth is enforced per route (point 5), and this block is unsafe as written:
+  //  1. It has no 401 branch for /api routes: it only redirects /admin pages, so an /api
+  //     request with a missing or invalid token would fall through unauthenticated.
+  //  2. It deletes the refresh_token cookie whenever the 8h access token is merely expired,
+  //     logging the admin out instead of letting the client refresh the session.
+  //  3. middleware.ts runs on the Edge runtime in Next 16.1.1, where jsonwebtoken (Node
+  //     crypto) is unavailable: verifyAccessToken would return null for every valid token
+  //     and lock all admins out. A Node-runtime proxy.ts is the alternative (untested).
+  //  4. The public site and this file's own internal fetches above call /api/* anonymously,
+  //     so a blanket gate would break them. `x-internal: 1` is a static, spoofable header,
+  //     not authentication.
+  //  5. Authentication is enforced per route via requireRole/requireAuth in
+  //     lib/api-middleware.ts and default-deny checked by
+  //     __tests__/unit/api/route-guards.test.ts.
 
   /*
   // Check if route requires authentication
