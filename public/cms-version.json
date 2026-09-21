@@ -1,11 +1,15 @@
 {
-  "version": "1.70.0",
-  "date": "2026-06-30",
+  "version": "1.71.0",
+  "date": "2026-09-21",
   "changelog": {
     "features": [
-      "noindex plugin pages when feature is disabled (calculator)"
+      "smoky/matte glass fill — shared volt-glass-rules builder + presets",
+      "CTA background image/video uses Media Library picker + upload",
+      "dedicated seo_alert_email recipient for SEO regression alerts"
     ],
-    "bugfixes": [],
+    "bugfixes": [
+      "volt block preview iframe fully transparent"
+    ],
     "breaking": []
   }
 }
