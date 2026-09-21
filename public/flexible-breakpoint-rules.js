@@ -160,7 +160,9 @@
     });
   }
 
-  // ── Additive cross-breakpoint reconciliation (2026-09-21, re-land of c75fcce) ──
+  // ── Additive cross-breakpoint reconciliation (2026-09-21, re-land of c75fcce;
+  //    extended same-day, round 2, to sub-element granularity — see
+  //    docs/main-cms-sync-prompt.md) ──
   // REQUIREMENT (hard, two halves):
   //   1. an element never disappears from any breakpoint canvas or the live page
   //      unless the user deleted it (delete removes it from all three);
@@ -171,10 +173,27 @@
   // back on every autosave) and wrote its output back into the Designer live
   // state.blocks. This version is PURELY ADDITIVE.
   //
+  // ROUND 1 (whole-block only) shipped 2026-09-21 and was re-reported the same
+  // day: a block already present in the target was skipped ENTIRELY, including
+  // its subElements — so a block that exists on all three breakpoints but whose
+  // Tablet/Mobile copy was saved before Desktop gained more sub-elements (a new
+  // heading, an icon badge) stayed permanently short those sub-elements. ROUND 2
+  // (unionBlockSubElements, below) closes that gap: matching now recurses one
+  // level deeper, unioning subElements within an already-matched block id, not
+  // just matching block ids at the top level. Both consumers (Designer canvas +
+  // live renderer) share this one function, so the fix applies to both without
+  // a second hand-copy (ONE SYSTEM PER CONCERN, CLAUDE.md).
+  //
   // INVARIANTS:
-  //   - every block already in the target is returned as the SAME object
-  //     reference, same order, geometry untouched: no heal, no clamp, ever;
-  //   - only ids missing from the target are appended (scaled + clamped clones);
+  //   - every block already in the target stays at the same index, same order;
+  //     it is the SAME object reference (no heal, no clamp, ever) UNLESS another
+  //     variant's copy of that same block id has a sub-element it doesn't —
+  //     then it is a NEW shallow-copied block whose OWN existing subElements
+  //     keep their exact references/order/position, with only the missing ones
+  //     appended (scaled relative to this block's own untouched geometry);
+  //   - block ids missing from the target entirely are appended (scaled +
+  //     clamped clones, full content via JSON deep-clone before geometry is
+  //     overwritten);
   //   - inputs are never mutated; appended clones share no refs with sources.
   // Callers (Designer) must additionally never pass the ACTIVE breakpoint live
   // state.blocks as a target: only non-active variants are reconciled.
@@ -328,6 +347,102 @@
   }
 
   /**
+   * unionBlockSubElements(targetBlock, variants, targetKey, dstW, dstH): pure.
+   *
+   * Second reconcile granularity (2026-09-21, round 2 — see docs/main-cms-sync-prompt.md
+   * for the incident this closes): reconcileVariantBlocks() below only ever matched
+   * blocks by id at the TOP LEVEL — once a block id existed in the target, the whole
+   * block (including its subElements array) was returned untouched, even if another
+   * breakpoint's copy of that SAME block id had since gained sub-elements the target
+   * never got (e.g. Desktop's text-block grew a second heading after Tablet was
+   * seeded). This unions the target block's OWN subElements (kept, same references,
+   * same order) with any sub-element id present on another variant's copy of the same
+   * block id but missing from the target's copy — scaled and placed relative to the
+   * TARGET block's own actual (untouched) geometry, never Desktop's.
+   *
+   * ASSUMPTIONS:
+   * 1. Sub-element ids are unique within a block's subElements array and stable
+   *    across breakpoints (mirrors the block-id assumption above) — confirmed
+   *    against real designerData shapes (`se-<n>` in free-mode, `e<n>` in preset
+   *    templates), see public/flexible-designer.html's `subElements.find(s => s.id
+   *    === ...)` call sites.
+   * 2. The scale ratio for an appended sub-element is the TARGET block's own
+   *    current width over the SOURCE block's own width (not a canvas-level ratio)
+   *    — the target block's geometry is never touched by this function, so an
+   *    appended child must be scaled against the box it is actually landing in,
+   *    not the box its source block happened to have.
+   *
+   * FAILURE MODES this fixes (see docs/main-cms-sync-prompt.md entry for this fix):
+   * - A block present on Tablet/Mobile with fewer subElements than Desktop's same
+   *   block id permanently showed only the stale subset (missing heading/icon/
+   *   paragraph) — this was the actual cause of "half the content missing on
+   *   toggle", not a missing top-level block in the confirmed repro case.
+   * - A container block (text-block/card) renders its own background box only
+   *   when subElements.length === 0 (FlexibleSectionRenderer.tsx); a stale lower
+   *   sub-element count on Tablet/Mobile could flip that render branch and show
+   *   an extra background box Desktop never had. Backfilling the missing
+   *   sub-elements here also fixes that render-branch mismatch as a side effect.
+   *
+   * @param {Object} targetBlock - a block already present in the target array (untouched).
+   * @param {{desktop?:Object|null,tablet?:Object|null,mobile?:Object|null}} variants - source blobs.
+   * @param {'desktop'|'tablet'|'mobile'} targetKey
+   * @param {number} dstW - target canvas width (for placeSub's on-canvas check).
+   * @param {number} dstH - target canvas height (for placeSub's on-canvas check).
+   * @returns {Object} targetBlock unchanged (SAME reference) if nothing was missing,
+   *   else a NEW shallow-copied block whose subElements is targetBlock's own array
+   *   (same items, same order, same references) concatenated with the appended clones.
+   */
+  function unionBlockSubElements(targetBlock, variants, targetKey, dstW, dstH) {
+    var existingSubs = Array.isArray(targetBlock.subElements) ? targetBlock.subElements : [];
+    var seenSub = {};
+    for (var s = 0; s < existingSubs.length; s++) {
+      var sb = existingSubs[s];
+      if (sb && typeof sb === "object" && sb.id !== undefined && sb.id !== null) {
+        seenSub[String(sb.id)] = true;
+      }
+    }
+
+    var g = readGeom(targetBlock); // target block's OWN existing geometry — never touched
+    var appended = [];
+    var order = ["desktop", "tablet", "mobile"];
+    for (var i = 0; i < order.length; i++) {
+      var key = order[i];
+      if (key === targetKey) continue;
+      var src = variants[key];
+      if (!src || !Array.isArray(src.blocks)) continue;
+      var srcBlock = null;
+      for (var j = 0; j < src.blocks.length; j++) {
+        var cand = src.blocks[j];
+        if (cand && typeof cand === "object" && cand.id !== undefined && cand.id !== null &&
+            String(cand.id) === String(targetBlock.id)) {
+          srcBlock = cand;
+          break;
+        }
+      }
+      if (!srcBlock || !Array.isArray(srcBlock.subElements)) continue;
+      var srcG = readGeom(srcBlock);
+      var r = srcG.w > 0 ? g.w / srcG.w : 1;
+      for (var k = 0; k < srcBlock.subElements.length; k++) {
+        var sub = srcBlock.subElements[k];
+        if (!sub || typeof sub !== "object" || sub.id === undefined || sub.id === null) continue;
+        var subId = String(sub.id);
+        if (seenSub[subId]) continue;
+        seenSub[subId] = true;
+        // Full deep clone FIRST (content/props/icon-src/colour survive verbatim),
+        // geometry overwritten on top by scaleSub/placeSub — same pattern as
+        // scaleBlockToCanvas's JSON.parse(JSON.stringify(block)) below.
+        var clone = JSON.parse(JSON.stringify(sub));
+        appended.push(placeSub(scaleSub(clone, r), targetBlock, g, dstW, dstH));
+      }
+    }
+
+    if (appended.length === 0) return targetBlock; // nothing missing — same reference
+    var out = Object.assign({}, targetBlock);
+    out.subElements = existingSubs.concat(appended);
+    return out;
+  }
+
+  /**
    * reconcileVariantBlocks(targetBlocks, variants, targetKey, dims): pure, ADDITIVE.
    *
    * ASSUMPTIONS:
@@ -346,7 +461,12 @@
    * @param {{desktop?:Object|null,tablet?:Object|null,mobile?:Object|null}} variants - source blobs (+ target blob for its dims).
    * @param {'desktop'|'tablet'|'mobile'} targetKey
    * @param {{srcW?:number,dstW?:number,dstH?:number}} [dims] - dstW/dstH override the target box; srcW overrides the DESKTOP source width only.
-   * @returns {Array<Object>} NEW array: every existing target block as the SAME reference in the SAME order, then appended clones of missing ids (Desktop first, then the other variant).
+   * @returns {Array<Object>} NEW array: every existing target block at the SAME
+   *   index in the SAME order — the SAME reference when it already has every
+   *   sub-element another variant has for that block id, else a new shallow
+   *   copy with the missing sub-elements unioned in (see unionBlockSubElements)
+   *   — then appended clones of whole block ids missing entirely (Desktop
+   *   first, then the other variant).
    */
   function reconcileVariantBlocks(targetBlocks, variants, targetKey, dims) {
     variants = variants || {};
@@ -357,11 +477,17 @@
     var dstH = Number(dims.dstH) > 0 ? Number(dims.dstH) : dstBox.h;
 
     var seen = {};
-    var result = target.slice(); // existing blocks: same refs, same order, untouched
     for (var t = 0; t < target.length; t++) {
-      var tb = target[t];
-      if (tb && tb.id !== undefined && tb.id !== null) seen[String(tb.id)] = true;
+      var tb0 = target[t];
+      if (tb0 && tb0.id !== undefined && tb0.id !== null) seen[String(tb0.id)] = true;
     }
+
+    // Existing blocks stay at the same index, same order — union missing
+    // sub-elements into each (same reference back when there's nothing to add).
+    var result = target.map(function (tb) {
+      if (!tb || typeof tb !== "object" || tb.id === undefined || tb.id === null) return tb;
+      return unionBlockSubElements(tb, variants, targetKey, dstW, dstH);
+    });
 
     var order = ["desktop", "tablet", "mobile"];
     for (var i = 0; i < order.length; i++) {
@@ -380,6 +506,30 @@
       }
     }
     return result;
+  }
+
+  /**
+   * True when `next` (a reconcileVariantBlocks() result) differs from `prev`
+   * (the array passed in as targetBlocks) — by length OR because at least one
+   * index holds a different object reference (a block that had sub-elements
+   * unioned into it, per unionBlockSubElements, is a NEW reference at its same
+   * index; an untouched block is the SAME reference). A plain `.length` compare
+   * (the pre-2026-09-21-round-2 check in both consumers) misses a sub-element-only
+   * change, since appending a sub-element to an existing block never changes the
+   * top-level blocks array length — that gap is exactly what let the "existing
+   * block, stale sub-elements" bug slip past both call sites' bail-out check.
+   * @param {Array<Object>} next
+   * @param {Array<Object>} prev
+   * @returns {boolean}
+   */
+  function blocksChanged(next, prev) {
+    var a = Array.isArray(next) ? next : [];
+    var b = Array.isArray(prev) ? prev : [];
+    if (a.length !== b.length) return true;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) return true;
+    }
+    return false;
   }
 
   /** Returns a new block array without `id` (string-compared). Pure. */
@@ -407,6 +557,7 @@
     variantCanvasDims: variantCanvasDims,
     scaleBlockToCanvas: scaleBlockToCanvas,
     reconcileVariantBlocks: reconcileVariantBlocks,
+    blocksChanged: blocksChanged,
     removeBlockId: removeBlockId,
     serializeVariants: serializeVariants,
   };

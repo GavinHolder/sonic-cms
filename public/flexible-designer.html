@@ -10615,7 +10615,12 @@ function reconcileNonActiveVariant(key, sources) {
   if (!v || key === state.activeBreakpoint || !Array.isArray(v.blocks)) return v || null;
   try {
     const blocks = window.FlexibleBreakpointRules.reconcileVariantBlocks(v.blocks, sources, key);
-    return blocks.length === v.blocks.length ? v : Object.assign({}, v, { blocks: blocks });
+    // NOT a plain length compare: a block already present that gained unioned-in
+    // sub-elements (round 2 of this fix, same day — see
+    // docs/main-cms-sync-prompt.md) keeps the top-level block count unchanged but
+    // is a new object reference at its index. blocksChanged() catches that; a
+    // length-only check silently discarded exactly this case.
+    return window.FlexibleBreakpointRules.blocksChanged(blocks, v.blocks) ? Object.assign({}, v, { blocks: blocks }) : v;
   } catch (err) {
     return v;
   }

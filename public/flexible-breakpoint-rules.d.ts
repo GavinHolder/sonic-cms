@@ -44,9 +44,13 @@ export interface ReconcileDims {
 /** Full authored canvas box of one variant: W (or 1440/768/375 default) x H (or 900) x multiLimit when multi. */
 export function variantCanvasDims(variant: Record<string, unknown> | null | undefined, key: Breakpoint): { w: number; h: number };
 /**
- * ADDITIVE reconcile: returns a NEW array holding every existing target block as the SAME reference in the
- * SAME order (never healed/clamped), followed by deep-cloned, scaled (dstW/srcW, incl. sub-elements) and
- * on-canvas-clamped copies of block ids missing from the target (Desktop first, then the other variant).
+ * ADDITIVE reconcile, two granularities (2026-09-21, round 2): returns a NEW array holding every
+ * existing target block at the same index/order — the SAME reference when it already has every
+ * sub-element another variant has for that block id, else a new shallow copy with the missing
+ * sub-elements unioned in (own existing sub-elements keep their references/order/position, only
+ * the missing ones are appended, scaled relative to this block's own untouched geometry) — followed
+ * by deep-cloned, scaled (dstW/srcW, incl. sub-elements) and on-canvas-clamped copies of whole block
+ * ids missing from the target entirely (Desktop first, then the other variant).
  * Handles both LIVE {x,y,w,h} and PERSISTED {pixelPos} block shapes. Pure.
  */
 export function reconcileVariantBlocks<T extends Record<string, unknown>>(
@@ -55,5 +59,12 @@ export function reconcileVariantBlocks<T extends Record<string, unknown>>(
   targetKey: Breakpoint,
   dims?: ReconcileDims
 ): T[];
+/**
+ * True when `next` (a reconcileVariantBlocks() result) differs from `prev` — by length OR because at
+ * least one index holds a different object reference. Use this instead of a plain `.length` compare to
+ * decide whether reconcile changed anything: a block that only gained unioned-in sub-elements keeps the
+ * top-level array length unchanged but is a new reference at its index, which a length-only check misses.
+ */
+export function blocksChanged<T>(next: T[] | null | undefined, prev: T[] | null | undefined): boolean;
 /** New block array without `id` (string-compared). Pure. */
 export function removeBlockId<T extends { id?: unknown }>(blocks: T[], id: unknown): T[];
