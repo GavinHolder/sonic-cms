@@ -19,7 +19,7 @@
  *    reads via `(el as any).style`.
  * 2. Element-specific content (heading/subheading/chips/steps/statsNumber/…) lives
  *    in `element.content`; it is carried verbatim through `props` so all element
- *    types (card/steps/stats/pricing-tabs) round-trip without per-type logic.
+ *    types (card/steps/stats/custom-block) round-trip without per-type logic.
  * 3. Designer-only card helper keys (label/cardStyle/glassEffect/heightMode) and the
  *    style-derived keys (bgColor/bgImage/borderRadius) are stripped from `content`
  *    on the way back so they don't leak into the rendered element's content.

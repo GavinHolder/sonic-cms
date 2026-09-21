@@ -1723,16 +1723,6 @@
                 <div class="ec-name">Photo Strip</div>
                 <span class="ec-badge container">Block</span>
               </div>
-              <div class="element-card" draggable="true" ondragstart="onLibDragStart(event,'card-tabs')">
-                <div class="ec-icon">🗂️</div>
-                <div class="ec-name">Card Tabs</div>
-                <span class="ec-badge container">Block</span>
-              </div>
-              <div class="element-card" draggable="true" ondragstart="onLibDragStart(event,'product-grid')">
-                <div class="ec-icon">🗂️</div>
-                <div class="ec-name">Product Grid</div>
-                <span class="ec-badge container">Block</span>
-              </div>
             </div>
 
             <!-- Sub-elements -->
@@ -2101,12 +2091,10 @@ const BLOCK_DEFAULTS = {
   html:        { label:'HTML',    html:'<p>Custom HTML</p>', customCss:'' },
   divider:     { label:'Divider', thickness:2, dividerColor:'#dee2e6', customCss:'' },
   volt:        { label:'Volt', bgColor:'transparent', voltId:'', voltName:'', voltThumbnail:null, voltLayerOverrides:{}, customCss:'' },
-  'card-tabs': { label:'Card Tabs', productTypeSlugs:[], voltId:'', voltName:'', minCardWidth:260, ctaText:'Check coverage', ctaUrl:'/coverage', customCss:'' },
-  template:    { label:'Template', templateId:'', templateName:'', templateThumbnail:null, customHtml:'<p>Section template</p>', customCss:'', mediaSlots:{}, productId:'', productName:'', networkSlug:'', networkName:'', productTypeSlugs:[], templateOptions:{} },
+  template:    { label:'Template', templateId:'', templateName:'', templateThumbnail:null, customHtml:'<p>Section template</p>', customCss:'', mediaSlots:{}, templateOptions:{} },
   editorial:   { label:'Editorial', text:'Start typing your editorial content here. This text will flow around any obstacle images you place in the block. You can use multiple obstacles — each with its own position, size, and alpha hull tracing for precise text wrapping.', fontFamily:'Merriweather', fontSize:18, lineHeight:1.6, textColor:'#212529', bgColor:'transparent', obstacles:[], customCss:'' },
   steps:       { label:'Steps', steps:[{number:'01',heading:'Discovery',subtext:'We analyse your requirements and technical constraints.'},{number:'02',heading:'Design',subtext:'We prototype and validate the solution with stakeholders.'},{number:'03',heading:'Build',subtext:'We implement, test, and deploy the solution.'}], stepsNumberWidth:100, stepsDividers:true, stepsLastDivider:false, customCss:'' },
   'photo-strip':{ label:'Photo Strip', images:[{src:'',alt:''},{src:'',alt:''},{src:'',alt:''}], columns:3, height:220, gap:4, hoverBrightness:true, customCss:'' },
-  'product-grid': { label:'Product Grid', productTypeSlugs:[], minCardWidth:260, voltId:'', voltName:'', heading:'', customCss:'' },
 };
 
 const SUB_DEFAULTS = {
@@ -2488,7 +2476,7 @@ function applySnapshot(snap, addToHistory, isNewSectionLoad) {
     // the breakpoint that was being edited when it was taken. Replace that one;
     // never touch the other two (see isNewSectionLoad's doc above).
     state.variants[state.activeBreakpoint] = resolved.desktop;
-    // 2026-09-21 (SUPERSEDED — see docs/main-cms-sync-prompt.md): undo used to
+    // 2026-09-21 (SUPERSEDED — see docs/CHANGELOG.md): undo used to
     // additionally reconcile the NON-active variants against the restored one.
     // Removed per explicit user decision — an undo now touches only the
     // active breakpoint's own variant; the other two are left exactly as they
@@ -2808,64 +2796,9 @@ function loadNavOptions() {
 // ═══════════════════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════════════════
-// Coverage-plugin networks + packages, for the Packages block + card→package binding.
-window.__networks = [];
-function loadNetworks() {
-  fetch('/api/networks', { credentials: 'include' })
-    .then(r => r.ok ? r.json() : [])
-    .then(d => { window.__networks = Array.isArray(d) ? d : []; })
-    .catch(() => {});
-}
-
-// All active packages (id, name, networkName) for the volt "Linked Product" picker.
-window.__allPackages = [];
-function loadAllPackages() {
-  fetch('/api/packages?all=1', { credentials: 'include' })
-    .then(r => r.ok ? r.json() : { packages: [] })
-    .then(d => {
-      window.__allPackages = (d && Array.isArray(d.packages)) ? d.packages : [];
-      // If a volt block is currently selected, re-render so the picker is populated.
-      try { if (state.selectedBlockId) renderPropsPanel(); } catch (e) { /* ignore */ }
-    })
-    .catch(() => {});
-}
-
-// Active product types (id, name, slug, color) for the Product Grid block's type picker.
-window.__productTypes = [];
-function loadProductTypes() {
-  fetch('/api/product-types', { credentials: 'include' })
-    .then(r => r.ok ? r.json() : [])
-    .then(d => {
-      window.__productTypes = Array.isArray(d) ? d : [];
-      try { if (state.selectedBlockId) renderPropsPanel(); } catch (e) { /* ignore */ }
-    })
-    .catch(() => {});
-}
-
-// Volt designs (id, name) for the Product Grid block's card-design picker. Lazy-loaded
-// on first use (not at init) since it's only needed when a product-grid block is selected.
-window.__voltDesigns = [];
-const _pgVoltDesigns = { loaded: false, loading: false };
-function loadVoltDesignsIfNeeded() {
-  if (_pgVoltDesigns.loaded || _pgVoltDesigns.loading) return;
-  _pgVoltDesigns.loading = true;
-  fetch('/api/volt', { credentials: 'include' })
-    .then(r => r.ok ? r.json() : Promise.reject(r.status))
-    .then(json => {
-      _pgVoltDesigns.loaded = true;
-      _pgVoltDesigns.loading = false;
-      window.__voltDesigns = json.data?.volts || [];
-      try { if (state.selectedBlockId) renderPropsPanel(); } catch (e) { /* ignore */ }
-    })
-    .catch(() => { _pgVoltDesigns.loading = false; });
-}
-
 document.addEventListener('DOMContentLoaded', () => {
   loadNavOptions();
   loadBrandFont();
-  loadNetworks();
-  loadAllPackages();
-  loadProductTypes();
   // Only restore autosave when running standalone (not embedded in admin iframe).
   // When embedded, FLEXIBLE_DESIGNER_INIT provides the correct per-section data —
   // loading the shared autosave here would briefly flash stale data from the last
@@ -2921,7 +2854,7 @@ function renderCanvas() {
 
   const canvas = document.getElementById('canvas');
   const canvasArea = canvas.closest('.canvas-area');
-  // Dynamic mode's canvas is a STATIC design surface (no live product data driving it in the
+  // Dynamic mode's canvas is a STATIC design surface (no live content-height data driving it in the
   // designer), so it deliberately reuses Multi's exact rendering here — shown at its cap
   // height (state.multiLimit × availH), same multi-band block placement. The actual live
   // auto-fit only happens on the real public page (FlexibleSectionRenderer.tsx); don't
@@ -3841,54 +3774,6 @@ function createBlockPreview(block) {
       }
       psHtml += '</div>';
       wrap.innerHTML = psHtml;
-      break;
-    }
-    case 'card-tabs': {
-      // Legacy manually-authored sections (p.tabs, no productTypeSlugs) still get the
-      // old tab/card-count summary; auto-populating ones (the current default) show
-      // which product types + Volt design drive them, mirroring product-grid's preview.
-      if (!p.productTypeSlugs && p.tabs) {
-        var ctLegacyTabs = p.tabs || [];
-        var ctTabsHtml = ctLegacyTabs.map(function(t){
-          var nets = t.groupByNetwork ? Array.from(new Set((t.cards||[]).map(function(c){ return c.networkLabel; }).filter(Boolean))) : [];
-          var terms = t.groupByTerm ? Array.from(new Set((t.cards||[]).map(function(c){ return c.term; }).filter(Boolean))) : [];
-          var bits = [];
-          if (nets.length > 1) bits.push(nets.length + ' sub-tabs');
-          if (terms.length > 1) bits.push(terms.length + ' terms');
-          var suffix = bits.length ? ' <span style="opacity:.55;">(' + bits.join(', ') + ')</span>' : '';
-          return '<span style="padding:3px 9px;border-radius:999px;background:rgba(255,255,255,0.1);margin-right:4px;">' + escHtml(t.label||'Tab') + suffix + '</span>';
-        }).join('');
-        var ctCardCount = ctLegacyTabs.reduce(function(sum,t){ return sum + (t.cards||[]).length; }, 0);
-        wrap.innerHTML = '<div style="padding:10px 4px;">' +
-          '<div style="font-size:11px;color:#4f46e5;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;"><i class="bi bi-ui-radios"></i> Card Tabs <span style="opacity:.5;">(legacy manual)</span></div>' +
-          '<div style="font-size:11px;margin-bottom:8px;">' + (ctTabsHtml || '<em style="opacity:.5;">No tabs yet</em>') + '</div>' +
-          '<div style="font-size:10px;opacity:.5;">' + ctLegacyTabs.length + ' tab' + (ctLegacyTabs.length===1?'':'s') + ' &middot; ' + ctCardCount + ' card' + (ctCardCount===1?'':'s') + '</div></div>';
-        break;
-      }
-      var ctTypes2 = (window.__productTypes || []).filter(function(t){ return (p.productTypeSlugs||[]).indexOf(t.slug) !== -1; });
-      var ctNames2 = ctTypes2.map(function(t){ return escHtml(t.name); }).join(', ');
-      wrap.innerHTML = '<div style="padding:10px 4px;">' +
-        '<div style="font-size:11px;color:#4f46e5;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;"><i class="bi bi-ui-radios"></i> Card Tabs' + (ctNames2 ? ' — ' + ctNames2 : ' — pick product type(s)') + '</div>' +
-        '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
-          (p.voltId
-            ? '<div style="flex:1;min-width:' + (p.minCardWidth||260) + 'px;border:1px dashed rgba(255,255,255,0.25);border-radius:10px;padding:14px;font-size:11px;opacity:.7;">Volt card: ' + escHtml(p.voltName||p.voltId) + '</div>'
-            : '<div style="flex:1;border:1px dashed rgba(255,255,255,0.25);border-radius:10px;padding:14px;font-size:11px;opacity:.6;">No Volt card design selected</div>') +
-        '</div>' +
-        '<div style="font-size:10px;opacity:.45;margin-top:8px;">Auto-populated: Product Type → Network → Term, live from Networks &amp; Packages</div></div>';
-      break;
-    }
-    case 'product-grid': {
-      var pgTypes = (window.__productTypes || []).filter(function(t){ return (p.productTypeSlugs||[]).indexOf(t.slug) !== -1; });
-      var pgNames = pgTypes.map(function(t){ return escHtml(t.name); }).join(', ');
-      wrap.innerHTML = '<div style="padding:10px 4px;">' +
-        '<div style="font-size:11px;color:#E31E24;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;">🗂️ Product Card Grid' + (pgNames ? ' — ' + pgNames : ' — pick product type(s)') + '</div>' +
-        (p.heading ? '<div style="font-family:var(--display,sans-serif);text-transform:uppercase;font-size:18px;margin-bottom:10px;">' + escHtml(p.heading) + '</div>' : '') +
-        '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
-          (p.voltId
-            ? '<div style="flex:1;min-width:' + (p.minCardWidth||260) + 'px;border:1px dashed rgba(255,255,255,0.25);border-radius:10px;padding:14px;font-size:11px;opacity:.7;">Volt card: ' + escHtml(p.voltName||p.voltId) + '</div>'
-            : '<div style="flex:1;border:1px dashed rgba(255,255,255,0.25);border-radius:10px;padding:14px;font-size:11px;opacity:.6;">No Volt card design selected</div>') +
-        '</div>' +
-        '<div style="font-size:10px;opacity:.45;margin-top:8px;">Renders live packages, grouped by product type → network, using the selected Volt card</div></div>';
       break;
     }
     default:
@@ -6329,7 +6214,7 @@ function removeBlock(id,e) {
   if(e) e.stopPropagation();
   pushHistory();
   state.blocks=state.blocks.filter(b=>b.id!==id);
-  // 2026-09-21 (SUPERSEDED — see docs/main-cms-sync-prompt.md): automatic
+  // 2026-09-21 (SUPERSEDED — see docs/CHANGELOG.md): automatic
   // cross-breakpoint delete propagation removed per explicit user decision.
   // Breakpoints are independent after their initial seed; deleting a block now
   // only affects the currently active breakpoint's own array. If the same
@@ -6853,10 +6738,10 @@ function renderTypeProps(block) {
       // actually declares (layers of type 'slot', each tagged with a slotData.slotType
       // of title/body/icon/image/action in Volt Studio — see volt-designer.html's
       // mkSlot()/_slotTypeLabels). Previously this section always rendered every
-      // field (Linked Product, Title, Body, Icon, Image, Action label) regardless of
+      // field (Title, Body, Icon, Image, Action label) regardless of
       // what the selected Volt actually declared, so a purely visual design with NO
       // slot layers (e.g. a glass/blur panel) still showed a full set of irrelevant
-      // product-card binding fields with nothing to bind to.
+      // content-binding fields with nothing to bind to.
       if (p.voltId) {
         loadVoltLayersForBlock(block.id); // no-op if already loading/loaded
         const _slotCache = _voltLayerCache[p.voltId];
@@ -6873,28 +6758,6 @@ function renderTypeProps(block) {
           } else {
             h+=`<div style="margin-bottom:6px;">
               <div style="font-size:11px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Content Slots</div>`;
-            // Linked Product picker — bind this card to a coverage-plugin Package so slots
-            // whose field hint is pkg.name/pkg.price/pkg.speed… auto-populate from the product.
-            // Only relevant when the design has at least one slot to bind into.
-            {
-              const _prods = window.__allPackages || [];
-              const _curProd = p.productId || '';
-              const _byNet = {};
-              _prods.forEach(function(pr){ const k = pr.networkName || 'Other'; (_byNet[k] = _byNet[k] || []).push(pr); });
-              let _prodOpts = `<option value="">— None (manual text) —</option>`;
-              Object.keys(_byNet).forEach(function(net){
-                _prodOpts += `<optgroup label="${escHtml(net)}">`;
-                _byNet[net].forEach(function(pr){
-                  _prodOpts += `<option value="${escHtml(pr.id)}"${pr.id===_curProd?' selected':''}>${escHtml(pr.name)}</option>`;
-                });
-                _prodOpts += `</optgroup>`;
-              });
-              h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;margin-bottom:8px;">
-                <label style="margin-bottom:3px;font-size:12px;font-weight:600;"><i class="bi bi-box-seam me-1"></i>Linked Product</label>
-                <select class="props-input" style="font-size:12px;" onchange="updateVoltProduct('${block.id}',this.value)">${_prodOpts}</select>
-                <div style="font-size:10px;color:#9ca3af;margin-top:4px;line-height:1.5;">Binds slots with field hints <code>pkg.name</code>, <code>pkg.price</code>, <code>pkg.speed</code>, <code>pkg.period</code>, <code>pkg.options</code>&hellip; to this product's live values.${_prods.length?'':'<br><em>No packages loaded yet.</em>'}</div>
-              </div>`;
-            }
             if (_slotTypes.has('title')) h+=inputRow('Title', p.slotTitle||'', `updateVoltSlot('${block.id}','slotTitle',this.value)`, 'Override title…');
             if (_slotTypes.has('body')) h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;margin-bottom:8px;">
               <label style="margin-bottom:3px;font-size:12px;">Body</label>
@@ -6969,63 +6832,6 @@ function renderTypeProps(block) {
         </select>
         <div style="font-size:10px;color:#9ca3af;margin-top:4px;">Content is edited in Templates admin, not here.</div>
       </div>`;
-      (function() {
-        const tplProds = window.__allPackages || [];
-        const tplByNet = {};
-        tplProds.forEach(function(pr){ const k = pr.networkName || 'Other'; (tplByNet[k] = tplByNet[k] || []).push(pr); });
-        let prodOpts = `<option value="">— None (static content only) —</option>`;
-        Object.keys(tplByNet).forEach(function(net){
-          prodOpts += `<optgroup label="${escHtml(net)}">`;
-          tplByNet[net].forEach(function(pr){ prodOpts += `<option value="${escHtml(pr.id)}"${pr.id===p.productId?' selected':''}>${escHtml(pr.name)}</option>`; });
-          prodOpts += `</optgroup>`;
-        });
-        h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;margin-top:10px;padding-top:10px;border-top:1px solid #e9ecef;">
-          <label style="margin-bottom:3px;font-size:12px;">Linked Product <span style="font-weight:400;color:#9ca3af;">(optional — single-product templates)</span></label>
-          <select class="props-select" style="font-size:12px;" onchange="var pr=(window.__allPackages||[]).find(function(x){return x.id===this.value;});updateBlockProp('${block.id}','productId',this.value);updateBlockProp('${block.id}','productName',pr?pr.name:'');renderCanvas()">
-            ${prodOpts}
-          </select>
-          <div style="font-size:10px;color:#9ca3af;margin-top:4px;line-height:1.5;">
-            When set, write <code>{{pkg.name}}</code>, <code>{{pkg.price}}</code>, <code>{{pkg.period}}</code>,
-            <code>{{pkg.speed}}</code>, <code>{{pkg.speedDown}}</code>, <code>{{pkg.speedUp}}</code>,
-            <code>{{pkg.options}}</code>, <code>{{pkg.network}}</code>, <code>{{pkg.id}}</code> anywhere in
-            the template's HTML/CSS (Templates admin) — same token names as a data-bound Volt card slot.
-            They fill in from this <strong>one</strong> product live on the site.
-          </div>
-        </div>`;
-
-        const tplNets = window.__networks || [];
-        let netOpts = `<option value="">— None —</option>`;
-        tplNets.forEach(function(n){ netOpts += `<option value="${escHtml(n.slug)}"${n.slug===p.networkSlug?' selected':''}>${escHtml(n.name)} (${escHtml(n.category)})</option>`; });
-        const tplTypes = window.__productTypes || [];
-        const tplSelectedTypes = Array.isArray(p.productTypeSlugs) ? p.productTypeSlugs : [];
-        h+=`<div class="props-row" style="flex-direction:column;align-items:stretch;margin-top:10px;padding-top:10px;border-top:1px solid #e9ecef;">
-          <label style="margin-bottom:3px;font-size:12px;">Linked Network <span style="font-weight:400;color:#9ca3af;">(optional — everything on one network)</span></label>
-          <select class="props-select" style="font-size:12px;" onchange="var n=(window.__networks||[]).find(function(x){return x.slug===this.value;});updateBlockProp('${block.id}','networkSlug',this.value);updateBlockProp('${block.id}','networkName',n?n.name:'');renderCanvas()">
-            ${netOpts}
-          </select>
-        </div>
-        <div class="props-row" style="flex-direction:column;align-items:stretch;margin-top:8px;">
-          <label style="margin-bottom:3px;font-size:12px;">Linked Product Types <span style="font-weight:400;color:#9ca3af;">(optional — pick one or more for the template's own top-level tabs)</span></label>
-          ${tplTypes.length
-            ? '<div style="display:flex;flex-direction:column;gap:4px;max-height:140px;overflow-y:auto;border:1px solid #e9ecef;border-radius:6px;padding:6px;">' + tplTypes.map(function(t){
-                var checked = tplSelectedTypes.indexOf(t.slug) !== -1 ? 'checked' : '';
-                return `<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;"><input type="checkbox" ${checked} onchange="var b=state.blocks.find(function(x){return x.id=='${block.id}';});var cur=(b&&Array.isArray(b.props.productTypeSlugs)?b.props.productTypeSlugs:[]).slice();var i=cur.indexOf('${t.slug}');if(this.checked){if(i===-1)cur.push('${t.slug}');}else if(i!==-1){cur.splice(i,1);}updateBlockProp('${block.id}','productTypeSlugs',cur);renderCanvas();"> ${escHtml(t.name)}</label>`;
-              }).join('') + '</div>'
-            : '<div style="font-size:11px;color:#9ca3af;">No product types yet — create one in <strong>Plugins → Coverage Maps → Networks &amp; Packages</strong>.</div>'}
-          <div style="font-size:10px;color:#9ca3af;margin-top:4px;line-height:1.5;">
-            For a template with <strong>multiple cards and its own tab UI</strong> (self-contained, not
-            single-product tokens): pick Product Type(s) and/or a Network here — the CMS fetches the
-            matching packages for you and hands them to your template as
-            <code>window.CMS_TEMPLATE.packages</code> (each item has id/name/price/period/speedDown/
-            speedUp/term/features/networkName/categoryName/productTypeName). Picking more than one
-            Product Type is what lets your template build its own top-level category tabs (e.g. Residential /
-            Business / Enterprise) — group the array by <code>productTypeSlug</code> yourself. Read the array
-            in your template's own &lt;script&gt; and build the cards/tabs yourself. Don't call
-            <code>fetch()</code> for packages from inside your template — the sandbox blocks it (no
-            <code>allow-same-origin</code>, by design); the array is provided instead.
-          </div>
-        </div>`;
-      })();
       h += renderTemplateOptionsPanel(block, p);
       break;
     }
@@ -7136,55 +6942,6 @@ function renderTypeProps(block) {
         </div>`;
       });
       h+=`</div>`;
-      break;
-    }
-    case 'card-tabs': {
-      // Auto-populating: pick which Product Types feed this block and one Volt card
-      // design — every active package under those types appears automatically,
-      // organized into Product Type -> Network -> Term tabs, and stays current as
-      // packages are added/edited/removed (no manual per-card binding, unlike the
-      // legacy shape this replaces — see CardTabsBlock.tsx for the fallback render
-      // path that still supports sections saved the old way).
-      loadVoltDesignsIfNeeded();
-      var ctTypes = window.__productTypes || [];
-      var ctSelected = p.productTypeSlugs || [];
-      h+=`<div style="margin-top:4px;"><label style="font-size:11px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Product types</label>`;
-      if (ctTypes.length) {
-        h += '<div style="display:flex;flex-direction:column;gap:4px;max-height:140px;overflow-y:auto;">' + ctTypes.map(function(t){
-          var checked = ctSelected.indexOf(t.slug) !== -1 ? 'checked' : '';
-          return `<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;"><input type="checkbox" ${checked} onchange="var b=state.blocks.find(function(x){return x.id=='${block.id}';});var cur=(b&&Array.isArray(b.props.productTypeSlugs)?b.props.productTypeSlugs:[]).slice();var i=cur.indexOf('${t.slug}');if(this.checked){if(i===-1)cur.push('${t.slug}');}else if(i!==-1){cur.splice(i,1);}updateBlockProp('${block.id}','productTypeSlugs',cur);renderCanvas();"> ${escHtml(t.name)}</label>`;
-        }).join('') + '</div>';
-      } else {
-        h += '<div style="font-size:11px;color:#9ca3af;">No product types yet — create one in <strong>Plugins → Coverage Maps → Networks &amp; Packages</strong>.</div>';
-      }
-      h += '</div>';
-      var ctVoltOpts = [['','— Pick a Volt card design —']].concat((window.__voltDesigns||[]).map(function(v){ return [v.id, v.name]; }));
-      h+=selectRow('Card design (Volt)', p.voltId||'', ctVoltOpts, `var _v=(window.__voltDesigns||[]).find(function(x){return x.id===this.value;});updateBlockProp('${block.id}','voltId',this.value);updateBlockProp('${block.id}','voltName',_v?_v.name:'');renderCanvas()`);
-      h+=selectRow('Min card width', String(p.minCardWidth||260), [['200','200px'],['220','220px'],['260','260px'],['300','300px'],['340','340px']], `updateBlockProp('${block.id}','minCardWidth',parseInt(this.value));renderCanvas()`);
-      h+=`<div style="font-size:11px;color:#9ca3af;padding:6px 0;line-height:1.6;">Renders one tab per selected product type (e.g. Residential/Business/Enterprise), auto-split into sub-tabs by network and term-tabs by contract term wherever a group spans more than one value. New packages under these types appear automatically — nothing to re-edit here. Manage product types in <strong>Plugins → Coverage Maps → Networks &amp; Packages</strong>.</div>`;
-      h+=inputRow('Button text', p.ctaText||'Check coverage', `updateBlockProp('${block.id}','ctaText',this.value);renderCanvas()`,'Check coverage');
-      h+=renderCardTabsCtaUrlRow(block.id, p.ctaUrl||'');
-      break;
-    }
-    case 'product-grid': {
-      var _ptypes = window.__productTypes || [];
-      var _selectedTypes = p.productTypeSlugs || [];
-      loadVoltDesignsIfNeeded();
-      h+=`<div style="margin-top:8px;"><label style="font-size:11px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Product types</label>`;
-      if (_ptypes.length) {
-        h += '<div style="display:flex;flex-direction:column;gap:4px;max-height:140px;overflow-y:auto;">' + _ptypes.map(function(t){
-          var checked = _selectedTypes.indexOf(t.slug) !== -1 ? 'checked' : '';
-          return `<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;"><input type="checkbox" ${checked} onchange="var b=state.blocks.find(function(x){return x.id=='${block.id}';});var cur=(b&&Array.isArray(b.props.productTypeSlugs)?b.props.productTypeSlugs:[]).slice();var i=cur.indexOf('${t.slug}');if(this.checked){if(i===-1)cur.push('${t.slug}');}else if(i!==-1){cur.splice(i,1);}updateBlockProp('${block.id}','productTypeSlugs',cur);renderCanvas();"> ${escHtml(t.name)}</label>`;
-        }).join('') + '</div>';
-      } else {
-        h += '<div style="font-size:11px;color:#9ca3af;">No product types yet — create one in <strong>Plugins → Coverage Maps → Networks &amp; Packages</strong>.</div>';
-      }
-      h += '</div>';
-      var _voltOpts = [['','— Pick a Volt card design —']].concat((window.__voltDesigns||[]).map(function(v){ return [v.id, v.name]; }));
-      h+=selectRow('Card design (Volt)', p.voltId||'', _voltOpts, `var _v=(window.__voltDesigns||[]).find(function(x){return x.id===this.value;});updateBlockProp('${block.id}','voltId',this.value);updateBlockProp('${block.id}','voltName',_v?_v.name:'');renderCanvas()`);
-      h+=selectRow('Min card width', String(p.minCardWidth||260), [['200','200px'],['220','220px'],['260','260px'],['300','300px'],['340','340px']], `updateBlockProp('${block.id}','minCardWidth',parseInt(this.value));renderCanvas()`);
-      h+=inputRow('Heading (optional)', p.heading||'', `updateBlockProp('${block.id}','heading',this.value);renderCanvas()`,'Section heading');
-      h+=`<div style="font-size:11px;color:#9ca3af;padding:6px 0;line-height:1.6;">Renders one tab per selected product type, grouped by network, using the chosen Volt card design. Manage product types in <strong>Plugins → Coverage Maps → Networks &amp; Packages</strong>.</div>`;
       break;
     }
   }
@@ -7357,7 +7114,7 @@ function renderSubTypeProps(bId, se) {
       h+=colorRow('Color',p.dividerColor||'#dee2e6',`updateSubProp('${bId}','${se.id}','dividerColor',this.value);renderCanvas()`);
       break;
     case 'icon':
-      h+=inputRow('Icon (bi-...)',p.iconName||'bi-star',`updateSubProp('${bId}','${se.id}','iconName',this.value);renderCanvas()`,'e.g. bi-wifi');
+      h+=inputRow('Icon (bi-...)',p.iconName||'bi-star',`updateSubProp('${bId}','${se.id}','iconName',this.value);renderCanvas()`,'e.g. bi-star');
       h+=`<div class="props-row"><label>Preview</label><i class="bi ${escHtml(p.iconName||'bi-star')}" style="font-size:24px;color:${p.color||'#0d6efd'};margin-left:8px;vertical-align:middle;"></i></div>`;
       h+=`<div class="props-row"><label>Size</label><input class="props-input" type="range" min="16" max="96" value="${p.size||48}" oninput="updateSubProp('${bId}','${se.id}','size',parseInt(this.value));renderCanvas();this.nextElementSibling.value=this.value"><input type="number" class="props-num" min="8" max="400" value="${p.size||48}" oninput="const v=parseInt(this.value)||48;updateSubProp('${bId}','${se.id}','size',v);renderCanvas();this.previousElementSibling.value=Math.min(v,this.previousElementSibling.max)"></div>`;
       h+=colorRow('Colour',p.color||'#0d6efd',`updateSubProp('${bId}','${se.id}','color',this.value);renderCanvas()`);
@@ -7413,45 +7170,6 @@ function showCustomNav(el, id) {
   if (div) div.style.display=['custom','tel','mailto'].includes(el.value)?'block':'none';
 }
 
-/**
- * Card Tabs block "Button Link" row — same dropdown+custom-URL picker UX as
- * renderNavSection (Home / section anchors / CMS pages / custom URL), but
- * self-contained and writing to this block's own `ctaUrl` prop instead of the
- * shared `navTarget` prop banner/hero/button already use, so it can never
- * collide with that wiring. Prepends the Check Coverage page as the first,
- * most relevant option since that's this button's default target; unlike
- * renderNavSection, an unmatched saved value (e.g. a raw "/coverage?package=..."
- * URL) pre-selects "Custom URL..." AND pre-fills the free-text box with it, so
- * an admin editing an already-customized link sees the real current value
- * instead of it looking unset.
- * @param {string} blockId - The card-tabs block's id.
- * @param {string} currentVal - The block's current ctaUrl prop (may be empty).
- * @returns {string} HTML string for the Button Link section.
- */
-function renderCardTabsCtaUrlRow(blockId, currentVal) {
-  const val = currentVal || '/coverage';
-  const builtins = [{ value:'/coverage', label:'🎯 Check Coverage page (default)' }].concat(state.navOptions);
-  const known = builtins.some(o => o.value === val);
-  const selVal = known ? val : 'custom';
-  const opts = builtins.map(o =>
-    `<option value="${o.value}" ${selVal===o.value?'selected':''}>${o.label}</option>`
-  ).join('');
-  const boxId = `ctaurl-${blockId}`;
-  return `<div class="props-section">
-    <div class="props-label" style="color:#856404;"><i class="bi bi-link-45deg"></i> Button Link</div>
-    <div class="nav-section">
-      <div class="nav-label"><i class="bi bi-link"></i> Link To</div>
-      <select class="props-select" onchange="updateBlockProp('${blockId}','ctaUrl',this.value);showCustomNav(this,'${boxId}')">
-        ${opts}
-      </select>
-      <div id="cnav-${boxId}" style="display:${selVal==='custom'?'block':'none'};margin-top:6px;">
-        <input class="props-input" type="text" value="${escHtml(selVal==='custom'?val:'')}" placeholder="e.g. /coverage or /coverage?package={package}"
-          oninput="updateBlockProp('${blockId}','ctaUrl',this.value)">
-      </div>
-    </div>
-  </div>`;
-}
-
 // ═══════════════════════════════════════════════════════════
 //  PROP HELPERS
 // ═══════════════════════════════════════════════════════════
@@ -7463,112 +7181,6 @@ function renderCardTabsCtaUrlRow(blockId, currentVal) {
  * @param {*} v - New value to assign.
  */
 function updateBlockProp(bId,k,v) { const b=state.blocks.find(b=>b.id==bId); if(b) { b.props[k]=v; autoSave(); } } // eslint-disable-line eqeqeq
-
-// ─── Card Tabs block (tab-switched grid of existing Volt card designs) ───────
-// Isolated Volt-list cache — deliberately separate from _voltLib (the drag-library
-// panel's cache) so this feature never touches that panel's load/render behaviour.
-const _cardTabsVoltLib = { loaded: false, loading: false, list: [] };
-function loadCardTabsVoltLib() {
-  if (_cardTabsVoltLib.loaded || _cardTabsVoltLib.loading) return;
-  _cardTabsVoltLib.loading = true;
-  fetch('/api/volt')
-    .then(r => r.ok ? r.json() : Promise.reject(r.status))
-    .then(json => {
-      _cardTabsVoltLib.loaded = true;
-      _cardTabsVoltLib.loading = false;
-      _cardTabsVoltLib.list = (json.data && json.data.volts) || [];
-      const sel = state.blocks.find(b => b.id === state.selectedBlockId);
-      if (sel && sel.type === 'card-tabs') renderPropsPanel();
-    })
-    .catch(() => { _cardTabsVoltLib.loading = false; });
-}
-function _cardTabsUid() { return 'ct' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
-function addCardTab(bId) {
-  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
-  if (!b) return;
-  pushHistory();
-  const tabs = b.props.tabs || (b.props.tabs = []);
-  tabs.push({ key: _cardTabsUid(), label: 'Tab ' + (tabs.length + 1), cards: [{ id: _cardTabsUid() }] });
-  autoSave(); renderCanvas(); renderPropsPanel();
-}
-function removeCardTab(bId, tIdx) {
-  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
-  if (!b || !b.props.tabs) return;
-  pushHistory();
-  b.props.tabs.splice(tIdx, 1);
-  autoSave(); renderCanvas(); renderPropsPanel();
-}
-function renameCardTab(bId, tIdx, label) {
-  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
-  if (!b || !b.props.tabs || !b.props.tabs[tIdx]) return;
-  b.props.tabs[tIdx].label = label;
-  autoSave(); renderCanvas();
-}
-function moveCardTab(bId, tIdx, dir) {
-  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
-  if (!b || !b.props.tabs) return;
-  const tabs = b.props.tabs;
-  const newIdx = tIdx + dir;
-  if (newIdx < 0 || newIdx >= tabs.length) return;
-  pushHistory();
-  const moved = tabs.splice(tIdx, 1)[0];
-  tabs.splice(newIdx, 0, moved);
-  autoSave(); renderCanvas(); renderPropsPanel();
-}
-function addCardTabCard(bId, tIdx) {
-  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
-  if (!b || !b.props.tabs || !b.props.tabs[tIdx]) return;
-  pushHistory();
-  b.props.tabs[tIdx].cards.push({ id: _cardTabsUid() });
-  autoSave(); renderCanvas(); renderPropsPanel();
-}
-function removeCardTabCard(bId, tIdx, cIdx) {
-  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
-  if (!b || !b.props.tabs || !b.props.tabs[tIdx]) return;
-  pushHistory();
-  b.props.tabs[tIdx].cards.splice(cIdx, 1);
-  autoSave(); renderCanvas(); renderPropsPanel();
-}
-function updateCardTabCardVolt(bId, tIdx, cIdx, voltId) {
-  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
-  if (!b || !b.props.tabs || !b.props.tabs[tIdx]) return;
-  const card = b.props.tabs[tIdx].cards[cIdx];
-  if (!card) return;
-  if (voltId) card.voltId = voltId; else delete card.voltId;
-  autoSave(); renderCanvas();
-}
-function updateCardTabCardProduct(bId, tIdx, cIdx, productId) {
-  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
-  if (!b || !b.props.tabs || !b.props.tabs[tIdx]) return;
-  const card = b.props.tabs[tIdx].cards[cIdx];
-  if (!card) return;
-  if (productId) {
-    card.productId = productId;
-    // Captured now (rather than looked up at render time) so the live site's
-    // groupByNetwork/groupByTerm sub-tabs need no extra fetch — see
-    // CardTabsCard.networkLabel / CardTabsCard.term.
-    const pr = (window.__allPackages || []).find(function(x){ return x.id === productId; });
-    if (pr && pr.networkName) card.networkLabel = pr.networkName; else delete card.networkLabel;
-    if (pr && pr.term) card.term = pr.term; else delete card.term;
-  } else {
-    delete card.productId;
-    delete card.networkLabel;
-    delete card.term;
-  }
-  autoSave(); renderCanvas();
-}
-function toggleCardTabGroupByNetwork(bId, tIdx, checked) {
-  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
-  if (!b || !b.props.tabs || !b.props.tabs[tIdx]) return;
-  if (checked) b.props.tabs[tIdx].groupByNetwork = true; else delete b.props.tabs[tIdx].groupByNetwork;
-  autoSave(); renderCanvas(); renderPropsPanel();
-}
-function toggleCardTabGroupByTerm(bId, tIdx, checked) {
-  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
-  if (!b || !b.props.tabs || !b.props.tabs[tIdx]) return;
-  if (checked) b.props.tabs[tIdx].groupByTerm = true; else delete b.props.tabs[tIdx].groupByTerm;
-  autoSave(); renderCanvas(); renderPropsPanel();
-}
 
 // Persist the per-block "render in front of the Lower Third" flag (top-level on the block,
 // like block.zIndex/hidden). ON → the live renderer re-draws this block in a plate that sits
@@ -7642,8 +7254,6 @@ function buildVoltPreviewUrl(b) {
   if (b.props.slotImageUrl)    sp.set('imageUrl', b.props.slotImageUrl);
   if (b.props.slotImageAlt)    sp.set('imageAlt', b.props.slotImageAlt);
   if (b.props.slotActionLabel) sp.set('actionLabel', b.props.slotActionLabel);
-  // Linked product → preview resolves its live values into pkg.* slots.
-  if (b.props.productId) sp.set('productId', b.props.productId);
   const overrides = b.props.voltLayerOverrides;
   if (overrides && Object.keys(overrides).length > 0) {
     try { sp.set('overrides', btoa(JSON.stringify(overrides))); } catch(e) { /* ignore */ }
@@ -7674,16 +7284,6 @@ function updateVoltSlot(bId, key, val) {
   const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
   if (!b) return;
   b.props[key] = val;
-  autoSave();
-  refreshVoltIframe(bId);
-}
-
-// Bind (or unbind) this volt block to a coverage-plugin Package. An empty value
-// clears the link so the card falls back to its manual slot text.
-function updateVoltProduct(bId, val) {
-  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
-  if (!b) return;
-  if (val) b.props.productId = val; else delete b.props.productId;
   autoSave();
   refreshVoltIframe(bId);
 }
@@ -9184,7 +8784,7 @@ function setDevicePreview(device) {
         );
       }
     }
-    // 2026-09-21 (SUPERSEDED — see docs/main-cms-sync-prompt.md): an "else"
+    // 2026-09-21 (SUPERSEDED — see docs/CHANGELOG.md): an "else"
     // branch here used to reconcile an ALREADY-seeded variant against the
     // other breakpoints on every switch. Removed per explicit user decision —
     // breakpoints are independent after their initial seed; an already-seeded
@@ -10395,7 +9995,7 @@ function buildFlatPayload() {
  * stores and FlexibleSectionRenderer.tsx reads. Null in -> null out (an
  * un-customized breakpoint stays null so the renderer falls back to Desktop).
  */
-// 2026-09-21 (SUPERSEDED — see docs/main-cms-sync-prompt.md): reconcileNonActiveVariant()
+// 2026-09-21 (SUPERSEDED — see docs/CHANGELOG.md): reconcileNonActiveVariant()
 // used to append missing blocks/sub-elements into non-active variants at save time.
 // Removed per explicit user decision — buildJson now serialises each variant exactly
 // as stored, with no cross-variant writes.
@@ -10434,7 +10034,7 @@ function buildJson() {
   // shape as the active one — the 2026-09-11 bug was that only the active one
   // went through buildJson's converter and the other two were persisted in the
   // raw live-editing shape, with no pixelPos for the renderer to read.
-  // 2026-09-21 (SUPERSEDED — see docs/main-cms-sync-prompt.md): this used to also
+  // 2026-09-21 (SUPERSEDED — see docs/CHANGELOG.md): this used to also
   // reconcile the two non-active variants against each other on every save,
   // appending any block/sub-element they were missing. Removed per explicit user
   // decision — breakpoints are fully independent after their initial seed; each

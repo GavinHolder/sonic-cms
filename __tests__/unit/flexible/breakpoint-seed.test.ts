@@ -1,5 +1,5 @@
 /**
- * Breakpoint SEED semantics (Sonic #208 end state).
+ * Breakpoint SEED semantics (independent-breakpoints end state).
  *
  * Product decision (permanent): a Tablet/Mobile variant is seeded ONCE as a
  * scale+clamp proportional copy of Desktop and is independent afterwards. There is

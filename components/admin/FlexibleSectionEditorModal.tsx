@@ -220,7 +220,7 @@ function FlexibleSectionEditorModalInner({
   const [bgImageOpacity, setBgImageOpacity] = useState(section.bgImageOpacity ?? 100);
   const [bgParallax, setBgParallax] = useState(section.bgParallax || false);
   // Drag-to-reposition anchor for the SECTION's own background image (2026-09-21,
-  // made independent per breakpoint later the same day — see docs/main-cms-sync-prompt.md
+  // made independent per breakpoint later the same day — see docs/CHANGELOG.md
   // and resolveBackgroundPosForBreakpoint's doc comment in flexible-render-rules.js for
   // the full history) — 0-100 percentages per breakpoint, same convention + shared
   // resolveBgPositionCss() resolution as the block-level "Reposition Background" feature
@@ -864,7 +864,7 @@ function FlexibleSectionEditorModalInner({
                     <small className="form-text text-muted mt-1 d-block">
                       Single locks the section to exactly one viewport height. Multi grows to a fixed number of
                       screens you set. Dynamic auto-fits to whatever the section's own content actually needs right
-                      now (e.g. a product tab with more cards), up to the same screen-count cap you set in the
+                      now (e.g. a tab with more cards), up to the same screen-count cap you set in the
                       Designer&apos;s Multi Screen Limit field.
                     </small>
                   </div>

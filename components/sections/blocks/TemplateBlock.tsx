@@ -1,37 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { packageSlotValues, type PackageLike } from "@/lib/packages/format";
+import { useEffect, useRef } from "react";
 
 interface Props {
-  /** Already {{cms.*}}/{{cms.media.*}}-substituted by the caller — this component only
-   * handles the {{pkg.*}} layer, which needs a live product fetch. */
+  /** Already {{cms.*}}/{{cms.media.*}}-substituted by the caller — this component handles the
+   * {{tpl.*}} layer and the sandboxed-iframe wrapper. */
   html: string;
   css: string;
-  /** Single-product binding — fills {{pkg.*}} tokens directly (see applyPkgTokens). */
-  productId?: string;
-  /** Multi-card binding — the scoped package list is fetched here (parent, same-origin)
-   * and handed to the template as window.CMS_TEMPLATE.packages, NOT fetched by the
-   * template's own script. sandbox="allow-scripts" without allow-same-origin gives the
-   * iframe an opaque origin, so its own fetch() calls carry Origin: null — our API
-   * routes send no CORS headers for that, so a same-site fetch from inside the frame
-   * is silently blocked. Fetching here and injecting the result sidesteps that entirely
-   * without loosening the sandbox.
-   *
-   * productTypeSlugs supports MULTIPLE types (like CardTabsBlock/ProductGridBlock) so a
-   * template can build its own top-level category tabs (e.g. Residential/Business/Enterprise) from one
-   * binding — each fetched type's packages keep their own productTypeSlug/Name, network,
-   * and term fields, so the template's script can group by any of them itself. networkSlug
-   * is a separate, single-network scope for "everything on this one network" instead. */
-  networkSlug?: string;
-  networkName?: string;
-  productTypeSlugs?: string[];
   /** Admin-authored "Template Options" (Designer → block properties → Template Options).
    * Two conventions, both opt-in on the template author's side:
    *  - `{{tpl.<key>}}` / `{{tpl.<key>|Default text}}` tokens anywhere in the template's
    *    HTML or inside JS string literals in its own <script> — textual substitution over
-   *    the raw source, same mechanism as {{pkg.*}}, so it also reaches JS that hasn't run
-   *    yet (see applyTplTokens).
+   *    the raw source, so it also reaches JS that hasn't run yet (see applyTplTokens).
    *  - `--tpl-<key>` CSS custom properties declared by the template (typically on :root)
    *    — any key present here is emitted as a `:root{--tpl-key:value}` override <style>
    *    block placed AFTER the template's own <style>, so it wins on equal specificity.
@@ -44,47 +24,6 @@ interface Props {
    * Single/Multi sections (FlexibleSectionRenderer only passes this for a "dynamic" section),
    * so this component's behavior for those modes is completely unchanged. */
   onContentHeight?: (px: number) => void;
-}
-
-interface ScopedPackage {
-  id: string;
-  name: string;
-  speedDown: string | null;
-  speedUp: string | null;
-  price: string;
-  period: string | null;
-  term: string | null;
-  features: unknown;
-  popular: boolean;
-  networkName: string | null;
-  networkSlug: string | null;
-  networkCategory: string | null;
-  /** Admin-set operator/FNO logo (Networks & Packages → Edit Network → Logo), same
-   * URL already used elsewhere for network branding — nothing new to configure, a
-   * template just has to render it. Null until an admin uploads one. */
-  networkLogoUrl: string | null;
-  categoryId: string | null;
-  categoryName: string | null;
-  productTypeSlug: string | null;
-  productTypeName: string | null;
-  /** Admin-set background image (Product Types admin → Background Image), null when
-   * unset. A template's own script can look this up per-tab/per-card and, when it
-   * wants the containing SECTION's background to swap to it, send:
-   *   window.parent.postMessage(
-   *     { source: 'sonic-cms-template', type: 'background-override', imageUrl: <url> | null },
-   *     '*'
-   *   )
-   * See FlexibleSectionRenderer.tsx's matching listener for the full contract —
-   * imageUrl: null (or omitted product type background) reverts to the section's
-   * own normally-configured background. */
-  productTypeBackgroundUrl?: string | null;
-  /** The product type's linked ServiceCategory, if any (see #111 in the sync doc) — null
-   * for every product type until an admin opts in via the Product Types admin. Already
-   * present on the raw /api/packages JSON response regardless of this type annotation;
-   * declared here so a template's own script (reading window.CMS_TEMPLATE.packages) has
-   * a documented, typed field to group its top-level tabs by. */
-  serviceCategorySlug: string | null;
-  serviceCategoryName: string | null;
 }
 
 /** Cheap FNV-1a hash — used only to detect "did this template's own content
@@ -104,16 +43,11 @@ function fnv1aHash(s: string): string {
   return (h >>> 0).toString(36);
 }
 
-function applyPkgTokens(input: string, slots: Record<string, string>): string {
-  if (!input) return input;
-  return input.replace(/\{\{pkg\.([a-zA-Z0-9_]+)\}\}/g, (_, key: string) => slots[`pkg.${key}`] ?? "");
-}
-
 /**
  * Substitutes `{{tpl.<key>}}` / `{{tpl.<key>|Default text}}` tokens with the matching
  * entry from the admin-authored `templateOptions` map (Designer "Template Options"
  * panel), falling back to the token's own inline default, then to an empty string.
- * Runs on the raw HTML/CSS *source* text — same as applyPkgTokens — so a token sitting
+ * Runs on the raw HTML/CSS *source* text so a token sitting
  * inside a <script> tag's JS string literal is substituted before that script ever
  * executes in the sandboxed iframe, not after.
  *
@@ -153,24 +87,11 @@ function buildTplVarsStyle(options: Record<string, string>): string {
 
 /**
  * TemplateBlock — sandboxed-iframe renderer for the FLEXIBLE section "template" block
- * type, with two optional live-data bindings. Split out of FlexibleSectionRenderer's
- * inline switch because both bindings need a client fetch (useEffect), and that
- * switch's cases can't call hooks conditionally — every other data-bound block type
- * (VoltBlock, CardTabsBlock, ProductGridBlock) follows this same split.
- *
- * - productId: single-product binding, fills {{pkg.*}} tokens directly into the
- *   template's HTML/CSS before it ever loads. Token names match packageSlotValues
- *   exactly, same convention as a data-bound Volt card slot.
- * - networkSlug / productTypeSlugs: multi-card binding. The scoped package list is
- *   fetched here and handed to the template as window.CMS_TEMPLATE.packages — for a
- *   template with its own multi-card grid + tab UI, self-contained but linked to the
- *   product subsystem (see components/sections/blocks/CardTabsBlock.tsx for the
- *   Designer-native equivalent of this same idea).
+ * type. Split out of FlexibleSectionRenderer's inline switch because it needs its own
+ * hooks (message listener, iframe ref), and that switch's cases can't call hooks
+ * conditionally.
  */
-export default function TemplateBlock({ html, css, productId, networkSlug, networkName, productTypeSlugs, templateOptions, onContentHeight }: Props) {
-  const [pkgSlots, setPkgSlots] = useState<Record<string, string>>({});
-  const [scopedPackages, setScopedPackages] = useState<ScopedPackage[]>([]);
-  const slugsKey = (productTypeSlugs || []).join(",");
+export default function TemplateBlock({ html, css, templateOptions, onContentHeight }: Props) {
   // Ref to THIS instance's own iframe — a page can hold more than one TemplateBlock (a
   // section can have >1 block), and the message listener below must only react to a
   // height report from its own iframe, never one bubbling up from an unrelated iframe
@@ -191,7 +112,7 @@ export default function TemplateBlock({ html, css, productId, networkSlug, netwo
   // MESSAGE CONTRACT — a template author's own <script> should send, whenever its content's
   // rendered height changes (e.g. after switching a tab that shows more/fewer cards):
   //   window.parent.postMessage(
-  //     { source: 'sonic-cms-template', type: 'content-height', height: <number, px> },
+  //     { source: 'cms-template', type: 'content-height', height: <number, px> },
   //     '*'
   //   )
   // targetOrigin '*' is deliberate, not a shortcut: the iframe itself has an opaque origin
@@ -208,7 +129,7 @@ export default function TemplateBlock({ html, css, productId, networkSlug, netwo
       const data = event.data as unknown;
       if (!data || typeof data !== "object") return;
       const msg = data as { source?: unknown; type?: unknown; height?: unknown };
-      if (msg.source !== "sonic-cms-template" || msg.type !== "content-height") return;
+      if (msg.source !== "cms-template" || msg.type !== "content-height") return;
       if (typeof msg.height !== "number" || !Number.isFinite(msg.height) || msg.height <= 0) return;
       // Only accept a report from THIS instance's own iframe (see iframeRef comment above) —
       // never from some other TemplateBlock/iframe elsewhere on the page.
@@ -219,59 +140,10 @@ export default function TemplateBlock({ html, css, productId, networkSlug, netwo
     return () => window.removeEventListener("message", onMessage);
   }, [onContentHeight]);
 
-  useEffect(() => {
-    if (!productId) { setPkgSlots({}); return; }
-    let active = true;
-    fetch(`/api/packages?ids=${encodeURIComponent(productId)}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (!active) return;
-        const pkg = data && Array.isArray(data.packages) ? (data.packages[0] as PackageLike | undefined) : undefined;
-        setPkgSlots(pkg ? packageSlotValues(pkg) : {});
-      })
-      .catch(() => { if (active) setPkgSlots({}); });
-    return () => { active = false; };
-  }, [productId]);
-
-  useEffect(() => {
-    const slugs = slugsKey ? slugsKey.split(",") : [];
-    let active = true;
-    if (slugs.length > 0) {
-      Promise.all(
-        slugs.map((slug) =>
-          fetch(`/api/packages?productType=${encodeURIComponent(slug)}`)
-            .then((r) => (r.ok ? r.json() : { packages: [] }))
-            .then((d) => (Array.isArray(d?.packages) ? (d.packages as ScopedPackage[]) : []))
-            .catch(() => [] as ScopedPackage[])
-        )
-      ).then((results) => { if (active) setScopedPackages(results.flat()); });
-    } else if (networkSlug) {
-      fetch(`/api/packages?network=${encodeURIComponent(networkSlug)}`)
-        .then((r) => (r.ok ? r.json() : null))
-        .then((data) => { if (active) setScopedPackages(data && Array.isArray(data.packages) ? (data.packages as ScopedPackage[]) : []); })
-        .catch(() => { if (active) setScopedPackages([]); });
-    } else {
-      setScopedPackages([]);
-    }
-    return () => { active = false; };
-  }, [slugsKey, networkSlug]);
-
   const tplOptions = templateOptions || {};
-  const finalHtml = applyTplTokens(applyPkgTokens(html, pkgSlots), tplOptions);
-  const finalCss = applyTplTokens(applyPkgTokens(css, pkgSlots), tplOptions);
+  const finalHtml = applyTplTokens(html, tplOptions);
+  const finalCss = applyTplTokens(css, tplOptions);
   const tplVarsStyle = buildTplVarsStyle(tplOptions);
-
-  // Read by the template's own script, not substituted into the markup. \u003c escaping
-  // prevents a network/type name or package field containing "</script>" from breaking
-  // out of this inline script (admin-authored data, but cheap to guard anyway).
-  const templateContext = {
-    productId: productId || null,
-    networkSlug: networkSlug || null,
-    networkName: networkName || null,
-    productTypeSlugs: productTypeSlugs && productTypeSlugs.length ? productTypeSlugs : null,
-    packages: scopedPackages,
-  };
-  const contextScript = `<script>window.CMS_TEMPLATE=${JSON.stringify(templateContext).replace(/</g, "\\u003c")};</script>`;
 
   // sandbox="allow-scripts" WITHOUT allow-same-origin is deliberate — see
   // FlexibleSectionRenderer.tsx's "template" case for the full rationale: the frame
@@ -288,23 +160,19 @@ export default function TemplateBlock({ html, css, productId, networkSlug, netwo
   // encountered, which is what the comment on buildTplVarsStyle above has always assumed.
   const srcDoc = `<!doctype html><html><head><meta charset="utf-8">${
     finalCss ? `<style>${finalCss}</style>` : ""
-  }${contextScript}</head><body style="margin:0">${finalHtml}${tplVarsStyle}</body></html>`;
+  }</head><body style="margin:0">${finalHtml}${tplVarsStyle}</body></html>`;
 
-  // Keyed on the live-data readiness AND the template's own content, not just a
-  // static block id: mutating an already-loaded iframe's srcdoc attribute in place
-  // does not reliably re-navigate it in every browser (observed empirically — the
-  // attribute updates, the visible document doesn't). Changing `key` forces React to
-  // mount a fresh iframe once the product/network fetch resolves, guaranteeing a
-  // clean load of the final content instead of racing an in-place update against an
-  // already-parsed document. Originally only covered the product/network binding
-  // changing — html/css themselves weren't in the key, so an admin editing a
-  // template's own content (the normal case: fixing a card's layout/CSS) hit this
-  // exact stale-iframe bug on any client that already had the block mounted, with no
-  // way to tell a live content edit from the "hasn't loaded yet" case. Hashed (not
+  // Keyed on the template's own content, not just a static block id: mutating an
+  // already-loaded iframe's srcdoc attribute in place does not reliably re-navigate it
+  // in every browser (observed empirically — the attribute updates, the visible
+  // document doesn't). Changing `key` forces React to mount a fresh iframe, guaranteeing
+  // a clean load of the final content instead of racing an in-place update against an
+  // already-parsed document. An admin editing a template's own content (the normal
+  // case: fixing a card's layout/CSS) must not hit a stale iframe. Hashed (not
   // raw html/css) so a same-length edit — e.g. "opacity: 0" -> "opacity: 1", an
   // ordinary CSS tweak, not an edge case — still changes the key; string.length alone
   // would miss it and silently reproduce this exact bug.
-  const iframeKey = `${productId ?? ""}:${Object.keys(pkgSlots).length}:${scopedPackages.length}:${JSON.stringify(tplOptions)}:${fnv1aHash(html + css)}`;
+  const iframeKey = `${JSON.stringify(tplOptions)}:${fnv1aHash(html + css)}`;
 
   return (
     <iframe

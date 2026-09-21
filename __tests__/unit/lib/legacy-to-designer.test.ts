@@ -108,10 +108,10 @@ describe("round-trip for non-card element types", () => {
     expect((back.content as Record<string, unknown>).stepsNumberWidth).toBe(100);
   });
 
-  it("pricing-tabs: arbitrary content spread through verbatim", () => {
-    const el = { id: "pt", type: "pricing-tabs", content: { tabs: [{ label: "Home" }], note: "x" }, position: { colSpan: 12, rowSpan: 1 } } as unknown as FlexibleElement;
+  it("custom-block: arbitrary content spread through verbatim", () => {
+    const el = { id: "cb", type: "custom-block", content: { tabs: [{ label: "Home" }], note: "x" }, position: { colSpan: 12, rowSpan: 1 } } as unknown as FlexibleElement;
     const back = designerBlockToElement(elementToBlock(el));
-    expect(back.type).toBe("pricing-tabs");
+    expect(back.type).toBe("custom-block");
     expect(back.content).toEqual({ tabs: [{ label: "Home" }], note: "x" });
   });
 });

@@ -28,8 +28,6 @@ const InteractiveProductCard   = dynamic(() => import("@/components/sections/blo
 const ScrollStoryBlock         = dynamic(() => import("@/components/sections/blocks/ScrollStoryBlock"), { ssr: false });
 const EditorialBlock           = dynamic(() => import("@/components/sections/blocks/EditorialBlock"), { ssr: false });
 const GalleryCtaBlock          = dynamic(() => import("@/components/sections/blocks/GalleryCtaBlock"), { ssr: false });
-const CardTabsBlock             = dynamic(() => import("@/components/sections/blocks/CardTabsBlock"), { ssr: false });
-const ProductGridBlock         = dynamic(() => import("@/components/sections/blocks/ProductGridBlock"), { ssr: false });
 const TemplateBlock            = dynamic(() => import("@/components/sections/blocks/TemplateBlock"), { ssr: false });
 
 /** Shape returned by GET /api/templates/[id]/content — see that route's own
@@ -459,7 +457,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   const resolvedDesignerVariants = useMemo(() => resolveVariants(designerData), [designerData]);
   const { data: pickedDesignerData, isFallback: isBreakpointFallback } =
     pickActiveVariant(resolvedDesignerVariants, activeBreakpointKey);
-  // 2026-09-21 (SUPERSEDED — see docs/main-cms-sync-prompt.md): this used to be a
+  // 2026-09-21 (SUPERSEDED — see docs/CHANGELOG.md): this used to be a
   // useMemo that additively self-healed a Tablet/Mobile variant by appending/unioning
   // in any block/sub-element present on Desktop but missing here. Removed per explicit
   // user decision — the live page now renders exactly what is stored for the resolved
@@ -590,7 +588,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   // Drag-to-reposition anchor for the section's OWN background image (2026-09-21,
   // made independent per breakpoint later the same day — see
   // resolveBackgroundPosForBreakpoint's doc comment in flexible-render-rules.js and
-  // docs/main-cms-sync-prompt.md for the full history) — 0-100 percentages, content
+  // docs/CHANGELOG.md for the full history) — 0-100 percentages, content
   // JSONB (see FlexibleSectionEditorModal.tsx's matching backgroundPos state
   // declaration for why not a schema column). Extends the block-level "Reposition
   // Background" feature's convention (bgImageX/Y on a 'hero' block, imagePosX/Y on an
@@ -634,18 +632,15 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
 
   // ── Background Override (generic renderer capability) ──────────────────────────
   // Lets a TemplateBlock's own sandboxed-iframe content swap THIS section's background
-  // image live — e.g. a pricing template with Service Category / Product Type tabs,
-  // where each Product Type can have its own admin-set background (Product Types admin
-  // → Background Image, see /api/packages' productTypeBackgroundUrl). Mirrors the
-  // existing "content-height" channel in TemplateBlock.tsx: same source tag, same '*'
+  // image live — e.g. a tabbed template where each tab wants its own backdrop. Mirrors
+  // the existing "content-height" channel in TemplateBlock.tsx: same source tag, same '*'
   // targetOrigin rationale (opaque sandboxed-iframe origin, non-sensitive payload), same
-  // defensive validation style. Reusable by ANY TemplateBlock content, not just the
-  // pricing card — nothing here is pricing-specific.
+  // defensive validation style. Reusable by ANY TemplateBlock content.
   //
   // MESSAGE CONTRACT — a template author's own <script> sends, whenever the active
   // tab/selection's background should change:
   //   window.parent.postMessage(
-  //     { source: 'sonic-cms-template', type: 'background-override', imageUrl: '<url>' | null },
+  //     { source: 'cms-template', type: 'background-override', imageUrl: '<url>' | null },
   //     '*'
   //   )
   // imageUrl: a string swaps this section's rendered background image to that URL.
@@ -665,7 +660,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
       const data = event.data as unknown;
       if (!data || typeof data !== "object") return;
       const msg = data as { source?: unknown; type?: unknown; imageUrl?: unknown };
-      if (msg.source !== "sonic-cms-template" || msg.type !== "background-override") return;
+      if (msg.source !== "cms-template" || msg.type !== "background-override") return;
       if (msg.imageUrl !== null && typeof msg.imageUrl !== "string") return;
       const sectionEl = sectionRef.current;
       if (!sectionEl) return;
@@ -936,7 +931,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           // the ONLY one that actually renders the blocks (the non-plate call below always
           // returns null in free mode, see its own onDynamicScreensChange gating), so it's
           // the only instance that ever receives real reportBlockHeight() calls from a
-          // self-sizing block (TemplateBlock/CardTabsBlock/ProductGridBlock). Without these
+          // self-sizing block (TemplateBlock). Without these
           // two props, dynamicMeta.isDynamic falls back to designerData.contentMode (often
           // stale) and this instance's live-measured dynamicScreens was never reported
           // anywhere — the section silently stayed pinned to 1 screen no matter how tall
@@ -1709,10 +1704,9 @@ function FullBleedVoltLayer({ props: p }: { props: Record<string, unknown> }) {
     badge:       (p.slotBadge as string)       || nested.badge       || undefined,
     icon:        (p.slotIcon as string)        || nested.icon        || undefined,
   };
-  const productId = (p.productId as string) || undefined;
   return (
     <div aria-hidden="true" style={{ position: "absolute", inset: 0, overflow: "hidden", zIndex: 2, pointerEvents: "none" }}>
-      <VoltBlock voltId={voltId} slots={voltSlots} fitMode="cover" productId={productId} />
+      <VoltBlock voltId={voltId} slots={voltSlots} fitMode="cover" />
     </div>
   );
 }
@@ -1829,11 +1823,9 @@ function DesignerBlocksRenderer({
   // still N×100vh, still scroll-snap-align:start/stop:normal — see globals.css
   // [data-content-mode="dynamic"]) but N is computed LIVE from whichever block reports the
   // tallest actually-rendered content, instead of being a fixed number the admin picked.
-  // Two reporting channels feed the same blockHeights map:
+  // The reporting channel feeds the blockHeights map:
   //  - "template" blocks (sandboxed iframe, opaque origin) report via postMessage — see
   //    TemplateBlock.tsx's onContentHeight / documented message contract.
-  //  - "card-tabs"/"product-grid" blocks (same-origin React, no iframe boundary) report via
-  //    a ResizeObserver on their own rendered container — see DesignerBlock below.
   // A section can hold >1 dynamic-capable block; height is driven by whichever block
   // CURRENTLY reports the tallest content, so one block shrinking (e.g. switching to a
   // shorter tab) never incorrectly shrinks the section out from under a still-tall sibling.
@@ -2200,7 +2192,7 @@ function DesignerBlocksRenderer({
       //   transforms, not one shared plate transform. They used to share one: a single
       //   non-uniform scale(sx,sy) killed the letterbox gutters on the background, but
       //   applied that SAME sx≠sy distortion to every content block too — stretching the
-      //   pricing cards' chevrons/buttons/text out of proportion (reported live, 2026-09-04,
+      //   cards' chevrons/buttons/text out of proportion (reported live, 2026-09-04,
       //   same day as the non-uniform fix). Cards and background are explicitly separate
       //   concerns (user directive, 2026-09-04: "the bg and product cards are two separate
       //   things ... fixed separately") and must never share a distortable transform again:
@@ -2358,27 +2350,27 @@ function DesignerBlocksRenderer({
                   </div>
                 ));
               }
-              // Non-container block (hero, image, packages, etc.): whole block at its design px box.
+              // Non-container block (hero, image, template, etc.): whole block at its design px box.
               //
-              // SELF_SIZING_TYPES (template/card-tabs/product-grid — see that Set's own doc
+              // SELF_SIZING_TYPES ("template" — see that Set's own doc
               // comment) are the one exception: hard-clipping them to the authored pos.h with
               // overflow:hidden is exactly the bug #131 already fixed for the MOBILE reflow
-              // stack, just never carried over to this desktop path. A template block bound to
-              // a live pricing grid has content whose real height depends on which tab/term is
+              // stack, just never carried over to this desktop path. A template block with tabs
+              // or expandable cards has content whose real height depends on which tab is
               // selected and what's currently expanded — an admin-authored fixed box can only
               // ever be right for ONE of those states. When it's wrong: too-tall content gets
               // silently clipped (a card cut off mid-price) and — since the wrapper clips the
               // BOX but the iframe inside still has its own overflowing internal document —
               // the iframe shows ITS OWN internal scrollbar at the clip boundary, which reads
               // as "why is there a scrollbar, nothing needs to scroll" from outside. Any height
-              // CHANGE while clipped (a tab switch to a taller package set, a hover-reveal
+              // CHANGE while clipped (a tab switch to a taller card set, a hover-reveal
               // growing a card) reads as "stuck, then jumps" — the fixed box doesn't move, so
               // the change is invisible until it crosses the clip line, then suddenly isn't.
               //
               // Fix: reuse the SAME blockHeights/reportBlockHeight state this component already
               // maintains for Dynamic Content Height Mode (just below) — SELF_SIZING_TYPES leaves
               // report their live content height via the same onContentHeight channel
-              // TemplateBlock/CardTabsBlock/ProductGridBlock already speak, and this box grows
+              // TemplateBlock already speaks, and this box grows
               // to match instead of clipping. Every other block type (image, video, hero, etc.)
               // is completely untouched — same fixed pos.h + overflow:hidden as before.
               const isSelfSizing = SELF_SIZING_TYPES.has(block.type);
@@ -2447,8 +2439,8 @@ function DesignerBlocksRenderer({
         // (see components/sections/blocks/TemplateBlock.tsx) — a percentage height on a
         // replaced element can never resolve inside an 'auto' grid track (no definite size
         // to resolve against), so the browser falls back to the iframe's UA-default intrinsic
-        // box (300×150px). That silently squashed every "template" block (e.g. a pricing
-        // grid with tab bars) to ~150px tall with clipped overflow — the tab bar/cards past
+        // box (300×150px). That silently squashed every "template" block (e.g. a grid
+        // with tab bars) to ~150px tall with clipped overflow — the tab bar/cards past
         // that point were never visible on the live page even though the row's own content
         // needed 500-700px. '1fr' resolves against the grid's definite minHeight instead,
         // giving the iframe a real height to fill.
@@ -2586,36 +2578,13 @@ function DesignerBlock({ block, darkBg, onContentHeight }: {
   // same cast used elsewhere in this file, e.g. the "template" case's blockDomId).
   const blockId = String((block as unknown as { id?: string | number }).id ?? "");
 
-  // ── Dynamic Content Height Mode: same-origin native blocks (card-tabs/product-grid) ──────
-  // These render as normal React DOM (no iframe boundary), so — unlike "template" blocks,
-  // which need postMessage — their own rendered container height can be measured directly
-  // with a ResizeObserver. Debounced ~100ms so a burst of resize events from a tab-switch
-  // reflow doesn't thrash the parent's state on every intermediate frame.
-  const contentHeightRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!onContentHeight) return;
-    if (block.type !== "card-tabs" && block.type !== "product-grid") return;
-    const el = contentHeightRef.current;
-    if (!el || !blockId || typeof ResizeObserver === "undefined") return;
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    const ro = new ResizeObserver((entries) => {
-      const h = entries[0]?.contentRect?.height;
-      if (!h) return;
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => onContentHeight(blockId, h), 100);
-    });
-    ro.observe(el);
-    return () => { ro.disconnect(); if (debounceTimer) clearTimeout(debounceTimer); };
-  }, [block.type, blockId, onContentHeight]);
-
-
   // ── Template block: resolve content LIVE from the library, not the stored
   // copy ────────────────────────────────────────────────────────────────────
   // block.props.customHtml/customCss are a SNAPSHOT taken when the admin last
   // picked this template from the "Change template" dropdown
   // (applyTemplateSelection in flexible-designer.html), not a live link — that
   // copy silently goes stale the moment the library template changes after the
-  // fact (see docs/main-cms-sync-prompt.md #145 for the incident this caused).
+  // fact (see docs/CHANGELOG.md for the incident this caused).
   // Fetching the CURRENT library content by templateId here makes it a live
   // reference instead: one source of truth, no copy to drift. Falls back to
   // the stored customHtml/customCss while the fetch is in flight or if it
@@ -2737,7 +2706,7 @@ function DesignerBlock({ block, darkBg, onContentHeight }: {
   else if (cardEffect !== "none") shellClasses.push(`db-effect-${cardEffect}`);
   if (boxShadowPre !== "none") shellClasses.push(`db-shadow-${boxShadowPre}`);
 
-  // SELF_SIZING_TYPES (template/card-tabs/product-grid) needs overflow:visible at
+  // SELF_SIZING_TYPES ("template") needs overflow:visible at
   // THIS shell too, regardless of the admin's actual heightMode setting — this
   // shell is a SEPARATE overflow:hidden wrapper nested inside the free-mode
   // absolute box that already respects isSelfSizing (see that box's own comment a
@@ -3058,72 +3027,13 @@ function DesignerBlock({ block, darkBg, onContentHeight }: {
         // Full-bleed background volt → cover fit + full box (no flex centering) so it
         // fills the cell edge-to-edge, matching the designer preview. Off → unchanged.
         const voltFullBleed = !!p.fullBleed;
-        // Optional data-bound product: VoltBlock fetches the package and auto-populates
-        // slots bound to pkg.* field hints. Undefined → manual slot text only (unchanged).
-        const voltProductId = (p.productId as string) || undefined;
         return (
           <div style={voltFullBleed
             ? { height: "100%", width: "100%" }
             : { height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <VoltBlock voltId={voltId} slots={voltSlots} fitMode={voltFullBleed ? "cover" : "contain"} productId={voltProductId} />
+            <VoltBlock voltId={voltId} slots={voltSlots} fitMode={voltFullBleed ? "cover" : "contain"} />
           </div>
         );
-      }
-
-      // ── card-tabs: auto-populating Product Type -> Network -> Term grid of live
-      // packages (see CardTabsBlock.tsx). Falls back to a legacy manually-authored
-      // tabs[] shape when productTypeSlugs isn't set — CardTabsBlock itself decides
-      // which mode to render, so this case just passes both shapes through as-is. ──
-      case "card-tabs": {
-        const ctSlugs = p.productTypeSlugs as string[] | undefined;
-        const ctTabs = p.tabs as import("@/components/sections/blocks/CardTabsBlock").CardTabsTab[] | undefined;
-        if ((!ctSlugs || ctSlugs.length === 0) && (!ctTabs || ctTabs.length === 0)) {
-          return (
-            <div style={{ padding: "20px", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#6c757d" }}>
-              <span style={{ fontSize: "12px" }}>No product types configured</span>
-            </div>
-          );
-        }
-        {
-          const ctBlock = (
-            <CardTabsBlock
-              content={{
-                productTypeSlugs: ctSlugs,
-                voltId: p.voltId as string | undefined,
-                tabs: ctTabs,
-                minCardWidth: p.minCardWidth as number | undefined,
-                cardAspectRatio: p.cardAspectRatio as string | undefined,
-              }}
-              darkBg={darkBg}
-            />
-          );
-          // Dynamic Content Height Mode: wrap with the ResizeObserver-measured container
-          // (see contentHeightRef above) ONLY when a report callback was actually passed
-          // down (contentMode === "dynamic") — Single/Multi sections render the block
-          // exactly as before, no extra wrapper div. Deliberately no explicit height here
-          // (would clamp the very measurement it needs to make) — natural content sizing.
-          return onContentHeight ? <div ref={contentHeightRef}>{ctBlock}</div> : ctBlock;
-        }
-      }
-
-      // ── product-grid: 3-layer Product Type → Network → Category drill-down grid of
-      // existing Volt card designs, each bound to a live package via VoltBlock's productId ──
-      case "product-grid": {
-        const pgSlugs = p.productTypeSlugs as string[] | undefined;
-        const pgVoltId = p.voltId as string | undefined;
-        if (!pgSlugs || pgSlugs.length === 0) {
-          return (
-            <div style={{ padding: "20px", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#6c757d" }}>
-              <span style={{ fontSize: "12px" }}>No product types configured</span>
-            </div>
-          );
-        }
-        {
-          const pgBlock = <ProductGridBlock content={{ productTypeSlugs: pgSlugs, voltId: pgVoltId, minCardWidth: p.minCardWidth as number | undefined, heading: p.heading as string | undefined }} darkBg={darkBg} />;
-          // Dynamic Content Height Mode — see the identical wrapping in the "card-tabs"
-          // case above for the full rationale.
-          return onContentHeight ? <div ref={contentHeightRef}>{pgBlock}</div> : pgBlock;
-        }
       }
 
       // ── template: renders an admin-imported "Section Block" HTML template as a block ──
@@ -3173,28 +3083,17 @@ function DesignerBlock({ block, darkBg, onContentHeight }: {
         const templateCss  = applyMediaSlots(applyCmsVars(effectiveCss));
         // `block` here isn't typed with an `id` field (see the narrowed param type above), but
         // the runtime designer block object always has one — used as the remount key so
-        // switching which template/product is bound doesn't reuse a stale iframe.
+        // switching which template is bound doesn't reuse a stale iframe.
         const blockDomId = (block as unknown as { id?: string }).id || templateId;
-        const templateProductId = p.productId as string | undefined;
-        const templateNetworkSlug = p.networkSlug as string | undefined;
-        const templateNetworkName = p.networkName as string | undefined;
-        const templateProductTypeSlugs = p.productTypeSlugs as string[] | undefined;
         // "Template Options" ({{tpl.*}} tokens + --tpl-* CSS vars, set via the Designer's
-        // Template Options panel). Substitution itself lives in TemplateBlock (shared with
-        // the Designer's own /template-preview canvas route) so the two render sites can
-        // never drift — this call site only needs to read the prop and pass it through.
+        // Template Options panel). Substitution itself lives in TemplateBlock — this call
+        // site only needs to read the prop and pass it through.
         const templateOptions = (p.templateOptions && typeof p.templateOptions === "object" ? p.templateOptions : {}) as Record<string, string>;
-        // The {{pkg.*}} layer (optional live product binding) needs its own client fetch —
-        // split into TemplateBlock so that hook isn't called conditionally inside this switch.
         return (
           <TemplateBlock
             key={blockDomId}
             html={templateHtml}
             css={templateCss}
-            productId={templateProductId}
-            networkSlug={templateNetworkSlug}
-            networkName={templateNetworkName}
-            productTypeSlugs={templateProductTypeSlugs}
             templateOptions={templateOptions}
             onContentHeight={onContentHeight ? (px: number) => onContentHeight(blockDomId, px) : undefined}
           />
@@ -3376,25 +3275,25 @@ type ReflowLeaf = {
   node: React.ReactNode;
   aspect?: number | null; // non-container block design aspect (w/h), else null
   minH?: number;          // non-container block fallback min-height when no aspect
-  selfSizing?: boolean;   // true for template/card-tabs/product-grid — see SELF_SIZING_TYPES
+  selfSizing?: boolean;   // true for template blocks — see SELF_SIZING_TYPES
   blockId?: string;       // id used to key this leaf's live-reported content height
 };
 
 /**
  * Block types whose real content height on mobile can differ wildly from their desktop
- * aspect ratio — a "template" block bound to a multi-card pricing grid is a good example:
+ * aspect ratio — a "template" block holding a multi-card grid is a good example:
  * on desktop the cards sit side by side in a short, wide box; stacked single-column on
  * mobile (FreeReflowStack, single-column always) the SAME cards need several times that
  * height. Forcing these into `aspectRatio: designW/designH` (the treatment every other
  * free-mode block gets below) reproduces the exact box the desktop design used and clips
  * everything past it via the wrapper's overflow:hidden — a card cut off mid-price, or
- * only the first of three cards visible at all. These three types instead get a
+ * only the first of three cards visible at all. These types instead get a
  * content-driven height (see reportHeight/liveHeights in FreeReflowStack) — the same
- * onContentHeight channel Dynamic Content Height Mode already uses for these exact block
- * types elsewhere in this file (DesignerBlock's card-tabs/product-grid ResizeObserver and
- * "template" case's postMessage wiring), just consumed here instead of by the section.
+ * onContentHeight channel Dynamic Content Height Mode already uses for them elsewhere
+ * in this file ("template" case's postMessage wiring), just consumed here instead of by
+ * the section.
  */
-const SELF_SIZING_TYPES = new Set(["template", "card-tabs", "product-grid"]);
+const SELF_SIZING_TYPES = new Set(["template"]);
 
 /**
  * FreeReflowStack — the free-mode MOBILE+TABLET layout (< FREE_MODE_REFLOW_BREAKPOINT).
@@ -3408,7 +3307,7 @@ const SELF_SIZING_TYPES = new Set(["template", "card-tabs", "product-grid"]);
  *     elements that overlapped or sat adjacent (e.g. a paragraph and the emphasized
  *     heading continuing its sentence) render tight and read as connected, while
  *     far-apart elements keep a normal gap. Fonts become readable fluid clamps (mobile).
- *  4. SELF_SIZING_TYPES (template/card-tabs/product-grid) skip the aspect-ratio box
+ *  4. SELF_SIZING_TYPES ("template") skip the aspect-ratio box
  *     every other block gets and instead grow to their own live-reported content height
  *     — see reportHeight below and SELF_SIZING_TYPES' doc comment for why.
  */
@@ -3418,9 +3317,8 @@ function FreeReflowStack({ blocks, designerCanvasW, containerW, darkBg }: {
   const isContainerType = (t: string) => t === "text" || t === "text-block" || t === "card";
 
   // Live content height per self-sizing leaf (keyed by block id), reported by
-  // DesignerBlock's own onContentHeight channel (postMessage for "template", a
-  // ResizeObserver for "card-tabs"/"product-grid" — same mechanism Dynamic Content
-  // Height Mode already uses elsewhere in this file). Undefined until the first report
+  // DesignerBlock's own onContentHeight channel (postMessage for "template" — same
+  // mechanism Dynamic Content Height Mode already uses elsewhere in this file). Undefined until the first report
   // lands, so those leaves start at a placeholder minHeight and grow once real content
   // height is known — never a fixed aspect-ratio box that can clip a multi-card grid.
   const [liveHeights, setLiveHeights] = useState<Record<string, number>>({});
@@ -3480,7 +3378,7 @@ function FreeReflowStack({ blocks, designerCanvasW, containerW, darkBg }: {
   // 12px, not the original 20px — this sits inside the shared `.container-fluid`
   // wrapper (FlexibleSectionRenderer.tsx), which already contributes its own default
   // Bootstrap gutter (12px/side). The two were stacking to 32px/side (64px total on a
-  // 375px phone), squeezing a self-sizing block like the pricing widget's iframe down
+  // 375px phone), squeezing a self-sizing block like a template's iframe down
   // to 311px — not enough room for its own tab row, cutting off the last tab.
   // 12px/side here (24px/side combined with the gutter) still gives every block real
   // breathing room from the screen edge, just not doubled.

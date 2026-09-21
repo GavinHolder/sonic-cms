@@ -11,11 +11,9 @@ interface Props {
   instanceOverrides?: VoltInstanceOverrides;
   /** Fit mode from the ?fit= param. "contain" (default) centres + aspect-locks; "cover"/"fill" are full-bleed backgrounds. */
   fit?: "contain" | "fill" | "cover";
-  /** Optional linked product id — forwarded to VoltBlock to auto-populate pkg.* slots. */
-  productId?: string;
 }
 
-export default function VoltPreviewClient({ voltId, slots, instanceOverrides, fit = "contain", productId }: Props) {
+export default function VoltPreviewClient({ voltId, slots, instanceOverrides, fit = "contain" }: Props) {
   const fullBleed = fit === "cover" || fit === "fill";
   return (
     <div style={{
@@ -28,7 +26,7 @@ export default function VoltPreviewClient({ voltId, slots, instanceOverrides, fi
       background: "transparent",
       overflow: "hidden",
     }}>
-      <VoltBlock voltId={voltId} slots={slots} instanceOverrides={instanceOverrides} fitMode={fit} productId={productId} />
+      <VoltBlock voltId={voltId} slots={slots} instanceOverrides={instanceOverrides} fitMode={fit} />
     </div>
   );
 }
