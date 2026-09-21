@@ -43,13 +43,13 @@ function refreshSession(): Promise<boolean> {
 }
 
 export async function fetchWithRefresh(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  // Pristine copies for the (at most one) retry — a Request body can only be consumed once.
+  // A Request input's body can only be consumed once, so keep a clone for the (at most one) retry.
+  // `init` is reused as-is: every caller here passes a JSON string body, which fetch can send twice.
   const retryInput = typeof Request !== "undefined" && input instanceof Request ? input.clone() : input;
-  const retryInit = init ? { ...init } : undefined;
 
   const first = await fetch(input, init);
   if (first.status !== 401) return first;
 
   if (!(await refreshSession())) return first;
-  return fetch(retryInput, retryInit);
+  return fetch(retryInput, init);
 }

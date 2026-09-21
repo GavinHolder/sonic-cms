@@ -108,11 +108,17 @@ function UseAsPageModal({ template, onClose, onCreated }: UseAsPageModalProps) {
         // For section templates: add the template's section to the new page
         if (pageRes.ok && template.templateType === "section") {
           const sectionData = template.data as Record<string, unknown>;
-          await fetchWithRefresh("/api/sections", {
+          const sectionRes = await fetchWithRefresh("/api/sections", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ pageSlug: slug, ...sectionData }),
           });
+          if (!sectionRes.ok) {
+            // The page row already exists; say so, and skip the homepage step so an empty page is never made the homepage.
+            setError(`Page created at /${slug}, but its template section could not be saved (HTTP ${sectionRes.status}). Open the page in the editor to add it.`);
+            setSaving(false);
+            return;
+          }
         }
       }
 
@@ -124,11 +130,16 @@ function UseAsPageModal({ template, onClose, onCreated }: UseAsPageModalProps) {
       }
 
       if (setAsHome) {
-        await fetchWithRefresh("/api/site-config", {
+        const homeRes = await fetchWithRefresh("/api/site-config", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ homePage: slug }),
         });
+        if (!homeRes.ok) {
+          setError(`Page created at /${slug}, but it could not be set as the website homepage (HTTP ${homeRes.status}). Set it from Content > Pages.`);
+          setSaving(false);
+          return;
+        }
       }
 
       onCreated(slug);
