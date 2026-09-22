@@ -14,7 +14,8 @@ import { animate } from "animejs";
 // source of truth also consumed by public/flexible-designer.html (see that file's
 // <script src="/flexible-render-rules.js"> and this module's own doc comment for why
 // it exists). Plain JS + hand-written flexible-render-rules.d.ts alongside it.
-import { computeSubElementStyle, computeSubElementPosition, computeMultiBgLayers, resolveBgPositionCss, resolveBackgroundPosForBreakpoint } from "../../public/flexible-render-rules.js";
+import { computeSubElementStyle, computeSubElementPosition, computeMultiBgLayers, resolveBgPositionCss, resolveBackgroundPosForBreakpoint, buildGradientCss, resolveBackgroundBundleForBreakpoint } from "../../public/flexible-render-rules.js";
+import type { BgBundle, BackgroundByBreakpoint, GradientConfig } from "../../public/flexible-render-rules.js";
 // Per-breakpoint independent layouts (2026-09-11) — shared shape-normalization/variant-
 // selection module (Task 1 of this feature). Companion to flexible-render-rules.js above;
 // see that file's own doc comment for the full designerData shape contract.
@@ -712,12 +713,22 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   // Section ref passed to AnimBgRenderer for IntersectionObserver
   const sectionRef = useRef<HTMLElement>(null);
 
-  // Background image fields stored directly on section (not inside content)
-  const bgImageUrl      = (section as any).bgImageUrl      as string | undefined;
-  const bgImageSize     = (section as any).bgImageSize     as string | undefined;
+  // Background image fields stored directly on section (not inside content).
+  // 2026-09-22: these are now ONLY the pre-per-breakpoint LEGACY flat values —
+  // used exclusively to assemble legacyBgBundle below (Desktop's migration
+  // fallback). Every actual consumer further down this component reads the
+  // per-breakpoint-RESOLVED bgImageUrl/bgImageSize/bgImageRepeat/bgImageOpacity
+  // (same identifiers, deliberately shadowed once resolvedBg is computed —
+  // see that block's own comment) so no downstream render site needed to
+  // change. bgImagePosition is NOT part of the per-breakpoint background
+  // bundle (crop position is already its own independent per-breakpoint
+  // concern — resolvedBackgroundPos/effectiveBgImagePosition below), so it
+  // keeps its original name and is read directly throughout.
+  const legacyBgImageUrl      = (section as any).bgImageUrl      as string | undefined;
+  const legacyBgImageSize     = (section as any).bgImageSize     as string | undefined;
   const bgImagePosition = (section as any).bgImagePosition as string | undefined;
-  const bgImageRepeat   = (section as any).bgImageRepeat   as string | undefined;
-  const bgImageOpacity  = (section as any).bgImageOpacity  as number | undefined;
+  const legacyBgImageRepeat   = (section as any).bgImageRepeat   as string | undefined;
+  const legacyBgImageOpacity  = (section as any).bgImageOpacity  as number | undefined;
   // Drag-to-reposition anchor for the section's OWN background image (2026-09-21,
   // made independent per breakpoint later the same day — see
   // resolveBackgroundPosForBreakpoint's doc comment in flexible-render-rules.js and
@@ -762,6 +773,54 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   // first-cut, deliberately scoped feature — see FlexibleSectionEditorModal.tsx's
   // matching content.bgMultiRepeat read/write for the editable Background-tab toggle).
   const bgMultiRepeat  = (content as any).bgMultiRepeat === true;
+
+  // ── Per-breakpoint background bundle (2026-09-22) ───────────────────────────
+  // Full background CONFIGURATION — type, solid colour, gradient (Linear or
+  // Radial), and image sizing/repeat/opacity — is independently set per
+  // Desktop/Tablet/Mobile with NO inheritance between breakpoints. Setting
+  // Desktop's background never populates Tablet's/Mobile's; an unconfigured
+  // Tablet/Mobile deliberately does NOT show Desktop's background (see
+  // feedback_breakpoint-canvases-fully-isolated memory — this supersedes the
+  // inherit-from-Desktop design backgroundPos above still uses, which stays
+  // as-is: crop POSITION and background CONFIGURATION are two different
+  // features with two different, deliberately different, resolution rules).
+  // Resolved through the SAME shared resolver FlexibleSectionEditorModal.tsx's
+  // own live preview uses (ONE SYSTEM PER CONCERN, CLAUDE.md), keyed off the
+  // SAME activeBreakpointKey every other per-breakpoint decision in this
+  // component already reads (resolved once, above).
+  const backgroundByBreakpoint = (content as any).backgroundByBreakpoint as
+    | Partial<BackgroundByBreakpoint>
+    | undefined;
+  const legacyGradientCfg = (content as any).gradient as GradientConfig | undefined;
+  // legacyBgBundle mirrors this section's pre-feature FLAT fields — used ONLY
+  // as Desktop's fallback when backgroundByBreakpoint.desktop is absent (a
+  // section saved before this feature exists), so Desktop renders BYTE-
+  // IDENTICAL to before. Never used for tablet/mobile (see
+  // resolveBackgroundBundleForBreakpoint's own contract).
+  const legacyBgBundle: BgBundle = {
+    backgroundType: legacyGradientCfg?.enabled ? "gradient" : "solid",
+    background: background || "white",
+    gradient: legacyGradientCfg?.enabled ? legacyGradientCfg : undefined,
+    bgImageUrl: legacyBgImageUrl || "",
+    bgImageSize: legacyBgImageSize || "cover",
+    bgImageRepeat: legacyBgImageRepeat || "no-repeat",
+    bgImageOpacity: legacyBgImageOpacity ?? 100,
+  };
+  const resolvedBg = resolveBackgroundBundleForBreakpoint(
+    backgroundByBreakpoint ?? null,
+    activeBreakpointKey,
+    legacyBgBundle
+  );
+  // Shadow the flat per-image field names with THIS breakpoint's resolved
+  // values — every existing consumer below (the direct bg-image layer, the
+  // free-mode plate's `bgImage` prop, and therefore computeMultiBgLayers,
+  // which only ever sees them via that prop) already reads these exact
+  // identifiers, so resolving them once here is enough; no call site further
+  // down needed its own breakpoint-awareness added.
+  const bgImageUrl     = resolvedBg.bgImageUrl || undefined;
+  const bgImageSize    = resolvedBg.bgImageSize;
+  const bgImageRepeat  = resolvedBg.bgImageRepeat;
+  const bgImageOpacity = resolvedBg.bgImageOpacity;
 
   // ── Background Override (generic renderer capability) ──────────────────────────
   // Lets a TemplateBlock's own sandboxed-iframe content swap THIS section's background
@@ -929,30 +988,32 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   }, [sectionHeading, sectionSubheading, sectionEyebrow]);
   const freePlateHeaderOffset = freePlateActive && contentMode !== "multi" && !!sectionHeading ? headerH : 0;
 
-  // Resolve the background to a CSS color/gradient string and determine text contrast
-  const bgColor  = resolveBgColor(background);
-  const darkBg   = isDarkBackground(background);
+  // Resolve the background to a CSS color/gradient string and determine text contrast.
+  // 2026-09-22: reads resolvedBg (THIS breakpoint's own resolved bundle) instead of the
+  // raw flat `background`/content.gradient — see the "Per-breakpoint background bundle"
+  // block above for the full contract. A legacy section (no backgroundByBreakpoint at
+  // all) resolves Desktop to exactly `background`/content.gradient still, so this is
+  // byte-identical for every section that predates this feature.
+  // resolvedBg.background already carries the same convention the modal has always
+  // saved into the (now legacy) flat `background` field: "transparent" whenever this
+  // bundle's backgroundType is "gradient", the real colour/token when "solid" — so no
+  // extra backgroundType branch is needed here, matching the original unconditional
+  // `resolveBgColor(background)` call this replaces.
+  const bgColor  = resolveBgColor(resolvedBg.background);
+  const darkBg   = isDarkBackground(resolvedBg.background);
   // Gradient backgrounds require the `background` shorthand instead of `background-color`
   const isBgGrad = isGradient(bgColor);
   // When the section background is a theme token, default text follows the theme
   // (so it flips with light/dark). Otherwise keep the contrast-based hex defaults.
-  const themedBg     = isThemeToken(background);
+  const themedBg     = isThemeToken(resolvedBg.background);
   const sectionText  = themedBg ? "var(--theme-text)"  : (darkBg ? "#fff" : "#212529");
   const sectionMuted = themedBg ? "var(--theme-muted)" : (darkBg ? "rgba(255,255,255,0.7)" : "#6c757d");
-  // Section gradient OVERLAY (content.gradient, set in the Background tab). It was saved
-  // but never drawn, so a gradient configured over a bg image did nothing (#59). Build the
-  // CSS here and render it as a scrim over the image below.
-  const gradCfg = (content as any).gradient as { enabled?: boolean; preset?: { direction?: string; color?: string; startOpacity?: number; endOpacity?: number } } | undefined;
-  const gradCss: string | null = (() => {
-    const p = gradCfg?.preset;
-    if (!p) return null;
-    const so = p.startOpacity ?? 0, eo = p.endOpacity ?? 0;
-    if (so <= 0 && eo <= 0) return null;
-    const h = (p.color || "#000000").replace("#", "");
-    const r = parseInt(h.slice(0, 2), 16) || 0, g = parseInt(h.slice(2, 4), 16) || 0, b = parseInt(h.slice(4, 6), 16) || 0;
-    const DIR: Record<string, string> = { top: "to top", bottom: "to bottom", left: "to left", right: "to right", topLeft: "to top left", topRight: "to top right", bottomLeft: "to bottom left", bottomRight: "to bottom right" };
-    return `linear-gradient(${DIR[p.direction || "bottom"] || "to bottom"}, rgba(${r},${g},${b},${so / 100}), rgba(${r},${g},${b},${eo / 100}))`;
-  })();
+  // Section gradient OVERLAY (this breakpoint's resolvedBg.gradient, set in the
+  // Background tab). Built via the shared buildGradientCss() (flexible-render-rules.js)
+  // so this renderer and the admin's own live preview (the SAME renderer, fed live
+  // in-progress state — see SectionLivePreview) can never disagree about Linear vs
+  // Radial CSS output (ONE SYSTEM PER CONCERN, CLAUDE.md).
+  const gradCss: string | null = resolvedBg.backgroundType === "gradient" ? buildGradientCss(resolvedBg.gradient) : null;
 
   // Background-image fade/MASK (#60). Fades the bg IMAGE to transparent along an
   // alpha gradient so it blends into the section/page colour behind it (distinct from
@@ -1197,7 +1258,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           config={animBg}
           colorPalette={section.colorPalette}
           sectionRef={sectionRef}
-          sectionBackground={background}
+          sectionBackground={resolvedBg.background}
         />
       )}
 

@@ -104,6 +104,16 @@
     return { data: resolved.desktop || null, isFallback: breakpoint !== "desktop" };
   }
 
+  /**
+   * Deep-clones a variant blob (JSON round-trip), or passes null through.
+   *
+   * 2026-09-22: no longer called anywhere in this codebase — it used to be how
+   * public/flexible-designer.html's setDevicePreview seeded a freshly-opened
+   * Tablet/Mobile breakpoint by cloning Desktop's blocks; that seed now builds a
+   * genuinely EMPTY variant instead (emptyVariantBlob(), zero blocks — see
+   * feedback_breakpoint-canvases-fully-isolated memory). Kept, unused, as a
+   * generic exported utility rather than deleted (out of scope for that fix).
+   */
   function duplicateVariant(sourceVariantData) {
     if (sourceVariantData == null) return null;
     return JSON.parse(JSON.stringify(sourceVariantData));
@@ -175,14 +185,22 @@
   // "Reset Size/Position to Match Desktop" action, and that is the ONLY way
   // content syncs across breakpoints from here on.
   //
-  // WHAT REMAINS: reconcileVariantBlocks()/unionBlockSubElements() are still
-  // used, but ONLY for the one-time seed of a freshly-created Tablet/Mobile
-  // variant (public/flexible-designer.html's setDevicePreview, seeding from an
-  // empty target so the seed is a full scaled+clamped copy of Desktop — not an
-  // ongoing sync) and by scaleBlockToCanvas() (used by both that seed path and
-  // the manual per-block reset button). Do NOT re-wire these into an ambient
-  // call site (autosave, breakpoint switch of an already-seeded variant, undo,
-  // or the live renderer) — that is exactly what was removed.
+  // WHAT REMAINS (updated 2026-09-22 — see feedback_breakpoint-canvases-fully-isolated
+  // memory): the "one-time seed" call site described below is ITSELF superseded —
+  // public/flexible-designer.html's setDevicePreview no longer seeds a freshly-opened
+  // Tablet/Mobile from Desktop at all (not even once); it now builds a genuinely
+  // EMPTY variant (emptyVariantBlob()) with zero blocks. reconcileVariantBlocks()
+  // and unionBlockSubElements() therefore have NO call site left anywhere in this
+  // codebase as of that change — kept here, unused, rather than deleted (out of
+  // scope for that fix; they are still correct, documented, pure functions, and
+  // deleting exported module API is a separate decision from removing one call
+  // site). scaleBlockToCanvas() (which reconcileVariantBlocks delegates to
+  // internally) is NOT orphaned — the manual per-block "Reset Size/Position to
+  // Match Desktop" button still calls it directly, and that stays the ONLY way
+  // content ever crosses from one breakpoint to another. Do NOT re-wire
+  // reconcileVariantBlocks/unionBlockSubElements into ANY call site (seed-time
+  // included) without re-reading that memory file first — the user has rejected
+  // "seed once from Desktop" five times across sessions.
   //
   // INVARIANTS (still true of what remains):
   //   - every block already in the target stays at the same index, same order;

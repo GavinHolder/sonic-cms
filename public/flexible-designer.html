@@ -2025,6 +2025,61 @@ function defaultCanvasWForBreakpoint(breakpoint) {
   if (breakpoint === 'tablet') return 768;
   return DESKTOP_CANVAS_W;
 }
+
+/**
+ * Builds a genuinely EMPTY flat variant blob for a breakpoint that has never
+ * been edited (2026-09-22 — see feedback_breakpoint-canvases-fully-isolated
+ * memory: the prior "seed by duplicating Desktop's blocks" behaviour, kept as
+ * a deliberate compromise on 2026-09-21 (a0c0dab), is superseded — the user
+ * asked repeatedly, across sessions, for each screen size to start empty and
+ * be populated by hand, not pre-filled from Desktop even once). Same
+ * top-level key set as a real snapshot (buildFlatPayload() /
+ * snapshotFlatStateAsVariant()'s editor-only extras) so loadFlatVariantIntoState,
+ * toPersistedVariant() and buildJson() never see an unexpected shape from this
+ * variant — just empty/default values in place of Desktop's cloned content.
+ *
+ * ASSUMPTIONS:
+ * 1. Only called for 'tablet'/'mobile' (setDevicePreview's own `device !==
+ *    state.activeBreakpoint` + free-mode-only gate already excludes Desktop
+ *    and grid/preset/mosaic sections before this is ever reached).
+ * 2. contentMode/multiLimit deliberately mirror the section's CURRENT shared
+ *    values, not "empty" — contentMode is a section-WIDE concept (this
+ *    project's single-mode-is-100vh / multi-mode-is-Nx100vh contract applies
+ *    to the whole section, not per breakpoint; see CLAUDE.md), and
+ *    loadFlatVariantIntoState never reads it back off a variant when
+ *    switching breakpoints (state.contentMode stays whatever the shared
+ *    Content Height Mode control already has it at). Carrying it here keeps a
+ *    freshly-seeded variant's OWN saved blob self-consistent with the rest of
+ *    the section if something ever reads contentMode directly off it — it is
+ *    not, itself, copied CONTENT.
+ *
+ * FAILURE MODES:
+ * - Called before `state` exists — cannot happen: every call site
+ *   (setDevicePreview) runs long after `const state` has initialized, on a
+ *   user interaction.
+ *
+ * @param {'tablet'|'mobile'} device
+ * @returns {object} A brand-new, independent flat variant blob with zero blocks.
+ */
+function emptyVariantBlob(device) {
+  return {
+    contentMode: state.contentMode,
+    positionMode: 'free',
+    designerCanvasW: defaultCanvasWForBreakpoint(device),
+    designerCanvasH: DESIGN_H,
+    multiLimit: state.multiLimit,
+    nextId: 1,
+    layoutType: 'free',
+    grid: undefined,
+    preset: undefined,
+    layout: undefined,
+    blocks: [],
+    gridRows: 2,
+    gridCols: 3,
+    gridGap: 16,
+    edgePad: 0
+  };
+}
 const state = {
   contentMode: 'single',
   multiLimit: 3,
@@ -9320,60 +9375,20 @@ function setDevicePreview(device) {
     // 1. Snapshot the OUTGOING breakpoint's current edits.
     state.variants[state.activeBreakpoint] = snapshotFlatStateAsVariant();
 
-    // 2. Seed the INCOMING breakpoint from Desktop if it's never been customized.
+    // 2. Seed the INCOMING breakpoint as a genuinely EMPTY canvas — NOT a copy of
+    //    Desktop. 2026-09-22 (see feedback_breakpoint-canvases-fully-isolated
+    //    memory): the "seed by duplicating Desktop's blocks" behaviour below (kept
+    //    as a deliberate compromise on 2026-09-21, a0c0dab) is superseded — the
+    //    user has asked five times across sessions for each breakpoint to start
+    //    empty and be populated by hand, and a one-time content copy (even
+    //    scaled/clamped) still isn't that. A freshly-opened Tablet/Mobile now gets
+    //    its own independent, EMPTY flat blob (see emptyVariantBlob below) — same
+    //    top-level shape as a real snapshot (buildFlatPayload/
+    //    snapshotFlatStateAsVariant), zero blocks, sized to that breakpoint's own
+    //    real canvas width — so nothing else downstream (loadFlatVariantIntoState,
+    //    toPersistedVariant, buildJson) sees an unexpected shape.
     if (!state.variants[device]) {
-      state.variants[device] = window.FlexibleBreakpointRules.duplicateVariant(state.variants.desktop);
-      // 2026-09-14 fix: a freshly-seeded Tablet/Mobile used to inherit Desktop's
-      // BLOCKS *and* its 1440px canvas width verbatim — so even though the block
-      // array was already independent (this whole step 2), there was no real
-      // narrower canvas to author into; setDevicePreview's presentation logic
-      // below just CSS-shrunk the still-1440-wide canvas back down, and any block
-      // near the desktop-width edge started off-canvas with nothing narrower to
-      // reposition it against. Blocks stay UNSCALED on purpose (the spec
-      // explicitly rejects auto-scale/auto-clip — the admin repositions them
-      // manually against the real narrower canvas), but the CANVAS itself now
-      // immediately becomes that breakpoint's own real, independent size:
-      // designerCanvasW defaults per breakpoint (1440/768/375, see
-      // defaultCanvasWForBreakpoint) instead of cloning Desktop's 1440, and
-      // designerCanvasH resets to null (falls back to DESIGN_H) rather than
-      // inheriting Desktop's authored height — the same "new free design"
-      // fallback every brand-new section already gets.
-      if (state.variants[device]) {
-        state.variants[device].designerCanvasW = defaultCanvasWForBreakpoint(device);
-        // 2026-09-21: first seed of a NEW variant (nothing of the user's to
-        // preserve yet) — the canvas height follows Desktop's box proportionally,
-        // never below DESIGN_H (Designer canvas coordinate space only; the live
-        // section's 100vh / multiLimit x 100vh contract is untouched), and blocks
-        // + sub-elements are SCALED by dstW/srcW then clamped on-canvas by the
-        // shared rule, instead of the clamp-only pile-up described below.
-        const seedSrc   = window.FlexibleBreakpointRules.variantCanvasDims(state.variants.desktop, 'desktop');
-        const seedBands = state.variants.desktop && state.variants.desktop.contentMode === 'multi'
-          ? Math.max(1, Number(state.variants.desktop.multiLimit) || 1) : 1;
-        state.variants[device].designerCanvasH = Math.max(
-          DESIGN_H,
-          Math.round((seedSrc.h / seedBands) * state.variants[device].designerCanvasW / seedSrc.w)
-        );
-        // 2026-09-14 fix (historical — clamp-only, superseded by the scale+clamp seed): the block coordinates cloned above are still Desktop's
-        // verbatim x/y/w/h, authored against Desktop's own (1440-wide, arbitrarily
-        // tall) canvas — on THIS breakpoint's real, narrower/shorter canvas
-        // (just set above) most/all of them now land partially or fully outside
-        // it. That's not a cosmetic overflow: #canvas is a fixed-size,
-        // overflow:hidden box here (see DEVICE PREVIEW / boxH above), not an
-        // auto-growing or scrollable one, so anything past its edges is
-        // genuinely invisible and undraggable the moment the admin switches to
-        // this breakpoint for the first time. Clamp every block fully inside
-        // the new canvas ONCE, right here at seed time — never on every render,
-        // and never once state.variants[device] already existed (that branch is
-        // skipped entirely above): once the admin starts repositioning blocks on
-        // this breakpoint, their own placements (including deliberately half
-        // off-canvas) are respected as-is. Overlap after clamping is expected —
-        // this only guarantees reachability, the admin rearranges from there.
-        state.variants[device].blocks = window.FlexibleBreakpointRules.reconcileVariantBlocks(
-          [],
-          { desktop: state.variants.desktop, [device]: state.variants[device] },
-          device
-        );
-      }
+      state.variants[device] = emptyVariantBlob(device);
     }
     // 2026-09-21 (SUPERSEDED — see docs/main-cms-sync-prompt.md): an "else"
     // branch here used to reconcile an ALREADY-seeded variant against the
@@ -10736,20 +10751,19 @@ function isGradient(v) {
   return !!v && (v.includes('gradient') || v.startsWith('linear-') || v.startsWith('radial-'));
 }
 // Mirror of the renderer's content.gradient → CSS scrim builder (#59 parity).
+// 2026-09-22: delegates to the SHARED builder (flexible-render-rules.js's
+// buildGradientCss, loaded above as window.FlexibleRenderRules) instead of its
+// own hand-rolled copy of the Linear math — this file, FlexibleSectionRenderer.tsx
+// and FlexibleSectionEditorModal.tsx's live preview (which renders through
+// FlexibleSectionRenderer.tsx directly) all now go through the ONE function, so
+// Radial support (and any future gradient change) can never drift between them
+// again (ONE SYSTEM PER CONCERN, CLAUDE.md — the exact failure mode #59/#182-189
+// already burned this codebase on once). Coercion/validation of untrusted
+// Template-import values now lives in the shared builder; this file's own
+// output is still only ever assigned via the .style.background PROPERTY (never
+// innerHTML), so it cannot inject HTML regardless of what buildGradientCss returns.
 function sectionGradCss(gradient) {
-  const p = gradient && gradient.preset;
-  if (!p) return null;
-  // Coerce opacity fields to finite numbers (defense-in-depth: values may come from
-  // untrusted Template import). The scrim string is only ever assigned via the
-  // .style.background PROPERTY, so it cannot inject HTML regardless.
-  const soN = Number(p.startOpacity), eoN = Number(p.endOpacity);
-  const so = (p.startOpacity == null || !Number.isFinite(soN)) ? 0 : soN;
-  const eo = (p.endOpacity   == null || !Number.isFinite(eoN)) ? 0 : eoN;
-  if (so <= 0 && eo <= 0) return null;
-  const h = String(p.color || '#000000').replace('#', '');
-  const r = parseInt(h.slice(0, 2), 16) || 0, g = parseInt(h.slice(2, 4), 16) || 0, b = parseInt(h.slice(4, 6), 16) || 0;
-  const DIR = { top:'to top', bottom:'to bottom', left:'to left', right:'to right', topLeft:'to top left', topRight:'to top right', bottomLeft:'to bottom left', bottomRight:'to bottom right' };
-  return `linear-gradient(${DIR[p.direction || 'bottom'] || 'to bottom'}, rgba(${r},${g},${b},${so / 100}), rgba(${r},${g},${b},${eo / 100}))`;
+  return window.FlexibleRenderRules.buildGradientCss(gradient);
 }
 // Neutralise a URL so it can't break out of the url('...') context.
 function cssUrl(u) { return String(u == null ? '' : u).replace(/["'()\\\n\r]/g, ''); }

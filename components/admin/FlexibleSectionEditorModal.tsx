@@ -20,8 +20,8 @@ import type { ScrollStageConfig, ScrollStageZoneConfig, ScrollStageZoneImageConf
 import { DEFAULT_LOWER_THIRD } from "@/lib/lower-third-presets";
 import { legacyToDesignerData } from "@/lib/flexible/legacy-to-designer";
 import { resolveVariants, serializeVariants } from "../../public/flexible-breakpoint-rules.js";
-import { resolveBgPositionCss, resolveBackgroundPosForBreakpoint } from "../../public/flexible-render-rules.js";
-import type { BackgroundPosVariants } from "../../public/flexible-render-rules.js";
+import { resolveBgPositionCss, resolveBackgroundPosForBreakpoint, getUnsetBackgroundBundle } from "../../public/flexible-render-rules.js";
+import type { BackgroundPosVariants, BgBundle, GradientConfig } from "../../public/flexible-render-rules.js";
 import { useConfirm } from "@/components/admin/ConfirmProvider";
 import {
   PRESET_COLORS,
@@ -62,6 +62,65 @@ function serializeDesignerVariants(variants: ReturnType<typeof resolveVariants>)
     return JSON.stringify(variants.desktop);
   }
   return JSON.stringify(serializeVariants(variants));
+}
+
+/** Flat field values this modal edits for ONE breakpoint's background — the same set
+ *  of controls the Background tab renders, whichever breakpoint tab is active. */
+interface BgFlatFields {
+  backgroundType: "solid" | "gradient";
+  background: string;
+  gradientType: "linear" | "radial";
+  gradientDirection: string;
+  gradientShape: "circle" | "ellipse";
+  gradientPosition: string;
+  gradientColor: string;
+  gradientStartOpacity: number;
+  gradientEndOpacity: number;
+  bgImageUrl: string;
+  bgImageSize: string;
+  bgImageRepeat: string;
+  bgImageOpacity: number;
+}
+
+/**
+ * Builds a persistable BgBundle from this modal's flat per-field control values —
+ * the SAME shape assembly handleSave already did for the section-wide legacy fields
+ * (background/content.gradient), now shared so a per-breakpoint bundle (bgByBreakpoint)
+ * and the Desktop legacy mirror can never diverge in how they interpret the same
+ * fields (ONE SYSTEM PER CONCERN, CLAUDE.md). Pure — no React state read/written.
+ */
+function bundleFromFlatBgFields(f: BgFlatFields): BgBundle {
+  return {
+    backgroundType: f.backgroundType,
+    background: f.backgroundType === "solid" ? f.background : "transparent",
+    gradient: f.backgroundType === "gradient"
+      ? {
+          enabled: true,
+          type: "preset",
+          preset: {
+            kind: f.gradientType,
+            direction: f.gradientDirection,
+            shape: f.gradientShape,
+            position: f.gradientPosition,
+            startOpacity: f.gradientStartOpacity,
+            endOpacity: f.gradientEndOpacity,
+            color: f.gradientColor,
+          },
+        }
+      : undefined,
+    bgImageUrl: f.bgImageUrl,
+    bgImageSize: f.bgImageSize,
+    bgImageRepeat: f.bgImageRepeat,
+    bgImageOpacity: f.bgImageOpacity,
+  };
+}
+
+/** Loose shape check — same tolerance as flexible-render-rules.js's own isValidBgBundle,
+ *  duplicated here (not imported — it's not exported, it's an internal implementation
+ *  detail of the resolver) so a malformed/legacy stored value is treated as absent
+ *  rather than crashing field initialization. */
+function isValidBgBundle(b: unknown): b is BgBundle {
+  return !!b && typeof b === "object" && ((b as BgBundle).backgroundType === "solid" || (b as BgBundle).backgroundType === "gradient");
 }
 
 // Dynamically import the preview renderer to avoid SSR issues
@@ -162,6 +221,19 @@ export default function FlexibleSectionEditorModal({
   );
   const [gradientColor, setGradientColor] = useState(
     contentAny?.gradient?.preset?.color || "#000000"
+  );
+  // Radial gradient support (2026-09-22) — "kind" distinguishes Linear (the only
+  // kind that ever existed before this change; absent/anything-but-"radial" on a
+  // stored gradient means Linear, so every pre-existing section keeps rendering
+  // byte-identical) from Radial. shape/position are Radial-only.
+  const [gradientType, setGradientType] = useState<"linear" | "radial">(
+    contentAny?.gradient?.preset?.kind === "radial" ? "radial" : "linear"
+  );
+  const [gradientShape, setGradientShape] = useState<"circle" | "ellipse">(
+    contentAny?.gradient?.preset?.shape === "ellipse" ? "ellipse" : "circle"
+  );
+  const [gradientPosition, setGradientPosition] = useState(
+    contentAny?.gradient?.preset?.position || "center"
   );
 
   // ── Animated Background ───────────────────────────────────────
@@ -279,6 +351,133 @@ export default function FlexibleSectionEditorModal({
   const [bgMaskStart, setBgMaskStart] = useState<number>(contentAny?.bgMaskStart ?? 0);
   const [bgMaskEnd, setBgMaskEnd] = useState<number>(contentAny?.bgMaskEnd ?? 100);
 
+  // ── Per-breakpoint background bundle (2026-09-22) ──────────────────────────
+  // The FULL background configuration above (backgroundType, background,
+  // gradient incl. Linear/Radial, bgImageUrl/Size/Repeat/Opacity) is
+  // independently set per Desktop/Tablet/Mobile with NO inheritance between
+  // breakpoints — see feedback_breakpoint-canvases-fully-isolated memory. This
+  // supersedes backgroundPos's inherit-from-Desktop design above (kept as-is —
+  // crop POSITION and background CONFIGURATION are deliberately different
+  // features with deliberately different resolution rules now).
+  //
+  // bgByBreakpoint is the PERSISTED per-breakpoint container (content JSONB,
+  // content.backgroundByBreakpoint — same "no schema column" pattern as
+  // backgroundPos/bgMultiRepeat above). The individual useState fields above
+  // (backgroundType, background, gradientType, ...) represent WHICHEVER
+  // breakpoint's tab (previewViewport) is currently being edited — swapped in
+  // by the effect below whenever previewViewport changes, exactly mirroring
+  // how public/flexible-designer.html's setDevicePreview swaps state.blocks
+  // between breakpoint variants. `desktop` is always a real bundle (migrated
+  // from this section's legacy flat fields the first time it's loaded, so
+  // Desktop renders byte-identical to before this feature); `tablet`/`mobile`
+  // start null ("not yet configured") until the admin explicitly edits a
+  // control while that tab is active — see updateBg below, the ONLY place
+  // that ever writes a non-null tablet/mobile bundle.
+  const [bgByBreakpoint, setBgByBreakpoint] = useState<{ desktop: BgBundle; tablet: BgBundle | null; mobile: BgBundle | null }>(() => {
+    const raw = contentAny?.backgroundByBreakpoint;
+    const rawDesktop = raw && typeof raw === "object" ? raw.desktop : null;
+    const rawTablet = raw && typeof raw === "object" ? raw.tablet : null;
+    const rawMobile = raw && typeof raw === "object" ? raw.mobile : null;
+    const legacyGradientCfg = contentAny?.gradient as GradientConfig | undefined;
+    const desktop: BgBundle = isValidBgBundle(rawDesktop)
+      ? rawDesktop
+      : bundleFromFlatBgFields({
+          backgroundType: legacyGradientCfg?.enabled ? "gradient" : "solid",
+          background: rawBg,
+          gradientType: legacyGradientCfg?.preset?.kind === "radial" ? "radial" : "linear",
+          gradientDirection: legacyGradientCfg?.preset?.direction || "bottom",
+          gradientShape: legacyGradientCfg?.preset?.shape === "ellipse" ? "ellipse" : "circle",
+          gradientPosition: legacyGradientCfg?.preset?.position || "center",
+          gradientColor: legacyGradientCfg?.preset?.color || "#000000",
+          gradientStartOpacity: legacyGradientCfg?.preset?.startOpacity ?? 70,
+          gradientEndOpacity: legacyGradientCfg?.preset?.endOpacity ?? 0,
+          bgImageUrl: section.bgImageUrl || "",
+          bgImageSize: section.bgImageSize || "cover",
+          bgImageRepeat: section.bgImageRepeat || "no-repeat",
+          bgImageOpacity: section.bgImageOpacity ?? 100,
+        });
+    return {
+      desktop,
+      tablet: isValidBgBundle(rawTablet) ? rawTablet : null,
+      mobile: isValidBgBundle(rawMobile) ? rawMobile : null,
+    };
+  });
+  // Loads whichever breakpoint's bundle is now active into the flat per-field
+  // controls above — mirrors flexible-designer.html's loadFlatVariantIntoState.
+  // An unset (null) tablet/mobile loads the deliberate NEUTRAL "unset" default
+  // (getUnsetBackgroundBundle — solid, transparent, no image) purely so the
+  // FORM has something to show/edit; this does NOT itself mark the breakpoint
+  // as configured — only updateBg (below), fired by an actual control edit,
+  // writes a non-null bundle back into bgByBreakpoint. Runs on mount and on
+  // every previewViewport switch only (NOT on every bgByBreakpoint edit — this
+  // reads the current-render's bgByBreakpoint closure, which is always fresh
+  // by the time previewViewport actually changes; adding bgByBreakpoint to the
+  // deps array would re-fire this loader on every keystroke, e.g. re-clobbering
+  // the field the admin is actively typing into with the last committed value).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const bundle = bgByBreakpoint[previewViewport] ?? getUnsetBackgroundBundle();
+    setBackgroundType(bundle.backgroundType);
+    setBackground(bundle.background);
+    setGradientType(bundle.gradient?.preset?.kind === "radial" ? "radial" : "linear");
+    setGradientDirection(bundle.gradient?.preset?.direction || "bottom");
+    setGradientShape(bundle.gradient?.preset?.shape === "ellipse" ? "ellipse" : "circle");
+    setGradientPosition(bundle.gradient?.preset?.position || "center");
+    setGradientColor(bundle.gradient?.preset?.color || "#000000");
+    setGradientStartOpacity(bundle.gradient?.preset?.startOpacity ?? 70);
+    setGradientEndOpacity(bundle.gradient?.preset?.endOpacity ?? 0);
+    setBgImageUrl(bundle.bgImageUrl || "");
+    setBgImageSize(bundle.bgImageSize || "cover");
+    setBgImageRepeat(bundle.bgImageRepeat || "no-repeat");
+    setBgImageOpacity(bundle.bgImageOpacity ?? 100);
+  }, [previewViewport]);
+  /**
+   * Applies an edit to ONE OR MORE background fields for whichever breakpoint
+   * (previewViewport) is currently active: updates the flat per-field controls
+   * (so the existing JSX inputs keep working unchanged) AND writes the
+   * resulting full bundle into bgByBreakpoint[previewViewport] — the ONLY
+   * place a tablet/mobile bundle ever flips from null ("not configured") to a
+   * real bundle. Every Background-tab control's onChange calls this instead of
+   * the raw setBackgroundType/setBackground/etc. setters directly, so no
+   * control interaction can ever silently skip marking its breakpoint as
+   * configured (the exact bug that would let "just opening the Tablet tab"
+   * masquerade as "the admin set Tablet's background").
+   */
+  const updateBg = useCallback((patch: Partial<BgFlatFields>) => {
+    const next: BgFlatFields = {
+      backgroundType: patch.backgroundType ?? backgroundType,
+      background: patch.background ?? background,
+      gradientType: patch.gradientType ?? gradientType,
+      gradientDirection: patch.gradientDirection ?? gradientDirection,
+      gradientShape: patch.gradientShape ?? gradientShape,
+      gradientPosition: patch.gradientPosition ?? gradientPosition,
+      gradientColor: patch.gradientColor ?? gradientColor,
+      gradientStartOpacity: patch.gradientStartOpacity ?? gradientStartOpacity,
+      gradientEndOpacity: patch.gradientEndOpacity ?? gradientEndOpacity,
+      bgImageUrl: patch.bgImageUrl ?? bgImageUrl,
+      bgImageSize: patch.bgImageSize ?? bgImageSize,
+      bgImageRepeat: patch.bgImageRepeat ?? bgImageRepeat,
+      bgImageOpacity: patch.bgImageOpacity ?? bgImageOpacity,
+    };
+    if (patch.backgroundType !== undefined) setBackgroundType(patch.backgroundType);
+    if (patch.background !== undefined) setBackground(patch.background);
+    if (patch.gradientType !== undefined) setGradientType(patch.gradientType);
+    if (patch.gradientDirection !== undefined) setGradientDirection(patch.gradientDirection);
+    if (patch.gradientShape !== undefined) setGradientShape(patch.gradientShape);
+    if (patch.gradientPosition !== undefined) setGradientPosition(patch.gradientPosition);
+    if (patch.gradientColor !== undefined) setGradientColor(patch.gradientColor);
+    if (patch.gradientStartOpacity !== undefined) setGradientStartOpacity(patch.gradientStartOpacity);
+    if (patch.gradientEndOpacity !== undefined) setGradientEndOpacity(patch.gradientEndOpacity);
+    if (patch.bgImageUrl !== undefined) setBgImageUrl(patch.bgImageUrl);
+    if (patch.bgImageSize !== undefined) setBgImageSize(patch.bgImageSize);
+    if (patch.bgImageRepeat !== undefined) setBgImageRepeat(patch.bgImageRepeat);
+    if (patch.bgImageOpacity !== undefined) setBgImageOpacity(patch.bgImageOpacity);
+    setBgByBreakpoint((prev) => ({ ...prev, [previewViewport]: bundleFromFlatBgFields(next) }));
+  }, [
+    previewViewport, backgroundType, background, gradientType, gradientDirection, gradientShape, gradientPosition,
+    gradientColor, gradientStartOpacity, gradientEndOpacity, bgImageUrl, bgImageSize, bgImageRepeat, bgImageOpacity,
+  ]);
+
   // Background VOLT ("Volt Type = Background", Phase 2c) — id of a background-type
   // VoltElement selected as this section's background. Persisted inside content JSONB
   // at content.backgroundVoltId (round-trips via save, no API/schema change). null = none.
@@ -324,9 +523,27 @@ export default function FlexibleSectionEditorModal({
     // Clear draft — data is now properly committed to section storage
     try { localStorage.removeItem(draftKey); } catch {}
     setSectionDirty(false);   // section persisted — no longer dirty
-    const gradient = backgroundType === "gradient"
-      ? { enabled: true, type: "preset" as const, preset: { direction: gradientDirection as any, startOpacity: gradientStartOpacity, endOpacity: gradientEndOpacity, color: gradientColor } }
-      : undefined;
+    // Per-breakpoint background bundle (2026-09-22) — resync whichever tab is
+    // currently active into bgByBreakpoint before assembling the save payload,
+    // mirroring flexible-designer.html's buildJson() resyncing
+    // state.variants[state.activeBreakpoint] before serializing: Save must
+    // always reflect the latest edits regardless of which "Preview as" tab
+    // happens to be open when the button is clicked.
+    const finalBgByBreakpoint = {
+      ...bgByBreakpoint,
+      [previewViewport]: bundleFromFlatBgFields({
+        backgroundType, background, gradientType, gradientDirection, gradientShape, gradientPosition,
+        gradientColor, gradientStartOpacity, gradientEndOpacity, bgImageUrl, bgImageSize, bgImageRepeat, bgImageOpacity,
+      }),
+    };
+    // desktopBundle is ALWAYS Desktop's bundle regardless of previewViewport — the
+    // legacy flat Section columns (background/bgImageUrl/etc.) and content.gradient
+    // below mirror ONLY this, never whichever tab happens to be open, so any other
+    // code that still reads those flat fields directly (pre-existing sections,
+    // anything outside FlexibleSectionRenderer) always sees Desktop's config, same
+    // as the backgroundPosX/Y legacy mirror already does for crop position.
+    const desktopBundle = finalBgByBreakpoint.desktop;
+    const gradient = desktopBundle.gradient;
     // designerData is a separately-maintained snapshot round-tripped through the
     // vanilla-JS canvas editor (postMessage) — it carries its OWN embedded contentMode
     // field that nothing keeps in sync with the Content Height Mode toggle above (which
@@ -353,7 +570,7 @@ export default function FlexibleSectionEditorModal({
     const updated: FlexibleSection = {
       ...section,
       displayName,
-      background: backgroundType === "solid" ? (background as any) : "transparent",
+      background: desktopBundle.background as any,
       paddingTop,
       paddingBottom,
       paddingTopMobile,
@@ -389,11 +606,14 @@ export default function FlexibleSectionEditorModal({
       hoverAnimateBehind,
       hoverAlwaysShow,
       hoverOffsetX,
-      bgImageUrl: bgImageUrl ?? "",
-      bgImageSize,
+      // Legacy flat mirrors — always Desktop's resolved bundle, see desktopBundle's
+      // own comment above. bgImagePosition is untouched/unrelated to this feature
+      // (crop position stays its own already-per-breakpoint concern, backgroundPos).
+      bgImageUrl: desktopBundle.bgImageUrl ?? "",
+      bgImageSize: desktopBundle.bgImageSize,
       bgImagePosition,
-      bgImageRepeat,
-      bgImageOpacity,
+      bgImageRepeat: desktopBundle.bgImageRepeat,
+      bgImageOpacity: desktopBundle.bgImageOpacity,
       bgParallax,
       motionElements: motionElements,
       lowerThird,
@@ -407,6 +627,13 @@ export default function FlexibleSectionEditorModal({
         designerData: syncedDesignerData || null,
         layout,
         gradient,
+        // Full per-breakpoint background bundle (2026-09-22) — type, solid colour,
+        // gradient (Linear/Radial), and image sizing/repeat/opacity, independently
+        // set per Desktop/Tablet/Mobile with NO inheritance — see bgByBreakpoint's
+        // own state declaration comment above and resolveBackgroundBundleForBreakpoint
+        // in flexible-render-rules.js for the full contract. `gradient`/`background`/
+        // `bgImageUrl` etc. above remain Desktop's legacy mirror for back-compat.
+        backgroundByBreakpoint: finalBgByBreakpoint,
         // Drag-to-reposition anchor for the section's own background image, independent
         // per breakpoint — see the backgroundPos state declaration's own comment.
         backgroundPos,
@@ -530,23 +757,23 @@ export default function FlexibleSectionEditorModal({
         let payloadWithBg = initPayload;
         try {
           const obj = JSON.parse(initPayload);
+          // Designer-canvas preview is Desktop-only (view-only there), so this ALWAYS
+          // mirrors bgByBreakpoint.desktop directly — NOT the flat per-field controls,
+          // which represent whichever "Preview as" tab is currently active and could be
+          // Tablet/Mobile when this fires (e.g. the admin switched tabs, then clicked
+          // "Open Element Designer" without switching back). Same Desktop-only mirror
+          // pattern as backgroundPosX/Y already used here.
           obj.sectionBackground = {
-            background: backgroundType === "solid" ? background : "transparent",
-            bgImageUrl: bgImageUrl || "",
-            bgImageSize,
+            background: bgByBreakpoint.desktop.background,
+            bgImageUrl: bgByBreakpoint.desktop.bgImageUrl || "",
+            bgImageSize: bgByBreakpoint.desktop.bgImageSize,
             bgImagePosition,
-            bgImageRepeat,
-            bgImageOpacity,
-            // Designer-canvas preview is Desktop-only (view-only there), so mirror
-            // Desktop's resolved position, same as the persisted legacy backgroundPosX/Y
-            // mirror in handleSave above — flexible-designer.html's own reader of this
-            // payload (resolveSectionBg) is untouched by the per-breakpoint upgrade.
+            bgImageRepeat: bgByBreakpoint.desktop.bgImageRepeat,
+            bgImageOpacity: bgByBreakpoint.desktop.bgImageOpacity,
             backgroundPosX: backgroundPos.desktop?.x ?? null,
             backgroundPosY: backgroundPos.desktop?.y ?? null,
             bgMultiRepeat,
-            gradient: backgroundType === "gradient"
-              ? { enabled: true, type: "preset", preset: { direction: gradientDirection, startOpacity: gradientStartOpacity, endOpacity: gradientEndOpacity, color: gradientColor } }
-              : undefined,
+            gradient: bgByBreakpoint.desktop.gradient,
           };
           payloadWithBg = JSON.stringify(obj);
         } catch { /* non-JSON payload — send as-is */ }
@@ -572,9 +799,8 @@ export default function FlexibleSectionEditorModal({
       setShowDesigner(false);
     }
   }, [designerData, contentMode, layout, draftKey, section, confirm,
-      backgroundType, background, bgImageUrl, bgImageSize, bgImagePosition, bgImageRepeat, bgImageOpacity, bgMultiRepeat,
-      backgroundPos,
-      gradientDirection, gradientStartOpacity, gradientEndOpacity, gradientColor]);
+      bgByBreakpoint, bgImagePosition, bgMultiRepeat,
+      backgroundPos]);
 
   useEffect(() => {
     window.addEventListener("message", handleDesignerMessage);
@@ -1021,6 +1247,24 @@ export default function FlexibleSectionEditorModal({
               {/* ══ BACKGROUND TAB ════════════════════════════════════════ */}
               {activeTab === "background" && (
                 <>
+                  {/* Breakpoint-scoped indicator (2026-09-22) — reuses the SAME "Preview as"
+                      Desktop/Tablet/Mobile switcher driving the live preview pane
+                      (previewViewport, SectionLivePreview below), same pattern as the
+                      Reposition Background indicator further down. Unlike that one, there
+                      is NO "Inherited from Desktop" case here — an unset Tablet/Mobile
+                      background does NOT show Desktop's config, so the badge says so
+                      plainly instead of implying a fallback that doesn't happen. */}
+                  <div className="alert alert-secondary d-flex align-items-center gap-2 py-2 mb-3">
+                    <i className={`bi ${previewViewport === "desktop" ? "bi-laptop" : previewViewport === "tablet" ? "bi-tablet" : "bi-phone"}`} />
+                    <strong>{previewViewport.charAt(0).toUpperCase() + previewViewport.slice(1)} background</strong>
+                    {previewViewport !== "desktop" && bgByBreakpoint[previewViewport] == null && (
+                      <span className="text-muted small">
+                        — Not set for {previewViewport.charAt(0).toUpperCase() + previewViewport.slice(1)} (using default: transparent). Configure it here to override.
+                      </span>
+                    )}
+                    <span className="text-muted small ms-auto">Switch &quot;Preview as&quot; in the live preview pane to edit another screen size&apos;s background.</span>
+                  </div>
+
                   {/* Background Type */}
                   <div className="mb-4">
                     <label className="form-label fw-semibold">
@@ -1028,11 +1272,11 @@ export default function FlexibleSectionEditorModal({
                       Background Type
                     </label>
                     <div className="btn-group w-100" role="group">
-                      <input type="radio" className="btn-check" id="flex-bg-solid" checked={backgroundType === "solid"} onChange={() => setBackgroundType("solid")} />
+                      <input type="radio" className="btn-check" id="flex-bg-solid" checked={backgroundType === "solid"} onChange={() => updateBg({ backgroundType: "solid" })} />
                       <label className="btn btn-outline-primary" htmlFor="flex-bg-solid">
                         <i className="bi bi-paint-bucket me-1" />Solid
                       </label>
-                      <input type="radio" className="btn-check" id="flex-bg-gradient" checked={backgroundType === "gradient"} onChange={() => { setBackgroundType("gradient"); setGradientEnabled(true); }} />
+                      <input type="radio" className="btn-check" id="flex-bg-gradient" checked={backgroundType === "gradient"} onChange={() => { updateBg({ backgroundType: "gradient" }); setGradientEnabled(true); }} />
                       <label className="btn btn-outline-primary" htmlFor="flex-bg-gradient">
                         <i className="bi bi-palette-fill me-1" />Gradient
                       </label>
@@ -1054,14 +1298,14 @@ export default function FlexibleSectionEditorModal({
                             { value: "lightblue", color: "#dbeafe", label: "Light Blue" },
                             { value: "transparent", color: "transparent", label: "None" },
                           ].map((p) => (
-                            <button key={p.value} type="button" onClick={() => setBackground(p.value)} title={p.label}
+                            <button key={p.value} type="button" onClick={() => updateBg({ background: p.value })} title={p.label}
                               className="border-0 p-0 position-relative"
                               style={{ width: 32, height: 32, borderRadius: 6, backgroundColor: p.color, cursor: "pointer", outline: background === p.value ? "3px solid #2563eb" : "1px solid #dee2e6", outlineOffset: 2, backgroundImage: p.value === "transparent" ? "linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%),linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%)" : undefined, backgroundSize: p.value === "transparent" ? "8px 8px" : undefined, backgroundPosition: p.value === "transparent" ? "0 0,4px 4px" : undefined }}
                             />
                           ))}
                           <div style={{ width: 1, backgroundColor: "#dee2e6", margin: "0 4px" }} />
                           {PRESET_COLORS.filter((p) => !["#ffffff", "#f8f9fa", "#dbeafe"].includes(p.hex)).slice(0, 24).map((p) => (
-                            <button key={p.hex} type="button" onClick={() => { setBackground(p.hex); setCustomHex(p.hex); }} title={p.name}
+                            <button key={p.hex} type="button" onClick={() => { updateBg({ background: p.hex }); setCustomHex(p.hex); }} title={p.name}
                               className="border-0 p-0"
                               style={{ width: 32, height: 32, borderRadius: 6, backgroundColor: p.hex, cursor: "pointer", outline: background === p.hex ? "3px solid #2563eb" : "1px solid #dee2e6", outlineOffset: 2 }}
                             />
@@ -1074,9 +1318,9 @@ export default function FlexibleSectionEditorModal({
                           <i className="bi bi-eyedropper me-2" />Custom Color
                         </label>
                         <div className="input-group" style={{ maxWidth: 300 }}>
-                          <input type="color" className="form-control form-control-color" value={customHex} onChange={(e) => { setCustomHex(e.target.value); setBackground(e.target.value); }} style={{ width: 48, height: 38 }} />
-                          <input type="text" className="form-control font-monospace" value={customHex} onChange={(e) => { const v = e.target.value; setCustomHex(v); if (isValidHex(v)) setBackground(v); }} placeholder="#000000" maxLength={7} />
-                          <button type="button" className="btn btn-outline-primary" onClick={() => { if (isValidHex(customHex)) setBackground(customHex); }}>Apply</button>
+                          <input type="color" className="form-control form-control-color" value={customHex} onChange={(e) => { setCustomHex(e.target.value); updateBg({ background: e.target.value }); }} style={{ width: 48, height: 38 }} />
+                          <input type="text" className="form-control font-monospace" value={customHex} onChange={(e) => { const v = e.target.value; setCustomHex(v); if (isValidHex(v)) updateBg({ background: v }); }} placeholder="#000000" maxLength={7} />
+                          <button type="button" className="btn btn-outline-primary" onClick={() => { if (isValidHex(customHex)) updateBg({ background: customHex }); }}>Apply</button>
                         </div>
                       </div>
 
@@ -1178,7 +1422,7 @@ export default function FlexibleSectionEditorModal({
                     <ImageFieldWithUpload
                       label="Section Background Image"
                       value={bgImageUrl}
-                      onChange={setBgImageUrl}
+                      onChange={(v) => updateBg({ bgImageUrl: v })}
                       placeholder="/images/background.jpg"
                       helpText="Background image for the entire section. When set, animated backgrounds are disabled."
                     />
@@ -1192,7 +1436,7 @@ export default function FlexibleSectionEditorModal({
                       <div className="row mb-4">
                         <div className="col-md-6">
                           <label className="form-label">Background Size</label>
-                          <select className="form-select" value={bgImageSize} onChange={(e) => setBgImageSize(e.target.value)}>
+                          <select className="form-select" value={bgImageSize} onChange={(e) => updateBg({ bgImageSize: e.target.value })}>
                             <option value="cover">Cover</option>
                             <option value="contain">Contain</option>
                             <option value="auto">Auto</option>
@@ -1256,7 +1500,7 @@ export default function FlexibleSectionEditorModal({
                       <div className="row mb-4">
                         <div className="col-md-6">
                           <label className="form-label">Background Repeat</label>
-                          <select className="form-select" value={bgImageRepeat} onChange={(e) => setBgImageRepeat(e.target.value)}>
+                          <select className="form-select" value={bgImageRepeat} onChange={(e) => updateBg({ bgImageRepeat: e.target.value })}>
                             <option value="no-repeat">No Repeat</option>
                             <option value="repeat">Repeat</option>
                             <option value="repeat-x">Repeat Horizontally</option>
@@ -1265,7 +1509,7 @@ export default function FlexibleSectionEditorModal({
                         </div>
                         <div className="col-md-6">
                           <label className="form-label">Image Opacity: {bgImageOpacity}%</label>
-                          <input type="range" className="form-range" min={0} max={100} value={bgImageOpacity} onChange={(e) => setBgImageOpacity(Number(e.target.value))} />
+                          <input type="range" className="form-range" min={0} max={100} value={bgImageOpacity} onChange={(e) => updateBg({ bgImageOpacity: Number(e.target.value) })} />
                         </div>
                       </div>
                       <div className="mb-4">
@@ -1388,29 +1632,62 @@ export default function FlexibleSectionEditorModal({
                   {/* Gradient */}
                   {backgroundType === "gradient" && (
                     <>
+                      {/* Linear vs Radial (2026-09-22) — a real choice, not just Linear's
+                          existing 8-direction presets. Radial swaps Direction for
+                          Shape + Position; a legacy gradient (no stored "kind") loads as
+                          Linear, so nothing regresses for a section saved before this. */}
                       <div className="mb-4">
-                        <label className="form-label fw-semibold">Gradient Direction</label>
-                        <select className="form-select" value={gradientDirection} onChange={(e) => setGradientDirection(e.target.value)}>
-                          {["top","bottom","left","right","topLeft","topRight","bottomLeft","bottomRight"].map((d) => (
-                            <option key={d} value={d}>{d.replace(/([A-Z])/g, " $1").trim()}</option>
-                          ))}
-                        </select>
+                        <label className="form-label fw-semibold">Gradient Type</label>
+                        <div className="btn-group w-100" role="group">
+                          <input type="radio" className="btn-check" id="flex-grad-linear" checked={gradientType === "linear"} onChange={() => updateBg({ gradientType: "linear" })} />
+                          <label className="btn btn-outline-primary" htmlFor="flex-grad-linear">
+                            <i className="bi bi-arrow-down-right me-1" />Linear
+                          </label>
+                          <input type="radio" className="btn-check" id="flex-grad-radial" checked={gradientType === "radial"} onChange={() => updateBg({ gradientType: "radial" })} />
+                          <label className="btn btn-outline-primary" htmlFor="flex-grad-radial">
+                            <i className="bi bi-circle me-1" />Radial
+                          </label>
+                        </div>
                       </div>
+                      {gradientType === "linear" ? (
+                        <div className="mb-4">
+                          <label className="form-label fw-semibold">Gradient Direction</label>
+                          <select className="form-select" value={gradientDirection} onChange={(e) => updateBg({ gradientDirection: e.target.value })}>
+                            {["top","bottom","left","right","topLeft","topRight","bottomLeft","bottomRight"].map((d) => (
+                              <option key={d} value={d}>{d.replace(/([A-Z])/g, " $1").trim()}</option>
+                            ))}
+                          </select>
+                        </div>
+                      ) : (
+                        <div className="row mb-4">
+                          <div className="col-md-6">
+                            <label className="form-label fw-semibold">Gradient Shape</label>
+                            <select className="form-select" value={gradientShape} onChange={(e) => updateBg({ gradientShape: e.target.value as "circle" | "ellipse" })}>
+                              <option value="circle">Circle</option>
+                              <option value="ellipse">Ellipse</option>
+                            </select>
+                          </div>
+                          <div className="col-md-6">
+                            <label className="form-label fw-semibold">Gradient Position</label>
+                            <input type="text" className="form-control" value={gradientPosition} onChange={(e) => updateBg({ gradientPosition: e.target.value })} placeholder="center, top left, 30% 70%" />
+                          </div>
+                        </div>
+                      )}
                       <div className="mb-4">
                         <label className="form-label fw-semibold">Gradient Color</label>
                         <div className="input-group" style={{ maxWidth: 220 }}>
-                          <input type="color" className="form-control form-control-color" value={gradientColor} onChange={(e) => setGradientColor(e.target.value)} />
-                          <input type="text" className="form-control font-monospace" value={gradientColor} onChange={(e) => setGradientColor(e.target.value)} maxLength={7} />
+                          <input type="color" className="form-control form-control-color" value={gradientColor} onChange={(e) => updateBg({ gradientColor: e.target.value })} />
+                          <input type="text" className="form-control font-monospace" value={gradientColor} onChange={(e) => updateBg({ gradientColor: e.target.value })} maxLength={7} />
                         </div>
                       </div>
                       <div className="row mb-4">
                         <div className="col-md-6">
                           <label className="form-label">Start Opacity: {gradientStartOpacity}%</label>
-                          <input type="range" className="form-range" min={0} max={100} value={gradientStartOpacity} onChange={(e) => setGradientStartOpacity(Number(e.target.value))} />
+                          <input type="range" className="form-range" min={0} max={100} value={gradientStartOpacity} onChange={(e) => updateBg({ gradientStartOpacity: Number(e.target.value) })} />
                         </div>
                         <div className="col-md-6">
                           <label className="form-label">End Opacity: {gradientEndOpacity}%</label>
-                          <input type="range" className="form-range" min={0} max={100} value={gradientEndOpacity} onChange={(e) => setGradientEndOpacity(Number(e.target.value))} />
+                          <input type="range" className="form-range" min={0} max={100} value={gradientEndOpacity} onChange={(e) => updateBg({ gradientEndOpacity: Number(e.target.value) })} />
                         </div>
                       </div>
                     </>

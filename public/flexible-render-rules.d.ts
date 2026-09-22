@@ -149,3 +149,91 @@ export function resolveBackgroundPosForBreakpoint(
   legacyX: number | null | undefined,
   legacyY: number | null | undefined
 ): { x: number | null; y: number | null };
+
+/**
+ * One FLEXIBLE section's colour-gradient OVERLAY config (content.gradient /
+ * a background bundle's own `gradient` field). `preset.kind` distinguishes
+ * Linear (default when absent — every gradient saved before 2026-09-22) from
+ * Radial (added 2026-09-22). `shape`/`position` are radial-only; `direction`
+ * is linear-only.
+ */
+export interface GradientConfig {
+  enabled?: boolean;
+  type?: "preset";
+  preset?: {
+    /** "radial" or anything else/absent = "linear" (the only kind that ever existed before 2026-09-22). */
+    kind?: "linear" | "radial";
+    /** Linear only. One of the 8 existing direction keys; defaults to "bottom". */
+    direction?: string;
+    /** Radial only. Defaults to "circle". */
+    shape?: "circle" | "ellipse";
+    /** Radial only. A CSS position string ("center", "top left", "20% 80%", ...); defaults to "center". */
+    position?: string;
+    startOpacity?: number;
+    endOpacity?: number;
+    color?: string;
+  };
+}
+
+/**
+ * Full background CONFIGURATION for one breakpoint of a FLEXIBLE section —
+ * everything EXCEPT crop position (which stays BackgroundPosVariants' own
+ * concern, resolved separately via resolveBackgroundPosForBreakpoint above).
+ * See resolveBackgroundBundleForBreakpoint's doc comment in
+ * flexible-render-rules.js for the full per-breakpoint contract (no
+ * inheritance between breakpoints — added 2026-09-22).
+ */
+export interface BgBundle {
+  backgroundType: "solid" | "gradient";
+  /** Solid colour token/hex (e.g. "white", "#2563eb") or "transparent". Meaningful when backgroundType === "solid". */
+  background: string;
+  gradient?: GradientConfig;
+  bgImageUrl: string;
+  bgImageSize: "cover" | "contain" | "auto" | string;
+  bgImageRepeat: string;
+  bgImageOpacity: number;
+}
+
+/**
+ * Per-breakpoint container for a FLEXIBLE section's full background bundle
+ * (content.backgroundByBreakpoint). `desktop` is always a valid bundle once
+ * this key exists at all (migrated from the section's legacy flat fields the
+ * first time it's saved under this feature); `tablet`/`mobile` are null
+ * until the admin explicitly configures that breakpoint — see
+ * resolveBackgroundBundleForBreakpoint's own contract for why an unset
+ * tablet/mobile NEVER inherits Desktop's bundle.
+ */
+export interface BackgroundByBreakpoint {
+  desktop: BgBundle | null;
+  tablet: BgBundle | null;
+  mobile: BgBundle | null;
+}
+
+/**
+ * Builds the CSS `background` shorthand value for a gradient config —
+ * `linear-gradient(...)` (kind absent/"linear", the pre-2026-09-22 behaviour,
+ * byte-identical) or `radial-gradient(...)` (kind "radial", new). Returns
+ * null when there is nothing to render (no preset, or both opacities are 0).
+ * See the doc comment in flexible-render-rules.js for the full contract.
+ */
+export function buildGradientCss(gradient: GradientConfig | null | undefined): string | null;
+
+/**
+ * The deliberate neutral bundle an unconfigured Tablet/Mobile breakpoint
+ * resolves to: solid, transparent, no image. Always a FRESH object.
+ */
+export function getUnsetBackgroundBundle(): BgBundle;
+
+/**
+ * Resolves the full background bundle for one breakpoint: an explicit
+ * per-breakpoint override always wins; Desktop additionally falls back to
+ * `legacyBundle` (the section's pre-feature flat fields) when unset; Tablet/
+ * Mobile NEVER fall back to Desktop or to legacyBundle — they resolve to
+ * getUnsetBackgroundBundle() instead. See the doc comment in
+ * flexible-render-rules.js for the full contract.
+ */
+export function resolveBackgroundBundleForBreakpoint(
+  backgroundByBreakpoint: Partial<BackgroundByBreakpoint> | null | undefined,
+  breakpoint: "desktop" | "tablet" | "mobile",
+  legacyBundle: BgBundle
+): BgBundle;

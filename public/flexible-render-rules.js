@@ -515,6 +515,173 @@
     return { x: null, y: null };
   }
 
+  /**
+   * buildGradientCss(gradient) — pure function. Builds the CSS `background`
+   * shorthand value for a FLEXIBLE section's colour-gradient OVERLAY
+   * (content.gradient, the Background tab's "Gradient" type), given its
+   * stored config object: { enabled, type: "preset", preset: { kind,
+   * direction, shape, position, startOpacity, endOpacity, color } }.
+   *
+   * Added 2026-09-22 alongside resolveBackgroundBundleForBreakpoint() below,
+   * when Radial was added as a second gradient KIND next to the pre-existing
+   * Linear-only behaviour (see feedback_breakpoint-canvases-fully-isolated
+   * memory) — extracted here so the two independently-maintained gradient-CSS
+   * builders (FlexibleSectionRenderer.tsx's own `gradCss` useMemo and this
+   * project's admin live preview, which as of this change both call this one
+   * function) can never drift apart again (ONE SYSTEM PER CONCERN, CLAUDE.md).
+   * Before this extraction only Linear ever existed, hand-built inline in the
+   * renderer — this is a byte-identical port of that logic for
+   * `preset.kind !== "radial"`, plus the new Radial branch.
+   *
+   * ASSUMPTIONS:
+   * 1. `gradient.preset.kind` is "linear" when absent/anything else — every
+   *    gradient saved before Radial existed has no `kind` field at all, and
+   *    must keep rendering exactly as it always has (no migration needed).
+   * 2. `preset.shape` (radial only) is "circle" when absent/anything else —
+   *    a single deliberately-simple default shape, matching this feature's
+   *    explicitly reduced scope (Linear-vs-Radial as a real choice is
+   *    required; an arbitrary stop count or multi-shape UI is not).
+   * 3. `preset.position` (radial only) is a plain CSS position string
+   *    ("center", "top left", "20% 80%", ...) and defaults to "center".
+   *
+   * FAILURE MODES:
+   * - Both startOpacity and endOpacity are 0 (or absent) -> null (no visible
+   *   gradient — matches the pre-existing Linear behaviour exactly, so a
+   *   section with the Gradient tab open but opacity untouched renders no
+   *   overlay, same as before this function existed).
+   * - Malformed/missing `color` -> falls back to "#000000", same as before.
+   * - No `gradient`/`gradient.preset` at all -> null.
+   *
+   * @param {{enabled?:boolean, type?:string, preset?:{kind?:string, direction?:string, shape?:string, position?:string, startOpacity?:number, endOpacity?:number, color?:string}}|null|undefined} gradient
+   * @returns {string|null} A `linear-gradient(...)` or `radial-gradient(...)` CSS value, or null.
+   */
+  function buildGradientCss(gradient) {
+    var p = gradient && gradient.preset;
+    if (!p) return null;
+    // Coerce to finite numbers (defense-in-depth: a gradient config can arrive from
+    // untrusted Template import via public/flexible-designer.html's own call site —
+    // see that file's sectionGradCss, which delegates here) — non-numeric/missing
+    // values become 0, matching the pre-2026-09-22 behaviour of BOTH independently
+    // hand-rolled copies this function unifies.
+    var soN = Number(p.startOpacity), eoN = Number(p.endOpacity);
+    var so = (p.startOpacity == null || !isFinite(soN)) ? 0 : soN;
+    var eo = (p.endOpacity == null || !isFinite(eoN)) ? 0 : eoN;
+    if (so <= 0 && eo <= 0) return null;
+    var hex = (p.color || "#000000").replace("#", "");
+    var r = parseInt(hex.slice(0, 2), 16) || 0;
+    var g = parseInt(hex.slice(2, 4), 16) || 0;
+    var b = parseInt(hex.slice(4, 6), 16) || 0;
+    var startColor = "rgba(" + r + "," + g + "," + b + "," + (so / 100) + ")";
+    var endColor = "rgba(" + r + "," + g + "," + b + "," + (eo / 100) + ")";
+    if (p.kind === "radial") {
+      var shape = p.shape === "ellipse" ? "ellipse" : "circle";
+      var position = p.position || "center";
+      return "radial-gradient(" + shape + " at " + position + ", " + startColor + ", " + endColor + ")";
+    }
+    var DIR = {
+      top: "to top", bottom: "to bottom", left: "to left", right: "to right",
+      topLeft: "to top left", topRight: "to top right", bottomLeft: "to bottom left", bottomRight: "to bottom right",
+    };
+    var dir = DIR[p.direction || "bottom"] || "to bottom";
+    return "linear-gradient(" + dir + ", " + startColor + ", " + endColor + ")";
+  }
+
+  /**
+   * The deliberate NEUTRAL bundle a Tablet/Mobile breakpoint resolves to when
+   * it has never been explicitly configured — see
+   * resolveBackgroundBundleForBreakpoint()'s own doc comment for why this is
+   * "transparent/no background" rather than falling back to Desktop's bundle.
+   * getUnsetBackgroundBundle() always returns a FRESH object (never a shared
+   * reference) so a caller can safely mutate its own copy.
+   */
+  function getUnsetBackgroundBundle() {
+    return {
+      backgroundType: "solid",
+      background: "transparent",
+      gradient: undefined,
+      bgImageUrl: "",
+      bgImageSize: "cover",
+      bgImageRepeat: "no-repeat",
+      bgImageOpacity: 100,
+    };
+  }
+
+  function isValidBgBundle(b) {
+    return !!b && typeof b === "object" && (b.backgroundType === "solid" || b.backgroundType === "gradient");
+  }
+
+  /**
+   * resolveBackgroundBundleForBreakpoint(backgroundByBreakpoint, breakpoint, legacyBundle)
+   * — pure function. Resolves the FULL background configuration (type, solid
+   * colour, gradient config, and image sizing/repeat/opacity — everything
+   * EXCEPT crop position, which stays its own already-per-breakpoint concern,
+   * see resolveBackgroundPosForBreakpoint above) for a FLEXIBLE section at a
+   * given breakpoint.
+   *
+   * Added 2026-09-22 (see feedback_breakpoint-canvases-fully-isolated memory
+   * and project_session-2026-09-21-breakpoint-saga memory for the full
+   * history this closes): this is DELIBERATELY NOT modeled on
+   * resolveBackgroundPosForBreakpoint's own inherit-from-Desktop fallback
+   * (step 2 there) — that "Tablet/Mobile falls back to Desktop's explicit
+   * value" design was explicitly superseded by the user for this exact area.
+   * A Tablet/Mobile breakpoint with nothing configured resolves to the
+   * deliberate NEUTRAL "unset" bundle (getUnsetBackgroundBundle() — solid,
+   * transparent, no image) instead, so nothing ever bleeds from Desktop into
+   * another breakpoint's background, matching the same "no automatic sync
+   * across breakpoints, ever" rule already locked in for block content
+   * (public/flexible-breakpoint-rules.js's reconcileVariantBlocks doc
+   * comment).
+   *
+   * CONTRACT:
+   *   1. backgroundByBreakpoint[breakpoint] is a valid bundle
+   *      ({backgroundType: "solid"|"gradient", ...}) -> use it verbatim (an
+   *      explicit per-breakpoint bundle always wins, desktop included).
+   *   2. Else, ONLY for "desktop": legacyBundle (the section's pre-feature
+   *      FLAT fields — background/gradient/bgImage* — assembled by the
+   *      caller) is used when valid, so a section saved before this feature
+   *      existed renders Desktop byte-identical. When even that is invalid
+   *      (should not happen — callers always assemble a shape-valid legacy
+   *      bundle), falls back to the same neutral bundle as step 3.
+   *   3. Else (tablet/mobile with no explicit bundle) -> the neutral "unset"
+   *      bundle. NEVER Desktop's bundle, NEVER the legacy bundle.
+   *
+   * ASSUMPTIONS:
+   * 1. backgroundByBreakpoint, when present, has up to 3 keys
+   *    (desktop/tablet/mobile), each either a full bundle object or
+   *    null/undefined/absent ("not customized") — the exact shape
+   *    FlexibleSectionEditorModal.tsx writes on save.
+   * 2. legacyBundle is always a shape-valid bundle the caller assembled from
+   *    the section's own flat fields (never itself breakpoint-aware) — it is
+   *    ONLY ever used for desktop, never tablet/mobile, by construction (step
+   *    3 never reads it).
+   *
+   * FAILURE MODES:
+   * - backgroundByBreakpoint is null/undefined/not an object (every section
+   *   that predates this feature) -> step 1 no-ops for every breakpoint, step
+   *   2 (desktop) uses legacyBundle, step 3 (tablet/mobile) uses the neutral
+   *   bundle — this IS the intended "starts empty to be populated" migration
+   *   behaviour, not a fallback path being mistakenly hit.
+   * - A malformed stored bundle (missing backgroundType) -> treated as absent
+   *   (isValidBgBundle), same resolution as if it were null.
+   *
+   * @param {{desktop?:object|null,tablet?:object|null,mobile?:object|null}|null|undefined} backgroundByBreakpoint
+   * @param {'desktop'|'tablet'|'mobile'} breakpoint
+   * @param {object} legacyBundle - shape-valid bundle assembled from the section's flat legacy fields.
+   * @returns {object} A background bundle — never null/undefined.
+   */
+  function resolveBackgroundBundleForBreakpoint(backgroundByBreakpoint, breakpoint, legacyBundle) {
+    var bp = backgroundByBreakpoint && typeof backgroundByBreakpoint === "object" ? backgroundByBreakpoint : null;
+    var own = bp ? bp[breakpoint] : null;
+    if (isValidBgBundle(own)) return own;
+
+    if (breakpoint === "desktop") {
+      return isValidBgBundle(legacyBundle) ? legacyBundle : getUnsetBackgroundBundle();
+    }
+
+    // Tablet/Mobile: deliberate — NEVER falls back to Desktop or legacy.
+    return getUnsetBackgroundBundle();
+  }
+
   return {
     computeSubElementStyle: computeSubElementStyle,
     computeSubElementPosition: computeSubElementPosition,
@@ -522,5 +689,8 @@
     computeMultiBgLayers: computeMultiBgLayers,
     resolveBgPositionCss: resolveBgPositionCss,
     resolveBackgroundPosForBreakpoint: resolveBackgroundPosForBreakpoint,
+    buildGradientCss: buildGradientCss,
+    getUnsetBackgroundBundle: getUnsetBackgroundBundle,
+    resolveBackgroundBundleForBreakpoint: resolveBackgroundBundleForBreakpoint,
   };
 });
