@@ -1451,7 +1451,7 @@ Lets you choose exactly which part of a photo stays in frame when a block's shap
 3. Click-drag directly on the block, in the canvas, to slide the image's focal point
 4. Click the button again (or click elsewhere on the canvas) to finish
 
-> ⚠️ **Independent per breakpoint** — unlike a section's own background image (Section Editor → Background tab, which shares one position across all screen sizes), this position is saved **separately for Desktop, Tablet, and Mobile**. Repositioning while viewing the Tablet canvas only affects Tablet — switch to the Mobile view and reposition again if its focal point also needs to move.
+> ⚠️ **Independent per breakpoint** — same convention as a section's own background image (Section Editor → Background tab), which is also independent per Desktop/Tablet/Mobile. Repositioning while viewing the Tablet canvas only affects Tablet — switch to the Mobile view and reposition again if its focal point also needs to move.
 
 ---
 
