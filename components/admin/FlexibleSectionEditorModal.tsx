@@ -20,7 +20,7 @@ import type { ScrollStageConfig, ScrollStageZoneConfig, ScrollStageZoneImageConf
 import { DEFAULT_LOWER_THIRD } from "@/lib/lower-third-presets";
 import { legacyToDesignerData } from "@/lib/flexible/legacy-to-designer";
 import { resolveVariants, serializeVariants } from "../../public/flexible-breakpoint-rules.js";
-import { resolveBgPositionCss, resolveBackgroundPosForBreakpoint, getUnsetBackgroundBundle } from "../../public/flexible-render-rules.js";
+import { resolveBgPositionCss, resolveBackgroundPosForBreakpoint, getUnsetBackgroundBundle, resolveBackgroundBundleForBreakpoint } from "../../public/flexible-render-rules.js";
 import type { BackgroundPosVariants, BgBundle, GradientConfig } from "../../public/flexible-render-rules.js";
 import { useConfirm } from "@/components/admin/ConfirmProvider";
 import {
@@ -150,6 +150,21 @@ export default function FlexibleSectionEditorModal({
   const [activeTab, setActiveTab] = useState<ActiveTab>("content");
   const [showDesigner, setShowDesigner] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  // In-canvas Section background panel (2026-09-22) — the DESIGNER CANVAS's own
+  // devicePreview breakpoint toggle (public/flexible-designer.html's state.devicePreview),
+  // mirrored here ONLY so this modal knows which breakpoint's background bundle to push
+  // into the canvas via FLEXIBLE_DESIGNER_BG_UPDATE. Deliberately a SEPARATE piece of state
+  // from previewViewport below (the modal's own "Preview as" tab) — the two switchers are
+  // intentionally independent (see docs/main-cms-sync-prompt.md), this one exists purely to
+  // answer "what should the canvas's in-iframe Section panel currently show". Reset to
+  // "desktop" whenever the designer overlay closes/reopens, since a freshly-mounted iframe
+  // always starts state.devicePreview at 'desktop' (see the showDesigner effect below).
+  const [canvasBreakpoint, setCanvasBreakpoint] = useState<"desktop" | "tablet" | "mobile">("desktop");
+  // True once the CURRENT designer iframe instance has sent FLEXIBLE_DESIGNER_READY (and
+  // this modal has responded with FLEXIBLE_DESIGNER_INIT) — gates the background-push effect
+  // below so it never posts into an iframe that hasn't loaded its message listener yet, and
+  // resets on every close/reopen (a new <iframe> = a fresh handshake).
+  const [designerReady, setDesignerReady] = useState(false);
   // Preview viewport toggle: "desktop" | "tablet" | "mobile"
   const [previewViewport, setPreviewViewport] = useState<"desktop" | "tablet" | "mobile">("desktop");
   // #72 — optional navbar overlay in the preview pane. Default OFF = preview unchanged.
@@ -478,6 +493,43 @@ export default function FlexibleSectionEditorModal({
     gradientColor, gradientStartOpacity, gradientEndOpacity, bgImageUrl, bgImageSize, bgImageRepeat, bgImageOpacity,
   ]);
 
+  /**
+   * Resolves the SAME `sectionBackground` shape the designer canvas's own
+   * readSectionBgFromPayload() (public/flexible-designer.html) already parses, for
+   * an ARBITRARY breakpoint — generalises the FLEXIBLE_DESIGNER_READY handler's old
+   * hardcoded-Desktop object below to any of the three breakpoints, via the shared
+   * resolvers (ONE SYSTEM PER CONCERN, CLAUDE.md — same resolveBackgroundBundleForBreakpoint/
+   * resolveBackgroundPosForBreakpoint FlexibleSectionRenderer.tsx uses for the live page).
+   *
+   * `bgByBreakpoint.desktop` doubles as the `legacyBundle` fallback param — safe because
+   * that key is ALWAYS a valid bundle once bgByBreakpoint exists at all (migrated at this
+   * modal's own state-init, see bgByBreakpoint's declaration), so the resolver's "own value
+   * wins" branch (backgroundByBreakpoint[breakpoint] valid -> use it verbatim) is the only
+   * branch desktop can ever actually take here; the fallback param is passed only to satisfy
+   * the resolver's contract, never exercised.
+   *
+   * Used both by the initial FLEXIBLE_DESIGNER_INIT payload (breakpoint fixed to "desktop" —
+   * a freshly-mounted canvas iframe always starts at state.devicePreview 'desktop') and by
+   * the FLEXIBLE_DESIGNER_BG_UPDATE effect below (breakpoint = whatever the canvas last
+   * reported itself as being on via FLEXIBLE_DESIGNER_BREAKPOINT_CHANGED).
+   */
+  const buildSectionBackgroundForBreakpoint = useCallback((breakpoint: "desktop" | "tablet" | "mobile") => {
+    const bundle = resolveBackgroundBundleForBreakpoint(bgByBreakpoint, breakpoint, bgByBreakpoint.desktop);
+    const pos = resolveBackgroundPosForBreakpoint(backgroundPos, breakpoint, legacyBackgroundPosX, legacyBackgroundPosY);
+    return {
+      background: bundle.background,
+      bgImageUrl: bundle.bgImageUrl || "",
+      bgImageSize: bundle.bgImageSize,
+      bgImagePosition,
+      bgImageRepeat: bundle.bgImageRepeat,
+      bgImageOpacity: bundle.bgImageOpacity,
+      backgroundPosX: pos.x,
+      backgroundPosY: pos.y,
+      bgMultiRepeat,
+      gradient: bundle.gradient,
+    };
+  }, [bgByBreakpoint, backgroundPos, bgImagePosition, bgMultiRepeat, legacyBackgroundPosX, legacyBackgroundPosY]);
+
   // Background VOLT ("Volt Type = Background", Phase 2c) — id of a background-type
   // VoltElement selected as this section's background. Persisted inside content JSONB
   // at content.backgroundVoltId (round-trips via save, no API/schema change). null = none.
@@ -754,33 +806,25 @@ export default function FlexibleSectionEditorModal({
         // #68 — forward the section's configured background so the designer canvas can
         // preview it (view-only in the designer). Mirrors the fields FlexibleSectionRenderer
         // reads off the section: solid/preset colour, bg image + sizing, and gradient overlay.
+        //
+        // Breakpoint fixed to "desktop" here — a freshly-mounted canvas iframe always starts
+        // at state.devicePreview 'desktop' (public/flexible-designer.html's state object), so
+        // this is always correct at INIT time regardless of which "Preview as" tab
+        // (previewViewport) happens to be active in THIS modal. Once the canvas is up, the
+        // in-canvas Section panel (2026-09-22) keeps itself current via
+        // FLEXIBLE_DESIGNER_BREAKPOINT_CHANGED / FLEXIBLE_DESIGNER_BG_UPDATE (the effect
+        // below) whenever the admin switches the canvas's OWN Desktop/Tablet/Mobile toggle.
         let payloadWithBg = initPayload;
         try {
           const obj = JSON.parse(initPayload);
-          // Designer-canvas preview is Desktop-only (view-only there), so this ALWAYS
-          // mirrors bgByBreakpoint.desktop directly — NOT the flat per-field controls,
-          // which represent whichever "Preview as" tab is currently active and could be
-          // Tablet/Mobile when this fires (e.g. the admin switched tabs, then clicked
-          // "Open Element Designer" without switching back). Same Desktop-only mirror
-          // pattern as backgroundPosX/Y already used here.
-          obj.sectionBackground = {
-            background: bgByBreakpoint.desktop.background,
-            bgImageUrl: bgByBreakpoint.desktop.bgImageUrl || "",
-            bgImageSize: bgByBreakpoint.desktop.bgImageSize,
-            bgImagePosition,
-            bgImageRepeat: bgByBreakpoint.desktop.bgImageRepeat,
-            bgImageOpacity: bgByBreakpoint.desktop.bgImageOpacity,
-            backgroundPosX: backgroundPos.desktop?.x ?? null,
-            backgroundPosY: backgroundPos.desktop?.y ?? null,
-            bgMultiRepeat,
-            gradient: bgByBreakpoint.desktop.gradient,
-          };
+          obj.sectionBackground = buildSectionBackgroundForBreakpoint("desktop");
           payloadWithBg = JSON.stringify(obj);
         } catch { /* non-JSON payload — send as-is */ }
         iframeRef.current?.contentWindow?.postMessage(
           { type: "FLEXIBLE_DESIGNER_INIT", payload: payloadWithBg },
           "*"
         );
+        setDesignerReady(true);
       })();
     }
     if (e.data.type === "FLEXIBLE_DESIGNER_SAVE" || e.data.type === "FLEXIBLE_DESIGNER_DONE") {
@@ -798,9 +842,75 @@ export default function FlexibleSectionEditorModal({
       // Close the designer — the live preview pane is always visible now.
       setShowDesigner(false);
     }
+    // ── In-canvas Section background panel (2026-09-22) ──────────────────────
+    // Canvas -> parent: "I just switched my OWN devicePreview toggle to X" — sent by
+    // public/flexible-designer.html's setDevicePreview() on every actual change. We mirror
+    // it into canvasBreakpoint purely so the effect below knows which breakpoint's bundle to
+    // push back (see canvasBreakpoint's own state-declaration comment — this is NOT a second
+    // owner of any persisted field, just UI-mirroring for that purpose).
+    if (e.data.type === "FLEXIBLE_DESIGNER_BREAKPOINT_CHANGED") {
+      const bp = e.data.payload?.breakpoint;
+      if (bp === "desktop" || bp === "tablet" || bp === "mobile") setCanvasBreakpoint(bp);
+    }
+    // Canvas -> parent: the admin dragged the Section panel's own reposition box. `breakpoint`
+    // is whichever breakpoint the CANVAS was on when the drag happened (its own
+    // state.devicePreview at drag time — always matches canvasBreakpoint above, sent
+    // redundantly on the message itself so this handler never has to trust stale closure
+    // state). setBackgroundPos is the SAME single setter BackgroundRepositionPreview's onChange
+    // (Background tab, above) already calls — ONE writer, ONE persisted field, regardless of
+    // which of the two UIs (in-canvas panel or Background tab) originated the drag. No new
+    // write path, no new API call — this rides the modal's existing handleSave persistence.
+    if (e.data.type === "FLEXIBLE_DESIGNER_BG_DRAG") {
+      const { breakpoint: bp, x, y } = e.data.payload || {};
+      if ((bp === "desktop" || bp === "tablet" || bp === "mobile") && typeof x === "number" && typeof y === "number") {
+        setBackgroundPos((prev) => ({ ...prev, [bp]: { x, y } }));
+      }
+    }
+    // Canvas -> parent: "Full background settings →" link in the Section panel. Closes the
+    // full-screen designer overlay, switches the modal's OWN "Preview as" tab to match
+    // whichever breakpoint the canvas was showing (so the Background tab the admin lands on
+    // is editing the SAME breakpoint they were just looking at), and opens that tab — hands
+    // off to the existing Background tab controls rather than duplicating them here.
+    if (e.data.type === "FLEXIBLE_DESIGNER_OPEN_BG_TAB") {
+      const bp = e.data.payload?.breakpoint;
+      if (bp === "desktop" || bp === "tablet" || bp === "mobile") setPreviewViewport(bp);
+      setActiveTab("background");
+      setShowDesigner(false);
+    }
   }, [designerData, contentMode, layout, draftKey, section, confirm,
       bgByBreakpoint, bgImagePosition, bgMultiRepeat,
-      backgroundPos]);
+      backgroundPos, buildSectionBackgroundForBreakpoint]);
+
+  // Fresh <iframe> on every open (showDesigner && (<iframe .../>) unmounts it on close) means
+  // a fresh FLEXIBLE_DESIGNER_READY handshake and a canvas that starts back at devicePreview
+  // 'desktop' — reset the mirrored copies to match so a reopen doesn't push a stale breakpoint's
+  // bundle into the new iframe before it has reported its own state.
+  useEffect(() => {
+    if (!showDesigner) {
+      setDesignerReady(false);
+      setCanvasBreakpoint("desktop");
+    }
+  }, [showDesigner]);
+
+  // Push the CURRENT canvasBreakpoint's resolved background bundle into the designer canvas
+  // whenever either changes: (a) canvasBreakpoint itself (the admin switched the canvas's own
+  // Desktop/Tablet/Mobile toggle — FLEXIBLE_DESIGNER_BREAKPOINT_CHANGED above), or (b) the
+  // background configuration for that breakpoint changed in THIS modal (Background tab edits,
+  // or an echo of the canvas's own drag — see FLEXIBLE_DESIGNER_BG_DRAG above; re-sending the
+  // same value back is an idempotent no-op on the canvas side, not a bug). Gated on
+  // showDesigner + designerReady so nothing is posted into an iframe that doesn't exist yet or
+  // hasn't attached its message listener (see the IFRAME INTEGRATION section of
+  // flexible-designer.html for the corresponding receive side).
+  useEffect(() => {
+    if (!showDesigner || !designerReady) return;
+    iframeRef.current?.contentWindow?.postMessage(
+      {
+        type: "FLEXIBLE_DESIGNER_BG_UPDATE",
+        payload: { breakpoint: canvasBreakpoint, sectionBackground: buildSectionBackgroundForBreakpoint(canvasBreakpoint) },
+      },
+      "*"
+    );
+  }, [showDesigner, designerReady, canvasBreakpoint, buildSectionBackgroundForBreakpoint]);
 
   useEffect(() => {
     window.addEventListener("message", handleDesignerMessage);

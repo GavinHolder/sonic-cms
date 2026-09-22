@@ -6579,9 +6579,175 @@ function renderPropsPanel() {
     const b=state.blocks.find(b=>b.id===state.selectedBlockId);
     if (b) { panel.innerHTML=renderBlockProps(b); restore(); return; }
   }
-  // Nothing selected — show the empty-state placeholder
-  panel.innerHTML=`<div class="no-selection"><i class="bi bi-cursor-text"></i><p>Click a block on the canvas to edit its properties, or drag a block from the library.</p></div>`;
+  // Nothing selected — show the Section panel (in-canvas background reposition,
+  // 2026-09-22 — see renderSectionPanel()'s own doc comment) above the existing hint.
+  panel.innerHTML=renderSectionPanel()+`<div class="no-selection"><i class="bi bi-cursor-text"></i><p>Click a block on the canvas to edit its properties, or drag a block from the library.</p></div>`;
   restore();
+}
+
+/**
+ * "Section" panel — shown in the right sidebar whenever nothing is selected (the
+ * renderPropsPanel() empty-state branch, above). Added 2026-09-22 per explicit user
+ * request: dragging out to FlexibleSectionEditorModal.tsx's Background tab just to
+ * reposition the section's own background image was "cumbersome" — this surfaces the
+ * SAME drag-to-reposition mechanic natively in the canvas, so the admin can "move the
+ * background and see the result in the canvas" without leaving it. The Background
+ * tab's fuller type/gradient/colour controls are deliberately NOT duplicated here
+ * (see the "Full background settings" link below) — this panel's only job is the
+ * crop-position drag, the one capability the user explicitly asked to have in-canvas.
+ *
+ * ONE SYSTEM PER CONCERN (CLAUDE.md): this panel is a PURE VIEW over state.sectionBg —
+ * the CURRENT breakpoint's resolved background bundle, kept in sync by the parent
+ * modal via FLEXIBLE_DESIGNER_BG_UPDATE (see the IFRAME INTEGRATION section's message
+ * handler, and startSectionBgReposition()'s own doc comment for the write side). This
+ * file never computes a breakpoint fallback or persists a background field itself —
+ * content.backgroundPos / content.backgroundByBreakpoint live in and are owned
+ * entirely by FlexibleSectionEditorModal.tsx's React state, exactly like every other
+ * section-level (non-designerData) field this canvas can view but not own.
+ *
+ * Eligibility gate mirrors BackgroundRepositionPreview's own (FlexibleSectionEditorModal.tsx,
+ * gated on imageUrl): no bgImageUrl for this breakpoint -> a plain message instead of an
+ * unusable empty drag box, per this feature's own spec.
+ * @returns {string} HTML string, prepended to the empty-state placeholder by renderPropsPanel().
+ */
+function renderSectionPanel() {
+  const bg = state.sectionBg;
+  const breakpoint = state.devicePreview;
+  const label = breakpoint.charAt(0).toUpperCase() + breakpoint.slice(1);
+  const icon = breakpoint === 'mobile' ? 'bi-phone' : breakpoint === 'tablet' ? 'bi-tablet' : 'bi-laptop';
+  const hasImage = !!(bg && bg.bgImageUrl);
+  const xVal = hasImage && typeof bg.backgroundPosX === 'number' ? bg.backgroundPosX : 50;
+  const yVal = hasImage && typeof bg.backgroundPosY === 'number' ? bg.backgroundPosY : 50;
+  const posCss = hasImage ? window.FlexibleRenderRules.resolveBgPositionCss(bg.backgroundPosX, bg.backgroundPosY) : 'center';
+
+  let h = `<div class="props-section">
+    <div class="props-label"><i class="bi bi-image"></i> Section Background</div>
+    <div style="font-size:11px;color:#6c757d;margin-bottom:8px;">
+      <i class="bi ${icon} me-1"></i>Editing the <strong>${label}</strong> background — matches the Desktop/Tablet/Mobile toggle above.
+    </div>`;
+
+  if (hasImage) {
+    h += `<div id="section-bg-drag-box" onmousedown="startSectionBgReposition(event)"
+        style="position:relative;width:100%;height:140px;border-radius:6px;border:1px solid #dee2e6;
+               background-color:#f8f9fa;background-image:url('${cssUrl(bg.bgImageUrl)}');
+               background-size:${bg.bgImageSize||'cover'};background-position:${posCss};
+               background-repeat:no-repeat;cursor:grab;user-select:none;"
+        title="Drag to reposition the background image">
+        <div id="section-bg-drag-dot" style="position:absolute;left:${xVal}%;top:${yVal}%;width:14px;height:14px;
+             margin-left:-7px;margin-top:-7px;border-radius:50%;border:2px solid #fff;background:#0d6efd;
+             box-shadow:0 0 0 1px rgba(0,0,0,0.35);pointer-events:none;"></div>
+      </div>
+      <small class="text-muted d-block mt-1" id="section-bg-drag-readout">Drag on the preview to reposition (${xVal}%, ${yVal}%).</small>`;
+  } else {
+    h += `<div class="text-muted small" style="padding:10px;background:#f8f9fa;border:1px dashed #dee2e6;border-radius:6px;">
+        No background image set for ${label} — set one in the Background tab.
+      </div>`;
+  }
+
+  h += `<button type="button" class="btn btn-sm btn-outline-primary w-100 mt-2" onclick="openSectionBgTab()">
+      Full background settings <i class="bi bi-arrow-right ms-1"></i>
+    </button>
+  </div>`;
+  return h;
+}
+
+/**
+ * Section-panel counterpart to startBgReposition() (block-level drag-to-reposition,
+ * further down this file) — drags the SECTION's own background image crop position
+ * from the Section panel (renderSectionPanel(), above), shown when nothing is
+ * selected. See renderSectionPanel()'s own doc comment for the full feature context.
+ *
+ * ONE SYSTEM PER CONCERN (CLAUDE.md): this file does NOT own or persist this
+ * position — content.backgroundPos lives in FlexibleSectionEditorModal.tsx's React
+ * state, not in designerData/state.blocks (which THIS file owns and autosaves via
+ * buildJson()/FLEXIBLE_DESIGNER_SAVE). Every position computed here is (a) mirrored
+ * immediately onto this panel's own preview box + the real canvas's own view-only
+ * #canvas-section-bg layer (applySectionBgToCanvas(), IFRAME INTEGRATION section) for
+ * zero-lag feedback, and (b) posted to the parent modal via FLEXIBLE_DESIGNER_BG_DRAG,
+ * which is the ONLY place that actually writes content.backgroundPos — same
+ * drag-computes-locally / parent-owns-the-write pattern as every other cross-iframe
+ * field this designer can view but does not persist.
+ *
+ * Uses the SAME getBoundingClientRect()-of-the-dragged-element percentage math as
+ * startBgReposition() (scale/zoom-agnostic — measures the PREVIEW BOX's own rect on
+ * every move, never a raw mouse-delta) and the SAME 0-100 rounded-integer convention
+ * as BackgroundRepositionPreview (FlexibleSectionEditorModal.tsx) and resolveBgPositionCss.
+ *
+ * While a drag is in progress, state._sectionBgDragActive is set true so an echoed
+ * FLEXIBLE_DESIGNER_BG_UPDATE arriving mid-drag (the parent reacting to our own
+ * FLEXIBLE_DESIGNER_BG_DRAG messages — see that handler's own comment) updates
+ * state.sectionBg / the real canvas layer but SKIPS the full renderPropsPanel()
+ * rebuild, which would replace #props-content's innerHTML and detach THIS drag's own
+ * target element mid-gesture (getBoundingClientRect() on a detached node returns all
+ * zeros, breaking the drag). onUp does one final renderPropsPanel() once it's safe.
+ *
+ * FAILURE MODES:
+ * - No section background image for the current breakpoint -> renderSectionPanel()
+ *   never wires this handler onto anything (gated on bg.bgImageUrl) — unreachable,
+ *   matching startBgReposition's own "nothing to drag" no-op contract.
+ * - Parent window/iframe gone mid-drag -> postMessage silently no-ops, same as every
+ *   other postMessage call in this file.
+ * @param {MouseEvent} e - The initiating mousedown event.
+ */
+function startSectionBgReposition(e) {
+  const bg = state.sectionBg;
+  if (!bg || !bg.bgImageUrl) return;
+  const box = document.getElementById('section-bg-drag-box');
+  if (!box) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const breakpoint = state.devicePreview;
+  const dot = document.getElementById('section-bg-drag-dot');
+  const readout = document.getElementById('section-bg-drag-readout');
+  state._sectionBgDragActive = true;
+
+  function applyAt(clientX, clientY) {
+    const rect = box.getBoundingClientRect();
+    const relX = rect.width  ? ((clientX - rect.left) / rect.width)  * 100 : 50;
+    const relY = rect.height ? ((clientY - rect.top)  / rect.height) * 100 : 50;
+    const x = Math.round(Math.max(0, Math.min(100, relX)));
+    const y = Math.round(Math.max(0, Math.min(100, relY)));
+    bg.backgroundPosX = x;
+    bg.backgroundPosY = y;
+    const css = window.FlexibleRenderRules.resolveBgPositionCss(x, y);
+    box.style.backgroundPosition = css;
+    if (dot) { dot.style.left = x + '%'; dot.style.top = y + '%'; }
+    if (readout) readout.textContent = 'Drag on the preview to reposition (' + x + '%, ' + y + '%).';
+    // Mirror onto the REAL canvas's own background layer too — "see the result in the
+    // canvas" (the user's own wording) — same element applySectionBgToCanvas() paints.
+    const canvasImg = document.querySelector('#canvas-section-bg .csb-image');
+    if (canvasImg) canvasImg.style.backgroundPosition = css;
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'FLEXIBLE_DESIGNER_BG_DRAG', payload: { breakpoint: breakpoint, x: x, y: y } }, '*');
+    }
+  }
+
+  applyAt(e.clientX, e.clientY);
+
+  function onMove(ev) { applyAt(ev.clientX, ev.clientY); }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    state._sectionBgDragActive = false;
+    if (!state.selectedBlockId && !state.selectedSubId) renderPropsPanel(); // sync to the final dragged value
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+/**
+ * "Full background settings →" link in the Section panel (renderSectionPanel()) —
+ * hands off to FlexibleSectionEditorModal.tsx's fuller Background tab (type/gradient/
+ * colour/image controls this in-canvas panel deliberately doesn't duplicate — see
+ * renderSectionPanel()'s own doc comment). The parent closes this full-screen designer
+ * overlay, switches its own "Preview as" tab to match whichever breakpoint the canvas
+ * is currently showing, and opens the Background tab — see the FLEXIBLE_DESIGNER_OPEN_BG_TAB
+ * handler in FlexibleSectionEditorModal.tsx's handleDesignerMessage.
+ */
+function openSectionBgTab() {
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage({ type: 'FLEXIBLE_DESIGNER_OPEN_BG_TAB', payload: { breakpoint: state.devicePreview } }, '*');
+  }
 }
 
 /**
@@ -9354,6 +9520,11 @@ function autoScalePos(pos, targetW, srcW) {
  * @param {'desktop'|'tablet'|'mobile'} device - Target preview device.
  */
 function setDevicePreview(device) {
+  // In-canvas Section background panel (2026-09-22): capture whether this is an actual
+  // change BEFORE any of the reassignment logic below touches state.devicePreview, so the
+  // parent-notify call at the end fires only on a real switch (not e.g. re-clicking the
+  // already-active toolbar button).
+  const _sectionBgBreakpointChanged = state.devicePreview !== device;
   // Per-breakpoint independent layouts (2026-09-11): before changing the
   // PRESENTATION (existing logic below), swap the actual EDITED DATA —
   // snapshot the outgoing breakpoint's current flat state back into
@@ -9470,6 +9641,17 @@ function setDevicePreview(device) {
   }
   // Give DOM time to reflow, then update dimensions
   setTimeout(() => { renderCanvas(); updateDimensions(); }, 50);
+  // In-canvas Section background panel (2026-09-22) — canvas -> parent: tell the parent
+  // modal which breakpoint we're now on so it can resolve + push that breakpoint's own
+  // background bundle back via FLEXIBLE_DESIGNER_BG_UPDATE (see the IFRAME INTEGRATION
+  // section's message listener, further down this file). Deliberately NOT followed by a
+  // local renderPropsPanel() call here — the Section panel refreshes itself once the
+  // parent's reply lands (that handler already gates on payload.breakpoint matching the
+  // NEW state.devicePreview), so it never shows this breakpoint's label next to the
+  // PREVIOUS breakpoint's still-stale bundle even for one frame.
+  if (_sectionBgBreakpointChanged && window.parent && window.parent !== window) {
+    window.parent.postMessage({ type: 'FLEXIBLE_DESIGNER_BREAKPOINT_CHANGED', payload: { breakpoint: device } }, '*');
+  }
 }
 
 /**
@@ -11096,6 +11278,36 @@ window.addEventListener('message', function(e) {
     }
   } catch(err) {
     console.warn('[FlexibleDesigner] Could not apply init data:', err);
+  }
+});
+
+/**
+ * In-canvas Section background panel (2026-09-22) — parent -> canvas half of the
+ * protocol. The parent (FlexibleSectionEditorModal.tsx) sends this whenever (a) it
+ * hears FLEXIBLE_DESIGNER_BREAKPOINT_CHANGED (below, from setDevicePreview()) and
+ * resolves that breakpoint's bundle, or (b) its OWN background state changes for
+ * whichever breakpoint the canvas last reported (Background tab edits, or an echo of
+ * our own FLEXIBLE_DESIGNER_BG_DRAG — see startSectionBgReposition()'s doc comment for
+ * why that echo is harmless). Reuses readSectionBgFromPayload() (this file's own
+ * FLEXIBLE_DESIGNER_INIT parser, further up) so both the one-time init paint and every
+ * live update after it are parsed by the exact same function — ONE SYSTEM PER CONCERN.
+ *
+ * Stale-breakpoint guard: payload.breakpoint !== state.devicePreview means this message
+ * was resolved for a breakpoint we've since navigated away from (a message-ordering
+ * race after a rapid breakpoint switch) — ignored rather than painting the WRONG
+ * breakpoint's background onto the canvas.
+ */
+window.addEventListener('message', function(e) {
+  if (!e.data || e.data.type !== 'FLEXIBLE_DESIGNER_BG_UPDATE') return;
+  const payload = e.data.payload;
+  if (!payload || typeof payload !== 'object') return;
+  if (payload.breakpoint !== state.devicePreview) return;
+  state.sectionBg = readSectionBgFromPayload(payload);
+  applySectionBgToCanvas();
+  // Skip the Section panel rebuild while a LOCAL drag from that same panel is live —
+  // see startSectionBgReposition()'s own doc comment for why (detached drag target).
+  if (!state._sectionBgDragActive && !state.selectedBlockId && !state.selectedSubId) {
+    renderPropsPanel();
   }
 });
 
