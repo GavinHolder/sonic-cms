@@ -72,6 +72,15 @@ export default function VoltPreviewClient({
       overflow: "hidden",
       position: "relative",
     }}>
+      {/* This route exists only to be embedded (the Designer canvas's Volt-block
+          preview iframe). Bootstrap's global `body { background-color:
+          var(--bs-body-bg) }` (white) propagates to the whole iframe viewport when
+          <html> has no background of its own, painting solid white bands wherever
+          the contain-fit Volt doesn't cover the iframe — bands the live page never
+          has (it shows the section's photo there). The route's own comments already
+          assume "the document stays fully transparent" (page.tsx); this makes that
+          true. Static CSS text only — no interpolated values. */}
+      <style>{"html,body{background:transparent !important}"}</style>
       {bgImage && !hasBgWindow && (
         <div aria-hidden="true" style={{
           position: "absolute", inset: 0, zIndex: 0,
