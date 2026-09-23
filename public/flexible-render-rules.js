@@ -217,6 +217,16 @@
       // was added to the Designer on 2026-07-03, #67, and fell into DesignerSubElement's
       // "unknown type -> null" default), so every canvas-placed eyebrow rendered nothing
       // on the live page. Both consumers now read these defaults from here.
+      // 2026-09-23: an eyebrow is a short single-line label. In exact (free-canvas)
+      // mode the author sizes its box by eye in the Designer, so a label that only
+      // just fits (e.g. "OUR COMMUNITY PROGRAMME" at 13px/3px tracking = 258px in a
+      // 260px box) looked fine there but wrapped to a 2nd line on the live page the
+      // moment anything nudged its width ~1% — browser zoom, a Google Font still
+      // swapping in behind a wider fallback, glyph-hinting differences. Wrapping is
+      // now decided HERE, once, so the Designer and every live surface agree:
+      // exact mode never wraps (it can only overflow its own box by a few px,
+      // invisible since the box has no fill). Flow mode keeps normal wrapping so a
+      // long eyebrow can't force horizontal scroll on a phone.
       var eFontNum = Number(p.fontSize) || 13;
       return stripUndefined({
         fontSize: mobile ? mobileFontClamp(eFontNum) : (eFontNum + "px"),
@@ -227,6 +237,7 @@
         textTransform: p.textTransform || "uppercase",
         letterSpacing: (p.letterSpacing !== undefined && p.letterSpacing !== null) ? (Number(p.letterSpacing) + "px") : "2px",
         lineHeight: Number(p.lineHeight) || 1.4,
+        whiteSpace: exact ? "nowrap" : undefined,
       });
     }
 
