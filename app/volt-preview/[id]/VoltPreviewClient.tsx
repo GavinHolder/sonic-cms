@@ -62,7 +62,13 @@ export default function VoltPreviewClient({
       display: fullBleed ? "block" : "flex",
       alignItems: "center",
       justifyContent: "center",
-      background: bg || "transparent",
+      // When the background window is supplied it is painted INSIDE VoltRenderer's
+      // own stage (see `backgroundWindow`), and that stage is contain-fit — so it
+      // can be shorter/narrower than this iframe, leaving letterbox bands around it.
+      // An opaque `bg` here would paint those bands solid (the section's base
+      // colour, usually white) even though the live page shows the section's photo
+      // there; transparent lets the Designer canvas's own photo show through them.
+      background: backgroundWindow ? "transparent" : (bg || "transparent"),
       overflow: "hidden",
       position: "relative",
     }}>
