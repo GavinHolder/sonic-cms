@@ -266,6 +266,11 @@
       border-radius: 0 0 6px 6px;
       position: relative;
       overflow: hidden;
+      /* applyCanvasScale() below scales this element by a fractional fit-to-
+         viewport ratio (rarely an integer). Without its own compositing
+         layer, text inside renders sub-pixel-blurred at non-100% zoom. */
+      will-change: transform;
+      backface-visibility: hidden;
     }
     #canvas.mode-single {
       border: 3px solid #0d6efd;
@@ -10525,7 +10530,9 @@ function getCanvasScale() {
 function applyCanvasScale() {
   const canvas = document.getElementById('canvas');
   if (!canvas) return;
-  const scale = getCanvasScale();
+  // Round to kill float noise from repeated fit/zoom multiplication — a
+  // contributor to sub-pixel text blur at non-integer transform:scale().
+  const scale = Math.round(getCanvasScale() * 10000) / 10000;
   const panX = state.panX || 0, panY = state.panY || 0;
   if (scale !== 1 || panX !== 0 || panY !== 0) {
     canvas.style.transformOrigin = 'top left';
