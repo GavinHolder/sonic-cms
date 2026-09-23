@@ -157,6 +157,28 @@ function VoltLibrary() {
     } catch { toast.error("Failed to save Volt"); }
   }
 
+  async function handleDuplicate(id: string) {
+    try {
+      const res = await fetch(`/api/volt/${id}/duplicate`, { method: "POST" });
+      if (!res.ok) { toast.error("Failed to duplicate Volt"); return; }
+      const { data } = await res.json();
+      setVolts(v => [{
+        id: data.volt.id,
+        name: data.volt.name,
+        mood: data.volt.mood ?? null,
+        elementType: data.volt.elementType,
+        voltType: data.volt.voltType ?? "standard",
+        isPublic: data.volt.isPublic,
+        authorId: data.volt.authorId,
+        thumbnail: data.volt.thumbnail ?? null,
+        updatedAt: data.volt.updatedAt,
+      }, ...v]);
+      router.replace(`/admin/volt?edit=${data.volt.id}`, { scroll: false });
+      setEditingElement(data.volt as VoltElementData);
+      toast.success("Volt duplicated");
+    } catch { toast.error("Failed to duplicate Volt"); }
+  }
+
   async function handleDelete(id: string) {
     if (!(await confirm("Delete this Volt design?"))) return;
     try {
@@ -264,6 +286,9 @@ function VoltLibrary() {
                   <div className="d-flex gap-2">
                     <button onClick={() => handleEdit(volt.id)} className="btn btn-sm btn-outline-primary flex-fill">
                       <i className="bi bi-pencil me-1" />Edit
+                    </button>
+                    <button onClick={() => handleDuplicate(volt.id)} className="btn btn-sm btn-outline-secondary" aria-label="Duplicate">
+                      <i className="bi bi-copy" />
                     </button>
                     <button onClick={() => handleDelete(volt.id)} className="btn btn-sm btn-outline-danger" aria-label="Delete">
                       <i className="bi bi-trash" />
