@@ -65,6 +65,26 @@ export function computeSubElementPosition(
  */
 export function styleObjectToCssText(styleObj: Record<string, unknown>): string;
 
+/**
+ * The app's ONLY z-order mechanism for the Designer canvas: stamps each
+ * block's `.zIndex` to its 1-based array index. MUTATES `blocks` in place
+ * (deliberately — see the doc comment in flexible-render-rules.js).
+ * Designer-canvas-only; the live renderer never reorders blocks.
+ */
+export function restampBlockZIndexes(blocks: Array<{ zIndex?: number }> | null | undefined): void;
+
+/**
+ * Resolves one top-level block's effective z-index for painting: a
+ * full-bleed Volt block (`block.props.fullBleed`) is forced to 0; otherwise
+ * the block's own stored `.zIndex` wins; otherwise `fallback` (typically
+ * `index + 1`). See the doc comment in flexible-render-rules.js for the
+ * full contract and both consumers.
+ */
+export function resolveBlockZIndex(
+  block: { type?: string; zIndex?: number; props?: { fullBleed?: boolean } } | null | undefined,
+  fallback?: number
+): number;
+
 export interface MultiBgLayersOpts {
   /** One band's height in design px. */
   ch: number;

@@ -17,14 +17,21 @@
  * drift from the other. This file is step one of closing that gap: it is a
  * PURE EXTRACTION of the CURRENT (post-fix) behavior of both sides for
  * heading, paragraph and button sub-elements — no behavior was changed
- * while writing it.
+ * while writing it. Font and button box-model got this shared-module
+ * treatment immediately; z-index was only fixed ad hoc at the time (each
+ * side kept its own hand-copy of `block.zIndex ?? (index + 1)` /
+ * `block.zIndex || 1`) and finally received the same treatment on
+ * 2026-09-23 (`restampBlockZIndexes` / `resolveBlockZIndex` below), once a
+ * follow-up audit confirmed the gap had never actually been closed.
  *
  * Scope: heading / paragraph / button sub-element STYLE, the free-canvas
- * container-block sub-element WRAPPER POSITION formula, and (2026-09-11,
- * `computeMultiBgLayers`) the free+multi/dynamic section BACKGROUND-IMAGE
- * LAYER GEOMETRY for the opt-in "repeat per section" mode. Everything else
- * (image/badge/icon/divider, outline/shadow filters, animation, block-level
- * layout) is untouched and stays in each consumer.
+ * container-block sub-element WRAPPER POSITION formula, top-level BLOCK
+ * STACKING ORDER (z-index — `restampBlockZIndexes` / `resolveBlockZIndex`),
+ * and (2026-09-11, `computeMultiBgLayers`) the free+multi/dynamic section
+ * BACKGROUND-IMAGE LAYER GEOMETRY for the opt-in "repeat per section" mode.
+ * Everything else (image/badge/icon/divider, outline/shadow filters,
+ * animation, and all other block-level layout — position, sizing, padding,
+ * grid/flex placement) is untouched and stays in each consumer.
  *
  * Loadable two ways (UMD-lite):
  *   - As a plain <script> tag → exposes window.FlexibleRenderRules.
@@ -276,6 +283,113 @@
       border: "1px solid transparent",
       boxSizing: "border-box",
     };
+  }
+
+  /**
+   * restampBlockZIndexes(blocks) — the app's ONLY z-order mechanism for
+   * public/flexible-designer.html's free-canvas blocks: a block's position
+   * in `state.blocks` IS its authoritative stacking order, and this stamps
+   * that order onto each block's own `.zIndex` field (array index i → i+1)
+   * so a renderer that only has ONE block object at a time (createBlockElement,
+   * a single <DesignerBlock>) can still resolve its own stacking level
+   * without needing the whole array.
+   *
+   * Consumers: public/flexible-designer.html's ~6 call sites that reorder
+   * `state.blocks` (duplicate block, duplicate-to-breakpoint paste, drag
+   * reorder in the Layers panel, replace/stack on drop, right-click
+   * front/back/forward/backward) — each previously hand-wrote the exact
+   * same `state.blocks.forEach((b,i)=> b.zIndex = i+1)` one-liner inline,
+   * with a comment at each site asserting it's "the app's ONLY z-order
+   * mechanism"; this function IS that mechanism, extracted once.
+   *
+   * NOT called by FlexibleSectionRenderer.tsx — the live renderer never
+   * reorders blocks, it only READS each one's already-stamped `.zIndex` via
+   * resolveBlockZIndex() below.
+   *
+   * ASSUMPTIONS:
+   * 1. `blocks` is (a reference to) the live `state.blocks` array — the
+   *    same object identity other Designer state (selection, autosave,
+   *    undo/redo history snapshots taken via pushHistory() BEFORE the
+   *    reorder) already depends on. This function deliberately MUTATES each
+   *    block object's `.zIndex` in place (touches no other field, replaces
+   *    no object, doesn't reassign `blocks` itself) rather than returning a
+   *    new array — a deliberate, narrowly-scoped departure from this
+   *    codebase's general immutability rule, because every existing call
+   *    site already relied on in-place mutation of these exact object
+   *    references; swapping to fresh objects here would desync them from
+   *    state.blocks/selection/autosave, which is a much larger change than
+   *    this extraction intends.
+   *
+   * FAILURE MODES:
+   * - `blocks` is null/undefined/not an array → no-op (nothing to
+   *   restamp), same as if the (nonexistent) forEach call sites were
+   *   simply skipped.
+   *
+   * @param {Array<{zIndex?: number}>} blocks
+   */
+  function restampBlockZIndexes(blocks) {
+    if (!Array.isArray(blocks)) return;
+    blocks.forEach(function (b, i) { b.zIndex = i + 1; });
+  }
+
+  /**
+   * resolveBlockZIndex(block, fallback) — pure function. Resolves ONE
+   * top-level block's effective z-index for painting/stacking:
+   *   1. A full-bleed Volt block (`block.props.fullBleed` truthy — the "use
+   *      as background" toggle, see setVoltFullBleed() in
+   *      flexible-designer.html) is forced to 0 so it always paints BEHIND
+   *      every ordinary block, mirroring the live section where it renders
+   *      as a section-level background layer beneath the content (see
+   *      isFullBleedVolt() in FlexibleSectionRenderer.tsx).
+   *   2. Otherwise, the block's own stored `.zIndex` (kept in sync with its
+   *      `state.blocks` array position by restampBlockZIndexes() above, on
+   *      the Designer canvas) wins.
+   *   3. Otherwise (no `.zIndex` stored at all — e.g. a Template-imported
+   *      section authored before this field existed, or a brand-new block
+   *      not yet restamped), `fallback` — the caller's own best guess at
+   *      this block's paint order, normally `index + 1` for whatever array
+   *      it's iterating.
+   *
+   * Consumers:
+   *   1. public/flexible-designer.html's createBlockElement() (canvas
+   *      paint) and setVoltFullBleed() (immediate DOM z-index update on
+   *      toggle) — both previously hand-wrote
+   *      `block.props.fullBleed ? 0 : (block.zIndex || 1)`.
+   *   2. FlexibleSectionRenderer.tsx's DesignerBlocksRenderer — 4 call
+   *      sites (free-canvas container-block sub-elements, free-canvas
+   *      plain block, grid-mode block, flex-mode block) that previously
+   *      each hand-wrote `block.zIndex ?? (index + 1)`. Full-bleed Volt
+   *      blocks never reach these call sites there (they're filtered out
+   *      of `filteredBlocks` up-front by isFullBleedVolt() and painted
+   *      separately as a section-level background layer instead), so
+   *      branch 1 above is effectively Designer-canvas-only today — it's
+   *      still applied here too so this function stays correct even if a
+   *      future caller stops pre-filtering.
+   *
+   * ASSUMPTIONS:
+   * 1. `block.props.fullBleed` is only ever set true on a `type: 'volt'`
+   *    block (the only UI that writes it is the Volt block's own "use as
+   *    background" checkbox) — this function doesn't additionally gate on
+   *    `block.type === 'volt'`, for the SAME reason createBlockElement()'s
+   *    original `block.props.fullBleed ? 0 : ...` check never did:
+   *    preserving that exact pre-existing behavior rather than introducing
+   *    a new, stricter condition as part of this extraction.
+   *
+   * FAILURE MODES:
+   * - `block` null/undefined → treated as `{}`; falls through to
+   *   `fallback` (or 1 if `fallback` is also omitted/non-numeric), never
+   *   throws.
+   *
+   * @param {{type?: string, zIndex?: number, props?: {fullBleed?: boolean}}} [block]
+   * @param {number} [fallback] - defaults to 1 when omitted/non-numeric.
+   * @returns {number}
+   */
+  function resolveBlockZIndex(block, fallback) {
+    var b = block || {};
+    var props = b.props || {};
+    if (props.fullBleed) return 0;
+    if (typeof b.zIndex === "number" && isFinite(b.zIndex)) return b.zIndex;
+    return typeof fallback === "number" && isFinite(fallback) ? fallback : 1;
   }
 
   /**
@@ -685,6 +799,8 @@
   return {
     computeSubElementStyle: computeSubElementStyle,
     computeSubElementPosition: computeSubElementPosition,
+    restampBlockZIndexes: restampBlockZIndexes,
+    resolveBlockZIndex: resolveBlockZIndex,
     styleObjectToCssText: styleObjectToCssText,
     computeMultiBgLayers: computeMultiBgLayers,
     resolveBgPositionCss: resolveBgPositionCss,

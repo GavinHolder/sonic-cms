@@ -1468,6 +1468,10 @@
        Must load before createSubElementDOM (in the <script> below) calls it. -->
   <script src="/flexible-render-rules.js"></script>
   <script src="/flexible-breakpoint-rules.js"></script>
+  <!-- Canonical VoltSlots key list — single source of truth also consumed by
+       app/volt-preview/[id]/page.tsx (ES module import). Must load before
+       buildVoltPreviewUrl() (in the <script> below) calls it. -->
+  <script src="/volt-slots-rules.js"></script>
 </head>
 <body>
 
@@ -3582,7 +3586,7 @@ function createBlockElement(block) {
   // section background beneath the content. The block stays in the DOM and selectable
   // (clickable in any area not covered by a block above it, and via the Layers panel);
   // toggling full-bleed OFF restores its normal stacking (block.zIndex||1).
-  const _zIndex = block.props.fullBleed ? 0 : (block.zIndex || 1);
+  const _zIndex = window.FlexibleRenderRules.resolveBlockZIndex(block, 1);
   // Full-bleed volt breaks OUT of its grid cell AND section/content padding to cover the
   // WHOLE canvas content box (absolute inset:0, 100%x100%) as a background layer, exactly
   // like the live page where the volt is a section child at inset:0 behind the content
@@ -6472,7 +6476,7 @@ function _lyDuplicateBlock(blockId){
   // Reindex zIndex to match array position (same invariant _fcxReorder/_lyHandleDrop
   // enforce) — otherwise the bumped copy.zIndex above can leave every later block's
   // stored zIndex stale relative to its true array position.
-  state.blocks.forEach((b,i)=> b.zIndex = i+1);
+  window.FlexibleRenderRules.restampBlockZIndexes(state.blocks);
   state.selectedBlockId = copy.id; state.selectedSubId = null;
   renderCanvas(); renderPropsPanel(); autoSave();
 }
@@ -6662,7 +6666,7 @@ function pasteBpClipboard() {
     });
     // Reindex zIndex to array position — same invariant _lyDuplicateBlock/
     // _fcxReorder enforce.
-    state.blocks.forEach((b, i) => b.zIndex = i + 1);
+    window.FlexibleRenderRules.restampBlockZIndexes(state.blocks);
     state.selectedBlockId = lastId; state.selectedSubId = null;
     renderCanvas(); renderPropsPanel(); autoSave();
     const n = _bpClipboard.items.length;
@@ -6708,7 +6712,7 @@ function pasteBpClipboard() {
     state.blocks.push(newBlock);
     // Reindex zIndex to array position — same invariant _lyDuplicateBlock/
     // _fcxReorder/the 'blocks' branch above enforce.
-    state.blocks.forEach((b, i) => b.zIndex = i + 1);
+    window.FlexibleRenderRules.restampBlockZIndexes(state.blocks);
     const lastId = _pasteSubElementsIntoParent(newBlock, _bpClipboard.items, ratio, targetCanvasW, targetCanvasH);
     state.selectedBlockId = newBlock.id; state.selectedSubId = lastId;
     renderCanvas(); renderPropsPanel(); autoSave();
@@ -6807,7 +6811,7 @@ function _lyHandleDrop(drag, row, e){
     if (to<0){ state.blocks.splice(from,0,moved); return; }
     if (after) to += 1;
     state.blocks.splice(to,0,moved);
-    state.blocks.forEach((b,i)=> b.zIndex = i+1);
+    window.FlexibleRenderRules.restampBlockZIndexes(state.blocks);
     renderCanvas(); autoSave();
     return;
   }
@@ -7609,6 +7613,8 @@ function renderTypeProps(block) {
             if (_slotTypes.has('icon')) h+=inputRow('Icon', p.slotIcon||'', `updateVoltSlot('${block.id}','slotIcon',this.value)`, 'bi-star or emoji…');
             if (_slotTypes.has('image')) h+=mediaPickerRow('Image', p.slotImageUrl||'', block.id, 'slotImageUrl', 'image/*', true);
             if (_slotTypes.has('action')) h+=inputRow('Action label', p.slotActionLabel||'', `updateVoltSlot('${block.id}','slotActionLabel',this.value)`, 'Button text…');
+            if (_slotTypes.has('action')) h+=inputRow('Action link', p.slotActionHref||'', `updateVoltSlot('${block.id}','slotActionHref',this.value)`, 'https://… or #anchor');
+            if (_slotTypes.has('badge')) h+=inputRow('Badge', p.slotBadge||'', `updateVoltSlot('${block.id}','slotBadge',this.value)`, 'Badge text…');
             h+=`</div>`;
           }
         }
@@ -8369,12 +8375,18 @@ const DESIGNER_FORWARDS_SECTION_BG = true;
 function buildVoltPreviewUrl(b) {
   if (!b.props.voltId) return '';
   const sp = new URLSearchParams();
-  if (b.props.slotTitle)       sp.set('title', b.props.slotTitle);
-  if (b.props.slotBody)        sp.set('body', b.props.slotBody);
-  if (b.props.slotIcon)        sp.set('icon', b.props.slotIcon);
-  if (b.props.slotImageUrl)    sp.set('imageUrl', b.props.slotImageUrl);
-  if (b.props.slotImageAlt)    sp.set('imageAlt', b.props.slotImageAlt);
-  if (b.props.slotActionLabel) sp.set('actionLabel', b.props.slotActionLabel);
+  // Forward every canonical VoltSlots key (title/body/imageUrl/imageAlt/actionLabel/
+  // actionHref/badge/icon — types/volt.ts) from this block's own `slot<Key>` prop into
+  // an identically-named URL param, via the shared key list (public/volt-slots-rules.js)
+  // so a future 9th slot key only needs adding in ONE place to reach both this forwarder
+  // and app/volt-preview/[id]/page.tsx's parser (ONE SYSTEM PER CONCERN — see that
+  // module's own doc comment). This used to be 6 hardcoded `if (...) sp.set(...)` lines
+  // that silently dropped actionHref/badge — confirmed by a 2026-09 audit against real
+  // seeded content (prisma/seed-v6.ts) that sets both.
+  window.VoltSlotsRules.VOLT_SLOT_KEYS.forEach(function (key) {
+    const val = b.props[window.VoltSlotsRules.slotPropKey(key)];
+    if (val) sp.set(key, val);
+  });
   // Linked product → preview resolves its live values into pkg.* slots.
   if (b.props.productId) sp.set('productId', b.props.productId);
   const overrides = b.props.voltLayerOverrides;
@@ -8531,7 +8543,9 @@ function setVoltFullBleed(bId, checked) {
   //          block's grid-cell geometry (getDisplayPos), i.e. a normal in-grid volt.
   const _el = document.querySelector('.container-block[data-block-id="' + bId + '"]');
   if (_el) {
-    _el.style.zIndex = checked ? '0' : String(b.zIndex || 1);
+    // b.props.fullBleed was already set above, so resolveBlockZIndex's own
+    // full-bleed check already resolves to 0 when checked — no separate ternary needed.
+    _el.style.zIndex = String(window.FlexibleRenderRules.resolveBlockZIndex(b, 1));
     if (checked) {
       _el.classList.add('cb-fullbleed');
       _el.style.left = '0'; _el.style.top = '0';
@@ -8916,7 +8930,7 @@ function resolveDropConflict(choice) {
     else state.blocks.push(block);
     // Reindex so stored zIndex always matches array position — same invariant
     // _fcxReorder / _lyHandleDrop / _lyDuplicateBlock already enforce.
-    state.blocks.forEach((b,i)=> b.zIndex = i+1);
+    window.FlexibleRenderRules.restampBlockZIndexes(state.blocks);
   }
   // For moves, block is already in state.blocks at its new position;
   // the zIndex update above is all that is needed.
@@ -12249,7 +12263,7 @@ window.addEventListener('message', function(e) {
     else if (mode === 'forward') to = Math.min(state.blocks.length, from + 1);
     else to = Math.max(0, from - 1); // backward
     state.blocks.splice(to, 0, moved);
-    state.blocks.forEach((b, i) => b.zIndex = i + 1);
+    window.FlexibleRenderRules.restampBlockZIndexes(state.blocks);
     renderCanvas(); autoSave();
   }
 

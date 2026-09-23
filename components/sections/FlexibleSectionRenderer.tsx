@@ -14,7 +14,7 @@ import { animate } from "animejs";
 // source of truth also consumed by public/flexible-designer.html (see that file's
 // <script src="/flexible-render-rules.js"> and this module's own doc comment for why
 // it exists). Plain JS + hand-written flexible-render-rules.d.ts alongside it.
-import { computeSubElementStyle, computeSubElementPosition, computeMultiBgLayers, resolveBgPositionCss, resolveBackgroundPosForBreakpoint, buildGradientCss, resolveBackgroundBundleForBreakpoint } from "../../public/flexible-render-rules.js";
+import { computeSubElementStyle, computeSubElementPosition, resolveBlockZIndex, computeMultiBgLayers, resolveBgPositionCss, resolveBackgroundPosForBreakpoint, buildGradientCss, resolveBackgroundBundleForBreakpoint } from "../../public/flexible-render-rules.js";
 import type { BgBundle, BackgroundByBreakpoint, GradientConfig } from "../../public/flexible-render-rules.js";
 // Per-breakpoint independent layouts (2026-09-11) — shared shape-normalization/variant-
 // selection module (Task 1 of this feature). Companion to flexible-render-rules.js above;
@@ -2742,7 +2742,7 @@ function DesignerBlocksRenderer({
                     // loses to ANY sibling block carrying an explicit z-index (e.g. a Volt/image
                     // block) regardless of the actual numbers — "Send to back" on that sibling
                     // can never put it behind a container block's (text/text-block/card) content.
-                    zIndex: block.zIndex ?? (index + 1),
+                    zIndex: resolveBlockZIndex(block, index + 1),
                   }}>
                     <DesignerSubElement sub={sub} exact darkBg={darkBg} />
                   </div>
@@ -2781,7 +2781,7 @@ function DesignerBlocksRenderer({
                   overflow: isSelfSizing ? "visible" : "hidden",
                   // Honor the Designer canvas's own stacking order (see zIndex doc comment
                   // on the `blocks` type above) instead of implicit array-order painting.
-                  zIndex: block.zIndex ?? (index + 1),
+                  zIndex: resolveBlockZIndex(block, index + 1),
                 }}>
                   <DesignerBlock
                     block={block}
@@ -2883,7 +2883,7 @@ function DesignerBlocksRenderer({
                 // Honor the Designer canvas's own stacking order (see zIndex doc comment
                 // on the `blocks` type above) instead of implicit array-order painting.
                 // Grid items apply z-index even at position:static, so no position change needed.
-                zIndex: block.zIndex ?? (index + 1),
+                zIndex: resolveBlockZIndex(block, index + 1),
               }}>
                 <DesignerBlock block={block} darkBg={darkBg} onContentHeight={isDynamic ? reportBlockHeight : undefined} />
               </div>
@@ -2912,7 +2912,7 @@ function DesignerBlocksRenderer({
             // Honor the Designer canvas's own stacking order (see zIndex doc comment
             // on the `blocks` type above) instead of implicit array-order painting.
             // Flex items apply z-index even at position:static, so no position change needed.
-            zIndex: block.zIndex ?? (index + 1),
+            zIndex: resolveBlockZIndex(block, index + 1),
           }}>
             <DesignerBlock block={block} darkBg={darkBg} onContentHeight={isDynamic ? reportBlockHeight : undefined} />
           </div>

@@ -3,13 +3,22 @@
  * Used as an iframe source in the Flexible Designer canvas
  * so Volt blocks show their actual design, not a placeholder.
  *
- * URL: /volt-preview/[id]?title=...&body=...&icon=...&image=...&action=...&overrides=<base64JSON>&fit=cover
+ * URL: /volt-preview/[id]?title=...&body=...&icon=...&imageUrl=...&imageAlt=...
+ *      &actionLabel=...&actionHref=...&badge=...&overrides=<base64JSON>&fit=cover
  *
  * The `overrides` param is a base64-encoded JSON string of VoltInstanceOverrides,
  * mapping layerId → { fill?, visible? }. Applied at render time without modifying
  * the master Volt design.
+ *
+ * Slot params are parsed generically via VOLT_SLOT_KEYS (public/volt-slots-rules.js)
+ * — the same canonical 8-key list public/flexible-designer.html's buildVoltPreviewUrl()
+ * forwards from — rather than a hand-typed destructure, so this parser can't
+ * independently fall out of sync with what the Designer canvas actually sends (a
+ * 2026-09 audit found the Designer canvas's own forwarder silently dropped 2 of the 8
+ * keys; ONE SYSTEM PER CONCERN — see volt-slots-rules.js's own doc comment).
  */
 import type { VoltSlots, VoltInstanceOverrides } from "@/types/volt";
+import { VOLT_SLOT_KEYS } from "@/public/volt-slots-rules.js";
 import VoltPreviewClient from "./VoltPreviewClient";
 
 interface PageProps {
@@ -21,14 +30,11 @@ export default async function VoltPreviewPage({ params, searchParams }: PageProp
   const { id } = await params;
   const sp = await searchParams;
 
-  const slots: VoltSlots = {
-    title:       sp.title       || undefined,
-    body:        sp.body        || undefined,
-    icon:        sp.icon        || undefined,
-    imageUrl:    sp.imageUrl    || undefined,
-    imageAlt:    sp.imageAlt    || undefined,
-    actionLabel: sp.actionLabel || undefined,
-  };
+  const slots: VoltSlots = {};
+  for (const key of VOLT_SLOT_KEYS) {
+    const val = sp[key];
+    if (val) slots[key] = val;
+  }
 
   let instanceOverrides: VoltInstanceOverrides | undefined;
   if (sp.overrides) {
