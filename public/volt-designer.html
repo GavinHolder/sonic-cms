@@ -1137,6 +1137,119 @@
       if(_rcRafId!=null)return;
       _rcRafId=requestAnimationFrame(function(){_rcRafId=null;renderCanvas();});
     }
+    // ── Live drag/rotate DOM preview (no renderCanvas() mid-gesture) ───────────
+    // scheduleRenderCanvas() above only fixed HALF the flicker: even coalesced to
+    // 1x/frame, every renderCanvas() call still destroys and rebuilds the ENTIRE
+    // canvas — every OTHER layer's <path>/<image>/glass-overlay/text-overlay gets
+    // torn down and recreated too, which is what still reads as other layers
+    // flashing while you drag one shape. For a pure translate (drag) or pure
+    // rotate (rotate handle), the layer's on-screen position is fully described by
+    // a transform on its OWN existing DOM node(s) — nothing else needs to change —
+    // so drag/rotate now skip renderCanvas()/scheduleRenderCanvas() entirely during
+    // the move and just update that node's transform in place. Every other layer's
+    // DOM node is never touched, read, removed, or re-appended during the gesture.
+    //
+    // Resize and vertex/pen editing are NOT converted: both recompute the shape's
+    // actual path geometry (ellipsePath/anchorsToPath) on every move, so there is
+    // no fixed DOM node whose transform alone represents the new shape — a
+    // correctness-preserving live update would also have to re-derive corner-
+    // radius clip-paths, boolean masks and glass-overlay bounds per frame, which is
+    // rewrite-scale for this fix. Those two keep the rAF-coalesced
+    // scheduleRenderCanvas() from the previous pass (still capped at 1x/frame, no
+    // regression vs. before, just not eliminated).
+    //
+    // Hover-state authoring (state.activeStateName==='hover', i.e. editing a
+    // layer's hover-state override rather than its base geometry) is also left on
+    // scheduleRenderCanvas() — a separate, far less frequently used editing mode
+    // with its own override-resolution rendering path, out of scope for this pass.
+    //
+    // Node lookup reuses the stable per-layer DOM ids renderCanvas() (and
+    // _layerHitNode() above) already assign — the only NEW ids are
+    // slot-overlay-<id> and volt-3d-layer-<id>, added below alongside the existing
+    // text-overlay-/number-overlay-/glass-overlay-/volt-layer-<id> ones purely for
+    // this lookup (see renderCanvas()); nothing about their rendering changes.
+    var _liveDragCache=null; // {layerId: [{el, kind:'svg'|'html', base:string}]} for the in-progress gesture only
+    function _liveNodesForLayer(layer){
+      if(!layer)return [];
+      var out=[];
+      if(layer.type==='vector'){
+        var hitNode=_layerHitNode(layer);
+        if(hitNode&&hitNode.parentNode)out.push({el:hitNode.parentNode,kind:'svg'});
+        var glassDiv=document.getElementById('glass-overlay-'+layer.id);
+        if(glassDiv)out.push({el:glassDiv,kind:'html'});
+      }else if(layer.type==='image'){
+        var gImg=document.getElementById('volt-layer-'+layer.id);
+        if(gImg)out.push({el:gImg,kind:'svg'});
+      }else if(layer.type==='3d-object'){
+        var g3d=document.getElementById('volt-3d-layer-'+layer.id);
+        if(g3d)out.push({el:g3d,kind:'svg'});
+      }else if(layer.type==='slot'){
+        var sDiv=document.getElementById('slot-overlay-'+layer.id);
+        if(sDiv)out.push({el:sDiv,kind:'html'});
+      }else if(layer.type==='text'){
+        var tHit=document.getElementById('text-hit-'+layer.id);if(tHit)out.push({el:tHit,kind:'svg'});
+        var tDiv=document.getElementById('text-overlay-'+layer.id);if(tDiv)out.push({el:tDiv,kind:'html'});
+      }else if(layer.type==='number'){
+        var nHit=document.getElementById('number-hit-'+layer.id);if(nHit)out.push({el:nHit,kind:'svg'});
+        var nDiv=document.getElementById('number-overlay-'+layer.id);if(nDiv)out.push({el:nDiv,kind:'html'});
+      }
+      return out;
+    }
+    // Returns (creating on first call this gesture) the cached node list for
+    // layerId, capturing each node's PRE-gesture transform as `base` so repeated
+    // per-frame updates overwrite — never compound onto — it.
+    function _ensureLiveNodes(layerId){
+      if(!_liveDragCache)_liveDragCache={};
+      if(_liveDragCache[layerId])return _liveDragCache[layerId];
+      var layer=state.element.layers.find(function(l){return l.id===layerId;});
+      var nodes=_liveNodesForLayer(layer);
+      nodes.forEach(function(n){n.base=(n.kind==='svg')?(n.el.getAttribute('transform')||''):(n.el.style.transform||'');});
+      _liveDragCache[layerId]=nodes;
+      return nodes;
+    }
+    // Applies an ABSOLUTE pixel delta (from gesture start, in canvas-px = SVG
+    // viewBox units) to layerId's own DOM node(s) only. Safe to call every
+    // pointermove with the freshly-recomputed total delta — always overwrites,
+    // never accumulates, so out-of-order or dropped frames can't drift.
+    function _liveTranslate(layerId,dxPx,dyPx){
+      var nodes=_ensureLiveNodes(layerId);
+      nodes.forEach(function(n){
+        if(n.kind==='svg'){n.el.setAttribute('transform',('translate('+dxPx+','+dyPx+') '+n.base).trim());}
+        else{n.el.style.transform=('translate('+dxPx+'px,'+dyPx+'px) '+n.base).trim();}
+      });
+    }
+    // Recomputes the exact transform renderCanvas() would give a vector layer's
+    // wrapping <g> for rotation deg (mirrors the non-hover branch of its tf logic
+    // below) — used to live-rotate a single vector node without touching anything
+    // else. x/y/width/height are unchanged during a pure rotate, so this is exact,
+    // not an approximation.
+    function _liveVectorTf(layer,deg){
+      var CW=state.element.canvasWidth,CH=state.element.canvasHeight;
+      var tf='scale('+(CW/100)+','+(CH/100)+')';
+      if(deg){var cx=topx(layer.x,CW)+topx(layer.width,CW)/2,cy=topx(layer.y,CH)+topx(layer.height,CH)/2;tf='rotate('+deg+' '+cx+' '+cy+') '+tf;}
+      return tf;
+    }
+    // Live-rotates ONLY layer's own DOM node(s) to angle deg. Ghost hit-rects for
+    // text/number are intentionally left unrotated here, matching renderCanvas()'s
+    // own (pre-existing) behaviour — they never carry a rotation transform there
+    // either, so leaving them alone during live preview is not a regression.
+    function _liveRotateLayer(layer,deg){
+      if(!layer)return;
+      if(layer.type==='vector'){
+        var hitNode=_layerHitNode(layer);
+        if(hitNode&&hitNode.parentNode)hitNode.parentNode.setAttribute('transform',_liveVectorTf(layer,deg));
+        var glassDiv=document.getElementById('glass-overlay-'+layer.id);
+        if(glassDiv){glassDiv.style.transform=deg?('rotate('+deg+'deg)'):'';glassDiv.style.transformOrigin='center center';}
+        return;
+      }
+      if(layer.type==='image'){
+        var gImg=document.getElementById('volt-layer-'+layer.id);
+        if(gImg){var CW=state.element.canvasWidth,CH=state.element.canvasHeight;var rx=topx(layer.x,CW),ry=topx(layer.y,CH),rw=topx(layer.width,CW),rh=topx(layer.height,CH);gImg.setAttribute('transform',deg?('rotate('+deg+' '+(rx+rw/2)+' '+(ry+rh/2)+')'):'');}
+        return;
+      }
+      var _divId=layer.type==='slot'?('slot-overlay-'+layer.id):layer.type==='text'?('text-overlay-'+layer.id):layer.type==='number'?('number-overlay-'+layer.id):null;
+      if(_divId){var d=document.getElementById(_divId);if(d){d.style.transform=deg?('rotate('+deg+'deg)'):'';d.style.transformOrigin='center center';}}
+    }
     // ── Render canvas ─────────────────────────────────────────────────────────
     function renderCanvas(){
       if(typeof updateSlotPreviewBtn==='function')updateSlotPreviewBtn();
@@ -1398,7 +1511,7 @@
         }
         if(layer.type==='slot'){
           var _sd=layer.slotData||{};var _st=_sd.slotType||'title';
-          var div=document.createElement('div');div.className='slot-overlay';
+          var div=document.createElement('div');div.className='slot-overlay';div.id='slot-overlay-'+layer.id;
           var _fxDs2=layer.effects&&layer.effects.dropShadow&&layer.effects.dropShadow.enabled&&layer.effects.dropShadow;
           var _slotShadow=_fxDs2?('box-shadow:'+(_fxDs2.offsetX||0)+'px '+(_fxDs2.offsetY||0)+'px '+(_fxDs2.blur||0)+'px '+(_fxDs2.spread||0)+'px rgba(0,0,0,'+(_fxDs2.opacity||0.5)+');'):'';
           if(_slotPreviewMode){
@@ -1464,7 +1577,7 @@
         }
         if(layer.type==='3d-object'){
           var rx=topx(layer.x,CW),ry=topx(layer.y,CH),rw=topx(layer.width,CW),rh=topx(layer.height,CH);
-          var g3d=svgNs('g');
+          var g3d=svgNs('g');g3d.id='volt-3d-layer-'+layer.id;
           var thumb3d=(layer.object3DData&&layer.object3DData.thumb)||null;
           if(thumb3d){
             // Show captured thumbnail as image fill
@@ -1922,6 +2035,10 @@
       // Middle mouse = free pan (handled on canvas-wrap below). Never start a
       // draw / selection / marquee / vertex-edit on the middle button.
       if(e.button===1)return;
+      // Defensive: a new gesture is starting, so any live-preview node cache from a
+      // previous one (normally cleared on that gesture's pointerup) must not leak
+      // in — e.g. if a prior gesture ended via pointercancel rather than pointerup.
+      _liveDragCache=null;
       var tool=state.activeTool,pt=getSvgPt(e);
       if(tool==='pen'){
         svgEl.setPointerCapture(e.pointerId);
@@ -2121,7 +2238,7 @@
         return;
       }
       // Rotate
-      if(rotateSt){var _ri=state.element.layers.findIndex(function(l){return l.id===rotateSt.layerId;});if(_ri>=0){var _ra2=Math.atan2(pt.y-rotateSt.cy,pt.x-rotateSt.cx)*180/Math.PI;var _rdeg=rotateSt.origRotation+(_ra2-rotateSt.startAngle);if(e.shiftKey)_rdeg=Math.round(_rdeg/15)*15;var _rval=parseFloat(_rdeg.toFixed(2));if(state.activeStateName==='hover'){_setHoverOverride(rotateSt.layerId,'rotation',_rval);}else{state.element.layers[_ri].rotation=_rval;}scheduleRenderCanvas();var _rpEl=document.getElementById('prop-rotation');if(_rpEl)_rpEl.value=_rval;}return;}
+      if(rotateSt){var _ri=state.element.layers.findIndex(function(l){return l.id===rotateSt.layerId;});if(_ri>=0){var _ra2=Math.atan2(pt.y-rotateSt.cy,pt.x-rotateSt.cx)*180/Math.PI;var _rdeg=rotateSt.origRotation+(_ra2-rotateSt.startAngle);if(e.shiftKey)_rdeg=Math.round(_rdeg/15)*15;var _rval=parseFloat(_rdeg.toFixed(2));if(state.activeStateName==='hover'){_setHoverOverride(rotateSt.layerId,'rotation',_rval);scheduleRenderCanvas();}else{state.element.layers[_ri].rotation=_rval;_liveRotateLayer(state.element.layers[_ri],_rval);}var _rpEl=document.getElementById('prop-rotation');if(_rpEl)_rpEl.value=_rval;}return;}
       // Resize
       if(resizeSt){
         var idx=state.element.layers.findIndex(function(l){return l.id===resizeSt.layerId;});if(idx<0){resizeSt=null;return;}
@@ -2186,6 +2303,12 @@
             state.element.layers[origIdx].x=dragSt.startX;state.element.layers[origIdx].y=dragSt.startY;
             if(state.element.layers[origIdx].vectorData&&dragSt.origPath)state.element.layers[origIdx].vectorData.pathData=dragSt.origPath;
             state.element.layers.push(copy);
+            // The duplicate is a brand-new DOM node that has never been rendered —
+            // live-translate below has nothing to move until it exists once. This is
+            // a one-time, structural (new layer) render, not a per-frame cost: it
+            // happens at most once per drag gesture (altDuped guards re-entry), so it
+            // does not reintroduce the per-frame flicker this fix targets.
+            renderCanvas();
             // Redirect drag to the copy
             dragSt.layerId=copy.id;dragSt.startX=copy.x;dragSt.startY=copy.y;
             dragSt.origPath=copy.vectorData?copy.vectorData.pathData:null;dragSt.altDuped=true;
@@ -2279,7 +2402,28 @@
             var bParent=state.element.layers.find(function(l){return l.id===dragSt.cutterParentId;});
             if(bParent)recalcLayerBounds(bParent);
           }
-          scheduleRenderCanvas();
+          // Live preview: for an ordinary (non-hover, non-cutter) drag, only the
+          // moved layer's (and, for multi-select/boolean-parent drags, each moved
+          // sibling's/cutter's) own DOM node gets a translate — see the "Live
+          // drag/rotate DOM preview" comment above scheduleRenderCanvas(). Hover-
+          // state authoring and dragging a boolean CUTTER still use the full
+          // renderCanvas(): hover overrides resolve through renderCanvas()'s own
+          // override logic, and a dragged cutter's "hole" in its parent is
+          // recomputed from the cutter's CURRENT position only at render time, so
+          // the parent's mask would not otherwise follow the cutter live.
+          if(state.activeStateName==='hover'||(dragSt.isCutter&&dragSt.cutterParentId)){
+            scheduleRenderCanvas();
+          }else{
+            var _dxPx=topx(ddx2,CW),_dyPx=topx(ddy2,CH);
+            var _moveIds=(state.multiSelectIds.length>1&&state.multiSelectIds.indexOf(dragSt.layerId)>=0)?state.multiSelectIds:[dragSt.layerId];
+            _moveIds.forEach(function(mid){
+              _liveTranslate(mid,_dxPx,_dyPx);
+              var _mLayer=state.element.layers.find(function(l){return l.id===mid;});
+              if(_mLayer&&_mLayer.boolChildren&&_mLayer.boolChildren.length){
+                _mLayer.boolChildren.forEach(function(bc){_liveTranslate(bc.cutterId,_dxPx,_dyPx);});
+              }
+            });
+          }
         }
         return;
       }
@@ -2334,6 +2478,14 @@
       // branch below does its own synchronous renderCanvas()/renderAll() with the
       // final state, so a stale rAF callback would at best be redundant.
       if(_rcRafId!=null){cancelAnimationFrame(_rcRafId);_rcRafId=null;}
+      // End any live-preview gesture: every branch below calls renderCanvas()/
+      // renderAll() synchronously with the final committed state, which rebuilds
+      // fresh DOM nodes for every layer — so any node references cached for the
+      // gesture that's ending are about to go stale. Dropping the cache here (not
+      // just relying on the next gesture's lazy _ensureLiveNodes lookups) ensures a
+      // future _liveTranslate/_liveRotateLayer call can never write to a detached
+      // node left over from this gesture.
+      _liveDragCache=null;
       var CW=state.element.canvasWidth,CH=state.element.canvasHeight;
       if(state.activeTool==='pen'&&_penDown){_penDown=false;penState.dragging=false;if(!_penMoved&&penState.verts.length>0){var _lpv=penState.verts[penState.verts.length-1];_lpv.cpOut={dx:0,dy:0};_lpv.cpIn={dx:0,dy:0};}renderPenGhost();return;}
       if(vxDragSt){pushHistory();markDirty();renderAll();vxDragSt=null;return;}
