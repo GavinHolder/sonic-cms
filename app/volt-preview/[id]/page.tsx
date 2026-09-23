@@ -64,27 +64,28 @@ export default async function VoltPreviewPage({ params, searchParams }: PageProp
   const bgImageSize = sp.bgImageSize || "cover";
   const bgImagePosition = sp.bgImagePosition || "center";
 
-  // Background "window": the Designer canvas's own pixel size (bgWindowW/H) and this
-  // block's on-canvas offset (bgWindowX/Y) — see buildVoltPreviewUrl() in
-  // flexible-designer.html. Lets bgImage be sized against the CANVAS box and shifted
-  // into place, instead of being independently re-"cover"-fit to this iframe's own
-  // (block-sized) box, so the visible slice matches the real section behind the block.
-  // Optional: only sent when the Designer could measure its canvas; parsed defensively
-  // since URL query values are attacker-controllable strings.
-  const parseWindowDim = (v: string | undefined) => {
+  // Background "window", as PERCENTAGES of this block's own on-canvas size — see
+  // buildVoltPreviewUrl() in flexible-designer.html for why percentages (not the
+  // Designer-canvas pixels this used to carry): VoltRenderer positions the window
+  // inside its own `useMeasuredContain` scale transform, whose box is sized in
+  // rendered CSS px, not Designer-canvas px — percentages of the block's own size
+  // divide that unit mismatch out entirely. Optional: only sent when the Designer
+  // could measure its canvas; parsed defensively since URL query values are
+  // attacker-controllable strings.
+  const parseWindowPct = (v: string | undefined) => {
     if (!v) return undefined;
     const n = Number(v);
     return Number.isFinite(n) && n > 0 ? n : undefined;
   };
-  const parseWindowOffset = (v: string | undefined) => {
+  const parseWindowOffsetPct = (v: string | undefined) => {
     if (v === undefined) return undefined;
     const n = Number(v);
     return Number.isFinite(n) ? n : undefined;
   };
-  const bgWindowW = !bgOff ? parseWindowDim(sp.bgWindowW) : undefined;
-  const bgWindowH = !bgOff ? parseWindowDim(sp.bgWindowH) : undefined;
-  const bgWindowX = !bgOff ? parseWindowOffset(sp.bgWindowX) : undefined;
-  const bgWindowY = !bgOff ? parseWindowOffset(sp.bgWindowY) : undefined;
+  const bgWindowWPct = !bgOff ? parseWindowPct(sp.bgWindowWPct) : undefined;
+  const bgWindowHPct = !bgOff ? parseWindowPct(sp.bgWindowHPct) : undefined;
+  const bgWindowXPct = !bgOff ? parseWindowOffsetPct(sp.bgWindowXPct) : undefined;
+  const bgWindowYPct = !bgOff ? parseWindowOffsetPct(sp.bgWindowYPct) : undefined;
 
   return (
     <VoltPreviewClient
@@ -98,10 +99,10 @@ export default async function VoltPreviewPage({ params, searchParams }: PageProp
       bgImage={bgImage}
       bgImageSize={bgImageSize}
       bgImagePosition={bgImagePosition}
-      bgWindowW={bgWindowW}
-      bgWindowH={bgWindowH}
-      bgWindowX={bgWindowX}
-      bgWindowY={bgWindowY}
+      bgWindowWPct={bgWindowWPct}
+      bgWindowHPct={bgWindowHPct}
+      bgWindowXPct={bgWindowXPct}
+      bgWindowYPct={bgWindowYPct}
     />
   );
 }

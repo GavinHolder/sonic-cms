@@ -50,9 +50,39 @@ interface Props {
    * "cover"/"fill" are used when a volt is placed as a full-bleed section background.
    */
   fitMode?: 'contain' | 'fill' | 'cover'
+  /**
+   * Optional window into a larger background image, as PERCENTAGES of this
+   * Volt's own rendered box (widthPct/heightPct = how many block-widths/
+   * heights the full image spans; xPct/yPct = how many block-widths/heights
+   * this block sits offset from the image's origin). Rendered as a plain
+   * sibling INSIDE the same scale transform every layer uses (currently only
+   * wired up for the default "contain" / useMeasuredContain path — see that
+   * branch below).
+   *
+   * Percentages, not pixels: the caller (the Designer canvas's Volt preview
+   * iframe, via VoltPreviewClient) only knows this block's size in ITS OWN
+   * coordinate space (the Designer canvas's authored px), which does not
+   * equal this component's actual rendered CSS px here. Percentages of the
+   * block's own size cancel that unit mismatch out.
+   *
+   * Exists because positioning this window OUTSIDE VoltRenderer (a sibling
+   * div in the parent page) does NOT work: confirmed live that a "glass"
+   * layer's `backdrop-filter` cannot composite a sibling positioned outside
+   * the `useMeasuredContain` stage's own `transform: scale(...)` — it must
+   * share the exact same transformed stacking context as the glass panel.
+   */
+  backgroundWindow?: {
+    imageUrl: string
+    imageSize?: string
+    imagePosition?: string
+    widthPct: number
+    heightPct: number
+    xPct: number
+    yPct: number
+  }
 }
 
-export default function VoltRenderer({ voltElement, slots = {}, instanceOverrides, className, style, onHoverChange, fitMode = 'contain' }: Props) {
+export default function VoltRenderer({ voltElement, slots = {}, instanceOverrides, className, style, onHoverChange, fitMode = 'contain', backgroundWindow }: Props) {
   const containerRef  = useRef<HTMLDivElement>(null)
   const flipInnerRef  = useRef<HTMLDivElement>(null)  // flip3d preserve-3d container
   const frontFaceRef  = useRef<HTMLDivElement>(null)  // front face div (all types)
@@ -1665,6 +1695,21 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
         }}
       >
         <div style={stageStyle}>
+          {backgroundWindow && (
+            <div aria-hidden="true" style={{ position: 'absolute', inset: 0, overflow: 'hidden', zIndex: 0 }}>
+              <div style={{
+                position: 'absolute',
+                left: `${-backgroundWindow.xPct}%`,
+                top: `${-backgroundWindow.yPct}%`,
+                width: `${backgroundWindow.widthPct}%`,
+                height: `${backgroundWindow.heightPct}%`,
+                backgroundImage: `url(${backgroundWindow.imageUrl})`,
+                backgroundSize: backgroundWindow.imageSize || 'cover',
+                backgroundPosition: backgroundWindow.imagePosition || 'center',
+                backgroundRepeat: 'no-repeat',
+              }} />
+            </div>
+          )}
           <div
             ref={carouselContentRef}
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}

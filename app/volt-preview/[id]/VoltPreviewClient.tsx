@@ -23,27 +23,36 @@ interface Props {
   bgImage?: string;
   bgImageSize?: string;
   bgImagePosition?: string;
-  /** Background "window" (px, in the Designer canvas's own coordinate space) — see
-   * buildVoltPreviewUrl() in flexible-designer.html. When all four are present, bgImage
-   * is sized against a bgWindowW×bgWindowH box (the real canvas size) and shifted by
-   * -bgWindowX/-bgWindowY (this block's on-canvas offset), clipped to this iframe's own
-   * box, so the visible slice matches what the real section shows behind this block
-   * instead of independently re-"cover"-fitting the image to the iframe's own box. */
-  bgWindowW?: number;
-  bgWindowH?: number;
-  bgWindowX?: number;
-  bgWindowY?: number;
+  /** Background "window", as PERCENTAGES of this block's own on-canvas size — see
+   * buildVoltPreviewUrl() in flexible-designer.html and VoltRenderer.tsx's
+   * `backgroundWindow` prop doc comment for why percentages, and why this is now
+   * forwarded INTO VoltRenderer rather than rendered as a div here: a sibling here
+   * sits OUTSIDE VoltRenderer's own `useMeasuredContain` scale transform, and a
+   * glass layer's `backdrop-filter` cannot composite across that transform
+   * boundary — confirmed live, not theoretical; the previous px-based, rendered-
+   * here version of this looked structurally correct (right image, right position)
+   * but never actually blurred anything. */
+  bgWindowWPct?: number;
+  bgWindowHPct?: number;
+  bgWindowXPct?: number;
+  bgWindowYPct?: number;
 }
 
 export default function VoltPreviewClient({
   voltId, slots, instanceOverrides, fit = "contain", productId,
   bg, bgGradient, bgImage, bgImageSize = "cover", bgImagePosition = "center",
-  bgWindowW, bgWindowH, bgWindowX, bgWindowY,
+  bgWindowWPct, bgWindowHPct, bgWindowXPct, bgWindowYPct,
 }: Props) {
-  // Windowing needs a real size for both axes; the offset defaults to 0 (top-left)
-  // if only partially supplied so a stray missing param doesn't silently fall back
-  // to the old (mis-scaled) per-block cover fit.
-  const hasBgWindow = typeof bgWindowW === "number" && typeof bgWindowH === "number";
+  const hasBgWindow = typeof bgWindowWPct === "number" && typeof bgWindowHPct === "number";
+  const backgroundWindow = bgImage && hasBgWindow ? {
+    imageUrl: bgImage,
+    imageSize: bgImageSize,
+    imagePosition: bgImagePosition,
+    widthPct: bgWindowWPct!,
+    heightPct: bgWindowHPct!,
+    xPct: bgWindowXPct ?? 0,
+    yPct: bgWindowYPct ?? 0,
+  } : undefined;
   const fullBleed = fit === "cover" || fit === "fill";
   return (
     <div style={{
@@ -57,21 +66,6 @@ export default function VoltPreviewClient({
       overflow: "hidden",
       position: "relative",
     }}>
-      {bgImage && hasBgWindow && (
-        <div aria-hidden="true" style={{ position: "absolute", inset: 0, zIndex: 0, overflow: "hidden" }}>
-          <div style={{
-            position: "absolute",
-            left: -(bgWindowX ?? 0) + "px",
-            top: -(bgWindowY ?? 0) + "px",
-            width: bgWindowW + "px",
-            height: bgWindowH + "px",
-            backgroundImage: `url(${bgImage})`,
-            backgroundSize: bgImageSize,
-            backgroundPosition: bgImagePosition,
-            backgroundRepeat: "no-repeat",
-          }} />
-        </div>
-      )}
       {bgImage && !hasBgWindow && (
         <div aria-hidden="true" style={{
           position: "absolute", inset: 0, zIndex: 0,
@@ -96,7 +90,7 @@ export default function VoltPreviewClient({
           showed blank/transparent — through which the Designer canvas's own background
           shows, looking like the volt was replaced by whatever sits behind it. */}
       <div style={{ position: "relative", zIndex: 2, width: "100%", height: "100%" }}>
-        <VoltBlock voltId={voltId} slots={slots} instanceOverrides={instanceOverrides} fitMode={fit} productId={productId} />
+        <VoltBlock voltId={voltId} slots={slots} instanceOverrides={instanceOverrides} fitMode={fit} productId={productId} backgroundWindow={backgroundWindow} />
       </div>
     </div>
   );

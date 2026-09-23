@@ -28,9 +28,20 @@ interface VoltBlockProps {
    * or a field isn't bound.
    */
   productId?: string;
+  /** Forwarded verbatim to VoltRenderer — see its own doc comment. Only used by the
+   * Designer canvas's Volt preview iframe (VoltPreviewClient). */
+  backgroundWindow?: {
+    imageUrl: string;
+    imageSize?: string;
+    imagePosition?: string;
+    widthPct: number;
+    heightPct: number;
+    xPct: number;
+    yPct: number;
+  };
 }
 
-export default function VoltBlock({ voltId, slots = {}, instanceOverrides, fitMode = "contain", productId }: VoltBlockProps) {
+export default function VoltBlock({ voltId, slots = {}, instanceOverrides, fitMode = "contain", productId, backgroundWindow }: VoltBlockProps) {
   const [volt, setVolt] = useState<VoltElementData | null>(null);
   const [error, setError] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -112,7 +123,7 @@ export default function VoltBlock({ voltId, slots = {}, instanceOverrides, fitMo
 
   return (
     <div ref={containerRef} style={containerStyle}>
-      <VoltRenderer voltElement={volt} slots={mergedSlots} instanceOverrides={instanceOverrides} style={INHERIT_RADIUS_STYLE} onHoverChange={setIsHovered} fitMode={fitMode} />
+      <VoltRenderer voltElement={volt} slots={mergedSlots} instanceOverrides={instanceOverrides} style={INHERIT_RADIUS_STYLE} onHoverChange={setIsHovered} fitMode={fitMode} backgroundWindow={backgroundWindow} />
       {layers3D.map(l => (
         <Volt3DRenderer
           key={l.id}

@@ -8362,8 +8362,9 @@ function isVoltFullBleed(b) {
 // ── Volt preview URL builder ───────────────────────────────────────────────────
 // 2026-09-23: see buildVoltPreviewUrl — the Designer canvas DOES forward the
 // section background into a glass-layer Volt block's preview iframe, windowed
-// (bgWindowW/H/X/Y below) so it lines up with the block's real on-canvas slice
-// instead of being independently re-"cover"-fit to the iframe's own box.
+// (bgWindowWPct/HPct/XPct/YPct below, percentages of the block's own size) so
+// it lines up with the block's real on-canvas slice instead of being
+// independently re-"cover"-fit to the iframe's own box.
 const DESIGNER_FORWARDS_SECTION_BG = true;
 function buildVoltPreviewUrl(b) {
   if (!b.props.voltId) return '';
@@ -8409,15 +8410,23 @@ function buildVoltPreviewUrl(b) {
   // relative to THAT block-sized box, independently re-cropping/re-scaling the
   // image instead of showing the same slice the live section shows behind it.
   //
-  // 2026-09-23: fixed by windowing instead of disabling. bgWindowW/H below carry
-  // the canvas's own pixel size (what the section bg is really sized against —
-  // see applySectionBgToCanvas()/#canvas-section-bg, `inset:0` on #canvas) and
-  // bgWindowX/Y carry this block's on-canvas offset (getDisplayPos(b), the same
-  // coordinate space isVoltFullBleed() above already trusts). /volt-preview
-  // (VoltPreviewClient) sizes the image to the CANVAS box and shifts it by
-  // -offset behind an overflow:hidden window the size of the iframe, so the
-  // visible slice lines up with the real section pixel-for-pixel — the glass
-  // fill's backdrop-filter then blurs a true crop, not an unrelated re-fit one.
+  // 2026-09-23: windowing via raw pixel forwarding (bgWindowW/H/X/Y in Designer-
+  // canvas px) did NOT actually fix this — confirmed live: the browser's
+  // backdrop-filter would not composite a sibling background div positioned
+  // OUTSIDE VoltRenderer's own `useMeasuredContain` scale transform
+  // (`transform: translate(-50%,-50%) scale(containScale)`, VoltRenderer.tsx)
+  // across that transform boundary, regardless of correct position/size/z-index
+  // — the glass panel rendered as a flat, unblurred tint no matter what. Fixed
+  // for real by moving the window INSIDE VoltRenderer's own transformed stage
+  // (see its `backgroundWindow` prop) so the photo and the glass panel share
+  // the exact same compositing layer. Since that stage's own box is sized in
+  // RENDERED CSS px (measured via ResizeObserver, not Designer-canvas px), we
+  // send PERCENTAGES of this block's own on-canvas size instead of raw
+  // pixels — dividing out the unit mismatch entirely: widthPct/heightPct is
+  // "how many block-widths/heights the full canvas bg spans", xPct/yPct is
+  // "how many block-widths/heights this block sits offset from the canvas
+  // origin". VoltRenderer positions its background div with these as plain
+  // %, which its transform then scales in lockstep with every other layer.
   // `bg=0` still lets DESIGNER_FORWARDS_SECTION_BG be flipped back off (e.g. to
   // debug) without touching this branch.
   const hasGlassLayer = !!(window.__voltGlassMap && window.__voltGlassMap[b.props.voltId]);
@@ -8430,7 +8439,8 @@ function buildVoltPreviewUrl(b) {
       sp.set('bgImage', state.sectionBg.bgImageUrl);
       sp.set('bgImageSize', state.sectionBg.bgImageSize || 'cover');
       sp.set('bgImagePosition', state.sectionBg.bgImagePosition || 'center');
-      // Window the canvas-sized bg into this block-sized iframe (see comment above).
+      // Window the canvas-sized bg into this block's own coordinate space, as
+      // percentages of the block's own w/h (see comment above for why % not px).
       // Best-effort: if the canvas can't be measured, omit these and /volt-preview
       // falls back to its old per-block cover fit rather than erroring.
       try {
@@ -8438,11 +8448,12 @@ function buildVoltPreviewUrl(b) {
         const cw = canvasEl ? canvasEl.offsetWidth : 0;
         const ch = canvasEl ? canvasEl.offsetHeight : 0;
         const dp = getDisplayPos(b);
-        if (cw && ch && dp) {
-          sp.set('bgWindowW', String(Math.round(cw)));
-          sp.set('bgWindowH', String(Math.round(ch)));
-          sp.set('bgWindowX', String(Math.round(dp.x)));
-          sp.set('bgWindowY', String(Math.round(dp.y)));
+        const bw = b.w, bh = b.h;
+        if (cw && ch && dp && bw && bh) {
+          sp.set('bgWindowWPct', String((cw / bw) * 100));
+          sp.set('bgWindowHPct', String((ch / bh) * 100));
+          sp.set('bgWindowXPct', String((dp.x / bw) * 100));
+          sp.set('bgWindowYPct', String((dp.y / bh) * 100));
         }
       } catch (e) { /* ignore — falls back to per-block cover fit */ }
     }
