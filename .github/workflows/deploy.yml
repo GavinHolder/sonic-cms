@@ -131,6 +131,10 @@ jobs:
             fi
           fi
 
+          if ! git pull --rebase origin main; then
+            echo "⚠️ Rebase failed (concurrent changes on origin/main) — aborting rebase; push below will fail and this run will need re-triggering."
+            git rebase --abort 2>/dev/null || true
+          fi
           git push origin main
 
   # ── Job 1: Run tests ────────────────────────────────────────────────────
