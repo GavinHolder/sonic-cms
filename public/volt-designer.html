@@ -60,7 +60,14 @@
     .prop-section{margin-bottom:12px;}
     .prop-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#6c757d;margin-bottom:4px;}
     .canvas-wrap{flex:1;position:relative;overflow:hidden;background:#dee2e6;display:flex;align-items:center;justify-content:center;cursor:default !important;}
-    #artboard{background:white;box-shadow:0 4px 24px rgba(0,0,0,0.18);position:relative;transform-origin:center center;}
+    /* will-change + backface-visibility promote #artboard to its own composited layer,
+       which keeps Chromium/WebKit from blitting a lower-resolution cached bitmap of its
+       text-overlay children when the artboard's transform:scale(state.zoom) below is a
+       non-integer factor (near-universal in practice — resetView()'s fit-to-viewport
+       calc and repeated wheel-zoom multiplication rarely land on a round number) —
+       mitigates, doesn't fully eliminate, the resulting blurry-text artifact. See the
+       JS-side zoom rounding in applyZoom() for the other half of this fix. */
+    #artboard{background:white;box-shadow:0 4px 24px rgba(0,0,0,0.18);position:relative;transform-origin:center center;will-change:transform;backface-visibility:hidden;}
     #artboard-svg{position:absolute;inset:0;display:block;}
     /* Dots offset by half a cell (background-position = gridSize/2) so each dot sits
        ON a snap point: snapPt() snaps to multiples of gridSize (0,g,2g… = tile
@@ -1109,6 +1116,27 @@
     function _rotPt(px,py,cx,cy,deg){if(!deg)return{x:px,y:py};var a=deg*Math.PI/180,ca=Math.cos(a),sa=Math.sin(a),dx=px-cx,dy=py-cy;return{x:cx+dx*ca-dy*sa,y:cy+dx*sa+dy*ca};}
     function handlePos(sel,h){var CW=state.element.canvasWidth,CH=state.element.canvasHeight;var x=topx(sel.x,CW),y=topx(sel.y,CH),w=topx(sel.width,CW),ht=topx(sel.height,CH);var p;if(h==='nw')p={x:x,y:y};else if(h==='n')p={x:x+w/2,y:y};else if(h==='ne')p={x:x+w,y:y};else if(h==='e')p={x:x+w,y:y+ht/2};else if(h==='se')p={x:x+w,y:y+ht};else if(h==='s')p={x:x+w/2,y:y+ht};else if(h==='sw')p={x:x,y:y+ht};else p={x:x,y:y+ht/2};if(sel.rotation)p=_rotPt(p.x,p.y,x+w/2,y+ht/2,sel.rotation);return p;}
     function hitHandle(pt,sel){if(!sel)return null;var hs=getHsiz()+2/state.zoom;for(var i=0;i<HNAMES.length;i++){var hp=handlePos(sel,HNAMES[i]);if(dist2(pt,hp)<=hs)return HNAMES[i];}return null;}
+    // ── rAF-coalesced canvas render for continuous pointer interactions ────────
+    // renderCanvas() (below) destroys and rebuilds the ENTIRE canvas DOM every
+    // call — all layers' paths/gradients/filter+mask defs, plus every image,
+    // glass (backdrop-filter), text and slot overlay element — even layers that
+    // have nothing to do with the interaction in progress. The pointermove
+    // handler used to call it directly on every drag/resize/rotate/vertex-edit/
+    // marquee/hover-tracking tick; pointermove can fire faster than the display
+    // repaints (uncoalesced by some browsers, or with a high-report-rate input
+    // device), so several full destructive rebuilds could land inside one visual
+    // frame — this is what reads as the canvas/elements "flickering" or
+    // "refreshing" while dragging (worst on image layers, glass overlays and SVG
+    // filters, which all get torn down and recreated from scratch each time).
+    // scheduleRenderCanvas() coalesces any number of calls within a frame down to
+    // one renderCanvas() right before the next paint. Drag-END (pointerup) paths
+    // still call renderCanvas()/renderAll() directly and synchronously, so the
+    // final authoritative state is never delayed or dropped.
+    var _rcRafId=null;
+    function scheduleRenderCanvas(){
+      if(_rcRafId!=null)return;
+      _rcRafId=requestAnimationFrame(function(){_rcRafId=null;renderCanvas();});
+    }
     // ── Render canvas ─────────────────────────────────────────────────────────
     function renderCanvas(){
       if(typeof updateSlotPreviewBtn==='function')updateSlotPreviewBtn();
@@ -2081,19 +2109,19 @@
           var _isCl=state.element.layers[vxi].vectorData.closed!==false;
           // C2: in hover state, the vertex drag writes the morphed outline to the
           // hover pathData override and leaves base geometry untouched.
-          if(state.activeStateName==='hover'){_setHoverOverride(state.element.layers[vxi].id,'pathData',anchorsToPath(nanch,_isCl));renderCanvas();return;}
+          if(state.activeStateName==='hover'){_setHoverOverride(state.element.layers[vxi].id,'pathData',anchorsToPath(nanch,_isCl));scheduleRenderCanvas();return;}
           state.element.layers[vxi].vectorData.pathData=anchorsToPath(nanch,_isCl);
           var vxs=nanch.map(function(a){return a.x;}),vys=nanch.map(function(a){return a.y;});
           var vbx2=Math.min.apply(null,vxs);state.element.layers[vxi].x=vbx2;
           state.element.layers[vxi].y=Math.min.apply(null,vys);
           state.element.layers[vxi].width=Math.max(0.1,Math.max.apply(null,vxs)-vbx2);
           state.element.layers[vxi].height=Math.max(0.1,Math.max.apply(null,vys)-Math.min.apply(null,vys));
-          renderCanvas();
+          scheduleRenderCanvas();
         }
         return;
       }
       // Rotate
-      if(rotateSt){var _ri=state.element.layers.findIndex(function(l){return l.id===rotateSt.layerId;});if(_ri>=0){var _ra2=Math.atan2(pt.y-rotateSt.cy,pt.x-rotateSt.cx)*180/Math.PI;var _rdeg=rotateSt.origRotation+(_ra2-rotateSt.startAngle);if(e.shiftKey)_rdeg=Math.round(_rdeg/15)*15;var _rval=parseFloat(_rdeg.toFixed(2));if(state.activeStateName==='hover'){_setHoverOverride(rotateSt.layerId,'rotation',_rval);}else{state.element.layers[_ri].rotation=_rval;}renderCanvas();var _rpEl=document.getElementById('prop-rotation');if(_rpEl)_rpEl.value=_rval;}return;}
+      if(rotateSt){var _ri=state.element.layers.findIndex(function(l){return l.id===rotateSt.layerId;});if(_ri>=0){var _ra2=Math.atan2(pt.y-rotateSt.cy,pt.x-rotateSt.cx)*180/Math.PI;var _rdeg=rotateSt.origRotation+(_ra2-rotateSt.startAngle);if(e.shiftKey)_rdeg=Math.round(_rdeg/15)*15;var _rval=parseFloat(_rdeg.toFixed(2));if(state.activeStateName==='hover'){_setHoverOverride(rotateSt.layerId,'rotation',_rval);}else{state.element.layers[_ri].rotation=_rval;}scheduleRenderCanvas();var _rpEl=document.getElementById('prop-rotation');if(_rpEl)_rpEl.value=_rval;}return;}
       // Resize
       if(resizeSt){
         var idx=state.element.layers.findIndex(function(l){return l.id===resizeSt.layerId;});if(idx<0){resizeSt=null;return;}
@@ -2130,7 +2158,7 @@
         if(state.activeStateName==='hover'){
           _setHoverOverride(l.id,'x',nx);_setHoverOverride(l.id,'y',ny);
           _setHoverOverride(l.id,'width',Math.max(0.1,nw));_setHoverOverride(l.id,'height',Math.max(0.1,nh));
-          renderCanvas();return;
+          scheduleRenderCanvas();return;
         }
         l.x=nx;l.y=ny;l.width=nw;l.height=nh;
         if(l.vectorData&&l.vectorData.pathData){
@@ -2141,7 +2169,7 @@
             if(_ra.length>0)l.vectorData.pathData=anchorsToPath(_ra.map(function(a){return{x:ob.x+(a.x-ob.x)*osx+(nx-ob.x),y:ob.y+(a.y-ob.y)*osy+(ny-ob.y),cpIn:{dx:a.cpIn.dx*osx,dy:a.cpIn.dy*osy},cpOut:{dx:a.cpOut.dx*osx,dy:a.cpOut.dy*osy}};}),l.vectorData.closed!==false);
           }
         }
-        renderCanvas();return;
+        scheduleRenderCanvas();return;
       }
       // Drag move
       if(dragSt){
@@ -2251,7 +2279,7 @@
             var bParent=state.element.layers.find(function(l){return l.id===dragSt.cutterParentId;});
             if(bParent)recalcLayerBounds(bParent);
           }
-          renderCanvas();
+          scheduleRenderCanvas();
         }
         return;
       }
@@ -2260,7 +2288,7 @@
         marqueeSt.curX=pt.x;marqueeSt.curY=pt.y;
         var mDist=Math.sqrt(Math.pow(pt.x-marqueeSt.startPt.x,2)+Math.pow(pt.y-marqueeSt.startPt.y,2));
         if(mDist>4)marqueeSt.active=true;
-        if(marqueeSt.active)renderCanvas();
+        if(marqueeSt.active)scheduleRenderCanvas();
         return;
       }
       // Vertex edit hover — track mouse for edge preview dot + cursor feedback
@@ -2272,7 +2300,7 @@
           var _vhCW=state.element.canvasWidth,_vhCH=state.element.canvasHeight;
           var _vhOnVert=_vhpts.some(function(vp){return dist2(pt,{x:topx(vp.x,_vhCW),y:topx(vp.y,_vhCH)})<=_vhit2;});
           svgEl.style.cursor=_altHeld?(_vhOnVert?'no-drop':'copy'):(_vhOnVert?'grab':'crosshair');
-          renderCanvas();return;
+          scheduleRenderCanvas();return;
         }
       }
       // Pen ghost + handle drag
@@ -2302,6 +2330,10 @@
       }
     });
     svgEl.addEventListener('pointerup',function(e){
+      // Drop any still-pending coalesced render from the drag we're ending — every
+      // branch below does its own synchronous renderCanvas()/renderAll() with the
+      // final state, so a stale rAF callback would at best be redundant.
+      if(_rcRafId!=null){cancelAnimationFrame(_rcRafId);_rcRafId=null;}
       var CW=state.element.canvasWidth,CH=state.element.canvasHeight;
       if(state.activeTool==='pen'&&_penDown){_penDown=false;penState.dragging=false;if(!_penMoved&&penState.verts.length>0){var _lpv=penState.verts[penState.verts.length-1];_lpv.cpOut={dx:0,dy:0};_lpv.cpIn={dx:0,dy:0};}renderPenGhost();return;}
       if(vxDragSt){pushHistory();markDirty();renderAll();vxDragSt=null;return;}
@@ -4772,7 +4804,13 @@
     document.getElementById('el-mood').addEventListener('change',function(e){state.element.mood=e.target.value||null;markDirty();});
     document.getElementById('el-public').addEventListener('change',function(e){state.element.isPublic=e.target.checked;markDirty();});
     // ── Zoom ──────────────────────────────────────────────────────────────────
-    function applyZoom(z){state.zoom=Math.min(Math.max(z,0.05),8);artboard.style.transform='translate('+(state.panX||0)+'px,'+(state.panY||0)+'px) scale('+state.zoom+')';document.getElementById('zoom-label').textContent=Math.round(state.zoom*100)+'%';renderCanvas();}
+    // Round to 4dp before it ever reaches a style: resetView()'s (wrap/canvas) division
+    // and repeated wheel-zoom multiplication (*1.1, *1.21, ...) otherwise leave
+    // state.zoom as a long, non-repeating float — extra float noise on top of the
+    // (already non-integer, and unavoidable) scale factor CSS ends up applying to
+    // #artboard's text-overlay children, worsening the blur mitigated by #artboard's
+    // will-change/backface-visibility above.
+    function applyZoom(z){state.zoom=Math.round(Math.min(Math.max(z,0.05),8)*10000)/10000;artboard.style.transform='translate('+(state.panX||0)+'px,'+(state.panY||0)+'px) scale('+state.zoom+')';document.getElementById('zoom-label').textContent=Math.round(state.zoom*100)+'%';renderCanvas();}
     // Zoom toward a focal point. ox,oy = focal offset from the canvas-wrap CENTER
     // (unscaled px). The artboard is flex-centered with transform-origin center, so
     // on screen a local point maps to: wrapCenter + d*zoom + pan. To hold the focal
