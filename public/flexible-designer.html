@@ -6624,47 +6624,51 @@ function pasteBpClipboard() {
   }
 
   // kind === 'subElements' — needs a target PARENT block on the CURRENT canvas.
-  if (!state.selectedBlockId) {
-    if (state.blocks.length === 0) {
-      // Empty canvas — the normal state of a freshly-visited breakpoint tab
-      // (breakpoints intentionally start empty, see the header comment
-      // above). There is no block to select, so "select a block to paste
-      // into" is an impossible instruction. Auto-create a container block
-      // from the ORIGINAL parent block's own shape (captured at copy time as
-      // sourceParentBlock) so the paste still succeeds in one action. Falls
-      // back to a minimal generic block if the clipboard predates this
-      // snapshot (defensive only — every clipboard written by the current
-      // copyBpClipboard() has it).
-      pushHistory();
-      const srcParent = _bpClipboard.sourceParentBlock;
-      const newBlock = srcParent ? JSON.parse(JSON.stringify(srcParent)) : {
-        type: 'container', section: 0, gridRow: 1, gridCol: 1, colSpan: 1, rowSpan: 1,
-        x: 0, y: 0, w: 300, h: 180, zIndex: 1, props: {}
-      };
-      newBlock.id = 'b' + (++state.nextId);
-      newBlock.subElements = [];
-      newBlock.w = Math.max(1, Math.round((newBlock.w || 300) * ratio));
-      newBlock.h = Math.max(1, Math.round((newBlock.h || 180) * ratio));
-      const rawX = Math.round((newBlock.x || 0) * ratio);
-      const rawY = Math.round((newBlock.y || 0) * ratio);
-      newBlock.x = Math.max(0, Math.min(targetCanvasW - BP_PASTE_MIN_VISIBLE, rawX));
-      newBlock.y = Math.max(0, Math.min(targetCanvasH - BP_PASTE_MIN_VISIBLE, rawY));
-      state.blocks.push(newBlock);
-      // Reindex zIndex to array position — same invariant _lyDuplicateBlock/
-      // _fcxReorder/the 'blocks' branch above enforce.
-      state.blocks.forEach((b, i) => b.zIndex = i + 1);
-      const lastId = _pasteSubElementsIntoParent(newBlock, _bpClipboard.items, ratio, targetCanvasW, targetCanvasH);
-      state.selectedBlockId = newBlock.id; state.selectedSubId = lastId;
-      renderCanvas(); renderPropsPanel(); autoSave();
-      const n = _bpClipboard.items.length;
-      designerToast('Pasted ' + n + (n === 1 ? ' element' : ' elements') + ' (created a container block)' + rescaleNote);
-      return;
-    }
-    designerToast('Select a block to paste into');
+  // Per explicit user feedback (paste must never require hunting for/
+  // selecting a destination first): whenever nothing is selected — canvas
+  // empty OR just no active selection — auto-create a container from the
+  // copied elements' ORIGINAL parent shape (sourceParentBlock, captured at
+  // copy time) rather than refusing. Falls back to a minimal generic block
+  // if the clipboard predates that snapshot.
+  let parent = state.selectedBlockId ? state.blocks.find(x => x.id === state.selectedBlockId) : null;
+
+  // Volt blocks (type 'volt') are not generic subElements containers — their
+  // whole content is owned by Volt Studio (props.voltId + slots) and edited
+  // via openVoltModal() (double-click, line ~3702-3703), not the free-canvas
+  // subElements model at all. renderCanvas()'s 'volt' branch (~line 3702)
+  // never reads subElements, so pushing pasted items onto one would silently
+  // vanish into an unrendered field — refuse instead of touching it.
+  if (parent && parent.type === 'volt') {
+    designerToast("Can't paste elements into a Volt block — edit it in Volt Studio, or select a different block");
     return;
   }
-  const parent = state.blocks.find(x => x.id === state.selectedBlockId);
-  if (!parent) { designerToast('Select a block to paste into'); return; }
+
+  if (!parent) {
+    pushHistory();
+    const srcParent = _bpClipboard.sourceParentBlock;
+    const newBlock = srcParent ? JSON.parse(JSON.stringify(srcParent)) : {
+      type: 'container', section: 0, gridRow: 1, gridCol: 1, colSpan: 1, rowSpan: 1,
+      x: 0, y: 0, w: 300, h: 180, zIndex: 1, props: {}
+    };
+    newBlock.id = 'b' + (++state.nextId);
+    newBlock.subElements = [];
+    newBlock.w = Math.max(1, Math.round((newBlock.w || 300) * ratio));
+    newBlock.h = Math.max(1, Math.round((newBlock.h || 180) * ratio));
+    const rawX = Math.round((newBlock.x || 0) * ratio);
+    const rawY = Math.round((newBlock.y || 0) * ratio);
+    newBlock.x = Math.max(0, Math.min(targetCanvasW - BP_PASTE_MIN_VISIBLE, rawX));
+    newBlock.y = Math.max(0, Math.min(targetCanvasH - BP_PASTE_MIN_VISIBLE, rawY));
+    state.blocks.push(newBlock);
+    // Reindex zIndex to array position — same invariant _lyDuplicateBlock/
+    // _fcxReorder/the 'blocks' branch above enforce.
+    state.blocks.forEach((b, i) => b.zIndex = i + 1);
+    const lastId = _pasteSubElementsIntoParent(newBlock, _bpClipboard.items, ratio, targetCanvasW, targetCanvasH);
+    state.selectedBlockId = newBlock.id; state.selectedSubId = lastId;
+    renderCanvas(); renderPropsPanel(); autoSave();
+    const n = _bpClipboard.items.length;
+    designerToast('Pasted ' + n + (n === 1 ? ' element' : ' elements') + ' (created a container block)' + rescaleNote);
+    return;
+  }
   pushHistory();
   const lastId = _pasteSubElementsIntoParent(parent, _bpClipboard.items, ratio, targetCanvasW, targetCanvasH);
   state.selectedBlockId = parent.id; state.selectedSubId = lastId;
@@ -6687,18 +6691,28 @@ function pasteBpClipboard() {
  *   items was empty.
  */
 function _pasteSubElementsIntoParent(parent, items, ratio, targetCanvasW, targetCanvasH) {
+  // Defensive: every real block carries subElements:[], but guard anyway
+  // rather than let a missing array throw mid-paste and leave state/UI
+  // inconsistent.
+  if (!Array.isArray(parent.subElements)) parent.subElements = [];
   const parentW = parent.w || targetCanvasW;
   const parentH = parent.h || targetCanvasH;
   let lastId = null;
   items.forEach(srcSe => {
     const copy = JSON.parse(JSON.stringify(srcSe));
     copy.id = 'se-' + (state.nextId++);
-    if (copy.w != null) copy.w = Math.max(1, Math.round(copy.w * ratio));
+    // Clamp rescaled width to the target parent's own width — an element
+    // copied from a much wider breakpoint can otherwise rescale to fully
+    // cover the parent, visually burying (not deleting) whatever subElements
+    // were already there underneath the newly-appended one.
+    if (copy.w != null) copy.w = Math.max(1, Math.min(Math.round(copy.w * ratio), parentW));
     const clampW = copy.w != null ? copy.w : BP_PASTE_MIN_VISIBLE;
     const rawX = Math.round((copy.x || 0) * ratio);
     const rawY = Math.round((copy.y || 0) * ratio);
     copy.x = Math.max(0, Math.min(Math.max(0, parentW - Math.min(clampW, BP_PASTE_MIN_VISIBLE)), rawX));
     copy.y = Math.max(0, Math.min(Math.max(0, parentH - BP_PASTE_MIN_VISIBLE), rawY));
+    // APPEND — existing subElements are never cleared, replaced, or
+    // reassigned here, only pushed onto.
     parent.subElements.push(copy);
     lastId = copy.id;
   });
