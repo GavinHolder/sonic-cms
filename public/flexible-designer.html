@@ -3240,9 +3240,38 @@ function renderCanvas() {
  * real live-page frame around the free-mode cover plate: the fixed navbar band, the
  * padding-safe top/bottom boundaries, the side gutters, and the next-section into-wave
  * silhouette. Purely visual (pointer-events:none). Drawn in DESIGN px so it scales with the
- * canvas transform. Only shown for free + single + desktop (the cover-plate context); every
- * other mode clears/hides it. Fed by sensible constants (navbar 100px, gutter 12px, wave
- * 200px, padding 80px) — no new postMessage plumbing in this phase.
+ * canvas transform. Shown for free + single on ALL THREE breakpoints (Desktop/Tablet/Mobile —
+ * 2026-09-23, extending the original desktop-only Option C phase); every other mode
+ * (multi/dynamic content, grid/mosaic position mode) still clears/hides it.
+ *
+ * Constants below were investigated against the live renderer (components/layout/Navbar.tsx,
+ * components/sections/FlexibleSectionRenderer.tsx, components/sections/TriangleSectionWrapper.tsx,
+ * app/globals.css) to see which are genuinely breakpoint-dependent vs. safe to reuse as-is:
+ *   - NAV (navbar height): Navbar.tsx STANDARD_HEIGHT=100 (TALL_HEIGHT=140 for the "tall" admin
+ *     style, not modeled here) is set once via --navbar-height and floors padding-top identically
+ *     in both the desktop and the @media(max-width:767px) mobile rule in globals.css — NOT
+ *     viewport-dependent. Same 100 reused for all three breakpoints.
+ *   - PAD_T (content-top boundary): desktop/tablet default --section-pt is 80px (Flexible­
+ *     SectionRenderer.tsx paddingTop ?? 80) but is always floored by NAV=100 via
+ *     safeTop=max(PAD_T,NAV) below, so the rendered boundary is 100 either way — no per-breakpoint
+ *     value needed.
+ *   - PAD_B (content-bottom boundary): genuinely differs. Desktop/tablet use the generic
+ *     `.section-content-wrapper { padding-bottom: var(--section-pb, 80px) }` (globals.css ~L682).
+ *     Mobile (<768px) hits the more specific single/non-multi flexible-section override
+ *     `padding-bottom: var(--section-pb-mobile, 40px)` (globals.css ~L724-725) — and
+ *     FlexibleSectionRenderer.tsx only emits --section-pb-mobile when the admin has explicitly
+ *     set a mobile override (paddingBottomMobile != null), so the common case really does fall
+ *     through to that 40px CSS default. Tablet (768px) sits exactly on the media query's
+ *     max-width:767px boundary, so it still gets the desktop 80px value.
+ *   - WAVE (next-section "into"/triangle silhouette height): TriangleSectionWrapper.tsx defaults
+ *     to 200px (section.triangleHeight || 200), but globals.css scales `.triangle-overlay-wrapper`
+ *     with a CSS transform per viewport: scale(0.5) below 576px (mobile), scale(0.8) between
+ *     768-991.98px (tablet), no transform (1.0) at >=992px (desktop). So the REAL rendered wave
+ *     height is 200 on desktop, 160 on tablet (200*0.8), 100 on mobile (200*0.5).
+ *   - GUT (side gutters): Bootstrap's default `.container-fluid` gutter (12px each side,
+ *     --bs-gutter-x: 1.5rem halved) is not overridden anywhere in globals.css and Bootstrap does
+ *     not vary container-fluid's gutter by breakpoint — reused unchanged everywhere.
+ * No new postMessage plumbing in this phase.
  */
 function renderFrameGuides() {
   const layer = document.getElementById('canvas-frame-guides');
@@ -3250,11 +3279,14 @@ function renderFrameGuides() {
   const on = state.showFrameGuides !== false
     && state.positionMode === 'free'
     && state.contentMode === 'single'
-    && state.devicePreview === 'desktop';
+    && (state.devicePreview === 'desktop' || state.devicePreview === 'tablet' || state.devicePreview === 'mobile');
   if (!on) { layer.style.display = 'none'; layer.replaceChildren(); return; }
-  const W = DESKTOP_CANVAS_W;                    // 1440 design px
+  const W = state.designerCanvasW || defaultCanvasWForBreakpoint(state.devicePreview); // current breakpoint's own canvas width
   const H = state.designerCanvasH || DESIGN_H;   // design-box height
-  const NAV = 100, PAD_T = 80, PAD_B = 80, WAVE = 200, GUT = 12;
+  const NAV = 100, PAD_T = 80, GUT = 12;
+  // PAD_B and WAVE are the two constants confirmed breakpoint-dependent on the live site (see doc comment above).
+  const PAD_B = state.devicePreview === 'mobile' ? 40 : 80;
+  const WAVE  = state.devicePreview === 'mobile' ? 100 : (state.devicePreview === 'tablet' ? 160 : 200);
   const safeTop = Math.max(PAD_T, NAV);          // content never slides under the fixed navbar
   const kids = [];
   const mk = (cls, styles, text) => {
