@@ -3944,7 +3944,13 @@ function createBlockPreview(block) {
         // shape/content; the real canvas background shows through everywhere else.
         vIframe.style.cssText = 'width:100%;height:100%;border:none;pointer-events:none;background:transparent;';
         vIframe.setAttribute('allowtransparency', 'true');
-        vIframe.loading = 'lazy';
+        // Intentionally NOT loading="lazy": this iframe lives inside #canvas,
+        // which is under transform:scale() via applyCanvasScale() — browsers'
+        // lazy-load intersection detection is unreliable under a scaled
+        // ancestor, which could delay/skip loading the Volt's own document
+        // (and the eyebrow/heading text authored inside it). The Designer
+        // canvas only ever holds a handful of these iframes, so eager-loading
+        // them is an acceptable tradeoff for reliability here.
         wrap.appendChild(vIframe);
       } else {
         const vContainer = document.createElement('div');
