@@ -6303,7 +6303,11 @@ function _fastApplyBlockSelection(prevBlockId, newBlockId) {
   newEl.classList.add('selected');
   const newBlock = state.blocks.find(b => b.id === newBlockId);
   const hasChildren = !!(newBlock && newBlock.subElements && newBlock.subElements.length > 0);
-  const isGroupParent = hasChildren && state.editingBlockId !== newBlockId;
+  // Mirrors createBlockElement()'s own condition exactly (`_isGroupParent &&
+  // selectedBlockId === id && !selectedSubId`): the handle only shows while the
+  // block is selected with NO child selected — selectSubElement() also routes
+  // through here, and selects a child.
+  const isGroupParent = hasChildren && state.editingBlockId !== newBlockId && !state.selectedSubId;
   const existingHandle = newEl.querySelector('.group-move-handle');
   if (isGroupParent && !existingHandle) {
     const gmh = document.createElement('button');
@@ -6350,9 +6354,11 @@ function selectBlock(id) {
 
 /**
  * Selects a sub-element within a block using fast DOM class toggling to
- * avoid a full canvas re-render on every click. A full renderCanvas() is
- * only triggered when the parent block changes so its header/border state
- * updates correctly. Properties panel is always refreshed.
+ * avoid a full canvas re-render on every click. When the parent block changes
+ * its header/border/group-handle state is updated via _fastApplyBlockSelection()
+ * too (a full renderCanvas() would rebuild every Volt <iframe> and flash them
+ * white); renderCanvas() remains only as the fallback for layouts/states the
+ * fast path can't reproduce. Properties panel is always refreshed.
  * @param {string} bId - ID of the parent block.
  * @param {string} sId - ID of the sub-element to select.
  */
@@ -6368,8 +6374,14 @@ function selectSubElement(bId, sId) {
     if (sId)       document.querySelector(`.sub-element[data-sub-id="${sId}"]`)?.classList.add('selected');
   }
   if (prevBlockId !== bId) {
-    // Block changed — must re-render to update the block's header colour and border
-    renderCanvas();
+    // Block changed — its header colour/border (`.selected`) and group-move handle
+    // must update. Do that with the same fast DOM-only path selectBlock() uses
+    // rather than a full renderCanvas(): a full rebuild destroys and recreates
+    // EVERY Volt block's <iframe> (confirmed live — all of them, on every click into
+    // a different block), which is the white-placeholder flash users see when they
+    // click a text element. Falls back to a full render only if the fast path can't
+    // safely reproduce the DOM (mosaic layout, or the block isn't in the DOM yet).
+    if (!_fastApplyBlockSelection(prevBlockId, bId)) renderCanvas();
   }
   renderPropsPanel();
   renderLayersPanel();
