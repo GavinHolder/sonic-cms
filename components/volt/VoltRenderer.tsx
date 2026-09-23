@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { VoltElementData, VoltSlots, VoltInstanceOverrides, VoltBreakpoint, VoltLayerStateOverride, VoltNumberData } from '@/types/volt'
-import { sortLayersByZ } from '@/lib/volt/volt-utils'
+import { sortLayersByZ, isGlassVectorLayer } from '@/lib/volt/volt-utils'
 import { personalityToAnimeConfig } from '@/lib/volt/personality-to-anime'
 import VoltSvgLayer from './VoltSvgLayer'
 import VoltSlotRenderer from './VoltSlotRenderer'
@@ -1144,7 +1144,7 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
   /** Glass overlay divs for vector layers whose primary fill is type 'glass'. */
   function renderGlassOverlays(layerList: typeof sortedLayers) {
     return layerList
-      .filter(l => l.type === 'vector' && l.visible !== false && l.vectorData?.fills?.[0]?.type === 'glass')
+      .filter(l => l.visible !== false && isGlassVectorLayer(l))
       .map(layer => {
         const fill = layer.vectorData!.fills[0]
         // Glass surface (backdrop-filter, tint/grain, border, radius, highlight)
@@ -1438,7 +1438,7 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
           // overlay regardless of its zIndex, hiding the frosted effect entirely
           // and showing the photo instead. The vector itself still joins the
           // batched SVG run below so strokes/boolean masks keep working.
-          if (layer.vectorData?.fills?.[0]?.type === 'glass') {
+          if (isGlassVectorLayer(layer)) {
             nodes.push(...renderGlassOverlays([layer]))
           }
           vectorRun.push(layer)

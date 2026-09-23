@@ -565,6 +565,11 @@
        components/volt/VoltRenderer.tsx (ES module import). Must load before
        renderCanvas (in the <script> below) paints a .glass-overlay. -->
   <script src="/volt-glass-rules.js"></script>
+  <!-- Shared layer z-order sort — single source of truth also consumed by
+       lib/volt/volt-utils.ts's sortLayersByZ (ES module import), which
+       components/volt/VoltRenderer.tsx uses for its paint order. Must load
+       before renderCanvas (in the <script> below) sorts layers for paint. -->
+  <script src="/volt-layer-order-rules.js"></script>
   <script>
   (function(){
     'use strict';
@@ -1270,7 +1275,7 @@
       // Apply canvas background colour
       artboard.style.background=state.element.canvasBackground||'white';
       var CW=state.element.canvasWidth,CH=state.element.canvasHeight;
-      var sorted=state.element.layers.slice().sort(function(a,b){return a.zIndex-b.zIndex;});
+      var sorted=window.VoltLayerOrderRules.sortLayersByZ(state.element.layers);
       // Compute max z-index for slots and non-slots (for DOM stacking order fix below)
       var _maxSlotZ=-Infinity,_maxVecZ=-Infinity;
       state.element.layers.forEach(function(l){if(l.visible===false)return;var z=l.zIndex||0;if(l.type==='slot')_maxSlotZ=Math.max(_maxSlotZ,z);else if(l.type==='vector'||l.type==='3d-object'||l.type==='image'||l.type==='text'||l.type==='number')_maxVecZ=Math.max(_maxVecZ,z);});
@@ -5561,9 +5566,9 @@
     function closeCtxMenu(){if(_ctxMenu)_ctxMenu.classList.remove('open');}
 
     function getZSortedVisible(){
-      return state.element.layers
-        .filter(function(l){return l.boolRole!=='cutter';})
-        .slice().sort(function(a,b){return a.zIndex-b.zIndex;});
+      return window.VoltLayerOrderRules.sortLayersByZ(
+        state.element.layers.filter(function(l){return l.boolRole!=='cutter';})
+      );
     }
 
     function ctxBringToFront(){

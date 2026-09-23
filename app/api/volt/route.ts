@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
     // silently override the real, current layers/states for this badge.
     const volts = rows.map(({ layers, states, ...rest }) => ({
       ...rest,
-      hasGlassLayer: voltHasGlassLayer(layers, states),
+      hasGlassLayer: voltHasGlassLayer(layers),
     }))
 
     return successResponse({ volts }, 200, { total: volts.length })

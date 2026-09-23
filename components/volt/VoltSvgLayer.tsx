@@ -1,5 +1,6 @@
 'use client'
 import type { VoltLayer, VoltLayerInstanceOverride, VoltFill, VoltLayerEffects } from '@/types/volt'
+import { isGlassVectorLayer } from '@/lib/volt/volt-utils'
 
 /** SVG <defs> filter block for layer effects (drop shadow, glow, blur). */
 function SvgFilterDef({ layerId, effects }: { layerId: string; effects: VoltLayerEffects }) {
@@ -156,8 +157,12 @@ export default function VoltSvgLayer({ layer, canvasWidth, canvasHeight, instanc
   const fills = vectorData.fills ?? []
   const stroke = vectorData.stroke
   const primaryFill = fills[0]
-  // Glass fills are rendered as HTML overlays in VoltRenderer — skip in SVG
-  const isGlass = primaryFill?.type === 'glass'
+  // Glass fills are rendered as HTML overlays in VoltRenderer — skip in SVG.
+  // layer.type === 'vector' is already guaranteed by the early return above,
+  // so this is equivalent to the old `primaryFill?.type === 'glass'` check,
+  // but now shares the ONE predicate also used by VoltRenderer.tsx and
+  // voltHasGlassLayer() instead of its own inline copy.
+  const isGlass = isGlassVectorLayer(layer)
 
   const isLinearGrad = !isGlass && primaryFill?.type === 'linear-gradient'
   const isRadialGrad = !isGlass && primaryFill?.type === 'radial-gradient'
