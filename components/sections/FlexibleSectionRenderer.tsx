@@ -2610,17 +2610,27 @@ function DesignerBlocksRenderer({
       let bgTransform: string;
       let contentTransform: string;
       let contentLeft = 0;
+      // Round every scale factor to kill float noise from the sw/cw division (a
+      // real device width divided by an authored canvas width is essentially
+      // never a clean number) — the same sub-pixel-text-blur mitigation already
+      // applied to both editor canvases' own zoom transforms (public/flexible-
+      // designer.html, public/volt-designer.html) via applyCanvasScale(), now
+      // applied here too since this content plate uses the identical
+      // transform:scale() mechanism on the LIVE page. Confirmed live (real
+      // browser, computed-style inspection) that an unrounded scale here — e.g.
+      // matrix(1.06556,0,0,1.06556,0,0) — renders text visibly soft.
+      const roundScale = (n: number) => Math.round(n * 10000) / 10000;
       if (isMulti) {
         // MULTI: width-only scale — exactly as before (transform string byte-identical) —
         // for both layers (multi has no letterbox/distortion tension: the section grows to
         // the scaled height via aspect-ratio above, so width-only scale alone is exact).
-        const scale = Math.min(sw / cw, plateMaxScale);
+        const scale = roundScale(Math.min(sw / cw, plateMaxScale));
         bgTransform = `scale(${scale})`;
         contentTransform = `scale(${scale})`;
       } else {
         const sh = stageH || (typeof window !== "undefined" ? window.innerHeight : ch);
-        const scaleX = Math.min(sw / cw, plateMaxScale);
-        const scaleY = Math.min(sh / ch, plateMaxScale);
+        const scaleX = roundScale(Math.min(sw / cw, plateMaxScale));
+        const scaleY = roundScale(Math.min(sh / ch, plateMaxScale));
         bgTransform = `scale(${scaleX}, ${scaleY})`;
         const scale = Math.min(scaleX, scaleY);
         contentTransform = `scale(${scale})`;
@@ -2707,6 +2717,10 @@ function DesignerBlocksRenderer({
             transform: contentTransform,
             transformOrigin: "top left",
             pointerEvents: "auto",
+            // Own compositing layer so the browser snaps to device pixels instead of
+            // blurring text under this transform:scale() — see roundScale() above.
+            willChange: "transform",
+            backfaceVisibility: "hidden",
           }}>
             {filteredBlocks.map((block, index) => {
               // Per-breakpoint independent layouts (2026-09-11): `block` here is already
