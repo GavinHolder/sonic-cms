@@ -8354,9 +8354,11 @@ function isVoltFullBleed(b) {
 }
 
 // ── Volt preview URL builder ───────────────────────────────────────────────────
-// 2026-09-21: see buildVoltPreviewUrl — the Designer canvas never paints the
-// section background inside a Volt block's preview iframe.
-const DESIGNER_FORWARDS_SECTION_BG = false;
+// 2026-09-23: see buildVoltPreviewUrl — the Designer canvas DOES forward the
+// section background into a glass-layer Volt block's preview iframe, windowed
+// (bgWindowW/H/X/Y below) so it lines up with the block's real on-canvas slice
+// instead of being independently re-"cover"-fit to the iframe's own box.
+const DESIGNER_FORWARDS_SECTION_BG = true;
 function buildVoltPreviewUrl(b) {
   if (!b.props.voltId) return '';
   const sp = new URLSearchParams();
@@ -8394,17 +8396,24 @@ function buildVoltPreviewUrl(b) {
   // through the shape's transparent or uncovered areas instead of nothing.
   // Fails safe (no bg forwarded) if the map hasn't loaded yet for this voltId.
   //
-  // 2026-09-21: forwarding is OFF for the Designer canvas. Painting the real
-  // section background inside the Volt's iframe showed a second, mis-scaled
-  // copy of the section bg inside the block's box (the iframe is block-sized,
-  // the section bg is canvas-sized). The canvas now shows ONLY the Volt's own
-  // shape/content, transparent elsewhere so the real canvas bg shows through;
-  // a glass fill therefore renders as its tint over the UNBLURRED canvas bg
-  // here (backdrop-filter cannot reach through an iframe) — accepted for the
-  // Designer, the live page (VoltRenderer in-document) still frosts for real.
-  // `bg=0` tells /volt-preview to ignore every bg* param; the forwarding
-  // mechanism itself is kept (behind DESIGNER_FORWARDS_SECTION_BG) for any
-  // other consumer that wants an in-iframe backdrop.
+  // 2026-09-21: forwarding was OFF for the Designer canvas, because painting the
+  // real section background inside the Volt's iframe showed a second, mis-scaled
+  // copy of the section bg inside the block's box — the iframe document is
+  // block-sized, but `backgroundSize:'cover'`/`'center'` were being computed
+  // relative to THAT block-sized box, independently re-cropping/re-scaling the
+  // image instead of showing the same slice the live section shows behind it.
+  //
+  // 2026-09-23: fixed by windowing instead of disabling. bgWindowW/H below carry
+  // the canvas's own pixel size (what the section bg is really sized against —
+  // see applySectionBgToCanvas()/#canvas-section-bg, `inset:0` on #canvas) and
+  // bgWindowX/Y carry this block's on-canvas offset (getDisplayPos(b), the same
+  // coordinate space isVoltFullBleed() above already trusts). /volt-preview
+  // (VoltPreviewClient) sizes the image to the CANVAS box and shifts it by
+  // -offset behind an overflow:hidden window the size of the iframe, so the
+  // visible slice lines up with the real section pixel-for-pixel — the glass
+  // fill's backdrop-filter then blurs a true crop, not an unrelated re-fit one.
+  // `bg=0` still lets DESIGNER_FORWARDS_SECTION_BG be flipped back off (e.g. to
+  // debug) without touching this branch.
   const hasGlassLayer = !!(window.__voltGlassMap && window.__voltGlassMap[b.props.voltId]);
   if (!DESIGNER_FORWARDS_SECTION_BG) {
     sp.set('bg', '0');
@@ -8415,6 +8424,21 @@ function buildVoltPreviewUrl(b) {
       sp.set('bgImage', state.sectionBg.bgImageUrl);
       sp.set('bgImageSize', state.sectionBg.bgImageSize || 'cover');
       sp.set('bgImagePosition', state.sectionBg.bgImagePosition || 'center');
+      // Window the canvas-sized bg into this block-sized iframe (see comment above).
+      // Best-effort: if the canvas can't be measured, omit these and /volt-preview
+      // falls back to its old per-block cover fit rather than erroring.
+      try {
+        const canvasEl = document.getElementById('canvas');
+        const cw = canvasEl ? canvasEl.offsetWidth : 0;
+        const ch = canvasEl ? canvasEl.offsetHeight : 0;
+        const dp = getDisplayPos(b);
+        if (cw && ch && dp) {
+          sp.set('bgWindowW', String(Math.round(cw)));
+          sp.set('bgWindowH', String(Math.round(ch)));
+          sp.set('bgWindowX', String(Math.round(dp.x)));
+          sp.set('bgWindowY', String(Math.round(dp.y)));
+        }
+      } catch (e) { /* ignore — falls back to per-block cover fit */ }
     }
     const grad = sectionGradCss(state.sectionBg.gradient);
     if (grad) sp.set('bgGradient', grad);
