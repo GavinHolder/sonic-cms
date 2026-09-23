@@ -464,6 +464,32 @@ function resolveCanvasDim(raw: unknown, fallback: number): number {
 const FREE_MODE_REFLOW_BREAKPOINT = 768;
 
 /**
+ * Upper clamp on the free-mode MOBILE scaled-stage plate's scale factor (2026-09-23).
+ *
+ * pickBreakpointForWidth buckets every real width from 0 up to 767px as "mobile"
+ * (flexible-breakpoint-rules.js), but the mobile plate is authored at a single fixed
+ * canvas width (cw, conventionally 375 — see emptyVariantBlob()/resolveCanvasDim's
+ * fallback). The reflow branch above only catches an UN-customized mobile (still
+ * showing Desktop's fallback blob); a mobile breakpoint an admin HAS customized always
+ * renders through this scaled-stage plate instead, same as desktop/tablet. Without a
+ * clamp, `scale = sw / cw` at the top of a large phone/small-tablet width (e.g. 700-
+ * 767px) computes ~1.87-2.05x — nearly double life-size — even though the two editor-
+ * facing baselines an operator actually compares against never exceed true 100% for
+ * mobile: the Designer canvas's getCanvasScale() hard-caps `fit` at 1
+ * (flexible-designer.html), and the Preview modal's mobile iframe scale is
+ * `Math.min(1, panelWidth / 375)` = 1 exactly (SectionLivePreview.tsx). 1.15 permits a
+ * small amount of intentional "fill the extra width" growth (unlike the editor
+ * previews, the live plate is expected to grow past 100% to fill wider real viewports —
+ * that behavior is correct and unchanged for desktop/tablet, whose reference widths
+ * only reach this ratio at genuinely ultra-wide screens) while preventing the
+ * near-2x stretch a bucket spanning 0-767px against a 375px design otherwise produces.
+ * Desktop/tablet plates are deliberately NOT clamped here — filling wider real
+ * viewports beyond their own authored width is the intended "TRUE 1:1 PLATE" behavior
+ * for those breakpoints, not a bug.
+ */
+const MOBILE_PLATE_MAX_SCALE = 1.15;
+
+/**
  * Per-breakpoint independent layouts (2026-09-11) — resolves a raw `designerData` value
  * (string or object, legacy flat shape OR the new {variant:"per-breakpoint", desktop,
  * tablet, mobile} wrapper written by the Designer for free-mode sections — see
@@ -2577,6 +2603,10 @@ function DesignerBlocksRenderer({
       // block's pixelPos still means the same thing on-canvas — only which transform
       // renders it changed.
       const sw = stageW || (typeof window !== "undefined" ? window.innerWidth : cw);
+      // Mobile-only upper clamp (see MOBILE_PLATE_MAX_SCALE doc comment) — desktop/tablet
+      // are intentionally left unclamped, so this multiplies in as a no-op (Infinity-like
+      // ceiling) for them via Math.min below.
+      const plateMaxScale = resolvedActiveBreakpointKey === "mobile" ? MOBILE_PLATE_MAX_SCALE : Infinity;
       let bgTransform: string;
       let contentTransform: string;
       let contentLeft = 0;
@@ -2584,13 +2614,13 @@ function DesignerBlocksRenderer({
         // MULTI: width-only scale — exactly as before (transform string byte-identical) —
         // for both layers (multi has no letterbox/distortion tension: the section grows to
         // the scaled height via aspect-ratio above, so width-only scale alone is exact).
-        const scale = sw / cw;
+        const scale = Math.min(sw / cw, plateMaxScale);
         bgTransform = `scale(${scale})`;
         contentTransform = `scale(${scale})`;
       } else {
         const sh = stageH || (typeof window !== "undefined" ? window.innerHeight : ch);
-        const scaleX = sw / cw;
-        const scaleY = sh / ch;
+        const scaleX = Math.min(sw / cw, plateMaxScale);
+        const scaleY = Math.min(sh / ch, plateMaxScale);
         bgTransform = `scale(${scaleX}, ${scaleY})`;
         const scale = Math.min(scaleX, scaleY);
         contentTransform = `scale(${scale})`;
