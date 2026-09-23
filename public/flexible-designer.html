@@ -6239,8 +6239,93 @@ function startResize(e, blockId, dir) {
 //  SELECTION
 // ═══════════════════════════════════════════════════════════
 /**
- * Selects a block, clearing any sub-element selection, then re-renders
- * the canvas and properties panel to reflect the new selection state.
+ * Fast DOM-only update for changing which BLOCK is selected on the grid/free/
+ * preset canvas, used by selectBlock()/onCanvasClick() to avoid the full
+ * renderCanvas() rebuild that recreates every block's DOM from scratch —
+ * including each Volt block's <iframe src="/volt-preview/...">, which forces
+ * a visible white-flash reload of EVERY Volt block on the canvas, even ones
+ * that weren't clicked (the reported bug this fixes).
+ *
+ * Mosaic-layout tiles are rendered by a separate function (renderMosaicBlocks())
+ * with their own click handler that never calls selectBlock() and has no
+ * iframe to flash, so they're left on the full renderCanvas() path — this
+ * function bails out (returns false) whenever state.layoutType === 'mosaic'.
+ *
+ * Replicates every selection-dependent DOM change createBlockElement() applies
+ * for a BLOCK (not a sub-element — selectSubElement() already has its own fast
+ * path and is untouched):
+ *   - the `.selected` class on the block's own wrapper (createBlockElement
+ *     ~line 3613: `if (block.id === state.selectedBlockId ...) el.classList.add('selected')`;
+ *     also FORCED independently while the block is being edited, ~line 3614:
+ *     `if (block.id === state.editingBlockId) el.classList.add('editing','selected')`
+ *     — so a block that's still being edited must keep `.selected` even after
+ *     selection moves to a different block)
+ *   - the floating "Move group" handle button, appended only for a selected
+ *     group-parent block (has sub-elements, not being edited) with no child
+ *     selected (createBlockElement ~line 3719) — this is a real DOM node, not
+ *     CSS-driven, so it must be explicitly created/removed here
+ * Every other selection visual (border colour, box-shadow, header visibility,
+ * resize-handle opacity, the dashed group-parent outline) is pure CSS keyed
+ * off `.container-block.selected`/`.group-parent.selected`, so toggling the
+ * class above is sufficient for those — see the .container-block.selected /
+ * .group-parent.selected rules in <style>.
+ *
+ * `newBlockId` may be null to represent full deselection (onCanvasClick).
+ * Returns false when the DOM state can't be safely reproduced this way (mosaic
+ * layout, or the target block isn't in the DOM yet e.g. just created) — the
+ * caller must then fall back to a full renderCanvas().
+ * @param {?string} prevBlockId - Previously selected block id, or null.
+ * @param {?string} newBlockId - Newly selected block id, or null to deselect.
+ * @returns {boolean} Whether the fast path fully applied the change.
+ */
+function _fastApplyBlockSelection(prevBlockId, newBlockId) {
+  if (state.layoutType === 'mosaic') return false;
+
+  if (prevBlockId && prevBlockId !== newBlockId) {
+    const prevEl = document.querySelector(`.container-block[data-block-id="${prevBlockId}"]`);
+    if (prevEl) {
+      // Edit mode forces `.selected` independently of selectedBlockId — only
+      // strip it here if the previous block isn't still being edited.
+      if (prevBlockId !== state.editingBlockId) prevEl.classList.remove('selected');
+      // The group-move handle is tied strictly to selectedBlockId (unlike
+      // `.selected`, edit mode does NOT keep it alive) — always remove it from
+      // a block that's no longer the selection.
+      const prevHandle = prevEl.querySelector('.group-move-handle');
+      if (prevHandle) prevHandle.remove();
+    }
+  }
+
+  if (!newBlockId) return true; // pure deselection — nothing further to apply
+
+  const newEl = document.querySelector(`.container-block[data-block-id="${newBlockId}"]`);
+  if (!newEl) return false; // block not yet in the DOM (e.g. just created) — caller must render
+
+  newEl.classList.add('selected');
+  const newBlock = state.blocks.find(b => b.id === newBlockId);
+  const hasChildren = !!(newBlock && newBlock.subElements && newBlock.subElements.length > 0);
+  const isGroupParent = hasChildren && state.editingBlockId !== newBlockId;
+  const existingHandle = newEl.querySelector('.group-move-handle');
+  if (isGroupParent && !existingHandle) {
+    const gmh = document.createElement('button');
+    gmh.className = 'group-move-handle';
+    gmh.title = 'Drag to move all elements in this group together';
+    gmh.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1v14M1 8h14M8 1 5.5 3.5M8 1l2.5 2.5M8 15l-2.5-2.5M8 15l2.5-2.5M1 8l2.5-2.5M1 8l2.5 2.5M15 8l-2.5-2.5M15 8l-2.5 2.5"/></svg><span>Move group</span>';
+    gmh.addEventListener('mousedown', e => { e.stopPropagation(); startBlockMove(e, newBlockId); });
+    gmh.addEventListener('click', e => e.stopPropagation());
+    newEl.appendChild(gmh);
+  } else if (!isGroupParent && existingHandle) {
+    existingHandle.remove();
+  }
+  return true;
+}
+
+/**
+ * Selects a block, clearing any sub-element selection, then refreshes the
+ * properties panel to reflect the new selection state. Uses a fast DOM-only
+ * update (_fastApplyBlockSelection) to avoid a full canvas re-render — and the
+ * Volt-iframe white-flash it causes — for the common case of picking a
+ * different block or re-clicking the same one; falls back to renderCanvas()
+ * only when the fast path can't safely reproduce the DOM state.
  * @param {string} id - ID of the block to select.
  */
 function selectBlock(id) {
@@ -6249,7 +6334,18 @@ function selectBlock(id) {
   // block always exits reposition mode for whichever block previously had it —
   // it must never linger pointed at a block that's no longer selected/visible.
   if (state.bgRepositionBlockId && state.bgRepositionBlockId !== id) state.bgRepositionBlockId = null;
-  state.selectedBlockId=id; state.selectedSubId=null; renderCanvas(); renderPropsPanel(); updateMiniToolbar(); updateTextFormatToolbar();
+  const prevBlockId = state.selectedBlockId;
+  const prevSubId   = state.selectedSubId;
+  state.selectedBlockId = id;
+  state.selectedSubId   = null;
+  if (prevBlockId !== id || prevSubId) {
+    // A block-level selectBlock() always clears any sub-element selection —
+    // mirror selectSubElement()'s own fast-path handling and strip the old
+    // sub-element's outline directly instead of relying on a full re-render.
+    if (prevSubId) document.querySelector(`.sub-element[data-sub-id="${prevSubId}"]`)?.classList.remove('selected');
+    if (!_fastApplyBlockSelection(prevBlockId, id)) renderCanvas();
+  }
+  renderPropsPanel(); updateMiniToolbar(); updateTextFormatToolbar();
 }
 
 /**
@@ -6283,7 +6379,10 @@ function selectSubElement(bId, sId) {
 
 /**
  * Handles clicks directly on the canvas background or grid overlay.
- * Deselects all blocks/sub-elements and exits edit mode if active.
+ * Deselects all blocks/sub-elements and exits edit mode if active. Uses the
+ * same fast DOM-only deselection as selectBlock() (_fastApplyBlockSelection)
+ * to avoid a full canvas re-render — and the Volt-iframe white-flash it
+ * causes — when there's nothing to do but clear a selection outline.
  * @param {MouseEvent} e - The canvas click event.
  */
 function onCanvasClick(e) {
@@ -6292,9 +6391,16 @@ function onCanvasClick(e) {
   if (_suppressCanvasClick) { _suppressCanvasClick = false; return; }
   if (e.target===document.getElementById('canvas')||e.target===document.getElementById('grid-overlay')) {
     clearMultiSel();
+    const prevBlockId = state.selectedBlockId;
+    const prevSubId   = state.selectedSubId;
     state.selectedBlockId=null; state.selectedSubId=null;
-    if (state.editingBlockId) exitEditMode();
-    renderCanvas(); renderPropsPanel(); updateTextFormatToolbar();
+    if (state.editingBlockId) {
+      exitEditMode(); // already re-renders the canvas + properties panel
+    } else {
+      if (prevSubId) document.querySelector(`.sub-element[data-sub-id="${prevSubId}"]`)?.classList.remove('selected');
+      if (!_fastApplyBlockSelection(prevBlockId, null)) renderCanvas();
+    }
+    renderPropsPanel(); updateTextFormatToolbar();
   }
 }
 
