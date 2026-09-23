@@ -3013,6 +3013,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const _initCanvas = document.getElementById('canvas');
   if (_initCanvas && state.devicePreview === 'desktop') _initCanvas.style.width = DESKTOP_CANVAS_W + 'px';
   renderCanvas();
+  // 2026-09-23 fix: true 1:1 (not a sub-100% fit-to-panel scale) is the
+  // canvas's default view — resetUserZoom() sets state.userZoom so the
+  // combined scale lands on exactly 100%. "Fit to panel" remains available
+  // as an explicit opt-in via the zoom controls, never the silent default.
+  resetUserZoom();
   updateDimensions();
   window.addEventListener('resize', updateDimensions);
   // Close the drop-conflict popup when clicking anywhere outside it
@@ -9969,8 +9974,12 @@ function setDevicePreview(device) {
     // sync by updateDeviceVariantIndicators() below). Never show it in free mode.
     if (resetBtn) resetBtn.style.display = (state.positionMode === 'free') ? 'none' : '';
   }
-  // Give DOM time to reflow, then update dimensions
-  setTimeout(() => { renderCanvas(); updateDimensions(); }, 50);
+  // Give DOM time to reflow, then update dimensions. 2026-09-23 fix: also
+  // reset zoom to true 1:1 on every breakpoint switch (see resetUserZoom's
+  // doc comment) — a sub-100% fit-to-panel scale must never be the silent
+  // default a switch lands on; any prior manual zoom is intentionally
+  // discarded here, matching the "always opens at true size" contract.
+  setTimeout(() => { renderCanvas(); resetUserZoom(); updateDimensions(); }, 50);
   // In-canvas Section background panel (2026-09-22) — canvas -> parent: tell the parent
   // modal which breakpoint we're now on so it can resolve + push that breakpoint's own
   // background bundle back via FLEXIBLE_DESIGNER_BG_UPDATE (see the IFRAME INTEGRATION
