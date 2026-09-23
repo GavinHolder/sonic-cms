@@ -6464,11 +6464,19 @@ function _lyDuplicateSub(blockId, seId){
 //  BEFORE the switch and read by pasteBpClipboard() AFTER it. Reading it never
 //  consumes/mutates it, so pasting the same clipboard twice works.
 //
-//  Shape: { kind: 'blocks'|'subElements', sourceCanvasW: number, items: [...] }
+//  Shape: { kind: 'blocks'|'subElements', sourceCanvasW: number, items: [...],
+//           sourceParentBlock?: object }
 //  - kind 'blocks': items = deep-cloned block objects (their own subElements
 //    travel with them, re-minted on paste same as _lyDuplicateBlock).
 //  - kind 'subElements': items = deep-cloned sub-element objects (no parent
-//    reference — paste target is whichever block is selected when pasting).
+//    reference — paste target is whichever block is selected when pasting,
+//    OR, if the target canvas has ZERO blocks (the normal state of a
+//    freshly-visited breakpoint tab — see below), an auto-created block
+//    cloned from `sourceParentBlock`. sourceParentBlock is a deep clone of
+//    the ORIGINAL parent block's own shape (type, props/bg, x/y/w/h, etc. —
+//    subElements stripped, since the real payload is `items`), captured at
+//    copy time so paste can fall back to it. See pasteBpClipboard()'s
+//    zero-blocks branch and _pasteSubElementsIntoParent().
 //
 //  Whole-BLOCK multi-select does not exist in this file (state.multiSel only
 //  ever holds sub-elements — see toggleMultiSelect/finishMarquee). Extending
@@ -6507,7 +6515,17 @@ function copyBpClipboard() {
       return se ? JSON.parse(JSON.stringify(se)) : null;
     }).filter(Boolean);
     if (!items.length) return;
-    _bpClipboard = { kind: 'subElements', sourceCanvasW: srcW, items };
+    // Snapshot the primary selection's parent block shape so a paste onto an
+    // empty breakpoint canvas (zero blocks — see pasteBpClipboard()'s
+    // zero-blocks branch) can auto-create a same-shaped container instead of
+    // dead-ending on "select a block to paste into" with nothing to select.
+    // state.selectedBlockId is kept in sync with the primary (last) multi-sel
+    // member by _syncPrimaryFromMultiSel(), called by both toggleMultiSelect
+    // and finishMarquee.
+    const primaryBlock = state.blocks.find(x => x.id === state.selectedBlockId);
+    const sourceParentBlock = primaryBlock ? JSON.parse(JSON.stringify(primaryBlock)) : null;
+    if (sourceParentBlock) sourceParentBlock.subElements = [];
+    _bpClipboard = { kind: 'subElements', sourceCanvasW: srcW, items, sourceParentBlock };
     designerToast('Copied ' + items.length + ' elements');
     return;
   }
@@ -6522,7 +6540,10 @@ function copyBpClipboard() {
     const b = state.blocks.find(x => x.id === state.selectedBlockId);
     const se = b && b.subElements && b.subElements.find(s => s.id === state.selectedSubId);
     if (!se) return;
-    _bpClipboard = { kind: 'subElements', sourceCanvasW: srcW, items: [JSON.parse(JSON.stringify(se))] };
+    // See the multi-select branch above for why sourceParentBlock is captured.
+    const sourceParentBlock = b ? JSON.parse(JSON.stringify(b)) : null;
+    if (sourceParentBlock) sourceParentBlock.subElements = [];
+    _bpClipboard = { kind: 'subElements', sourceCanvasW: srcW, items: [JSON.parse(JSON.stringify(se))], sourceParentBlock };
     designerToast('Copied element');
     return;
   }
@@ -6553,8 +6574,16 @@ function copyBpClipboard() {
  *
  * FAILURE MODES:
  * - Clipboard empty/cleared -> toast, no-op.
- * - kind 'subElements' with no block selected on the target canvas -> toast
- *   "Select a block to paste into", no-op (never guesses a target block).
+ * - kind 'subElements' with no block selected AND the target canvas already
+ *   has >=1 block -> toast "Select a block to paste into", no-op (never
+ *   guesses which existing block the user meant).
+ * - kind 'subElements' with no block selected AND the target canvas has ZERO
+ *   blocks (the normal state of a freshly-visited breakpoint tab — see the
+ *   header comment above) -> instead of refusing, auto-creates a container
+ *   block from the copied selection's original parent
+ *   (`_bpClipboard.sourceParentBlock`) and pastes into that, so the paste
+ *   succeeds in one action instead of a dead end. See
+ *   _pasteSubElementsIntoParent().
  */
 function pasteBpClipboard() {
   if (!_bpClipboard || !_bpClipboard.items || !_bpClipboard.items.length) {
@@ -6596,16 +6625,72 @@ function pasteBpClipboard() {
 
   // kind === 'subElements' — needs a target PARENT block on the CURRENT canvas.
   if (!state.selectedBlockId) {
+    if (state.blocks.length === 0) {
+      // Empty canvas — the normal state of a freshly-visited breakpoint tab
+      // (breakpoints intentionally start empty, see the header comment
+      // above). There is no block to select, so "select a block to paste
+      // into" is an impossible instruction. Auto-create a container block
+      // from the ORIGINAL parent block's own shape (captured at copy time as
+      // sourceParentBlock) so the paste still succeeds in one action. Falls
+      // back to a minimal generic block if the clipboard predates this
+      // snapshot (defensive only — every clipboard written by the current
+      // copyBpClipboard() has it).
+      pushHistory();
+      const srcParent = _bpClipboard.sourceParentBlock;
+      const newBlock = srcParent ? JSON.parse(JSON.stringify(srcParent)) : {
+        type: 'container', section: 0, gridRow: 1, gridCol: 1, colSpan: 1, rowSpan: 1,
+        x: 0, y: 0, w: 300, h: 180, zIndex: 1, props: {}
+      };
+      newBlock.id = 'b' + (++state.nextId);
+      newBlock.subElements = [];
+      newBlock.w = Math.max(1, Math.round((newBlock.w || 300) * ratio));
+      newBlock.h = Math.max(1, Math.round((newBlock.h || 180) * ratio));
+      const rawX = Math.round((newBlock.x || 0) * ratio);
+      const rawY = Math.round((newBlock.y || 0) * ratio);
+      newBlock.x = Math.max(0, Math.min(targetCanvasW - BP_PASTE_MIN_VISIBLE, rawX));
+      newBlock.y = Math.max(0, Math.min(targetCanvasH - BP_PASTE_MIN_VISIBLE, rawY));
+      state.blocks.push(newBlock);
+      // Reindex zIndex to array position — same invariant _lyDuplicateBlock/
+      // _fcxReorder/the 'blocks' branch above enforce.
+      state.blocks.forEach((b, i) => b.zIndex = i + 1);
+      const lastId = _pasteSubElementsIntoParent(newBlock, _bpClipboard.items, ratio, targetCanvasW, targetCanvasH);
+      state.selectedBlockId = newBlock.id; state.selectedSubId = lastId;
+      renderCanvas(); renderPropsPanel(); autoSave();
+      const n = _bpClipboard.items.length;
+      designerToast('Pasted ' + n + (n === 1 ? ' element' : ' elements') + ' (created a container block)' + rescaleNote);
+      return;
+    }
     designerToast('Select a block to paste into');
     return;
   }
   const parent = state.blocks.find(x => x.id === state.selectedBlockId);
   if (!parent) { designerToast('Select a block to paste into'); return; }
   pushHistory();
+  const lastId = _pasteSubElementsIntoParent(parent, _bpClipboard.items, ratio, targetCanvasW, targetCanvasH);
+  state.selectedBlockId = parent.id; state.selectedSubId = lastId;
+  renderCanvas(); renderPropsPanel(); autoSave();
+  const n = _bpClipboard.items.length;
+  designerToast('Pasted ' + n + (n === 1 ? ' element' : ' elements') + rescaleNote);
+}
+
+/**
+ * Pastes clipboard sub-element items into a specific parent block. Extracted
+ * from pasteBpClipboard() so "paste sub-elements into block X" has exactly
+ * ONE implementation, reused whether X is the pre-existing selected block or
+ * a block freshly auto-created for an empty target canvas (see the
+ * zero-blocks branch above). Does not call pushHistory/renderCanvas/
+ * renderPropsPanel/autoSave — the caller owns those, since the auto-create
+ * path needs pushHistory() to cover the new block AND the pasted elements as
+ * one undo step.
+ *
+ * @returns {string|null} the id of the last pasted sub-element, or null if
+ *   items was empty.
+ */
+function _pasteSubElementsIntoParent(parent, items, ratio, targetCanvasW, targetCanvasH) {
   const parentW = parent.w || targetCanvasW;
   const parentH = parent.h || targetCanvasH;
   let lastId = null;
-  _bpClipboard.items.forEach(srcSe => {
+  items.forEach(srcSe => {
     const copy = JSON.parse(JSON.stringify(srcSe));
     copy.id = 'se-' + (state.nextId++);
     if (copy.w != null) copy.w = Math.max(1, Math.round(copy.w * ratio));
@@ -6618,10 +6703,7 @@ function pasteBpClipboard() {
     lastId = copy.id;
   });
   parent.manualSize = true;
-  state.selectedBlockId = parent.id; state.selectedSubId = lastId;
-  renderCanvas(); renderPropsPanel(); autoSave();
-  const n = _bpClipboard.items.length;
-  designerToast('Pasted ' + n + (n === 1 ? ' element' : ' elements') + rescaleNote);
+  return lastId;
 }
 
 function _lyStartRename(blockId, nameEl){
