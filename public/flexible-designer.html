@@ -3725,6 +3725,36 @@ function createBlockElement(block) {
 }
 
 /**
+ * Returns HTML for a muted "no content yet" affordance — a dashed outline
+ * plus a "+ Add content" prompt — used by createBlockPreview() for any
+ * block whose REAL content (subElements, or type-specific content props) is
+ * genuinely empty.
+ *
+ * Deliberately NOT real-looking placeholder copy: the card/hero/text-block
+ * cases below used to hardcode fake copy (e.g. "Card Title", "Hero
+ * Heading") whenever a block had no subElements, which made the Designer
+ * canvas visually imply saved content that doesn't exist. The live
+ * renderer and the preview modal (FlexibleSectionRenderer.tsx's
+ * DesignerBlocksRenderer/DesignerBlock — the SAME component behind both
+ * surfaces) render nothing (or, for hero, just the real background) for
+ * the identical empty-content state, so fake copy here was a genuine
+ * content-representation mismatch, not a scale/layout issue.
+ * @param {string} [hint] - Prompt text; defaults to "+ Add content".
+ * @param {boolean} [overlay] - When true, positions absolutely over
+ *   existing real content (e.g. a hero's background) instead of filling
+ *   the block on its own.
+ * @returns {string} Inline-styled HTML for the affordance.
+ */
+function emptyContentAffordanceHtml(hint, overlay) {
+  const _pos = overlay ? 'position:absolute;inset:0;' : 'height:100%;min-height:60px;';
+  const _fg  = overlay ? 'rgba(255,255,255,0.8)' : '#adb5bd';
+  return `<div style="${_pos}display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:1.5px dashed rgba(173,181,189,0.65);border-radius:4px;color:${_fg};padding:10px 8px;text-align:center;pointer-events:none;">
+    <i class="bi bi-plus-circle" style="font-size:16px;"></i>
+    <div style="font-size:11px;font-weight:600;">${hint || '+ Add content'}</div>
+  </div>`;
+}
+
+/**
  * Creates and returns a DOM element containing a visual preview of a block's
  * content, used inside each canvas block. Renders a type-specific thumbnail
  * (hero background, card layout, stats, ISP price card, etc.) using inline
@@ -3759,17 +3789,34 @@ function createBlockPreview(block) {
       } else {
         bgStyle = `background:${p.bgColor||'#1e3a5f'}`;
       }
+      // Real content only — no "Learn More" fallback copy. A block with no
+      // btnImage AND no btnText has no real button; showing default label
+      // text here would fabricate content the live renderer never draws
+      // (it gates the same way: !!p.showBtn && !!p.btnText).
       let btnHtml = '';
       if (p.showBtn!==false) {
         if (p.btnImage) {
           btnHtml = `<div style="position:absolute;left:${bx}%;top:${by}%;transform:translate(-50%,-50%);z-index:1;pointer-events:none;"><img src="${p.btnImage}" style="max-height:36px;max-width:120px;object-fit:contain;"></div>`;
-        } else {
+        } else if (p.btnText) {
           const btnBg = p.btnVariant==='filled' ? (p.btnColor||'#0d6efd') : 'transparent';
           const btnBorder = p.btnVariant==='ghost' ? 'none' : `1px solid ${p.btnColor||'#0d6efd'}`;
           const btnTc = p.btnVariant==='filled' ? (p.btnTextColor||'#fff') : (p.btnColor||'#0d6efd');
-          btnHtml = `<div style="position:absolute;left:${bx}%;top:${by}%;transform:translate(-50%,-50%);z-index:1;pointer-events:none;"><div style="background:${btnBg};color:${btnTc};padding:3px 10px;border-radius:4px;font-size:10px;font-weight:700;border:${btnBorder};display:inline-block;white-space:nowrap;">${p.btnText||'Learn More'}</div></div>`;
+          btnHtml = `<div style="position:absolute;left:${bx}%;top:${by}%;transform:translate(-50%,-50%);z-index:1;pointer-events:none;"><div style="background:${btnBg};color:${btnTc};padding:3px 10px;border-radius:4px;font-size:10px;font-weight:700;border:${btnBorder};display:inline-block;white-space:nowrap;">${p.btnText}</div></div>`;
         }
       }
+      // Real content only — heading/subtext render just like the live page
+      // (!!p.heading / !!p.subtext), never a fake fallback string.
+      const _hasHeading = !!p.heading;
+      const _hasSubtext = !!p.subtext;
+      const headingHtml = _hasHeading ? `<div style="position:absolute;left:${hx}%;top:${hy}%;transform:translate(-50%,-50%);z-index:1;text-align:center;max-width:90%;pointer-events:none;">
+            <div style="font-size:14px;font-weight:800;color:${p.textColor||'#fff'};text-shadow:0 1px 4px rgba(0,0,0,0.5);white-space:nowrap;">${p.heading}</div>
+          </div>` : '';
+      const subtextHtml = _hasSubtext ? `<div style="position:absolute;left:${sx}%;top:${sy}%;transform:translate(-50%,-50%);z-index:1;text-align:center;max-width:90%;pointer-events:none;">
+            <div style="font-size:10px;color:${p.textColor||'#fff'};opacity:0.85;">${p.subtext}</div>
+          </div>` : '';
+      // Whole hero has no real text/button content at all — show the empty
+      // affordance over the real background rather than fabricated copy.
+      const emptyHeroHtml = (!_hasHeading && !_hasSubtext && !btnHtml) ? emptyContentAffordanceHtml('+ Add heading, text or a button', true) : '';
       wrap.style.cssText = 'height:100%;width:100%;position:relative;';
       // Video background — use a <video> element under the overlay
       if (_bgType === 'video' && p.bgVideo) {
@@ -3786,14 +3833,7 @@ function createBlockPreview(block) {
         const over = document.createElement('div');
         over.style.cssText = `position:absolute;inset:0;background:${overlayBgCss};pointer-events:none;`;
         wrap.appendChild(over);
-        wrap.innerHTML += `
-          <div style="position:absolute;left:${hx}%;top:${hy}%;transform:translate(-50%,-50%);z-index:1;text-align:center;max-width:90%;pointer-events:none;">
-            <div style="font-size:14px;font-weight:800;color:${p.textColor||'#fff'};text-shadow:0 1px 4px rgba(0,0,0,0.5);white-space:nowrap;">${p.heading||'Hero Heading'}</div>
-          </div>
-          <div style="position:absolute;left:${sx}%;top:${sy}%;transform:translate(-50%,-50%);z-index:1;text-align:center;max-width:90%;pointer-events:none;">
-            <div style="font-size:10px;color:${p.textColor||'#fff'};opacity:0.85;">${p.subtext||''}</div>
-          </div>
-          ${btnHtml}`;
+        wrap.innerHTML += `${headingHtml}${subtextHtml}${btnHtml}${emptyHeroHtml}`;
       } else if (_bgType === 'video' && !p.bgVideo) {
         // No video uploaded yet — show placeholder
         wrap.innerHTML = `<div style="background:#111;position:relative;overflow:hidden;width:100%;height:100%;border-radius:4px;display:flex;align-items:center;justify-content:center;">
@@ -3804,32 +3844,28 @@ function createBlockPreview(block) {
         // Background Image feature, 2026-09-15) — see its own doc comment.
         wrap.innerHTML = `<div class="cb-hero-bg" style="${bgStyle};position:relative;overflow:hidden;width:100%;height:100%;border-radius:4px;">
           <div style="position:absolute;inset:0;background:${overlayBgCss};pointer-events:none;"></div>
-          <div style="position:absolute;left:${hx}%;top:${hy}%;transform:translate(-50%,-50%);z-index:1;text-align:center;max-width:90%;pointer-events:none;">
-            <div style="font-size:14px;font-weight:800;color:${p.textColor||'#fff'};text-shadow:0 1px 4px rgba(0,0,0,0.5);white-space:nowrap;">${p.heading||'Hero Heading'}</div>
-          </div>
-          <div style="position:absolute;left:${sx}%;top:${sy}%;transform:translate(-50%,-50%);z-index:1;text-align:center;max-width:90%;pointer-events:none;">
-            <div style="font-size:10px;color:${p.textColor||'#fff'};opacity:0.85;">${p.subtext||''}</div>
-          </div>
+          ${headingHtml}
+          ${subtextHtml}
           ${btnHtml}
+          ${emptyHeroHtml}
         </div>`;
       }
       break;
     }
     case 'card':
-      wrap.innerHTML = `<div class="cb-prev-card">
-        <div style="height:52px;background:#e9ecef;display:flex;align-items:center;justify-content:center;color:#adb5bd;font-size:11px;"><i class="bi bi-image"></i>&nbsp;Image</div>
-        <div style="padding:8px;">
-          <div style="font-weight:700;font-size:12px;margin-bottom:3px;">Card Title</div>
-          <div style="font-size:11px;color:#6c757d;">Card body text...</div>
-          <span style="background:#0d6efd;color:white;padding:3px 8px;border-radius:4px;font-size:10px;font-weight:600;margin-top:6px;display:inline-block;">Action</span>
-        </div>
-      </div>`;
+      // No subElements means this card has NO real content yet (a card's
+      // title/body/button all live in subElements — see the live renderer's
+      // DesignerBlock "card" case, which maps `subs` and renders nothing
+      // else). Previously this showed hardcoded fake copy ("Card Title",
+      // "Card body text...", "Action") that implied saved content existed.
+      wrap.innerHTML = emptyContentAffordanceHtml('+ Add content');
       break;
     case 'text-block':
-      wrap.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px 8px;text-align:center;min-height:60px;">
-        <div style="font-size:22px;line-height:1;color:#adb5bd;">T</div>
-        <div style="font-size:11px;font-weight:700;color:#495057;">Click <kbd style="background:#e9ecef;border:1px solid #ced4da;border-radius:3px;padding:1px 5px;font-size:10px;font-weight:700;">+ add</kbd> in the header to insert headings, paragraphs &amp; buttons.</div>
-      </div>`;
+      // Same as 'card': a text-block's entire content is its subElements,
+      // so an empty list is genuinely empty, not merely unpopulated —
+      // render the shared honest-empty affordance instead of type-specific
+      // instructional copy styled to look like content.
+      wrap.innerHTML = emptyContentAffordanceHtml('+ Add content');
       break;
     case 'banner':
       wrap.innerHTML = `<div class="cb-prev-banner" style="background:${p.bgColor}">
