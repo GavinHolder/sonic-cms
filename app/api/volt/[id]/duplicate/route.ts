@@ -41,9 +41,12 @@ export async function POST(
         mood: source.mood,
         elementType: source.elementType,
         voltType: source.voltType,
-        // Copy starts private so subtle edits don't silently affect a shared
-        // public listing; the duplicator can re-publish explicitly on save.
-        isPublic: false,
+        // Inherit the source's visibility. This app has no private-draft
+        // render path — a private VoltElement shows as "Volt element
+        // unavailable" wherever it's placed (see instrumentation.ts's
+        // isPublic backfill) — so forcing new copies private would silently
+        // break them the moment they're placed on a page.
+        isPublic: source.isPublic,
         authorId: user.userId,
         layers: source.layers ?? [],
         slots: source.slots ?? [],
