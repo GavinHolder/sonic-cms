@@ -19,7 +19,7 @@ import { defaultScrollStage, defaultZone, defaultThreeZone } from "@/components/
 import type { ScrollStageConfig, ScrollStageZoneConfig, ScrollStageZoneImageConfig, ScrollStageZoneThreeConfig } from "@/components/sections/scroll-stage/types";
 import { DEFAULT_LOWER_THIRD } from "@/lib/lower-third-presets";
 import { legacyToDesignerData } from "@/lib/flexible/legacy-to-designer";
-import { resolveVariants, serializeVariants } from "../../public/flexible-breakpoint-rules.js";
+import { resolveVariants, serializeVariants, isVariantAuthored } from "../../public/flexible-breakpoint-rules.js";
 import { resolveBgPositionCss, resolveBackgroundPosForBreakpoint, getUnsetBackgroundBundle, resolveBackgroundBundleForBreakpoint } from "../../public/flexible-render-rules.js";
 import type { BackgroundPosVariants, BgBundle, GradientConfig } from "../../public/flexible-render-rules.js";
 import { useConfirm } from "@/components/admin/ConfirmProvider";
@@ -206,6 +206,14 @@ export default function FlexibleSectionEditorModal({
   // ── Background ────────────────────────────────────────────────
   const rawBg = section.background || "white";
   const contentAny = section.content as any;
+  // What visitors get on Tablet/Mobile when that screen size was never DESIGNED (no blocks). LIVE-page
+  // only; it is never written into the Designer's per-breakpoint canvases (they stay independent and start
+  // empty). "desktop" (default) = show the Desktop layout (scaled on tablets, reflowed on phones) with
+  // Desktop's background so nothing is ever blank; "none" = show nothing at that screen size.
+  // Persisted as content.undesignedBreakpoint; read by FlexibleSectionRenderer via pickLiveVariant().
+  const [undesignedBreakpoint, setUndesignedBreakpoint] = useState<"desktop" | "none">(
+    contentAny?.undesignedBreakpoint === "none" ? "none" : "desktop"
+  );
   const [backgroundType, setBackgroundType] = useState<"solid" | "gradient">(
     contentAny?.gradient?.enabled ? "gradient" : "solid"
   );
@@ -672,6 +680,8 @@ export default function FlexibleSectionEditorModal({
       content: {
         ...section.content,
         contentMode,
+        // What Tablet/Mobile show when never designed (2026-09-25) — see the state declaration above.
+        undesignedBreakpoint,
         // When using the designer, clear the elements array so stale entries don't
         // appear if designerData is ever removed. When editing elements directly,
         // explicitly null-out designerData so the renderer doesn't ignore changes.
@@ -1078,7 +1088,7 @@ export default function FlexibleSectionEditorModal({
     paddingBottom,
     paddingTopMobile,
     paddingBottomMobile,
-    content: { ...section.content, contentMode, elements, layout, designerData: previewDesignerData } as any,
+    content: { ...section.content, contentMode, elements, layout, designerData: previewDesignerData, undesignedBreakpoint } as any,
   };
 
   // ─────────────────────────────────────────────────────────────
@@ -1217,6 +1227,43 @@ export default function FlexibleSectionEditorModal({
                       Designer&apos;s Multi Screen Limit field.
                     </small>
                   </div>
+
+                  {/* When Tablet / Mobile isn't designed (2026-09-25). Free-layout sections only: those are the
+                      only ones with an independent Designer canvas per screen size. LIVE page only — never
+                      copies anything into the Tablet/Mobile canvases (they stay independent and start empty). */}
+                  {(parsedDesigner as { positionMode?: string } | null)?.positionMode === "free" && (
+                    <div className="mb-4 p-3 border rounded bg-light">
+                      <label className="form-label fw-semibold mb-2">
+                        <i className="bi bi-phone-landscape me-2" />
+                        When Tablet / Mobile isn&apos;t designed
+                      </label>
+                      <div className="d-flex gap-2">
+                        <button
+                          type="button"
+                          className={`btn btn-sm flex-fill ${undesignedBreakpoint === "desktop" ? "btn-primary" : "btn-outline-secondary"}`}
+                          onClick={() => setUndesignedBreakpoint("desktop")}
+                        >
+                          <i className="bi bi-laptop me-1" />
+                          Show the Desktop layout
+                        </button>
+                        <button
+                          type="button"
+                          className={`btn btn-sm flex-fill ${undesignedBreakpoint === "none" ? "btn-primary" : "btn-outline-secondary"}`}
+                          onClick={() => setUndesignedBreakpoint("none")}
+                        >
+                          <i className="bi bi-eye-slash me-1" />
+                          Show nothing
+                        </button>
+                      </div>
+                      <small className="form-text text-muted mt-1 d-block">
+                        A screen size counts as designed once its Designer canvas has at least one block. Until then,
+                        visitors on that screen size see the Desktop layout with Desktop&apos;s background (scaled to
+                        fit on tablets, re-flowed into a single readable column on phones) — or, if you pick
+                        &quot;Show nothing&quot;, this section is left out on that screen size. This only changes what
+                        visitors see: it never copies anything into the Tablet or Mobile canvases.
+                      </small>
+                    </div>
+                  )}
 
                   {/* Elements */}
                   <div className="mb-3">
@@ -1361,15 +1408,21 @@ export default function FlexibleSectionEditorModal({
                       Desktop/Tablet/Mobile switcher driving the live preview pane
                       (previewViewport, SectionLivePreview below), same pattern as the
                       Reposition Background indicator further down. Unlike that one, there
-                      is NO "Inherited from Desktop" case here — an unset Tablet/Mobile
-                      background does NOT show Desktop's config, so the badge says so
-                      plainly instead of implying a fallback that doesn't happen. */}
+                      is NO "Inherited from Desktop" case for a DESIGNED Tablet/Mobile — its
+                      own layout never inherits Desktop's background, so the badge says
+                      "transparent" plainly. The one exception (2026-09-25, live page only):
+                      a screen size that was never designed shows the Desktop layout, so it
+                      shows Desktop's background too — the badge says that instead. */}
                   <div className="alert alert-secondary d-flex align-items-center gap-2 py-2 mb-3">
                     <i className={`bi ${previewViewport === "desktop" ? "bi-laptop" : previewViewport === "tablet" ? "bi-tablet" : "bi-phone"}`} />
                     <strong>{previewViewport.charAt(0).toUpperCase() + previewViewport.slice(1)} background</strong>
                     {previewViewport !== "desktop" && bgByBreakpoint[previewViewport] == null && (
                       <span className="text-muted small">
-                        — Not set for {previewViewport.charAt(0).toUpperCase() + previewViewport.slice(1)} (using default: transparent). Configure it here to override.
+                        {isVariantAuthored(resolvedVariants[previewViewport])
+                          ? <>— Not set for {previewViewport.charAt(0).toUpperCase() + previewViewport.slice(1)} (transparent — a designed {previewViewport} layout never inherits Desktop&apos;s background). Configure it here to override.</>
+                          : undesignedBreakpoint === "desktop"
+                            ? <>— Not set. {previewViewport.charAt(0).toUpperCase() + previewViewport.slice(1)} has no layout of its own yet, so visitors currently see the Desktop layout with Desktop&apos;s background. Configure it here to override.</>
+                            : <>— Not set for {previewViewport.charAt(0).toUpperCase() + previewViewport.slice(1)} (transparent). Configure it here to override.</>}
                       </span>
                     )}
                     <span className="text-muted small ms-auto">Switch &quot;Preview as&quot; in the live preview pane to edit another screen size&apos;s background.</span>

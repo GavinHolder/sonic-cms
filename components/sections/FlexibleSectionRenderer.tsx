@@ -14,12 +14,13 @@ import { animate } from "animejs";
 // source of truth also consumed by public/flexible-designer.html (see that file's
 // <script src="/flexible-render-rules.js"> and this module's own doc comment for why
 // it exists). Plain JS + hand-written flexible-render-rules.d.ts alongside it.
-import { computeSubElementStyle, computeSubElementPosition, resolveBlockZIndex, computeMultiBgLayers, resolveBgPositionCss, resolveBackgroundPosForBreakpoint, buildGradientCss, resolveBackgroundBundleForBreakpoint } from "../../public/flexible-render-rules.js";
+import { computeSubElementStyle, computeSubElementPosition, resolveBlockZIndex, computeMultiBgLayers, resolveBgPositionCss, resolveBackgroundPosForBreakpoint, buildGradientCss, resolveLiveBackgroundBundle, computeStageFit, collectFontRequests, ensureGoogleFontLinks } from "../../public/flexible-render-rules.js";
 import type { BgBundle, BackgroundByBreakpoint, GradientConfig } from "../../public/flexible-render-rules.js";
 // Per-breakpoint independent layouts (2026-09-11) — shared shape-normalization/variant-
 // selection module (Task 1 of this feature). Companion to flexible-render-rules.js above;
 // see that file's own doc comment for the full designerData shape contract.
-import { resolveVariants, pickBreakpointForWidth, pickActiveVariant } from "../../public/flexible-breakpoint-rules.js";
+import { resolveVariants, pickBreakpointForWidth, pickActiveVariant, pickLiveVariant, isVariantAuthored } from "../../public/flexible-breakpoint-rules.js";
+import type { UndesignedBreakpointMode } from "../../public/flexible-breakpoint-rules.js";
 
 const AnimBgRenderer    = dynamic(() => import("./AnimBgRenderer"), { ssr: false });
 const ScrollStageWrapper = dynamic(() => import("./scroll-stage/ScrollStageWrapper"), { ssr: false });
@@ -610,8 +611,18 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   // task-6-report.md's fix-up entry for the full trace.
   const activeBreakpointKey = pickBreakpointForWidth(mounted ? screenW : 1920);
   const resolvedDesignerVariants = useMemo(() => resolveVariants(designerData), [designerData]);
-  const { data: pickedDesignerData, isFallback: isBreakpointFallback } =
-    pickActiveVariant(resolvedDesignerVariants, activeBreakpointKey);
+  // 2026-09-25: LIVE variant selection — pickLiveVariant, not the Designer's pickActiveVariant. A Tablet/
+  // Mobile breakpoint counts as designed only if its variant has >= 1 block (isVariantAuthored): a variant
+  // that merely EXISTS (the Designer persists an EMPTY one when the Tablet tab is clicked and saved) used to
+  // render a blank plate. Undesigned breakpoints show the Desktop layout (scaled at 768-991, reflowed below
+  // 768) unless the section opts into "show nothing" via content.undesignedBreakpoint === "none". This is a
+  // read-time decision only: stored data and the Designer canvas stay fully isolated per breakpoint.
+  const undesignedFallback: UndesignedBreakpointMode =
+    (content as { undesignedBreakpoint?: string }).undesignedBreakpoint === "none" ? "none" : "desktop";
+  const { data: pickedDesignerData, isFallback: isBreakpointFallback, blank: isBreakpointBlank } =
+    pickLiveVariant(resolvedDesignerVariants, activeBreakpointKey, undesignedFallback);
+  const breakpointAuthored =
+    activeBreakpointKey === "desktop" || isVariantAuthored(resolvedDesignerVariants[activeBreakpointKey]);
   // 2026-09-21 (SUPERSEDED — see docs/main-cms-sync-prompt.md): this used to be a
   // useMemo that additively self-healed a Tablet/Mobile variant by appending/unioning
   // in any block/sub-element present on Desktop but missing here. Removed per explicit
@@ -810,6 +821,9 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   // inherit-from-Desktop design backgroundPos above still uses, which stays
   // as-is: crop POSITION and background CONFIGURATION are two different
   // features with two different, deliberately different, resolution rules).
+  // (The ONE exception, live page only and never written back: a breakpoint that
+  // was never designed is showing the Desktop layout, so it shows Desktop's
+  // background too — see resolveLiveBackgroundBundle below.)
   // Resolved through the SAME shared resolver FlexibleSectionEditorModal.tsx's
   // own live preview uses (ONE SYSTEM PER CONCERN, CLAUDE.md), keyed off the
   // SAME activeBreakpointKey every other per-breakpoint decision in this
@@ -832,10 +846,17 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
     bgImageRepeat: legacyBgImageRepeat || "no-repeat",
     bgImageOpacity: legacyBgImageOpacity ?? 100,
   };
-  const resolvedBg = resolveBackgroundBundleForBreakpoint(
+  // 2026-09-25: resolveLiveBackgroundBundle wraps that same isolation resolver with the ONE thing only the live
+  // page may do — when the visitor is shown the DESKTOP layout because this breakpoint was never designed
+  // (breakpointAuthored false, default fallback), also show the background that layout was designed against.
+  // Without it, commit 45f0880 rendered every legacy desktop-only section with NO background below 992px
+  // (white section, white text). An AUTHORED breakpoint keeps strict isolation (never inherits Desktop's).
+  const resolvedBg = resolveLiveBackgroundBundle(
     backgroundByBreakpoint ?? null,
     activeBreakpointKey,
-    legacyBgBundle
+    legacyBgBundle,
+    breakpointAuthored,
+    undesignedFallback
   );
   // Shadow the flat per-image field names with THIS breakpoint's resolved
   // values — every existing consumer below (the direct bg-image layer, the
@@ -1070,6 +1091,10 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
         ...(paddingTopMobile != null && { "--section-pt-mobile": `${paddingTopMobile}px` }),
         ...(paddingBottomMobile != null && { "--section-pb-mobile": `${paddingBottomMobile}px` }),
         position: "relative",
+        // "Show nothing where Tablet/Mobile isn't designed" (content.undesignedBreakpoint === "none", 2026-09-25):
+        // the section is left out entirely on that screen size rather than leaving a blank 100vh screen in the
+        // scroll flow. Inline display beats the #snap-container `display:flex` rule (no !important there).
+        ...(isBreakpointBlank ? { display: "none" } : {}),
         ...(isBgGrad ? { background: bgColor } : {}),
         ...(diagonalSlab ? { clipPath: "polygon(0 4%, 100% 0, 100% 96%, 0 100%)", overflow: "hidden" } : {}),
         ...(freePlateDesktop && freeCanvas && contentMode === "multi" ? {
@@ -1091,12 +1116,11 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           // via multiLimit). A 2026-09-04 attempt (`736e864`) let single sections grow past
           // 100vh to avoid cropping bottom-anchored content — that broke the hard rule (the
           // page needed extra scroll before the next section's snap point) and was reverted
-          // the same day once the violation was reported. Single mode's plate instead fills
-          // this fixed 100vh box via NON-UNIFORM scale (see that branch in
-          // DesignerBlocksRenderer) — width and height each scale to fill exactly, so there
-          // is neither crop nor letterbox gutters, at the cost of mild image stretch on
-          // off-ratio viewports (accepted trade-off, 2026-09-04, after both CONTAIN-fit's
-          // gutters and width-fill-and-grow's 100vh violation were rejected).
+          // the same day once the violation was reported. Single mode's plate instead fits this
+          // fixed 100vh box UNIFORMLY (see that branch in DesignerBlocksRenderer and
+          // computeStageFit): the content is contain-fit and the background plate covers the
+          // whole box under the same uniform scale — so there are no letterbox gutters on the
+          // background, no crop of the design, and (since 2026-09-25) no stretched photo.
           aspectRatio: `${freeCanvas.cw} / ${freeCanvas.ch * (freeCanvas.multiLimit || 1)}`,
           height: "auto",
           minHeight: 0,
@@ -1341,6 +1365,12 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
             {/* If we have designer data (mockup block format), render that first */}
             {designerData
               ? <DesignerBlocksRenderer designerData={designerData} darkBg={darkBg} resolvedContentMode={contentMode}
+                  // Free mode only: hand this instance the parent's ALREADY-RESOLVED live variant
+                  // (2026-09-25) so its FreeReflowStack gate (un-designed Mobile under 768) can never
+                  // disagree with the plate's — it used to re-derive the variant itself via
+                  // pickActiveVariant, which knows nothing about the live "not designed" rule.
+                  // Grid/mosaic/legacy sections pass nothing extra: byte-identical to before.
+                  {...(isFreeDesigner ? { effectiveDesignerData, isBreakpointFallback, activeBreakpointKey } : {})}
                   // In free mode THIS instance always renders null on desktop (see
                   // isFreeMode's own "if (!plateMode) return null" branch) — it never mounts
                   // a single block, so its own dynamicScreens is permanently stuck at 1. The
@@ -2299,61 +2329,26 @@ function DesignerBlocksRenderer({
   // that family (plus 400/700 defaults) — requesting only 400;700 made e.g. a
   // fontWeight 300 paragraph fall back to synthetic/400, wrapping differently
   // than the designer canvas (#90).
+  // 2026-09-25: family/weight collection, the css2 URL and the <link> injection are now the
+  // SHARED collectFontRequests / ensureGoogleFontLinks (flexible-render-rules.js) — the Designer
+  // canvas loads its fonts through the very same functions, where it used to keep its own copy
+  // that requested only 400;700 (so a weight-300 paragraph wrapped differently on canvas than here).
   const designerFonts = useMemo(() => {
-    const GENERIC = new Set(["inherit", "sans-serif", "serif", "monospace", "cursive", "fantasy", "system-ui", "ui-sans-serif", "ui-serif", "ui-monospace"]);
-    const famWeights = new Map<string, Set<number>>();
-    const normWeight = (w: unknown): number | null => {
-      if (typeof w === "number" && Number.isFinite(w)) return w;
-      if (typeof w === "string") {
-        const t = w.trim().toLowerCase();
-        if (t === "bold") return 700;
-        if (t === "normal" || t === "regular") return 400;
-        const n = parseInt(t, 10);
-        if (Number.isFinite(n)) return n;
-      }
-      return null;
-    };
-    const add = (props?: Record<string, unknown>) => {
-      const v = props?.fontFamily;
-      if (typeof v !== "string") return;
-      const m = v.match(/'([^']+)'/) || v.match(/^([^,]+)/);
-      const name = (m ? m[1] : v).trim().replace(/^["']|["']$/g, "");
-      if (!name || name.startsWith("-") || GENERIC.has(name.toLowerCase())) return;
-      let ws = famWeights.get(name);
-      if (!ws) { ws = new Set([400, 700]); famWeights.set(name, ws); }
-      const w = normWeight(props?.fontWeight);
-      if (w !== null && w >= 100 && w <= 900) ws.add(Math.round(w / 100) * 100);
-    };
     try {
-      // Per-breakpoint independent layouts (2026-09-11): a genuinely per-breakpoint-
-      // wrapped free-mode section's font-bearing blocks can differ PER VARIANT (each of
-      // Desktop/Tablet/Mobile is its own independent block list) — collect fonts from ALL
-      // THREE variants (not just whichever one currently renders), so a font used only on
-      // e.g. the Mobile variant is loaded too and doesn't need a desktop->mobile resize to
-      // trigger it. resolveVariants() treats a legacy flat blob (every section saved before
-      // this feature) as desktop-only (tablet/mobile both null), so this is a no-op superset
-      // of the previous single-parse behavior for every existing section.
+      // Per-breakpoint independent layouts (2026-09-11): a per-breakpoint-wrapped free-mode
+      // section's font-bearing blocks can differ PER VARIANT, so collect from ALL THREE variants
+      // (not just whichever one currently renders) — a font used only on the Mobile variant is
+      // then loaded before a desktop->mobile resize needs it. A legacy flat blob resolves to
+      // desktop-only (tablet/mobile null), a no-op superset of the old single-parse behaviour.
       const resolved = resolveVariants(designerData);
-      for (const variantData of [resolved.desktop, resolved.tablet, resolved.mobile]) {
-        for (const b of ((variantData?.blocks as Array<{ props?: Record<string, unknown>; subElements?: Array<{ props?: Record<string, unknown> }> }>) || [])) {
-          add(b?.props);
-          for (const se of (b?.subElements || [])) add(se?.props);
-        }
-      }
-    } catch { /* parse errors handled in the render try/catch below */ }
-    // css2 API requires the wght@ list in ascending order
-    return [...famWeights.entries()].map(([family, ws]) => ({ family, weights: [...ws].sort((a, b) => a - b) }));
+      type FontBlock = { props?: Record<string, unknown>; subElements?: Array<{ props?: Record<string, unknown> }> };
+      return collectFontRequests(
+        [resolved.desktop, resolved.tablet, resolved.mobile].map((v) => (v?.blocks as FontBlock[] | undefined) ?? null)
+      );
+    } catch { return []; /* parse errors handled in the render try/catch below */ }
   }, [designerData]);
   useEffect(() => {
-    for (const { family, weights } of designerFonts) {
-      const wght = weights.join(";");
-      const id = "gf-" + family.replace(/\s+/g, "-") + "-" + weights.join("_");
-      if (document.getElementById(id)) continue;
-      const l = document.createElement("link");
-      l.id = id; l.rel = "stylesheet";
-      l.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family).replace(/%20/g, "+")}:wght@${wght}&display=swap`;
-      document.head.appendChild(l);
-    }
+    ensureGoogleFontLinks(document, designerFonts);
   }, [designerFonts]);
 
   try {
@@ -2581,63 +2576,37 @@ function DesignerBlocksRenderer({
       //   N×100vh), so growing it to the design's true height is safe.
       //
       // SINGLE (and any other free-canvas content mode, e.g. an unsupported "dynamic" free
-      //   combination): the background image and the content blocks (cards, text, buttons —
-      //   anything the visitor reads or clicks) are TWO SEPARATE layers with two separate
-      //   transforms, not one shared plate transform. They used to share one: a single
-      //   non-uniform scale(sx,sy) killed the letterbox gutters on the background, but
-      //   applied that SAME sx≠sy distortion to every content block too — stretching the
-      //   pricing cards' chevrons/buttons/text out of proportion (reported live, 2026-09-04,
-      //   same day as the non-uniform fix). Cards and background are explicitly separate
-      //   concerns (user directive, 2026-09-04: "the bg and product cards are two separate
-      //   things ... fixed separately") and must never share a distortable transform again:
-      //   - BACKGROUND layer: NON-UNIFORM scale(sx,sy) — sx=width/cw, sy=height/ch — fills
-      //     both axes exactly, no letterbox gutters, no crop. Stretch is fine here; it's a
-      //     decorative photo, not something with straight lines/right angles a viewer reads.
-      //   - CONTENT layer: UNIFORM scale = min(widthRatio, heightRatio) (contain-fit,
-      //     horizontally centred when height-constrained) — the exact same math the section
-      //     used before any of this letterbox work started. Cards, buttons and text always
-      //     render at their true undistorted aspect ratio; the trade-off is the content box
-      //     doesn't always reach the section's edges on an off-ratio viewport, which is
-      //     strictly preferable to visibly warped UI.
-      // Both layers sit on the same cw×ch coordinate system (the Designer canvas), so a
-      // block's pixelPos still means the same thing on-canvas — only which transform
-      // renders it changed.
+      //   combination): contain-fit, the WHOLE design visible, box never grown or shrunk (the
+      //   100vh hard boundary). The background image and the content blocks (cards, text,
+      //   buttons — anything the visitor reads or clicks) are still TWO SEPARATE layers
+      //   (user directive, 2026-09-04: "the bg and product cards are two separate things"), but
+      //   since 2026-09-25 BOTH are scaled UNIFORMLY — nothing on this plate is ever stretched:
+      //   - CONTENT layer: uniform scale = min(width ratio, height ratio), top-anchored and
+      //     horizontally centred, so cards/buttons/text keep their true aspect ratio.
+      //   - BACKGROUND layer: a plate of (stageW/scale) x (stageH/scale) canvas units under the
+      //     SAME uniform scale, so it covers the whole stage box exactly and `background-size:
+      //     cover` + the owner's saved focal point resolve against the real section box. It used
+      //     to be scale(sx, sy) — a photo stretched ~14% at 768x1024 and ~36% at 800x1280, and
+      //     drifting out of register with the uniformly-scaled content above it.
+      // All of it comes from ONE shared function, computeStageFit (flexible-render-rules.js) —
+      // the Designer's own fit-to-panel zoom uses it too, so canvas and live cannot disagree.
       const sw = stageW || (typeof window !== "undefined" ? window.innerWidth : cw);
       // Mobile-only upper clamp (see MOBILE_PLATE_MAX_SCALE doc comment) — desktop/tablet
-      // are intentionally left unclamped, so this multiplies in as a no-op (Infinity-like
-      // ceiling) for them via Math.min below.
+      // are intentionally left unclamped (computeStageFit treats Infinity as "no clamp").
       const plateMaxScale = resolvedActiveBreakpointKey === "mobile" ? MOBILE_PLATE_MAX_SCALE : Infinity;
-      let bgTransform: string;
-      let contentTransform: string;
-      let contentLeft = 0;
-      // Round every scale factor to kill float noise from the sw/cw division (a
-      // real device width divided by an authored canvas width is essentially
-      // never a clean number) — the same sub-pixel-text-blur mitigation already
-      // applied to both editor canvases' own zoom transforms (public/flexible-
-      // designer.html, public/volt-designer.html) via applyCanvasScale(), now
-      // applied here too since this content plate uses the identical
-      // transform:scale() mechanism on the LIVE page. Confirmed live (real
-      // browser, computed-style inspection) that an unrounded scale here — e.g.
-      // matrix(1.06556,0,0,1.06556,0,0) — renders text visibly soft.
-      const roundScale = (n: number) => Math.round(n * 10000) / 10000;
-      if (isMulti) {
-        // MULTI: width-only scale — exactly as before (transform string byte-identical) —
-        // for both layers (multi has no letterbox/distortion tension: the section grows to
-        // the scaled height via aspect-ratio above, so width-only scale alone is exact).
-        const scale = roundScale(Math.min(sw / cw, plateMaxScale));
-        bgTransform = `scale(${scale})`;
-        contentTransform = `scale(${scale})`;
-      } else {
-        const sh = stageH || (typeof window !== "undefined" ? window.innerHeight : ch);
-        const scaleX = roundScale(Math.min(sw / cw, plateMaxScale));
-        const scaleY = roundScale(Math.min(sh / ch, plateMaxScale));
-        bgTransform = `scale(${scaleX}, ${scaleY})`;
-        const scale = Math.min(scaleX, scaleY);
-        contentTransform = `scale(${scale})`;
-        if (scaleY < scaleX) {
-          contentLeft = Math.max(0, (sw - cw * scale) / 2);
-        }
-      }
+      // Stage height: measured once mounted; before that a single section fills the viewport and a
+      // multi section is exactly as tall as the design scaled to the width (its aspect-ratio height).
+      const sh = stageH || (isMulti
+        ? (sw * chTotal) / cw
+        : (typeof window !== "undefined" ? window.innerHeight : ch));
+      const fit = computeStageFit({ cw, ch: chTotal, vw: sw, vh: sh, mode: isMulti ? "multi" : "single", maxScale: plateMaxScale });
+      // fit.scale is already rounded to 4dp inside computeStageFit — a real device width divided by
+      // an authored canvas width is essentially never a clean number, and an unrounded scale (e.g.
+      // matrix(1.06556,0,0,1.06556,0,0)) renders text visibly soft (confirmed in a real browser).
+      const contentTransform = `scale(${fit.scale})`;
+      const contentLeft = fit.contentLeft;
+      // Per-band "Repeat per section" tiling keeps its own cw x chTotal plate under the same uniform scale.
+      const repeatBgTransform = `scale(${fit.scale})`;
       return (
         <div ref={stageRef} data-fx-stage="" style={{
           position: "absolute",
@@ -2649,8 +2618,8 @@ function DesignerBlocksRenderer({
           overflow: "hidden",
           pointerEvents: "none",
         }}>
-          {/* Background layer — non-uniform scale(sx,sy), fills the box exactly (see the
-              doc comment above for why this is intentionally split from the content layer). */}
+          {/* Background layer — UNIFORM scale, covers the whole stage box (see the doc comment
+              above for why this is intentionally split from the content layer). */}
           {bgImage?.url && (
             isMulti && bgImage.multiRepeat ? (
               // "Repeat per section" (opt-in, default false — free+multi/dynamic only):
@@ -2659,13 +2628,13 @@ function DesignerBlocksRenderer({
               // module so this stays in sync with flexible-designer.html's identical
               // repeat branch in applySectionBgToCanvas() (ONE SYSTEM PER CONCERN — see
               // flexible-render-rules.js's own doc comment on computeMultiBgLayers).
-              // bgTransform is applied ONCE, to this OUTER wrapper only — never per-band
+              // repeatBgTransform is applied ONCE, to this OUTER wrapper only — never per-band
               // — so each band's top offset scales correctly instead of the scale
               // compounding a second time on top of an already-scaled offset.
               <div aria-hidden="true" data-fx-bg="" style={{
                 position: "absolute", left: 0, top: 0,
                 width: cw, height: chTotal,
-                transform: bgTransform,
+                transform: repeatBgTransform,
                 transformOrigin: "top left",
                 zIndex: 0,
                 pointerEvents: "none",
@@ -2694,9 +2663,9 @@ function DesignerBlocksRenderer({
               </div>
             ) : (
               <div aria-hidden="true" data-fx-bg="" style={{
-                position: "absolute", left: 0, top: 0,
-                width: cw, height: chTotal,
-                transform: bgTransform,
+                position: "absolute", left: fit.bg.left, top: fit.bg.top,
+                width: fit.bg.width, height: fit.bg.height,
+                transform: `scale(${fit.bg.scale})`,
                 transformOrigin: "top left",
                 zIndex: 0,
                 backgroundImage: `url(${bgImage.url})`,
@@ -2710,8 +2679,8 @@ function DesignerBlocksRenderer({
             )
           )}
           <div data-fx-content="" style={{
-            // TOP-LEFT anchored content plate — always UNIFORM scale (never the background's
-            // non-uniform transform), so every card/button/text block renders undistorted.
+            // Top-anchored, horizontally centred content plate — always a UNIFORM scale, so every
+            // card/button/text block renders undistorted.
             position: "absolute", left: contentLeft, top: 0,
             width: cw, height: chTotal,
             transform: contentTransform,
@@ -2949,7 +2918,7 @@ function DesignerBlocksRenderer({
  * - Scroll-triggered entrance animation via IntersectionObserver
  * - Content delegation to renderInner() which switches on block.type
  */
-type SubEl = { id?: string | number; type: string; props?: Record<string, unknown>; x?: number; y?: number; w?: number | null; h?: number | null };
+type SubEl = { id?: string | number; type: string; props?: Record<string, unknown>; x?: number; y?: number; w?: number | null; h?: number | null; _measuredH?: number };
 
 /**
  * Groups sub-elements into columns by clustering their x positions.
@@ -4184,7 +4153,13 @@ function DesignerSubElement({ sub, pkg, mobile, exact, darkBg }: { sub: SubEl; p
             // Shared with the Designer canvas (public/flexible-designer.html) via
             // computeSubElementStyle — see its doc comment in flexible-render-rules.js
             // for exactly which defaults `exact`/`mobile`/`darkBg` each resolve to.
-            ...computeSubElementStyle("heading", p, { exact, mobile, darkBg }),
+            ...computeSubElementStyle("heading", p, {
+              exact, mobile, darkBg,
+              // Live-only safety net for stored data measured against a still-loading webfont: a heading the
+              // Designer measured as ONE line stays on one line (see computeSubElementStyle / measuredLineCount).
+              measuredH: exact ? sub._measuredH : undefined,
+              fixedHeight: sub.h != null,
+            }),
             ...outlinedStyle,
             ...textShadowStyle,
             marginBottom:  hasShell ? 0 : mb,

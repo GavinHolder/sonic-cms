@@ -293,6 +293,15 @@ Applied to heading and body text when section enters viewport:
 
 Opens the **Flexible Section Designer** (full-screen iframe). See the Flexible Sections documentation for complete details.
 
+### When Tablet / Mobile isn't designed (free-layout sections)
+
+Below **Content Height Mode**, a section built with the free-position Designer shows **When Tablet / Mobile isn't designed** with two choices:
+
+- **Show the Desktop layout** *(default)* — a screen size counts as **designed** once its Designer canvas has at least one block. Until then, visitors on that screen size see the Desktop layout **with Desktop's background**: scaled to fit on tablets (768–991px wide), re-flowed into a single readable column on phones (under 768px). Nobody ever lands on a blank section just because a screen size was never designed — including the case where the Tablet tab was opened in the Designer and saved without adding anything (that leaves an *empty* Tablet canvas, which counts as *not designed*).
+- **Show nothing** — the section is left out on that screen size.
+
+> ℹ️ This only changes what visitors **see**. It never copies anything into the Tablet or Mobile canvases — those stay fully independent, open empty, and are built up by hand (see the Canvas Editor docs). As soon as a screen size has its own blocks, its own layout is shown exactly as designed and it never borrows Desktop's background.
+
 ---
 
 ## Footer — Content Tab
@@ -314,7 +323,7 @@ const TAB_BACKGROUND = `
 
 Controls the section's background appearance — a solid colour, a preset swatch, a custom hex, or a gradient (**Linear or Radial**) — plus an optional section background image with size/position/repeat/opacity/parallax. The distinctive control here is the **gradient mask** (fade): it fades the *background image itself* to transparent so it blends into the section colour — different from a colour overlay drawn on top.
 
-> 🔀 **Every setting on this tab is independent per screen size (2026-09-22).** Background Type, colour, gradient (including Linear vs Radial), and the background image's URL/size/repeat/opacity are all set **separately for Desktop, Tablet, and Mobile** — switch which one you're editing with the same **Preview as: Desktop / Tablet / Mobile** tabs that control the live preview pane. There is **no inheritance**: configuring Desktop's background does **not** carry over to Tablet or Mobile. A screen size that hasn't been configured yet renders with **no background** (transparent) rather than quietly copying Desktop — an indicator bar at the top of this tab shows which screen size you're editing and says plainly when nothing has been set for it yet. This matches the Designer canvas's own per-breakpoint model: Tablet and Mobile canvases open **empty** and are built up independently (see the Canvas Editor docs), and now their backgrounds work the exact same way.
+> 🔀 **Every setting on this tab is independent per screen size (2026-09-22).** Background Type, colour, gradient (including Linear vs Radial), and the background image's URL/size/repeat/opacity are all set **separately for Desktop, Tablet, and Mobile** — switch which one you're editing with the same **Preview as: Desktop / Tablet / Mobile** tabs that control the live preview pane. There is **no inheritance**: configuring Desktop's background does **not** carry over to Tablet or Mobile. A screen size that has its **own designed layout** (its Designer canvas has at least one block) but no background configured renders with **no background** (transparent) rather than quietly copying Desktop. The one exception is on the **live page only**: a screen size that has **no layout of its own yet** is showing the *Desktop layout* to visitors (see **When Tablet / Mobile isn't designed** on the Content tab), so it shows Desktop's background too — otherwise white text would land on a blank white section. This is a read-time rule; nothing is ever copied into the Tablet/Mobile settings. An indicator bar at the top of this tab shows which screen size you're editing and says plainly what it currently renders with when nothing has been set for it. This matches the Designer canvas's own per-breakpoint model: Tablet and Mobile canvases open **empty** and are built up independently (see the Canvas Editor docs), and now their backgrounds work the exact same way.
 
 <div class="fig-grid2"><div class="fig control" style="margin:0"><span class="tag">Control mockup</span><div class="fig-body"><div class="mock-panel"><label class="lbl">Background Type</label><div class="seg" style="width:100%;margin-bottom:12px"><button class="on" style="flex:1">🪣 Solid</button><button style="flex:1">🎨 Gradient</button></div><label class="lbl">Preset Colors</label><div style="display:flex;gap:8px;flex-wrap:wrap;padding:10px;background:var(--panel);border-radius:8px"><span class="swatch sel" style="background:#fff"></span><span class="swatch" style="background:#f8f9fa"></span><span class="swatch" style="background:#1e3a5f"></span><span class="swatch" style="background:#dbeafe"></span><span class="swatch" style="background:repeating-linear-gradient(45deg,#ccc 0 4px,#fff 4px 8px)"></span></div><div class="hint" style="margin-top:8px">White · Gray · Blue · Light Blue · None(transparent), then a full brand swatch strip + custom hex picker.</div></div></div><div class="fig-cap"><b>Background type &amp; presets</b> — Solid/Gradient toggle, five named presets, brand swatches, and a custom hex + eyedropper.</div></div><div class="fig control" style="margin:0"><span class="tag">Control mockup</span><div class="fig-body"><div class="mock-panel"><div class="sw-row"><span class="toggle"></span><span class="lbl" style="margin:0">Fade image to transparent (gradient mask)</span></div><div class="hint" style="margin-bottom:12px">Fades the background image so it blends into the section colour.</div><label class="lbl">Fade Direction</label><select class="input" style="margin-bottom:12px"><option selected>To Bottom</option><option>To Top</option><option>To Left</option><option>To Right</option></select><label class="lbl">Opaque Until: 0%</label><div class="slider"><div class="fill" style="width:0"></div><div class="knob" style="left:0"></div></div><label class="lbl">Fully Faded At: 100%</label><div class="slider"><div class="fill" style="width:100%"></div><div class="knob" style="left:100%"></div></div></div></div><div class="fig-cap"><b>Gradient mask (fade)</b> — appears when a section background image is set. Two stops define where the image stays opaque and where it reaches full transparency.</div></div></div>
 
@@ -356,6 +365,10 @@ Once a background image is set, a **Reposition Background** preview box appears 
 > ⚠️ **This is the one deliberate exception to "no inheritance" on this tab.** *Crop position* (this control) still inherits from Desktop until a screen size is dragged independently — that hasn't changed. Everything else on this tab — Background Type, colour, gradient, and the image itself (URL/size/repeat/opacity) — does **not** inherit; see the note at the top of this page. The two are separate systems that happen to sit in the same tab: position answers "which part of the image shows," the rest answers "what background is there at all."
 
 > 💡 Use this when the 9-grid **Position** presets aren't precise enough — e.g. keeping a face or product in frame on a wide photo, then re-dragging the Tablet/Mobile position separately if that same crop cuts the subject off on a narrower screen.
+
+### How the background fits the screen (all sizes, 2026-09-25)
+
+On a free-layout Flexible section the background photo is **never stretched**. It always covers the *whole visible section* at its own natural proportions (the same "cover" behaviour a normal CSS background has), anchored on the focal point you dragged — so it looks the same on a 768×1024 tablet, an 800×1280 tablet, a phone or a desktop monitor, with no squashed or stretched circles/faces. Your Designer layout sits on top of it at true proportions too: scaled uniformly, top-aligned and centred. The two use the *same* scale, but the photo is sized to the real screen rather than to the design canvas, so on a screen whose proportions differ from your canvas the photo can crop slightly differently than it does inside the Designer — re-drag the focal point for that screen size if a subject needs to stay in frame.
 
 ---
 
@@ -1217,6 +1230,12 @@ The parent Text Block **always fits its sub-elements** — it grows and shrinks 
 | W | Explicit width in px (null = full block width) |
 | Custom CSS | Freeform CSS override |
 
+### Fonts and text wrapping — what you see is what visitors get (2026-09-25)
+
+A web font (any Google Font) takes a moment to arrive; until it does the browser shows a narrower stand-in typeface. The Designer and the live page now load fonts through the **same code** (including every weight you actually use, e.g. Light 300) and the Designer **re-measures every text box once the fonts have arrived**, so the wrapping you see on the canvas — and the heights saved with the layout — are the ones visitors get. If a headline that used to fit on one line now wraps to two on the canvas, that is the real font; widen its box (or shrink the size) and save.
+
+> ℹ️ Sections saved *before* this fix may hold a text box that was sized while the stand-in font was showing. On the live page a **heading the Designer measured as a single line stays on a single line** (it can run a little past the right edge of its box instead of dropping onto a second row and colliding with the element below). Open the section in the Designer, press **Done**, then **Save** the section once to store the corrected measurements.
+
 ### Empty-state placeholders
 
 When a heading or paragraph has no content yet, the canvas shows a **dimmed italic placeholder** (e.g. *H2 — double-click to edit*). The placeholder is never saved — double-click to replace it with real text.
@@ -1452,6 +1471,8 @@ Lets you choose exactly which part of a photo stays in frame when a block's shap
 4. Click the button again (or click elsewhere on the canvas) to finish
 
 > ⚠️ **Independent per breakpoint** — same convention as a section's own background image (Section Editor → Background tab), which is also independent per Desktop/Tablet/Mobile. Repositioning while viewing the Tablet canvas only affects Tablet — switch to the Mobile view and reposition again if its focal point also needs to move.
+
+> ℹ️ **Block image vs section background.** This control positions the image *inside one block*, and that block keeps its own designed box on every screen (it is scaled together with the rest of the layout). The section's *own* full-width background photo is a separate setting — **Section Editor → Background tab → Reposition Background** (or the **Section Background** panel in the Designer sidebar) — and it is fitted to the whole visible section rather than to the design canvas; see *How the background fits the screen* on that tab.
 
 ---
 
