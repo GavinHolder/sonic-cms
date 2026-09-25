@@ -1,56 +1,51 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { BUILTIN_MANIFESTS } from "@/lib/plugins/manifests";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  classify,
+  fetchCatalog,
+  searchMedia,
+  detectCurrentPage,
+  selectValueFor,
+  FALLBACK_CATALOG,
+  SENTINELS,
+  type MediaSearchData,
+} from "../../public/link-destinations.js";
+import type { LinkCatalog, LinkGroup, LinkItem } from "@/lib/link-destinations";
 
 interface LinkOption {
   value: string;
   label: string;
 }
 
-interface LinkGroup {
-  label: string;
-  options: LinkOption[];
-}
-
 interface LinkPickerProps {
   value: string;
   onChange: (value: string) => void;
-  /** Section anchor options, e.g. [{ value: "#hero-1", label: "Home: Hero" }] */
+  /** Section anchor options, e.g. [{ value: "#hero-1", label: "Home: Hero" }]. Listed first; they win over a catalog item with the same value. */
   sectionOptions?: LinkOption[];
   placeholder?: string;
   className?: string;
+  /** Slug ("/" = home) of the page being edited, so its sections use the bare "#id" form. Detected from the admin URL when omitted. */
+  currentPage?: string | null;
 }
 
-const CUSTOM_SENTINEL = "__custom__";
-
-/** Dedupe options by value, first occurrence wins. */
-function dedupe(options: LinkOption[]): LinkOption[] {
-  const seen = new Set<string>();
-  const out: LinkOption[] = [];
-  for (const o of options) {
-    if (!o.value || seen.has(o.value)) continue;
-    seen.add(o.value);
-    out.push(o);
-  }
-  return out;
-}
+type ForcedMode = "custom" | "tel" | "mailto" | "doc" | "img";
 
 /**
- * LinkPicker — shared admin dropdown for selecting internal link targets.
+ * LinkPicker — the shared admin dropdown for choosing where a button/link goes.
  *
- * Groups every link target an admin might want (pages, section anchors, forms,
- * documents/PDFs, feature pages, policies) into a single grouped <select>, plus
- * a free-text "Custom URL" escape hatch. This means admins never hand-type an
- * `#anchor` or `/slug` — but any existing raw value still round-trips: if the
- * current `value` matches a known target it is preselected, otherwise it shows
- * as Custom with the raw text editable.
+ * ONE SYSTEM PER CONCERN: the destinations come from GET /api/link-destinations (lib/link-destinations.ts) and the
+ * stored-value -> picker-state mapping is public/link-destinations.js `classify()` — the same module the Flexible
+ * Designer's iframe uses. Everything that exists is offered: pages, sections, forms, plugin/feature routes (Coverage
+ * Map …), every policy, galleries, content, plus documents/images from the media library through a searchable
+ * typeahead (a media library is too big for a <select>), plus Custom URL / Phone / Email.
  *
- * Option lists load client-side (useEffect + fetch). Every source degrades
- * gracefully to an empty group when its API is unavailable (non-admin session,
- * offline, or a disabled plugin) — the picker still renders and stays usable.
+ * A destination that exists but would not currently open on the live site (disabled page/plugin/policy) is listed
+ * greyed-out and labelled, never dropped, so an already-saved link still shows as the selection.
+ * Any stored value the catalog does not know is shown as Custom URL with the real text pre-filled — never as "empty".
+ * The picker never persists a UI-only choice: picking "Custom URL…" etc. writes nothing until something is typed.
  *
- * Public props are unchanged and drop-in compatible with prior versions.
+ * Public props are unchanged and drop-in compatible with prior versions (`currentPage` is optional).
  */
 export function LinkPicker({
   value,
@@ -58,213 +53,236 @@ export function LinkPicker({
   sectionOptions = [],
   placeholder = "e.g., /contact or https://example.com",
   className = "",
+  currentPage,
 }: LinkPickerProps) {
-  const [pages, setPages] = useState<LinkOption[]>([]);
-  const [sections, setSections] = useState<LinkOption[]>([]);
-  const [forms, setForms] = useState<LinkOption[]>([]);
-  const [documents, setDocuments] = useState<LinkOption[]>([]);
-  const [features, setFeatures] = useState<LinkOption[]>([]);
-  const [policies, setPolicies] = useState<LinkOption[]>([]);
+  const [catalog, setCatalog] = useState<LinkCatalog>(FALLBACK_CATALOG as LinkCatalog);
+  const [forced, setForced] = useState<ForcedMode | null>(null);
+  const [draft, setDraft] = useState("");
 
   useEffect(() => {
-    // ── Pages (+ Forms + PDF pages) ─────────────────────────────────────────
-    // /api/pages returns every page; we split by type and only keep published,
-    // enabled targets. Requires a VIEWER+ session cookie (admin context).
-    fetch("/api/pages")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((json) => {
-        const list: Array<{
-          slug: string;
-          title: string;
-          type: string;
-          enabled: boolean;
-          status: string;
-        }> = json?.data?.pages ?? [];
+    let alive = true;
+    const page = currentPage !== undefined ? currentPage : detectCurrentPage();
+    fetchCatalog({ currentPage: page }).then((c: LinkCatalog) => {
+      if (alive) setCatalog(c);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [currentPage]);
 
-        const enabled = list.filter(
-          (p) => p.enabled && p.slug && p.slug !== "/"
-        );
-        // Regular content pages must be PUBLISHED to be linkable.
-        const publishedEnabled = enabled.filter((p) => p.status === "PUBLISHED");
+  // Parent-supplied section options first; a catalog item with the same value is dropped so it is not listed twice.
+  const sectionKey = JSON.stringify(sectionOptions);
+  const merged = useMemo<LinkCatalog>(() => {
+    if (!sectionOptions.length) return catalog;
+    const taken = new Set(sectionOptions.map((o) => o.value));
+    const seen = new Set<string>();
+    const extra: LinkItem[] = [];
+    for (const o of sectionOptions) {
+      if (!o.value || seen.has(o.value)) continue;
+      seen.add(o.value);
+      extra.push({ group: "sections-parent", label: o.label, value: o.value });
+    }
+    const groups: LinkGroup[] = catalog.groups
+      .map((g) => ({ ...g, items: g.items.filter((i) => !taken.has(i.value)) }))
+      .filter((g) => g.items.length > 0 || g.id === "builtin");
+    return { ...catalog, groups: [{ id: "sections-parent", label: "Sections", items: extra }, ...groups] };
+    // sectionOptions is a fresh array every render; sectionKey is its stable content signature.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalog, sectionKey]);
 
-        setPages(
-          publishedEnabled
-            .filter((p) => !["form", "pdf"].includes(p.type))
-            .map((p) => ({ value: `/${p.slug}`, label: p.title || p.slug }))
-        );
+  const state = useMemo(() => classify(value, merged), [value, merged]);
 
-        // Forms & PDFs don't go through the page "publish" flow — they're linkable as
-        // soon as they're enabled, so a freshly-created form is selectable immediately
-        // (before this the PUBLISHED filter hid EVERY form → empty Forms group). (#71)
-        setForms(
-          enabled
-            .filter((p) => p.type === "form")
-            .map((p) => ({ value: `/${p.slug}`, label: p.title || p.slug }))
-        );
+  // A UI-only choice (Custom / Phone / Email / library) is honoured only while the stored value is empty;
+  // as soon as there is a value, the value decides what is shown.
+  const uiMode: ForcedMode | null =
+    state.mode === "none"
+      ? forced
+      : state.mode === "custom"
+        ? "custom"
+        : state.mode === "tel"
+          ? "tel"
+          : state.mode === "mailto"
+            ? "mailto"
+            : state.mode === "media"
+              ? state.mediaType === "image"
+                ? "img"
+                : "doc"
+              : null;
 
-        // PDF-type pages are documents too — merge them with media documents.
-        setDocuments((prev) =>
-          dedupe([
-            ...prev,
-            ...enabled
-              .filter((p) => p.type === "pdf")
-              .map((p) => ({ value: `/${p.slug}`, label: p.title || p.slug })),
-          ])
-        );
-      })
-      .catch(() => {});
+  const forcedSelectValue = (m: ForcedMode) =>
+    m === "custom" ? SENTINELS.custom : m === "tel" ? SENTINELS.tel : m === "mailto" ? SENTINELS.mailto : m === "doc" ? SENTINELS.doc : SENTINELS.img;
+  const selectValue = state.mode === "none" && forced ? forcedSelectValue(forced) : selectValueFor(state);
 
-    // ── Section anchors on the home page ────────────────────────────────────
-    // value = "#<sectionId>". Merged with any sectionOptions passed by parent.
-    fetch("/api/sections?pageSlug=/")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((json) => {
-        if (!json?.success || !Array.isArray(json.data)) return;
-        setSections(
-          json.data
-            .filter(
-              (s: { id?: string; enabled?: boolean }) => s.id && s.enabled !== false
-            )
-            .map(
-              (s: {
-                id: string;
-                navLabel?: string | null;
-                displayName?: string | null;
-                type?: string;
-              }) => ({
-                value: `#${s.id}`,
-                label: s.navLabel || s.displayName || s.type || s.id,
-              })
-            )
-        );
-      })
-      .catch(() => {});
-
-    // ── Documents / PDFs from the media library ─────────────────────────────
-    // mimeType=document filters to application/pdf; capped by the API's perPage.
-    fetch("/api/media?mimeType=document&perPage=50")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((json) => {
-        const media: Array<{ url: string; originalName?: string; filename?: string }> =
-          json?.data?.media ?? [];
-        if (!media.length) return;
-        setDocuments((prev) =>
-          dedupe([
-            ...prev,
-            ...media
-              .filter((m) => m.url)
-              .map((m) => ({ value: m.url, label: m.originalName || m.filename || m.url })),
-          ])
-        );
-      })
-      .catch(() => {});
-
-    // ── Special feature pages ───────────────────────────────────────────────
-    // A ClientFeature's `slug` is its toggle identity, not necessarily its public
-    // URL — e.g. the coverage-maps plugin's ClientFeature.slug is "coverage-maps"
-    // but its actual page lives at /coverage (per its manifest's routes.public).
-    // Assuming `/${slug}` broke that link. Prefer the plugin manifest's declared
-    // public route when the feature's slug matches a known plugin id; fall back
-    // to `/${slug}` for features with no manifest entry.
-    fetch("/api/features")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.success && Array.isArray(data.data)) {
-          setFeatures(
-            data.data
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              .filter((f: any) => f.enabled && f.slug)
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              .map((f: any) => {
-                const manifest = BUILTIN_MANIFESTS.find((m) => m.id === f.slug);
-                const publicRoute = manifest?.routes?.public?.[0];
-                return { value: publicRoute || `/${f.slug}`, label: f.name || f.slug };
-              })
-          );
-        }
-      })
-      .catch(() => {}); // Non-admin users or offline — silently skip
-
-    // ── Policies (Policies plugin). Returns [] when plugin disabled. ─────────
-    fetch("/api/policies?enabled=true")
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data) => {
-        if (Array.isArray(data)) {
-          setPolicies(
-            data.map(
-              (p: { slug: string; title: string; navLabel: string | null }) => ({
-                value: `/policies/${p.slug}`,
-                label: p.navLabel || p.title,
-              })
-            )
-          );
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  // Sections: parent-supplied options first, then fetched anchors.
-  const sectionGroup = dedupe([...sectionOptions, ...sections]);
-
-  const groups: LinkGroup[] = [
-    { label: "Pages", options: pages },
-    { label: "Sections", options: sectionGroup },
-    { label: "Forms", options: forms },
-    { label: "Documents & PDFs", options: documents },
-    { label: "Features", options: features },
-    { label: "Policies", options: policies },
-  ].filter((g) => g.options.length > 0);
-
-  // Flat set of every known target value, used to detect custom values.
-  const knownValues = new Set<string>([
-    "/",
-    ...groups.flatMap((g) => g.options.map((o) => o.value)),
-  ]);
-
-  const isCustom = value !== "" && !knownValues.has(value);
+  const textMode = uiMode === "custom" || uiMode === "tel" || uiMode === "mailto";
+  const inputValue = state.mode === "custom" || state.mode === "tel" || state.mode === "mailto" ? (state.text as string) : draft;
 
   const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selected = e.target.value;
-    if (selected === CUSTOM_SENTINEL) {
-      // Switch into custom mode without clobbering an existing custom value.
-      if (!isCustom) onChange("");
+    const v = e.target.value;
+    if (v === SENTINELS.custom || v === SENTINELS.tel || v === SENTINELS.mailto) {
+      const mode: ForcedMode = v === SENTINELS.tel ? "tel" : v === SENTINELS.mailto ? "mailto" : "custom";
+      setForced(mode);
+      setDraft(mode === "tel" ? "tel:" : mode === "mailto" ? "mailto:" : "");
+      // Never persist the choice itself; the stored value stays empty until a destination is typed.
+      if (value !== "") onChange("");
       return;
     }
-    onChange(selected);
+    if (v === SENTINELS.doc || v === SENTINELS.img) {
+      setForced(v === SENTINELS.img ? "img" : "doc");
+      if (state.mode === "media") return; // keep the current file until another is picked
+      if (value !== "") onChange("");
+      return;
+    }
+    setForced(null);
+    onChange(v);
   };
-
-  const selectValue = isCustom ? CUSTOM_SENTINEL : value || "";
 
   return (
     <div className={className}>
-      <select
-        className="form-select"
-        value={selectValue}
-        onChange={handleSelectChange}
-      >
+      <select className="form-select" value={selectValue} onChange={handleSelectChange}>
         <option value="">Select a link…</option>
-        <option value="/">Home</option>
-        {groups.map((group) => (
-          <optgroup key={group.label} label={group.label}>
-            {group.options.map((opt) => (
-              <option key={`${group.label}:${opt.value}`} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </optgroup>
-        ))}
-        <option value={CUSTOM_SENTINEL}>Custom URL / anchor…</option>
+        {merged.groups.map((group) =>
+          group.items.length === 0 ? null : (
+            <optgroup key={group.id} label={group.label}>
+              {group.items.map((it) => {
+                const isCurrent = state.mode === "item" && state.item === it;
+                return (
+                  <option
+                    key={`${group.id}:${it.value}`}
+                    value={isCurrent ? (state.optionValue as string) : it.value}
+                    disabled={!!it.disabled && !isCurrent}
+                    title={it.hint}
+                  >
+                    {it.label}
+                  </option>
+                );
+              })}
+            </optgroup>
+          ),
+        )}
+        <optgroup label="Media library">
+          <option value={SENTINELS.doc}>Document (PDF) from library…</option>
+          <option value={SENTINELS.img}>Image from library…</option>
+        </optgroup>
+        <optgroup label="Other">
+          <option value={SENTINELS.custom}>Custom URL / anchor…</option>
+          <option value={SENTINELS.tel}>Phone number…</option>
+          <option value={SENTINELS.mailto}>Email address…</option>
+        </optgroup>
       </select>
-      {isCustom && (
+
+      {textMode && (
         <input
           type="text"
           className="form-control mt-1"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          autoFocus
+          value={inputValue}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            onChange(e.target.value);
+          }}
+          placeholder={uiMode === "tel" ? "tel:+27821234567" : uiMode === "mailto" ? "mailto:name@example.com" : placeholder}
+          autoFocus={state.mode === "none"}
         />
       )}
+
+      {(uiMode === "doc" || uiMode === "img") && (
+        <MediaTypeahead
+          type={uiMode === "img" ? "image" : "document"}
+          selected={state.mode === "media" ? value : ""}
+          onPick={(url) => {
+            setForced(null);
+            onChange(url);
+          }}
+        />
+      )}
+
+      {state.mode === "item" && state.item?.disabled && (
+        <div className="form-text text-warning">
+          This destination exists but is currently switched off, so the link will not open on the live site.
+        </div>
+      )}
+      {state.legacy && (
+        <div className="form-text text-warning">This link was saved in an old format and does not point anywhere. Pick a destination.</div>
+      )}
+    </div>
+  );
+}
+
+function fileLabel(url: string): string {
+  try {
+    return decodeURIComponent(url.split(/[?#]/)[0].split("/").pop() || url);
+  } catch {
+    return url;
+  }
+}
+
+/** Searchable, paginated media-library list (documents or images). Debounced; never loads the whole library. */
+function MediaTypeahead({ type, selected, onPick }: { type: "document" | "image"; selected: string; onPick: (url: string) => void }) {
+  const [q, setQ] = useState("");
+  const [items, setItems] = useState<MediaSearchData["items"]>([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+  const reqId = useRef(0);
+
+  useEffect(() => {
+    const id = ++reqId.current;
+    const t = setTimeout(
+      () => {
+        setLoading(true);
+        setError(false);
+        searchMedia({ type, q, page, perPage: 20 })
+          .then((data: MediaSearchData) => {
+            if (id !== reqId.current) return;
+            setItems((prev) => (page === 1 ? data.items : [...prev, ...data.items]));
+            setTotal(data.total);
+            setLoading(false);
+          })
+          .catch(() => {
+            if (id !== reqId.current) return;
+            setError(true);
+            setLoading(false);
+          });
+      },
+      page === 1 ? 250 : 0,
+    );
+    return () => clearTimeout(t);
+  }, [type, q, page]);
+
+  return (
+    <div className="mt-1">
+      {selected && <div className="form-text mb-1">Selected: {fileLabel(selected)}</div>}
+      <input
+        type="search"
+        className="form-control form-control-sm"
+        placeholder={type === "image" ? "Search images…" : "Search documents…"}
+        value={q}
+        onChange={(e) => {
+          setQ(e.target.value);
+          setPage(1);
+        }}
+      />
+      <div className="border rounded mt-1 bg-white" style={{ maxHeight: 200, overflowY: "auto" }}>
+        {error && <div className="p-2 small text-danger">Could not load the media library.</div>}
+        {!error && !loading && items.length === 0 && <div className="p-2 small text-muted">No matches.</div>}
+        {items.map((it) => (
+          <button
+            key={it.value}
+            type="button"
+            className={`d-block w-100 text-start border-0 border-bottom bg-white px-2 py-1 small ${it.value === selected ? "fw-semibold" : ""}`}
+            onClick={() => onPick(it.value)}
+          >
+            {it.label}
+            <span className="d-block text-muted" style={{ fontSize: 10 }}>{it.hint}</span>
+          </button>
+        ))}
+        {loading && <div className="p-2 small text-muted">Loading…</div>}
+        {!loading && items.length < total && (
+          <button type="button" className="d-block w-100 border-0 bg-light px-2 py-1 small" onClick={() => setPage((p) => p + 1)}>
+            Load more ({total - items.length} more)
+          </button>
+        )}
+      </div>
     </div>
   );
 }

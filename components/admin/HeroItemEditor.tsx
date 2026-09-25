@@ -6,6 +6,7 @@ import MediaPickerModal from "./MediaPickerModal";
 import MediaUploadModal from "./MediaUploadModal";
 import TabPanel, { Tab } from "./TabPanel";
 import HelpText from "./HelpText";
+import { LinkPicker } from "./LinkPicker";
 
 interface HeroItemEditorProps {
   item: CarouselItem;
@@ -436,11 +437,9 @@ export default function HeroItemEditor({ item, onSave, onCancel }: HeroItemEdito
 
         <div className="mb-3">
           <label className="form-label">Button Link</label>
-          <input
-            type="text"
-            className="form-control"
+          <LinkPicker
             value={formData.overlay?.button?.href || ""}
-            onChange={(e) => handleButtonChange("href", e.target.value)}
+            onChange={(v) => handleButtonChange("href", v)}
             placeholder="/services"
           />
         </div>

@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import dynamic from "next/dynamic";
+import { LinkPicker } from "@/components/admin/LinkPicker";
 import type { FlexibleSection, FlexibleElement, FlexibleAnimationType } from "@/types/section";
 import { defaultScrollStage, defaultZone } from "@/components/sections/scroll-stage/types";
 import type { ScrollStageConfig, ScrollStageZoneConfig, ScrollStageZoneImageConfig } from "@/components/sections/scroll-stage/types";
@@ -685,8 +686,7 @@ function ButtonFields({ content: c, onUpdateContent }: { content: FlexibleElemen
       </div>
       <div className="col-md-6">
         <label className="form-label form-label-sm">Link (href)</label>
-        <input type="text" className="form-control form-control-sm" value={(c.buttonHref as string) || "#"}
-          onChange={(e) => onUpdateContent({ buttonHref: e.target.value })} />
+        <LinkPicker value={(c.buttonHref as string) || ""} onChange={(v) => onUpdateContent({ buttonHref: v })} />
       </div>
       <div className="col-md-4">
         <label className="form-label form-label-sm">Variant</label>
@@ -979,14 +979,14 @@ function HeroFields({ content: c, onUpdateContent }: { content: FlexibleElement[
       </div>
       <div className="col-md-8">
         <label className="form-label form-label-sm">Primary Button Text → URL</label>
-        <div className="input-group input-group-sm">
+        <div className="input-group input-group-sm mb-1">
           <input type="text" className="form-control" placeholder="Button text"
             value={((c.heroButton as { text?: string; href?: string }) || {}).text || ""}
             onChange={(e) => onUpdateContent({ heroButton: { ...((c.heroButton as object) || {}), text: e.target.value } })} />
-          <input type="text" className="form-control" placeholder="https://..."
-            value={((c.heroButton as { text?: string; href?: string }) || {}).href || ""}
-            onChange={(e) => onUpdateContent({ heroButton: { ...((c.heroButton as object) || {}), href: e.target.value } })} />
         </div>
+        <LinkPicker placeholder="https://..."
+          value={((c.heroButton as { text?: string; href?: string }) || {}).href || ""}
+          onChange={(v) => onUpdateContent({ heroButton: { ...((c.heroButton as object) || {}), href: v } })} />
       </div>
     </div>
   );

@@ -13,6 +13,7 @@ import ImageFieldWithUpload from "@/components/admin/ImageFieldWithUpload";
 import type { AnimBgConfig } from "@/lib/anim-bg/types";
 import { DEFAULT_ANIM_BG_CONFIG } from "@/lib/anim-bg/defaults";
 import LowerThirdTab from "@/components/admin/LowerThirdTab";
+import { LinkPicker } from "@/components/admin/LinkPicker";
 import SectionLivePreview from "@/components/admin/SectionLivePreview";
 import MotionElementEditor, { createDefaultMotionElement } from "@/components/admin/MotionElementEditor";
 import { defaultScrollStage, defaultZone, defaultThreeZone } from "@/components/sections/scroll-stage/types";
@@ -2836,11 +2837,9 @@ function renderField(
       );
 
     case "navTarget":
+      // Shared destination picker (pages, sections, plugin routes, policies, documents, images, …).
       return (
-        <input type="text" className="form-control form-control-sm"
-          value={strVal} placeholder={fieldDef.hint || "https://..."}
-          onChange={(e) => onChange(e.target.value)}
-        />
+        <LinkPicker value={strVal} placeholder={fieldDef.hint || "https://..."} onChange={(v) => onChange(v)} />
       );
 
     case "iconInput":

@@ -258,8 +258,9 @@
   function detectCurrentPage() {
     try {
       if (root && root.__linkCurrentPage) return root.__linkCurrentPage;
-      var parent = root && root.parent && root.parent !== root ? root.parent : null;
-      var p = parent ? parent.location.pathname : "";
+      // Inside the Designer iframe the admin page is the PARENT window; in an admin React page it is this window.
+      var host = root && root.parent && root.parent !== root ? root.parent : root;
+      var p = host && host.location ? host.location.pathname : "";
       if (/\/admin\/content\/landing-page/.test(p)) return "/";
       var m = p.match(/\/admin\/page-editor\/([^/?#]+)/);
       if (m) return decodeURIComponent(m[1]);

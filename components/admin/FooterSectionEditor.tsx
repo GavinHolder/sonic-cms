@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAutoSave } from "@/lib/hooks/useAutoSave";
 import type { FooterSection, FooterInfoPosition, BackgroundColor } from "@/types/section";
 import { SOCIAL_PLATFORMS } from "@/types/section";
 import ImageFieldWithUpload from "./ImageFieldWithUpload";
-import { getPages } from "@/lib/page-manager";
+import { LinkPicker } from "@/components/admin/LinkPicker";
 
 interface FooterSectionEditorProps {
   section: FooterSection;
@@ -29,46 +29,6 @@ export default function FooterSectionEditor({
   onCancel,
   availableSections = [],
 }: FooterSectionEditorProps) {
-  const [dynamicPages, setDynamicPages] = useState<Array<{ value: string; label: string }>>([]);
-  const [featurePages, setFeaturePages] = useState<Array<{ value: string; label: string }>>([]);
-
-  // Load dynamic pages and enabled feature pages
-  useEffect(() => {
-    getPages().then((pages) => {
-      setDynamicPages(
-        pages
-          .filter((p) => p.enabled)
-          .map((p) => ({ value: `/${p.slug}`, label: `Page: ${p.title}` }))
-      );
-    }).catch(() => {});
-
-    fetch("/api/features")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.success && Array.isArray(data.data)) {
-          setFeaturePages(
-            data.data
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              .filter((f: any) => f.enabled && f.slug)
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              .map((f: any) => ({ value: `/${f.slug}`, label: `Feature: ${f.name}` }))
-          );
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  // Build dropdown options dynamically from available sections + dynamic pages + feature pages
-  const AVAILABLE_PAGES = [
-    { value: "/", label: "Home" },
-    ...availableSections.map((sec) => ({
-      value: `#${sec.id}`,
-      label: `Home: ${sec.navLabel || sec.displayName}`,
-    })),
-    ...dynamicPages,
-    ...featurePages,
-    { value: "custom", label: "Custom URL (External)" },
-  ];
   const [formData, setFormData] = useState({
     displayName: section.displayName || "Footer Section",
     logo: section.content.logo || "",
@@ -770,82 +730,42 @@ export default function FooterSectionEditor({
 
                           {/* Links */}
                           <div className="mb-2 flex-grow-1">
-                            {column.links.map((link, linkIndex) => {
-                              // Check if this link is using a custom URL (not in predefined pages)
-                              const isCustomUrl =
-                                !AVAILABLE_PAGES.some(p => p.value === link.href && p.value !== "custom");
-                              const selectValue = isCustomUrl ? "custom" : link.href;
-
-                              return (
-                                <div key={linkIndex} className="mb-3">
-                                  <div className="input-group input-group-sm mb-1">
-                                    <input
-                                      type="text"
-                                      className="form-control"
-                                      value={link.text}
-                                      onChange={(e) =>
-                                        updateLink(column.id, linkIndex, {
-                                          text: e.target.value,
-                                        })
-                                      }
-                                      placeholder="Link Text"
-                                    />
-                                    <button
-                                      type="button"
-                                      className="btn btn-outline-danger"
-                                      onClick={() => removeLink(column.id, linkIndex)}
-                                      title="Remove Link"
-                                    >
-                                      <i className="bi bi-x"></i>
-                                    </button>
-                                  </div>
-
-                                  <div className="mb-1">
-                                    <select
-                                      className="form-select form-select-sm"
-                                      value={selectValue}
-                                      onChange={(e) => {
-                                        if (e.target.value === "custom") {
-                                          // Switch to custom mode, keep current href if it's already custom
-                                          if (!isCustomUrl) {
-                                            updateLink(column.id, linkIndex, { href: "" });
-                                          }
-                                        } else {
-                                          // Use selected page URL
-                                          updateLink(column.id, linkIndex, { href: e.target.value });
-                                        }
-                                      }}
-                                    >
-                                      <option value="">Select page...</option>
-                                      {AVAILABLE_PAGES.map((page) => (
-                                        <option key={page.value} value={page.value}>
-                                          {page.label}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </div>
-
-                                  {selectValue === "custom" && (
-                                    <div>
-                                      <input
-                                        type="text"
-                                        className="form-control form-control-sm"
-                                        value={link.href}
-                                        onChange={(e) =>
-                                          updateLink(column.id, linkIndex, {
-                                            href: e.target.value,
-                                          })
-                                        }
-                                        placeholder="https://example.com or /custom-page"
-                                      />
-                                      <small className="form-text text-muted">
-                                        Enter full URL for external links or page path
-                                      </small>
-                                    </div>
-                                  )}
+                            {column.links.map((link, linkIndex) => (
+                              <div key={linkIndex} className="mb-3">
+                                <div className="input-group input-group-sm mb-1">
+                                  <input
+                                    type="text"
+                                    className="form-control"
+                                    value={link.text}
+                                    onChange={(e) =>
+                                      updateLink(column.id, linkIndex, {
+                                        text: e.target.value,
+                                      })
+                                    }
+                                    placeholder="Link Text"
+                                  />
+                                  <button
+                                    type="button"
+                                    className="btn btn-outline-danger"
+                                    onClick={() => removeLink(column.id, linkIndex)}
+                                    title="Remove Link"
+                                  >
+                                    <i className="bi bi-x"></i>
+                                  </button>
                                 </div>
-                              );
-                            })}
+
+                                {/* Shared destination picker: every page, section, plugin route, policy, document, image + Custom URL */}
+                                <LinkPicker
+                                  value={link.href}
+                                  onChange={(href) => updateLink(column.id, linkIndex, { href })}
+                                  sectionOptions={availableSections.map((sec) => ({
+                                    value: `#${sec.id}`,
+                                    label: `Home: ${sec.navLabel || sec.displayName}`,
+                                  }))}
+                                  placeholder="https://example.com or /custom-page"
+                                />
+                              </div>
+                            ))}
                           </div>
 
                           <button
