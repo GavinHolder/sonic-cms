@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1500" viewBox="0 0 1000 1500">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a1c71"/>
+      <stop offset="0.5" stop-color="#d76d77"/>
+      <stop offset="1" stop-color="#ffaf7b"/>
+    </linearGradient>
+    <pattern id="grid" width="100" height="100" patternUnits="userSpaceOnUse">
+      <path d="M100 0H0V100" fill="none" stroke="#ffffff" stroke-opacity="0.22" stroke-width="2"/>
+    </pattern>
+  </defs>
+  <rect width="1000" height="1500" fill="url(#g)"/>
+  <rect width="1000" height="1500" fill="url(#grid)"/>
+  <circle cx="500" cy="750" r="300" fill="none" stroke="#ffffff" stroke-width="10"/>
+  <circle cx="500" cy="750" r="150" fill="#ffffff" fill-opacity="0.25"/>
+  <g font-family="Arial, sans-serif" font-size="46" font-weight="700" fill="#ffffff">
+    <text x="30" y="70">TL</text>
+    <text x="890" y="70">TR</text>
+    <text x="30" y="1460">BL</text>
+    <text x="890" y="1460">BR</text>
+  </g>
+</svg>

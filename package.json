@@ -16,6 +16,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:fidelity": "tsx tests/responsive-fidelity/run.ts",
+    "fidelity:fetch": "node tests/responsive-fidelity/fetch-live-fixtures.mjs",
     "changelog": "node bin/generate-changelog.mjs"
   },
   "prisma": {

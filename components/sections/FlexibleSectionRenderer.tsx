@@ -2639,7 +2639,7 @@ function DesignerBlocksRenderer({
         }
       }
       return (
-        <div ref={stageRef} style={{
+        <div ref={stageRef} data-fx-stage="" style={{
           position: "absolute",
           top: headerOffset || 0,
           left: 0,
@@ -2662,7 +2662,7 @@ function DesignerBlocksRenderer({
               // bgTransform is applied ONCE, to this OUTER wrapper only — never per-band
               // — so each band's top offset scales correctly instead of the scale
               // compounding a second time on top of an already-scaled offset.
-              <div aria-hidden="true" style={{
+              <div aria-hidden="true" data-fx-bg="" style={{
                 position: "absolute", left: 0, top: 0,
                 width: cw, height: chTotal,
                 transform: bgTransform,
@@ -2693,7 +2693,7 @@ function DesignerBlocksRenderer({
                 ))}
               </div>
             ) : (
-              <div aria-hidden="true" style={{
+              <div aria-hidden="true" data-fx-bg="" style={{
                 position: "absolute", left: 0, top: 0,
                 width: cw, height: chTotal,
                 transform: bgTransform,
@@ -2709,7 +2709,7 @@ function DesignerBlocksRenderer({
               }} />
             )
           )}
-          <div style={{
+          <div data-fx-content="" style={{
             // TOP-LEFT anchored content plate — always UNIFORM scale (never the background's
             // non-uniform transform), so every card/button/text block renders undistorted.
             position: "absolute", left: contentLeft, top: 0,
@@ -2748,7 +2748,7 @@ function DesignerBlocksRenderer({
                 // clipping, which this wrapper doesn't do).
                 const bp   = (block.props || {}) as Record<string, unknown>;
                 return subs.map((sub, si) => (
-                  <div key={String(block.id) + "-" + si} style={{
+                  <div key={String(block.id) + "-" + si} data-fx-sub={String(block.id) + ":" + String(sub.id ?? si)} style={{
                     ...computeSubElementPosition(pos, sub, bp),
                     // Same explicit stacking level the non-container branch below gives its
                     // block wrapper (see zIndex doc comment on the `blocks` type above). Without
@@ -2788,7 +2788,7 @@ function DesignerBlocksRenderer({
               const isSelfSizing = SELF_SIZING_TYPES.has(block.type);
               const liveH = isSelfSizing ? blockHeights[String(block.id)] : undefined;
               return (
-                <div key={block.id} style={{
+                <div key={block.id} data-fx-block={String(block.id)} style={{
                   position: "absolute",
                   left: pos.x, top: pos.y, width: pos.w,
                   height: liveH || pos.h,
@@ -2949,7 +2949,7 @@ function DesignerBlocksRenderer({
  * - Scroll-triggered entrance animation via IntersectionObserver
  * - Content delegation to renderInner() which switches on block.type
  */
-type SubEl = { type: string; props?: Record<string, unknown>; x?: number; y?: number; w?: number | null; h?: number | null };
+type SubEl = { id?: string | number; type: string; props?: Record<string, unknown>; x?: number; y?: number; w?: number | null; h?: number | null };
 
 /**
  * Groups sub-elements into columns by clustering their x positions.

@@ -1,0 +1,4 @@
+# Live-derived fixtures contain a real site's content — fetched on demand, never committed.
+fixtures/live/
+# Screenshots, per-run JSON results and rect dumps.
+test-artifacts/
