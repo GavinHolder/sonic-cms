@@ -61,6 +61,146 @@
     return "clamp(" + floor + "px, " + vw.toFixed(2) + "vw, " + px + "px)";
   }
 
+  // ══════════════════════════════════════════════════════════════════════════
+  //  FONTS — one resolution + loading path for the Designer canvas AND the live page
+  // ══════════════════════════════════════════════════════════════════════════
+  // ROOT CAUSE this section closes (measured empirically 2026-09-25, see the responsive-fidelity harness):
+  // headings were sized/measured in the Designer against a SYSTEM FALLBACK font while their webfont was still
+  // loading (`display=swap`), then never re-measured. E.g. a "NO EXCUSES." heading in 'Archivo Black' 80px is
+  // 606px wide, but in the fallback (Times bold, because the stack ends in the invalid word `display`) it is
+  // 529px — so a 542px content box "fitted" on ONE line in the Designer (stored _measuredH = one line) while
+  // the live page, with the real webfont, wrapped to two lines and collided with its neighbour. Every
+  // consumer now resolves and loads fonts through the helpers below, and the Designer re-measures once fonts
+  // have settled (see public/flexible-designer.html: remeasureSubElementCaches).
+
+  var GENERIC_FONT_KEYWORDS = {
+    inherit: 1, initial: 1, unset: 1, "sans-serif": 1, serif: 1, monospace: 1, cursive: 1, fantasy: 1,
+    "system-ui": 1, "ui-sans-serif": 1, "ui-serif": 1, "ui-monospace": 1, "ui-rounded": 1,
+  };
+
+  // The Designer's font list appends a Google Fonts CATEGORY word to every stack ('Archivo Black', display,
+  // 'Pacifico', handwriting). Those are NOT CSS generic families: a bare unknown word in font-family is a
+  // family NAME, so the fallback silently became the browser default serif instead of a real generic.
+  var GOOGLE_CATEGORY_TO_GENERIC = { display: "sans-serif", handwriting: "cursive" };
+
+  /**
+   * normalizeFontStack(css) — pure. Replaces a trailing Google category word (display / handwriting) with the
+   * real CSS generic family; everything else passes through untouched (incl. undefined/non-strings).
+   */
+  function normalizeFontStack(css) {
+    if (typeof css !== "string" || !css) return css;
+    return css.replace(/(^|,)\s*(display|handwriting)\s*(?=,|$)/gi, function (m, pre, word) {
+      return pre + (pre ? " " : "") + GOOGLE_CATEGORY_TO_GENERIC[word.toLowerCase()];
+    });
+  }
+
+  /** extractFontFamilyName(css) — the first (webfont) family of a stack, or "" for generics/inherit/system stacks. */
+  function extractFontFamilyName(css) {
+    if (typeof css !== "string") return "";
+    var m = css.match(/'([^']+)'/) || css.match(/"([^"]+)"/) || css.match(/^([^,]+)/);
+    var name = (m ? m[1] : css).trim().replace(/^["']|["']$/g, "");
+    if (!name || name.charAt(0) === "-" || GENERIC_FONT_KEYWORDS[name.toLowerCase()]) return "";
+    return name;
+  }
+
+  function normalizeFontWeight(w) {
+    if (typeof w === "number" && isFinite(w)) return w;
+    if (typeof w === "string") {
+      var t = w.trim().toLowerCase();
+      if (t === "bold") return 700;
+      if (t === "normal" || t === "regular") return 400;
+      var n = parseInt(t, 10);
+      if (isFinite(n)) return n;
+    }
+    return null;
+  }
+
+  /**
+   * collectFontRequests(blockLists) — pure. Given one or more block arrays (every breakpoint variant), returns
+   * [{ family, weights }] for each webfont referenced by a block's or sub-element's `props.fontFamily`, weights
+   * = the UNION of 400/700 (always) and every weight actually used with that family. Requesting only 400;700
+   * makes a fontWeight-300 paragraph fall back to another face and wrap differently than the design (#90).
+   */
+  function collectFontRequests(blockLists) {
+    var fam = {};
+    function add(props) {
+      if (!props || typeof props.fontFamily !== "string") return;
+      var name = extractFontFamilyName(props.fontFamily);
+      if (!name) return;
+      var entry = fam[name] || (fam[name] = { 400: true, 700: true });
+      var w = normalizeFontWeight(props.fontWeight);
+      if (w !== null && w >= 100 && w <= 900) entry[Math.round(w / 100) * 100] = true;
+    }
+    (blockLists || []).forEach(function (blocks) {
+      (blocks || []).forEach(function (b) {
+        if (!b) return;
+        add(b.props);
+        (b.subElements || []).forEach(function (se) { add(se && se.props); });
+      });
+    });
+    return Object.keys(fam).sort().map(function (name) {
+      return { family: name, weights: Object.keys(fam[name]).map(Number).sort(function (a, b) { return a - b; }) };
+    });
+  }
+
+  /** buildGoogleFontHref(family, weights) — the ONE Google Fonts css2 URL builder for the Flexible system. */
+  function buildGoogleFontHref(family, weights) {
+    return "https://fonts.googleapis.com/css2?family=" + encodeURIComponent(family).replace(/%20/g, "+") +
+      ":wght@" + weights.join(";") + "&display=swap";
+  }
+
+  function fontLinkId(family, weights) {
+    return "gf-" + String(family).replace(/\s+/g, "-") + "-" + weights.join("_");
+  }
+
+  /**
+   * ensureGoogleFontLinks(doc, requests) — idempotent: appends a <link rel=stylesheet> for every request whose id
+   * is not already in `doc`. Takes the document as a parameter (this module has no DOM globals). Returns the
+   * <link> elements it created, so a caller can wait on them.
+   */
+  function ensureGoogleFontLinks(doc, requests) {
+    var created = [];
+    if (!doc || !doc.head) return created;
+    (requests || []).forEach(function (r) {
+      var id = fontLinkId(r.family, r.weights);
+      if (doc.getElementById(id)) return;
+      var l = doc.createElement("link");
+      l.id = id;
+      l.rel = "stylesheet";
+      l.href = buildGoogleFontHref(r.family, r.weights);
+      doc.head.appendChild(l);
+      created.push(l);
+    });
+    return created;
+  }
+
+  // The Designer canvas's .sub-element wrapper: 1px border + 6px padding, top and bottom.
+  var WRAPPER_CHROME_PX = 14;
+  // A Designer canvas HEADING also carries the Bootstrap .hN class = margin-bottom .5rem, which its stored
+  // _measuredH therefore includes (an eyebrow/paragraph has none). The live wrapper reaches the same +8 via the
+  // renderer's default marginBottom, but only the DESIGNER's number matters here: it is what was stored.
+  var DESIGNER_HEADING_MARGIN_PX = 8;
+
+  /**
+   * measuredLineCount(type, props, measuredH) — pure. Decodes how many text lines the Designer showed for a
+   * heading/eyebrow from the wrapper height it stored (`_measuredH`): lines = (measuredH - chrome) /
+   * (fontSize * lineHeight). null when it cannot tell (other types, no measurement, degenerate font size).
+   */
+  function measuredLineCount(type, props, measuredH) {
+    var mh = Number(measuredH);
+    if (!isFinite(mh) || mh <= 0) return null;
+    if (type !== "heading" && type !== "eyebrow") return null;
+    var p = props || {};
+    var fs = Number(p.fontSize) || (type === "heading" ? 22 : 13);
+    var lh = type === "heading"
+      ? (p.lineHeight !== undefined ? Number(p.lineHeight) : 1.2)
+      : (Number(p.lineHeight) || 1.4);
+    var lineH = fs * lh;
+    if (!(lineH > 0)) return null;
+    var chrome = WRAPPER_CHROME_PX + (type === "heading" ? DESIGNER_HEADING_MARGIN_PX : 0);
+    return Math.max(1, Math.round((mh - chrome) / lineH));
+  }
+
   /**
    * Drops undefined-valued keys. An explicit `el.style.prop = undefined`
    * coerces to the string "undefined", which is invalid CSS and is simply
@@ -121,6 +261,10 @@
    *             Renderer only — the Designer canvas has no equivalent
    *             concept (its own canvas background is always light) and
    *             never passes this.
+   *   measuredH / fixedHeight — LIVE renderer only, heading only: the sub-element's
+   *             stored `_measuredH` and whether it was authored with an explicit height.
+   *             The Designer must NEVER pass these (it would lock its own measurement
+   *             to the first one it took).
    *
    * ASSUMPTIONS:
    * 1. `props` is the sub-element's own `.props` object, already
@@ -154,16 +298,21 @@
 
     if (type === "heading") {
       var hFontNum = Number(p.fontSize) || 22;
+      // Legacy-data safety net (live page only — the Designer never passes measuredH): a heading the Designer
+      // measured as ONE line must not become two just because the live webfont is wider than the fallback the
+      // Designer measured with. See the FONTS section above for the root cause. Off with an explicit textWrap,
+      // an authored fixed height, or without `exact` (flow/mobile layouts wrap by design).
+      var hNowrap = exact && !opts.fixedHeight && measuredLineCount("heading", p, opts.measuredH) === 1;
       return stripUndefined({
         fontSize: mobile ? mobileFontClamp(hFontNum) : (hFontNum + "px"),
-        fontFamily: p.fontFamily || undefined,
+        fontFamily: normalizeFontStack(p.fontFamily) || undefined,
         fontWeight: p.fontWeight || "700",
         color: p.color || (exact && !darkBg ? "#212529" : undefined),
         textAlign: p.textAlign || (exact ? "left" : undefined),
         lineHeight: p.lineHeight !== undefined ? Number(p.lineHeight) : (exact ? 1.2 : undefined),
         letterSpacing: p.letterSpacing !== undefined ? (Number(p.letterSpacing) + "px") : (exact ? "0px" : undefined),
         textTransform: p.textTransform || (exact ? "none" : undefined),
-        whiteSpace: exact ? (p.textWrap || "normal") : undefined,
+        whiteSpace: exact ? (p.textWrap || (hNowrap ? "nowrap" : "normal")) : undefined,
         overflowWrap: exact ? "break-word" : undefined,
       });
     }
@@ -173,7 +322,7 @@
       var constrainWidth = !exact && !mobile && !!p.maxWidth && Number(p.maxWidth) > 0;
       return stripUndefined({
         fontSize: mobile ? mobileFontClamp(Number(p.fontSize) || 15) : (pFontNum + "px"),
-        fontFamily: p.fontFamily || undefined,
+        fontFamily: normalizeFontStack(p.fontFamily) || undefined,
         fontWeight: p.fontWeight || undefined,
         color: p.color || (exact && !darkBg ? "#212529" : undefined),
         textAlign: p.textAlign || (exact ? "left" : undefined),
@@ -230,7 +379,7 @@
       var eFontNum = Number(p.fontSize) || 13;
       return stripUndefined({
         fontSize: mobile ? mobileFontClamp(eFontNum) : (eFontNum + "px"),
-        fontFamily: p.fontFamily || undefined,
+        fontFamily: normalizeFontStack(p.fontFamily) || undefined,
         fontWeight: p.fontWeight || "700",
         color: p.color || "#0d6efd",
         textAlign: p.textAlign || "left",
@@ -807,7 +956,111 @@
     return getUnsetBackgroundBundle();
   }
 
+  /**
+   * isBlankBackgroundBundle(b) — pure. True when a background bundle paints nothing: not a valid bundle, or no
+   * image, no non-transparent solid colour and (for a gradient bundle) no visible gradient.
+   */
+  function isBlankBackgroundBundle(b) {
+    if (!isValidBgBundle(b)) return true;
+    if (b.bgImageUrl) return false;
+    if (b.backgroundType === "gradient") return buildGradientCss(b.gradient) === null;
+    return !b.background || b.background === "transparent";
+  }
+
+  /**
+   * resolveLiveBackgroundBundle(backgroundByBreakpoint, breakpoint, legacyBundle, breakpointAuthored, fallbackMode)
+   * — pure. LIVE-PAGE background resolution (added 2026-09-25). resolveBackgroundBundleForBreakpoint() above is
+   * left EXACTLY as it was — the Designer/section editor rely on its strict isolation (an unset Tablet/Mobile
+   * background is neutral, never Desktop's) — and this wraps it with the one thing only the live page may do:
+   * when a visitor is shown the DESKTOP layout because this breakpoint was never designed, they must also get a
+   * background that layout was designed against. Without that, commit 45f0880 made every legacy desktop-only
+   * section render with NO background below 992px (white sections, white text on white, blank sections).
+   *
+   *   desktop, or this breakpoint IS authored  -> exactly resolveBackgroundBundleForBreakpoint() (isolation kept).
+   *   fallbackMode "none"                      -> same (nothing is borrowed from Desktop).
+   *   not authored + fallbackMode "desktop":
+   *       the breakpoint's own bundle if it deliberately paints something (a configured image/colour/gradient);
+   *       else Desktop's bundle (or the legacy flat bundle) — an EXPLICIT BLANK bundle does not count as
+   *       deliberate, because the section editor writes the active "Preview as" tab's bundle on every save.
+   *
+   * The result is never written back anywhere: stored data and the Designer canvas stay fully isolated.
+   *
+   * @param {{desktop?:object|null,tablet?:object|null,mobile?:object|null}|null|undefined} backgroundByBreakpoint
+   * @param {'desktop'|'tablet'|'mobile'} breakpoint
+   * @param {object} legacyBundle - shape-valid bundle assembled from the section's flat legacy fields.
+   * @param {boolean} breakpointAuthored - isVariantAuthored() of the layout that will render at this breakpoint.
+   * @param {'desktop'|'none'} [fallbackMode]
+   * @returns {object} a background bundle — never null/undefined.
+   */
+  function resolveLiveBackgroundBundle(backgroundByBreakpoint, breakpoint, legacyBundle, breakpointAuthored, fallbackMode) {
+    var own = resolveBackgroundBundleForBreakpoint(backgroundByBreakpoint, breakpoint, legacyBundle);
+    if (breakpoint === "desktop" || breakpointAuthored || fallbackMode === "none") return own;
+    if (!isBlankBackgroundBundle(own)) return own;
+    return resolveBackgroundBundleForBreakpoint(backgroundByBreakpoint, "desktop", legacyBundle);
+  }
+
+  /**
+   * computeStageFit(opts) — pure. THE single decision of how a free-mode design canvas (cw x ch design px) is
+   * fitted into the box it is shown in (vw x vh CSS px). Consumed by BOTH:
+   *   1. components/sections/FlexibleSectionRenderer.tsx  — the live content plate and background plate;
+   *   2. public/flexible-designer.html                    — the canvas's own fit-to-panel zoom
+   *                                                          (getCanvasScale / resetUserZoom),
+   * so the Designer preview and the live page can never disagree about scale or placement.
+   *
+   * Everything is UNIFORM — nothing is ever stretched. (Until 2026-09-25 the live background plate was scaled
+   * NON-uniformly, scale(vw/cw, vh/ch): a photo was visibly stretched — ~14% at 768x1024, ~36% at 800x1280 — and
+   * drifted out of register with the uniformly-scaled content on top of it.)
+   *
+   *   mode "single": scale = min(vw/cw, vh/ch, maxScale) — "contain": the WHOLE design is always visible and the
+   *                  box is never grown/shrunk to fit content (the CMS-wide 100vh hard boundary).
+   *   mode "multi":  scale = min(vw/cw, maxScale) — width fit; the caller grows the box to the design height with
+   *                  CSS aspect-ratio, so the whole design is visible with no crop.
+   *
+   * The content plate is top-anchored and horizontally centred: contentLeft = max(0, (vw - cw*scale) / 2).
+   * The background plate is a uniformly-scaled box that COVERS THE WHOLE fitted box: its size in canvas units is
+   * (vw/scale) x (vh/scale), so `background-size: cover` and the owner's saved focal point resolve against the real
+   * section box, and an authored px/contain size scales together with the content.
+   *
+   * ASSUMPTIONS: cw/ch are design px > 0 (callers floor them); vw/vh are the fitted box in CSS px (the plate's
+   *   stage: the section minus any Section Header inset); maxScale defaults to Infinity.
+   * FAILURE MODES: non-finite/<= 0 cw or ch -> 1; non-finite/<= 0 vw or vh -> cw / ch (so the scale is 1, never
+   *   NaN / 0 / Infinity). The scale is rounded to 4dp (kills float noise from the vw/cw division, which renders
+   *   text visibly soft under transform:scale() — same mitigation both editor canvases apply to their own zoom).
+   *
+   * @param {{cw:number,ch:number,vw:number,vh:number,mode?:"single"|"multi",maxScale?:number}} opts
+   * @returns {{scale:number,contentLeft:number,contentTop:number,contentW:number,contentH:number,
+   *            bg:{left:number,top:number,width:number,height:number,scale:number}}}
+   */
+  function computeStageFit(opts) {
+    opts = opts || {};
+    var cw = isFinite(opts.cw) && opts.cw > 0 ? Number(opts.cw) : 1;
+    var ch = isFinite(opts.ch) && opts.ch > 0 ? Number(opts.ch) : 1;
+    var vw = isFinite(opts.vw) && opts.vw > 0 ? Number(opts.vw) : cw;
+    var vh = isFinite(opts.vh) && opts.vh > 0 ? Number(opts.vh) : ch;
+    var maxScale = isFinite(opts.maxScale) && opts.maxScale > 0 ? Number(opts.maxScale) : Infinity;
+    var raw = opts.mode === "multi" ? Math.min(vw / cw, maxScale) : Math.min(vw / cw, vh / ch, maxScale);
+    var scale = Math.round(raw * 10000) / 10000;
+    var contentW = cw * scale;
+    return {
+      scale: scale,
+      contentLeft: Math.max(0, (vw - contentW) / 2),
+      contentTop: 0,
+      contentW: contentW,
+      contentH: ch * scale,
+      bg: { left: 0, top: 0, width: vw / scale, height: vh / scale, scale: scale },
+    };
+  }
+
   return {
+    normalizeFontStack: normalizeFontStack,
+    extractFontFamilyName: extractFontFamilyName,
+    collectFontRequests: collectFontRequests,
+    buildGoogleFontHref: buildGoogleFontHref,
+    ensureGoogleFontLinks: ensureGoogleFontLinks,
+    measuredLineCount: measuredLineCount,
+    computeStageFit: computeStageFit,
+    isBlankBackgroundBundle: isBlankBackgroundBundle,
+    resolveLiveBackgroundBundle: resolveLiveBackgroundBundle,
     computeSubElementStyle: computeSubElementStyle,
     computeSubElementPosition: computeSubElementPosition,
     restampBlockZIndexes: restampBlockZIndexes,

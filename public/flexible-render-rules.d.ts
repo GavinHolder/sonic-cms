@@ -18,6 +18,13 @@ export interface SubElementStyleOpts {
   mobile?: boolean;
   /** Suppresses the #212529 default text colour on a dark section background (renderer only). */
   darkBg?: boolean;
+  /**
+   * LIVE renderer only, heading only: the sub-element's stored `_measuredH`. With `exact`, a heading the Designer
+   * measured as ONE line is kept on one line (white-space: nowrap). The Designer canvas must never pass this.
+   */
+  measuredH?: number;
+  /** LIVE renderer only: the sub-element was authored with an explicit height (disables the measuredH line guard). */
+  fixedHeight?: boolean;
 }
 
 export interface SubElementPixelPos {
@@ -257,3 +264,68 @@ export function resolveBackgroundBundleForBreakpoint(
   breakpoint: "desktop" | "tablet" | "mobile",
   legacyBundle: BgBundle
 ): BgBundle;
+
+/** True when a background bundle paints nothing (invalid, or no image / non-transparent colour / visible gradient). */
+export function isBlankBackgroundBundle(bundle: BgBundle | null | undefined): boolean;
+
+/**
+ * LIVE-PAGE background resolution: identical to resolveBackgroundBundleForBreakpoint() (isolation kept) except that
+ * a Tablet/Mobile breakpoint that is NOT authored and shows the Desktop layout (fallbackMode "desktop", the
+ * default) borrows Desktop's bundle when its own is missing or blank. Never written back; the Designer does not
+ * use it. See the doc comment in flexible-render-rules.js.
+ */
+export function resolveLiveBackgroundBundle(
+  backgroundByBreakpoint: Partial<BackgroundByBreakpoint> | null | undefined,
+  breakpoint: "desktop" | "tablet" | "mobile",
+  legacyBundle: BgBundle,
+  breakpointAuthored: boolean,
+  fallbackMode?: "desktop" | "none"
+): BgBundle;
+
+export interface StageFitOpts {
+  /** Design canvas size in design px (for multi: the FULL stacked height cw x (ch * bands)). */
+  cw: number;
+  ch: number;
+  /** The box the design is fitted into, CSS px. */
+  vw: number;
+  vh: number;
+  /** "single" (default): contain-fit; "multi": width fit only (the caller grows the box). */
+  mode?: "single" | "multi";
+  /** Upper clamp on the uniform scale (e.g. 1.15 for the Mobile plate, 1 for the Designer's own zoom). */
+  maxScale?: number;
+}
+
+export interface StageFit {
+  /** The ONE uniform scale factor (4dp). */
+  scale: number;
+  /** Content plate offset inside the box: horizontally centred, top-anchored. */
+  contentLeft: number;
+  contentTop: number;
+  contentW: number;
+  contentH: number;
+  /** Background plate: size in canvas units, scaled by the SAME uniform factor so it covers the whole box. */
+  bg: { left: number; top: number; width: number; height: number; scale: number };
+}
+
+/** The single shared decision of how a free-mode canvas is fitted into a box — uniform, never stretched. */
+export function computeStageFit(opts: StageFitOpts): StageFit;
+
+/** Replaces a trailing Google category word (display/handwriting — not valid CSS generics) with a real generic. */
+export function normalizeFontStack<T extends string | undefined | null>(css: T): T;
+/** First (webfont) family of a stack, or "" for generics/inherit/system stacks. */
+export function extractFontFamilyName(css: unknown): string;
+
+export interface FontRequest {
+  family: string;
+  weights: number[];
+}
+/** Every webfont (+ the union of its used weights, 400/700 always) referenced by the given block lists. */
+export function collectFontRequests(
+  blockLists: Array<Array<{ props?: Record<string, unknown>; subElements?: Array<{ props?: Record<string, unknown> }> }> | null | undefined>
+): FontRequest[];
+/** The one Google Fonts css2 URL builder for the Flexible system (Designer + live renderer). */
+export function buildGoogleFontHref(family: string, weights: number[]): string;
+/** Idempotently appends a stylesheet <link> per request to `doc`; returns the links it created. */
+export function ensureGoogleFontLinks(doc: Document, requests: FontRequest[]): HTMLLinkElement[];
+/** Lines the Designer showed for a heading/eyebrow, decoded from its stored `_measuredH` (null if unknowable). */
+export function measuredLineCount(type: string, props: Record<string, unknown> | undefined, measuredH: unknown): number | null;

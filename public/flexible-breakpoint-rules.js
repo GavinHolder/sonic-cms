@@ -105,6 +105,57 @@
   }
 
   /**
+   * isVariantAuthored(variant) — pure. A Tablet/Mobile variant counts as "authored" (a layout somebody
+   * actually designed) iff it holds at least one block. NOT "the variant exists" and NOT "it has its own
+   * background bundle": clicking the Tablet tab in the Designer and pressing Save persists an EMPTY variant
+   * (public/flexible-designer.html's setDevicePreview seeds emptyVariantBlob() on first visit and buildJson
+   * serialises it), and FlexibleSectionEditorModal writes the active "Preview as" tab's background bundle on
+   * every save — so neither is evidence that anyone designed anything for that breakpoint.
+   *
+   * @param {Object|null|undefined} variant - one variant blob ({ blocks: [...], ... }).
+   * @returns {boolean}
+   */
+  function isVariantAuthored(variant) {
+    return !!variant && Array.isArray(variant.blocks) && variant.blocks.length > 0;
+  }
+
+  /**
+   * pickLiveVariant(resolved, breakpoint, fallbackMode) — pure. LIVE-PAGE variant selection (added
+   * 2026-09-25). The Designer keeps using pickActiveVariant() above, unchanged: there an empty Tablet/Mobile
+   * canvas must stay empty (breakpoint isolation — never copy, seed or sync data between breakpoints).
+   * The live page only READS stored data and never writes it back, so it can afford a visitor-friendly rule:
+   *
+   *   desktop                    -> the Desktop variant.
+   *   tablet/mobile, AUTHORED    -> that breakpoint's own variant, exactly as designed.
+   *   tablet/mobile, NOT designed:
+   *       fallbackMode "desktop" (default) -> the Desktop variant, flagged isFallback (the renderer scales it
+   *                                            at 768-991 and reflows it below 768) — a visitor never sees a
+   *                                            blank section just because a breakpoint was never designed.
+   *       fallbackMode "none"              -> blank: the section shows nothing at that breakpoint (an explicit,
+   *                                            per-section owner choice — content.undesignedBreakpoint).
+   *
+   * "Not designed" = !isVariantAuthored(): a missing variant AND a saved-but-empty one are treated the same.
+   *
+   * @param {{desktop?:Object|null,tablet?:Object|null,mobile?:Object|null}} resolved - resolveVariants() output.
+   * @param {'desktop'|'tablet'|'mobile'} breakpoint
+   * @param {'desktop'|'none'} [fallbackMode] - anything other than "none" means "desktop".
+   * @returns {{data:Object|null,isFallback:boolean,blank:boolean}} blank => data.blocks is [] (render nothing).
+   */
+  function pickLiveVariant(resolved, breakpoint, fallbackMode) {
+    resolved = resolved || {};
+    if (breakpoint === "desktop") {
+      return { data: resolved.desktop || null, isFallback: false, blank: false };
+    }
+    var own = resolved[breakpoint] || null;
+    if (isVariantAuthored(own)) return { data: own, isFallback: false, blank: false };
+    if (fallbackMode === "none") {
+      var blankBlob = Object.assign({}, own || resolved.desktop || {}, { blocks: [] });
+      return { data: blankBlob, isFallback: false, blank: true };
+    }
+    return { data: resolved.desktop || null, isFallback: true, blank: false };
+  }
+
+  /**
    * Deep-clones a variant blob (JSON round-trip), or passes null through.
    *
    * 2026-09-22: no longer called anywhere in this codebase — it used to be how
@@ -552,6 +603,8 @@
     resolveVariants: resolveVariants,
     pickBreakpointForWidth: pickBreakpointForWidth,
     pickActiveVariant: pickActiveVariant,
+    isVariantAuthored: isVariantAuthored,
+    pickLiveVariant: pickLiveVariant,
     duplicateVariant: duplicateVariant,
     clampBlocksToCanvas: clampBlocksToCanvas,
     variantCanvasDims: variantCanvasDims,

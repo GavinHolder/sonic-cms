@@ -26,6 +26,27 @@ export interface SerializedVariants {
 export function resolveVariants(rawDesignerData: unknown): ResolvedVariants;
 export function pickBreakpointForWidth(screenW: number): Breakpoint;
 export function pickActiveVariant(resolved: ResolvedVariants, breakpoint: Breakpoint): ActiveVariant;
+
+/** What a Tablet/Mobile breakpoint shows when it has not been designed (content.undesignedBreakpoint). */
+export type UndesignedBreakpointMode = "desktop" | "none";
+
+export interface LiveVariant extends ActiveVariant {
+  /** true only for fallbackMode "none" on an undesigned breakpoint: render nothing (data.blocks is []). */
+  blank: boolean;
+}
+
+/** True iff the variant holds at least one block (NOT merely "exists" — see the JS doc comment). */
+export function isVariantAuthored(variant: Record<string, unknown> | null | undefined): boolean;
+
+/**
+ * LIVE-page variant selection: authored -> itself; undesigned -> Desktop (isFallback) by default, or blank
+ * when the section opts in via content.undesignedBreakpoint === "none". The Designer keeps pickActiveVariant.
+ */
+export function pickLiveVariant(
+  resolved: ResolvedVariants,
+  breakpoint: Breakpoint,
+  fallbackMode?: UndesignedBreakpointMode
+): LiveVariant;
 export function duplicateVariant<T>(sourceVariantData: T | null): T | null;
 export function clampBlocksToCanvas<T extends { x?: number; y?: number; w?: number; h?: number }>(
   blocks: T[],
