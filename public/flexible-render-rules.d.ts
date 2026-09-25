@@ -20,11 +20,14 @@ export interface SubElementStyleOpts {
   darkBg?: boolean;
   /**
    * LIVE renderer only, heading only: the sub-element's stored `_measuredH`. With `exact`, a heading the Designer
-   * measured as ONE line is kept on one line (white-space: nowrap). The Designer canvas must never pass this.
+   * measured as ONE line is kept on one line (white-space: nowrap) — but only for data saved before the Designer
+   * started stamping `_fontsSettled` (see measurementSettled). The Designer canvas must never pass this.
    */
   measuredH?: number;
   /** LIVE renderer only: the sub-element was authored with an explicit height (disables the measuredH line guard). */
   fixedHeight?: boolean;
+  /** LIVE renderer only: the Designer stamped the measurement `_fontsSettled` (taken with webfonts loaded) — trusted, guard off. */
+  measurementSettled?: boolean;
 }
 
 export interface SubElementPixelPos {

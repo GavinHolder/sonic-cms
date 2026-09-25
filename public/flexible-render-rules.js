@@ -184,7 +184,13 @@
   /**
    * measuredLineCount(type, props, measuredH) — pure. Decodes how many text lines the Designer showed for a
    * heading/eyebrow from the wrapper height it stored (`_measuredH`): lines = (measuredH - chrome) /
-   * (fontSize * lineHeight). null when it cannot tell (other types, no measurement, degenerate font size).
+   * (fontSize * lineHeight). null when it cannot tell (other types, no measurement, degenerate font size, or a
+   * heading line so short that the decode is ambiguous — see below).
+   *
+   * AMBIGUITY GUARD: the decode assumes the Designer's +8px heading margin is part of the stored height. If it is
+   * not (a heading class with no margin), the count is under-read by 8/lineH lines — half a line or more once
+   * lineH <= 16px, which turned a 2-line heading with line-height 0.5 into "1 line". Below that threshold the
+   * measurement is treated as unknowable (null) rather than guessed.
    */
   function measuredLineCount(type, props, measuredH) {
     var mh = Number(measuredH);
@@ -197,6 +203,7 @@
       : (Number(p.lineHeight) || 1.4);
     var lineH = fs * lh;
     if (!(lineH > 0)) return null;
+    if (type === "heading" && lineH <= 2 * DESIGNER_HEADING_MARGIN_PX) return null;
     var chrome = WRAPPER_CHROME_PX + (type === "heading" ? DESIGNER_HEADING_MARGIN_PX : 0);
     return Math.max(1, Math.round((mh - chrome) / lineH));
   }
@@ -261,10 +268,12 @@
    *             Renderer only — the Designer canvas has no equivalent
    *             concept (its own canvas background is always light) and
    *             never passes this.
-   *   measuredH / fixedHeight — LIVE renderer only, heading only: the sub-element's
-   *             stored `_measuredH` and whether it was authored with an explicit height.
-   *             The Designer must NEVER pass these (it would lock its own measurement
-   *             to the first one it took).
+   *   measuredH / fixedHeight / measurementSettled — LIVE renderer only, heading only: the sub-element's
+   *             stored `_measuredH`, whether it was authored with an explicit height, and whether the
+   *             Designer stamped that measurement `_fontsSettled` (taken with webfonts loaded). The
+   *             one-line guard (white-space: nowrap) exists ONLY for data saved before that stamp
+   *             existed; a stamped measurement is trusted as-is. The Designer must NEVER pass these
+   *             (it would lock its own measurement to the first one it took).
    *
    * ASSUMPTIONS:
    * 1. `props` is the sub-element's own `.props` object, already
@@ -301,8 +310,11 @@
       // Legacy-data safety net (live page only — the Designer never passes measuredH): a heading the Designer
       // measured as ONE line must not become two just because the live webfont is wider than the fallback the
       // Designer measured with. See the FONTS section above for the root cause. Off with an explicit textWrap,
-      // an authored fixed height, or without `exact` (flow/mobile layouts wrap by design).
-      var hNowrap = exact && !opts.fixedHeight && measuredLineCount("heading", p, opts.measuredH) === 1;
+      // an authored fixed height, a measurement the Designer stamped as taken with fonts settled (it is true, and
+      // nowrap would turn its vertical overlap into horizontal overflow that a centred/right-aligned heading
+      // spills sideways and the stage clips), or without `exact` (flow/mobile layouts wrap by design).
+      var hNowrap = exact && !opts.fixedHeight && !opts.measurementSettled
+        && measuredLineCount("heading", p, opts.measuredH) === 1;
       return stripUndefined({
         fontSize: mobile ? mobileFontClamp(hFontNum) : (hFontNum + "px"),
         fontFamily: normalizeFontStack(p.fontFamily) || undefined,

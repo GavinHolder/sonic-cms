@@ -4436,7 +4436,7 @@ function startInlineTextEdit(blockId, seId, previewEl) {
       : textEl.textContent.trim();
     // Measure actual DOM height and update block to fit new content size
     const seEl = previewEl.closest('.sub-element');
-    if (seEl) { se._measuredH = seEl.offsetHeight; }
+    if (seEl) { recordSubMeasurement(se, seEl, false); }
     fitBlockToSubElementsDOM(blockId);
     renderCanvas(); // Re-render so empty placeholder shows if user typed nothing
     autoSave();
@@ -5257,7 +5257,7 @@ function fitBlockToSubElementsDOM(blockId, restack, lockWidth) {
   // Measure all actual rendered sizes first
   block.subElements.forEach(se => {
     const domEl = document.querySelector(`.sub-element[data-sub-id="${se.id}"]`);
-    if (domEl) { se._measuredH = domEl.offsetHeight; se._measuredW = domEl.offsetWidth; }
+    if (domEl) { recordSubMeasurement(se, domEl, true); }
   });
 
   // Restack vertically when called after initial render (not during drag).
@@ -9670,8 +9670,21 @@ function scheduleFontRemeasure() {
 function remeasureSubElementCaches() {
   (state.blocks || []).forEach(b => (b.subElements || []).forEach(se => {
     const dom = document.querySelector('.sub-element[data-sub-id="' + se.id + '"]');
-    if (dom && dom.offsetHeight > 0) { se._measuredH = dom.offsetHeight; se._measuredW = dom.offsetWidth; }
+    if (dom && dom.offsetHeight > 0) { recordSubMeasurement(se, dom, true); }
   }));
+}
+/**
+ * The ONE place a sub-element's measurement caches are written from its DOM node. Besides _measuredH (and
+ * _measuredW) it records whether webfonts had settled at that instant (`se._fontsSettled`): the live page trusts a
+ * stamped measurement as-is and only applies its one-line safety net (white-space: nowrap on a heading measured as
+ * a single line) to data saved before the stamp existed. A measurement taken while a font is still loading clears
+ * the stamp; the `loadingdone` / `fonts.ready` re-measure above stamps it again once the real font is in.
+ */
+function recordSubMeasurement(se, domEl, withWidth) {
+  se._measuredH = domEl.offsetHeight;
+  if (withWidth) se._measuredW = domEl.offsetWidth;
+  if (!document.fonts || document.fonts.status === 'loaded') se._fontsSettled = true;
+  else delete se._fontsSettled;
 }
 if (document.fonts) {
   document.fonts.addEventListener('loadingdone', scheduleFontRemeasure);

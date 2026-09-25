@@ -2930,7 +2930,7 @@ function DesignerBlocksRenderer({
  * - Scroll-triggered entrance animation via IntersectionObserver
  * - Content delegation to renderInner() which switches on block.type
  */
-type SubEl = { id?: string | number; type: string; props?: Record<string, unknown>; x?: number; y?: number; w?: number | null; h?: number | null; _measuredH?: number };
+type SubEl = { id?: string | number; type: string; props?: Record<string, unknown>; x?: number; y?: number; w?: number | null; h?: number | null; _measuredH?: number; _fontsSettled?: boolean };
 
 /**
  * Groups sub-elements into columns by clustering their x positions.
@@ -4171,6 +4171,8 @@ function DesignerSubElement({ sub, pkg, mobile, exact, darkBg }: { sub: SubEl; p
               // Designer measured as ONE line stays on one line (see computeSubElementStyle / measuredLineCount).
               measuredH: exact ? sub._measuredH : undefined,
               fixedHeight: sub.h != null,
+              // Stamped by the Designer when the measurement was taken with webfonts settled: trusted as-is.
+              measurementSettled: sub._fontsSettled === true,
             }),
             ...outlinedStyle,
             ...textShadowStyle,
