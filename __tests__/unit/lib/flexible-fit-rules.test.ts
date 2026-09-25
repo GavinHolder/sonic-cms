@@ -158,6 +158,18 @@ describe('isVariantAuthored / pickLiveVariant', () => {
     expect(t.data.blocks).toEqual([])
   })
 
+  it('fallback mode "off" (non-free sections) is exactly pickActiveVariant: never blank, never borrows through an empty variant', () => {
+    const emptyTablet = { desktop: blob(2), tablet: blob(0), mobile: null }
+    // a saved-but-empty Tablet variant is used AS IS (the pre-fallback rule), unlike the "desktop" mode
+    expect(B.pickLiveVariant(emptyTablet, 'tablet', 'off')).toEqual({ ...B.pickActiveVariant(emptyTablet, 'tablet'), blank: false })
+    expect(B.pickLiveVariant(emptyTablet, 'tablet', 'off').data).toBe(emptyTablet.tablet)
+    // a missing variant falls back to Desktop with isFallback true (again exactly pickActiveVariant)
+    const noTablet = { desktop: blob(2), tablet: null, mobile: null }
+    expect(B.pickLiveVariant(noTablet, 'tablet', 'off')).toEqual({ ...B.pickActiveVariant(noTablet, 'tablet'), blank: false })
+    // "none" must not blank an "off" section
+    expect(B.pickLiveVariant(noTablet, 'mobile', 'off').blank).toBe(false)
+  })
+
   it('does not mutate its input', () => {
     const r = { desktop: blob(1), tablet: null, mobile: null }
     const snap = JSON.stringify(r)
@@ -197,6 +209,15 @@ describe('resolveLiveBackgroundBundle', () => {
 
   it('fallback mode "none" never borrows Desktop\'s background', () => {
     expect(R.resolveLiveBackgroundBundle({ desktop: desk }, 'tablet', legacy, false, 'none')).toEqual(R.getUnsetBackgroundBundle())
+  })
+
+  it('fallback mode "off" (non-free sections) keeps strict isolation: an un-configured Tablet/Mobile background stays neutral', () => {
+    expect(R.resolveLiveBackgroundBundle({ desktop: desk }, 'tablet', legacy, false, 'off')).toEqual(R.getUnsetBackgroundBundle())
+    expect(R.resolveLiveBackgroundBundle(null, 'mobile', legacy, false, 'off')).toEqual(R.getUnsetBackgroundBundle())
+    // ... which is exactly what the isolation resolver returns (i.e. what these sections rendered before the fallback existed)
+    expect(R.resolveLiveBackgroundBundle({ desktop: desk }, 'tablet', legacy, false, 'off'))
+      .toEqual(R.resolveBackgroundBundleForBreakpoint({ desktop: desk }, 'tablet', legacy))
+    expect(R.resolveLiveBackgroundBundle({ desktop: desk, tablet: own }, 'tablet', legacy, false, 'off')).toBe(own)
   })
 
   it('desktop resolves exactly like the existing resolver', () => {

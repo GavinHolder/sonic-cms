@@ -190,6 +190,14 @@ body:has(#snap-container) {
   overflow: hidden;
 }
 
+/* A free-mode Flexible section that is left out on this screen size ("When Tablet / Mobile isn't designed: Show
+   nothing") is display:none, but DynamicSection.wrapSection puts its Lower Third / Motion Elements in a wrapper
+   div (wrapper > z-index:10 div > <section data-fx-blank>). That wrapper would collapse to zero height while its
+   bottom-anchored Lower Third and Motion Elements still painted over the NEXT section — so hide the whole wrapper. */
+#snap-container div:has(> div > section[data-fx-blank]) {
+  display: none;
+}
+
 /* Multi-screen sections: allow content to exceed 100vh.
    Must use #snap-container prefix to beat the specificity of
    #snap-container section:not(.hero-carousel) { height:100vh } rule above. */

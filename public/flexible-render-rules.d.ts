@@ -279,7 +279,7 @@ export function resolveLiveBackgroundBundle(
   breakpoint: "desktop" | "tablet" | "mobile",
   legacyBundle: BgBundle,
   breakpointAuthored: boolean,
-  fallbackMode?: "desktop" | "none"
+  fallbackMode?: "desktop" | "none" | "off"
 ): BgBundle;
 
 export interface StageFitOpts {

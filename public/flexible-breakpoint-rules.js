@@ -133,16 +133,23 @@
    *                                            blank section just because a breakpoint was never designed.
    *       fallbackMode "none"              -> blank: the section shows nothing at that breakpoint (an explicit,
    *                                            per-section owner choice — content.undesignedBreakpoint).
+   *   fallbackMode "off" (any section that is NOT a free-mode Designer layout — grid / mosaic / element-based):
+   *       the live fallback does not exist for it. Exactly pickActiveVariant() (never blank, no borrowing), i.e. what
+   *       these sections rendered before the fallback was introduced.
    *
    * "Not designed" = !isVariantAuthored(): a missing variant AND a saved-but-empty one are treated the same.
    *
    * @param {{desktop?:Object|null,tablet?:Object|null,mobile?:Object|null}} resolved - resolveVariants() output.
    * @param {'desktop'|'tablet'|'mobile'} breakpoint
-   * @param {'desktop'|'none'} [fallbackMode] - anything other than "none" means "desktop".
+   * @param {'desktop'|'none'|'off'} [fallbackMode] - "none", "off"; anything else means "desktop".
    * @returns {{data:Object|null,isFallback:boolean,blank:boolean}} blank => data.blocks is [] (render nothing).
    */
   function pickLiveVariant(resolved, breakpoint, fallbackMode) {
     resolved = resolved || {};
+    if (fallbackMode === "off") {
+      var active = pickActiveVariant(resolved, breakpoint);
+      return { data: active.data, isFallback: active.isFallback, blank: false };
+    }
     if (breakpoint === "desktop") {
       return { data: resolved.desktop || null, isFallback: false, blank: false };
     }

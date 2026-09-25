@@ -19,7 +19,7 @@ import type { BgBundle, BackgroundByBreakpoint, GradientConfig } from "../../pub
 // Per-breakpoint independent layouts (2026-09-11) — shared shape-normalization/variant-
 // selection module (Task 1 of this feature). Companion to flexible-render-rules.js above;
 // see that file's own doc comment for the full designerData shape contract.
-import { resolveVariants, pickBreakpointForWidth, pickActiveVariant, pickLiveVariant, isVariantAuthored } from "../../public/flexible-breakpoint-rules.js";
+import { resolveVariants, pickBreakpointForWidth, pickLiveVariant, isVariantAuthored } from "../../public/flexible-breakpoint-rules.js";
 import type { UndesignedBreakpointMode } from "../../public/flexible-breakpoint-rules.js";
 
 const AnimBgRenderer    = dynamic(() => import("./AnimBgRenderer"), { ssr: false });
@@ -525,7 +525,7 @@ const MOBILE_PLATE_MAX_SCALE = 1.15;
  *
  * The per-BREAKPOINT selection (which variant's OWN blob actually renders for the current
  * viewport width) is a SEPARATE, later concern — handled inside DesignerBlocksRenderer's
- * own isFreeMode branch via a direct resolveVariants()/pickActiveVariant() call, not here.
+ * own isFreeMode branch via a direct resolveVariants()/pickLiveVariant() call (only when the caller passes no resolved variant), not here.
  */
 function resolveTopLevelDesignerData(raw: string | Record<string, unknown> | null | undefined): Record<string, unknown> | null {
   if (!raw) return null;
@@ -589,6 +589,29 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
+  // ── Free-mode cover-plate detection (Option C) ─────────────────────────────
+  // A free-mode designer section is rendered as ONE cover plate: the bg image + all
+  // blocks live inside a single fixed-px stage that is scaled to COVER the section box
+  // (max(sectionW/1440, sectionH/ch)) — so the live crop equals the designer crop and text
+  // stays registered over the image. Detected here so the parent can (a) skip the separate
+  // section-level bg-image layer and (b) mount the plate as a section-level absolute layer.
+  // Mirrors DesignerBlocksRenderer's own isFreeMode test; mosaic/empty are excluded.
+  const isFreeDesigner = useMemo(() => {
+    if (!designerData) return false;
+    try {
+      // Per-breakpoint independent layouts (2026-09-11): resolve to the canonical desktop
+      // blob first — see resolveTopLevelDesignerData's own doc comment. Without this, a
+      // genuinely per-breakpoint-wrapped free-mode section's top level has NO positionMode/
+      // blocks at all (they live under d.desktop.*), so this would silently compute false
+      // and the free-mode cover-plate below would never mount.
+      const d = resolveTopLevelDesignerData(designerData);
+      const free    = d?.positionMode === "free" || d?.layoutType === "free";
+      const mosaic  = (d?.layout as { layoutMode?: string } | undefined)?.layoutMode === "mosaic" || d?.layoutType === "mosaic";
+      const hasBlk  = Array.isArray(d?.blocks) && (d?.blocks as unknown[]).length > 0;
+      return !!(free && !mosaic && hasBlk);
+    } catch { return false; }
+  }, [designerData]);
+
   // ── Per-breakpoint independent layouts (2026-09-11) — resolve ONCE, here ───────────────
   // Every parent-level decision below that depends on "which breakpoint's designerData
   // variant is actually live right now" — freePlateDesktop (section-height override +
@@ -617,8 +640,12 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   // render a blank plate. Undesigned breakpoints show the Desktop layout (scaled at 768-991, reflowed below
   // 768) unless the section opts into "show nothing" via content.undesignedBreakpoint === "none". This is a
   // read-time decision only: stored data and the Designer canvas stay fully isolated per breakpoint.
-  const undesignedFallback: UndesignedBreakpointMode =
-    (content as { undesignedBreakpoint?: string }).undesignedBreakpoint === "none" ? "none" : "desktop";
+  // The live fallback (borrow Desktop's layout AND background, or show nothing) exists for FREE-mode Designer sections
+  // only: grid / mosaic / element-based sections ("off") render exactly what they always did at every breakpoint,
+  // and content.undesignedBreakpoint is ignored for them (the editor only offers the choice for free sections).
+  const undesignedFallback: UndesignedBreakpointMode = !isFreeDesigner
+    ? "off"
+    : (content as { undesignedBreakpoint?: string }).undesignedBreakpoint === "none" ? "none" : "desktop";
   const { data: pickedDesignerData, isFallback: isBreakpointFallback, blank: isBreakpointBlank } =
     pickLiveVariant(resolvedDesignerVariants, activeBreakpointKey, undesignedFallback);
   const breakpointAuthored =
@@ -657,29 +684,6 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
       .filter((b) => isFullBleedVolt(b))
       .map((b) => ({ id: b.id, props: (b.props || {}) as Record<string, unknown> }));
   }, [designerData, effectiveDesignerData]);
-
-  // ── Free-mode cover-plate detection (Option C) ─────────────────────────────
-  // A free-mode designer section is rendered as ONE cover plate: the bg image + all
-  // blocks live inside a single fixed-px stage that is scaled to COVER the section box
-  // (max(sectionW/1440, sectionH/ch)) — so the live crop equals the designer crop and text
-  // stays registered over the image. Detected here so the parent can (a) skip the separate
-  // section-level bg-image layer and (b) mount the plate as a section-level absolute layer.
-  // Mirrors DesignerBlocksRenderer's own isFreeMode test; mosaic/empty are excluded.
-  const isFreeDesigner = useMemo(() => {
-    if (!designerData) return false;
-    try {
-      // Per-breakpoint independent layouts (2026-09-11): resolve to the canonical desktop
-      // blob first — see resolveTopLevelDesignerData's own doc comment. Without this, a
-      // genuinely per-breakpoint-wrapped free-mode section's top level has NO positionMode/
-      // blocks at all (they live under d.desktop.*), so this would silently compute false
-      // and the free-mode cover-plate below would never mount.
-      const d = resolveTopLevelDesignerData(designerData);
-      const free    = d?.positionMode === "free" || d?.layoutType === "free";
-      const mosaic  = (d?.layout as { layoutMode?: string } | undefined)?.layoutMode === "mosaic" || d?.layoutType === "mosaic";
-      const hasBlk  = Array.isArray(d?.blocks) && (d?.blocks as unknown[]).length > 0;
-      return !!(free && !mosaic && hasBlk);
-    } catch { return false; }
-  }, [designerData]);
 
   // Scroll Stage config — only active when contentMode === "multi" and enabled
   const scrollStage = (content as any).scrollStage as import("./scroll-stage/types").ScrollStageConfig | undefined;
@@ -1082,6 +1086,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
       id={section.id}
       className="cms-section flexible-section"
       data-content-mode={contentMode || "single"}
+      {...(isBreakpointBlank ? { "data-fx-blank": "" } : {})}
       style={{
         "--section-bg":  isBgGrad ? "#0f0c29" : bgColor,
         "--section-text":  sectionText,
@@ -1351,7 +1356,10 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           >
             <div className="container-fluid px-0" style={{ overflow: 'hidden', height: '100%' }}>
               {designerData
-                ? <DesignerBlocksRenderer designerData={designerData} darkBg={darkBg} scrollStageZone={scrollStageZone} />
+                ? <DesignerBlocksRenderer designerData={designerData} darkBg={darkBg} scrollStageZone={scrollStageZone}
+                    // Same already-resolved live variant the other free-mode call sites get (free sections only), so
+                    // this instance never re-derives "which variant is live" with a different rule.
+                    {...(isFreeDesigner ? { effectiveDesignerData, isBreakpointFallback, activeBreakpointKey } : {})} />
                 : <>
                     {layout.type === "grid"     && <GridLayout    layout={layout} elements={elements} darkBg={darkBg} />}
                     {layout.type === "absolute" && <AbsoluteLayout elements={elements} darkBg={darkBg} />}
@@ -2488,7 +2496,7 @@ function DesignerBlocksRenderer({
         resolvedActiveBreakpointKey = pickBreakpointForWidth(
           mounted ? screenW : 1920 // pre-mount/SSR: assume desktop-width, matching this file's existing SSR-safe "pre-mount counts as desktop" convention used elsewhere (see freePlateDesktop's own comment)
         );
-        const picked = pickActiveVariant(resolveVariants(data), resolvedActiveBreakpointKey);
+        const picked = pickLiveVariant(resolveVariants(data), resolvedActiveBreakpointKey, "desktop");
         effectiveData = picked.data;
         resolvedIsBreakpointFallback = picked.isFallback;
       }

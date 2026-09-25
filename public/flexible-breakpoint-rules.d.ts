@@ -28,10 +28,10 @@ export function pickBreakpointForWidth(screenW: number): Breakpoint;
 export function pickActiveVariant(resolved: ResolvedVariants, breakpoint: Breakpoint): ActiveVariant;
 
 /** What a Tablet/Mobile breakpoint shows when it has not been designed (content.undesignedBreakpoint). */
-export type UndesignedBreakpointMode = "desktop" | "none";
+export type UndesignedBreakpointMode = "desktop" | "none" | "off";
 
 export interface LiveVariant extends ActiveVariant {
-  /** true only for fallbackMode "none" on an undesigned breakpoint: render nothing (data.blocks is []). */
+  /** true only for fallbackMode "none" on an undesigned breakpoint: render nothing (data.blocks is []). Never with "off". */
   blank: boolean;
 }
 
@@ -40,7 +40,8 @@ export function isVariantAuthored(variant: Record<string, unknown> | null | unde
 
 /**
  * LIVE-page variant selection: authored -> itself; undesigned -> Desktop (isFallback) by default, or blank
- * when the section opts in via content.undesignedBreakpoint === "none". The Designer keeps pickActiveVariant.
+ * when the section opts in via content.undesignedBreakpoint === "none". "off" (non-free sections) disables the
+ * fallback entirely: identical to pickActiveVariant. The Designer keeps pickActiveVariant.
  */
 export function pickLiveVariant(
   resolved: ResolvedVariants,
