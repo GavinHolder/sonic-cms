@@ -977,7 +977,9 @@
    * section render with NO background below 992px (white sections, white text on white, blank sections).
    *
    *   desktop, or this breakpoint IS authored  -> exactly resolveBackgroundBundleForBreakpoint() (isolation kept).
-   *   fallbackMode "none"                      -> same (nothing is borrowed from Desktop).
+   *   fallbackMode "none" or "off"             -> same (nothing is borrowed from Desktop). "off" is what every
+   *                                                non-free-mode section passes: the fallback exists for free-mode
+   *                                                Designer layouts only.
    *   not authored + fallbackMode "desktop":
    *       the breakpoint's own bundle if it deliberately paints something (a configured image/colour/gradient);
    *       else Desktop's bundle (or the legacy flat bundle) — an EXPLICIT BLANK bundle does not count as
@@ -989,12 +991,12 @@
    * @param {'desktop'|'tablet'|'mobile'} breakpoint
    * @param {object} legacyBundle - shape-valid bundle assembled from the section's flat legacy fields.
    * @param {boolean} breakpointAuthored - isVariantAuthored() of the layout that will render at this breakpoint.
-   * @param {'desktop'|'none'} [fallbackMode]
+   * @param {'desktop'|'none'|'off'} [fallbackMode]
    * @returns {object} a background bundle — never null/undefined.
    */
   function resolveLiveBackgroundBundle(backgroundByBreakpoint, breakpoint, legacyBundle, breakpointAuthored, fallbackMode) {
     var own = resolveBackgroundBundleForBreakpoint(backgroundByBreakpoint, breakpoint, legacyBundle);
-    if (breakpoint === "desktop" || breakpointAuthored || fallbackMode === "none") return own;
+    if (breakpoint === "desktop" || breakpointAuthored || fallbackMode === "none" || fallbackMode === "off") return own;
     if (!isBlankBackgroundBundle(own)) return own;
     return resolveBackgroundBundleForBreakpoint(backgroundByBreakpoint, "desktop", legacyBundle);
   }
