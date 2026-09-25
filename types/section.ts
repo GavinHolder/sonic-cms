@@ -497,17 +497,54 @@ export function resolveFreeformSize(
 }
 
 /**
- * Reading order of a freeform overlay element inside the MOBILE stacked column (the fallback a slide gets on a
- * phone for every element that has no `posMobile`). Returns an integer CSS `order` derived from the element's
- * DESKTOP design position — ascending `y`, so a logo authored at the top of the slide leads the column and the
- * text/buttons follow in the order they were designed, instead of the renderer's fixed
- * eyebrow -> headings -> subheading -> buttons -> images DOM order. Elements without a `pos` use their kind's
- * `defaultFreeformPos`. Equal `y` values return equal orders, and CSS keeps DOM order between equal orders,
- * so ties are stable. Pure; only consulted for stacked (non-`posMobile`) elements.
+ * Reading order of the elements in the MOBILE stacked column of a freeform hero slide.
+ *
+ * On a phone every freeform element WITHOUT a `posMobile` is stacked in one centred column, in the renderer's fixed DOM order:
+ * eyebrow, heading rows (or the legacy heading), subheading, buttons, images. That order ignores where the author put things, so a
+ * logo dragged to the TOP of the slide always landed last. This returns the CSS `order` per element key that makes the column follow
+ * the design — with one hard rule: ONLY elements with an EXPLICIT saved `pos` (the author dragged them) take part.
+ *
+ *   • The elements that have a `pos` re-fill THEIR OWN slots (the DOM positions they already occupy) in ascending `pos.y`
+ *     (ties keep DOM order, so the sort is stable).
+ *   • Every element WITHOUT a `pos` stays exactly in its old slot — an undragged image is still last, an undragged eyebrow still first,
+ *     and a slide where nothing was dragged is unchanged. Defaults (`defaultFreeformPos`) never influence the order.
+ *   • Elements with a `posMobile` are absolute (out of flow) and are not part of the column, so they are ignored here.
+ *
+ * Returns null when the resulting order equals the DOM order (the caller then sets no `order` at all — the render is identical to
+ * before this existed). Keys: "eyebrow", "row-<i>", "heading" (legacy), "subheading", "btn-<i>", "img-<i>". The enumeration mirrors
+ * HeroCarousel's freeform JSX. Pure.
  */
-export function freeformStackOrder(pos: FreeformPos | undefined, def: FreeformPos): number {
-  const y = pos && Number.isFinite(pos.y) ? pos.y : def.y;
-  return Math.round(y * 100);
+export function freeformStackOrders(
+  overlay: Pick<TextOverlayElement, "eyebrowHidden" | "eyebrowPos" | "eyebrowPosMobile" | "headingRows" | "headingPos" | "headingPosMobile" | "subheading" | "subheadingPos" | "subheadingPosMobile" | "buttons" | "images">,
+  hasEyebrow: boolean
+): Record<string, number> | null {
+  const items: Array<{ key: string; pos?: FreeformPos; posMobile?: FreeformPos }> = [];
+  if (hasEyebrow && !overlay.eyebrowHidden) items.push({ key: "eyebrow", pos: overlay.eyebrowPos, posMobile: overlay.eyebrowPosMobile });
+  if (overlay.headingRows && overlay.headingRows.length > 0) {
+    overlay.headingRows.forEach((r, i) => items.push({ key: `row-${i}`, pos: r.pos, posMobile: r.posMobile }));
+  } else {
+    items.push({ key: "heading", pos: overlay.headingPos, posMobile: overlay.headingPosMobile });
+  }
+  if (overlay.subheading) items.push({ key: "subheading", pos: overlay.subheadingPos, posMobile: overlay.subheadingPosMobile });
+  (overlay.buttons ?? []).forEach((b, i) => items.push({ key: `btn-${i}`, pos: b.pos, posMobile: b.posMobile }));
+  (overlay.images ?? []).forEach((im, i) => items.push({ key: `img-${i}`, pos: im.pos, posMobile: im.posMobile }));
+
+  const flow = items.filter((it) => !it.posMobile);
+  const positioned = flow
+    .map((it, slot) => ({ it, slot }))
+    .filter(({ it }) => !!it.pos && Number.isFinite(it.pos.y));
+  if (positioned.length < 2) return null; // nothing to reorder among
+
+  const slots = positioned.map((p) => p.slot); // ascending DOM slots owned by the positioned elements
+  const byY = [...positioned].sort((a, b) => (a.it.pos!.y - b.it.pos!.y) || (a.slot - b.slot));
+  const out: Record<string, number> = {};
+  flow.forEach((it, slot) => { out[it.key] = slot; }); // everyone starts in their own slot
+  let changed = false;
+  byY.forEach((p, k) => {
+    out[p.it.key] = slots[k];
+    if (slots[k] !== p.slot) changed = true;
+  });
+  return changed ? out : null;
 }
 
 /**
