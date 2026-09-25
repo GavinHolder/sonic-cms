@@ -3,7 +3,7 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, Fragment } from "react";
 import { motion, AnimatePresence, type Easing } from "motion/react";
 import type { HeroSection, AnimationType, HeroEasing, HeadingRow, TextShadowConfig, FreeformPos, OverlayImage } from "@/types/section";
-import { defaultFreeformPos, resolveFreeformPos, resolveFreeformSize } from "@/types/section";
+import { defaultFreeformPos, resolveFreeformPos, resolveFreeformSize, freeformStackOrder } from "@/types/section";
 
 /**
  * SSR-safe layout effect: runs synchronously before paint on the client (so we
@@ -490,7 +490,9 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
     posMobile?: FreeformPos
   ): React.CSSProperties => {
     if (isMobile && !posMobile) {
-      return { position: "relative", left: "auto", top: "auto", transform: "none", width: "100%", maxWidth: "100%", margin: "9px 0", display: "flex", justifyContent: "center", zIndex: 10 };
+      // `order` = design reading order (ascending desktop pos.y) so e.g. a logo authored at the top of the slide leads the
+      // column instead of always landing last; ties keep DOM order. Only this stacked branch — posMobile elements are absolute.
+      return { position: "relative", left: "auto", top: "auto", transform: "none", width: "100%", maxWidth: "100%", margin: "9px 0", display: "flex", justifyContent: "center", zIndex: 10, order: freeformStackOrder(pos, def) };
     }
     const breakpoint = isMobile ? "mobile" : isTablet ? "tablet" : "desktop";
     const resolved = resolveFreeformPos(breakpoint, pos, posTablet, posMobile);

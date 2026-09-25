@@ -497,6 +497,20 @@ export function resolveFreeformSize(
 }
 
 /**
+ * Reading order of a freeform overlay element inside the MOBILE stacked column (the fallback a slide gets on a
+ * phone for every element that has no `posMobile`). Returns an integer CSS `order` derived from the element's
+ * DESKTOP design position — ascending `y`, so a logo authored at the top of the slide leads the column and the
+ * text/buttons follow in the order they were designed, instead of the renderer's fixed
+ * eyebrow -> headings -> subheading -> buttons -> images DOM order. Elements without a `pos` use their kind's
+ * `defaultFreeformPos`. Equal `y` values return equal orders, and CSS keeps DOM order between equal orders,
+ * so ties are stable. Pure; only consulted for stacked (non-`posMobile`) elements.
+ */
+export function freeformStackOrder(pos: FreeformPos | undefined, def: FreeformPos): number {
+  const y = pos && Number.isFinite(pos.y) ? pos.y : def.y;
+  return Math.round(y * 100);
+}
+
+/**
  * Text overlay element (per slide)
  *
  * Supports two heading modes — backward compatible:
