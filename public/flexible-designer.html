@@ -3057,6 +3057,9 @@ function renderCanvas() {
   state.gridGap     = parseInt(document.getElementById('gridGap').value);
   state.edgePad     = parseInt(document.getElementById('edgePad').value) || 0;
   state.multiLimit  = parseInt(document.getElementById('multiLimit').value);
+  // Request every webfont (with every used weight) BEFORE the blocks are drawn, and re-take the measurement
+  // caches when the fonts settle — see "Font settling" above injectGoogleFont().
+  syncDesignerFonts();
 
   const canvas = document.getElementById('canvas');
   const canvasArea = canvas.closest('.canvas-area');
@@ -9622,12 +9625,57 @@ function injectAllDesignerFonts() {
  */
 function injectGoogleFont(family) {
   if (family === 'inherit' || !family) return;
-  const id = 'gf-' + family.replace(/\s+/g, '-');
-  if (document.getElementById(id)) return;
-  const l = document.createElement('link');
-  l.id = id; l.rel = 'stylesheet';
-  l.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family).replace(/%20/g,'+')}:wght@400;700&display=swap`;
-  document.head.appendChild(l);
+  // 2026-09-25: goes through the SHARED ensureGoogleFontLinks (flexible-render-rules.js) — the same function,
+  // URL builder and link ids the live renderer uses — with the union of weights this family is actually used
+  // at (see syncDesignerFonts). It used to request only 400;700, so a weight-300 paragraph wrapped
+  // differently on the canvas than on the live page.
+  const req = (_designerFontReqs || []).find(r => r.family === family) || { family, weights: [400, 700] };
+  window.FlexibleRenderRules.ensureGoogleFontLinks(document, [req]);
+}
+
+// ── Font settling (2026-09-25) ────────────────────────────────────────────────────────────────
+// ROOT CAUSE of "text wraps to a 2nd row / overlaps on the live page": a webfont loads ASYNC (display=swap),
+// so the canvas first lays text out in a narrower FALLBACK font. Every measurement taken in that window —
+// se._measuredH, the wrapper height buildJson() persists and the live page trusts — describes text that no
+// longer exists once the real font swaps in (measured: 'Archivo Black' "NO EXCUSES." 80px = 606px wide vs 529px
+// in the fallback, so a 542px box that fitted on ONE line while measuring wrapped to TWO on the live page).
+// The canvas itself re-flows correctly when the font arrives, but the cached measurements did not.
+// Fix: (1) load fonts through the shared helpers with every used weight, (2) re-take the measurement caches
+// (heights/widths ONLY — never block geometry) every time the font set settles.
+var _designerFontReqs = []; // var (not let): renderCanvas() may run before this line executes, and a let would be in its TDZ
+function collectDesignerFontRequests() {
+  const lists = [state.blocks];
+  ['desktop', 'tablet', 'mobile'].forEach(k => {
+    const v = state.variants && state.variants[k];
+    if (v && Array.isArray(v.blocks)) lists.push(v.blocks);
+  });
+  return window.FlexibleRenderRules.collectFontRequests(lists);
+}
+/** Requests every webfont (+ weight) any breakpoint's blocks reference. Idempotent; called at the top of renderCanvas(). */
+function syncDesignerFonts() {
+  _designerFontReqs = collectDesignerFontRequests();
+  window.FlexibleRenderRules.ensureGoogleFontLinks(document, _designerFontReqs);
+}
+var _fontRemeasureTimer = null;
+function scheduleFontRemeasure() {
+  clearTimeout(_fontRemeasureTimer);
+  _fontRemeasureTimer = setTimeout(remeasureSubElementCaches, 80);
+}
+/**
+ * Refreshes every visible sub-element's measurement caches (_measuredH/_measuredW) from the DOM as it is NOW
+ * (fonts settled). Touches ONLY those two cache fields — no block/sub-element geometry, no autosave, no
+ * undo entry — so merely opening a section never dirties it; the corrected values are simply what the next
+ * genuine save persists. Elements not in the DOM (other breakpoints' variants, hidden layers) are skipped.
+ */
+function remeasureSubElementCaches() {
+  (state.blocks || []).forEach(b => (b.subElements || []).forEach(se => {
+    const dom = document.querySelector('.sub-element[data-sub-id="' + se.id + '"]');
+    if (dom && dom.offsetHeight > 0) { se._measuredH = dom.offsetHeight; se._measuredW = dom.offsetWidth; }
+  }));
+}
+if (document.fonts) {
+  document.fonts.addEventListener('loadingdone', scheduleFontRemeasure);
+  if (document.fonts.ready) document.fonts.ready.then(scheduleFontRemeasure);
 }
 
 /**
@@ -11060,10 +11108,14 @@ function getCanvasScale() {
     const boxH = state.designerCanvasH || DESIGN_H;
     const bands = (state.contentMode === 'multi' || state.contentMode === 'dynamic') ? (state.multiLimit || 1) : 1;
     const totalH = boxH * bands;
-    const fit = Math.min(1, availW / refW, totalH > 0 ? availH / totalH : 1);
+    // 2026-09-25: the fit is the SHARED computeStageFit (flexible-render-rules.js) — the very function the
+    // live page uses for its content plate — capped at 1 (the editor never up-scales a canvas).
+    const fit = window.FlexibleRenderRules.computeStageFit({ cw: refW, ch: totalH, vw: availW, vh: availH, mode: 'single', maxScale: 1 }).scale;
     return fit * (state.userZoom || 1);
   }
-  const fitScale = Math.min(1, availW / refW);
+  // Width-only fit (grid/mosaic Desktop): a 1-px-tall "design" makes the height ratio a constant 1, so
+  // the shared contain-fit degenerates to min(1, availW / refW).
+  const fitScale = window.FlexibleRenderRules.computeStageFit({ cw: refW, ch: 1, vw: availW, vh: 1, mode: 'single', maxScale: 1 }).scale;
   return fitScale * (state.userZoom || 1);
 }
 /**
@@ -11110,7 +11162,8 @@ function resetUserZoom() {
       : DESKTOP_CANVAS_W;
     const rulerW = cwrap.classList.contains('rulers-hidden') ? 0 : 20;
     const availW = cwrap.clientWidth - rulerW - 2;
-    let fitScale = Math.min(1, availW / refW);
+    // Same shared computeStageFit getCanvasScale() uses (2026-09-25) — width-only first ...
+    let fitScale = window.FlexibleRenderRules.computeStageFit({ cw: refW, ch: 1, vw: availW, vh: 1, mode: 'single', maxScale: 1 }).scale;
     // Mirror the free (single or multi/dynamic) letterbox fit so "reset zoom" lands on a true
     // 100% of the authored refW×(boxH×bands) box (not the width-only fit).
     if (state.positionMode === 'free' && (state.contentMode === 'single' || state.contentMode === 'multi' || state.contentMode === 'dynamic')) {
@@ -11118,7 +11171,7 @@ function resetUserZoom() {
       const boxH = state.designerCanvasH || DESIGN_H;
       const bands = (state.contentMode === 'multi' || state.contentMode === 'dynamic') ? (state.multiLimit || 1) : 1;
       const totalH = boxH * bands;
-      fitScale = Math.min(1, availW / refW, totalH > 0 ? availH / totalH : 1);
+      fitScale = window.FlexibleRenderRules.computeStageFit({ cw: refW, ch: totalH, vw: availW, vh: availH, mode: 'single', maxScale: 1 }).scale;
     }
     // userZoom = 1/fitScale makes getCanvasScale() return exactly 1.0 (100%)
     state.userZoom = fitScale > 0 ? 1 / fitScale : 1;
