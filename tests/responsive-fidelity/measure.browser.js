@@ -37,6 +37,14 @@
     fontsStatus: document.fonts.status,
   };
 
+  // The wrapper DynamicSection.wrapSection adds around a section that has a Lower Third / Motion Elements:
+  // wrapper > z-index:10 div > <section>. Its siblings (the Lower Third / Motion layers) paint outside the <section>.
+  var inner = section.parentElement;
+  var wrap = inner && inner.parentElement;
+  out.wrapper = wrap && wrap.id !== "snap-container" && wrap.children.length > 1
+    ? { display: getComputedStyle(wrap).display, rect: rect(wrap), siblings: wrap.children.length - 1, blank: section.hasAttribute("data-fx-blank") }
+    : null;
+
   var stage = section.querySelector("[data-fx-stage]");
   out.stage = stage ? rect(stage) : null;
   var content = section.querySelector("[data-fx-content]");

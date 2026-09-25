@@ -98,6 +98,8 @@ function evaluate(fx: Fixture, vp: ViewportSpec, exp: Expectation, m: any, base?
   } else if (exp.reflow) {
     // The un-authored-Mobile reading-order reflow is content-driven by design (CSS height:auto + min-height:100vh):
     // there is no fixed height contract to assert.
+  } else if (fx.section.content.scrollStage && (fx.section.content.scrollStage as any).enabled) {
+    // A Scroll Stage section owns its own height model (sticky track; single screen on phones): no fixed contract here.
   } else if (m.contentMode === "single") {
     add("vi.height", near(m.section.h, m.vh, TOL.section), `section ${m.section.h} vs 100vh ${m.vh}`, Math.abs(m.section.h - m.vh));
   } else if (m.contentMode === "multi") {
@@ -116,6 +118,20 @@ function evaluate(fx: Fixture, vp: ViewportSpec, exp: Expectation, m: any, base?
   if (exp.isFree && exp.bg.kind !== "neutral" && exp.bg.color && exp.bg.color !== "transparent" && !exp.bg.image) {
     add("B.bg-colour-present", m.sectionBgColor !== "rgba(0, 0, 0, 0)" && m.sectionBgColor !== "transparent",
       `section background-color ${m.sectionBgColor} (expected ${exp.bg.kind} ${exp.bg.color})`, 1);
+  }
+
+  // Non-free (grid / mosaic / element-based) sections never get the live fallback: an un-configured Tablet/Mobile
+  // background stays NEUTRAL, exactly as before the fallback existed.
+  if (!exp.isFree && exp.bg.kind === "neutral" && fx.section.bgImageUrl) {
+    const own = fx.section.bgImageUrl.split("?")[0].split("/").pop()!;
+    const leaked = m.bgImages.filter((b: any) => b.url.includes(own));
+    add("N.nonfree-bg-neutral", leaked.length === 0, leaked.length ? `un-configured ${exp.bp} background of a non-free section paints ${own} (borrowed from Desktop)` : "ok", leaked.length);
+  }
+
+  // "Show nothing" on a section with a Lower Third / Motion Elements: the WHOLE wrapper must go, not just the <section>.
+  if (exp.blank && (fx.section.lowerThird?.enabled || (fx.section.motionElements?.length ?? 0) > 0)) {
+    add("X.blank-wrapper-hidden", !!m.wrapper && m.wrapper.display === "none",
+      m.wrapper ? `wrapper display ${m.wrapper.display} with ${m.wrapper.siblings} Lower Third / Motion layer(s) that would paint over the next section` : "no wrapper found around the section", 1);
   }
 
   // Content must not be blank when the contract says something should render.
@@ -199,6 +215,20 @@ function evaluate(fx: Fixture, vp: ViewportSpec, exp: Expectation, m: any, base?
     if (dev > TOL.rect) { bad++; if (!firstBad) firstBad = `${it.id} off by ${dev.toFixed(1)}px`; }
   }
   add("ii.item-rects", bad === 0 && missing === 0, `${items.length} items: ${bad} off by > ${TOL.rect}px (worst ${worst.toFixed(1)}), ${missing} missing${firstBad ? ` — ${firstBad}` : ""}`, worst + missing * 1000);
+
+  // (G) the one-line heading guard (white-space: nowrap) applies ONLY to data saved before the Designer stamped its
+  // measurements `_fontsSettled`, and only where the stored height decodes to exactly one line unambiguously.
+  let guardBad = 0; let guardFirst = ""; let guardChecked = 0;
+  for (const it of items) {
+    if (it.kind !== "sub" || it.type !== "heading" || it.fixedH || it.measuredH === undefined) continue;
+    const got = m.subs[it.id];
+    if (!got?.font) continue;
+    guardChecked++;
+    const wantNowrap = !it.fontsSettled && measuredLines(it) === 1;
+    const isNowrap = got.font.whiteSpace === "nowrap";
+    if (wantNowrap !== isNowrap) { guardBad++; if (!guardFirst) guardFirst = `${it.id}: ${it.fontsSettled ? "stamped" : "unstamped"} measurement (${measuredLines(it) ?? "ambiguous"} line) but white-space is ${got.font.whiteSpace}`; }
+  }
+  add("G.heading-guard-scope", guardBad === 0, `${guardChecked} measured headings: ${guardBad} wrong${guardFirst ? " — " + guardFirst : ""}`, guardBad);
 
   // (iv) line counts vs the Designer's stored measurement.
   let lineBad = 0; let lineWorst = 0; let lineFirst = ""; let lineChecked = 0;
