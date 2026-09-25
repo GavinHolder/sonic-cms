@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { googleFontStack } from "@/lib/fonts/google-font-stack";
+import { normalizeFontStack, buildGoogleFontHref } from "../../public/flexible-render-rules.js";
 
 interface GoogleFontPickerProps {
   value: string;
@@ -142,7 +144,8 @@ function injectFontLink(family: string) {
   const link = document.createElement("link");
   link.id = id;
   link.rel = "stylesheet";
-  link.href = `https://fonts.googleapis.com/css2?family=${family.replace(/ /g, "+")}:wght@400;700&display=swap`;
+  // The one css2 URL builder (encodes the family; weights always include 400 — a list without it makes Google Fonts answer 400).
+  link.href = buildGoogleFontHref(family, [400, 700]);
   document.head.appendChild(link);
 }
 
@@ -237,7 +240,7 @@ export default function GoogleFontPicker({ value, onChange }: GoogleFontPickerPr
 
   const handleSelect = (font: GoogleFont) => {
     injectFontLink(font.family);
-    onChange(`'${font.family}', ${font.category}`);
+    onChange(googleFontStack(font.family, font.category));
     setIsOpen(false);
     setSearchTerm("");
     setInstallError("");
@@ -278,7 +281,7 @@ export default function GoogleFontPicker({ value, onChange }: GoogleFontPickerPr
           textAlign: "left",
           cursor: "pointer",
           position: "relative",
-          fontFamily: value !== "inherit" ? value : "inherit",
+          fontFamily: value !== "inherit" ? normalizeFontStack(value) : "inherit",
           whiteSpace: "nowrap",
           overflow: "hidden",
           textOverflow: "ellipsis",
@@ -420,7 +423,7 @@ export default function GoogleFontPicker({ value, onChange }: GoogleFontPickerPr
                       borderBottom: "1px solid #f3f4f6",
                       textAlign: "left",
                       cursor: "pointer",
-                      fontFamily: `'${font.family}', ${font.category}`,
+                      fontFamily: googleFontStack(font.family, font.category),
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "space-between",
@@ -465,7 +468,7 @@ export default function GoogleFontPicker({ value, onChange }: GoogleFontPickerPr
                   borderBottom: "1px solid #f3f4f6",
                   textAlign: "left",
                   cursor: "pointer",
-                  fontFamily: `'${font.family}', ${font.category}`,
+                  fontFamily: googleFontStack(font.family, font.category),
                 }}
               >
                 {font.family}

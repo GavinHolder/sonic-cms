@@ -4,6 +4,8 @@ import { useState, useEffect, useLayoutEffect, useMemo, useRef, Fragment } from 
 import { motion, AnimatePresence, type Easing } from "motion/react";
 import type { HeroSection, AnimationType, HeroEasing, HeadingRow, TextShadowConfig, FreeformPos, OverlayImage } from "@/types/section";
 import { defaultFreeformPos, resolveFreeformPos, resolveFreeformSize, freeformStackOrder } from "@/types/section";
+import { preconnect, preinit } from "react-dom";
+import { HERO_FONT_ORIGINS, heroFontHref, heroFontStack } from "@/lib/hero/hero-fonts";
 
 /**
  * SSR-safe layout effect: runs synchronously before paint on the client (so we
@@ -255,14 +257,28 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
     return [...families];
   }, [slides]);
 
+  // Font CSS is requested as soon as the hero RENDERS, not after paint. `preinit`/`preconnect` are react-dom's resource
+  // APIs: they hoist a <link> into <head> (into the server HTML when this component renders on the server) WITHOUT
+  // suspending the commit — unlike rendering a <link rel="stylesheet" precedence>, which React holds the commit for until
+  // the stylesheet loads, so a slow or blocked font CDN would delay the whole hero. Deduped by href, so re-renders are free.
+  // (Sections are currently fetched client-side, so today this runs on the client at the hero's first render.)
+  if (heroFontFamilies.length > 0) {
+    preconnect(HERO_FONT_ORIGINS.css);
+    preconnect(HERO_FONT_ORIGINS.files, { crossOrigin: "anonymous" });
+    for (const family of heroFontFamilies) preinit(heroFontHref(family), { as: "style", precedence: "default" });
+  }
+
+  // Fallback: keep the imperative injection (adopts the same href, so no duplicate request) for any path where the
+  // render-time hint did not run. heroFontHref always includes weight 400 — a list without it makes Google Fonts answer 400.
   useEffect(() => {
     for (const family of heroFontFamilies) {
       const id = "gf-hero-" + family.replace(/\s+/g, "-");
-      if (document.getElementById(id)) continue;
+      const href = heroFontHref(family);
+      if (document.getElementById(id) || document.querySelector(`link[rel="stylesheet"][href="${href}"]`)) continue;
       const link = document.createElement("link");
       link.id = id;
       link.rel = "stylesheet";
-      link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family).replace(/%20/g, "+")}:wght@400;700;800;900&display=swap`;
+      link.href = href;
       document.head.appendChild(link);
     }
   }, [heroFontFamilies]);
@@ -761,7 +777,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                               ? `clamp(22px, 8vw, ${Math.min(row.fontSize, 48)}px)`
                               : `clamp(40px, 9vw, ${row.fontSize}px)`,
                             fontWeight: row.fontWeight,
-                            fontFamily: row.fontFamily || "inherit",
+                            fontFamily: heroFontStack(row.fontFamily || "inherit"),
                             color: row.color,
                             lineHeight: 0.95,
                             letterSpacing: "-0.02em",
@@ -795,7 +811,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                           ? `clamp(22px, 7vw, ${Math.min(slide.overlay.heading.fontSize, 44)}px)`
                           : `clamp(28px, 7vw, ${slide.overlay.heading.fontSize}px)`,
                         fontWeight: slide.overlay.heading.fontWeight,
-                        fontFamily: slide.overlay.heading.fontFamily,
+                        fontFamily: heroFontStack(slide.overlay.heading.fontFamily),
                         color: slide.overlay.heading.color,
                         marginBottom: `${slide.overlay.spacing.betweenHeadingSubheading}px`,
                         textShadow: buildTextShadow(slide.overlay.textShadow, BAKED_HEADING_SHADOW),
@@ -824,7 +840,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                       style={{
                         fontSize: `clamp(16px, 4vw, ${slide.overlay.subheading.fontSize}px)`,
                         fontWeight: slide.overlay.subheading.fontWeight,
-                        fontFamily: slide.overlay.subheading.fontFamily,
+                        fontFamily: heroFontStack(slide.overlay.subheading.fontFamily),
                         color: slide.overlay.subheading.color,
                         marginBottom: `${slide.overlay.spacing.betweenSubheadingButtons}px`,
                         textShadow: buildTextShadow(slide.overlay.textShadow, BAKED_SUBHEADING_SHADOW),
@@ -963,7 +979,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                               ? `clamp(20px, 7.5vw, ${Math.min(row.fontSize, 44)}px)`
                               : `clamp(32px, 8vw, ${row.fontSize}px)`,
                             fontWeight: row.fontWeight,
-                            fontFamily: row.fontFamily || "inherit",
+                            fontFamily: heroFontStack(row.fontFamily || "inherit"),
                             color: row.color,
                             lineHeight: 0.95,
                             letterSpacing: "-0.02em",
@@ -997,7 +1013,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                               ? `clamp(20px, 7vw, ${Math.min(slide.overlay.heading.fontSize, 44)}px)`
                               : `clamp(28px, 7vw, ${slide.overlay.heading.fontSize}px)`,
                             fontWeight: slide.overlay.heading.fontWeight,
-                            fontFamily: slide.overlay.heading.fontFamily,
+                            fontFamily: heroFontStack(slide.overlay.heading.fontFamily),
                             color: slide.overlay.heading.color,
                             textShadow: buildTextShadow(slide.overlay.textShadow, BAKED_HEADING_SHADOW),
                             lineHeight: 1.2,
@@ -1029,7 +1045,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                         margin: 0,
                         fontSize: `clamp(16px, 4vw, ${slide.overlay.subheading.fontSize}px)`,
                         fontWeight: slide.overlay.subheading.fontWeight,
-                        fontFamily: slide.overlay.subheading.fontFamily,
+                        fontFamily: heroFontStack(slide.overlay.subheading.fontFamily),
                         color: slide.overlay.subheading.color,
                         textShadow: buildTextShadow(slide.overlay.textShadow, BAKED_SUBHEADING_SHADOW),
                         lineHeight: 1.4,

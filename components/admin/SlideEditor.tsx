@@ -7,6 +7,7 @@ import MediaUploader from "./MediaUploader";
 import MediaPickerModal from "./MediaPickerModal";
 import { LinkPicker } from "./LinkPicker";
 import GoogleFontPicker from "./GoogleFontPicker";
+import { heroFontStack } from "@/lib/hero/hero-fonts";
 
 /** Shared across every entrance-animation field below (heading, subheading, eyebrow,
  *  buttons, headingRows, overlay images) and the slide transition itself. Value ""
@@ -3123,7 +3124,7 @@ function renderFreeformChip(chip: FreeformChip, scale: number, vpW: number) {
     // with lineHeight 1.2 and no letter-spacing (HeroCarousel.tsx).
     const cap = chip.isRow ? 0.09 * vpW : 0.07 * vpW;
     return (
-      <div style={{ fontFamily: chip.fontFamily || "inherit", fontWeight: chip.fontWeight || 800, fontSize: px(chip.fontSize || 60, cap), lineHeight: chip.isRow ? 0.95 : 1.2, letterSpacing: chip.isRow ? "-0.02em" : undefined, color: chip.color || "#fff" }}>
+      <div style={{ fontFamily: heroFontStack(chip.fontFamily || "inherit"), fontWeight: chip.fontWeight || 800, fontSize: px(chip.fontSize || 60, cap), lineHeight: chip.isRow ? 0.95 : 1.2, letterSpacing: chip.isRow ? "-0.02em" : undefined, color: chip.color || "#fff" }}>
         {words && words.length > 0
           ? words.map((w, wi) => {
               const sp = wi < words.length - 1 ? " " : "";
@@ -3180,7 +3181,7 @@ function renderFreeformChip(chip: FreeformChip, scale: number, vpW: number) {
   }
   if (chip.kind === "subheading") {
     // Live subheading is clamp(16px, 4vw, fontSize) with lineHeight 1.4 (HeroCarousel.tsx).
-    return <div style={{ fontFamily: chip.fontFamily || "inherit", fontSize: px(chip.fontSize || 22, 0.04 * vpW), fontWeight: chip.fontWeight || 400, lineHeight: 1.4, color: chip.color || "#fff" }}>{chip.text}</div>;
+    return <div style={{ fontFamily: heroFontStack(chip.fontFamily || "inherit"), fontSize: px(chip.fontSize || 22, 0.04 * vpW), fontWeight: chip.fontWeight || 400, lineHeight: 1.4, color: chip.color || "#fff" }}>{chip.text}</div>;
   }
   // button
   const filled = chip.variant !== "ghost" && chip.variant !== "outline";
