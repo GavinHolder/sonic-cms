@@ -15,6 +15,18 @@ import { HERO_FONT_ORIGINS, heroFontHref, heroFontStack } from "@/lib/hero/hero-
  */
 const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
+// Warm the font hosts at hydration — BEFORE the client fetches the sections and the hero first renders. The hero's web font
+// is a second origin (fonts.gstatic.com), so on a cold phone connection its DNS + TCP + TLS would otherwise start only when the
+// hero's text first lays out, keeping the fallback font on screen for those round trips. Client-only, idempotent, a hint.
+if (typeof window !== "undefined") {
+  try {
+    preconnect(HERO_FONT_ORIGINS.css);
+    preconnect(HERO_FONT_ORIGINS.files, { crossOrigin: "anonymous" });
+  } catch {
+    /* a resource hint must never break the page */
+  }
+}
+
 interface HeroCarouselProps {
   section: HeroSection;
   /** External autoplay override for the admin editor's scaled-down preview thumbnail only —
