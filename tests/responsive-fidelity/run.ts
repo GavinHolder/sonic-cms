@@ -251,7 +251,8 @@ async function main() {
       let m: any;
       try {
         await page.goto(`${BASE_URL}/fx-${fx.name}`, { waitUntil: "load", timeout: 120000 });
-        await page.waitForSelector("section.flexible-section", { timeout: 60000 });
+        // state "attached": a "show nothing" section is display:none on purpose and must still be found
+        await page.waitForSelector("section.flexible-section", { timeout: 60000, state: "attached" });
         await page.evaluate(() => document.fonts.ready);
         await page.waitForTimeout(900);
         // settle: re-measure until geometry stops moving (fonts swapping, ResizeObserver state updates)

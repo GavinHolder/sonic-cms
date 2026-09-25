@@ -22,7 +22,10 @@ const tol = Number(opt("tol", "1"));
 const before = JSON.parse(fs.readFileSync(beforeFile, "utf8"));
 const after = JSON.parse(fs.readFileSync(afterFile, "utf8"));
 
-const rectDev = (a, b) => (!a || !b ? Infinity : Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y), Math.abs(a.w - b.w), Math.abs(a.h - b.h)));
+// Both absent (e.g. a background-only section has no plate/stage) means "unchanged"; one absent means moved.
+const rectDev = (a, b) => (!a && !b ? 0 : !a || !b ? Infinity : Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y), Math.abs(a.w - b.w), Math.abs(a.h - b.h)));
+// Position/width only: a text wrapper whose HEIGHT changed (a line no longer wraps) did not "move".
+const posDev = (a, b) => (!a && !b ? 0 : !a || !b ? Infinity : Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y), Math.abs(a.w - b.w)));
 
 let compared = 0;
 let moved = 0;
@@ -39,13 +42,21 @@ for (const key of Object.keys(before).sort()) {
   consider("stage", rectDev(b.stage, a.stage));
   consider("content plate", rectDev(b.content?.rect, a.content?.rect));
   consider("content scale x100", Math.abs((b.content?.matrix?.a ?? 1) - (a.content?.matrix?.a ?? 1)) * 100);
-  for (const [id, r] of Object.entries(b.subs)) consider(`sub ${id}`, rectDev(r, a.subs[id]));
-  for (const [id, r] of Object.entries(b.blocks)) consider(`block ${id}`, rectDev(r, a.blocks[id]));
+  let worstPos = 0; const heightOnly = [];
+  for (const [id, r] of Object.entries(b.subs)) {
+    consider(`sub ${id}`, rectDev(r, a.subs[id]));
+    worstPos = Math.max(worstPos, posDev(r, a.subs[id]));
+    if (a.subs[id] && posDev(r, a.subs[id]) <= tol && Math.abs(r.h - a.subs[id].h) > tol) heightOnly.push(`${id} h ${r.h}->${a.subs[id].h}`);
+  }
+  for (const [id, r] of Object.entries(b.blocks)) {
+    consider(`block ${id}`, rectDev(r, a.blocks[id]));
+    worstPos = Math.max(worstPos, posDev(r, a.blocks[id]));
+  }
   compared++;
   worstAll = Math.max(worstAll, worst);
   const bad = worst > tol;
   if (bad) moved++;
-  console.log(`${bad ? "MOVED" : "same "}  ${fixture.padEnd(34)} ${vp.padEnd(20)} worst ${worst.toFixed(2)}px${worst > 0 ? ` (${worstWhat})` : ""}`);
+  console.log(`${bad ? "MOVED" : "same "}  ${fixture.padEnd(34)} ${vp.padEnd(20)} worst ${worst.toFixed(2)}px${worst > 0 ? ` (${worstWhat})` : ""}  | worst x/y/width shift ${worstPos.toFixed(2)}px${heightOnly.length ? " | height-only: " + heightOnly.join(", ") : ""}`);
 }
 console.log(`\n${compared} fixture x viewport comparisons, ${moved} moved by > ${tol}px, worst overall ${worstAll.toFixed(2)}px`);
 process.exit(moved ? 1 : 0);
