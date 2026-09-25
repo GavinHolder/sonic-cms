@@ -35,6 +35,12 @@ export interface LiveVariant extends ActiveVariant {
   blank: boolean;
 }
 
+/**
+ * LIVE free-mode "plate or reflow" decision: true for an UNDESIGNED Tablet or Mobile (the Desktop variant is shown,
+ * isFallback) -> single-column reflow up to 991px; false for Desktop and for any authored variant -> scaled plate.
+ */
+export function usesReflowLayout(breakpoint: Breakpoint, isFallback: boolean): boolean;
+
 /** True iff the variant holds at least one block (NOT merely "exists" — see the JS doc comment). */
 export function isVariantAuthored(variant: Record<string, unknown> | null | undefined): boolean;
 

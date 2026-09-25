@@ -762,6 +762,27 @@ main {
   }
 }
 
+/* An UNDESIGNED Tablet (768-991px) of a free-layout Flexible section is shown as the single-column reflow, exactly
+   like a phone (FlexibleSectionRenderer sets data-fx-reflow only then): release the fixed 100vh box so the stacked
+   content grows the section instead of being clipped. Authored tablet layouts (no attribute) keep the scaled plate
+   and their 100vh box. Same three rules as the max-width:767px block above, scoped to the attribute. */
+@media (min-width: 768px) and (max-width: 991px) {
+  #snap-container section.flexible-section[data-fx-reflow]:not([data-content-mode="multi"]) {
+    height: auto !important;
+    min-height: 100vh;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  #snap-container section.flexible-section[data-fx-reflow] .section-content-wrapper {
+    overflow: visible !important;
+    height: auto !important;
+    min-height: unset !important;
+  }
+  #snap-container section.flexible-section[data-fx-reflow] .container-fluid {
+    overflow: visible !important;
+  }
+}
+
 /* Ensure sections don't overlap (scoped to snap container) */
 #snap-container section {
   position: relative;

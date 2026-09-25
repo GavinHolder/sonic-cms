@@ -163,6 +163,27 @@
   }
 
   /**
+   * usesReflowLayout(breakpoint, isFallback) — pure. THE single live-page decision of "plate or reflow" for a
+   * FREE-mode section (owner decision 2026-09-25). A Tablet or Mobile screen whose own layout was never designed
+   * (pickLiveVariant returned the Desktop variant with isFallback true) shows that Desktop design as the
+   * single-column reading-order reflow (FreeReflowStack) — on phones AND on tablets up to 991px — instead of the
+   * whole 1440px canvas shrunk to 0.53-0.69x (unreadable text, a pricing grid squeezed into a thumbnail).
+   * Desktop, and any Tablet/Mobile variant with >= 1 block (isFallback false), keep the scaled-stage PLATE exactly
+   * as designed. Consumed by every place that used to compute this on its own (the section's height model and the
+   * plate/reflow branch inside the block renderer), so they can never disagree.
+   *
+   * Only meaningful for free-mode Designer sections: grid / mosaic / element-based sections never reach the plate
+   * or the reflow.
+   *
+   * @param {'desktop'|'tablet'|'mobile'} breakpoint
+   * @param {boolean} isFallback - pickLiveVariant()'s isFallback for that breakpoint.
+   * @returns {boolean}
+   */
+  function usesReflowLayout(breakpoint, isFallback) {
+    return (breakpoint === "tablet" || breakpoint === "mobile") && !!isFallback;
+  }
+
+  /**
    * Deep-clones a variant blob (JSON round-trip), or passes null through.
    *
    * 2026-09-22: no longer called anywhere in this codebase — it used to be how
@@ -611,6 +632,7 @@
     pickBreakpointForWidth: pickBreakpointForWidth,
     pickActiveVariant: pickActiveVariant,
     isVariantAuthored: isVariantAuthored,
+    usesReflowLayout: usesReflowLayout,
     pickLiveVariant: pickLiveVariant,
     duplicateVariant: duplicateVariant,
     clampBlocksToCanvas: clampBlocksToCanvas,
