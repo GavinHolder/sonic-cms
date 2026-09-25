@@ -20,6 +20,9 @@
  *    un-configured Tablet/Mobile background stays neutral and content.undesignedBreakpoint is ignored.
  *  - Content plate: UNIFORM scale, top-anchored, horizontally centred.
  *      single: s = min(stageW/cw, stageH/ch, maxScale)     multi: s = min(stageW/cw, maxScale)
+ *    FIT TO CONTENT (Tablet/Mobile, single only): stageH/ch becomes stageH/E where E = the bottom edge (canvas px, +24 pad)
+ *    of the lowest painted content when E < ch:  s = min(stageW/cw, max(stageH/ch, min(stageH/E, maxScale)), maxScale).
+ *    E is the larger of the stored-data seed (seedExtent below) and what is actually rendered (measured by the harness).
  *    maxScale = 1.15 for the Mobile breakpoint, unbounded otherwise.
  *  - Background, TABLET/MOBILE: never non-uniformly scaled; a uniform cover plate that fills the stage box.
  *  - Background, DESKTOP (>= 992): unchanged since commit c4535fa — a canvas-sized (cw x chTotal) plate scaled
@@ -136,12 +139,40 @@ export function expectationFor(section: FixtureSection, vw: number): Expectation
   };
 }
 
-/** Expected content-plate transform given the measured stage box. */
-export function expectedPlate(exp: Expectation, stageW: number, stageH: number) {
+const EXTENT_PAD = 24;
+
+/**
+ * Independent re-implementation of the stored-data content extent (canvas px, + pad): lowest block bottom, and for container
+ * blocks every sub-element at (block.y + 2 + paddingTop + sub.y) + (sub.h ?? _measuredH ?? 0). 0 when there is nothing.
+ */
+export function seedExtent(variant: any): number {
+  let bottom = 0;
+  for (const b of (variant?.blocks ?? []) as any[]) {
+    if (b?.type === "volt" && b?.props?.fullBleed) continue;
+    const pos = b.pixelPos || { x: 0, y: 0, w: 300, h: 180 };
+    bottom = Math.max(bottom, (Number(pos.y) || 0) + (Number(pos.h) || 0));
+    if (CONTAINER_TYPES.has(b.type)) {
+      const bp = b.props ?? {};
+      const padT = Number(bp.paddingTop !== undefined && bp.paddingTop !== null ? bp.paddingTop : 16);
+      for (const se of (b.subElements ?? []) as any[]) {
+        const h = se.h != null ? Number(se.h) : Number(se._measuredH) || 0;
+        bottom = Math.max(bottom, (Number(pos.y) || 0) + 2 + padT + (Number(se.y) || 0) + h);
+      }
+    }
+  }
+  return bottom > 0 ? bottom + EXTENT_PAD : 0;
+}
+
+/** Expected content-plate transform given the measured stage box (+ the rendered extent, canvas px incl. pad, for tablet/mobile). */
+export function expectedPlate(exp: Expectation, stageW: number, stageH: number, domExtent = 0) {
   const sx = stageW / exp.cw;
-  const s = exp.multi
+  let s = exp.multi
     ? Math.min(sx, exp.maxScale)
     : Math.min(sx, stageH / exp.ch, exp.maxScale);
+  if (!exp.multi && exp.bp !== "desktop") {
+    const E = Math.max(seedExtent(exp.variant), domExtent);
+    if (E > 0 && E < exp.ch) s = Math.min(sx, Math.max(Math.min(stageH / exp.ch, exp.maxScale), Math.min(stageH / E, exp.maxScale)), exp.maxScale);
+  }
   const scale = Math.round(s * 10000) / 10000;
   const offsetX = Math.max(0, (stageW - exp.cw * scale) / 2);
   return { scale, offsetX, offsetY: 0 };

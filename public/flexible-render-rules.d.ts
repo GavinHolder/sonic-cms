@@ -301,6 +301,12 @@ export interface StageFitOpts {
    * scale(sx, sy)); "tablet"/"mobile" get the uniform cover plate. Does not affect `scale`.
    */
   breakpoint?: "desktop" | "tablet" | "mobile";
+  /**
+   * Tablet/mobile + single mode only: bottom edge (canvas px) of the lowest painted content. The height term then fits
+   * this instead of `ch`, so a short design is shown at the width fit. Only ever raises the scale (extent >= ch or an
+   * invalid value = no change); the background plate is unaffected.
+   */
+  extent?: number;
 }
 
 export interface StageFit {
@@ -318,6 +324,15 @@ export interface StageFit {
    */
   bg: { left: number; top: number; width: number; height: number; scale: number; scaleX: number; scaleY: number; transform: string };
 }
+
+/**
+ * Bottom edge (canvas px) of the lowest thing the active variant's blocks paint, seeded from stored block data
+ * (block boxes + container sub-elements, incl. ones overflowing their block); 0 when empty. See the JS doc comment.
+ */
+export function computeContentExtent(
+  blocks: Array<Record<string, unknown>> | null | undefined,
+  opts?: { pad?: number; isFullBleed?: (block: Record<string, unknown>) => boolean }
+): number;
 
 /** The single shared decision of how a free-mode canvas is fitted into a box — uniform, never stretched. */
 export function computeStageFit(opts: StageFitOpts): StageFit;

@@ -123,6 +123,102 @@ describe('computeStageFit on DESKTOP == commit c4535fa geometry (byte-identical)
   })
 })
 
+describe('computeStageFit fit-to-content (extent) — tablet/mobile single only', () => {
+  const base = { cw: 375, ch: 900, mode: 'single' as const, maxScale: 1.15 }
+
+  it('the reported case: 375x900 canvas whose content ends at y=630 on a 367x630 phone -> width fit, not 0.70', () => {
+    const old = R.computeStageFit({ ...base, vw: 367, vh: 630, breakpoint: 'mobile' })
+    expect(old.scale).toBeCloseTo(0.7, 4)
+    const f = R.computeStageFit({ ...base, vw: 367, vh: 630, breakpoint: 'mobile', extent: 640 })
+    expect(f.scale).toBeCloseTo(367 / 375, 4) // the width fit (0.9787), the ceiling
+    expect(f.scale).toBeGreaterThan(old.scale)
+    // content now fits the stage: extent * scale <= vh
+    expect(640 * f.scale).toBeLessThanOrEqual(630 + 0.01)
+  })
+
+  it('height still limits when the extent really does not fit: scale = vh / extent', () => {
+    const f = R.computeStageFit({ ...base, vw: 400, vh: 500, breakpoint: 'mobile', extent: 800 })
+    expect(f.scale).toBeCloseTo(500 / 800, 4)
+    expect(800 * f.scale).toBeLessThanOrEqual(500 + 0.01)
+  })
+
+  it('NEVER smaller than the canvas-height fit and NEVER larger than the width fit / maxScale', () => {
+    for (const bp of ['tablet', 'mobile'] as const) {
+      for (const [vw, vh] of [[367, 630], [375, 667], [390, 844], [430, 932], [768, 1024], [820, 1180], [800, 1280], [1000, 400]]) {
+        for (const extent of [1, 200, 640, 899, 900, 1200, NaN, -5, Infinity]) {
+          const o = { cw: 768, ch: 900, vw, vh, mode: 'single' as const, maxScale: bp === 'mobile' ? 1.15 : Infinity, breakpoint: bp }
+          const off = R.computeStageFit(o).scale
+          const on = R.computeStageFit({ ...o, extent }).scale
+          expect(on).toBeGreaterThanOrEqual(off)
+          expect(on).toBeLessThanOrEqual(Math.min(vw / 768, o.maxScale) + 1e-4)
+          expect(Number.isFinite(on) && on > 0).toBe(true)
+        }
+      }
+    }
+  })
+
+  it('extent >= ch, absent, NaN, 0 or negative => exactly the old result', () => {
+    const o = { ...base, vw: 367, vh: 630, breakpoint: 'mobile' as const }
+    const old = JSON.stringify(R.computeStageFit(o))
+    for (const extent of [undefined, 900, 901, 5000, NaN, 0, -1, Infinity]) {
+      expect(JSON.stringify(R.computeStageFit({ ...o, extent }))).toBe(old)
+    }
+  })
+
+  it('DESKTOP and MULTI mode ignore the extent completely (byte-identical)', () => {
+    for (const [vw, vh] of [[1440, 900], [1920, 950], [1920, 1080], [1114, 765]]) {
+      const o = { cw: 1440, ch: 900, vw, vh, mode: 'single' as const }
+      expect(JSON.stringify(R.computeStageFit({ ...o, breakpoint: 'desktop', extent: 300 }))).toBe(JSON.stringify(R.computeStageFit({ ...o, breakpoint: 'desktop' })))
+      expect(JSON.stringify(R.computeStageFit({ ...o, extent: 300 }))).toBe(JSON.stringify(R.computeStageFit(o))) // no breakpoint == desktop
+    }
+    const m = { cw: 375, ch: 1800, vw: 390, vh: 5000, mode: 'multi' as const, breakpoint: 'mobile' as const, maxScale: 1.15 }
+    expect(JSON.stringify(R.computeStageFit({ ...m, extent: 400 }))).toBe(JSON.stringify(R.computeStageFit(m)))
+  })
+
+  it('the BACKGROUND plate is unchanged by the extent (it keeps the canvas-height scale)', () => {
+    const o = { ...base, vw: 367, vh: 630, breakpoint: 'mobile' as const }
+    expect(R.computeStageFit({ ...o, extent: 640 }).bg).toEqual(R.computeStageFit(o).bg)
+  })
+
+  it('the content stays horizontally centred at the new scale', () => {
+    const f = R.computeStageFit({ ...base, cw: 375, vw: 500, vh: 630, breakpoint: 'mobile', extent: 640 })
+    expect(f.contentLeft).toBeCloseTo(Math.max(0, (500 - 375 * f.scale) / 2), 3)
+  })
+})
+
+describe('computeContentExtent', () => {
+  const tb = (id: string, y: number, h: number, subs: unknown[] = [], type = 'text-block') => ({ id, type, pixelPos: { x: 10, y, w: 300, h }, props: {}, subElements: subs })
+
+  it('is 0 for no blocks and never NaN', () => {
+    expect(R.computeContentExtent([])).toBe(0)
+    expect(R.computeContentExtent(null)).toBe(0)
+    expect(R.computeContentExtent([{ pixelPos: { y: 'x', h: NaN } }])).toBe(0)
+  })
+
+  it('is the lowest block bottom + the pad', () => {
+    expect(R.computeContentExtent([tb('a', 100, 200), tb('b', 400, 230)], { pad: 0 })).toBe(630)
+    expect(R.computeContentExtent([tb('a', 100, 200), tb('b', 400, 230)])).toBe(654) // default pad 24
+  })
+
+  it('counts a sub-element that OVERFLOWS its block box (uses the wrapper position + measured height)', () => {
+    // block box ends at 300; its sub sits at 100 + 2 + 16 (border + padT) + 150 = 268 and is 200px tall => 468
+    const blocks = [tb('a', 100, 200, [{ id: 's', type: 'paragraph', x: 0, y: 150, w: 200, _measuredH: 200 }])]
+    expect(R.computeContentExtent(blocks, { pad: 0 })).toBe(468)
+  })
+
+  it('sub.h wins over _measuredH; a sub with neither adds nothing beyond its top edge', () => {
+    expect(R.computeContentExtent([tb('a', 0, 50, [{ id: 's', x: 0, y: 0, h: 400, _measuredH: 10 }])], { pad: 0 })).toBe(2 + 16 + 400)
+    expect(R.computeContentExtent([tb('a', 0, 50, [{ id: 's', x: 0, y: 0 }])], { pad: 0 })).toBe(50)
+  })
+
+  it('non-container blocks use their own box only; full-bleed volts are skipped when told to', () => {
+    const img = { id: 'i', type: 'image', pixelPos: { x: 0, y: 500, w: 100, h: 100 }, subElements: [{ y: 999, _measuredH: 999 }] }
+    expect(R.computeContentExtent([img], { pad: 0 })).toBe(600)
+    const volt = { id: 'v', type: 'volt', props: { fullBleed: true }, pixelPos: { x: 0, y: 0, w: 1, h: 2000 } }
+    expect(R.computeContentExtent([volt, tb('a', 0, 100)], { pad: 0, isFullBleed: (b: any) => b.props?.fullBleed === true })).toBe(100)
+  })
+})
+
 describe('isVariantAuthored / pickLiveVariant', () => {
   const blob = (n: number) => ({ blocks: Array.from({ length: n }, (_, i) => ({ id: `b${i}` })) })
 

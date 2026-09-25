@@ -12,6 +12,8 @@ export interface ViewportSpec {
 
 /** The device sizes the site owner actually tests on (phones, tablets portrait+landscape, laptop, desktop). */
 export const VIEWPORTS: ViewportSpec[] = [
+  { name: "phone-367x630", w: 367, h: 630 }, // a short phone screen (browser chrome eats the height): the fit-to-content case
+  { name: "phone-375x667", w: 375, h: 667 },
   { name: "phone-375x812", w: 375, h: 812 },
   { name: "phone-390x844", w: 390, h: 844 },
   { name: "phone-430x932", w: 430, h: 932 },

@@ -1038,6 +1038,15 @@
    *       (vw/scale) x (vh/scale) canvas units under the SAME uniform scale: it COVERS the whole box, and
    *       `background-size: cover` plus the owner's saved focal point resolve against the real section box.
    *
+   * FIT TO CONTENT (tablet / mobile, single mode only — item 8, owner-approved 2026-09-25): `opts.extent` is the bottom
+   *   edge, in canvas px, of the lowest thing the design actually paints (see computeContentExtent). The height term
+   *   then fits THAT instead of the whole canvas height: scale = min(vw/cw, vh/extent, maxScale). A 375x900 Mobile
+   *   canvas whose content ends at y=630 is therefore shown at the width fit (0.98 on a 367px phone) instead of at
+   *   630/900 = 0.70 of it with side gutters. It can only ever make the scale LARGER than the canvas-height fit and
+   *   never larger than the width fit / maxScale; `extent >= ch` (or absent/invalid, or desktop, or multi mode) means
+   *   "no change". The BACKGROUND plate deliberately keeps using the canvas-height scale, so it is byte-identical to
+   *   before. The Designer's own zoom passes no extent.
+   *
    * The content plate is top-anchored. contentLeft: on desktop exactly as c4535fa (centred only when height-limited,
    * i.e. scaleY < scaleX; 0 otherwise, and always 0 in multi mode); on tablet/mobile horizontally centred:
    * max(0, (vw - cw*scale) / 2).
@@ -1050,7 +1059,7 @@
    *   mitigation both editor canvases apply to their own zoom).
    *
    * @param {{cw:number,ch:number,vw:number,vh:number,mode?:"single"|"multi",maxScale?:number,
-   *          breakpoint?:"desktop"|"tablet"|"mobile"}} opts
+   *          breakpoint?:"desktop"|"tablet"|"mobile",extent?:number}} opts
    * @returns {{scale:number,contentLeft:number,contentTop:number,contentW:number,contentH:number,
    *            bg:{left:number,top:number,width:number,height:number,scale:number,scaleX:number,scaleY:number,
    *                transform:string}}}
@@ -1067,12 +1076,19 @@
     var round4 = function (n) { return Math.round(n * 10000) / 10000; };
     var scaleX = round4(Math.min(vw / cw, maxScale));
     var scaleY = round4(Math.min(vh / ch, maxScale));
-    var scale = multi ? scaleX : Math.min(scaleX, scaleY);
+    var canvasScale = multi ? scaleX : Math.min(scaleX, scaleY); // what the WHOLE canvas fits at (the pre-item-8 scale)
+    var scale = canvasScale;
+    var extent = Number(opts.extent);
+    if (!multi && uniformBg && isFinite(extent) && extent > 0 && extent < ch) {
+      // extent < ch => vh/extent > vh/ch, so this can only raise the height term; min(scaleX, ...) keeps the width fit
+      // (and the maxScale clamp, already inside scaleX) as the ceiling.
+      scale = Math.min(scaleX, Math.max(scaleY, round4(Math.min(vh / extent, maxScale))));
+    }
     var contentW = cw * scale;
     var contentLeft = (uniformBg || (!multi && scaleY < scaleX)) ? Math.max(0, (vw - contentW) / 2) : 0;
     var bg = uniformBg
-      ? { left: 0, top: 0, width: vw / scale, height: vh / scale, scale: scale, scaleX: scale, scaleY: scale,
-          transform: "scale(" + scale + ")" }
+      ? { left: 0, top: 0, width: vw / canvasScale, height: vh / canvasScale, scale: canvasScale, scaleX: canvasScale, scaleY: canvasScale,
+          transform: "scale(" + canvasScale + ")" }
       : { left: 0, top: 0, width: cw, height: ch, scale: scaleX, scaleX: scaleX, scaleY: multi ? scaleX : scaleY,
           transform: multi ? "scale(" + scaleX + ")" : "scale(" + scaleX + ", " + scaleY + ")" };
     return {
@@ -1085,7 +1101,48 @@
     };
   }
 
+  /**
+   * computeContentExtent(blocks, opts) — pure. The bottom edge (canvas px) of the lowest thing a free-mode plate paints,
+   * SEEDED from stored block data so the first paint (and SSR) needs no measurement: for every block its own pixelPos box
+   * (y + h) and, for a container block (text / text-block / card), every sub-element at the wrapper position
+   * computeSubElementPosition gives it, with height sub.h, else the Designer-stored sub._measuredH, else nothing
+   * (a block box already bounds it). A sub-element that overflows its block box therefore still counts. Full-bleed volts
+   * are drawn as section layers, not on the plate, and are skipped like the plate skips them. The renderer refines the
+   * result upward with the rendered geometry (self-sizing template iframes, fonts) — this function never looks at a DOM.
+   *
+   * ASSUMPTIONS: blocks is the ACTIVE variant's block list (already filtered like the plate's). Returns 0 for an empty
+   * list. `opts.pad` (default 24 canvas px) is added once, as breathing room under the lowest element.
+   * FAILURE MODES: non-numeric geometry counts as 0; the result is finite and >= 0, never NaN.
+   *
+   * @param {Array<object>} blocks
+   * @param {{pad?:number, isFullBleed?:function(object):boolean}} [opts]
+   * @returns {number}
+   */
+  function computeContentExtent(blocks, opts) {
+    opts = opts || {};
+    var pad = isFinite(opts.pad) && opts.pad >= 0 ? Number(opts.pad) : 24;
+    var isFullBleed = typeof opts.isFullBleed === "function" ? opts.isFullBleed : function () { return false; };
+    var bottom = 0;
+    var num = function (v) { var n = Number(v); return isFinite(n) ? n : 0; };
+    (Array.isArray(blocks) ? blocks : []).forEach(function (b) {
+      if (!b || isFullBleed(b)) return;
+      var pos = b.pixelPos || { x: 0, y: 0, w: 300, h: 180 };
+      bottom = Math.max(bottom, num(pos.y) + num(pos.h));
+      var subs = Array.isArray(b.subElements) ? b.subElements : [];
+      var isContainer = b.type === "text" || b.type === "text-block" || b.type === "card";
+      if (!isContainer) return;
+      subs.forEach(function (sub) {
+        if (!sub) return;
+        var g = computeSubElementPosition(pos, sub, b.props);
+        var h = sub.h != null ? num(sub.h) : num(sub._measuredH);
+        bottom = Math.max(bottom, num(g.top) + h);
+      });
+    });
+    return bottom > 0 ? bottom + pad : 0;
+  }
+
   return {
+    computeContentExtent: computeContentExtent,
     normalizeFontStack: normalizeFontStack,
     extractFontFamilyName: extractFontFamilyName,
     collectFontRequests: collectFontRequests,
