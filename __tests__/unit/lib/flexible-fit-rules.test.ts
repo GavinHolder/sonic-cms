@@ -22,22 +22,38 @@ describe('computeStageFit', () => {
     expect(f.contentH).toBeLessThan(1280)
   })
 
-  it('background plate is UNIFORM and covers the whole fitted box (never scale(sx, sy))', () => {
-    for (const [vw, vh] of [[800, 1280], [768, 1024], [1114, 765], [1920, 1080], [1440, 900]]) {
-      const f = R.computeStageFit({ cw: 1440, ch: 900, vw, vh, mode: 'single' })
-      // a single scale factor is applied to the bg plate ...
-      expect(typeof f.bg.scale).toBe('number')
-      // ... and the plate, once scaled, is exactly the box.
-      expect(f.bg.width * f.bg.scale).toBeCloseTo(vw, 1)
-      expect(f.bg.height * f.bg.scale).toBeCloseTo(vh, 1)
-      expect(f.bg.scale).toBe(f.scale)
+  it('tablet/mobile background plate is UNIFORM and covers the whole fitted box (never scale(sx, sy))', () => {
+    for (const breakpoint of ['tablet', 'mobile'] as const) {
+      for (const [vw, vh] of [[800, 1280], [768, 1024], [820, 1180], [390, 844]]) {
+        const f = R.computeStageFit({ cw: 1440, ch: 900, vw, vh, mode: 'single', breakpoint })
+        // a single scale factor is applied to the bg plate ...
+        expect(f.bg.scaleX).toBe(f.bg.scaleY)
+        expect(f.bg.transform).toBe(`scale(${f.scale})`)
+        // ... and the plate, once scaled, is exactly the box.
+        expect(f.bg.width * f.bg.scale).toBeCloseTo(vw, 1)
+        expect(f.bg.height * f.bg.scale).toBeCloseTo(vh, 1)
+        expect(f.bg.scale).toBe(f.scale)
+      }
     }
   })
 
-  it('multi: width-fit only; a maxScale clamp centres the plate instead of hugging the left edge', () => {
-    const f = R.computeStageFit({ cw: 375, ch: 900, vw: 767, vh: 5000, mode: 'multi', maxScale: 1.15 })
+  it('tablet/mobile content plate is centred; a multi maxScale clamp centres it instead of hugging the left edge', () => {
+    const f = R.computeStageFit({ cw: 375, ch: 900, vw: 767, vh: 5000, mode: 'multi', maxScale: 1.15, breakpoint: 'mobile' })
     expect(f.scale).toBe(1.15)
     expect(f.contentLeft).toBeCloseTo((767 - 375 * 1.15) / 2, 1)
+    // the uniform cover plate is used for multi too: it spans the whole stage box
+    expect(f.bg.width * f.bg.scale).toBeCloseTo(767, 1)
+    expect(f.bg.height * f.bg.scale).toBeCloseTo(5000, 1)
+  })
+
+  it('the breakpoint never changes the content scale', () => {
+    for (const mode of ['single', 'multi'] as const) {
+      const base = { cw: 1440, ch: 900, vw: 1114, vh: 765, mode }
+      const d = R.computeStageFit({ ...base, breakpoint: 'desktop' }).scale
+      expect(R.computeStageFit({ ...base, breakpoint: 'tablet' }).scale).toBe(d)
+      expect(R.computeStageFit({ ...base, breakpoint: 'mobile' }).scale).toBe(d)
+      expect(R.computeStageFit(base).scale).toBe(d)
+    }
   })
 
   it('never returns NaN/0/Infinity for degenerate input', () => {
@@ -47,6 +63,63 @@ describe('computeStageFit', () => {
       expect(Number.isFinite(f.contentLeft)).toBe(true)
       expect(Number.isFinite(f.bg.width) && Number.isFinite(f.bg.height)).toBe(true)
     }
+  })
+})
+
+/**
+ * Desktop background/content geometry must stay BYTE-IDENTICAL to commit c4535fa (before the stage-fit work).
+ * `legacyPlate` is that commit's plate code transcribed from components/sections/FlexibleSectionRenderer.tsx
+ * (DesignerBlocksRenderer, the `bgTransform` / `contentTransform` / `contentLeft` block) — independent of
+ * computeStageFit, so this can actually fail.
+ */
+function legacyPlate(cw: number, chTotal: number, sw: number, sh: number, isMulti: boolean, plateMaxScale: number) {
+  const roundScale = (n: number) => Math.round(n * 10000) / 10000
+  let bgTransform: string
+  let contentTransform: string
+  let contentLeft = 0
+  if (isMulti) {
+    const scale = roundScale(Math.min(sw / cw, plateMaxScale))
+    bgTransform = `scale(${scale})`
+    contentTransform = `scale(${scale})`
+  } else {
+    const scaleX = roundScale(Math.min(sw / cw, plateMaxScale))
+    const scaleY = roundScale(Math.min(sh / chTotal, plateMaxScale))
+    bgTransform = `scale(${scaleX}, ${scaleY})`
+    const scale = Math.min(scaleX, scaleY)
+    contentTransform = `scale(${scale})`
+    if (scaleY < scaleX) contentLeft = Math.max(0, (sw - cw * scale) / 2)
+  }
+  return { bgTransform, contentTransform, contentLeft, bgBox: { left: 0, top: 0, width: cw, height: chTotal } }
+}
+
+describe('computeStageFit on DESKTOP == commit c4535fa geometry (byte-identical)', () => {
+  const canvases: Array<[number, number]> = [[1440, 900], [1440, 1000], [1920, 1080], [1280, 720], [768, 900], [375, 800]]
+  const boxes: Array<[number, number]> = [[1440, 900], [1920, 950], [1920, 1080], [1114, 765], [2560, 1300], [992, 600], [1366, 657]]
+
+  it.each([['single', false], ['multi', true]] as const)('%s mode: bg box, bg transform, content transform and content left match the old code', (_name, isMulti) => {
+    for (const [cw, ch] of canvases) {
+      for (const bands of isMulti ? [1, 2, 3] : [1]) {
+        const chTotal = ch * bands
+        for (const [sw, sh] of boxes) {
+          for (const bp of [undefined, 'desktop'] as const) {
+            const f = R.computeStageFit({ cw, ch: chTotal, vw: sw, vh: sh, mode: isMulti ? 'multi' : 'single', maxScale: Infinity, breakpoint: bp })
+            const old = legacyPlate(cw, chTotal, sw, sh, isMulti, Infinity)
+            expect(f.bg.transform).toBe(old.bgTransform)
+            expect(`scale(${f.scale})`).toBe(old.contentTransform)
+            expect(f.contentLeft).toBe(old.contentLeft)
+            expect({ left: f.bg.left, top: f.bg.top, width: f.bg.width, height: f.bg.height }).toEqual(old.bgBox)
+          }
+        }
+      }
+    }
+  })
+
+  it('reproduces the reported case: 1920x950 window, 1440x900 canvas -> canvas-sized plate stretched to the box, whole image visible', () => {
+    const f = R.computeStageFit({ cw: 1440, ch: 900, vw: 1920, vh: 950, mode: 'single', breakpoint: 'desktop' })
+    expect(f.bg.transform).toBe('scale(1.3333, 1.0556)')
+    expect({ w: f.bg.width, h: f.bg.height }).toEqual({ w: 1440, h: 900 })
+    // and NOT the uniform cover geometry that cropped ~21% of the photo
+    expect(f.bg.scaleX).not.toBe(f.bg.scaleY)
   })
 })
 

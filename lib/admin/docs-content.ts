@@ -366,9 +366,11 @@ Once a background image is set, a **Reposition Background** preview box appears 
 
 > 💡 Use this when the 9-grid **Position** presets aren't precise enough — e.g. keeping a face or product in frame on a wide photo, then re-dragging the Tablet/Mobile position separately if that same crop cuts the subject off on a narrower screen.
 
-### How the background fits the screen (all sizes, 2026-09-25)
+### How the background fits the screen
 
-On a free-layout Flexible section the background photo is **never stretched**. It always covers the *whole visible section* at its own natural proportions (the same "cover" behaviour a normal CSS background has), anchored on the focal point you dragged — so it looks the same on a 768×1024 tablet, an 800×1280 tablet, a phone or a desktop monitor, with no squashed or stretched circles/faces. Your Designer layout sits on top of it at true proportions too: scaled uniformly, top-aligned and centred. The two use the *same* scale, but the photo is sized to the real screen rather than to the design canvas, so on a screen whose proportions differ from your canvas the photo can crop slightly differently than it does inside the Designer — re-drag the focal point for that screen size if a subject needs to stay in frame.
+**Desktop (992px and wider):** the background is fitted to your Designer canvas exactly as it always was — the whole photo stays visible and is scaled to fill the visible section (on a window whose proportions differ from your canvas it is stretched very slightly, the same picture the Designer canvas shows). Nothing is cropped away.
+
+**Tablet and phone (2026-09-25):** on a free-layout Flexible section the background photo is **never stretched**. It always covers the *whole visible section* at its own natural proportions (the same "cover" behaviour a normal CSS background has), anchored on the focal point you dragged — so it looks the same on a 768×1024 tablet, an 800×1280 tablet or a phone, with no squashed or stretched circles/faces. Your Designer layout sits on top of it at true proportions too: scaled uniformly, top-aligned and centred. The two use the *same* scale, but the photo is sized to the real screen rather than to the design canvas, so on a screen whose proportions differ from your canvas the photo can crop slightly differently than it does inside the Designer — re-drag the focal point for that screen size if a subject needs to stay in frame.
 
 ---
 

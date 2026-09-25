@@ -18,6 +18,15 @@
  *                           Designer measured with (stored _measuredH says ONE line).
  *   multi-free            — free + multi content mode, two stacked bands.
  *   fallback-none         — legacy Desktop-only section with content.undesignedBreakpoint = "none" (show nothing on Tablet/Mobile).
+ *   free-single-header    — free + single with a Section Header (the plate stage is inset by the header height).
+ *   free-multi-header     — free + multi (2 bands) with a Section Header.
+ *   free-lowerthird-motion— free single with a Lower Third graphic + a Motion Element (painted outside the <section>).
+ *   grid-designer         — NON-free designerData (grid positions), section bg image + a Desktop-only per-breakpoint bg bundle.
+ *   mosaic-designer       — NON-free designerData in mosaic layout mode.
+ *   elements-grid         — legacy element-based section (content.elements + layout.type "grid"), no designerData.
+ *   scroll-stage-grid     — NON-free multi section with a Scroll Stage (2 zones).
+ *
+ * The non-free / special fixtures exist to prove that nothing outside the free-mode plate is touched by the stage-fit work.
  */
 
 export interface FixtureSection {
@@ -29,6 +38,8 @@ export interface FixtureSection {
   bgImageUrl?: string;
   bgImagePosition?: string;
   bgImageSize?: string;
+  lowerThird?: Record<string, unknown>;
+  motionElements?: Record<string, unknown>[];
   content: Record<string, unknown>;
 }
 
@@ -341,5 +352,149 @@ export function syntheticFixtures(): Fixture[] {
     },
   };
 
-  return [legacy, perBp, emptyVariants, fontStale, multi, fallbackNone];
+  const header = { sectionEyebrow: "Fixture eyebrow", sectionHeading: "Fixture section header", sectionSubheading: "A short sub heading that sits under the header." };
+  const freeSingleHeader: Fixture = {
+    name: "free-single-header",
+    description: "Free single section with a Section Header: the plate's stage starts below the header.",
+    section: {
+      ...legacy.section,
+      displayName: "Fixture free single header",
+      content: { ...legacy.section.content, ...header },
+    },
+  };
+  const freeMultiHeader: Fixture = {
+    name: "free-multi-header",
+    description: "Free multi (2 bands) section with a Section Header.",
+    section: {
+      ...multi.section,
+      displayName: "Fixture free multi header",
+      content: { ...multi.section.content, ...header },
+    },
+  };
+
+  const lowerThirdMotion: Fixture = {
+    name: "free-lowerthird-motion",
+    description: "Free single section with a Lower Third graphic and a Motion Element (rendered outside the <section>).",
+    section: {
+      ...legacy.section,
+      displayName: "Fixture free lower third motion",
+      lowerThird: { enabled: true, mode: "preset", preset: "wave", presetColor: "#ffffff", presetOpacity: 0.9, imageSrc: "", height: 120, flipHorizontal: false, flipVertical: false },
+      motionElements: [{
+        id: "mo-1", type: "image", src: BG_2X3, alt: "", top: "10%", right: "6%", width: "160px", opacity: 100, zIndex: 5, layer: "above-content",
+        parallax: { enabled: false, speed: 0 },
+        entrance: { enabled: false, direction: "bottom", distance: 0, duration: 0, delay: 0, easing: "linear" },
+        exit: { enabled: false, direction: "bottom", distance: 0, duration: 0 },
+        idle: { enabled: false, type: "float", speed: 1, amplitude: 0 },
+      }],
+    },
+  };
+
+  // NON-free (grid) designerData: blocks placed on a CSS grid via block.position, not pixelPos.
+  const gridBlocks = () => [
+    {
+      id: 1, type: "text", position: { row: 1, col: 1, colSpan: 1, rowSpan: 1, section: 0 },
+      props: { label: "Text", bgColor: "transparent", textColor: "#ffffff", glassEffect: "none", customCss: "" },
+      subElements: [
+        { id: "g-1", type: "heading", props: { level: "h2", text: "Grid designer heading", color: "#ffffff", fontSize: 34 }, x: 0, y: 0, w: null },
+        { id: "g-2", type: "paragraph", props: { text: LOREM, color: "#e8eef5", fontSize: 16 }, x: 0, y: 70, w: null },
+      ],
+    },
+    {
+      id: 2, type: "text", position: { row: 1, col: 2, colSpan: 1, rowSpan: 1, section: 1 },
+      props: { label: "Text", bgColor: "rgba(255,255,255,0.12)", textColor: "#ffffff", glassEffect: "none", customCss: "" },
+      subElements: [
+        { id: "g-3", type: "heading", props: { level: "h3", text: "Second grid cell", color: "#ffffff", fontSize: 26 }, x: 0, y: 0, w: null },
+        { id: "g-4", type: "paragraph", props: { text: LOREM, color: "#dbe6f3", fontSize: 15 }, x: 0, y: 60, w: null },
+      ],
+    },
+  ];
+  const gridData = (over: Record<string, unknown> = {}) => ({
+    contentMode: "single", positionMode: "grid", layoutType: "grid", nextId: 10,
+    layout: { type: "grid", gridRows: 1, gridCols: 2, gridGap: 24 },
+    blocks: gridBlocks(),
+    ...over,
+  });
+  const gridSection: FixtureSection = {
+    type: "FLEXIBLE",
+    displayName: "Fixture grid designer",
+    background: "#0b1f33",
+    bgImageUrl: BG_3X2,
+    bgImagePosition: "50% 40%",
+    content: {
+      contentMode: "single",
+      layout: { type: "grid", gridRows: 1, gridCols: 2, gridGap: 24 },
+      elements: [],
+      designerData: gridData(),
+      // Desktop-only bundle: an unset Tablet/Mobile bundle must stay NEUTRAL (strict isolation) for a non-free section.
+      backgroundByBreakpoint: { desktop: bgBundle(BG_3X2, "#0b1f33"), tablet: null, mobile: null },
+    },
+  };
+  const gridDesigner: Fixture = {
+    name: "grid-designer",
+    description: "NON-free designerData (grid positions) with a section bg image and a Desktop-only per-breakpoint bg bundle.",
+    section: gridSection,
+  };
+  const mosaicDesigner: Fixture = {
+    name: "mosaic-designer",
+    description: "NON-free designerData in mosaic layout mode.",
+    section: {
+      ...gridSection,
+      displayName: "Fixture mosaic designer",
+      content: {
+        ...gridSection.content,
+        layout: { type: "grid", layoutMode: "mosaic", gridAutoRows: 160, gridGap: 16 },
+        // Mosaic blocks carry their copy in block.props (heading/text/eyebrow) — designerBlockToElement maps them to cards.
+        designerData: gridData({
+          layoutType: "mosaic",
+          layout: { type: "grid", layoutMode: "mosaic", gridAutoRows: 160, gridGap: 16 },
+          blocks: [1, 2, 3].map((n) => ({
+            id: n, type: "info", position: { row: 1, col: n, colSpan: 1, rowSpan: 1, section: 0 },
+            props: { eyebrow: `Cell ${n}`, heading: `Mosaic cell ${n}`, text: LOREM, bgColor: "rgba(255,255,255,0.12)" },
+            subElements: [],
+          })),
+        }),
+      },
+    },
+  };
+  const elementsGrid: Fixture = {
+    name: "elements-grid",
+    description: "Legacy element-based section: content.elements on a CSS grid, no designerData.",
+    section: {
+      type: "FLEXIBLE",
+      displayName: "Fixture elements grid",
+      background: "#0b1f33",
+      bgImageUrl: BG_3X2,
+      bgImagePosition: "50% 40%",
+      content: {
+        contentMode: "single",
+        layout: { type: "grid", gridRows: 1, gridCols: 3, gridGap: 20 },
+        elements: [1, 2, 3].map((n) => ({
+          id: `el-${n}`, type: "text",
+          position: { mode: "grid", gridRow: 1, gridCol: n, gridColSpan: 1, gridRowSpan: 1 },
+          styling: { textColor: "#ffffff" },
+          content: { heading: `Element text ${n}`, text: LOREM },
+        })),
+        backgroundByBreakpoint: { desktop: bgBundle(BG_3X2, "#0b1f33"), tablet: null, mobile: null },
+      },
+    },
+  };
+  const scrollStage: Fixture = {
+    name: "scroll-stage-grid",
+    description: "NON-free multi section (2 zones) with a Scroll Stage image track.",
+    section: {
+      ...gridSection,
+      displayName: "Fixture scroll stage",
+      content: {
+        ...gridSection.content,
+        contentMode: "multi",
+        designerData: gridData({ contentMode: "multi", multiLimit: 2 }),
+        scrollStage: { enabled: true, side: "right", scrollMode: "snap", zones: [
+          { visualType: "image", src: BG_2X3, alt: "zone one", objectFit: "cover" },
+          { visualType: "image", src: BG_3X2, alt: "zone two", objectFit: "cover" },
+        ] },
+      },
+    },
+  };
+
+  return [legacy, perBp, emptyVariants, fontStale, multi, fallbackNone, freeSingleHeader, freeMultiHeader, lowerThirdMotion, gridDesigner, mosaicDesigner, elementsGrid, scrollStage];
 }

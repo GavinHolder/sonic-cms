@@ -293,6 +293,11 @@ export interface StageFitOpts {
   mode?: "single" | "multi";
   /** Upper clamp on the uniform scale (e.g. 1.15 for the Mobile plate, 1 for the Designer's own zoom). */
   maxScale?: number;
+  /**
+   * Active breakpoint. "desktop" (default) keeps the pre-2026-09-25 background geometry (canvas-sized plate under
+   * scale(sx, sy)); "tablet"/"mobile" get the uniform cover plate. Does not affect `scale`.
+   */
+  breakpoint?: "desktop" | "tablet" | "mobile";
 }
 
 export interface StageFit {
@@ -303,8 +308,12 @@ export interface StageFit {
   contentTop: number;
   contentW: number;
   contentH: number;
-  /** Background plate: size in canvas units, scaled by the SAME uniform factor so it covers the whole box. */
-  bg: { left: number; top: number; width: number; height: number; scale: number };
+  /**
+   * Background plate. Tablet/mobile: (vw/scale) x (vh/scale) canvas units under the SAME uniform factor, so it covers
+   * the whole box. Desktop: the canvas-sized cw x ch plate under scale(scaleX, scaleY) (multi: one width-only factor).
+   * `transform` is the ready-made CSS string; `scale` is the horizontal factor.
+   */
+  bg: { left: number; top: number; width: number; height: number; scale: number; scaleX: number; scaleY: number; transform: string };
 }
 
 /** The single shared decision of how a free-mode canvas is fitted into a box — uniform, never stretched. */

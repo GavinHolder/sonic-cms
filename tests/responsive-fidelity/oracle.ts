@@ -16,7 +16,10 @@
  *  - Content plate: UNIFORM scale, top-anchored, horizontally centred.
  *      single: s = min(stageW/cw, stageH/ch, maxScale)     multi: s = min(stageW/cw, maxScale)
  *    maxScale = 1.15 for the Mobile breakpoint, unbounded otherwise.
- *  - Background: never non-uniformly scaled; fills the stage box.
+ *  - Background, TABLET/MOBILE: never non-uniformly scaled; a uniform cover plate that fills the stage box.
+ *  - Background, DESKTOP (>= 992): unchanged since commit c4535fa — a canvas-sized (cw x chTotal) plate scaled
+ *      single: scale(round4(stageW/cw), round4(stageH/ch))      multi: scale(round4(stageW/cw)) (height = chTotal*scale)
+ *    so the WHOLE image is visible and the box is the design canvas the Designer shows (mild stretch, no crop).
  *  - Sub-element wrapper (inside text/text-block/card containers) sits at
  *      left = block.x + 2 + padX + sub.x,  top = block.y + 2 + padT + sub.y,
  *      width = sub.w ?? max(block.w - 2*padX, 0)   (padX default 20, padT default 16).
@@ -138,6 +141,14 @@ export function expectedPlate(exp: Expectation, stageW: number, stageH: number) 
   const scale = Math.round(s * 10000) / 10000;
   const offsetX = Math.max(0, (stageW - exp.cw * scale) / 2);
   return { scale, offsetX, offsetY: 0 };
+}
+
+/** Expected DESKTOP background plate (see CONTRACT): pre-scale CSS size + the (possibly non-uniform) scale. */
+export function expectedDesktopBgPlate(exp: Expectation, stageW: number, stageH: number) {
+  const r4 = (n: number) => Math.round(n * 10000) / 10000;
+  const sx = r4(stageW / exp.cw);
+  const sy = exp.multi ? sx : r4(stageH / exp.ch);
+  return { cssW: exp.cw, cssH: exp.chTotal, sx, sy, boxW: exp.cw * sx, boxH: exp.chTotal * sy };
 }
 
 export interface ExpectedItem {

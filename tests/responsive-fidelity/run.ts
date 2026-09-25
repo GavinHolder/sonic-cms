@@ -5,19 +5,22 @@
  * WHAT IT PROVES (for every fixture x every viewport in config.ts):
  *   (i)   content plate scale/offset == the contract (oracle.ts) and is UNIFORM
  *   (ii)  every block + container sub-element wrapper rect == canvas position x scale + offset (<= 1px)
- *   (iii) no element anywhere in the section is non-uniformly scaled (the background used to be)
+ *   (iii) no element anywhere in the section is non-uniformly scaled — except the DESKTOP background plate, which keeps
+ *         the canvas-sized scale(sx, sy) geometry commit c4535fa rendered (see D.* below); Tablet/Mobile are uniform
  *   (iv)  no heading/eyebrow renders more lines than the Designer measured for it (stored _measuredH),
  *         unless it was authored with a fixed height
  *   (v)   no two text wrappers overlap unless they overlap in the stored canvas geometry
  *   (vi)  section height == 100vh (single) / the design height (free multi) / multiLimit x 100vh (multi)
  *   (vii) a screenshot per combination -> test-artifacts/screens/<label>/
+ *   (D)   DESKTOP background plate == the contract (oracle.expectedDesktopBgPlate) AND == the numbers captured from
+ *         commit c4535fa (baselines/desktop-bg-c4535fa.json; regenerate with --capture-baseline against a c4535fa server)
  * plus: background present + correct for the breakpoint (B), content not blank (B), the un-authored
  * Mobile reading-order reflow is legible (no horizontal overflow / no tiny text), no horizontal page scroll.
  *
  * USAGE (dev server on :3100 with DATABASE_URL pointing at a database whose name contains "fidelity"):
  *   npx tsx tests/responsive-fidelity/run.ts --label before
  *   npx tsx tests/responsive-fidelity/run.ts --label after --only per-breakpoint,live-kuluntu
- *   flags: --viewport <name,...>  --no-shots  --no-seed  --dump-rects <file>
+ *   flags: --viewport <name,...>  --no-shots  --no-seed  --dump-rects <file>  --capture-baseline <file>
  * Optional env: FIDELITY_BASE_URL, FIDELITY_LIVE_URL (proxy /uploads, /images/uploads, /api/public/volt to a
  * real site so live-derived fixtures show their real media), see fetch-live-fixtures.mjs.
  * Exit code 1 if any check fails.
@@ -30,7 +33,7 @@ import { BASE_URL, FIXTURE_ASSET_ROUTE, TOL, VIEWPORTS, type ViewportSpec } from
 import { loadFixtures } from "./fixtures/load";
 import type { Fixture } from "./fixtures/synthetic";
 import { seedFixtures } from "./seed";
-import { expectationFor, expectedItems, expectedPlate, measuredLines, type Expectation, type ExpectedItem } from "./oracle";
+import { expectationFor, expectedDesktopBgPlate, expectedItems, expectedPlate, measuredLines, type Expectation, type ExpectedItem } from "./oracle";
 import { buildRoundTrips, evaluateParity, type RoundTrip } from "./parity";
 
 const require = createRequire(import.meta.url);
@@ -45,6 +48,7 @@ const label = opt("label") ?? "run";
 const only = opt("only")?.split(",").filter(Boolean);
 const onlyVp = opt("viewport")?.split(",").filter(Boolean);
 const dumpRects = opt("dump-rects");
+const captureBaseline = opt("capture-baseline");
 const shots = !flag("no-shots");
 const RT_VIEWPORT = "laptop-1440x900"; // Designer round-trip fixtures are only rendered at the Designer's own 1440 canvas width
 
@@ -55,13 +59,23 @@ fs.mkdirSync(shotDir, { recursive: true });
 const measureSrc = fs.readFileSync(path.join(here, "measure.browser.js"), "utf8");
 const LIVE = (process.env.FIDELITY_LIVE_URL ?? "").replace(/\/$/, "");
 
+// Desktop background plate numbers captured from commit c4535fa (before the stage-fit work). The committed file only
+// holds the synthetic fixtures; a git-ignored *.live.json next to it (same shape) adds the live-derived ones.
+const baselineDir = path.join(here, "baselines");
+const baseline: Record<string, any> = {};
+for (const f of ["desktop-bg-c4535fa.json", "desktop-bg-c4535fa.live.json"]) {
+  const file = path.join(baselineDir, f);
+  if (fs.existsSync(file)) Object.assign(baseline, JSON.parse(fs.readFileSync(file, "utf8")));
+}
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
 // ── result types ────────────────────────────────────────────────────────────
 interface Check { id: string; pass: boolean; detail: string; magnitude: number }
 interface Combo { fixture: string; viewport: string; bp: string; checks: Check[]; notes: string[]; errors: string[] }
 
 const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
 
-function evaluate(fx: Fixture, vp: ViewportSpec, exp: Expectation, m: any): Check[] {
+function evaluate(fx: Fixture, vp: ViewportSpec, exp: Expectation, m: any, base?: any): Check[] {
   const checks: Check[] = [];
   const add = (id: string, pass: boolean, detail: string, magnitude = 0) => checks.push({ id, pass, detail, magnitude });
   if (m.error) { add("page.renders", false, m.error, 1e6); return checks; }
@@ -70,9 +84,11 @@ function evaluate(fx: Fixture, vp: ViewportSpec, exp: Expectation, m: any): Chec
     `doc scrollWidth ${m.docScrollW}, section scrollWidth ${m.sectionScrollW}, viewport ${vp.w}`, Math.max(0, m.docScrollW - vp.w));
 
   // (iii) — never any non-uniform scale anywhere in the section.
-  add("iii.no-nonuniform-scale", m.nonUniform.length === 0,
-    m.nonUniform.length ? m.nonUniform.slice(0, 3).map((n: any) => `${n.fx || n.tag}(${n.sx} x ${n.sy})`).join(", ") : "ok",
-    m.nonUniform.reduce((mx: number, n: any) => Math.max(mx, Math.abs(n.sx - n.sy) / Math.max(n.sx, n.sy)), 0) * 100);
+  // The DESKTOP background plate is the one deliberate exception (canvas-sized plate under scale(sx, sy), as at c4535fa).
+  const nonUniform = exp.bp === "desktop" ? m.nonUniform.filter((n: any) => n.fx !== "bg") : m.nonUniform;
+  add("iii.no-nonuniform-scale", nonUniform.length === 0,
+    nonUniform.length ? nonUniform.slice(0, 3).map((n: any) => `${n.fx || n.tag}(${n.sx} x ${n.sy})`).join(", ") : "ok",
+    nonUniform.reduce((mx: number, n: any) => Math.max(mx, Math.abs(n.sx - n.sy) / Math.max(n.sx, n.sy)), 0) * 100);
 
   // (vi) height contract
   const isFreePlate = exp.isFree && !exp.reflow && !exp.blank;
@@ -135,8 +151,30 @@ function evaluate(fx: Fixture, vp: ViewportSpec, exp: Expectation, m: any): Chec
   const dy = m.content.rect.y - (m.stage.y + want.offsetY);
   add("i.plate-offset", Math.abs(dx) <= TOL.offset && Math.abs(dy) <= TOL.offset, `plate offset off by (${dx.toFixed(1)}, ${dy.toFixed(1)}) px`, Math.max(Math.abs(dx), Math.abs(dy)));
 
-  // Background fills the stage (single) — uniform, no gutters (A).
-  if (exp.bg.image && m.bgPlates.length) {
+  // DESKTOP background plate (D): the canvas-sized plate under scale(sx, sy) — the geometry commit c4535fa rendered.
+  if (exp.bp === "desktop" && m.bgPlates.length) {
+    const b = m.bgPlates[0];
+    // the renderer measures its stage with clientWidth/clientHeight (integers)
+    const want = expectedDesktopBgPlate(exp, Math.round(m.stage.w), Math.round(m.stage.h));
+    const sizeOk = b.w === `${want.cssW}px` && b.h === `${want.cssH}px`;
+    const matOk = near(b.matrix.a, want.sx, 0.0002) && near(b.matrix.d, want.sy, 0.0002);
+    add("D.bg-desktop-plate", sizeOk && matOk,
+      `bg plate css ${b.w} x ${b.h} scale ${b.matrix.a} x ${b.matrix.d}; contract ${want.cssW}px x ${want.cssH}px scale ${want.sx} x ${want.sy}`,
+      Math.abs(b.matrix.a - want.sx) + Math.abs(b.matrix.d - want.sy) + (sizeOk ? 0 : 1));
+    const boxOk = near(b.rect.x, m.stage.x, TOL.rect) && near(b.rect.y, m.stage.y, TOL.rect) && near(b.rect.w, want.boxW, TOL.rect + 1) && near(b.rect.h, want.boxH, TOL.rect + 1);
+    add("D.bg-desktop-box", boxOk, `bg plate rect ${b.rect.w}x${b.rect.h}@(${b.rect.x},${b.rect.y}) vs contract ${round2(want.boxW)}x${round2(want.boxH)} at the stage origin (${m.stage.x},${m.stage.y})`,
+      Math.max(Math.abs(b.rect.w - want.boxW), Math.abs(b.rect.h - want.boxH)));
+    if (base?.bg) {
+      const same = b.w === base.bg.w && b.h === base.bg.h && near(b.matrix.a, base.bg.a, 0.0001) && near(b.matrix.d, base.bg.d, 0.0001) &&
+        near(b.rect.x, base.bg.rect.x, 0.02) && near(b.rect.y, base.bg.rect.y, 0.02) && near(b.rect.w, base.bg.rect.w, 0.02) && near(b.rect.h, base.bg.rect.h, 0.02);
+      add("D.bg-desktop-identical-c4535fa", same,
+        `bg plate now css ${b.w} x ${b.h} scale ${b.matrix.a} x ${b.matrix.d} rect ${b.rect.w}x${b.rect.h}@(${b.rect.x},${b.rect.y}); c4535fa css ${base.bg.w} x ${base.bg.h} scale ${base.bg.a} x ${base.bg.d} rect ${base.bg.rect.w}x${base.bg.rect.h}@(${base.bg.rect.x},${base.bg.rect.y})`,
+        Math.abs(b.rect.w - base.bg.rect.w) + Math.abs(b.rect.h - base.bg.rect.h) + Math.abs(b.matrix.a - base.bg.a) * 100 + Math.abs(b.matrix.d - base.bg.d) * 100);
+    }
+  }
+
+  // Background fills the stage (Tablet/Mobile) — uniform cover plate, no gutters (A).
+  if (exp.bg.image && m.bgPlates.length && exp.bp !== "desktop") {
     const b = m.bgPlates[0].rect;
     const okBox = near(b.x, m.stage.x, TOL.rect) && near(b.y, m.stage.y, TOL.rect) && near(b.w, m.stage.w, TOL.rect) && near(b.h, m.stage.h, TOL.rect + (exp.multi ? 1 : 0));
     add("A.bg-fills-stage", okBox, `bg plate ${b.w}x${b.h}@(${b.x},${b.y}) vs stage ${m.stage.w}x${m.stage.h}@(${m.stage.x},${m.stage.y})`,
@@ -226,6 +264,7 @@ async function main() {
   const runList: Fixture[] = [...fixtures, ...rts.map((r) => r.fixture)];
   const combos: Combo[] = [];
   const rectDump: Record<string, unknown> = {};
+  const capturedBaseline: Record<string, unknown> = {};
   const assetsDir = path.join(here, "fixtures", "assets");
 
   for (const vp of viewports) {
@@ -267,7 +306,12 @@ async function main() {
       } catch (e) {
         m = { error: `load failed: ${String((e as Error).message).slice(0, 160)}` };
       }
-      const checks = evaluate(fx, vp, exp, m);
+      const baseKey = `${fx.name}@${vp.name}`;
+      const checks = evaluate(fx, vp, exp, m, baseline[baseKey]);
+      if (captureBaseline && !m.error && exp.bp === "desktop" && m.bgPlates?.length && m.stage) {
+        const b = m.bgPlates[0];
+        capturedBaseline[baseKey] = { stage: m.stage, bg: { w: b.w, h: b.h, a: b.matrix.a, d: b.matrix.d, rect: b.rect } };
+      }
       const rt = rtByName.get(fx.name);
       if (rt && !m.error) checks.push(...evaluateParity(rt, m.subs));
       combos.push({ fixture: fx.name, viewport: vp.name, bp: exp.bp, checks, notes: [], errors });
@@ -306,6 +350,11 @@ async function main() {
   console.log(`\n${comboFail}/${combos.length} fixture x viewport combos failing; ${totalFail} failing checks in total.`);
   fs.writeFileSync(path.join(outDir, `results-${label}.json`), JSON.stringify({ label, when: new Date().toISOString(), combos }, null, 1));
   if (dumpRects) fs.writeFileSync(path.resolve(dumpRects), JSON.stringify(rectDump, null, 1));
+  if (captureBaseline) {
+    fs.mkdirSync(path.dirname(path.resolve(captureBaseline)), { recursive: true });
+    fs.writeFileSync(path.resolve(captureBaseline), JSON.stringify(capturedBaseline, null, 1) + "\n");
+    console.log(`captured desktop bg baseline for ${Object.keys(capturedBaseline).length} combos -> ${captureBaseline}`);
+  }
   process.exit(totalFail ? 1 : 0);
 }
 

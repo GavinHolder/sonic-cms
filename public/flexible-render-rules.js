@@ -1004,32 +1004,42 @@
    * fitted into the box it is shown in (vw x vh CSS px). Consumed by BOTH:
    *   1. components/sections/FlexibleSectionRenderer.tsx  — the live content plate and background plate;
    *   2. public/flexible-designer.html                    — the canvas's own fit-to-panel zoom
-   *                                                          (getCanvasScale / resetUserZoom),
+   *                                                          (getCanvasScale / resetUserZoom; only `.scale`),
    * so the Designer preview and the live page can never disagree about scale or placement.
    *
-   * Everything is UNIFORM — nothing is ever stretched. (Until 2026-09-25 the live background plate was scaled
-   * NON-uniformly, scale(vw/cw, vh/ch): a photo was visibly stretched — ~14% at 768x1024, ~36% at 800x1280 — and
-   * drifted out of register with the uniformly-scaled content on top of it.)
-   *
+   * CONTENT plate (every breakpoint): ONE uniform scale — nothing is ever stretched.
    *   mode "single": scale = min(vw/cw, vh/ch, maxScale) — "contain": the WHOLE design is always visible and the
    *                  box is never grown/shrunk to fit content (the CMS-wide 100vh hard boundary).
    *   mode "multi":  scale = min(vw/cw, maxScale) — width fit; the caller grows the box to the design height with
    *                  CSS aspect-ratio, so the whole design is visible with no crop.
    *
-   * The content plate is top-anchored and horizontally centred: contentLeft = max(0, (vw - cw*scale) / 2).
-   * The background plate is a uniformly-scaled box that COVERS THE WHOLE fitted box: its size in canvas units is
-   * (vw/scale) x (vh/scale), so `background-size: cover` and the owner's saved focal point resolve against the real
-   * section box, and an authored px/contain size scales together with the content.
+   * BACKGROUND plate — depends on `opts.breakpoint` (2026-09-25 review follow-up):
+   *   "desktop" (default; >= 992px): the geometry commit c4535fa (before the stage-fit work) rendered, UNCHANGED —
+   *       a canvas-sized plate (cw x ch design px) scaled scale(sx, sy) to fill the stage box, whole image
+   *       visible, the mild stretch on an off-ratio window being the trade-off the owner accepted. It is also what
+   *       the Designer canvas shows, so canvas and live agree. Multi mode: the same plate under the single
+   *       width-only scale, with height = the full stacked design height.
+   *   "tablet" | "mobile": a UNIFORM cover plate. The non-uniform stretch is severe on these portrait boxes (14% at
+   *       768x1024, 36% at 800x1280) and drifted out of register with the uniformly-scaled content, so the plate is
+   *       (vw/scale) x (vh/scale) canvas units under the SAME uniform scale: it COVERS the whole box, and
+   *       `background-size: cover` plus the owner's saved focal point resolve against the real section box.
+   *
+   * The content plate is top-anchored. contentLeft: on desktop exactly as c4535fa (centred only when height-limited,
+   * i.e. scaleY < scaleX; 0 otherwise, and always 0 in multi mode); on tablet/mobile horizontally centred:
+   * max(0, (vw - cw*scale) / 2).
    *
    * ASSUMPTIONS: cw/ch are design px > 0 (callers floor them); vw/vh are the fitted box in CSS px (the plate's
    *   stage: the section minus any Section Header inset); maxScale defaults to Infinity.
    * FAILURE MODES: non-finite/<= 0 cw or ch -> 1; non-finite/<= 0 vw or vh -> cw / ch (so the scale is 1, never
-   *   NaN / 0 / Infinity). The scale is rounded to 4dp (kills float noise from the vw/cw division, which renders
-   *   text visibly soft under transform:scale() — same mitigation both editor canvases apply to their own zoom).
+   *   NaN / 0 / Infinity); an unknown breakpoint is treated as "desktop". Every scale factor is rounded to 4dp (kills
+   *   float noise from the vw/cw division, which renders text visibly soft under transform:scale() — same
+   *   mitigation both editor canvases apply to their own zoom).
    *
-   * @param {{cw:number,ch:number,vw:number,vh:number,mode?:"single"|"multi",maxScale?:number}} opts
+   * @param {{cw:number,ch:number,vw:number,vh:number,mode?:"single"|"multi",maxScale?:number,
+   *          breakpoint?:"desktop"|"tablet"|"mobile"}} opts
    * @returns {{scale:number,contentLeft:number,contentTop:number,contentW:number,contentH:number,
-   *            bg:{left:number,top:number,width:number,height:number,scale:number}}}
+   *            bg:{left:number,top:number,width:number,height:number,scale:number,scaleX:number,scaleY:number,
+   *                transform:string}}}
    */
   function computeStageFit(opts) {
     opts = opts || {};
@@ -1038,16 +1048,26 @@
     var vw = isFinite(opts.vw) && opts.vw > 0 ? Number(opts.vw) : cw;
     var vh = isFinite(opts.vh) && opts.vh > 0 ? Number(opts.vh) : ch;
     var maxScale = isFinite(opts.maxScale) && opts.maxScale > 0 ? Number(opts.maxScale) : Infinity;
-    var raw = opts.mode === "multi" ? Math.min(vw / cw, maxScale) : Math.min(vw / cw, vh / ch, maxScale);
-    var scale = Math.round(raw * 10000) / 10000;
+    var multi = opts.mode === "multi";
+    var uniformBg = opts.breakpoint === "tablet" || opts.breakpoint === "mobile";
+    var round4 = function (n) { return Math.round(n * 10000) / 10000; };
+    var scaleX = round4(Math.min(vw / cw, maxScale));
+    var scaleY = round4(Math.min(vh / ch, maxScale));
+    var scale = multi ? scaleX : Math.min(scaleX, scaleY);
     var contentW = cw * scale;
+    var contentLeft = (uniformBg || (!multi && scaleY < scaleX)) ? Math.max(0, (vw - contentW) / 2) : 0;
+    var bg = uniformBg
+      ? { left: 0, top: 0, width: vw / scale, height: vh / scale, scale: scale, scaleX: scale, scaleY: scale,
+          transform: "scale(" + scale + ")" }
+      : { left: 0, top: 0, width: cw, height: ch, scale: scaleX, scaleX: scaleX, scaleY: multi ? scaleX : scaleY,
+          transform: multi ? "scale(" + scaleX + ")" : "scale(" + scaleX + ", " + scaleY + ")" };
     return {
       scale: scale,
-      contentLeft: Math.max(0, (vw - contentW) / 2),
+      contentLeft: contentLeft,
       contentTop: 0,
       contentW: contentW,
       contentH: ch * scale,
-      bg: { left: 0, top: 0, width: vw / scale, height: vh / scale, scale: scale },
+      bg: bg,
     };
   }
 

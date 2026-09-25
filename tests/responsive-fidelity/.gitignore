@@ -2,3 +2,5 @@
 fixtures/live/
 # Screenshots, per-run JSON results and rect dumps.
 test-artifacts/
+# Desktop-bg baseline numbers captured from live-derived fixtures (see run.ts --capture-baseline).
+baselines/*.live.json

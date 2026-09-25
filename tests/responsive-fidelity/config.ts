@@ -21,6 +21,7 @@ export const VIEWPORTS: ViewportSpec[] = [
   { name: "tablet-800x1280", w: 800, h: 1280 },
   { name: "tablet-landscape-1114x765", w: 1114, h: 765 },
   { name: "laptop-1440x900", w: 1440, h: 900 },
+  { name: "desktop-1920x950", w: 1920, h: 950 }, // a 1080p monitor minus browser chrome: the owner's everyday desktop window
   { name: "desktop-1920x1080", w: 1920, h: 1080 },
 ];
 

@@ -1117,10 +1117,10 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           // 100vh to avoid cropping bottom-anchored content — that broke the hard rule (the
           // page needed extra scroll before the next section's snap point) and was reverted
           // the same day once the violation was reported. Single mode's plate instead fits this
-          // fixed 100vh box UNIFORMLY (see that branch in DesignerBlocksRenderer and
-          // computeStageFit): the content is contain-fit and the background plate covers the
-          // whole box under the same uniform scale — so there are no letterbox gutters on the
-          // background, no crop of the design, and (since 2026-09-25) no stretched photo.
+          // fixed 100vh box (see that branch in DesignerBlocksRenderer and computeStageFit): the
+          // content is contain-fit UNIFORMLY, and the background plate fills the whole box with no
+          // letterbox gutters — on desktop as the canvas-sized plate the Designer shows, on
+          // tablet/mobile (since 2026-09-25) as a uniform cover so a photo is never stretched.
           aspectRatio: `${freeCanvas.cw} / ${freeCanvas.ch * (freeCanvas.multiLimit || 1)}`,
           height: "auto",
           minHeight: 0,
@@ -2579,15 +2579,19 @@ function DesignerBlocksRenderer({
       //   combination): contain-fit, the WHOLE design visible, box never grown or shrunk (the
       //   100vh hard boundary). The background image and the content blocks (cards, text,
       //   buttons — anything the visitor reads or clicks) are still TWO SEPARATE layers
-      //   (user directive, 2026-09-04: "the bg and product cards are two separate things"), but
-      //   since 2026-09-25 BOTH are scaled UNIFORMLY — nothing on this plate is ever stretched:
-      //   - CONTENT layer: uniform scale = min(width ratio, height ratio), top-anchored and
-      //     horizontally centred, so cards/buttons/text keep their true aspect ratio.
-      //   - BACKGROUND layer: a plate of (stageW/scale) x (stageH/scale) canvas units under the
-      //     SAME uniform scale, so it covers the whole stage box exactly and `background-size:
-      //     cover` + the owner's saved focal point resolve against the real section box. It used
-      //     to be scale(sx, sy) — a photo stretched ~14% at 768x1024 and ~36% at 800x1280, and
-      //     drifting out of register with the uniformly-scaled content above it.
+      //   (user directive, 2026-09-04: "the bg and product cards are two separate things"):
+      //   - CONTENT layer (every breakpoint): uniform scale = min(width ratio, height ratio),
+      //     top-anchored, so cards/buttons/text keep their true aspect ratio.
+      //   - BACKGROUND layer, DESKTOP (>= 992px): exactly what it always was — a canvas-sized
+      //     (cw x ch) plate under scale(sx, sy) that fills the stage box, whole image visible,
+      //     the same picture the Designer canvas shows (the owner-accepted mild stretch on an
+      //     off-ratio window). Restored 2026-09-25: a uniform cover here cropped ~21% of the photo
+      //     at 1920x950 and moved it out of register with the canvas.
+      //   - BACKGROUND layer, TABLET/MOBILE: since 2026-09-25 a plate of (stageW/scale) x
+      //     (stageH/scale) canvas units under the SAME uniform scale as the content, so it covers
+      //     the whole stage box and `background-size: cover` + the owner's saved focal point
+      //     resolve against the real section box. The old scale(sx, sy) stretched a photo ~14% at
+      //     768x1024 and ~36% at 800x1280 and drifted out of register with the content.
       // All of it comes from ONE shared function, computeStageFit (flexible-render-rules.js) —
       // the Designer's own fit-to-panel zoom uses it too, so canvas and live cannot disagree.
       const sw = stageW || (typeof window !== "undefined" ? window.innerWidth : cw);
@@ -2599,13 +2603,13 @@ function DesignerBlocksRenderer({
       const sh = stageH || (isMulti
         ? (sw * chTotal) / cw
         : (typeof window !== "undefined" ? window.innerHeight : ch));
-      const fit = computeStageFit({ cw, ch: chTotal, vw: sw, vh: sh, mode: isMulti ? "multi" : "single", maxScale: plateMaxScale });
+      const fit = computeStageFit({ cw, ch: chTotal, vw: sw, vh: sh, mode: isMulti ? "multi" : "single", maxScale: plateMaxScale, breakpoint: resolvedActiveBreakpointKey });
       // fit.scale is already rounded to 4dp inside computeStageFit — a real device width divided by
       // an authored canvas width is essentially never a clean number, and an unrounded scale (e.g.
       // matrix(1.06556,0,0,1.06556,0,0)) renders text visibly soft (confirmed in a real browser).
       const contentTransform = `scale(${fit.scale})`;
       const contentLeft = fit.contentLeft;
-      // Per-band "Repeat per section" tiling keeps its own cw x chTotal plate under the same uniform scale.
+      // Per-band "Repeat per section" tiling (multi only) keeps its own cw x chTotal plate under the one width-only scale.
       const repeatBgTransform = `scale(${fit.scale})`;
       return (
         <div ref={stageRef} data-fx-stage="" style={{
@@ -2665,7 +2669,7 @@ function DesignerBlocksRenderer({
               <div aria-hidden="true" data-fx-bg="" style={{
                 position: "absolute", left: fit.bg.left, top: fit.bg.top,
                 width: fit.bg.width, height: fit.bg.height,
-                transform: `scale(${fit.bg.scale})`,
+                transform: fit.bg.transform,
                 transformOrigin: "top left",
                 zIndex: 0,
                 backgroundImage: `url(${bgImage.url})`,
