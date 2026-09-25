@@ -25,6 +25,7 @@
 import { NextResponse } from "next/server";
 import { getEmailConfig, sendSubmissionEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
+import { enforceFormRateLimit } from "@/lib/form-rate-limit";
 
 /** Convert a snake/camel field key into a human label, e.g. "preferred_date" → "Preferred Date". */
 function humanize(key: string): string {
@@ -61,6 +62,10 @@ async function resolveRecipient(pageId: string): Promise<string | undefined> {
 }
 
 export async function POST(req: Request) {
+  // Per-IP spam limit — must run before any body parsing, DB write or email send.
+  const limited = enforceFormRateLimit(req, "contact");
+  if (limited) return limited;
+
   try {
     const body = (await req.json()) as Record<string, unknown>;
     // Strip routing keys from the emailed/logged field set. `emailTo` is NEVER

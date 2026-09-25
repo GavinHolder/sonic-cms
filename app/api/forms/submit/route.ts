@@ -7,8 +7,13 @@
 import { NextResponse } from "next/server";
 import { getEmailConfig, sendSubmissionEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
+import { enforceFormRateLimit } from "@/lib/form-rate-limit";
 
 export async function POST(req: Request) {
+  // Per-IP spam limit — must run before any body parsing, DB write, webhook call or email send.
+  const limited = enforceFormRateLimit(req, "forms-submit");
+  if (limited) return limited;
+
   try {
     const { fields, userEmail, source, emailTo, submitAction, webhookUrl, pageId } = await req.json();
 
