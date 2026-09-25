@@ -502,17 +502,19 @@ export function resolveFreeformSize(
  * On a phone every freeform element WITHOUT a `posMobile` is stacked in one centred column, in the renderer's fixed DOM order:
  * eyebrow, heading rows (or the legacy heading), subheading, buttons, images. That order ignores where the author put things, so a
  * logo dragged to the TOP of the slide always landed last. This returns the CSS `order` per element key that makes the column follow
- * the design — with one hard rule: ONLY elements with an EXPLICIT saved `pos` (the author dragged them) take part.
+ * the design, without ever separating an element from the one it followed:
  *
- *   • The elements that have a `pos` re-fill THEIR OWN slots (the DOM positions they already occupy) in ascending `pos.y`
- *     (ties keep DOM order, so the sort is stable).
- *   • Every element WITHOUT a `pos` stays exactly in its old slot — an undragged image is still last, an undragged eyebrow still first,
- *     and a slide where nothing was dragged is unchanged. Defaults (`defaultFreeformPos`) never influence the order.
- *   • Elements with a `posMobile` are absolute (out of flow) and are not part of the column, so they are ignored here.
+ *   • Every flow element gets a sort key. A DRAGGED element (explicit finite saved `pos.y`) uses its own `pos.y`. An UNDRAGGED element
+ *     inherits the key of the nearest preceding element in the column (-Infinity if it is first), so it always travels with the
+ *     element it originally followed. Defaults (`defaultFreeformPos`) never influence the order.
+ *   • The column is then stable-sorted by (key, original DOM index) and `order` = the rank. Consequences: nothing dragged => all keys
+ *     equal => unchanged; all dragged => ascending y (ties stable); an undragged element is always directly after its original
+ *     predecessor; an undragged first element stays first.
+ *   • Elements with a `posMobile` are absolute (out of flow) and are ignored.
  *
- * Returns null when the resulting order equals the DOM order (the caller then sets no `order` at all — the render is identical to
- * before this existed). Keys: "eyebrow", "row-<i>", "heading" (legacy), "subheading", "btn-<i>", "img-<i>". The enumeration mirrors
- * HeroCarousel's freeform JSX. Pure.
+ * Returns null when the ranks equal the DOM order (the caller then sets no `order` at all — the render is identical to before this
+ * existed). Keys: "eyebrow", "row-<i>", "heading" (legacy), "subheading", "btn-<i>", "img-<i>". The enumeration mirrors HeroCarousel's
+ * freeform JSX. Pure.
  */
 export function freeformStackOrders(
   overlay: Pick<TextOverlayElement, "eyebrowHidden" | "eyebrowPos" | "eyebrowPosMobile" | "headingRows" | "headingPos" | "headingPosMobile" | "subheading" | "subheadingPos" | "subheadingPosMobile" | "buttons" | "images">,
@@ -530,19 +532,19 @@ export function freeformStackOrders(
   (overlay.images ?? []).forEach((im, i) => items.push({ key: `img-${i}`, pos: im.pos, posMobile: im.posMobile }));
 
   const flow = items.filter((it) => !it.posMobile);
-  const positioned = flow
-    .map((it, slot) => ({ it, slot }))
-    .filter(({ it }) => !!it.pos && Number.isFinite(it.pos.y));
-  if (positioned.length < 2) return null; // nothing to reorder among
-
-  const slots = positioned.map((p) => p.slot); // ascending DOM slots owned by the positioned elements
-  const byY = [...positioned].sort((a, b) => (a.it.pos!.y - b.it.pos!.y) || (a.slot - b.slot));
+  let carried = -Infinity;
+  const sortKeys = flow.map((it) => {
+    if (it.pos && Number.isFinite(it.pos.y)) carried = it.pos.y; // dragged: own y; undragged: inherit the previous element's key
+    return carried;
+  });
+  const ranked = flow
+    .map((it, index) => ({ key: it.key, index, sortKey: sortKeys[index] }))
+    .sort((a, b) => (a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : a.index - b.index));
   const out: Record<string, number> = {};
-  flow.forEach((it, slot) => { out[it.key] = slot; }); // everyone starts in their own slot
   let changed = false;
-  byY.forEach((p, k) => {
-    out[p.it.key] = slots[k];
-    if (slots[k] !== p.slot) changed = true;
+  ranked.forEach((r, rank) => {
+    out[r.key] = rank;
+    if (rank !== r.index) changed = true;
   });
   return changed ? out : null;
 }

@@ -861,7 +861,7 @@ export default function SlideEditor({
                     ) : editBreakpoint === "tablet" ? (
                       <>Editing the <strong>tablet</strong> (768-991px) layout. An element you haven&apos;t dragged here still uses its Desktop position — drag it to give this breakpoint its own.</>
                     ) : (
-                      <>Editing the <strong>mobile</strong> (&lt;768px) layout. An element you haven&apos;t dragged here goes into the automatic centered stack. Elements you positioned on Desktop are stacked in your Desktop top-to-bottom order; elements you never dragged keep their default place (eyebrow, headings, subheading, buttons, images). Drag an element here to give it a real position on mobile instead.</>
+                      <>Editing the <strong>mobile</strong> (&lt;768px) layout. An element you haven&apos;t dragged here goes into the automatic centered stack. Elements you positioned on Desktop are stacked in your Desktop top-to-bottom order; an element you never dragged stays right after the element it normally follows (eyebrow, headings, subheading, buttons, images) and moves with it. Drag an element here to give it a real position on mobile instead.</>
                     )}
                   </div>
                   <FreeformDragSurface chips={buildFreeformChips()} slide={slide} editBreakpoint={editBreakpoint} />
