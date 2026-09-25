@@ -10,7 +10,9 @@
  *     A3  all four heading rows resolve to the SAME real fallback generic (no bare `display` token anywhere)
  *     A4  slide 1 (posMobile authored): the logo and every row keep their per-element ABSOLUTE positions (opt-in unchanged)
  *     A5  slide 2 (nothing dragged: eyebrow, rows, subheading, button, undragged image): the old fixed order, no `order` style at all
- *     A6  slide 3 (mixed dragged / undragged): only the dragged elements permute among their own slots
+ *     A6  slide 3 (mixed dragged / undragged): an undragged element travels with the element it followed
+ *     A7  slide 4: heading + logo dragged, subheading + button not -> logo, heading, subheading, button
+ *     A8  slide 5: row 1 + logo dragged, rows 2-4 not -> logo, row 1, row 2, row 3, row 4
  *   order   prints the visible top-to-bottom order per slide (before/after live-data audit: --fixture <hero-section.json>)
  *   shots   screenshots per viewport x slide, two kinds: `full` (what a visitor sees) and `overlay` (every background layer and the
  *           navbar hidden on a flat black plate, so only the overlay text/logo paints — used for the regression pixel diff)
@@ -209,7 +211,14 @@ async function runAssert() {
         // slide 3 — mixed: only dragged elements permute among their own slots; undragged eyebrow/button keep theirs
         await gotoSlide(page, 3);
         const r = await readSequence(page);
-        add(`${vpName} A6 mixed dragged/undragged`, r.sequence.join(">") === "EYEBROW>Logo>BETA>ALPHA>Button>Subheading text", r.sequence.join(" > "));
+        add(`${vpName} A6 mixed dragged/undragged`, r.sequence.join(">") === "EYEBROW>Logo>BETA>ALPHA>Subheading text>Button", r.sequence.join(" > "));
+        // slides 4 / 5 — review scenarios: an undragged element is never separated from the element it followed
+        await gotoSlide(page, 4);
+        const t = await readSequence(page);
+        add(`${vpName} A7 heading + logo dragged, subheading + button not`, t.sequence.join(">") === "Logo>ALPHA>Subheading text>Button", t.sequence.join(" > "));
+        await gotoSlide(page, 5);
+        const u = await readSequence(page);
+        add(`${vpName} A8 row 1 + logo dragged, rows 2-4 not`, u.sequence.join(">") === "Logo>ONE>TWO>THREE>FOUR", u.sequence.join(" > "));
       } finally { await ctx.close(); }
     }
   } finally { await browser.close(); }
