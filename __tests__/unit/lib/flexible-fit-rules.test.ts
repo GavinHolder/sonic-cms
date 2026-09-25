@@ -248,6 +248,24 @@ describe('measuredLineCount / heading line guard', () => {
     expect(R.computeSubElementStyle('heading', { fontSize: 80 }, { exact: true }).whiteSpace).toBe('normal')
   })
 
+  it('a heading whose measurement the Designer stamped as fonts-settled is trusted: the one-line guard stays off', () => {
+    expect(R.computeSubElementStyle('heading', { fontSize: 80 }, { exact: true, measuredH: 118, measurementSettled: true }).whiteSpace).toBe('normal')
+    // ... while the same unstamped (legacy) data keeps the guard
+    expect(R.computeSubElementStyle('heading', { fontSize: 80 }, { exact: true, measuredH: 118, measurementSettled: false }).whiteSpace).toBe('nowrap')
+  })
+
+  it('a tiny line height makes the stored height ambiguous: no line count, so no forced one-line layout', () => {
+    // 22px at line-height 0.5 = an 11px line. Two lines with NO heading margin = 36px stored: the +8px-margin decode
+    // would read that as ONE line and (before this guard) force nowrap on a heading that really wraps.
+    expect(R.measuredLineCount('heading', { fontSize: 22, lineHeight: 0.5 }, 36)).toBeNull()
+    expect(R.computeSubElementStyle('heading', { fontSize: 22, lineHeight: 0.5 }, { exact: true, measuredH: 36 }).whiteSpace).toBe('normal')
+    // the boundary: a 16px line is still ambiguous (8px = half a line), a 17px line is not
+    expect(R.measuredLineCount('heading', { fontSize: 16, lineHeight: 1 }, 16 + 22)).toBeNull()
+    expect(R.measuredLineCount('heading', { fontSize: 17, lineHeight: 1 }, 17 + 22)).toBe(1)
+    // an eyebrow has no margin in the decode, so it is not affected
+    expect(R.measuredLineCount('eyebrow', { fontSize: 10, lineHeight: 1 }, 24)).toBe(1)
+  })
+
   it('never applies without exact mode, with a fixed authored height, or over an explicit textWrap', () => {
     expect(R.computeSubElementStyle('heading', { fontSize: 80 }, { mobile: true, measuredH: 118 }).whiteSpace).toBeUndefined()
     expect(R.computeSubElementStyle('heading', { fontSize: 80 }, { exact: true, measuredH: 118, fixedHeight: true }).whiteSpace).toBe('normal')
