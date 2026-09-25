@@ -28,6 +28,8 @@
  *   scroll-stage-grid     — NON-free multi section with a Scroll Stage (2 zones).
  *   free-lowerthird-none  — free-lowerthird-motion + "show nothing" on Tablet/Mobile: the whole wrapper must disappear.
  *   font-settled-measure  — the Designer's OWN (fonts-settled, stamped `_fontsSettled`) measurement of a heading that wraps.
+ *   fit-short-content     — per-breakpoint section whose Tablet (768x1200) / Mobile (375x900) canvases are much TALLER than their content
+ *                           (content ends ~y=640 / ~y=600): on short screens the plate must fit the content, not the canvas height.
  *   font-tiny-lineheight  — a heading with line-height 0.5 whose stored height is ambiguous (must not be forced to one line).
  *
  * The non-free / special fixtures exist to prove that nothing outside the free-mode plate is touched by the stage-fit work.
@@ -560,5 +562,40 @@ export function syntheticFixtures(): Fixture[] {
     },
   };
 
-  return [legacy, perBp, emptyVariants, fontStale, multi, fallbackNone, freeSingleHeader, freeMultiHeader, lowerThirdMotion, lowerThirdNone, gridDesigner, gridDesignerNone, mosaicDesigner, elementsGrid, scrollStage, settledFont, tinyLine];
+  // Tall canvases, short content (the KULUNTU Mobile case): every block ends well above the canvas bottom.
+  const shortBlocks = (kind: "tablet" | "mobile") => {
+    const t = kind === "tablet";
+    const b1: Pos = t ? { x: 40, y: 110, w: 690, h: 300 } : { x: 16, y: 100, w: 343, h: 250 };
+    const b2: Pos = t ? { x: 40, y: 440, w: 690, h: 200 } : { x: 16, y: 380, w: 343, h: 200 };
+    return [
+      textBlock("q1", b1, [
+        sub(b1, "q-1", "heading", b1.x + 22, b1.y + 24, b1.w - 44, { level: "h2", text: "Short content headline", fontSize: t ? 40 : 28, color: "#ffffff", fontFamily: "'Inter', sans-serif" }, mh("heading", t ? 40 : 28, 1)),
+        sub(b1, "q-2", "paragraph", b1.x + 22, b1.y + (t ? 110 : 90), b1.w - 44, { text: LOREM, fontSize: t ? 18 : 15, color: "#e8eef5", fontFamily: "'Inter', sans-serif" }),
+      ], 2),
+      textBlock("q2", b2, [
+        sub(b2, "q-3", "paragraph", b2.x + 22, b2.y + 24, b2.w - 44, { text: LOREM, fontSize: t ? 16 : 14, color: "#dbe6f3", fontFamily: "'Inter', sans-serif" }),
+        sub(b2, "q-4", "button", b2.x + 22, b2.y + (t ? 120 : 110), 160, { text: "Call to action", bgColor: "#ffd479", textColor: "#0b1f33" }),
+      ], 3),
+    ];
+  };
+  const shortVariant = (kind: "tablet" | "mobile") => ({
+    contentMode: "single", positionMode: "free", layoutType: "free",
+    designerCanvasW: kind === "tablet" ? 768 : 375, designerCanvasH: kind === "tablet" ? 1200 : 900, nextId: 20, blocks: shortBlocks(kind),
+  });
+  const fitShort: Fixture = {
+    name: "fit-short-content",
+    description: "Tablet 768x1200 / Mobile 375x900 canvases whose content ends at ~y=650 / ~y=600: fit-to-content territory on short screens.",
+    section: {
+      type: "FLEXIBLE",
+      displayName: "Fixture fit short content",
+      background: "#0b1f33",
+      content: {
+        contentMode: "single",
+        designerData: { variant: "per-breakpoint", desktop: variantBlob("desktop", BG_2X3), tablet: shortVariant("tablet"), mobile: shortVariant("mobile") },
+        backgroundByBreakpoint: { desktop: bgBundle(BG_3X2, "#0b1f33"), tablet: bgBundle(BG_3X2), mobile: bgBundle(BG_2X3) },
+      },
+    },
+  };
+
+  return [legacy, perBp, emptyVariants, fontStale, multi, fallbackNone, freeSingleHeader, freeMultiHeader, lowerThirdMotion, lowerThirdNone, gridDesigner, gridDesignerNone, mosaicDesigner, elementsGrid, scrollStage, settledFont, tinyLine, fitShort];
 }

@@ -172,8 +172,25 @@ function evaluate(fx: Fixture, vp: ViewportSpec, exp: Expectation, m: any, base?
     add("i.plate-present", false, "no content plate / stage in DOM", 1e6);
     return checks;
   }
-  const want = expectedPlate(exp, m.stage.w, m.stage.h);
   const got = m.content.matrix;
+  // What is actually RENDERED, in unscaled canvas px (rect / scale), for the fit-to-content expectation (Tablet/Mobile).
+  let domExtent = 0;
+  for (const r of [...Object.values(m.subs), ...Object.values(m.blocks)] as any[]) {
+    domExtent = Math.max(domExtent, (r.rect.y + r.rect.h - m.content.rect.y) / got.a);
+  }
+  domExtent = domExtent > 0 ? Math.min(domExtent, exp.ch) + 24 : 0;
+  const want = expectedPlate(exp, m.stage.w, m.stage.h, domExtent);
+  if (!exp.multi && exp.bp !== "desktop") {
+    // E.*: the height term fits the CONTENT, never the whole canvas when the content is shorter — but can only help.
+    const canvasFit = Math.min(m.stage.w / exp.cw, m.stage.h / exp.ch, exp.maxScale);
+    const widthFit = Math.min(m.stage.w / exp.cw, exp.maxScale);
+    add("E.scale-bounds", got.a >= canvasFit - TOL.scale && got.a <= widthFit + TOL.scale,
+      `plate scale ${got.a}; canvas-height fit ${canvasFit.toFixed(4)} <= scale <= width fit ${widthFit.toFixed(4)}`, Math.max(0, canvasFit - got.a, got.a - widthFit));
+    let lowest = 0;
+    for (const r of [...Object.values(m.subs), ...Object.values(m.blocks)] as any[]) lowest = Math.max(lowest, r.rect.y + r.rect.h);
+    add("E.content-fits", lowest <= m.stage.y + m.stage.h + 1 || want.scale === canvasFit,
+      `lowest content edge ${Math.round(lowest)}px vs stage bottom ${Math.round(m.stage.y + m.stage.h)}px (scale ${got.a})`, Math.max(0, lowest - (m.stage.y + m.stage.h)));
+  }
   add("i.plate-uniform", near(got.sx, got.sy, 0.0005), `plate scale ${got.sx} x ${got.sy}`, Math.abs(got.sx - got.sy));
   add("i.plate-scale", near(got.a, want.scale, TOL.scale), `plate scale ${got.a} vs contract ${want.scale} (stage ${m.stage.w}x${m.stage.h}, canvas ${exp.cw}x${exp.ch})`, Math.abs(got.a - want.scale));
   const dx = m.content.rect.x - (m.stage.x + want.offsetX);

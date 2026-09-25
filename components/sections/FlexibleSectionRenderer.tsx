@@ -14,7 +14,7 @@ import { animate } from "animejs";
 // source of truth also consumed by public/flexible-designer.html (see that file's
 // <script src="/flexible-render-rules.js"> and this module's own doc comment for why
 // it exists). Plain JS + hand-written flexible-render-rules.d.ts alongside it.
-import { computeSubElementStyle, computeSubElementPosition, resolveBlockZIndex, computeMultiBgLayers, resolveBgPositionCss, resolveBackgroundPosForBreakpoint, buildGradientCss, resolveLiveBackgroundBundle, computeStageFit, collectFontRequests, ensureGoogleFontLinks } from "../../public/flexible-render-rules.js";
+import { computeSubElementStyle, computeSubElementPosition, computeContentExtent, resolveBlockZIndex, computeMultiBgLayers, resolveBgPositionCss, resolveBackgroundPosForBreakpoint, buildGradientCss, resolveLiveBackgroundBundle, computeStageFit, collectFontRequests, ensureGoogleFontLinks } from "../../public/flexible-render-rules.js";
 import type { BgBundle, BackgroundByBreakpoint, GradientConfig } from "../../public/flexible-render-rules.js";
 // Per-breakpoint independent layouts (2026-09-11) — shared shape-normalization/variant-
 // selection module (Task 1 of this feature). Companion to flexible-render-rules.js above;
@@ -2262,6 +2262,38 @@ function DesignerBlocksRenderer({
     if (!Number.isFinite(px) || px <= 0) return;
     setBlockHeights((prev) => (prev[blockId] === px ? prev : { ...prev, [blockId]: px }));
   }, []);
+  // ── Fit-to-content (Tablet/Mobile single plates, item 8) — measured content extent ────────────────────
+  // The plate's height term fits the design's real CONTENT extent (bottom of the lowest painted element, canvas px),
+  // not the whole canvas height — see computeStageFit's `extent`. The extent is SEEDED from stored block data
+  // (computeContentExtent, deterministic => no SSR mismatch, no first-paint jump) and only ever REFINED UPWARD here from the
+  // rendered geometry (sub-elements overflowing their block, self-sizing template iframes, webfont wrapping). Measured in
+  // unscaled canvas px (rect / current scale), so the scale it drives cannot feed back into it; monotonic and capped at the
+  // canvas height, so it cannot loop. The plate opts in via data-fx-extent-key/-cap (absent on Desktop / multi => no-op).
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [measuredExtent, setMeasuredExtent] = useState<{ key: string; px: number }>({ key: "", px: 0 });
+  useEffect(() => {
+    const measure = () => {
+      const plate = contentRef.current;
+      const key = plate?.dataset.fxExtentKey;
+      if (!plate || !key) return;
+      const cap = Number(plate.dataset.fxExtentCap) || Infinity;
+      const rect = plate.getBoundingClientRect();
+      if (!(plate.offsetWidth > 0) || !(rect.width > 0)) return;
+      const scale = rect.width / plate.offsetWidth;
+      let bottom = -Infinity;
+      plate.querySelectorAll("[data-fx-block],[data-fx-sub]").forEach((n) => {
+        const b = n.getBoundingClientRect().bottom;
+        if (b > bottom) bottom = b;
+      });
+      const px = Math.min((bottom - rect.top) / scale, cap);
+      if (!Number.isFinite(px) || px <= 0) return;
+      setMeasuredExtent((prev) => (prev.key === key && prev.px >= px - 1 ? prev : { key, px }));
+    };
+    measure();
+    let alive = true;
+    document.fonts?.ready.then(() => { if (alive) measure(); });
+    return () => { alive = false; };
+  }, [screenW, stageW, stageH, blockHeights, designerData, effectiveDesignerData]);
   // Viewport height, tracked live (mirrors screenW above) — needed to convert a reported
   // px height into a count of 100vh "screens". Only tracked while dynamic mode is active.
   const [viewportH, setViewportH] = useState(typeof window !== "undefined" ? window.innerHeight : 900);
@@ -2586,7 +2618,14 @@ function DesignerBlocksRenderer({
       const sh = stageH || (isMulti
         ? (sw * chTotal) / cw
         : (typeof window !== "undefined" ? window.innerHeight : ch));
-      const fit = computeStageFit({ cw, ch: chTotal, vw: sw, vh: sh, mode: isMulti ? "multi" : "single", maxScale: plateMaxScale, breakpoint: resolvedActiveBreakpointKey });
+      // Fit-to-content (Tablet/Mobile, single mode only — see computeStageFit's `extent`): the design's real content extent,
+      // seeded from block data and refined upward by the measurement effect above. Desktop and multi mode pass none.
+      const fitToExtent = !isMulti && resolvedActiveBreakpointKey !== "desktop";
+      const extentKey = `${resolvedActiveBreakpointKey}|${cw}|${chTotal}|${filteredBlocks.length}`;
+      const extent = fitToExtent
+        ? Math.max(computeContentExtent(filteredBlocks), measuredExtent.key === extentKey ? measuredExtent.px + 24 : 0)
+        : undefined;
+      const fit = computeStageFit({ cw, ch: chTotal, vw: sw, vh: sh, mode: isMulti ? "multi" : "single", maxScale: plateMaxScale, breakpoint: resolvedActiveBreakpointKey, extent });
       // fit.scale is already rounded to 4dp inside computeStageFit — a real device width divided by
       // an authored canvas width is essentially never a clean number, and an unrounded scale (e.g.
       // matrix(1.06556,0,0,1.06556,0,0)) renders text visibly soft (confirmed in a real browser).
@@ -2665,7 +2704,7 @@ function DesignerBlocksRenderer({
               }} />
             )
           )}
-          <div data-fx-content="" style={{
+          <div ref={contentRef} data-fx-content="" {...(fitToExtent ? { "data-fx-extent-key": extentKey, "data-fx-extent-cap": String(ch) } : {})} style={{
             // Top-anchored, horizontally centred content plate — always a UNIFORM scale, so every
             // card/button/text block renders undistorted.
             position: "absolute", left: contentLeft, top: 0,
