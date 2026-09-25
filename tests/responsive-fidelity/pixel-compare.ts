@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any -- test tooling */
 /**
  * Pixel-level before/after comparison of the REAL public render, across several running servers.
  *

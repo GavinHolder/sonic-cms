@@ -22,9 +22,13 @@
  *   free-multi-header     — free + multi (2 bands) with a Section Header.
  *   free-lowerthird-motion— free single with a Lower Third graphic + a Motion Element (painted outside the <section>).
  *   grid-designer         — NON-free designerData (grid positions), section bg image + a Desktop-only per-breakpoint bg bundle.
+ *   grid-designer-none    — same, with content.undesignedBreakpoint = "none" (must be ignored: only free sections honour it).
  *   mosaic-designer       — NON-free designerData in mosaic layout mode.
  *   elements-grid         — legacy element-based section (content.elements + layout.type "grid"), no designerData.
  *   scroll-stage-grid     — NON-free multi section with a Scroll Stage (2 zones).
+ *   free-lowerthird-none  — free-lowerthird-motion + "show nothing" on Tablet/Mobile: the whole wrapper must disappear.
+ *   font-settled-measure  — the Designer's OWN (fonts-settled, stamped `_fontsSettled`) measurement of a heading that wraps.
+ *   font-tiny-lineheight  — a heading with line-height 0.5 whose stored height is ambiguous (must not be forced to one line).
  *
  * The non-free / special fixtures exist to prove that nothing outside the free-mode plate is touched by the stage-fit work.
  */
@@ -434,6 +438,11 @@ export function syntheticFixtures(): Fixture[] {
     description: "NON-free designerData (grid positions) with a section bg image and a Desktop-only per-breakpoint bg bundle.",
     section: gridSection,
   };
+  const gridDesignerNone: Fixture = {
+    name: "grid-designer-none",
+    description: "Same non-free section but content.undesignedBreakpoint = none — only free sections may honour it.",
+    section: { ...gridSection, displayName: "Fixture grid designer none", content: { ...gridSection.content, undesignedBreakpoint: "none" } },
+  };
   const mosaicDesigner: Fixture = {
     name: "mosaic-designer",
     description: "NON-free designerData in mosaic layout mode.",
@@ -467,10 +476,10 @@ export function syntheticFixtures(): Fixture[] {
       bgImagePosition: "50% 40%",
       content: {
         contentMode: "single",
-        layout: { type: "grid", gridRows: 1, gridCols: 3, gridGap: 20 },
+        layout: { type: "grid", gridRows: 3, gridCols: 1, gridGap: 20 },
         elements: [1, 2, 3].map((n) => ({
           id: `el-${n}`, type: "text",
-          position: { mode: "grid", gridRow: 1, gridCol: n, gridColSpan: 1, gridRowSpan: 1 },
+          position: { mode: "grid", gridRow: n, gridCol: 1, gridColSpan: 1, gridRowSpan: 1 },
           styling: { textColor: "#ffffff" },
           content: { heading: `Element text ${n}`, text: LOREM },
         })),
@@ -496,5 +505,60 @@ export function syntheticFixtures(): Fixture[] {
     },
   };
 
-  return [legacy, perBp, emptyVariants, fontStale, multi, fallbackNone, freeSingleHeader, freeMultiHeader, lowerThirdMotion, gridDesigner, mosaicDesigner, elementsGrid, scrollStage];
+  const lowerThirdNone: Fixture = {
+    name: "free-lowerthird-none",
+    description: "Free section with a Lower Third + Motion Element that opted into \"show nothing\" on Tablet/Mobile.",
+    section: { ...lowerThirdMotion.section, displayName: "Fixture free lower third none", content: { ...lowerThirdMotion.section.content, undesignedBreakpoint: "none" } },
+  };
+
+  // What the FIXED Designer saves for the stale-measure case: the real font is in, the heading really wraps to 2 lines,
+  // and the measurement is stamped (_fontsSettled) — the live page must trust it, not force it onto one line.
+  const settledFont: Fixture = {
+    name: "font-settled-measure",
+    description: "Fonts-settled Designer measurement (2 lines, stamped _fontsSettled): the one-line guard must stay off.",
+    section: {
+      type: "FLEXIBLE",
+      displayName: "Fixture font settled measure",
+      background: "#0b1f33",
+      bgImageUrl: BG_3X2,
+      content: {
+        contentMode: "single",
+        designerData: {
+          contentMode: "single", positionMode: "free", layoutType: "free", designerCanvasW: 1440, designerCanvasH: 900, nextId: 40,
+          blocks: [
+            textBlock("s1", bF, [
+              { ...sub(bF, "se-30", "heading", 87, 200, 564, { level: "h2", text: "NO EXCUSES.", color: "#ffffff", fontSize: 80, textTransform: "uppercase", fontFamily: "'Archivo Black', display" }, mh("heading", 80, 2)), _fontsSettled: true },
+            ]),
+          ],
+        },
+      },
+    },
+  };
+
+  // line-height 0.5 at 22px = an 11px line: the stored height (36 = 2 lines with NO heading margin) would decode to
+  // "1 line" under the +8px-margin assumption. The decode is ambiguous there, so the live page must not force nowrap.
+  const bT: Pos = { x: 60, y: 200, w: 340, h: 120 };
+  const tinyLine: Fixture = {
+    name: "font-tiny-lineheight",
+    description: "Heading with line-height 0.5 whose stored height is ambiguous: must wrap normally, not be forced to one line.",
+    section: {
+      type: "FLEXIBLE",
+      displayName: "Fixture tiny line height",
+      background: "#0b1f33",
+      bgImageUrl: BG_3X2,
+      content: {
+        contentMode: "single",
+        designerData: {
+          contentMode: "single", positionMode: "free", layoutType: "free", designerCanvasW: 1440, designerCanvasH: 900, nextId: 40,
+          blocks: [
+            textBlock("t1", bT, [
+              sub(bT, "se-40", "heading", 80, 220, 300, { level: "h3", text: "A tight heading that needs two lines", color: "#ffffff", fontSize: 22, lineHeight: 0.5, fontFamily: "'Inter', sans-serif" }, 36),
+            ]),
+          ],
+        },
+      },
+    },
+  };
+
+  return [legacy, perBp, emptyVariants, fontStale, multi, fallbackNone, freeSingleHeader, freeMultiHeader, lowerThirdMotion, lowerThirdNone, gridDesigner, gridDesignerNone, mosaicDesigner, elementsGrid, scrollStage, settledFont, tinyLine];
 }

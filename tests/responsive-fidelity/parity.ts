@@ -10,6 +10,7 @@
  *   P1 — the measurement the Designer SAVED is truthful: for every heading/eyebrow the line count implied
  *        by the stored _measuredH equals the number of lines the Designer actually showed.
  *   P2 — live renders the same number of lines as the Designer showed, for every text sub-element.
+ *   P3 — every measurement the Designer saved is stamped `_fontsSettled` (taken with webfonts loaded).
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -91,6 +92,16 @@ export function evaluateParity(rt: RoundTrip, liveSubs: Record<string, { lines: 
     if (want !== d.lines) { p1Bad++; if (!p1First) p1First = `${it.id}: Designer saved _measuredH ${it.measuredH} => ${want} line(s) but showed ${d.lines}`; }
   }
   checks.push({ id: "P1.designer-saves-truthful-measure", pass: p1Bad === 0, detail: `${p1Checked} heading/eyebrow items, ${p1Bad} stale${p1First ? " — " + p1First : ""}`, magnitude: p1Bad });
+
+  // P3 — the Designer stamps every measurement it holds as taken with webfonts settled (`_fontsSettled`), which is what
+  // lets the live page trust it and keep its one-line heading guard for pre-stamp data only.
+  let p3Bad = 0; let p3First = ""; let p3Checked = 0;
+  for (const it of items) {
+    if (it.kind !== "sub" || it.measuredH === undefined) continue;
+    p3Checked++;
+    if (!it.fontsSettled) { p3Bad++; if (!p3First) p3First = `${it.id} ("${it.type}") has _measuredH ${it.measuredH} but no _fontsSettled stamp`; }
+  }
+  checks.push({ id: "P3.designer-stamps-settled", pass: p3Bad === 0, detail: `${p3Checked} measured sub-elements, ${p3Bad} unstamped${p3First ? " — " + p3First : ""}`, magnitude: p3Bad });
 
   // P2 — live == Designer line counts
   let p2Bad = 0; let p2First = ""; let p2Checked = 0;

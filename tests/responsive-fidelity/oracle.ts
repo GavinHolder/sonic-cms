@@ -13,6 +13,9 @@
  *  - A Tablet/Mobile variant is "authored" iff it has >= 1 block. Un-authored + fallback mode "desktop"
  *    (the default; content.undesignedBreakpoint !== "none") renders the Desktop layout: scaled plate at
  *    768-991, reading-order reflow below 768. Fallback mode "none" renders nothing.
+ *    The fallback (layout, background AND "none") exists for FREE-mode Designer sections only: a grid / mosaic /
+ *    element-based section renders exactly as it did before the fallback existed at every breakpoint — an
+ *    un-configured Tablet/Mobile background stays neutral and content.undesignedBreakpoint is ignored.
  *  - Content plate: UNIFORM scale, top-anchored, horizontally centred.
  *      single: s = min(stageW/cw, stageH/ch, maxScale)     multi: s = min(stageW/cw, maxScale)
  *    maxScale = 1.15 for the Mobile breakpoint, unbounded otherwise.
@@ -113,7 +116,7 @@ export function expectationFor(section: FixtureSection, vw: number): Expectation
     bg = { kind: "own", image: bundles![bp].bgImageUrl || null, color: bundles![bp].background };
   } else if (bp === "desktop") {
     bg = { kind: "legacy", image: legacy.image || null, color: legacy.color };
-  } else if (!authored && fallbackMode === "desktop") {
+  } else if (isFree && !authored && fallbackMode === "desktop") {
     bg = validBundle(bundles?.desktop)
       ? { kind: "desktop-fallback", image: bundles!.desktop.bgImageUrl || null, color: bundles!.desktop.background }
       : { kind: "desktop-fallback", image: legacy.image || null, color: legacy.color };
@@ -152,6 +155,7 @@ export function expectedDesktopBgPlate(exp: Expectation, stageW: number, stageH:
 }
 
 export interface ExpectedItem {
+  fontsSettled?: boolean; // the Designer stamped the stored measurement as taken with webfonts loaded (_fontsSettled)
   id: string;          // "blockId:subId" or "blockId"
   kind: "sub" | "block";
   type: string;        // sub type (heading|eyebrow|paragraph|button|...) or block type
@@ -191,6 +195,7 @@ export function expectedItems(variant: any): ExpectedItem[] {
           // an explicit height can never be smaller than the wrapper's own border + padding (box-sizing: border-box)
           h: se.h != null ? Math.max(Number(se.h), 14) : null,
           measuredH: typeof se._measuredH === "number" ? se._measuredH : undefined,
+          fontsSettled: se._fontsSettled === true,
           fontSize: fs,
           lineHeight: lhRaw,
           fixedH: se.h != null,
@@ -220,6 +225,8 @@ export function expectedItems(variant: any): ExpectedItem[] {
 export function measuredLines(it: ExpectedItem): number | null {
   if (it.kind !== "sub" || (it.type !== "heading" && it.type !== "eyebrow")) return null;
   if (it.fixedH || it.measuredH === undefined || !it.fontSize || !it.lineHeight) return null;
+  // A heading line of <= 16px (twice the Designer's 8px heading margin) makes the decode ambiguous: no answer.
+  if (it.type === "heading" && it.fontSize * it.lineHeight <= 16) return null;
   const chrome = 14 + (it.type === "heading" ? 8 : 0);
   return Math.max(1, Math.round((it.measuredH - chrome) / (it.fontSize * it.lineHeight)));
 }
