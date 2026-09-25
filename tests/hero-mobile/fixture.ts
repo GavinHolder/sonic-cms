@@ -10,8 +10,10 @@
  *    positions (the per-element opt-in is unchanged).
  *  - slide 2: NOTHING dragged (no `pos` anywhere: eyebrow, two rows, subheading, button, an undragged image) — the mobile
  *    stack must be exactly the renderer's fixed order, with no `order` style on any element.
- *  - slide 3: mixed — some elements dragged (rows, subheading, logo at the top), eyebrow and button undragged — only the dragged
- *    elements permute among their own slots.
+ *  - slide 3: mixed — some elements dragged (rows, subheading, logo at the top), eyebrow and button undragged. An undragged element
+ *    inherits the sort key of the element it follows and so travels with it.
+ *  - slide 4: heading + logo dragged, subheading + button NOT (an undragged element must never be separated from what it followed).
+ *  - slide 5: only row 1 + the logo dragged, rows 2-4 not (the undragged rows must stay right behind row 1).
  * Images are inline SVG data URIs so the fixture needs no assets and no network.
  */
 
@@ -70,6 +72,18 @@ const fullOverlay = (p: { rows: [Pos | undefined, Pos | undefined]; sub?: Pos; l
   images: [{ src: LOGO, alt: "Logo", width: 160, forceWhite: false, ...anim, ...(p.logo ? { pos: p.logo } : {}) }],
 });
 
+/** Review scenarios: which of eyebrow / subheading / button exist, and which elements were dragged (pos supplied). */
+const scenarioOverlay = (o: { rows: Array<{ text: string; pos?: Pos }>; sub?: boolean; button?: boolean; logo?: Pos }) => ({
+  layoutMode: "freeform",
+  position: "center",
+  heading: { text: "", color: "#ffffff", fontSize: 100, fontWeight: 700, fontFamily: "inherit", ...anim },
+  spacing: { betweenButtons: 16, betweenHeadingSubheading: 16, betweenSubheadingButtons: 32 },
+  headingRows: o.rows.map((r) => ({ text: r.text, color: "#ffffff", fontSize: 60, fontWeight: 800, fontFamily: FONT_OK, ...anim, ...(r.pos ? { pos: r.pos } : {}) })),
+  ...(o.sub ? { subheading: { text: "Subheading text", color: "#ffffff", fontSize: 22, fontWeight: 400, fontFamily: "inherit", ...anim } } : {}),
+  buttons: o.button ? [{ text: "Button", href: "#", variant: "filled", backgroundColor: "#0a84ff", textColor: "#ffffff", ...anim }] : [],
+  images: o.logo ? [{ src: LOGO, alt: "Logo", width: 160, forceWhite: false, ...anim, pos: o.logo }] : [],
+});
+
 export function heroFixtureSection() {
   return {
     type: "HERO",
@@ -90,6 +104,8 @@ export function heroFixtureSection() {
         { id: "hm-slide-1", name: "posMobile authored", type: "image", src: BG_B, alt: "", overlay: overlay(true) },
         { id: "hm-slide-2", name: "nothing dragged", type: "image", src: BG_A, alt: "", overlay: fullOverlay({ rows: [undefined, undefined] }) },
         { id: "hm-slide-3", name: "mixed dragged / undragged", type: "image", src: BG_B, alt: "", overlay: fullOverlay({ rows: [{ x: 50, y: 40 }, { x: 50, y: 30 }], sub: { x: 50, y: 60 }, logo: { x: 50, y: 8 } }) },
+        { id: "hm-slide-4", name: "review 1: heading + logo dragged", type: "image", src: BG_A, alt: "", overlay: scenarioOverlay({ rows: [{ text: "ALPHA", pos: { x: 50, y: 40 } }], sub: true, button: true, logo: { x: 50, y: 8 } }) },
+        { id: "hm-slide-5", name: "review 2: row 1 + logo dragged", type: "image", src: BG_B, alt: "", overlay: scenarioOverlay({ rows: [{ text: "ONE", pos: { x: 50, y: 27 } }, { text: "TWO" }, { text: "THREE" }, { text: "FOUR" }], logo: { x: 50, y: 8 } }) },
       ],
     },
   };
