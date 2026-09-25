@@ -96,8 +96,8 @@ function evaluate(fx: Fixture, vp: ViewportSpec, exp: Expectation, m: any, base?
     // "Show nothing where Tablet/Mobile isn't designed": the section is left out entirely (display: none).
     add("vi.height", m.section.h === 0, `section is ${m.section.h}px tall; a "none" fallback must collapse it`, m.section.h);
   } else if (exp.reflow) {
-    // The un-authored-Mobile reading-order reflow is content-driven by design (CSS height:auto + min-height:100vh):
-    // there is no fixed height contract to assert.
+    // The un-authored Tablet/Mobile reading-order reflow is content-driven by design (CSS height:auto + min-height:100vh):
+    // there is no fixed height contract to assert — except that the box must GROW to hold it (see R.reflow-not-clipped).
   } else if (fx.section.content.scrollStage && (fx.section.content.scrollStage as any).enabled) {
     // A Scroll Stage section owns its own height model (sticky track; single screen on phones): no fixed contract here.
   } else if (m.contentMode === "single") {
@@ -105,6 +105,13 @@ function evaluate(fx: Fixture, vp: ViewportSpec, exp: Expectation, m: any, base?
   } else if (m.contentMode === "multi") {
     const want = isFreePlate ? (m.vw * exp.chTotal) / exp.cw : m.vh * exp.multiLimit;
     add("vi.height", near(m.section.h, want, TOL.section + 1), `section ${m.section.h} vs expected ${Math.round(want)}`, Math.abs(m.section.h - want));
+  }
+
+  // "Pricing cards never scroll" (owner rule): a template / pricing iframe must have no internal scrollbar at any size.
+  if ((m.frames ?? []).length) {
+    const scrolling = (m.frames as any[]).filter((f) => f.sh > f.ih + 1);
+    add("T.template-no-scroll", scrolling.length === 0,
+      scrolling.length ? scrolling.map((f) => `iframe ${f.iw}x${f.ih} scrolls (content ${f.sh}px)`).join("; ") : `${m.frames.length} iframe(s), none scrolls`, scrolling.length);
   }
 
   // Background (B): image + colour for this breakpoint.
@@ -150,6 +157,12 @@ function evaluate(fx: Fixture, vp: ViewportSpec, exp: Expectation, m: any, base?
     const overflow = m.textRuns.filter((t: any) => t.x < -1 || t.x + t.w > vp.w + 1);
     add("R.reflow-legible", tooTiny.length === 0 && overflow.length === 0,
       `${tooTiny.length} runs < 11px, ${overflow.length} runs outside the viewport`, tooTiny.length + overflow.length);
+    // The section box must grow to hold the stacked content (no clipped text, no template iframe cut off, no shrunk plate).
+    const secBottom = m.section.y + m.section.h;
+    const clipped = m.textRuns.filter((t: any) => t.y + t.h > secBottom + 2);
+    add("R.reflow-not-clipped", clipped.length === 0 && !m.content && !m.stage,
+      `${clipped.length} text runs below the section bottom (${Math.round(secBottom)}); plate present: ${!!m.content}`, clipped.length + (m.content ? 1 : 0));
+
     return checks;
   }
   if (!isFreePlate) return checks;
@@ -328,6 +341,11 @@ async function main() {
         let prev = "";
         for (let i = 0; i < 8; i++) {
           m = await page.evaluate(measureSrc);
+          // sandboxed template iframes (pricing cards): can the visitor scroll inside them?
+          m.frames = [];
+          for (const f of page.frames().filter((x) => x !== page.mainFrame())) {
+            try { m.frames.push(await f.evaluate(() => ({ iw: window.innerWidth, ih: window.innerHeight, sh: document.documentElement.scrollHeight }))); } catch { /* cross-origin/detached */ }
+          }
           const sig = JSON.stringify([m.stage, m.content?.rect, Object.values(m.subs ?? {}).map((s: any) => s.rect), m.section]);
           if (sig === prev) break;
           prev = sig;

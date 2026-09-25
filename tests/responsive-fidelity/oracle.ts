@@ -11,8 +11,10 @@
  * CONTRACT
  *  - Active breakpoint = pickBreakpointForWidth(viewport width): >=992 desktop, >=768 tablet, else mobile.
  *  - A Tablet/Mobile variant is "authored" iff it has >= 1 block. Un-authored + fallback mode "desktop"
- *    (the default; content.undesignedBreakpoint !== "none") renders the Desktop layout: scaled plate at
- *    768-991, reading-order reflow below 768. Fallback mode "none" renders nothing.
+ *    (the default; content.undesignedBreakpoint !== "none") renders the Desktop layout as the single-column
+ *    reading-order REFLOW (FreeReflowStack) on phones AND tablets up to 991px (owner decision 2026-09-25: the
+ *    shrunk 0.53-0.69x plate was unusable). An AUTHORED Tablet/Mobile variant keeps its own scaled plate; Desktop
+ *    always renders the plate. Fallback mode "none" renders nothing.
  *    The fallback (layout, background AND "none") exists for FREE-mode Designer sections only: a grid / mosaic /
  *    element-based section renders exactly as it did before the fallback existed at every breakpoint — an
  *    un-configured Tablet/Mobile background stays neutral and content.undesignedBreakpoint is ignored.
@@ -38,7 +40,6 @@ const BP = require(path.join(here, "..", "..", "public", "flexible-breakpoint-ru
 
 export type BpKey = "desktop" | "tablet" | "mobile";
 export const MOBILE_MAX_SCALE = 1.15;
-export const REFLOW_BELOW = 768;
 
 export interface BgExpectation {
   kind: "own" | "desktop-fallback" | "legacy" | "neutral";
@@ -97,7 +98,7 @@ export function expectationFor(section: FixtureSection, vw: number): Expectation
   else variant = fallbackMode === "desktop" ? desktop : null;
 
   const blank = isFree ? variant === null : false;
-  const reflow = isFree && bp === "mobile" && !authored && fallbackMode === "desktop" && vw < REFLOW_BELOW;
+  const reflow = isFree && bp !== "desktop" && !authored && fallbackMode === "desktop";
 
   const contentMode = content.contentMode || "single";
   const multi = contentMode === "multi";

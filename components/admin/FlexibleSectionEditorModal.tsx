@@ -1257,8 +1257,8 @@ export default function FlexibleSectionEditorModal({
                       </div>
                       <small className="form-text text-muted mt-1 d-block">
                         A screen size counts as designed once its Designer canvas has at least one block. Until then,
-                        visitors on that screen size see the Desktop layout with Desktop&apos;s background (scaled to
-                        fit on tablets, re-flowed into a single readable column on phones) — or, if you pick
+                        visitors on that screen size see the Desktop layout with Desktop&apos;s background (re-flowed
+                        into a single readable column on tablets and phones) — or, if you pick
                         &quot;Show nothing&quot;, this section is left out on that screen size. This only changes what
                         visitors see: it never copies anything into the Tablet or Mobile canvases.
                       </small>

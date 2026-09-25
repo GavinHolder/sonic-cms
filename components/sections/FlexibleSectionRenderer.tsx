@@ -19,7 +19,7 @@ import type { BgBundle, BackgroundByBreakpoint, GradientConfig } from "../../pub
 // Per-breakpoint independent layouts (2026-09-11) — shared shape-normalization/variant-
 // selection module (Task 1 of this feature). Companion to flexible-render-rules.js above;
 // see that file's own doc comment for the full designerData shape contract.
-import { resolveVariants, pickBreakpointForWidth, pickLiveVariant, isVariantAuthored } from "../../public/flexible-breakpoint-rules.js";
+import { resolveVariants, pickBreakpointForWidth, pickLiveVariant, isVariantAuthored, usesReflowLayout } from "../../public/flexible-breakpoint-rules.js";
 import type { UndesignedBreakpointMode } from "../../public/flexible-breakpoint-rules.js";
 
 const AnimBgRenderer    = dynamic(() => import("./AnimBgRenderer"), { ssr: false });
@@ -438,31 +438,15 @@ function resolveCanvasDim(raw: unknown, fallback: number): number {
   return Math.max(Number(raw) || fallback, MIN_FREE_CANVAS_DIM);
 }
 
-/**
- * Free-mode reflow breakpoint (px) — below this, a free-mode section renders
- * through FreeReflowStack (single-column, content-driven reading order)
- * instead of an independently-authored scaled-stage plate. Narrowed from 992
- * to 768 on 2026-09-11 when Tablet became a genuinely independent authored
- * layout (not just a shrink of Desktop) — Tablet now owns the 768-991 range
- * with its own real layout (rendered via the SAME scaled-stage plate as
- * Desktop, just fed the tablet variant's own designerCanvasW/H), so it no
- * longer needs to be swept into the mobile reflow. This is an INTENTIONAL,
- * user-approved behavior change for EVERY existing section, not just ones
- * that adopt this feature: a prior fix (commit 98c8fc8) specifically moved
- * the 768-991px tablet range OUT of the shrink-desktop branch and INTO the
- * reflow at the old 992 threshold, precisely because a shrunk desktop design
- * read poorly at tablet width. Narrowing back to 768 reverts that for this
- * narrower sliver — an un-customized (isFallback === true) tablet-width
- * visitor now gets Desktop's blob SHRUNK to fit (the pre-98c8fc8 behavior),
- * not the readable single-column reflow it got a moment ago. Confirmed
- * acceptable with the site owner as the deliberate trade-off for giving
- * Tablet a real, independently-authored layout at that width once an admin
- * customizes it — see pickActiveVariant's isFallback flag, used below. Both
- * call sites below (freePlateDesktop's screenW >= threshold and the reflow
- * gate's screenW < threshold) must stay in sync — they decide the SAME
- * branch from opposite sides (section-height override vs. block layout).
+/*
+ * Free-mode plate vs reflow: which one a section renders is decided by ONE shared function,
+ * usesReflowLayout (public/flexible-breakpoint-rules.js) — an UNDESIGNED Tablet or Mobile (Desktop's
+ * design shown as a fallback) is a single-column FreeReflowStack up to 991px; Desktop and every AUTHORED
+ * variant render the scaled-stage plate. (History: reflow used to be < 992, was narrowed to < 768 on
+ * 2026-09-11 when Tablet became an independently authored layout, and on 2026-09-25 the owner asked for the
+ * undesigned tablet range to reflow again because the whole canvas shrunk to 0.53-0.69x read as unusable —
+ * a pricing grid squeezed into a thumbnail. Authored Tablet layouts keep their own plate.)
  */
-const FREE_MODE_REFLOW_BREAKPOINT = 768;
 
 /**
  * Upper clamp on the free-mode MOBILE scaled-stage plate's scale factor (2026-09-23).
@@ -737,8 +721,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
   // disagree the way two independent computations previously could — see this file's
   // "resolve ONCE, here" comment above for the bug this fixes). Pre-mount counts as
   // desktop (SSR-safe, no hydration flip) via activeBreakpointKey's own pre-mount default.
-  const plateIsReflowedNotRendered =
-    mounted && activeBreakpointKey === "mobile" && isBreakpointFallback && screenW < FREE_MODE_REFLOW_BREAKPOINT;
+  const plateIsReflowedNotRendered = mounted && usesReflowLayout(activeBreakpointKey, isBreakpointFallback);
   const freePlateDesktop = freePlateActive && !plateIsReflowedNotRendered && !!freeCanvas;
   // Tracks the current scroll stage zone so content column shows only the active zone's blocks
   const [scrollStageZone, setScrollStageZone] = useState(0);
@@ -1087,6 +1070,9 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
       className="cms-section flexible-section"
       data-content-mode={contentMode || "single"}
       {...(isBreakpointBlank ? { "data-fx-blank": "" } : {})}
+      // Free section shown as the single-column reflow (undesigned Tablet/Mobile): globals.css releases the fixed
+      // 100vh box for it on tablets (the phone media query already does for every section).
+      {...(freePlateActive && plateIsReflowedNotRendered ? { "data-fx-reflow": "" } : {})}
       style={{
         "--section-bg":  isBgGrad ? "#0f0c29" : bgColor,
         "--section-text":  sectionText,
@@ -2542,22 +2528,11 @@ function DesignerBlocksRenderer({
       // multiLimit===1 so chTotal===ch, a no-op.
       const chTotal = isMulti ? ch * multiLimit : ch;
 
-      // Mobile: smart, readable reflow ONLY when mobile has not been independently
-      // customized (still showing Desktop's blob as a fallback) — matches every existing
-      // section's current behavior unchanged. A section with its OWN authored mobile
-      // layout renders it as a real independent scaled-stage plate below, same as
-      // desktop/tablet, NOT reflowed — it's a genuine authored design now, not a fallback
-      // needing readable-order rescue.
-      //
-      // `screenW < FREE_MODE_REFLOW_BREAKPOINT` is technically redundant once `mounted &&
-      // resolvedActiveBreakpointKey === "mobile"` is already true (pickBreakpointForWidth's
-      // own 768px threshold and FREE_MODE_REFLOW_BREAKPOINT are numerically identical
-      // today) — kept anyway, deliberately, as a defensive belt-and-braces guard: it costs
-      // nothing, and it means this specific line stays correct on its own even if a future
-      // change ever lets those two thresholds diverge (e.g. FREE_MODE_REFLOW_BREAKPOINT
-      // gets tuned independently of pickBreakpointForWidth's fixed 768/992 split) without
-      // anyone having to remember this gate implicitly depended on them staying equal.
-      if (mounted && resolvedActiveBreakpointKey === "mobile" && resolvedIsBreakpointFallback && screenW < FREE_MODE_REFLOW_BREAKPOINT) {
+      // Smart, readable reflow ONLY for an UNDESIGNED Tablet/Mobile (still showing Desktop's blob as a
+      // fallback) — see usesReflowLayout. A section with its OWN authored Tablet/Mobile layout renders it as
+      // a real independent scaled-stage plate below, same as desktop, NOT reflowed. The SAME shared function
+      // drives the parent's section-height model, so the two can never disagree.
+      if (mounted && usesReflowLayout(resolvedActiveBreakpointKey, resolvedIsBreakpointFallback)) {
         if (plateMode) return null;
         return (
           <FreeReflowStack
@@ -3815,7 +3790,7 @@ type ReflowLeaf = {
 const SELF_SIZING_TYPES = new Set(["template", "card-tabs", "product-grid"]);
 
 /**
- * FreeReflowStack — the free-mode MOBILE+TABLET layout (< FREE_MODE_REFLOW_BREAKPOINT).
+ * FreeReflowStack — the free-mode layout of an UNDESIGNED Tablet or Mobile (see usesReflowLayout): up to 991px.
  * Instead of shrinking the whole designer canvas into a tiny scaled photograph, it lays
  * the design's leaves out as a single readable column:
  *  1. Collect leaves — every sub-element of a container block (absolute box = block

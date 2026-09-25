@@ -179,6 +179,36 @@ describe('isVariantAuthored / pickLiveVariant', () => {
   })
 })
 
+describe('usesReflowLayout (undesigned Tablet/Mobile -> single-column reflow; everything else -> plate)', () => {
+  it('desktop never reflows, whatever the flag', () => {
+    expect(B.usesReflowLayout('desktop', false)).toBe(false)
+    expect(B.usesReflowLayout('desktop', true)).toBe(false)
+  })
+
+  it('an UNDESIGNED tablet and mobile (Desktop shown as a fallback) reflow', () => {
+    expect(B.usesReflowLayout('tablet', true)).toBe(true)
+    expect(B.usesReflowLayout('mobile', true)).toBe(true)
+  })
+
+  it('an AUTHORED tablet / mobile variant keeps its own plate (no reflow)', () => {
+    expect(B.usesReflowLayout('tablet', false)).toBe(false)
+    expect(B.usesReflowLayout('mobile', false)).toBe(false)
+  })
+
+  it('composes with pickLiveVariant: empty tablet variant reflows, authored one does not, "none" is blank not reflow', () => {
+    const blob = (n: number) => ({ blocks: Array.from({ length: n }, (_, i) => ({ id: `b${i}` })) })
+    const emptyTab = { desktop: blob(2), tablet: blob(0), mobile: null }
+    expect(B.usesReflowLayout('tablet', B.pickLiveVariant(emptyTab, 'tablet', 'desktop').isFallback)).toBe(true)
+    const authoredTab = { desktop: blob(2), tablet: blob(1), mobile: null }
+    expect(B.usesReflowLayout('tablet', B.pickLiveVariant(authoredTab, 'tablet', 'desktop').isFallback)).toBe(false)
+    expect(B.usesReflowLayout('tablet', B.pickLiveVariant(emptyTab, 'tablet', 'none').isFallback)).toBe(false)
+  })
+
+  it('an unknown breakpoint never reflows', () => {
+    expect(B.usesReflowLayout('' as never, true)).toBe(false)
+  })
+})
+
 describe('resolveLiveBackgroundBundle', () => {
   const legacy = { backgroundType: 'solid', background: '#123456', bgImageUrl: '/legacy.png', bgImageSize: 'cover', bgImageRepeat: 'no-repeat', bgImageOpacity: 100 }
   const desk = { backgroundType: 'solid', background: 'white', bgImageUrl: '/desk.png', bgImageSize: 'cover', bgImageRepeat: 'no-repeat', bgImageOpacity: 100 }
