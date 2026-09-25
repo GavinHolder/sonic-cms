@@ -9,6 +9,7 @@ import DynamicSection from "@/components/sections/DynamicSection";
 import type { PageConfig, PDFPageConfig, FormPageConfig } from "@/types/page";
 import type { SectionConfig } from "@/types/section";
 import VerificationModal from "@/components/VerificationModal";
+import { readRateLimitMessage } from "@/lib/form-rate-limit-message";
 
 const FlexibleSectionRenderer = dynamic(
   () => import("@/components/sections/FlexibleSectionRenderer"),
@@ -248,6 +249,7 @@ function FormPageRenderer({ page }: { page: FormPageConfig }) {
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   /** OTP flow state — email triggers modal, pendingFormData holds snapshot for post-OTP submit */
@@ -310,6 +312,7 @@ function FormPageRenderer({ page }: { page: FormPageConfig }) {
    */
   const handleOtpVerified = async (_method?: "email" | "keypad") => {
     setOtpEmail(null);
+    setSubmitError("");
     setIsSubmitting(true);
     try {
       const submittedFields = fields.map((f) => ({
@@ -319,7 +322,7 @@ function FormPageRenderer({ page }: { page: FormPageConfig }) {
       const emailField = fields.find((f) => f.type === "email");
       const userEmail = emailField ? pendingFormData[emailField.name] || "" : "";
 
-      await fetch("/api/forms/submit", {
+      const res = await fetch("/api/forms/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -331,6 +334,11 @@ function FormPageRenderer({ page }: { page: FormPageConfig }) {
           webhookUrl: submitConfig?.webhookUrl || undefined,
         }),
       });
+      if (res.status === 429) {
+        // Rate limited: the submission was NOT accepted — show the server's message, not success.
+        setSubmitError(await readRateLimitMessage(res));
+        return;
+      }
       setSubmitted(true);
     } catch {
       // Network failure — still show success to avoid confusing the user about
@@ -436,6 +444,12 @@ function FormPageRenderer({ page }: { page: FormPageConfig }) {
                 )}
               </div>
             ))}
+
+            {submitError && (
+              <div className="alert alert-warning mb-3" role="alert">
+                {submitError}
+              </div>
+            )}
 
             <button
               type="submit"

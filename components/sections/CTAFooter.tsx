@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { CTASection, BackgroundColor, ButtonConfig } from "@/types/section";
 import type { FormField } from "@/types/page";
 import VerificationModal from "@/components/VerificationModal";
+import { readRateLimitMessage } from "@/lib/form-rate-limit-message";
 
 /**
  * CTAFooter Props
@@ -97,6 +98,7 @@ export default function CTAFooter({
   const [submitting, setSubmitting] = useState(false);
   const [showVerification, setShowVerification] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
   /** Update a single form field value */
   const handleFieldChange = (name: string, value: string) => {
@@ -133,6 +135,7 @@ export default function CTAFooter({
    */
   const handleOtpVerified = async (_method?: "email" | "keypad") => {
     setShowVerification(false);
+    setSubmitError("");
     setSubmitting(true);
     try {
       const fields = (formFields || []).map((f) => ({
@@ -142,7 +145,7 @@ export default function CTAFooter({
       const emailField = (formFields || []).find((f) => f.type === "email");
       const userEmail = emailField ? formValues[emailField.id] : "";
 
-      await fetch("/api/forms/submit", {
+      const res = await fetch("/api/forms/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -151,6 +154,11 @@ export default function CTAFooter({
           source: sectionName || "CTA Section",
         }),
       });
+      if (res.status === 429) {
+        // Rate limited: the submission was NOT accepted — show the server's message, not success.
+        setSubmitError(await readRateLimitMessage(res));
+        return;
+      }
       setSubmitted(true);
     } catch {
       // Show submitted state anyway — email may still have sent
@@ -323,6 +331,12 @@ export default function CTAFooter({
                       </div>
                       );
                     })}
+
+                    {submitError && (
+                      <div className="alert alert-warning py-2 mb-3" role="alert" style={{ fontSize: 13 }}>
+                        {submitError}
+                      </div>
+                    )}
 
                     <button
                       type="submit"
