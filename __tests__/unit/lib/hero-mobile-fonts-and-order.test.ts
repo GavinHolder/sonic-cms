@@ -1,41 +1,87 @@
 import { describe, it, expect } from 'vitest'
-import { defaultFreeformPos, freeformStackOrder } from '@/types/section'
+import { freeformStackOrders } from '@/types/section'
 import { HERO_FONT_WEIGHTS, heroFontHref, heroFontStack } from '@/lib/hero/hero-fonts'
 import { googleFontStack } from '@/lib/fonts/google-font-stack'
 
-describe('freeformStackOrder — mobile stack reading order', () => {
-  it('orders by ascending desktop pos.y so a logo authored at the top leads', () => {
-    const logo = freeformStackOrder({ x: 50, y: 8 }, defaultFreeformPos('image', 0))
-    const rows = [27, 37, 56, 67].map((y, i) => freeformStackOrder({ x: 50, y }, defaultFreeformPos('heading', i)))
-    expect(logo).toBeLessThan(rows[0])
-    expect([...rows].sort((a, b) => a - b)).toEqual(rows)
+type Ov = Parameters<typeof freeformStackOrders>[0]
+const pos = (y: number) => ({ x: 50, y })
+const overlay = (o: Partial<Ov> = {}): Ov => ({ headingRows: [], buttons: [], images: [], ...o } as Ov)
+// the visible top-to-bottom sequence implied by the orders (undefined map = plain DOM order)
+const sequence = (keys: string[], orders: Record<string, number> | null) =>
+  orders ? [...keys].sort((a, b) => orders[a] - orders[b]) : keys
+
+describe('freeformStackOrders — mobile stack reading order (only dragged elements take part)', () => {
+  it("a logo dragged to the top leads the column; the rows dragged below follow in design order", () => {
+    const ov = overlay({
+      headingRows: [27, 37, 56, 67].map((y) => ({ pos: pos(y) })) as never,
+      images: [{ pos: pos(8) }] as never,
+    })
+    const o = freeformStackOrders(ov, false)
+    expect(sequence(['row-0', 'row-1', 'row-2', 'row-3', 'img-0'], o)).toEqual(['img-0', 'row-0', 'row-1', 'row-2', 'row-3'])
   })
 
-  it('an element without pos uses its kind default (heading rows keep DOM order, images default below the headings)', () => {
-    const heading0 = freeformStackOrder(undefined, defaultFreeformPos('heading', 0))
-    const heading1 = freeformStackOrder(undefined, defaultFreeformPos('heading', 1))
-    const image0 = freeformStackOrder(undefined, defaultFreeformPos('image', 0))
-    expect(heading0).toBeLessThan(heading1)
-    expect(image0).toBeLessThan(heading0) // default image y (30) sits above default heading y (38)
-    expect(freeformStackOrder(undefined, defaultFreeformPos('button', 0))).toBeGreaterThan(heading1)
+  it('a slide where NOTHING was dragged is untouched (null => no order styles at all), whatever elements it has', () => {
+    const ov = overlay({
+      eyebrowPos: undefined,
+      headingRows: [{}, {}] as never,
+      subheading: { text: 's' } as never,
+      buttons: [{}, {}] as never,
+      images: [{}, {}] as never,
+    })
+    expect(freeformStackOrders(ov, true)).toBeNull()
   })
 
-  it('equal y gives equal order (ties fall back to stable DOM order in CSS)', () => {
-    expect(freeformStackOrder({ x: 18, y: 38 }, defaultFreeformPos('heading', 0))).toBe(freeformStackOrder({ x: 76, y: 38 }, defaultFreeformPos('heading', 1)))
+  it('an undragged image stays LAST even when the rows above it were dragged (defaults never influence the order)', () => {
+    const ov = overlay({ headingRows: [{ pos: pos(60) }, { pos: pos(20) }] as never, images: [{}] as never })
+    const o = freeformStackOrders(ov, false)
+    expect(sequence(['row-0', 'row-1', 'img-0'], o)).toEqual(['row-1', 'row-0', 'img-0'])
   })
 
-  it('never returns NaN for a malformed pos (falls back to the default)', () => {
-    const def = defaultFreeformPos('subheading')
-    expect(freeformStackOrder({ x: 50, y: NaN }, def)).toBe(Math.round(def.y * 100))
-    expect(freeformStackOrder({ x: 50, y: Infinity }, def)).toBe(Math.round(def.y * 100))
-    expect(freeformStackOrder({ x: 50 } as never, def)).toBe(Math.round(def.y * 100))
+  it('mixed pos / no-pos with every kind present: only the dragged elements permute among their own slots', () => {
+    // DOM: eyebrow(U) row-0(P y70) row-1(U) subheading(P y10) btn-0(U) btn-1(P y40) img-0(U)
+    const ov = overlay({
+      eyebrowPos: undefined,
+      headingRows: [{ pos: pos(70) }, {}] as never,
+      subheading: { text: 's' } as never,
+      subheadingPos: pos(10),
+      buttons: [{}, { pos: pos(40) }] as never,
+      images: [{}] as never,
+    })
+    const keys = ['eyebrow', 'row-0', 'row-1', 'subheading', 'btn-0', 'btn-1', 'img-0']
+    const o = freeformStackOrders(ov, true)!
+    // P slots (DOM order): row-0=1, subheading=3, btn-1=5 -> refilled by y asc: subheading(10)->1, btn-1(40)->3, row-0(70)->5
+    expect(sequence(keys, o)).toEqual(['eyebrow', 'subheading', 'row-1', 'btn-1', 'btn-0', 'row-0', 'img-0'])
+    // undragged elements kept their exact slots
+    expect(o.eyebrow).toBe(0); expect(o['row-1']).toBe(2); expect(o['btn-0']).toBe(4); expect(o['img-0']).toBe(6)
   })
 
-  it('boundaries: y = 0, negative and > 100 are ordered numerically', () => {
-    const d = defaultFreeformPos('image', 0)
-    expect(freeformStackOrder({ x: 50, y: 0 }, d)).toBe(0)
-    expect(freeformStackOrder({ x: 50, y: -5 }, d)).toBeLessThan(0)
-    expect(freeformStackOrder({ x: 50, y: 105 }, d)).toBeGreaterThan(freeformStackOrder({ x: 50, y: 100 }, d))
+  it('ties are stable (equal y keeps DOM order) and an already-in-design-order slide returns null', () => {
+    expect(freeformStackOrders(overlay({ headingRows: [{ pos: pos(38) }, { pos: pos(38) }] as never }), false)).toBeNull()
+    expect(freeformStackOrders(overlay({ headingRows: [{ pos: pos(10) }, { pos: pos(20) }] as never, images: [{ pos: pos(80) }] as never }), false)).toBeNull()
+  })
+
+  it('a single dragged element has nothing to reorder against (null) — e.g. only a logo was dragged', () => {
+    expect(freeformStackOrders(overlay({ headingRows: [{}, {}] as never, images: [{ pos: pos(8) }] as never }), false)).toBeNull()
+  })
+
+  it('elements with a posMobile are out of the flow and ignored (they neither move nor take a slot)', () => {
+    const ov = overlay({
+      headingRows: [{ pos: pos(60) }, { pos: pos(20), posMobile: pos(50) }, { pos: pos(30) }] as never,
+    })
+    const o = freeformStackOrders(ov, false)! // flow = row-0 (y60), row-2 (y30) -> row-2 first
+    expect(o['row-2']).toBeLessThan(o['row-0'])
+    expect(o['row-1']).toBeUndefined()
+  })
+
+  it('an eyebrow that is not rendered (hidden or empty) does not occupy a slot; legacy single heading is keyed "heading"', () => {
+    const hidden = freeformStackOrders(overlay({ eyebrowHidden: true, eyebrowPos: pos(5), headingRows: [], headingPos: pos(50), images: [{ pos: pos(8) }] as never }), true)!
+    expect(hidden.eyebrow).toBeUndefined()
+    expect(hidden['img-0']).toBeLessThan(hidden.heading)
+    expect(freeformStackOrders(overlay({ headingRows: [], headingPos: pos(50), images: [{ pos: pos(8) }] as never }), false)!.heading).toBe(1)
+  })
+
+  it('malformed pos (NaN / missing y) is treated as not dragged', () => {
+    expect(freeformStackOrders(overlay({ headingRows: [{ pos: { x: 50, y: NaN } }, { pos: pos(10) }] as never, images: [{ pos: { x: 50 } }] as never }), false)).toBeNull()
   })
 })
 
