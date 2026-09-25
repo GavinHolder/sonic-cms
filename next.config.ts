@@ -32,6 +32,7 @@ const nextConfig: NextConfig = {
       "/volt-glass-rules.js",
       "/volt-layer-order-rules.js",
       "/volt-slots-rules.js",
+      "/link-destinations.js",
     ];
     return noCacheFiles.map((source) => ({
       source,

@@ -1468,6 +1468,9 @@
        Must load before createSubElementDOM (in the <script> below) calls it. -->
   <script src="/flexible-render-rules.js"></script>
   <script src="/flexible-breakpoint-rules.js"></script>
+  <!-- Shared link-destination picker (catalog fetch, classify, options, media typeahead) — single source of truth
+       for every "Link to" control in this file. Loaded before loadNavOptions()/renderNavSection() run. -->
+  <script src="/link-destinations.js"></script>
   <!-- Canonical VoltSlots key list — single source of truth also consumed by
        app/volt-preview/[id]/page.tsx (ES module import). Must load before
        buildVoltPreviewUrl() (in the <script> below) calls it. -->
@@ -2872,44 +2875,17 @@ document.addEventListener('keydown', e => {
 });
 
 // ═══════════════════════════════════════════════════════════
-//  NAV OPTIONS (from localStorage)
+//  NAV OPTIONS (from the link-destinations catalog)
 // ═══════════════════════════════════════════════════════════
 /**
- * Populates state.navOptions with navigation targets for link pickers.
- * Reads enabled sections and pages from localStorage, then appends
- * special entries for custom URL, phone, and email links.
- * Errors are silently swallowed so a corrupt localStorage entry
- * does not break the whole designer.
+ * Warms the shared link-destination catalog (pages, sections, plugin routes, policies, forms, galleries,
+ * content — see public/link-destinations.js and GET /api/link-destinations) so the "Link To" pickers open
+ * populated. This used to read legacy localStorage keys (cms_sections_home / cms_pages) that no longer hold
+ * data, which is why only Home / Back to Top ever appeared. Pickers render straight away from whatever is
+ * cached and repopulate themselves when the catalog arrives, so this never blocks the designer.
  */
 function loadNavOptions() {
-  // Start with built-in destinations that are always available
-  const opts = [
-    { value:'/', label:'🏠 Home (/)' },
-    { value:'#top', label:'⬆️ Back to Top' }
-  ];
-  try {
-    // Load landing-page sections so users can link directly to section anchors
-    const sectData = localStorage.getItem('cms_sections_home') || localStorage.getItem('sections');
-    if (sectData) {
-      JSON.parse(sectData).filter(s => s.enabled !== false).forEach(s => {
-        opts.push({ value:`#${s.id}`, label:`⚓ Section: ${s.title || s.id}` });
-      });
-    }
-  } catch(e) {}
-  try {
-    // Load CMS pages so users can link to any published page route
-    const pagesData = localStorage.getItem('cms_pages');
-    if (pagesData) {
-      JSON.parse(pagesData).filter(p => p.enabled !== false).forEach(p => {
-        opts.push({ value:`/${p.slug}`, label:`📄 ${p.title} (/${p.slug})` });
-      });
-    }
-  } catch(e) {}
-  // Special sentinels: selecting these reveals a free-text input for custom URLs
-  opts.push({ value:'custom',  label:'✏️ Custom URL...' });
-  opts.push({ value:'tel',     label:'📞 Phone Number...' });
-  opts.push({ value:'mailto',  label:'✉️ Email Address...' });
-  state.navOptions = opts;
+  if (window.LinkDestinations) window.LinkDestinations.prefetch();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -7428,7 +7404,7 @@ function renderBlockProps(block) {
   </div>`;
 
   if (block.type==='banner') h+=renderNavSection(block.id,block.props.navTarget,'block','');
-  if (block.type==='hero' && block.props.showBtn!==false) h+=renderNavSection(block.id,block.props.btnNavTarget,'block','');
+  if (block.type==='hero' && block.props.showBtn!==false) h+=renderNavSection(block.id,block.props.btnNavTarget,'block','','btnNavTarget');
 
   if (block.type !== 'volt') {
     h+=`<div class="props-section">
@@ -8223,85 +8199,58 @@ function renderSubTypeProps(bId, se) {
 }
 
 /**
- * Builds and returns an HTML string for the Navigation Target section that
- * appears in the properties panel for blocks (banner, hero button) and button
- * sub-elements. Renders a dropdown of all nav options loaded by loadNavOptions()
- * and reveals a free-text input when "custom", "tel", or "mailto" is selected.
+ * Builds the HTML string for the Navigation Target section shown in the properties panel for blocks
+ * (banner, hero button) and button sub-elements. The picker itself (every page / section / plugin route /
+ * policy / form / gallery / content entry / document / image, plus Custom URL, Phone, Email) is owned by the
+ * shared module public/link-destinations.js — this function only wires its result into updateBlockProp /
+ * updateSubProp. The stored value is exactly what the destination is (see the module's STORED-VALUE
+ * CONTRACT); UI-only sentinels are never persisted.
  * @param {string} targetId - Block ID (when kind='block') or sub-element ID (when kind='sub').
- * @param {string} currentVal - The currently stored navTarget value.
+ * @param {string} currentVal - The currently stored link value.
  * @param {'block'|'sub'} kind - Whether this is a block-level or sub-element-level link.
  * @param {string} blockId - Parent block ID; only used when kind='sub'.
+ * @param {string} [propKey='navTarget'] - Property the value is written to (the hero button uses 'btnNavTarget',
+ *        the key the live renderer and the section editor read).
  * @returns {string} HTML string for the navigation section.
  */
-function renderNavSection(targetId, currentVal, kind, blockId) {
-  const opts = state.navOptions.map(o =>
-    `<option value="${o.value}" ${currentVal===o.value?'selected':''}>${o.label}</option>`
-  ).join('');
-  // Build the correct updateXxxProp call depending on whether this is a block or sub-element link
-  const upFn = kind==='block'
-    ? `updateBlockProp('${targetId}','navTarget',this.value)`
-    : `updateSubProp('${blockId}','${targetId}','navTarget',this.value)`;
+function renderNavSection(targetId, currentVal, kind, blockId, propKey) {
+  const key = propKey || 'navTarget';
+  const picker = window.LinkDestinations.renderPicker({
+    id: `nav-${kind}-${targetId}-${key}`,
+    value: currentVal || '',
+    onChange: v => kind==='block' ? updateBlockProp(targetId,key,v) : updateSubProp(blockId,targetId,key,v)
+  });
   return `<div class="props-section">
     <div class="props-label" style="color:#856404;"><i class="bi bi-link-45deg"></i> Navigation Target</div>
     <div class="nav-section">
       <div class="nav-label"><i class="bi bi-link"></i> Link To</div>
-      <select class="props-select" onchange="${upFn};showCustomNav(this,'${targetId}')">
-        <option value="">— No link —</option>${opts}
-      </select>
-      <div id="cnav-${targetId}" style="display:none;margin-top:6px;">
-        <input class="props-input" type="text" placeholder="Enter URL / tel:... / mailto:..."
-          oninput="${kind==='block'?`updateBlockProp('${targetId}','navTarget',this.value)`:`updateSubProp('${blockId}','${targetId}','navTarget',this.value)`}">
-      </div>
+      ${picker}
     </div>
   </div>`;
 }
 
 /**
- * Shows or hides the free-text URL input beneath the navigation dropdown.
- * The input is shown only when the selected option is 'custom', 'tel', or 'mailto'.
- * @param {HTMLSelectElement} el - The nav dropdown that changed.
- * @param {string} id - The targetId used to build the custom nav div's element ID.
- */
-function showCustomNav(el, id) {
-  const div=document.getElementById(`cnav-${id}`);
-  if (div) div.style.display=['custom','tel','mailto'].includes(el.value)?'block':'none';
-}
-
-/**
- * Card Tabs block "Button Link" row — same dropdown+custom-URL picker UX as
- * renderNavSection (Home / section anchors / CMS pages / custom URL), but
- * self-contained and writing to this block's own `ctaUrl` prop instead of the
- * shared `navTarget` prop banner/hero/button already use, so it can never
- * collide with that wiring. Prepends the Check Coverage page as the first,
- * most relevant option since that's this button's default target; unlike
- * renderNavSection, an unmatched saved value (e.g. a raw "/coverage?package=..."
- * URL) pre-selects "Custom URL..." AND pre-fills the free-text box with it, so
- * an admin editing an already-customized link sees the real current value
- * instead of it looking unset.
+ * Card Tabs block "Button Link" row — the same shared picker as renderNavSection, writing to this block's own
+ * `ctaUrl` prop (never the shared `navTarget`) so it can never collide with that wiring. An empty value shows
+ * the default target (the Coverage Map page). A saved value the catalog does not list (e.g. a raw
+ * "/coverage?package={package}" URL) preselects "Custom URL…" with the box pre-filled with the real value.
  * @param {string} blockId - The card-tabs block's id.
  * @param {string} currentVal - The block's current ctaUrl prop (may be empty).
  * @returns {string} HTML string for the Button Link section.
  */
 function renderCardTabsCtaUrlRow(blockId, currentVal) {
-  const val = currentVal || '/coverage';
-  const builtins = [{ value:'/coverage', label:'🎯 Check Coverage page (default)' }].concat(state.navOptions);
-  const known = builtins.some(o => o.value === val);
-  const selVal = known ? val : 'custom';
-  const opts = builtins.map(o =>
-    `<option value="${o.value}" ${selVal===o.value?'selected':''}>${o.label}</option>`
-  ).join('');
-  const boxId = `ctaurl-${blockId}`;
+  const picker = window.LinkDestinations.renderPicker({
+    id: `nav-cta-${blockId}`,
+    value: currentVal || '/coverage',
+    allowNone: false,
+    placeholder: 'e.g. /coverage or /coverage?package={package}',
+    onChange: v => updateBlockProp(blockId,'ctaUrl',v)
+  });
   return `<div class="props-section">
     <div class="props-label" style="color:#856404;"><i class="bi bi-link-45deg"></i> Button Link</div>
     <div class="nav-section">
       <div class="nav-label"><i class="bi bi-link"></i> Link To</div>
-      <select class="props-select" onchange="updateBlockProp('${blockId}','ctaUrl',this.value);showCustomNav(this,'${boxId}')">
-        ${opts}
-      </select>
-      <div id="cnav-${boxId}" style="display:${selVal==='custom'?'block':'none'};margin-top:6px;">
-        <input class="props-input" type="text" value="${escHtml(selVal==='custom'?val:'')}" placeholder="e.g. /coverage or /coverage?package={package}"
-          oninput="updateBlockProp('${blockId}','ctaUrl',this.value)">
-      </div>
+      ${picker}
     </div>
   </div>`;
 }
