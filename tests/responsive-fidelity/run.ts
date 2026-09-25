@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- test tooling: stored section JSON and in-page measurements are untyped by nature */
 /**
  * Responsive-fidelity harness — real browser, real public render path.
  *
@@ -34,7 +35,6 @@ import { buildRoundTrips, evaluateParity, type RoundTrip } from "./parity";
 
 const require = createRequire(import.meta.url);
 const here = path.dirname(fileURLToPath(import.meta.url));
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { chromium } = require("playwright") as typeof import("playwright");
 
 // ── CLI ─────────────────────────────────────────────────────────────────────
@@ -76,7 +76,10 @@ function evaluate(fx: Fixture, vp: ViewportSpec, exp: Expectation, m: any): Chec
 
   // (vi) height contract
   const isFreePlate = exp.isFree && !exp.reflow && !exp.blank;
-  if (exp.reflow) {
+  if (exp.blank) {
+    // "Show nothing where Tablet/Mobile isn't designed": the section is left out entirely (display: none).
+    add("vi.height", m.section.h === 0, `section is ${m.section.h}px tall; a "none" fallback must collapse it`, m.section.h);
+  } else if (exp.reflow) {
     // The un-authored-Mobile reading-order reflow is content-driven by design (CSS height:auto + min-height:100vh):
     // there is no fixed height contract to assert.
   } else if (m.contentMode === "single") {

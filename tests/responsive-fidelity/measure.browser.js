@@ -15,7 +15,7 @@
   function matrixOf(el) {
     var t = getComputedStyle(el).transform;
     var m;
-    try { m = new DOMMatrix(t === "none" ? undefined : t); } catch (e) { m = new DOMMatrix(); }
+    try { m = new DOMMatrix(t === "none" ? undefined : t); } catch { m = new DOMMatrix(); }
     return {
       a: r2(m.a * 10000) / 10000, b: m.b, c: m.c, d: r2(m.d * 10000) / 10000, e: r2(m.e), f: r2(m.f),
       sx: Math.hypot(m.a, m.b), sy: Math.hypot(m.c, m.d),
@@ -57,7 +57,9 @@
     if (cs.backgroundImage && cs.backgroundImage.indexOf("url(") !== -1 && el.tagName !== "svg") {
       out.bgImages.push({ url: cs.backgroundImage.slice(0, 300), rect: rect(el), size: cs.backgroundSize, pos: cs.backgroundPosition, fx: el.hasAttribute("data-fx-bg"), opacity: cs.opacity });
     }
-    if (cs.transform && cs.transform !== "none") {
+    // SVG-internal transforms (e.g. a Volt glass/icon <g transform="scale(4,5)">) are authored vector art, not the
+    // plate/background layout path this check guards — only HTML boxes can be a distorted plate.
+    if (!(el instanceof SVGElement) && cs.transform && cs.transform !== "none") {
       var m = matrixOf(el);
       // Ignore degenerate/animation-in-flight cases: only report a meaningful x/y scale mismatch.
       if (Math.abs(m.sx - m.sy) > 0.002 * Math.max(m.sx, m.sy, 1e-6)) {

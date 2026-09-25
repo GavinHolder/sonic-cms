@@ -17,6 +17,7 @@
  *   font-stale-measure    — a display webfont whose real width exceeds the fallback the
  *                           Designer measured with (stored _measuredH says ONE line).
  *   multi-free            — free + multi content mode, two stacked bands.
+ *   fallback-none         — legacy Desktop-only section with content.undesignedBreakpoint = "none" (show nothing on Tablet/Mobile).
  */
 
 export interface FixtureSection {
@@ -95,39 +96,84 @@ function imageBlock(id: string, pos: Pos, src: string, z?: number) {
 
 const LOREM = "Body copy for the fixture section. It is long enough to wrap onto a few lines so wrapping differences show up.";
 
-function heroBlocks(cw: number, ch: number, opts: { scale: number; imageSrc: string }) {
-  // One reusable "hero + card" layout parameterised by scale so the Tablet/Mobile canvases
-  // are genuinely INDEPENDENT hand-laid-out designs (different positions, sizes and wrapping),
-  // not a mechanical copy of Desktop.
-  const s = opts.scale;
-  const r = (n: number) => Math.round(n * s);
-  const b1: Pos = { x: r(80), y: r(110), w: r(640), h: r(330) };
-  const b2: Pos = { x: cw - r(80) - r(500), y: ch - r(140) - r(260), w: r(500), h: r(260) };
-  const b3: Pos = { x: cw - r(80) - r(360), y: r(100), w: r(360), h: r(240) };
+/** Designer-style stored wrapper height for a heading/eyebrow of `lines` lines (see oracle.measuredLines). */
+function mh(type: "heading" | "eyebrow", fontSize: number, lines: number): number {
+  const lh = type === "heading" ? 1.2 : 1.4;
+  return Math.round(lines * fontSize * lh + 14 + (type === "heading" ? 8 : 0));
+}
+
+type Kind = "desktop" | "tablet" | "mobile";
+
+/**
+ * One "hero + card + image" design, hand-laid-out PER BREAKPOINT (different positions, sizes, font sizes and
+ * wrapping) so Tablet/Mobile are genuinely independent designs, not a mechanical shrink of Desktop.
+ * Every text box has real breathing room, so a correct render never has text overlapping text.
+ */
+function heroBlocks(kind: Kind, imageSrc: string) {
+  if (kind === "desktop") {
+    const b1: Pos = { x: 80, y: 110, w: 640, h: 330 };
+    const b2: Pos = { x: 780, y: 500, w: 560, h: 280 };
+    const b3: Pos = { x: 1000, y: 100, w: 360, h: 240 };
+    return [
+      textBlock("b1", b1, [
+        sub(b1, "se-1", "eyebrow", 100, 130, 300, { text: "Fixture eyebrow label", fontSize: 13, letterSpacing: 3, color: "#ffd479" }, mh("eyebrow", 13, 1)),
+        sub(b1, "se-2", "heading", 100, 170, 590, { level: "h1", text: "Generic fixture headline", fontSize: 56, color: "#ffffff", fontFamily: "'Inter', sans-serif" }, mh("heading", 56, 2)),
+        sub(b1, "se-3", "paragraph", 100, 350, 560, { text: LOREM, fontSize: 18, color: "#e8eef5", fontFamily: "'Inter', sans-serif" }),
+      ], 2),
+      textBlock("b2", b2, [
+        sub(b2, "se-4", "heading", 800, 524, 500, { level: "h2", text: "Second panel", fontSize: 34, color: "#ffffff", fontFamily: "'Inter', sans-serif" }, mh("heading", 34, 1)),
+        sub(b2, "se-5", "paragraph", 800, 600, 500, { text: LOREM, fontSize: 16, color: "#dbe6f3", fontFamily: "'Inter', sans-serif" }),
+        sub(b2, "se-6", "button", 800, 720, 180, { text: "Call to action", bgColor: "#ffd479", textColor: "#0b1f33" }),
+      ], 3),
+      imageBlock("b3", b3, imageSrc, 1),
+    ];
+  }
+  if (kind === "tablet") {
+    const b1: Pos = { x: 40, y: 110, w: 420, h: 380 };
+    const b2: Pos = { x: 380, y: 560, w: 350, h: 300 };
+    const b3: Pos = { x: 500, y: 110, w: 220, h: 150 };
+    return [
+      textBlock("b1", b1, [
+        sub(b1, "se-1", "eyebrow", 60, 130, 250, { text: "Fixture eyebrow label", fontSize: 12, letterSpacing: 3, color: "#ffd479" }, mh("eyebrow", 12, 1)),
+        sub(b1, "se-2", "heading", 60, 168, 390, { level: "h1", text: "Generic fixture headline", fontSize: 32, color: "#ffffff", fontFamily: "'Inter', sans-serif" }, mh("heading", 32, 2)),
+        sub(b1, "se-3", "paragraph", 60, 320, 380, { text: LOREM, fontSize: 15, color: "#e8eef5", fontFamily: "'Inter', sans-serif" }),
+      ], 2),
+      textBlock("b2", b2, [
+        sub(b2, "se-4", "heading", 400, 584, 310, { level: "h2", text: "Second panel", fontSize: 24, color: "#ffffff", fontFamily: "'Inter', sans-serif" }, mh("heading", 24, 1)),
+        sub(b2, "se-5", "paragraph", 400, 660, 310, { text: LOREM, fontSize: 14, color: "#dbe6f3", fontFamily: "'Inter', sans-serif" }),
+        sub(b2, "se-6", "button", 400, 800, 150, { text: "Call to action", bgColor: "#ffd479", textColor: "#0b1f33" }),
+      ], 3),
+      imageBlock("b3", b3, imageSrc, 1),
+    ];
+  }
+  const b1: Pos = { x: 16, y: 110, w: 343, h: 360 };
+  const b2: Pos = { x: 16, y: 520, w: 343, h: 250 };
+  const b3: Pos = { x: 216, y: 90, w: 130, h: 96 };
   return [
     textBlock("b1", b1, [
-      sub(b1, "se-1", "eyebrow", b1.x + r(20), b1.y + r(20), r(300), { text: "Fixture eyebrow label", fontSize: Math.max(11, r(13)), letterSpacing: 3, color: "#ffd479" }, 33),
-      sub(b1, "se-2", "heading", b1.x + r(20), b1.y + r(60), r(590), { level: "h1", text: "Generic fixture headline", fontSize: r(56), color: "#ffffff", fontFamily: "'Inter', sans-serif" }, Math.round(r(56) * 1.2 * 2 + 22)),
-      sub(b1, "se-3", "paragraph", b1.x + r(20), b1.y + r(230), r(560), { text: LOREM, fontSize: Math.max(13, r(18)), color: "#e8eef5", fontFamily: "'Inter', sans-serif" }),
+      sub(b1, "se-1", "eyebrow", 36, 200, 220, { text: "Fixture eyebrow label", fontSize: 11, letterSpacing: 3, color: "#ffd479" }, mh("eyebrow", 11, 1)),
+      sub(b1, "se-2", "heading", 36, 236, 300, { level: "h1", text: "Generic fixture headline", fontSize: 26, color: "#ffffff", fontFamily: "'Inter', sans-serif" }, mh("heading", 26, 2)),
+      sub(b1, "se-3", "paragraph", 36, 330, 300, { text: LOREM, fontSize: 14, color: "#e8eef5", fontFamily: "'Inter', sans-serif" }),
     ], 2),
     textBlock("b2", b2, [
-      sub(b2, "se-4", "heading", b2.x + r(20), b2.y + r(24), r(440), { level: "h2", text: "Second panel", fontSize: Math.max(20, r(34)), color: "#ffffff", fontFamily: "'Inter', sans-serif" }, Math.round(Math.max(20, r(34)) * 1.2 + 22)),
-      sub(b2, "se-5", "paragraph", b2.x + r(20), b2.y + r(90), r(440), { text: LOREM, fontSize: Math.max(12, r(16)), color: "#dbe6f3", fontFamily: "'Inter', sans-serif" }),
-      sub(b2, "se-6", "button", b2.x + r(20), b2.y + r(190), r(180), { text: "Call to action", bgColor: "#ffd479", textColor: "#0b1f33" }),
+      sub(b2, "se-4", "heading", 36, 540, 300, { level: "h2", text: "Second panel", fontSize: 22, color: "#ffffff", fontFamily: "'Inter', sans-serif" }, mh("heading", 22, 1)),
+      sub(b2, "se-5", "paragraph", 36, 600, 300, { text: LOREM, fontSize: 13, color: "#dbe6f3", fontFamily: "'Inter', sans-serif" }),
+      sub(b2, "se-6", "button", 36, 700, 150, { text: "Call to action", bgColor: "#ffd479", textColor: "#0b1f33" }),
     ], 3),
-    imageBlock("b3", b3, opts.imageSrc, 1),
+    imageBlock("b3", b3, imageSrc, 1),
   ];
 }
 
-function variantBlob(cw: number, ch: number, scale: number, imageSrc: string) {
+function variantBlob(kind: Kind, imageSrc: string) {
+  const dims = { desktop: [1440, 900], tablet: [768, 900], mobile: [375, 800] }[kind];
   return {
     contentMode: "single",
     positionMode: "free",
     layoutType: "free",
-    designerCanvasW: cw,
-    designerCanvasH: ch,
+    designerCanvasW: dims[0],
+    designerCanvasH: dims[1],
     nextId: 20,
-    blocks: heroBlocks(cw, ch, { scale, imageSrc }),
+    blocks: heroBlocks(kind, imageSrc),
   };
 }
 
@@ -152,7 +198,7 @@ export function syntheticFixtures(): Fixture[] {
       bgImagePosition: "50% 40%",
       content: {
         contentMode: "single",
-        designerData: variantBlob(1440, 900, 1, BG_2X3),
+        designerData: variantBlob("desktop", BG_2X3),
       },
     },
   };
@@ -168,9 +214,9 @@ export function syntheticFixtures(): Fixture[] {
         contentMode: "single",
         designerData: {
           variant: "per-breakpoint",
-          desktop: variantBlob(1440, 900, 1, BG_2X3),
-          tablet: variantBlob(768, 900, 0.53, BG_2X3),
-          mobile: variantBlob(375, 800, 0.36, BG_2X3),
+          desktop: variantBlob("desktop", BG_2X3),
+          tablet: variantBlob("tablet", BG_2X3),
+          mobile: variantBlob("mobile", BG_2X3),
         },
         backgroundByBreakpoint: {
           desktop: bgBundle(BG_3X2, "#0b1f33"),
@@ -195,7 +241,7 @@ export function syntheticFixtures(): Fixture[] {
         contentMode: "single",
         designerData: {
           variant: "per-breakpoint",
-          desktop: variantBlob(1440, 900, 1, BG_2X3),
+          desktop: variantBlob("desktop", BG_2X3),
           tablet: { contentMode: "single", positionMode: "free", layoutType: "free", designerCanvasW: 768, designerCanvasH: 900, nextId: 1, blocks: [] },
           mobile: { contentMode: "single", positionMode: "free", layoutType: "free", designerCanvasW: 375, designerCanvasH: 900, nextId: 1, blocks: [] },
         },
@@ -285,5 +331,15 @@ export function syntheticFixtures(): Fixture[] {
     },
   };
 
-  return [legacy, perBp, emptyVariants, fontStale, multi];
+  const fallbackNone: Fixture = {
+    name: "fallback-none",
+    description: "Desktop-only section that opted into \"show nothing where Tablet/Mobile isn't designed\" (content.undesignedBreakpoint = none).",
+    section: {
+      ...legacy.section,
+      displayName: "Fixture fallback none",
+      content: { ...legacy.section.content, undesignedBreakpoint: "none" },
+    },
+  };
+
+  return [legacy, perBp, emptyVariants, fontStale, multi, fallbackNone];
 }

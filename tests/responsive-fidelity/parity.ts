@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- test tooling: stored section JSON and in-page measurements are untyped by nature */
 /**
  * Designer -> save -> live ROUND-TRIP parity.
  *

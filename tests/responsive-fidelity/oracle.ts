@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- test tooling: stored section JSON and in-page measurements are untyped by nature */
 /**
  * Independent expectations for the responsive-fidelity harness.
  *
@@ -27,7 +28,6 @@ import type { FixtureSection } from "./fixtures/synthetic";
 
 const require = createRequire(import.meta.url);
 const here = path.dirname(fileURLToPath(import.meta.url));
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const BP = require(path.join(here, "..", "..", "public", "flexible-breakpoint-rules.js"));
 
 export type BpKey = "desktop" | "tablet" | "mobile";
@@ -175,7 +175,8 @@ export function expectedItems(variant: any): ExpectedItem[] {
           type: se.type,
           x: (Number(pos.x) || 0) + 2 + padX + (Number(se.x) || 0),
           y: (Number(pos.y) || 0) + 2 + padT + (Number(se.y) || 0),
-          w: se.w != null ? Number(se.w) : Math.max((Number(pos.w) || 0) - 2 * padX, 0),
+          // wrapper min-width is 60px (computeSubElementPosition / the Designer's .sub-element)
+          w: Math.max(se.w != null ? Number(se.w) : Math.max((Number(pos.w) || 0) - 2 * padX, 0), 60),
           // an explicit height can never be smaller than the wrapper's own border + padding (box-sizing: border-box)
           h: se.h != null ? Math.max(Number(se.h), 14) : null,
           measuredH: typeof se._measuredH === "number" ? se._measuredH : undefined,

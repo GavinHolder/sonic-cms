@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- test tooling: stored section JSON and in-page measurements are untyped by nature */
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
@@ -7,7 +8,6 @@ import { syntheticFixtures, type Fixture } from "./synthetic";
 const require = createRequire(import.meta.url);
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "..", "..", "..");
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const BP = require(path.join(repoRoot, "public", "flexible-breakpoint-rules.js"));
 
 function parseDD(raw: unknown): any {
