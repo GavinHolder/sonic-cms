@@ -9,6 +9,9 @@
  *     A2  slide 0: the visible top-to-bottom order equals the design order (ascending desktop pos.y)
  *     A3  all four heading rows resolve to the SAME real fallback generic (no bare `display` token anywhere)
  *     A4  slide 1 (posMobile authored): the logo and every row keep their per-element ABSOLUTE positions (opt-in unchanged)
+ *     A5  slide 2 (nothing dragged: eyebrow, rows, subheading, button, undragged image): the old fixed order, no `order` style at all
+ *     A6  slide 3 (mixed dragged / undragged): only the dragged elements permute among their own slots
+ *   order   prints the visible top-to-bottom order per slide (before/after live-data audit: --fixture <hero-section.json>)
  *   shots   screenshots per viewport x slide, two kinds: `full` (what a visitor sees) and `overlay` (every background layer and the
  *           navbar hidden on a flat black plate, so only the overlay text/logo paints — used for the regression pixel diff)
  *
@@ -151,6 +154,22 @@ async function measureSlide(page: any) {
   });
 }
 
+/** Visible top-to-bottom sequence of the hero's overlay elements + whether any stacked wrapper carries an inline `order`. */
+async function readSequence(page: any) {
+  return page.evaluate(() => {
+    const hero = document.querySelector(".hero-carousel") as HTMLElement;
+    const items: { label: string; top: number; order: string }[] = [];
+    const push = (el: Element, label: string) => items.push({ label, top: el.getBoundingClientRect().top, order: ((el.parentElement as HTMLElement).style.order || "") });
+    hero.querySelectorAll("h1.hero-heading").forEach((h) => push(h, (h.textContent ?? "").trim()));
+    hero.querySelectorAll("p.hero-subheading").forEach((h) => push(h, (h.textContent ?? "").trim()));
+    hero.querySelectorAll("a.btn").forEach((h) => push(h, (h.textContent ?? "").trim()));
+    hero.querySelectorAll("img.hero-freeform-img").forEach((h) => push(h, ((h as HTMLImageElement).alt || (h as HTMLImageElement).src.split("/").pop() || "").replace(/-\d{10,}\.\w+$/, "")));
+    hero.querySelectorAll("p").forEach((h) => { if (!h.classList.contains("hero-subheading") && /^[A-Z ]{3,}$/.test((h.textContent ?? "").trim()) && getComputedStyle(h).textTransform === "uppercase") push(h, (h.textContent ?? "").trim()); });
+    items.sort((a, b) => a.top - b.top);
+    return { sequence: items.map((i) => i.label), anyOrder: items.some((i) => i.order !== "") };
+  });
+}
+
 const lastToken = (ff: string) => ff.split(",").map((t) => t.trim().replace(/^["']|["']$/g, "")).filter(Boolean).pop() ?? "";
 
 async function runAssert() {
@@ -183,6 +202,14 @@ async function runAssert() {
         const yOk = n.rows.length === 4 && n.rows.every((r: any, i: number) => Math.abs(r.cy - expectY[i]) <= 2);
         const logoOk = !!n.logo && Math.abs(n.logo.cy - (n.hero.top + 0.14 * n.hero.height)) <= 2;
         add(`${vpName} A4 posMobile elements stay absolute at their authored y`, allAbs && yOk && logoOk, `wrappers absolute=${allAbs}; rows y ok=${yOk}; logo y ok=${logoOk}`);
+        // slide 2 — nothing dragged: exactly the old fixed order, and no `order` style at all
+        await gotoSlide(page, 2);
+        const q = await readSequence(page);
+        add(`${vpName} A5 nothing dragged -> unchanged fixed order, no inline order`, q.sequence.join(">") === "EYEBROW>ALPHA>BETA>Subheading text>Button>Logo" && !q.anyOrder, `${q.sequence.join(" > ")} (any inline order: ${q.anyOrder})`);
+        // slide 3 — mixed: only dragged elements permute among their own slots; undragged eyebrow/button keep theirs
+        await gotoSlide(page, 3);
+        const r = await readSequence(page);
+        add(`${vpName} A6 mixed dragged/undragged`, r.sequence.join(">") === "EYEBROW>Logo>BETA>ALPHA>Button>Subheading text", r.sequence.join(" > "));
       } finally { await ctx.close(); }
     }
   } finally { await browser.close(); }
@@ -229,8 +256,27 @@ async function runShots() {
   } finally { await browser.close(); }
 }
 
+/** Prints the visible top-to-bottom order of every slide at each viewport — used for the before/after live-data audit. */
+async function runOrder() {
+  const fx = opt("fixture");
+  const section = fx ? JSON.parse(fs.readFileSync(fx, "utf8")) : heroFixtureSection();
+  await seedHero(section);
+  const slideCount = (section.content?.slides ?? []).length;
+  const vps = (opt("viewport") ?? "390x844").split(",");
+  const browser = await chromium.launch();
+  try {
+    for (const vpName of vps) {
+      const { ctx, page } = await openPage(browser, parseVp(vpName));
+      try {
+        for (let i = 0; i < slideCount; i++) { await gotoSlide(page, i); const q = await readSequence(page); console.log(`${vpName} slide ${i}: ${q.sequence.join(" > ")}${q.anyOrder ? "   [order styles set]" : ""}`); }
+      } finally { await ctx.close(); }
+    }
+  } finally { await browser.close(); }
+}
+
 (async () => {
-  if (mode === "assert") await runAssert();
+  if (mode === "order") await runOrder();
+  else if (mode === "assert") await runAssert();
   else if (mode === "shots") await runShots();
-  else { console.error(`unknown mode ${mode} (assert | shots)`); process.exit(2); }
+  else { console.error(`unknown mode ${mode} (assert | shots | order)`); process.exit(2); }
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -8,6 +8,10 @@
  *    all four rows must fall back to the same real generic family.
  *  - slide 1: the same content but with `posMobile` on the logo and every row — those elements keep their absolute
  *    positions (the per-element opt-in is unchanged).
+ *  - slide 2: NOTHING dragged (no `pos` anywhere: eyebrow, two rows, subheading, button, an undragged image) — the mobile
+ *    stack must be exactly the renderer's fixed order, with no `order` style on any element.
+ *  - slide 3: mixed — some elements dragged (rows, subheading, logo at the top), eyebrow and button undragged — only the dragged
+ *    elements permute among their own slots.
  * Images are inline SVG data URIs so the fixture needs no assets and no network.
  */
 
@@ -47,6 +51,25 @@ const overlay = (withPosMobile: boolean) => ({
   ],
 });
 
+const anim = { animation: "fadeIn", animationDelay: 100, animationDuration: 400 };
+/** eyebrow + two rows + subheading + button + image, positions supplied per slide (undefined = never dragged). */
+const fullOverlay = (p: { rows: [Pos | undefined, Pos | undefined]; sub?: Pos; logo?: Pos }) => ({
+  layoutMode: "freeform",
+  position: "center",
+  eyebrow: "EYEBROW",
+  eyebrowHidden: false,
+  heading: { text: "", color: "#ffffff", fontSize: 100, fontWeight: 700, fontFamily: "inherit", ...anim },
+  spacing: { betweenButtons: 16, betweenHeadingSubheading: 16, betweenSubheadingButtons: 32 },
+  headingRows: [
+    { text: "ALPHA", color: "#ffffff", fontSize: 80, fontWeight: 800, fontFamily: FONT_OK, ...anim, ...(p.rows[0] ? { pos: p.rows[0] } : {}) },
+    { text: "BETA", color: "#ffffff", fontSize: 80, fontWeight: 800, fontFamily: FONT_OK, ...anim, ...(p.rows[1] ? { pos: p.rows[1] } : {}) },
+  ],
+  subheading: { text: "Subheading text", color: "#ffffff", fontSize: 22, fontWeight: 400, fontFamily: "inherit", ...anim, ...(p.sub ? {} : {}) },
+  ...(p.sub ? { subheadingPos: p.sub } : {}),
+  buttons: [{ text: "Button", href: "#", variant: "filled", backgroundColor: "#0a84ff", textColor: "#ffffff", ...anim }],
+  images: [{ src: LOGO, alt: "Logo", width: 160, forceWhite: false, ...anim, ...(p.logo ? { pos: p.logo } : {}) }],
+});
+
 export function heroFixtureSection() {
   return {
     type: "HERO",
@@ -65,6 +88,8 @@ export function heroFixtureSection() {
       slides: [
         { id: "hm-slide-0", name: "Stacked on mobile", type: "image", src: BG_A, alt: "", overlay: overlay(false) },
         { id: "hm-slide-1", name: "posMobile authored", type: "image", src: BG_B, alt: "", overlay: overlay(true) },
+        { id: "hm-slide-2", name: "nothing dragged", type: "image", src: BG_A, alt: "", overlay: fullOverlay({ rows: [undefined, undefined] }) },
+        { id: "hm-slide-3", name: "mixed dragged / undragged", type: "image", src: BG_B, alt: "", overlay: fullOverlay({ rows: [{ x: 50, y: 40 }, { x: 50, y: 30 }], sub: { x: 50, y: 60 }, logo: { x: 50, y: 8 } }) },
       ],
     },
   };
