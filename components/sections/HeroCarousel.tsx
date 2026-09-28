@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, Fragment } from "react";
-import { motion, AnimatePresence, type Easing } from "motion/react";
+import { motion, AnimatePresence, MotionConfig, type Easing } from "motion/react";
 import type { HeroSection, AnimationType, HeroEasing, HeadingRow, TextShadowConfig, FreeformPos, OverlayImage } from "@/types/section";
 import { defaultFreeformPos, resolveFreeformPos, resolveFreeformSize, freeformStackOrders } from "@/types/section";
 import { preconnect, preinit } from "react-dom";
@@ -640,6 +640,15 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
   }
 
   return (
+    // Hero entrance/slide transitions are an authored, decorative choice for this
+    // marketing site (see the comments on the two AnimatePresence blocks below) --
+    // never the kind of interaction-triggered motion prefers-reduced-motion is meant
+    // to suppress. `motion` v13's reduced-motion handling is per-VisualElement (each
+    // motion.* component reads MotionConfigContext independently), so scoping the
+    // override to this component's own subtree here does NOT affect any other
+    // motion/AnimatePresence usage elsewhere on the site (Navbar, modals, CTA
+    // sections, etc.), which continue to honor the visitor's real OS setting.
+    <MotionConfig reducedMotion="never">
     <div
       id={section.id}
       className="hero-carousel position-relative w-100"
@@ -1297,5 +1306,6 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
         </div>
       )}
     </div>
+    </MotionConfig>
   );
 }
