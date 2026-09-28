@@ -23,15 +23,44 @@ function escapeHtml(value: unknown): string {
     .replace(/'/g, '&#39;')
 }
 
+const EMAIL_ADDR_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/** Pull the bare address out of an RFC-5322 "Display Name <addr>" wrapper, or return the
+ *  trimmed input unchanged when there is no `<...>` wrapper. */
+export function extractAddress(part: string): string {
+  const m = /<([^<>]+)>/.exec(part)
+  return (m ? m[1] : part).trim()
+}
+
 /**
- * Strip CR/LF (SMTP/MIME header injection via To/Reply-To) and require a syntactically
- * plausible email address. Returns '' for anything that fails — callers treat '' as
- * "no usable address" rather than passing raw visitor/DB input straight to nodemailer.
+ * Strip CR/LF (SMTP/MIME header injection) and require a syntactically plausible SINGLE
+ * email address — accepts an optional "Display Name <addr>" wrapper. Returns '' for anything
+ * that fails. Used for visitor-supplied addresses (e.g. Reply-To) where multiple recipients
+ * are never legitimate.
  */
-function sanitizeRecipient(value: unknown): string {
+export function sanitizeRecipient(value: unknown): string {
   if (typeof value !== 'string') return ''
-  const cleaned = value.replace(/[\r\n]/g, '').trim()
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleaned) ? cleaned : ''
+  const addr = extractAddress(value.replace(/[\r\n]/g, ''))
+  return EMAIL_ADDR_RE.test(addr) ? addr : ''
+}
+
+/**
+ * Like sanitizeRecipient, but for admin-configured recipients: accepts a comma-separated list
+ * (each entry optionally wrapped in "Display Name <addr>", e.g. "Ops <ops@x.com>, boss@y.com").
+ * Invalid entries are dropped (and logged) rather than failing the whole list. Returns '' only
+ * when nothing valid remains — callers must treat that as "no usable recipient" and log loudly
+ * rather than silently dropping the notification (see lib/email.ts's sendSubmissionEmail).
+ */
+export function sanitizeRecipientList(value: unknown): string {
+  if (typeof value !== 'string') return ''
+  const valid: string[] = []
+  for (const part of value.replace(/[\r\n]/g, '').split(',')) {
+    const addr = extractAddress(part)
+    if (!addr) continue
+    if (EMAIL_ADDR_RE.test(addr)) valid.push(addr)
+    else console.warn(`[email] dropping invalid recipient in configured list: ${addr.slice(0, 80)}`)
+  }
+  return valid.join(', ')
 }
 
 function safeLogoUrl(url: string): string {
@@ -277,8 +306,16 @@ export async function sendSubmissionEmail(
   source: string,
   emailTo?: string
 ) {
-  const recipient = sanitizeRecipient(emailTo) || sanitizeRecipient(cfg.admin_email)
-  if (!recipient) return
+  const recipient = sanitizeRecipientList(emailTo) || sanitizeRecipientList(cfg.admin_email)
+  if (!recipient) {
+    // Never fail silently: a submission that "succeeds" but notifies no one is a landmine for
+    // the next time emailTo/admin_email gets misconfigured (e.g. edited to something sanitizeRecipientList rejects).
+    console.error(
+      `[email] sendSubmissionEmail: no usable recipient after sanitization — notification for "${source}" NOT sent`,
+      { emailToRaw: typeof emailTo === 'string' ? emailTo.slice(0, 120) : emailTo, adminEmailRaw: cfg.admin_email?.slice(0, 120) }
+    )
+    return
+  }
 
   const [tokens, emailSettings, siteRow] = await Promise.all([
     getBrandTokens(),
