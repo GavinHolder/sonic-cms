@@ -43,6 +43,11 @@ describe('freeformStackOrders — mobile stack reading order (RUNNING-MAX: a dra
       .toEqual(['eyebrow', 'img-0', 'row-1', 'row-0', 'subheading', 'btn-0'])
   })
 
+  it('FOURTH-REVIEW counter-example: an undragged element between two dragged elements is unchanged when the LATER dragged y is already >= the running max at that point (row-0 y=10, subheading undragged, img-0 y=90 -> byte-identical to DOM order, null). A "clamp the undragged key to +Infinity once any dragged element precedes it" bug would wrongly push subheading after img-0.', () => {
+    const ov = overlay({ headingRows: [{ pos: pos(10) }] as never, subheading: { text: 's' } as never, images: [{ pos: pos(90) }] as never })
+    expect(freeformStackOrders(ov, false)).toBeNull()
+  })
+
   it('nothing dragged -> null (no order styles at all), whatever elements the slide has', () => {
     const ov = overlay({ headingRows: [{}, {}] as never, subheading: { text: 's' } as never, buttons: [{}, {}] as never, images: [{}, {}] as never })
     expect(freeformStackOrders(ov, true)).toBeNull()
@@ -103,6 +108,7 @@ describe('freeformStackOrders — mobile stack reading order (RUNNING-MAX: a dra
     const YS = [0, 5, 8, 10, 20, 20, 30, 40, 40, 50, 80, 100]
     let reordered = 0
     let sawLeapfrogRisk = 0 // slides where a later dragged y < an earlier dragged y AND an undragged element sits between/after them
+    let sawFifthInvariantRisk = 0 // slides where invariant (5) actually constrains something (a later dragged y >= an undragged element's running max)
     for (let n = 0; n < 500; n++) {
       const el = (): any => {
         const e: any = {}
@@ -172,9 +178,26 @@ describe('freeformStackOrders — mobile stack reading order (RUNNING-MAX: a dra
           expect(finalIndexOf.get(x)!).toBeLessThan(finalIndexOf.get(y)!)
         }
       }
+
+      // (5) an undragged element must sort before every LATER dragged element whose y is >= the running max at the point the
+      // undragged element was keyed — i.e. it must never get pushed past a later dragged element it should still precede. This
+      // is NOT jointly implied by (1)-(4): a buggy "clamp the undragged key to +Infinity once any dragged element precedes it"
+      // implementation satisfies all four of those yet fails this one (FOURTH-REVIEW).
+      for (let x = 0; x < flow.length; x++) {
+        if (isDragged(flow[x])) continue
+        const runningMaxAtX = flow.slice(0, x).reduce((m, e) => (isDragged(e) ? Math.max(m, e.pos!.y) : m), -Infinity)
+        for (let d = x + 1; d < flow.length; d++) {
+          if (!isDragged(flow[d])) continue
+          if (flow[d].pos!.y >= runningMaxAtX) {
+            sawFifthInvariantRisk++
+            expect(finalIndexOf.get(x)!).toBeLessThan(finalIndexOf.get(d)!)
+          }
+        }
+      }
     }
     expect(reordered).toBeGreaterThan(50) // the generator really produced reorderings
     expect(sawLeapfrogRisk).toBeGreaterThan(50) // and really exercised invariant (3) — the exact shape the THIRD-REVIEW bug broke
+    expect(sawFifthInvariantRisk).toBeGreaterThan(50) // and really exercised invariant (5) — the exact shape the FOURTH-REVIEW bug broke
   })
 })
 

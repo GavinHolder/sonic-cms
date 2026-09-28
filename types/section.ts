@@ -502,7 +502,7 @@ export function resolveFreeformSize(
  * On a phone every freeform element WITHOUT a `posMobile` is stacked in one centred column, in the renderer's fixed DOM order:
  * eyebrow, heading rows (or the legacy heading), subheading, buttons, images. That order ignores where the author put things, so a
  * logo dragged to the TOP of the slide always landed last. This returns the CSS `order` per element key that makes the column follow
- * the design, without ever separating an element from the one it followed:
+ * the design, without ever separating an element from the highest-positioned dragged element it followed:
  *
  *   RUNNING-MAX algorithm (third iteration — the two earlier "inherit the immediate predecessor's key" models both admitted a
  *   counter-example: a later DRAGGED element with a SMALLER y than an earlier dragged element could leave a stale, too-small key
