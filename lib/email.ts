@@ -45,8 +45,9 @@ export function sanitizeRecipient(value: unknown): string {
 }
 
 /**
- * Like sanitizeRecipient, but for admin-configured recipients: accepts a comma-separated list
- * (each entry optionally wrapped in "Display Name <addr>", e.g. "Ops <ops@x.com>, boss@y.com").
+ * Like sanitizeRecipient, but for admin-configured recipients: accepts a comma- OR
+ * semicolon-separated list (each entry optionally wrapped in "Display Name <addr>", e.g.
+ * "Ops <ops@x.com>; boss@y.com" — nodemailer/most mail clients accept either separator raw).
  * Invalid entries are dropped (and logged) rather than failing the whole list. Returns '' only
  * when nothing valid remains — callers must treat that as "no usable recipient" and log loudly
  * rather than silently dropping the notification (see lib/email.ts's sendSubmissionEmail).
@@ -54,7 +55,7 @@ export function sanitizeRecipient(value: unknown): string {
 export function sanitizeRecipientList(value: unknown): string {
   if (typeof value !== 'string') return ''
   const valid: string[] = []
-  for (const part of value.replace(/[\r\n]/g, '').split(',')) {
+  for (const part of value.replace(/[\r\n]/g, '').split(/[,;]/)) {
     const addr = extractAddress(part)
     if (!addr) continue
     if (EMAIL_ADDR_RE.test(addr)) valid.push(addr)

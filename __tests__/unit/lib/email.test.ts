@@ -58,6 +58,22 @@ describe('sanitizeRecipientList (admin-configured recipients — supports multip
     expect(sanitizeRecipientList('Ops <ops@example.com>, boss@example.com')).toBe('ops@example.com, boss@example.com')
   })
 
+  it('accepts a semicolon-separated list', () => {
+    expect(sanitizeRecipientList('a@example.com; b@example.com')).toBe('a@example.com, b@example.com')
+  })
+
+  it('accepts a semicolon-separated list with a "Display Name <addr>" entry mixed in', () => {
+    expect(sanitizeRecipientList('Ops Team <ops@example.com>; boss@example.com')).toBe(
+      'ops@example.com, boss@example.com'
+    )
+  })
+
+  it('accepts a mix of commas and semicolons as separators', () => {
+    expect(sanitizeRecipientList('a@example.com, b@example.com; c@example.com')).toBe(
+      'a@example.com, b@example.com, c@example.com'
+    )
+  })
+
   it('drops invalid entries but keeps the valid ones, logging a warning', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     expect(sanitizeRecipientList('good@example.com, not-an-email, also-good@example.com')).toBe(
@@ -79,6 +95,15 @@ describe('sanitizeRecipientList (admin-configured recipients — supports multip
   it('returns "" when every entry is invalid', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     expect(sanitizeRecipientList('not-an-email, also-bad')).toBe('')
+    warn.mockRestore()
+  })
+
+  it('the CRLF-injection guard still holds with a semicolon separator: garbage is dropped, not smuggled through', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const result = sanitizeRecipientList('a@b.com; evil\r\nBcc:x')
+    expect(result).toBe('a@b.com')
+    expect(result).not.toContain('\r')
+    expect(result).not.toContain('\n')
     warn.mockRestore()
   })
 
