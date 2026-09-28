@@ -2,3 +2,16 @@
 deploy/app/docker-compose.yml       merge=ours
 public/cms-version.json             merge=ours
 graphify-out/graph.json merge=graphify
+
+# Force LF for shebang-bearing script files. On Windows checkouts with
+# core.autocrlf=true, these were silently converted to CRLF, which corrupts
+# the shebang line for tools that expect a bare "\n" after "#!...". In
+# particular, Vite/Vitest's SSR import transform (getFileStartIndex, driven
+# by the regex /^#!.*\n/ in vite/dist/node/chunks/node.js) fails to detect a
+# CRLF-terminated shebang, falls back to hoisting rewritten imports at
+# position 0, and ends up inserting code BEFORE the shebang line -- producing
+# "SyntaxError: Invalid or unexpected token" when such a file is imported by
+# a Vitest test (see scripts/check-route-guards.mjs +
+# __tests__/unit/api/route-guards.test.ts).
+*.mjs text eol=lf
+*.sh  text eol=lf
