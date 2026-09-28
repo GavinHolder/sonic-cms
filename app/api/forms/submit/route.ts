@@ -8,6 +8,8 @@ import { NextResponse } from "next/server";
 import { getEmailConfig, sendSubmissionEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
 import { enforceFormRateLimit } from "@/lib/form-rate-limit";
+import { resolveSubmissionRoute } from "@/lib/form-routing";
+import { postWebhook } from "@/lib/safe-webhook";
 
 export async function POST(req: Request) {
   // Per-IP spam limit — must run before any body parsing, DB write, webhook call or email send.
@@ -46,23 +48,32 @@ export async function POST(req: Request) {
       console.warn("[Form submit] DB log failed (non-fatal):", dbErr);
     }
 
-    if (submitAction === "webhook") {
-      if (!webhookUrl) {
-        return NextResponse.json({ error: "No webhook URL configured" }, { status: 400 });
+    // A client-supplied emailTo/webhookUrl is only honoured when it exactly matches a value an
+    // admin configured server-side (see lib/form-routing.ts) — this closes both the open-mail-relay
+    // and the SSRF hole that letting visitors pick these values directly used to create. Anything
+    // forged is silently ignored (never a 4xx) and falls back to the site admin email.
+    const route = await resolveSubmissionRoute({ emailTo, webhookUrl, submitAction });
+
+    if (route.action === "webhook-missing") {
+      return NextResponse.json({ error: "No webhook URL configured" }, { status: 400 });
+    }
+
+    if (route.action === "webhook") {
+      try {
+        await postWebhook(route.webhookUrl, { fields, userEmail, source });
+        status = "sent";
+      } catch (webhookErr) {
+        // Delivery failure OR the SSRF guard blocking a (misconfigured/rebound) target must never
+        // make a real visitor's submission vanish — fall back to emailing the admin instead.
+        console.warn("[Form submit] webhook delivery failed, falling back to email:", webhookErr);
+        const cfg = await getEmailConfig();
+        await sendSubmissionEmail(fields, userEmail, cfg, source || "Website");
+        status = "sent";
       }
-      const webhookRes = await fetch(webhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fields, userEmail, source }),
-      });
-      if (!webhookRes.ok) {
-        throw new Error(`Webhook responded with ${webhookRes.status}`);
-      }
-      status = "sent";
     } else {
       // Default: email action
       const cfg = await getEmailConfig();
-      await sendSubmissionEmail(fields, userEmail, cfg, source || "Website", emailTo);
+      await sendSubmissionEmail(fields, userEmail, cfg, source || "Website", route.emailTo);
       status = "sent";
     }
 

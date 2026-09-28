@@ -79,7 +79,7 @@ export const BASELINE_ALLOWLIST = Object.freeze({
   "app/api/auth/login/route.ts#POST": "Public: credential login; issues the session cookies (rate-limited in-handler).",
   "app/api/auth/logout/route.ts#POST": "Public: only clears the caller's own session cookies.",
   "app/api/auth/refresh/route.ts#POST": "Public entry point: authenticates itself via the refresh_token cookie and mints a new access token.",
-  "app/api/forms/submit/route.ts#POST": "Public: website visitor form submission. Hardening (SSRF / mail relay / OTP enforcement) is tracked for Phase 2.",
+  "app/api/forms/submit/route.ts#POST": "Public: website visitor form submission. Rate-limited (5/10min/IP); emailTo/webhookUrl are allowlisted against admin-configured values (lib/form-routing.ts) and the webhook is SSRF/DNS-rebinding guarded (lib/safe-webhook.ts). OTP enforcement still tracked for Phase 2.",
   "app/api/contact/route.ts#POST": "Public: website contact form.",
   "app/api/otp/send/route.ts#POST": "Public: visitor OTP request for public forms.",
   "app/api/otp/verify/route.ts#POST": "Public: visitor OTP verification for public forms.",
