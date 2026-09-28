@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useEffect, useRef, useState, useCallback, useId, useMemo } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useCallback, useId, useMemo } from "react";
 import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
 import type { FlexibleSection, FlexibleElement, FlexibleAnimationType } from "@/types/section";
@@ -2192,7 +2192,17 @@ function DesignerBlocksRenderer({
   // stageH is only consumed by the free cover-plate (plateMode) — it measures the SECTION
   // box height so the plate can be COVER-scaled (max of width/height ratios), not width-only.
   const [stageH, setStageH] = useState(0);
-  useEffect(() => {
+  // useLayoutEffect (not useEffect): the initial clientWidth/clientHeight read must land
+  // BEFORE the browser's first paint, not after it. useEffect fires post-paint, so the very
+  // first frame renders at the stageW=0 fallback (window.innerWidth/innerHeight) and only
+  // snaps to the real measured value on the NEXT frame -- a visible scale correction that,
+  // combined with the content plate's will-change:transform compositing layer, intermittently
+  // leaves the GPU-rasterized text looking soft (confirmed: 30-load real-browser sample showed
+  // this pre-existing race in the c4535fa baseline too, at a lower incidence -- see the
+  // 2026-09-28 price-digit crispness investigation). useLayoutEffect runs synchronously
+  // before paint, so React flushes the corrected value in the same frame and the browser
+  // never paints the stale estimate.
+  useLayoutEffect(() => {
     const el = stageRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver(() => { setStageW(el.clientWidth); setStageH(el.clientHeight); });
