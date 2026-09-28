@@ -504,12 +504,20 @@ export function resolveFreeformSize(
  * logo dragged to the TOP of the slide always landed last. This returns the CSS `order` per element key that makes the column follow
  * the design, without ever separating an element from the one it followed:
  *
- *   • Every flow element gets a sort key. A DRAGGED element (explicit finite saved `pos.y`) uses its own `pos.y`. An UNDRAGGED element
- *     inherits the key of the nearest preceding element in the column (-Infinity if it is first), so it always travels with the
- *     element it originally followed. Defaults (`defaultFreeformPos`) never influence the order.
- *   • The column is then stable-sorted by (key, original DOM index) and `order` = the rank. Consequences: nothing dragged => all keys
- *     equal => unchanged; all dragged => ascending y (ties stable); an undragged element is always directly after its original
- *     predecessor; an undragged first element stays first.
+ *   RUNNING-MAX algorithm (third iteration — the two earlier "inherit the immediate predecessor's key" models both admitted a
+ *   counter-example: a later DRAGGED element with a SMALLER y than an earlier dragged element could leave a stale, too-small key
+ *   for the undragged elements that followed, letting them leapfrog ahead of dragged content that must stay before them). Process
+ *   flow elements in original DOM order, tracking one running maximum (`runningMax`, starts at -Infinity):
+ *     • DRAGGED element (explicit finite saved `pos.y`): its sort key is its OWN `pos.y`, never clamped — dragged elements always
+ *       sort strictly by their own y among each other (ties by original DOM index). Then `runningMax = max(runningMax, pos.y)`.
+ *     • UNDRAGGED element: its sort key is the CURRENT `runningMax` (every undragged element running together gets the same key).
+ *       `runningMax` is NOT updated by an undragged element.
+ *   `runningMax` is monotonically non-decreasing by construction, so an undragged element's key can never be smaller than any
+ *   dragged element's key that already appeared earlier in DOM order — it can only be pushed later, never earlier, than where it
+ *   started. The column is then stable-sorted by (key, original DOM index) and `order` = the rank. Consequences: nothing dragged
+ *   => all keys equal => unchanged; all dragged => ascending y (ties stable); an undragged element never appears before a dragged
+ *   element that preceded it in DOM order; consecutive undragged elements with no dragged element between them keep their
+ *   relative DOM order.
  *   • Elements with a `posMobile` are absolute (out of flow) and are ignored.
  *
  * Returns null when the ranks equal the DOM order (the caller then sets no `order` at all — the render is identical to before this
@@ -532,10 +540,12 @@ export function freeformStackOrders(
   (overlay.images ?? []).forEach((im, i) => items.push({ key: `img-${i}`, pos: im.pos, posMobile: im.posMobile }));
 
   const flow = items.filter((it) => !it.posMobile);
-  let carried = -Infinity;
+  let runningMax = -Infinity;
   const sortKeys = flow.map((it) => {
-    if (it.pos && Number.isFinite(it.pos.y)) carried = it.pos.y; // dragged: own y; undragged: inherit the previous element's key
-    return carried;
+    const dragged = it.pos && Number.isFinite(it.pos.y);
+    const key = dragged ? (it.pos as FreeformPos).y : runningMax; // dragged: own y (never clamped); undragged: current running max
+    if (dragged) runningMax = Math.max(runningMax, (it.pos as FreeformPos).y);
+    return key;
   });
   const ranked = flow
     .map((it, index) => ({ key: it.key, index, sortKey: sortKeys[index] }))

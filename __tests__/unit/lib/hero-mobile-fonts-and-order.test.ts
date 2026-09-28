@@ -10,7 +10,7 @@ const overlay = (o: Partial<Ov> = {}): Ov => ({ headingRows: [], buttons: [], im
 const sequence = (keys: string[], orders: Record<string, number> | null) =>
   orders ? [...keys].sort((a, b) => orders[a] - orders[b]) : keys
 
-describe('freeformStackOrders — mobile stack reading order (undragged elements travel with the element they follow)', () => {
+describe('freeformStackOrders — mobile stack reading order (RUNNING-MAX: a dragged element sorts by its own y; an undragged element takes the key of the highest dragged y seen so far in DOM order, so it can only be pushed LATER, never earlier, than a dragged element already seen)', () => {
   it('owner slide: every element dragged -> ascending y, so the logo authored at the top leads', () => {
     const ov = overlay({ headingRows: [27, 37, 56, 67].map((y) => ({ pos: pos(y) })) as never, images: [{ pos: pos(8) }] as never })
     expect(sequence(['row-0', 'row-1', 'row-2', 'row-3', 'img-0'], freeformStackOrders(ov, false))).toEqual(['img-0', 'row-0', 'row-1', 'row-2', 'row-3'])
@@ -24,6 +24,23 @@ describe('freeformStackOrders — mobile stack reading order (undragged elements
   it('review example 2: row 0 + logo dragged, rows 1-3 not -> logo, row0, row1, row2, row3', () => {
     const ov = overlay({ headingRows: [{ pos: pos(27) }, {}, {}, {}] as never, images: [{ pos: pos(8) }] as never })
     expect(sequence(['row-0', 'row-1', 'row-2', 'row-3', 'img-0'], freeformStackOrders(ov, false))).toEqual(['img-0', 'row-0', 'row-1', 'row-2', 'row-3'])
+  })
+
+  it('THIRD-REVIEW counter-example: a later dragged row with a SMALLER y must not leave a stale key that lets undragged elements after it leapfrog an earlier, higher-y dragged row (eyebrow undragged, ALPHA y=40, BETA y=30, subheading undragged, button undragged, Logo y=8 -> EYEBROW, Logo, BETA, ALPHA, Subheading, Button)', () => {
+    // DOM order: eyebrow, row-0 (ALPHA, dragged y=40), row-1 (BETA, dragged y=30), subheading (undragged), btn-0 (undragged), img-0 (Logo, dragged y=8).
+    // The old "inherit the immediate predecessor's key" model carried BETA's smaller y=30 forward onto subheading/btn-0, which then
+    // sorted BEFORE ALPHA (key=40) even though ALPHA appeared earlier in DOM — scattering ALPHA to the very end. RUNNING-MAX never lets
+    // the carried key decrease: after ALPHA (y=40), runningMax stays 40 through BETA (y=30), so subheading/btn-0 correctly key at 40,
+    // tying with (and sorting after, by DOM index) ALPHA — never before it.
+    const ov = overlay({
+      headingRows: [{ pos: pos(40) }, { pos: pos(30) }] as never, // row-0 = ALPHA, row-1 = BETA
+      subheading: { text: 's' } as never, // undragged (no subheadingPos)
+      buttons: [{}] as never, // undragged
+      images: [{ pos: pos(8) }] as never, // Logo, dragged
+    })
+    const o = freeformStackOrders(ov, true) // hasEyebrow=true, no eyebrowPos -> eyebrow undragged
+    expect(sequence(['eyebrow', 'row-0', 'row-1', 'subheading', 'btn-0', 'img-0'], o))
+      .toEqual(['eyebrow', 'img-0', 'row-1', 'row-0', 'subheading', 'btn-0'])
   })
 
   it('nothing dragged -> null (no order styles at all), whatever elements the slide has', () => {
@@ -42,9 +59,12 @@ describe('freeformStackOrders — mobile stack reading order (undragged elements
     expect(sequence(['row-0', 'btn-0', 'img-0'], freeformStackOrders(ov, false))).toEqual(['img-0', 'row-0', 'btn-0'])
   })
 
-  it('an undragged image after a dragged logo moves up with it (accepted)', () => {
+  it('an undragged image after a dragged logo does NOT leapfrog an earlier, higher-y dragged row (corrected expectation — the row\'s running max is still in effect when the image is reached)', () => {
+    // DOM order: row-0 (dragged y=50), img-0 (dragged y=8), img-1 (undragged). runningMax after row-0 is 50; img-0 (y=8) does not
+    // lower it; img-1 keys at 50, tying with row-0 — DOM index breaks the tie (row-0's index 0 < img-1's index 2), so row-0 stays
+    // before img-1. (Previously this test asserted img-1 leapfrogged row-0 — that was the same bug class as the THIRD-REVIEW case.)
     const ov = overlay({ headingRows: [{ pos: pos(50) }] as never, images: [{ pos: pos(8) }, {}] as never })
-    expect(sequence(['row-0', 'img-0', 'img-1'], freeformStackOrders(ov, false))).toEqual(['img-0', 'img-1', 'row-0'])
+    expect(sequence(['row-0', 'img-0', 'img-1'], freeformStackOrders(ov, false))).toEqual(['img-0', 'row-0', 'img-1'])
   })
 
   it('an undragged image after dragged rows stays last (already in order -> null)', () => {
@@ -74,16 +94,19 @@ describe('freeformStackOrders — mobile stack reading order (undragged elements
     expect(freeformStackOrders(ov, false)).toBeNull() // keys: -Inf, 10, 10, 10 -> already in order
   })
 
-  it('property: random mixed slides keep the invariants (permutation, null when nothing dragged, undragged directly after its predecessor, sorted, equal keys keep DOM order)', () => {
+  it('property: random mixed slides satisfy the real semantic invariants directly (not a re-derivation of the implementation — this is exactly why the previous property test, which rebuilt the same "carried" model as the code under test, did not catch the THIRD-REVIEW bug)', () => {
     let seed = 20260926
     const rnd = () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296 }
     const pick = (a: number[]) => a[Math.floor(rnd() * a.length)]
-    const YS = [0, 5, 10, 20, 20, 40, 40, 80, 100]
+    // Deliberately includes duplicates AND a non-monotonic mix (small values after large ones commonly occur), so the generator
+    // regularly produces the exact "later dragged element has a smaller y" shape the THIRD-REVIEW bug needed.
+    const YS = [0, 5, 8, 10, 20, 20, 30, 40, 40, 50, 80, 100]
     let reordered = 0
+    let sawLeapfrogRisk = 0 // slides where a later dragged y < an earlier dragged y AND an undragged element sits between/after them
     for (let n = 0; n < 500; n++) {
       const el = (): any => {
         const e: any = {}
-        if (rnd() < 0.5) e.pos = pos(pick(YS))
+        if (rnd() < 0.55) e.pos = pos(pick(YS))
         if (rnd() < 0.15) e.posMobile = pos(50)
         return e
       }
@@ -98,35 +121,60 @@ describe('freeformStackOrders — mobile stack reading order (undragged elements
         subheading: hasSub ? ({ text: 's' } as never) : undefined, subheadingPos: sub.pos, subheadingPosMobile: sub.posMobile,
         buttons: btns as never, images: imgs as never,
       })
-      // reference model: all elements in DOM order, then the in-flow ones with their (own or inherited) keys
-      const all: any[] = []
+
+      // The same element list freeformStackOrders itself builds, in DOM order — used only to describe positions/keys for
+      // assertions, never to re-derive the ordering algorithm.
+      const all: Array<{ key: string; pos?: { x: number; y: number }; posMobile?: { x: number; y: number } }> = []
       if (hasEyebrow) all.push({ key: 'eyebrow', ...eyebrow })
       if (rows.length) rows.forEach((r: any, i: number) => all.push({ key: `row-${i}`, ...r })); else all.push({ key: 'heading', ...legacy })
       if (hasSub) all.push({ key: 'subheading', ...sub })
       btns.forEach((b: any, i: number) => all.push({ key: `btn-${i}`, ...b }))
       imgs.forEach((im: any, i: number) => all.push({ key: `img-${i}`, ...im }))
       const flow = all.filter((e) => !e.posMobile)
-      let carried = -Infinity
-      const keyOf = flow.map((e) => { if (e.pos && Number.isFinite(e.pos.y)) carried = e.pos.y; return carried })
+      const isDragged = (e: (typeof flow)[number]) => !!e.pos && Number.isFinite(e.pos.y)
 
       const o = freeformStackOrders(ov, hasEyebrow)
-      if (!flow.some((e) => e.pos)) { expect(o).toBeNull(); continue } // (b) nothing dragged -> null
-      for (const e of all.filter((x) => x.posMobile)) expect(o?.[e.key]).toBeUndefined() // posMobile excluded
-      const ranks = o ? flow.map((e) => o[e.key]) : flow.map((_, i) => i)
-      if (o) reordered++
-      expect([...ranks].sort((a, b) => a - b)).toEqual(flow.map((_, i) => i)) // (d) each rank used exactly once
-      flow.forEach((e, i) => {
-        if (!e.pos && i > 0) expect(ranks[i]).toBe(ranks[i - 1] + 1) // (a) undragged is directly after its original predecessor
-      })
-      if (!flow[0].pos) expect(ranks[0]).toBe(0) // an undragged first element stays first
-      const seq = flow.map((_, i) => i).sort((a, b) => ranks[a] - ranks[b]) // DOM indices in visual order
-      for (let k = 1; k < seq.length; k++) {
-        expect(keyOf[seq[k - 1]] <= keyOf[seq[k]]).toBe(true) // sorted by key
-        if (keyOf[seq[k - 1]] === keyOf[seq[k]]) expect(seq[k - 1]).toBeLessThan(seq[k]) // (c) equal keys keep DOM order
+      for (const e of all.filter((x) => x.posMobile)) expect(o?.[e.key]).toBeUndefined() // posMobile always excluded
+
+      // (2) nothing dragged -> null AND the final order is the original DOM order, byte-identical to no ordering logic at all
+      if (!flow.some(isDragged)) {
+        expect(o).toBeNull()
+        continue
       }
-      if (o === null) expect(seq).toEqual(flow.map((_, i) => i))
+      if (o) reordered++
+
+      // visual (final) order as a list of `flow` indices, DOM order when o is null
+      const finalOrder = o ? flow.map((_, i) => i).sort((a, b) => o[flow[a].key] - o[flow[b].key]) : flow.map((_, i) => i)
+      const finalIndexOf = new Map(finalOrder.map((domIdx, visualIdx) => [domIdx, visualIdx]))
+      expect([...finalIndexOf.values()].sort((a, b) => a - b)).toEqual(flow.map((_, i) => i)) // a real permutation, each rank used once
+
+      // (1) among dragged elements only, final relative order == ascending pos.y, ties by original DOM index
+      const draggedIdx = flow.map((_, i) => i).filter((i) => isDragged(flow[i]))
+      const draggedInFinalOrder = [...draggedIdx].sort((a, b) => finalIndexOf.get(a)! - finalIndexOf.get(b)!)
+      const expectedDraggedOrder = [...draggedIdx].sort((a, b) => flow[a].pos!.y - flow[b].pos!.y || a - b)
+      expect(draggedInFinalOrder).toEqual(expectedDraggedOrder)
+
+      // (3) an undragged element must never appear before a dragged element that preceded it in DOM order
+      for (let x = 0; x < flow.length; x++) {
+        if (isDragged(flow[x])) continue
+        for (let d = 0; d < x; d++) {
+          if (!isDragged(flow[d])) continue
+          sawLeapfrogRisk++
+          expect(finalIndexOf.get(x)!).toBeGreaterThan(finalIndexOf.get(d)!)
+        }
+      }
+
+      // (4) two undragged elements with no dragged element between them in DOM order keep their relative DOM order
+      for (let x = 0; x < flow.length; x++) {
+        if (isDragged(flow[x])) continue
+        for (let y = x + 1; y < flow.length; y++) {
+          if (isDragged(flow[y])) break // a dragged element sits between x and y -> invariant (4) doesn't apply past it
+          expect(finalIndexOf.get(x)!).toBeLessThan(finalIndexOf.get(y)!)
+        }
+      }
     }
     expect(reordered).toBeGreaterThan(50) // the generator really produced reorderings
+    expect(sawLeapfrogRisk).toBeGreaterThan(50) // and really exercised invariant (3) — the exact shape the THIRD-REVIEW bug broke
   })
 })
 
