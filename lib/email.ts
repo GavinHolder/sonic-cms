@@ -14,13 +14,24 @@ interface SiteInfo {
   copyrightText: string
 }
 
-function escapeHtml(s: string): string {
-  return s
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
+}
+
+/**
+ * Strip CR/LF (SMTP/MIME header injection via To/Reply-To) and require a syntactically
+ * plausible email address. Returns '' for anything that fails — callers treat '' as
+ * "no usable address" rather than passing raw visitor/DB input straight to nodemailer.
+ */
+function sanitizeRecipient(value: unknown): string {
+  if (typeof value !== 'string') return ''
+  const cleaned = value.replace(/[\r\n]/g, '').trim()
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleaned) ? cleaned : ''
 }
 
 function safeLogoUrl(url: string): string {
@@ -106,7 +117,7 @@ export function buildSubmissionEmailHtml(
           <tr>
             <td style="padding:20px 24px;">
               <div style="font-size:18px;font-weight:700;color:${text};margin-bottom:4px;">New Website Enquiry</div>
-              <div style="font-size:11px;color:${textMuted};margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid #f1f5f9;">Form: ${source} · ${dateStr}</div>
+              <div style="font-size:11px;color:${textMuted};margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid #f1f5f9;">Form: ${escapeHtml(source)} · ${dateStr}</div>
               <table width="100%" cellpadding="0" cellspacing="0">
                 ${fieldRows}
               </table>
@@ -266,7 +277,7 @@ export async function sendSubmissionEmail(
   source: string,
   emailTo?: string
 ) {
-  const recipient = emailTo || cfg.admin_email
+  const recipient = sanitizeRecipient(emailTo) || sanitizeRecipient(cfg.admin_email)
   if (!recipient) return
 
   const [tokens, emailSettings, siteRow] = await Promise.all([
@@ -283,8 +294,8 @@ export async function sendSubmissionEmail(
   await transporter.sendMail({
     from: cfg.smtp_from || cfg.smtp_user,
     to: recipient,
-    replyTo: userEmail,
-    subject: `${emailSettings.subjectPrefix} ${source}`,
+    replyTo: sanitizeRecipient(userEmail) || undefined,
+    subject: `${emailSettings.subjectPrefix} ${source}`.replace(/[\r\n]+/g, ' '),
     html: buildSubmissionEmailHtml(fields, userEmail, source, tokens, emailSettings, site),
   })
 }
