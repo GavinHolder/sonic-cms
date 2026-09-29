@@ -98,6 +98,15 @@ export default function LandingPageManager() {
   // a text-selection drag that starts inside the dialog and ends on the backdrop would
   // otherwise register as a backdrop click and close the modal mid-selection.
   const createModalBackdropMouseDownOnSelf = useRef(false);
+  // Serializes reorder writes so an in-flight PUT /api/sections/reorder can never be
+  // overtaken by a later one. Without this, two drags performed in quick succession fire
+  // two independent full-list reorder requests; if the EARLIER request happens to complete
+  // (round-trip) AFTER the LATER one -- plain network jitter, no special conditions needed --
+  // the stale one silently overwrites the newer order in the DB, both requests reporting
+  // success. Queuing each save behind the previous one guarantees writes land in the user's
+  // intended chronological order. Confirmed live: sending an older reorder body after a
+  // newer one reverted a section to its previous position with no error from either call.
+  const reorderQueueRef = useRef<Promise<void>>(Promise.resolve());
   const [selectedType, setSelectedType] = useState<SectionType>("NORMAL");
   const [editingSection, setEditingSection] = useState<SectionConfig | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -319,21 +328,28 @@ export default function LandingPageManager() {
     // Optimistic UI update
     const reordered = arrayMove(sections, oldIndex, clampedNewIndex);
     setSections(reordered);
+    const orderedIds = reordered.map((s) => s.id);
 
-    // Save to database
-    try {
-      const ok = await reorderSections("/", reordered.map((s) => s.id));
-      if (ok) {
-        setSuccessMessage("Section reordered");
-      } else {
-        // Revert optimistic update on failure
+    // Save to database -- queued behind any still-in-flight reorder save (see
+    // reorderQueueRef above) so this write cannot be overtaken by an earlier one.
+    const previousSave = reorderQueueRef.current;
+    const thisSave = previousSave.then(async () => {
+      try {
+        const ok = await reorderSections("/", orderedIds);
+        if (ok) {
+          setSuccessMessage("Section reordered");
+        } else {
+          // Revert optimistic update on failure
+          await reloadSections();
+        }
+      } catch (error) {
+        console.error("Failed to reorder sections:", error);
+        // Revert on error
         await reloadSections();
       }
-    } catch (error) {
-      console.error("Failed to reorder sections:", error);
-      // Revert on error
-      await reloadSections();
-    }
+    });
+    reorderQueueRef.current = thisSave;
+    await thisSave;
   };
 
   const handleClearAll = () => {
