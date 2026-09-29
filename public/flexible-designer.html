@@ -6585,15 +6585,100 @@ function _lyAction(act, kind, blockId, seId){
   }
 }
 
-function _lyDuplicateBlock(blockId){
+/**
+ * Given an ALREADY deep-cloned+re-idded block (`copy` — the caller has run
+ * JSON.parse(JSON.stringify(original)) and minted fresh copy.id/subElement
+ * ids), makes sure a `type:'volt'` block's props.voltId does not keep
+ * pointing at the SAME shared VoltElement row as the block it was copied
+ * from. JSON.parse(JSON.stringify(...)) only severs JS object references —
+ * copy.props.voltId is a STRING (a foreign-key-style reference into the
+ * VoltElement table), so the deep-clone alone leaves both blocks pointing at
+ * one shared row. If the user later edits that row in place (double-click ->
+ * Volt Studio -> PUT /api/volt/<id>, the same save path VOLT_DESIGNER_SAVE
+ * uses below), BOTH blocks change — including the original the user copied
+ * FROM, and any unrelated block/section anywhere on the site that happens to
+ * reference the same voltId. This is the ONE place that severs that
+ * reference, called by every block-duplicating action (_lyDuplicateBlock,
+ * pasteBpClipboard's 'blocks' kind, mttDuplicate) so there is exactly one
+ * implementation of "make a block copy independent" (ONE SYSTEM PER CONCERN
+ * — CLAUDE.md).
+ *
+ * Calls the SAME server endpoint (POST /api/volt/<id>/duplicate) the Volt
+ * Studio library's own "Duplicate" button uses (app/admin/volt/page.tsx
+ * handleDuplicate) rather than constructing a client-side clone — that
+ * endpoint already enforces the correct visibility/ownership rules (EDITOR
+ * role, own volts or any public one) and creates a genuinely independent DB
+ * row; reimplementing that here would risk drifting from those rules.
+ *
+ * ASSUMPTIONS:
+ * 1. `copy.type === 'volt'` implies `copy.props.voltId` is either a real
+ *    VoltElement id or falsy (a placeholder Volt block never saved yet —
+ *    see createNewVoltFromCanvas()). A falsy id has nothing to duplicate:
+ *    both blocks are already independent since neither has a backing row.
+ * 2. Non-volt block types (including 'card-tabs'/'product-grid', which also
+ *    carry a `props.voltId` — but as a SELECTED shared card style/theme
+ *    picked from the Volt library dropdown, the same reuse-by-reference
+ *    relationship as dragging a design out of the Volt Library panel, not an
+ *    in-place-editable "this block IS the design" relationship) must NOT be
+ *    touched here — duplicating a card-tabs/product-grid block choosing the
+ *    same shared card style is correct, expected behaviour, not this bug.
+ * 3. The session cookie carries EDITOR+ role — the Designer already requires
+ *    that to be reached at all, same assumption the existing PUT/POST
+ *    /api/volt/* calls in this file make (see VOLT_DESIGNER_SAVE below).
+ *
+ * FAILURE MODES:
+ * - Network error / non-OK response / malformed body -> resolves false.
+ *   Callers MUST abort the whole duplicate (no history push, no block
+ *   inserted) rather than fall back to the original voltId — falling back
+ *   silently would recreate the exact bug this function exists to prevent.
+ *
+ * @param {object} copy - A deep-cloned block copy, already given fresh ids.
+ *   Mutated in place on success (props.voltId/voltName/voltThumbnail).
+ * @returns {Promise<boolean>} true if `copy` is safe to insert as-is (either
+ *   independent-ified, or had nothing to duplicate); false if the caller
+ *   must abort.
+ */
+async function _lyEnsureIndependentVoltCopy(copy) {
+  if (!copy || copy.type !== 'volt' || !copy.props || !copy.props.voltId) return true;
+  try {
+    const res = await fetch('/api/volt/' + copy.props.voltId + '/duplicate', {
+      method: 'POST',
+      credentials: 'include'
+    });
+    if (!res.ok) {
+      console.warn('[flex-designer] Volt duplicate-on-copy failed:', res.status);
+      return false;
+    }
+    const json = await res.json();
+    const saved = json && json.data && json.data.volt;
+    if (!saved || !saved.id) {
+      console.warn('[flex-designer] Volt duplicate-on-copy returned no volt', json);
+      return false;
+    }
+    copy.props = Object.assign({}, copy.props, {
+      voltId: saved.id,
+      voltName: saved.name,
+      voltThumbnail: saved.thumbnail || copy.props.voltThumbnail || null
+    });
+    return true;
+  } catch (err) {
+    console.warn('[flex-designer] Volt duplicate-on-copy error:', err);
+    return false;
+  }
+}
+
+async function _lyDuplicateBlock(blockId){
   const b = state.blocks.find(x=>x.id===blockId); if (!b) return;
-  pushHistory();
   const copy = JSON.parse(JSON.stringify(b));
   copy.id = 'b' + (++state.nextId);
   if (Array.isArray(copy.subElements)) copy.subElements.forEach(se => { se.id = 'se-' + (state.nextId++); });
+  const ok = await _lyEnsureIndependentVoltCopy(copy);
+  if (!ok) { designerToast("Couldn't duplicate — failed to create an independent Volt design", 'error'); return; }
+  pushHistory();
   copy.x = (copy.x||0)+20; copy.y = (copy.y||0)+20; copy.zIndex = (copy.zIndex||1)+1;
   const idx = state.blocks.indexOf(b);
-  state.blocks.splice(idx+1, 0, copy);
+  const insertAt = idx === -1 ? state.blocks.length : idx + 1;
+  state.blocks.splice(insertAt, 0, copy);
   // Reindex zIndex to match array position (same invariant _fcxReorder/_lyHandleDrop
   // enforce) — otherwise the bumped copy.zIndex above can leave every later block's
   // stored zIndex stale relative to its true array position.
@@ -6757,7 +6842,7 @@ function copyBpClipboard() {
  *   succeeds in one action instead of a dead end. See
  *   _pasteSubElementsIntoParent().
  */
-function pasteBpClipboard() {
+async function pasteBpClipboard() {
   if (!_bpClipboard || !_bpClipboard.items || !_bpClipboard.items.length) {
     designerToast('Nothing to paste');
     return;
@@ -6769,12 +6854,25 @@ function pasteBpClipboard() {
   const rescaleNote = rescaled ? (', rescaled from ' + Math.round(_bpClipboard.sourceCanvasW) + 'px') : '';
 
   if (_bpClipboard.kind === 'blocks') {
-    pushHistory();
-    let lastId = null;
-    _bpClipboard.items.forEach(srcBlock => {
+    // Build every copy (and, for a type:'volt' item, mint its independent
+    // VoltElement row — see _lyEnsureIndependentVoltCopy) BEFORE touching
+    // history/state.blocks, so a mid-paste server failure leaves state
+    // completely untouched rather than half-pasted.
+    const copies = [];
+    for (const srcBlock of _bpClipboard.items) {
       const copy = JSON.parse(JSON.stringify(srcBlock));
       copy.id = 'b' + (++state.nextId);
       if (Array.isArray(copy.subElements)) copy.subElements.forEach(se => { se.id = 'se-' + (state.nextId++); });
+      const ok = await _lyEnsureIndependentVoltCopy(copy);
+      if (!ok) {
+        designerToast("Paste failed — couldn't create an independent Volt design for one of the blocks", 'error');
+        return;
+      }
+      copies.push(copy);
+    }
+    pushHistory();
+    let lastId = null;
+    copies.forEach(copy => {
       copy.w = Math.max(1, Math.round((copy.w || 0) * ratio));
       copy.h = Math.max(1, Math.round((copy.h || 0) * ratio));
       const rawX = Math.round((copy.x || 0) * ratio);
@@ -12228,10 +12326,9 @@ function mttEdit() {
   enterEditMode(state.selectedBlockId);
 }
 
-function mttDuplicate() {
+async function mttDuplicate() {
   const b = state.blocks.find(b => b.id === state.selectedBlockId);
   if (!b) return;
-  pushHistory();
   const copy = JSON.parse(JSON.stringify(b));
   copy.id = 'b' + (++state.nextId);
   // Deep-clone (above) already severed shared object references. Now assign a
@@ -12241,6 +12338,13 @@ function mttDuplicate() {
   if (Array.isArray(copy.subElements)) {
     copy.subElements.forEach(se => { se.id = 'se-' + (state.nextId++); });
   }
+  // See _lyEnsureIndependentVoltCopy's header comment: a type:'volt' block's
+  // props.voltId is a shared-row reference the deep-clone above does NOT
+  // sever on its own — must mint an independent VoltElement row before this
+  // copy is allowed into state.blocks.
+  const ok = await _lyEnsureIndependentVoltCopy(copy);
+  if (!ok) { designerToast("Couldn't duplicate — failed to create an independent Volt design", 'error'); return; }
+  pushHistory();
   // Offset copy slightly so it's visible
   copy.x = (copy.x || 0) + 20;
   copy.y = (copy.y || 0) + 20;
