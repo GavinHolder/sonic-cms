@@ -32,6 +32,7 @@ import type {
   FlexibleSection,
 } from "@/types/section";
 import type { VoltElementData } from '@/types/volt'
+import { shouldShowTriangle } from "@/lib/section-rules";
 
 /**
  * DynamicSection Component
@@ -50,22 +51,6 @@ import type { VoltElementData } from '@/types/volt'
 interface DynamicSectionProps {
   section: SectionConfig;
   isFirstAfterHero?: boolean;
-}
-
-/**
- * Check if a section should have a triangle overlay.
- *
- * RULES:
- * - HERO and FOOTER sections NEVER get triangles
- * - The first section after hero (order 1) NEVER gets a triangle
- *   (it would overlap the hero which looks bad)
- * - Section must have triangleEnabled = true
- */
-function shouldShowTriangle(section: SectionConfig, isFirstAfterHero: boolean): boolean {
-  if (!section.triangleEnabled) return false;
-  if (section.type === "HERO" || section.type === "FOOTER") return false;
-  if (isFirstAfterHero) return false;
-  return true;
 }
 
 /** Wraps any section JSX with LowerThirdRenderer and/or MotionElementRenderer if configured */

@@ -23,6 +23,7 @@ import { resolveVariants, serializeVariants, isVariantAuthored } from "../../pub
 import { resolveBgPositionCss, resolveBackgroundPosForBreakpoint, getUnsetBackgroundBundle, resolveBackgroundBundleForBreakpoint } from "../../public/flexible-render-rules.js";
 import type { BackgroundPosVariants, BgBundle, GradientConfig } from "../../public/flexible-render-rules.js";
 import { useConfirm } from "@/components/admin/ConfirmProvider";
+import { shouldShowTriangle, isHeroSectionType } from "@/lib/section-rules";
 import {
   PRESET_COLORS,
   generatePalette,
@@ -158,16 +159,37 @@ export default function FlexibleSectionEditorModal({
   // is (see the FLEXIBLE_DESIGNER_INIT payload below). null when unknown (no next section,
   // or this section isn't found in allSections) — the canvas then draws no band at all
   // rather than falling back to a guess.
+  //
+  // Round-2 review follow-up (MEDIUM #3, 2026-09-30): the earlier version only checked the
+  // next section's own triangleEnabled flag, so it could show a warning band for a case (e.g.
+  // a FOOTER with triangleEnabled=true, or the section immediately after the Hero) live would
+  // NEVER actually draw a triangle for — live's real rule is DynamicSection.tsx's
+  // shouldShowTriangle. Reuse that SAME shared rule (lib/section-rules.ts — ONE SYSTEM PER
+  // CONCERN) instead of hand-copying its conditions a second time, computing isFirstAfterHero
+  // against the LIVE enabled-only section order (mirroring app/HomepageClient.tsx's own
+  // heroIndex + 1 check) rather than the raw allSections list this modal receives.
   const nextSectionTriangle = useMemo(() => {
     const sorted = [...allSections].sort((a, b) => a.order - b.order);
     const curIdx = sorted.findIndex((s) => s.id === section.id);
     if (curIdx < 0) return null;
+    let next: (typeof sorted)[number] | null = null;
     for (let i = curIdx + 1; i < sorted.length; i++) {
       if (sorted[i].enabled !== false) {
-        return { enabled: !!sorted[i].triangleEnabled, height: sorted[i].triangleHeight || 200 };
+        next = sorted[i];
+        break;
       }
     }
-    return null;
+    if (!next) return null;
+
+    const enabledOnly = sorted.filter((s) => s.enabled !== false);
+    const heroIdx = enabledOnly.findIndex((s) => isHeroSectionType(s.type));
+    const nextIdx = enabledOnly.findIndex((s) => s.id === next!.id);
+    const isFirstAfterHero = heroIdx >= 0 && nextIdx === heroIdx + 1;
+
+    return {
+      enabled: shouldShowTriangle({ type: next.type, triangleEnabled: next.triangleEnabled }, isFirstAfterHero),
+      height: next.triangleHeight || 200,
+    };
   }, [allSections, section.id]);
   // ── Section meta ──────────────────────────────────────────────
   const [displayName, setDisplayName] = useState(section.displayName || "Flexible Section");

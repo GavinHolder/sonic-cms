@@ -5,6 +5,7 @@ import DynamicSection from "@/components/sections/DynamicSection";
 import SectionNavButtons from "@/components/ui/SectionNavButtons";
 import type { SectionConfig } from "@/types/section";
 import { getSections } from "@/lib/section-manager";
+import { isHeroSectionType } from "@/lib/section-rules";
 /**
  * Homepage
  *
@@ -82,9 +83,7 @@ export default function HomepageClient() {
   }
 
   // Find the index of the first section after the hero
-  const heroIndex = enabledSections.findIndex(
-    (s) => s.type === "HERO" || (s.type as string) === "hero" || (s.type as string) === "hero-carousel"
-  );
+  const heroIndex = enabledSections.findIndex((s) => isHeroSectionType(s.type));
 
   return (
     <>
