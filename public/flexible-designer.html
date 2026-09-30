@@ -3897,7 +3897,7 @@ function createBlockPreview(block) {
           const btnBg = p.btnVariant==='filled' ? (p.btnColor||'#0d6efd') : 'transparent';
           const btnBorder = p.btnVariant==='ghost' ? 'none' : `1px solid ${p.btnColor||'#0d6efd'}`;
           const btnTc = p.btnVariant==='filled' ? (p.btnTextColor||'#fff') : (p.btnColor||'#0d6efd');
-          btnHtml = `<div style="position:absolute;left:${bx}%;top:${by}%;transform:translate(-50%,-50%);z-index:1;pointer-events:none;"><div style="background:${btnBg};color:${btnTc};padding:3px 10px;border-radius:4px;font-size:10px;font-weight:700;border:${btnBorder};display:inline-block;white-space:nowrap;">${p.btnText}</div></div>`;
+          btnHtml = `<div style="position:absolute;left:${bx}%;top:${by}%;transform:translate(-50%,-50%);z-index:1;pointer-events:none;"><div style="background:${btnBg};color:${btnTc};padding:3px 10px;border-radius:4px;font-size:10px;font-weight:700;border:${btnBorder};display:inline-block;white-space:nowrap;">${escHtml(p.btnText)}</div></div>`;
         }
       }
       // Real content only — heading/subtext render just like the live page
@@ -3905,10 +3905,10 @@ function createBlockPreview(block) {
       const _hasHeading = !!p.heading;
       const _hasSubtext = !!p.subtext;
       const headingHtml = _hasHeading ? `<div style="position:absolute;left:${hx}%;top:${hy}%;transform:translate(-50%,-50%);z-index:1;text-align:center;max-width:90%;pointer-events:none;">
-            <div style="font-size:14px;font-weight:800;color:${p.textColor||'#fff'};text-shadow:0 1px 4px rgba(0,0,0,0.5);white-space:nowrap;">${p.heading}</div>
+            <div style="font-size:14px;font-weight:800;color:${p.textColor||'#fff'};text-shadow:0 1px 4px rgba(0,0,0,0.5);white-space:nowrap;">${escHtml(p.heading)}</div>
           </div>` : '';
       const subtextHtml = _hasSubtext ? `<div style="position:absolute;left:${sx}%;top:${sy}%;transform:translate(-50%,-50%);z-index:1;text-align:center;max-width:90%;pointer-events:none;">
-            <div style="font-size:10px;color:${p.textColor||'#fff'};opacity:0.85;">${p.subtext}</div>
+            <div style="font-size:10px;color:${p.textColor||'#fff'};opacity:0.85;">${escHtml(p.subtext)}</div>
           </div>` : '';
       // Whole hero has no real text/button content at all — show the empty
       // affordance over the real background rather than fabricated copy.
@@ -3971,9 +3971,9 @@ function createBlockPreview(block) {
       break;
     case 'stats':
       wrap.innerHTML = `<div class="cb-prev-stats">
-        <div style="margin-bottom:4px;"><i class="bi ${p.icon}" style="font-size:20px;color:#0d6efd;"></i></div>
-        <div class="sn">${p.number}</div>
-        <div class="sl">${p.statLabel}</div>
+        <div style="margin-bottom:4px;"><i class="bi ${escHtml(p.icon)}" style="font-size:20px;color:#0d6efd;"></i></div>
+        <div class="sn">${escHtml(p.number)}</div>
+        <div class="sl">${escHtml(p.statLabel)}</div>
       </div>`;
       break;
     case 'image': {
@@ -4375,7 +4375,7 @@ function createSubElementDOM(se, blockId) {
     }
     case 'image':
       preview.innerHTML = p.src
-        ? `<img src="${p.src}" style="width:100%;border-radius:4px;max-height:60px;object-fit:cover;" alt="${p.alt||''}">`
+        ? `<img src="${p.src}" style="width:100%;border-radius:4px;max-height:60px;object-fit:cover;" alt="${escHtml(p.alt||'')}">`
         : `<div style="background:#e9ecef;border-radius:4px;height:40px;display:flex;align-items:center;justify-content:center;color:#adb5bd;font-size:11px;"><i class="bi bi-image"></i>&nbsp;Image (${p.imageMode})</div>`;
       break;
     case 'button': {
@@ -4401,13 +4401,13 @@ function createSubElementDOM(se, blockId) {
       break;
     }
     case 'badge':
-      preview.innerHTML = `<span class="se-badge" style="background:${p.bgColor};color:${p.textColor};">${p.text}</span>`;
+      preview.innerHTML = `<span class="se-badge" style="background:${p.bgColor};color:${p.textColor};">${escHtml(p.text)}</span>`;
       break;
     case 'divider':
       preview.innerHTML = `<hr class="se-divider" style="border-top:${p.thickness}px solid ${p.dividerColor};">`;
       break;
     case 'icon':
-      preview.innerHTML = `<div style="text-align:${p.textAlign||'left'};display:block;"><i class="bi ${p.iconName||'bi-star'}" style="font-size:${p.size||48}px;color:${p.color||'#0d6efd'};"></i></div>`;
+      preview.innerHTML = `<div style="text-align:${p.textAlign||'left'};display:block;"><i class="bi ${escHtml(p.iconName||'bi-star')}" style="font-size:${p.size||48}px;color:${p.color||'#0d6efd'};"></i></div>`;
       break;
     default:
       preview.textContent = se.type;
