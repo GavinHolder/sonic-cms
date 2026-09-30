@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { BUILTIN_MANIFESTS } from "@/lib/plugins/manifests";
 
 interface LinkOption {
   value: string;
@@ -40,15 +39,23 @@ function dedupe(options: LinkOption[]): LinkOption[] {
  * LinkPicker — shared admin dropdown for selecting internal link targets.
  *
  * Groups every link target an admin might want (pages, section anchors, forms,
- * documents/PDFs, feature pages, policies) into a single grouped <select>, plus
- * a free-text "Custom URL" escape hatch. This means admins never hand-type an
- * `#anchor` or `/slug` — but any existing raw value still round-trips: if the
- * current `value` matches a known target it is preselected, otherwise it shows
- * as Custom with the raw text editable.
+ * documents/PDFs, images, enabled features, policies) into a single grouped
+ * <select>, plus a free-text "Custom URL" escape hatch. This means admins
+ * never hand-type an `#anchor` or `/slug` — but any existing raw value still
+ * round-trips: if the current `value` matches a known target it is
+ * preselected, otherwise it shows as Custom with the raw text editable.
  *
- * Option lists load client-side (useEffect + fetch). Every source degrades
- * gracefully to an empty group when its API is unavailable (non-admin session,
- * offline, or a disabled plugin) — the picker still renders and stays usable.
+ * Option data comes from a single server-side call to GET /api/link-catalog
+ * (see that route for the full source list and auth posture) rather than this
+ * component issuing its own parallel fetches per source. That endpoint is the
+ * ONE shared catalog other non-React pickers (public/flexible-designer.html's
+ * loadNavOptions()) also read from — keeping them from drifting apart the way
+ * this component's pages/sections/forms/documents/features/policies groups
+ * previously would have if hand-copied elsewhere.
+ *
+ * Degrades gracefully to an empty option list when the endpoint is
+ * unavailable (non-admin session, offline) — the picker still renders and
+ * stays usable via the Custom URL fallback.
  *
  * Public props are unchanged and drop-in compatible with prior versions.
  */
@@ -59,161 +66,34 @@ export function LinkPicker({
   placeholder = "e.g., /contact or https://example.com",
   className = "",
 }: LinkPickerProps) {
-  const [pages, setPages] = useState<LinkOption[]>([]);
-  const [sections, setSections] = useState<LinkOption[]>([]);
-  const [forms, setForms] = useState<LinkOption[]>([]);
-  const [documents, setDocuments] = useState<LinkOption[]>([]);
-  const [features, setFeatures] = useState<LinkOption[]>([]);
-  const [policies, setPolicies] = useState<LinkOption[]>([]);
+  const [catalogGroups, setCatalogGroups] = useState<LinkGroup[]>([]);
 
   useEffect(() => {
-    // ── Pages (+ Forms + PDF pages) ─────────────────────────────────────────
-    // /api/pages returns every page; we split by type and only keep published,
-    // enabled targets. Requires a VIEWER+ session cookie (admin context).
-    fetch("/api/pages")
+    fetch("/api/link-catalog")
       .then((r) => (r.ok ? r.json() : null))
       .then((json) => {
-        const list: Array<{
-          slug: string;
-          title: string;
-          type: string;
-          enabled: boolean;
-          status: string;
-        }> = json?.data?.pages ?? [];
-
-        const enabled = list.filter(
-          (p) => p.enabled && p.slug && p.slug !== "/"
-        );
-        // Regular content pages must be PUBLISHED to be linkable.
-        const publishedEnabled = enabled.filter((p) => p.status === "PUBLISHED");
-
-        setPages(
-          publishedEnabled
-            .filter((p) => !["form", "pdf"].includes(p.type))
-            .map((p) => ({ value: `/${p.slug}`, label: p.title || p.slug }))
-        );
-
-        // Forms & PDFs don't go through the page "publish" flow — they're linkable as
-        // soon as they're enabled, so a freshly-created form is selectable immediately
-        // (before this the PUBLISHED filter hid EVERY form → empty Forms group). (#71)
-        setForms(
-          enabled
-            .filter((p) => p.type === "form")
-            .map((p) => ({ value: `/${p.slug}`, label: p.title || p.slug }))
-        );
-
-        // PDF-type pages are documents too — merge them with media documents.
-        setDocuments((prev) =>
-          dedupe([
-            ...prev,
-            ...enabled
-              .filter((p) => p.type === "pdf")
-              .map((p) => ({ value: `/${p.slug}`, label: p.title || p.slug })),
-          ])
-        );
-      })
-      .catch(() => {});
-
-    // ── Section anchors on the home page ────────────────────────────────────
-    // value = "#<sectionId>". Merged with any sectionOptions passed by parent.
-    fetch("/api/sections?pageSlug=/")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((json) => {
-        if (!json?.success || !Array.isArray(json.data)) return;
-        setSections(
-          json.data
-            .filter(
-              (s: { id?: string; enabled?: boolean }) => s.id && s.enabled !== false
-            )
-            .map(
-              (s: {
-                id: string;
-                navLabel?: string | null;
-                displayName?: string | null;
-                type?: string;
-              }) => ({
-                value: `#${s.id}`,
-                label: s.navLabel || s.displayName || s.type || s.id,
-              })
-            )
-        );
-      })
-      .catch(() => {});
-
-    // ── Documents / PDFs from the media library ─────────────────────────────
-    // mimeType=document filters to application/pdf; capped by the API's perPage.
-    fetch("/api/media?mimeType=document&perPage=50")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((json) => {
-        const media: Array<{ url: string; originalName?: string; filename?: string }> =
-          json?.data?.media ?? [];
-        if (!media.length) return;
-        setDocuments((prev) =>
-          dedupe([
-            ...prev,
-            ...media
-              .filter((m) => m.url)
-              .map((m) => ({ value: m.url, label: m.originalName || m.filename || m.url })),
-          ])
-        );
-      })
-      .catch(() => {});
-
-    // ── Special feature pages ───────────────────────────────────────────────
-    // A ClientFeature's `slug` is its toggle identity, not necessarily its public
-    // URL — e.g. the coverage-maps plugin's ClientFeature.slug is "coverage-maps"
-    // but its actual page lives at /coverage (per its manifest's routes.public).
-    // Assuming `/${slug}` broke that link. Prefer the plugin manifest's declared
-    // public route when the feature's slug matches a known plugin id; fall back
-    // to `/${slug}` for features with no manifest entry.
-    fetch("/api/features")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.success && Array.isArray(data.data)) {
-          setFeatures(
-            data.data
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              .filter((f: any) => f.enabled && f.slug)
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              .map((f: any) => {
-                const manifest = BUILTIN_MANIFESTS.find((m) => m.id === f.slug);
-                const publicRoute = manifest?.routes?.public?.[0];
-                return { value: publicRoute || `/${f.slug}`, label: f.name || f.slug };
-              })
-          );
-        }
-      })
-      .catch(() => {}); // Non-admin users or offline — silently skip
-
-    // ── Policies (Policies plugin). Returns [] when plugin disabled. ─────────
-    fetch("/api/policies?enabled=true")
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data) => {
-        if (Array.isArray(data)) {
-          setPolicies(
-            data.map(
-              (p: { slug: string; title: string; navLabel: string | null }) => ({
-                value: `/policies/${p.slug}`,
-                label: p.navLabel || p.title,
-              })
-            )
-          );
-        }
+        const groups: Array<{ key: string; label: string; options: LinkOption[] }> =
+          json?.data?.groups ?? [];
+        setCatalogGroups(groups.map((g) => ({ label: g.label, options: g.options })));
       })
       .catch(() => {});
   }, []);
 
-  // Sections: parent-supplied options first, then fetched anchors.
-  const sectionGroup = dedupe([...sectionOptions, ...sections]);
+  // Sections: parent-supplied options first, then catalog anchors (merged into the
+  // "Sections" group returned by the API, if present).
+  const groups: LinkGroup[] = catalogGroups
+    .map((g) =>
+      g.label === "Sections"
+        ? { ...g, options: dedupe([...sectionOptions, ...g.options]) }
+        : g
+    )
+    .filter((g) => g.options.length > 0);
 
-  const groups: LinkGroup[] = [
-    { label: "Pages", options: pages },
-    { label: "Sections", options: sectionGroup },
-    { label: "Forms", options: forms },
-    { label: "Documents & PDFs", options: documents },
-    { label: "Features", options: features },
-    { label: "Policies", options: policies },
-  ].filter((g) => g.options.length > 0);
+  // If the catalog hasn't loaded a Sections group yet (or none exists) but the
+  // parent passed sectionOptions directly, still show them.
+  if (!groups.some((g) => g.label === "Sections") && sectionOptions.length > 0) {
+    groups.unshift({ label: "Sections", options: dedupe(sectionOptions) });
+  }
 
   // Flat set of every known target value, used to detect custom values.
   const knownValues = new Set<string>([
