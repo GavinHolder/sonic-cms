@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { MotionElement } from "@/types/section";
-import { ENTRANCE_VISIBILITY_THRESHOLD } from "@/lib/anime";
+import { ENTRANCE_VISIBILITY_THRESHOLD } from "@/lib/animation-constants";
 
 interface MotionElementRendererProps {
   elements: MotionElement[];

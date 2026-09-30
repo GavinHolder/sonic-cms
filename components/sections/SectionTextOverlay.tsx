@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { AnimationType } from "@/types/section";
-import { ENTRANCE_VISIBILITY_THRESHOLD } from "@/lib/anime";
+import { ENTRANCE_VISIBILITY_THRESHOLD } from "@/lib/animation-constants";
 
 interface SectionTextOverlayProps {
   heading?: string;

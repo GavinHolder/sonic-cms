@@ -6,7 +6,7 @@ import type { CTASection, BackgroundColor, ButtonConfig } from "@/types/section"
 import type { FormField } from "@/types/page";
 import VerificationModal from "@/components/VerificationModal";
 import { readRateLimitMessage } from "@/lib/form-rate-limit-message";
-import { ENTRANCE_VISIBILITY_THRESHOLD } from "@/lib/anime";
+import { ENTRANCE_VISIBILITY_THRESHOLD } from "@/lib/animation-constants";
 
 /**
  * CTAFooter Props

@@ -9,7 +9,7 @@ import VoltSlotRenderer from './VoltSlotRenderer'
 // loads via <script src="/volt-glass-rules.js"> (ONE SYSTEM PER CONCERN; mirrors
 // flexible-render-rules.js). Hand-written volt-glass-rules.d.ts alongside it.
 import { buildVoltGlassStyle } from '../../public/volt-glass-rules.js'
-import { ENTRANCE_VISIBILITY_THRESHOLD } from '@/lib/anime'
+import { ENTRANCE_VISIBILITY_THRESHOLD } from '@/lib/animation-constants'
 
 // Anime.js v4 animate() returns an Animation instance with a .cancel() method.
 type AnimeAnimation = { cancel: () => void }

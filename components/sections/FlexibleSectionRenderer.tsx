@@ -10,7 +10,7 @@ import { DEFAULT_ANIM_BG_CONFIG } from "@/lib/anim-bg/defaults";
 import { designerBlockToElement } from "@/lib/flexible/legacy-to-designer";
 import { resolvePackageTokens, type PackageLike } from "@/lib/packages/tokens";
 import { animate } from "animejs";
-import { ENTRANCE_VISIBILITY_THRESHOLD } from "@/lib/anime";
+import { ENTRANCE_VISIBILITY_THRESHOLD } from "@/lib/animation-constants";
 // Shared heading/paragraph/button style + free-canvas position formula — the single
 // source of truth also consumed by public/flexible-designer.html (see that file's
 // <script src="/flexible-render-rules.js"> and this module's own doc comment for why
