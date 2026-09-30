@@ -41,12 +41,16 @@ export async function middleware(request: NextRequest) {
   // page (raw HTML) to all public visitors via the proven /standalone renderer.
   // Plain/construction/custom templates are handled in app/layout.tsx instead.
   // Admins (/admin) and /api always bypass. /standalone + /maintenance-preview
-  // are excluded to avoid rewrite loops.
+  // are excluded to avoid rewrite loops. /preview is excluded because
+  // app/preview/landing-page has its own client-side auth gate that redirects
+  // unauthenticated visitors to /admin/login — the maintenance rewrite must
+  // not intercept it first and mask that redirect behind the Coming-Soon page.
   if (
     isPublicPath &&
     !request.cookies.get("access_token") && // logged-in admins bypass maintenance so they can build/preview pages live
     !pathname.startsWith("/standalone") &&
-    !pathname.startsWith("/maintenance-preview")
+    !pathname.startsWith("/maintenance-preview") &&
+    !pathname.startsWith("/preview")
   ) {
     try {
       const mRes = await fetch(`${internalBase}/api/internal/maintenance`, { headers: { "x-internal": "1" } });
