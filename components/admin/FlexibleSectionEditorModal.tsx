@@ -7,6 +7,7 @@ import SectionIntoShapePicker from "@/components/admin/SectionIntoShapePicker";
 import GoogleFontPicker from "@/components/admin/GoogleFontPicker";
 import MediaPickerModal from "@/components/admin/MediaPickerModal";
 import MediaUploadModal from "@/components/admin/MediaUploadModal";
+import { LinkPicker } from "@/components/admin/LinkPicker";
 import dynamic from "next/dynamic";
 import AnimBgEditor from "@/components/admin/AnimBgEditor";
 import ImageFieldWithUpload from "@/components/admin/ImageFieldWithUpload";
@@ -2887,10 +2888,16 @@ function renderField(
       );
 
     case "navTarget":
+      // Uses the same shared catalog-backed picker (pages, section anchors,
+      // forms, documents, images, enabled features, policies) as
+      // SectionEditorModal/CTASectionEditor/SlideEditor — was previously a
+      // bare text input with no options at all, which is a stricter version
+      // of the "Navigation Target" dropdown bug fixed elsewhere this pass.
       return (
-        <input type="text" className="form-control form-control-sm"
-          value={strVal} placeholder={fieldDef.hint || "https://..."}
-          onChange={(e) => onChange(e.target.value)}
+        <LinkPicker
+          value={strVal}
+          onChange={onChange}
+          placeholder={fieldDef.hint || "https://..."}
         />
       );
 
