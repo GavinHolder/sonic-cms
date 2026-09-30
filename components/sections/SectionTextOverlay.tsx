@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { AnimationType } from "@/types/section";
-import { ENTRANCE_VISIBILITY_THRESHOLD } from "@/lib/animation-constants";
+import { createEntranceObserver, isEntranceVisible } from "@/lib/entrance-observer";
 
 interface SectionTextOverlayProps {
   heading?: string;
@@ -78,14 +78,13 @@ export default function SectionTextOverlay({
       return;
     }
 
-    const observer = new IntersectionObserver(
+    const observer = createEntranceObserver(
       ([entry]) => {
-        if (entry.isIntersecting) {
+        if (isEntranceVisible(entry)) {
           setIsVisible(true);
           observer.disconnect();
         }
-      },
-      { threshold: ENTRANCE_VISIBILITY_THRESHOLD }
+      }
     );
 
     observer.observe(el);

@@ -10,7 +10,7 @@ import { DEFAULT_ANIM_BG_CONFIG } from "@/lib/anim-bg/defaults";
 import { designerBlockToElement } from "@/lib/flexible/legacy-to-designer";
 import { resolvePackageTokens, type PackageLike } from "@/lib/packages/tokens";
 import { animate } from "animejs";
-import { ENTRANCE_VISIBILITY_THRESHOLD } from "@/lib/animation-constants";
+import { createEntranceObserver, isEntranceVisible } from "@/lib/entrance-observer";
 // Shared heading/paragraph/button style + free-canvas position formula — the single
 // source of truth also consumed by public/flexible-designer.html (see that file's
 // <script src="/flexible-render-rules.js"> and this module's own doc comment for why
@@ -1915,8 +1915,8 @@ function StatsBlockEnhanced({ c, tc }: { c: FlexibleElement["content"]; tc: stri
     el.textContent = prefix + "0" + suffix;
     animDone.current = false;
 
-    const obs = new IntersectionObserver(([entry]) => {
-      if (!entry.isIntersecting || animDone.current) return;
+    const obs = createEntranceObserver(([entry]) => {
+      if (!isEntranceVisible(entry) || animDone.current) return;
       animDone.current = true;
       obs.disconnect();
       const start = performance.now();
@@ -1927,7 +1927,7 @@ function StatsBlockEnhanced({ c, tc }: { c: FlexibleElement["content"]; tc: stri
         if (t < 1) requestAnimationFrame(step);
       }
       requestAnimationFrame(step);
-    }, { threshold: ENTRANCE_VISIBILITY_THRESHOLD });
+    });
 
     if (numRef.current.parentElement) obs.observe(numRef.current.parentElement);
     return () => obs.disconnect();
@@ -3045,8 +3045,8 @@ function DesignerBlock({ block, darkBg, onContentHeight }: {
     statsAnimDone.current = false;
     el.textContent = prefix + "0" + suffix;
 
-    const obs = new IntersectionObserver(([entry]) => {
-      if (!entry.isIntersecting || statsAnimDone.current) return;
+    const obs = createEntranceObserver(([entry]) => {
+      if (!isEntranceVisible(entry) || statsAnimDone.current) return;
       statsAnimDone.current = true;
       obs.disconnect();
       const start = performance.now();
@@ -3057,7 +3057,7 @@ function DesignerBlock({ block, darkBg, onContentHeight }: {
         if (t < 1) requestAnimationFrame(step);
       }
       requestAnimationFrame(step);
-    }, { threshold: ENTRANCE_VISIBILITY_THRESHOLD });
+    });
 
     if (blockRef.current) obs.observe(blockRef.current);
     return () => obs.disconnect();
@@ -3083,13 +3083,13 @@ function DesignerBlock({ block, darkBg, onContentHeight }: {
     if (scrollAnim === "none" || !blockRef.current) return;
     const el = blockRef.current;
     el.classList.add("flex-block-hidden");
-    const obs = new IntersectionObserver(([e]) => {
-      if (e.isIntersecting) {
+    const obs = createEntranceObserver(([e]) => {
+      if (isEntranceVisible(e)) {
         el.classList.remove("flex-block-hidden");
         el.classList.add(`flex-ba-${scrollAnim}`);
         obs.disconnect();
       }
-    }, { threshold: ENTRANCE_VISIBILITY_THRESHOLD });
+    });
     obs.observe(el);
     return () => obs.disconnect();
   }, [scrollAnim]);
@@ -4033,8 +4033,8 @@ function DesignerSubElement({ sub, pkg, mobile, exact, darkBg }: { sub: SubEl; p
     const el = subRef.current;
     animDone.current = false;
 
-    const obs = new IntersectionObserver(([entry]) => {
-      if (!entry.isIntersecting) return;
+    const obs = createEntranceObserver(([entry]) => {
+      if (!isEntranceVisible(entry)) return;
       if (!animRepeat && animDone.current) return;
       animDone.current = true;
       // Pulse loops so we don't disconnect — everything else disconnects after first trigger
@@ -4096,7 +4096,7 @@ function DesignerSubElement({ sub, pkg, mobile, exact, darkBg }: { sub: SubEl; p
       // Respect the per-element delay setting
       if (animDelay > 0) setTimeout(doAnim, animDelay);
       else doAnim();
-    }, { threshold: ENTRANCE_VISIBILITY_THRESHOLD });
+    });
 
     obs.observe(el);
     return () => obs.disconnect();
@@ -4479,13 +4479,12 @@ function ElementRenderer({ element, darkBg }: { element: FlexibleElement; darkBg
     const el = ref.current;
     // Hide the element before the animation starts to prevent a FOUC
     el.style.opacity = "0";
-    const observer = new IntersectionObserver(
+    const observer = createEntranceObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting) { animateElement(el, element.animation!); observer.disconnect(); }
+          if (isEntranceVisible(entry)) { animateElement(el, element.animation!); observer.disconnect(); }
         });
-      },
-      { threshold: ENTRANCE_VISIBILITY_THRESHOLD }
+      }
     );
     observer.observe(el);
     return () => observer.disconnect();

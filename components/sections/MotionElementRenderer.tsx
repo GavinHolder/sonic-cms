@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { MotionElement } from "@/types/section";
-import { ENTRANCE_VISIBILITY_THRESHOLD } from "@/lib/animation-constants";
+import { createEntranceObserver, isEntranceVisible } from "@/lib/entrance-observer";
 
 interface MotionElementRendererProps {
   elements: MotionElement[];
@@ -87,10 +87,10 @@ export default function MotionElementRenderer({ elements, sectionId }: MotionEle
           right: { x: 1 },
         };
 
-        const observer = new IntersectionObserver(
+        const observer = createEntranceObserver(
           (entries) => {
             entries.forEach((entry) => {
-              if (entry.isIntersecting) {
+              if (isEntranceVisible(entry)) {
                 // Entrance animation — animejs v4: animate(target, options)
                 if (el.entrance.enabled && animeLib) {
                   const dir = directionOffset[el.entrance.direction] ?? {};
@@ -139,8 +139,7 @@ export default function MotionElementRenderer({ elements, sectionId }: MotionEle
                 }
               }
             });
-          },
-          { threshold: ENTRANCE_VISIBILITY_THRESHOLD }
+          }
         );
 
         observer.observe(section);

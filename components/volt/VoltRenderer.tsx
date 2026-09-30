@@ -9,7 +9,7 @@ import VoltSlotRenderer from './VoltSlotRenderer'
 // loads via <script src="/volt-glass-rules.js"> (ONE SYSTEM PER CONCERN; mirrors
 // flexible-render-rules.js). Hand-written volt-glass-rules.d.ts alongside it.
 import { buildVoltGlassStyle } from '../../public/volt-glass-rules.js'
-import { ENTRANCE_VISIBILITY_THRESHOLD } from '@/lib/animation-constants'
+import { createEntranceObserver, isEntranceVisible } from '@/lib/entrance-observer'
 
 // Anime.js v4 animate() returns an Animation instance with a .cancel() method.
 type AnimeAnimation = { cancel: () => void }
@@ -795,13 +795,12 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
     // (hover-once #3 and loop-while-hover #4 are wired into onEnter/onLeave above)
     if (viewportTimelineLayers.some(l => l.timeline!.autoplay !== false)) {
       // Use IntersectionObserver to trigger on viewport entry
-      const timelineObserver = new IntersectionObserver(
+      const timelineObserver = createEntranceObserver(
         (entries) => {
-          if (!entries[0].isIntersecting) return
+          if (!isEntranceVisible(entries[0])) return
           timelineObserver.disconnect()
           playTimelines(viewportTimelineLayers)
-        },
-        { threshold: ENTRANCE_VISIBILITY_THRESHOLD }
+        }
       )
       timelineObserver.observe(el)
       ;(el as HTMLElement & { _voltTimelineObs?: IntersectionObserver })._voltTimelineObs = timelineObserver
@@ -809,13 +808,12 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
 
     // ── Ramp-number — viewport-triggered count-up (fires once on entry) ─────────
     if (numberViewportLayers.length > 0) {
-      const numberObserver = new IntersectionObserver(
+      const numberObserver = createEntranceObserver(
         (entries) => {
-          if (!entries[0].isIntersecting) return
+          if (!isEntranceVisible(entries[0])) return
           numberObserver.disconnect()
           numberViewportLayers.forEach(runRamp)
-        },
-        { threshold: ENTRANCE_VISIBILITY_THRESHOLD }
+        }
       )
       numberObserver.observe(el)
       ;(el as HTMLElement & { _voltNumberObs?: IntersectionObserver })._voltNumberObs = numberObserver
@@ -967,9 +965,9 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
       }
     }
 
-    const entranceObserver = new IntersectionObserver(
+    const entranceObserver = createEntranceObserver(
       async (entries) => {
-        if (!entries[0].isIntersecting) return
+        if (!isEntranceVisible(entries[0])) return
         entranceObserver.disconnect()
         const { animate } = await import('animejs')
 
@@ -989,8 +987,7 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
           animate(layerEl, { ...targets, duration, delay, ease })
           autoStagger += 60  // 60ms stagger between layers
         }
-      },
-      { threshold: ENTRANCE_VISIBILITY_THRESHOLD }
+      }
     )
     entranceObserver.observe(el)
 

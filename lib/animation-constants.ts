@@ -49,5 +49,8 @@ export const STANDARD_DURATION = 600; // milliseconds
  *   safely below 1.0 — a 100vh section can fail to ever report an exact 1.0
  *   intersectionRatio on some zoom/DPR combinations due to sub-pixel
  *   rounding, which would otherwise mean the entrance never fires at all.
+ *
+ * Apply it via lib/entrance-observer.ts (createEntranceObserver + isEntranceVisible),
+ * never as a raw IntersectionObserver threshold - see that file for why.
  */
 export const ENTRANCE_VISIBILITY_THRESHOLD = 0.5;

@@ -6,7 +6,7 @@ import type { CTASection, BackgroundColor, ButtonConfig } from "@/types/section"
 import type { FormField } from "@/types/page";
 import VerificationModal from "@/components/VerificationModal";
 import { readRateLimitMessage } from "@/lib/form-rate-limit-message";
-import { ENTRANCE_VISIBILITY_THRESHOLD } from "@/lib/animation-constants";
+import { createEntranceObserver, isEntranceVisible } from "@/lib/entrance-observer";
 
 /**
  * CTAFooter Props
@@ -122,14 +122,13 @@ export default function CTAFooter({
     const el = headingRef.current;
     if (!el) return;
 
-    const observer = new IntersectionObserver(
+    const observer = createEntranceObserver(
       ([entry]) => {
-        if (entry.isIntersecting) {
+        if (isEntranceVisible(entry)) {
           setIsHeadingVisible(true);
           observer.disconnect();
         }
-      },
-      { threshold: ENTRANCE_VISIBILITY_THRESHOLD }
+      }
     );
 
     observer.observe(el);
