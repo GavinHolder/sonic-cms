@@ -1014,12 +1014,16 @@
   }
 
   /**
-   * FRAME_GUIDE_NAV — the live navbar's real, unscaled bottom edge, in the same canvas
-   * design-px space the free-mode Designer stage and computeStageFit's cw/ch use. ONE
-   * constant for the value public/flexible-designer.html's own guide-line code (Option C
-   * frame guides) used to hand-copy as a separate hardcoded `NAV = 100` — kept here so the
-   * Designer canvas and the live renderer can never drift apart on this specific number
-   * again (navbar-guide-drift fix, 2026-09-30).
+   * FRAME_GUIDE_NAV — the y-position, in canvas DESIGN px (the same coordinate space
+   * computeStageFit's cw/ch and the free-mode Designer stage use), of the Designer's own
+   * guide line marking where the live navbar's bottom edge would land if this canvas were
+   * shown at native 1:1 scale. It is NOT itself a live, unscaled CSS-px measurement of the
+   * navbar (that's navCover — computed by each caller, e.g. FlexibleSectionRenderer.tsx's
+   * `navH - headerOffset`, from the ACTUAL rendered navbar). ONE constant for the value
+   * public/flexible-designer.html's own guide-line code (Option C frame guides) used to
+   * hand-copy as a separate hardcoded `NAV = 100` — kept here so the Designer canvas and the
+   * live renderer can never drift apart on this specific number again (navbar-guide-drift
+   * fix, 2026-09-30; wording corrected in the round-2 review follow-up, same date).
    */
   var FRAME_GUIDE_NAV = 100;
 
@@ -1113,7 +1117,12 @@
       // Largest scale that keeps the guide's post-shift screen position (cover - guide*scale
       // + guide*scale = cover) and the plate's bottom (cover + scale*(ch-guide)) inside vh.
       // Math.min: shrink only, this can never grow scale above what it already was.
-      scale = Math.min(scale, Math.floor(((vh - cover) / (ch - guide)) * 1e4) / 1e4);
+      // Math.max(..., 1e-4): a pathological input (e.g. vh only fractionally larger than
+      // cover, against a tall ch-guide span) can drive the raw quotient to ~0 — floor it at
+      // the smallest nonzero value this function's own 4dp rounding can represent, so scale
+      // can never become exactly 0 (a real division-by-effectively-zero). Unreachable at any
+      // real viewport size (see the property test's randomized range) — pure safety net.
+      scale = Math.min(scale, Math.max(Math.floor(((vh - cover) / (ch - guide)) * 1e4) / 1e4, 1e-4));
       contentTop = cover - guide * scale; // guide now lands exactly on the navbar's real bottom edge
     }
 
