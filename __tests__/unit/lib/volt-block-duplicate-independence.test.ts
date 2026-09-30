@@ -159,3 +159,83 @@ describe('_lyEnsureIndependentVoltCopy (extracted from public/flexible-designer.
     expect(JSON.stringify(copy)).toBe(before)
   })
 })
+
+/**
+ * F1 regression test (2026-09-29 independent review of fix/volt-block-duplicate):
+ * duplicating a glass/frosted Volt lost its blur on the Designer canvas until
+ * reload, because window.__voltGlassMap (keyed by voltId, read by
+ * buildVoltPreviewUrl()) was only ever populated once at Designer load —
+ * the newly-minted duplicate's id was never added to it. The fix copies the
+ * flag from the OLD id to the NEW id inside _lyEnsureIndependentVoltCopy's
+ * success branch, guarded by `typeof window !== 'undefined'` since this
+ * function is extracted and run in a Node `vm` sandbox with no `window` (see
+ * the describe block above, whose sandbox has none and whose tests all still
+ * pass — proving the guard doesn't break the no-window case).
+ *
+ * Uses its OWN vm sandbox (with a stubbed `window.__voltGlassMap`) rather
+ * than the shared one above, so this describe block's `window` stub cannot
+ * leak into (or mask a real regression in) the no-window tests above.
+ */
+describe('_lyEnsureIndependentVoltCopy — F1 glass-map flag transfer', () => {
+  let ensureWithWindow: EnsureIndependentVoltCopy
+  let windowSandbox: {
+    fetch?: typeof fetch
+    console: Console
+    window: { __voltGlassMap: Record<string, boolean> | undefined }
+    _lyEnsureIndependentVoltCopy?: EnsureIndependentVoltCopy
+  }
+
+  beforeAll(() => {
+    const filePath = join(process.cwd(), 'public', 'flexible-designer.html')
+    const fileSrc = readFileSync(filePath, 'utf8')
+    const fnSrc = extractFunctionSource(fileSrc, 'async function _lyEnsureIndependentVoltCopy(copy) {')
+    windowSandbox = { console, window: { __voltGlassMap: {} } }
+    vm.createContext(windowSandbox)
+    vm.runInContext(fnSrc, windowSandbox)
+    ensureWithWindow = windowSandbox._lyEnsureIndependentVoltCopy as EnsureIndependentVoltCopy
+  })
+
+  function stubFetch(newId: string) {
+    windowSandbox.fetch = vi.fn(async () =>
+      new Response(
+        JSON.stringify({ data: { volt: { id: newId, name: 'X (Copy)', thumbnail: null } } }),
+        { status: 201 }
+      )
+    ) as unknown as typeof fetch
+  }
+
+  it('copies a `true` glass flag from the old voltId to the newly-minted id', async () => {
+    windowSandbox.window.__voltGlassMap = { 'original-volt-id-123': true }
+    stubFetch('brand-new-id-456')
+    const copy = { type: 'volt', props: { voltId: 'original-volt-id-123', voltName: 'X', voltThumbnail: null } }
+    const ok = await ensureWithWindow(copy)
+    expect(ok).toBe(true)
+    expect(windowSandbox.window.__voltGlassMap!['brand-new-id-456']).toBe(true)
+    // The original id's own entry is left alone — it still describes that row.
+    expect(windowSandbox.window.__voltGlassMap!['original-volt-id-123']).toBe(true)
+  })
+
+  it('copies a `false` glass flag too — presence in the map, not truthiness, is what must transfer', async () => {
+    windowSandbox.window.__voltGlassMap = { 'orig-2': false }
+    stubFetch('new-2')
+    const copy = { type: 'volt', props: { voltId: 'orig-2', voltName: 'X', voltThumbnail: null } }
+    await ensureWithWindow(copy)
+    expect('new-2' in windowSandbox.window.__voltGlassMap!).toBe(true)
+    expect(windowSandbox.window.__voltGlassMap!['new-2']).toBe(false)
+  })
+
+  it('leaves the glass map alone when the original id was never in it (non-glass Volt)', async () => {
+    windowSandbox.window.__voltGlassMap = {}
+    stubFetch('new-3')
+    const copy = { type: 'volt', props: { voltId: 'orig-3', voltName: 'X', voltThumbnail: null } }
+    await ensureWithWindow(copy)
+    expect('new-3' in windowSandbox.window.__voltGlassMap!).toBe(false)
+  })
+
+  it('does not throw and skips the transfer when window.__voltGlassMap itself is missing', async () => {
+    windowSandbox.window.__voltGlassMap = undefined
+    stubFetch('new-5')
+    const copy = { type: 'volt', props: { voltId: 'orig-5', voltName: 'X', voltThumbnail: null } }
+    await expect(ensureWithWindow(copy)).resolves.toBe(true)
+  })
+})
