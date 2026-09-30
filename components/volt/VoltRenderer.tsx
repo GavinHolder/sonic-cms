@@ -9,6 +9,7 @@ import VoltSlotRenderer from './VoltSlotRenderer'
 // loads via <script src="/volt-glass-rules.js"> (ONE SYSTEM PER CONCERN; mirrors
 // flexible-render-rules.js). Hand-written volt-glass-rules.d.ts alongside it.
 import { buildVoltGlassStyle } from '../../public/volt-glass-rules.js'
+import { ENTRANCE_VISIBILITY_THRESHOLD } from '@/lib/anime'
 
 // Anime.js v4 animate() returns an Animation instance with a .cancel() method.
 type AnimeAnimation = { cancel: () => void }
@@ -770,7 +771,7 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
           timelineObserver.disconnect()
           playTimelines(viewportTimelineLayers)
         },
-        { threshold: 0.1 }
+        { threshold: ENTRANCE_VISIBILITY_THRESHOLD }
       )
       timelineObserver.observe(el)
       ;(el as HTMLElement & { _voltTimelineObs?: IntersectionObserver })._voltTimelineObs = timelineObserver
@@ -784,7 +785,7 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
           numberObserver.disconnect()
           numberViewportLayers.forEach(runRamp)
         },
-        { threshold: 0.3 }
+        { threshold: ENTRANCE_VISIBILITY_THRESHOLD }
       )
       numberObserver.observe(el)
       ;(el as HTMLElement & { _voltNumberObs?: IntersectionObserver })._voltNumberObs = numberObserver
@@ -959,7 +960,7 @@ export default function VoltRenderer({ voltElement, slots = {}, instanceOverride
           autoStagger += 60  // 60ms stagger between layers
         }
       },
-      { threshold: 0.1 }
+      { threshold: ENTRANCE_VISIBILITY_THRESHOLD }
     )
     entranceObserver.observe(el)
 

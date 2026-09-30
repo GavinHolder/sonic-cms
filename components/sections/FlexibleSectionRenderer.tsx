@@ -3047,7 +3047,7 @@ function DesignerBlock({ block, darkBg, onContentHeight }: {
         if (t < 1) requestAnimationFrame(step);
       }
       requestAnimationFrame(step);
-    }, { threshold: 0.3 });
+    }, { threshold: ENTRANCE_VISIBILITY_THRESHOLD });
 
     if (blockRef.current) obs.observe(blockRef.current);
     return () => obs.disconnect();
@@ -3079,7 +3079,7 @@ function DesignerBlock({ block, darkBg, onContentHeight }: {
         el.classList.add(`flex-ba-${scrollAnim}`);
         obs.disconnect();
       }
-    }, { threshold: 0.1 });
+    }, { threshold: ENTRANCE_VISIBILITY_THRESHOLD });
     obs.observe(el);
     return () => obs.disconnect();
   }, [scrollAnim]);
@@ -4086,7 +4086,7 @@ function DesignerSubElement({ sub, pkg, mobile, exact, darkBg }: { sub: SubEl; p
       // Respect the per-element delay setting
       if (animDelay > 0) setTimeout(doAnim, animDelay);
       else doAnim();
-    }, { threshold: 0.2 });
+    }, { threshold: ENTRANCE_VISIBILITY_THRESHOLD });
 
     obs.observe(el);
     return () => obs.disconnect();
@@ -4467,7 +4467,7 @@ function ElementRenderer({ element, darkBg }: { element: FlexibleElement; darkBg
           if (entry.isIntersecting) { animateElement(el, element.animation!); observer.disconnect(); }
         });
       },
-      { threshold: 0.08 }
+      { threshold: ENTRANCE_VISIBILITY_THRESHOLD }
     );
     observer.observe(el);
     return () => observer.disconnect();
