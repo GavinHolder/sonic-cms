@@ -5667,7 +5667,7 @@ function onCanvasDragLeave(e) {
  * Auto-populates default sub-elements for card, banner, and stats blocks.
  * @param {DragEvent} e - The drop event.
  */
-function onCanvasDrop(e) {
+async function onCanvasDrop(e) {
   e.preventDefault();
   const canvas = document.getElementById('canvas');
   canvas.classList.remove('drag-over');
@@ -5686,7 +5686,7 @@ function onCanvasDrop(e) {
     const blockX = Math.max(0, Math.min(canvas.offsetWidth  - blockW, x - blockW/2));
     const blockY = Math.max(0, Math.min(canvas.offsetHeight - blockH, y - blockH/2));
     const src = state.dragSource;
-    pushHistory();
+    state.dragSource = null;
     const block = {
       id: `block-${state.nextId++}`,
       type: 'volt',
@@ -5697,12 +5697,40 @@ function onCanvasDrop(e) {
       props: { ...BLOCK_DEFAULTS['volt'], voltId: src.voltId, voltName: src.voltName, voltThumbnail: src.voltThumbnail },
       subElements: []
     };
+    // Race guard (see _lyDuplicateBlock's header comment for the full
+    // explanation): capture identity BEFORE the await below so a breakpoint
+    // switch or undo landing while the duplicate-on-drop POST is in flight
+    // is detected, instead of silently inserting this block into the WRONG
+    // breakpoint's canvas.
+    const raceBreakpoint = state.activeBreakpoint;
+    const raceBlocks = state.blocks;
+    // Every drop from the Volt Library panel must mint its OWN independent
+    // VoltElement row — including the very FIRST drop of a given library
+    // design. There is no pre-existing placement to "protect" here; the
+    // library item is purely a template source and must never be referenced
+    // directly by a placed block (see _lyEnsureIndependentVoltCopy's header
+    // comment). A failed duplicate must abort rather than fall back to the
+    // shared library voltId already sitting on `block.props` — that
+    // fallback would recreate the exact "editing one silently changes every
+    // other placement" bug this call exists to prevent.
+    const ok = await _lyEnsureIndependentVoltCopy(block);
+    if (!ok) {
+      designerToast("Couldn't add design — failed to create an independent Volt design", 'error');
+      return;
+    }
+    if (state.activeBreakpoint !== raceBreakpoint || state.blocks !== raceBlocks) {
+      // The already-created VoltElement row on the server becomes an orphan
+      // here — accepted, low-frequency cost, same as _lyDuplicateBlock's
+      // identical race path.
+      designerToast('Drop cancelled — the canvas changed while adding the design', 'error');
+      return;
+    }
+    pushHistory();
     state.blocks.push(block);
     selectBlock(block.id);
     renderCanvas();
     updateBlockCount();
     autoSave();
-    state.dragSource = null;
     return;
   }
 
