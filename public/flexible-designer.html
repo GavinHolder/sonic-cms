@@ -3278,8 +3278,9 @@ function renderCanvas() {
 /**
  * Option C — draws the FRAME GUIDES overlay (#canvas-frame-guides) so the operator sees the
  * real live-page frame around the free-mode cover plate: the fixed navbar band, the
- * padding-safe top/bottom boundaries, the side gutters, and the next-section into-wave
- * silhouette. Purely visual (pointer-events:none). Drawn in DESIGN px so it scales with the
+ * padding-safe TOP boundary (the PAD_B "content bottom" line was removed — Fix D1, 2026-09-30,
+ * see its own comment below), the side gutters, and the next-section into-wave silhouette.
+ * Purely visual (pointer-events:none). Drawn in DESIGN px so it scales with the
  * canvas transform. Shown for free + single on ALL THREE breakpoints (Desktop/Tablet/Mobile —
  * 2026-09-23, extending the original desktop-only Option C phase); every other mode
  * (multi/dynamic content, grid/mosaic position mode) still clears/hides it.
@@ -3333,6 +3334,7 @@ function renderFrameGuides() {
     && (state.devicePreview === 'desktop' || state.devicePreview === 'tablet' || state.devicePreview === 'mobile');
   if (!on) { layer.style.display = 'none'; layer.replaceChildren(); return; }
   const W = state.designerCanvasW || defaultCanvasWForBreakpoint(state.devicePreview); // current breakpoint's own canvas width
+  const H = state.designerCanvasH || DESIGN_H; // this section's own canvas height (single mode only here: bands = 1)
   // NAV (navbar height): read from the shared FlexibleRenderRules.FRAME_GUIDE_NAV constant
   // (flexible-render-rules.js) instead of a separate hand-copied literal — the live renderer's
   // navbar-guide-drift fix (Fix A, 2026-09-30) reads the SAME constant, so this guide line and
@@ -3376,7 +3378,27 @@ function renderFrameGuides() {
     // (768-991.98px), no transform (1.0) desktop (>=992px) — see this function's own doc
     // comment above for the citation.
     const waveScale = state.devicePreview === 'mobile' ? 0.5 : (state.devicePreview === 'tablet' ? 0.8 : 1);
-    const waveH = Math.max(0, Number(nst.height) > 0 ? Number(nst.height) : 200) * waveScale;
+    // Scale-drift fix (round-2 review follow-up, MEDIUM #4, 2026-09-30): nst.height*waveScale
+    // is a REAL, unscaled CSS-px measurement of the live triangle — but this whole layer is
+    // drawn in DESIGN px (see this function's own doc comment), and design px is NOT 1:1 with
+    // live CSS px once the free-mode content plate's own contain-fit (and, single mode, the
+    // navbar-guide-drift shrink) scales it down for a real device viewport — the exact same
+    // drift class Fix A fixed for the content plate itself. Convert CSS px -> design px by
+    // dividing by that SAME plate scale, computed with the SAME computeStageFit call (and the
+    // SAME "available editor panel" stand-in for a target viewport) getCanvasScale() above
+    // already uses, including the navGuide/navCover shrink, so this band and the canvas's own
+    // fit-to-panel zoom can never drift apart on this either.
+    const cwrapEl = document.querySelector('.canvas-with-rulers');
+    let plateScale = 1;
+    if (cwrapEl) {
+      const rulerW = cwrapEl.classList.contains('rulers-hidden') ? 0 : 20;
+      const availW = cwrapEl.clientWidth - rulerW - 2;
+      const availH = cwrapEl.clientHeight - rulerW - 2;
+      plateScale = window.FlexibleRenderRules.computeStageFit({
+        cw: W, ch: H, vw: availW, vh: availH, mode: 'single', navGuide: NAV, navCover: NAV,
+      }).scale || 1;
+    }
+    const waveH = (Math.max(0, Number(nst.height) > 0 ? Number(nst.height) : 200) * waveScale) / plateScale;
     waveKids.push(mk('cfg-wave', { height: waveH + 'px' }, 'next section ↴'));
   }
   layer.replaceChildren(...kids, ptLine, ptLbl, gl, gr, ...waveKids);
