@@ -102,6 +102,56 @@ describe('computeStageFit navGuide/navCover (Fix A — navbar-guide-drift)', () 
     expect(after.contentTop + ch * after.scale).toBeLessThanOrEqual(vh + 1e-6) // bottom never pushed past the box
   })
 
+  /**
+   * HAND-COMPUTED, implementation-independent expected values (round-2 adversarial review,
+   * HIGH #1: mutation testing showed the pre-existing tests above only check internal
+   * self-consistency — e.g. "guide lands on navCover" is trivially true for ANY scale, because
+   * contentTop is DEFINED as cover - guide*scale — so a deliberately-wrong ~28% over-shrink
+   * mutation to the scale formula (line ~1116: `((vh-cover)/ch)*0.8` instead of the correct
+   * `(vh-cover)/(ch-guide)`) still passed all 48 existing tests. These values were derived by
+   * hand from the documented requirement, independent of the implementation:
+   *   scale = floor(((vh-cover)/(ch-guide)) * 1e4) / 1e4 = floor((557/800)*10000)/10000 = 0.6962
+   *   contentTop = cover - guide*scale = 100 - 100*0.6962 = 30.38
+   *   bottom = contentTop + ch*scale = 30.38 + 900*0.6962 = 656.96
+   *   contentLeft = (vw - cw*scale) / 2 = (1366 - 1440*0.6962) / 2 = 181.736 (scale < scaleX, so centred)
+   */
+  it('hand-computed exact values for the reported case (independent of the implementation)', () => {
+    const cw = 1440, ch = 900, vw = 1366, vh = 657
+    const after = R.computeStageFit({ cw, ch, vw, vh, mode: 'single', navGuide: 100, navCover: 100 })
+    expect(after.scale).toBeCloseTo(0.6962, 4)
+    expect(after.contentTop).toBeCloseTo(30.38, 2)
+    expect(after.contentTop + ch * after.scale).toBeCloseTo(656.96, 2) // bottom
+    expect(after.contentLeft).toBeCloseTo(181.736, 2)
+  })
+
+  /**
+   * HIGH #1 (continued): an INDEPENDENT proof that the shrink uses the LARGEST valid scale, not
+   * merely "a" valid one. A mutation that over-shrinks (e.g. the 0.8-factor mutation above) still
+   * satisfies "guide lands on navCover" and "bottom <= vh" (both trivially/weakly true regardless
+   * of how much extra the scale shrinks) — but it must leave the plate's bottom edge visibly
+   * SHORT of vh, unless the fix didn't need to shrink at all (scale unchanged from pre-fix). This
+   * is the discriminating check the mutation fails.
+   */
+  it('proves the LARGEST valid scale is used: whenever the fix triggers, either scale is unchanged or bottom snugly reaches vh', () => {
+    const cases = [
+      { cw: 1440, ch: 900, vw: 1366, vh: 657 },
+      { cw: 1440, ch: 900, vw: 800, vh: 500 },
+      { cw: 1920, ch: 1200, vw: 1024, vh: 480 },
+      { cw: 768, ch: 1400, vw: 700, vh: 400 },
+      { cw: 1440, ch: 900, vw: 1200, vh: 300 },
+    ]
+    for (const opts of cases) {
+      const before = R.computeStageFit({ ...opts, mode: 'single' as const })
+      const after = R.computeStageFit({ ...opts, mode: 'single' as const, navGuide: 100, navCover: 100 })
+      const applicable = 100 < opts.ch && opts.vh > 100 && 100 * before.scale < 100
+      if (!applicable) continue
+      const bottom = after.contentTop + opts.ch * after.scale
+      const scaleUnchanged = Math.abs(after.scale - before.scale) < 1e-9
+      const bottomSnug = Math.abs(bottom - opts.vh) <= opts.ch * 1e-4
+      expect(scaleUnchanged || bottomSnug).toBe(true)
+    }
+  })
+
   it('multi mode is completely unaffected, even with navGuide/navCover set', () => {
     const opts = { cw: 1440, ch: 900, vw: 1366, vh: 657, mode: 'multi' as const, maxScale: Infinity }
     const before = R.computeStageFit(opts)
@@ -167,6 +217,14 @@ describe('computeStageFit navGuide/navCover (Fix A — navbar-guide-drift)', () 
         expect(after.contentTop + navGuide * after.scale).toBeCloseTo(navCover, 4)
         // Invariant: resulting bottom never exceeds the box.
         expect(after.contentTop + ch * after.scale).toBeLessThanOrEqual(vh + 1e-6)
+        // Invariant (round-2 review, HIGH #1): proves LARGEST valid scale, not just "a" valid
+        // one — an over-shrink mutation still satisfies the two checks above (both trivially/
+        // weakly true for any smaller scale) but leaves bottom visibly short of vh unless the
+        // fix didn't need to shrink at all.
+        const bottom = after.contentTop + ch * after.scale
+        const scaleUnchanged = Math.abs(after.scale - before.scale) < 1e-9
+        const bottomSnug = Math.abs(bottom - vh) <= ch * 1e-4
+        expect(scaleUnchanged || bottomSnug).toBe(true)
       } else if (vh <= navCover) {
         // Invariant: an impossible-to-satisfy guide falls back to the unmodified result.
         expect(after).toEqual(before)
