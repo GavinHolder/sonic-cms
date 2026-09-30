@@ -766,7 +766,10 @@ export default function LandingPageManager() {
             setSuccessMessage("Flexible section updated!");
           }}
           onCancel={closeEditor}
-          allSections={sections.map((s) => ({ id: s.id, type: s.type, title: (s as any).title, displayName: (s as any).displayName, order: s.order }))}
+          // triangleEnabled/triangleHeight/enabled (Fix D1, 2026-09-30): lets the modal compute
+          // the REAL next section's triangle state for the Designer's "next section" warning
+          // band, instead of a fixed guess. See FlexibleSectionEditorModal's nextSectionTriangle.
+          allSections={sections.map((s) => ({ id: s.id, type: s.type, title: (s as any).title, displayName: (s as any).displayName, order: s.order, triangleEnabled: s.triangleEnabled, triangleHeight: s.triangleHeight, enabled: s.enabled }))}
         />
       )}
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type { FlexibleSection, FlexibleElement, AnimationType, MotionElement, LowerThirdConfig } from "@/types/section";
 import SpacingControls from "@/components/admin/SpacingControls";
 import SectionIntoShapePicker from "@/components/admin/SectionIntoShapePicker";
@@ -133,7 +133,12 @@ interface FlexibleSectionEditorModalProps {
   section: FlexibleSection;
   onSave: (section: FlexibleSection, shouldClose?: boolean) => void;
   onCancel: () => void;
-  allSections?: Array<{ id: string; type: string; title?: string; displayName?: string; order: number }>;
+  // triangleEnabled/triangleHeight/enabled (Fix D1, 2026-09-30): the "next section" warning
+  // band in the Designer's frame guides (see nextSectionTriangle below) needs the REAL
+  // adjacent section's triangle state, not a fixed guess — optional so every existing caller
+  // that doesn't pass them (none currently do; page.tsx passes the full set) degrades to
+  // "unknown next section", not a crash.
+  allSections?: Array<{ id: string; type: string; title?: string; displayName?: string; order: number; triangleEnabled?: boolean; triangleHeight?: number; enabled?: boolean }>;
 }
 
 type ActiveTab = "content" | "background" | "animation" | "overlay" | "triangle" | "lower-third" | "motion" | "spacing" | "scroll-stage";
@@ -145,6 +150,25 @@ export default function FlexibleSectionEditorModal({
   allSections = [],
 }: FlexibleSectionEditorModalProps) {
   const confirm = useConfirm();
+  // Fix D1 (2026-09-30): the Designer's "next section" warning band used to draw a fixed
+  // 200/160/100 desktop/tablet/mobile GUESS regardless of whether the actual next section's
+  // triangle is even enabled. Compute the REAL next section here (by `order`, skipping
+  // disabled sections — a disabled section never renders, so it can't be what visually
+  // follows this one) and forward it to the canvas the same way sectionBackground already
+  // is (see the FLEXIBLE_DESIGNER_INIT payload below). null when unknown (no next section,
+  // or this section isn't found in allSections) — the canvas then draws no band at all
+  // rather than falling back to a guess.
+  const nextSectionTriangle = useMemo(() => {
+    const sorted = [...allSections].sort((a, b) => a.order - b.order);
+    const curIdx = sorted.findIndex((s) => s.id === section.id);
+    if (curIdx < 0) return null;
+    for (let i = curIdx + 1; i < sorted.length; i++) {
+      if (sorted[i].enabled !== false) {
+        return { enabled: !!sorted[i].triangleEnabled, height: sorted[i].triangleHeight || 200 };
+      }
+    }
+    return null;
+  }, [allSections, section.id]);
   // ── Section meta ──────────────────────────────────────────────
   const [displayName, setDisplayName] = useState(section.displayName || "Flexible Section");
   const [activeTab, setActiveTab] = useState<ActiveTab>("content");
@@ -828,6 +852,11 @@ export default function FlexibleSectionEditorModal({
         try {
           const obj = JSON.parse(initPayload);
           obj.sectionBackground = buildSectionBackgroundForBreakpoint("desktop");
+          // Fix D1 (2026-09-30) — same pattern as sectionBackground above: attached to the
+          // OUTERMOST payload object (section-list data, not per-breakpoint canvas content),
+          // read by flexible-designer.html's FLEXIBLE_DESIGNER_INIT handler into
+          // state.nextSectionTriangle for renderFrameGuides()'s "next section" band.
+          obj.nextSectionTriangle = nextSectionTriangle;
           payloadWithBg = JSON.stringify(obj);
         } catch { /* non-JSON payload — send as-is */ }
         iframeRef.current?.contentWindow?.postMessage(
@@ -889,7 +918,7 @@ export default function FlexibleSectionEditorModal({
     }
   }, [designerData, contentMode, layout, draftKey, section, confirm,
       bgByBreakpoint, bgImagePosition, bgMultiRepeat,
-      backgroundPos, buildSectionBackgroundForBreakpoint]);
+      backgroundPos, buildSectionBackgroundForBreakpoint, nextSectionTriangle]);
 
   // Fresh <iframe> on every open (showDesigner && (<iframe .../>) unmounts it on close) means
   // a fresh FLEXIBLE_DESIGNER_READY handshake and a canvas that starts back at devicePreview

@@ -2157,6 +2157,10 @@ const state = {
   // into buildJson(); mirrors the fields FlexibleSectionRenderer reads off the section.
   sectionBg: null,        // { background, bgImageUrl, bgImageSize, bgImagePosition, bgImageRepeat, bgImageOpacity, bgMultiRepeat, gradient } | null
   showSectionBg: true,    // toggle state (default ON) — pure view preference
+  // Fix D1 (2026-09-30) — the REAL next section's triangle state, VIEW-ONLY (never written
+  // back into buildJson()), for renderFrameGuides()'s "next section" warning band. See the
+  // FLEXIBLE_DESIGNER_INIT handler's own comment for how this is populated.
+  nextSectionTriangle: null, // { enabled, height } | null
   // Per-breakpoint independent layouts (2026-09-11). state.variants holds the
   // NON-active breakpoints' full flat state snapshots (see switchActiveBreakpoint,
   // Task 4) — the currently-active breakpoint's data lives directly in the
@@ -3295,23 +3299,30 @@ function renderCanvas() {
  *     SectionRenderer.tsx paddingTop ?? 80) but is always floored by NAV=100 via
  *     safeTop=max(PAD_T,NAV) below, so the rendered boundary is 100 either way — no per-breakpoint
  *     value needed.
- *   - PAD_B (content-bottom boundary): genuinely differs. Desktop/tablet use the generic
- *     `.section-content-wrapper { padding-bottom: var(--section-pb, 80px) }` (globals.css ~L682).
- *     Mobile (<768px) hits the more specific single/non-multi flexible-section override
- *     `padding-bottom: var(--section-pb-mobile, 40px)` (globals.css ~L724-725) — and
- *     FlexibleSectionRenderer.tsx only emits --section-pb-mobile when the admin has explicitly
- *     set a mobile override (paddingBottomMobile != null), so the common case really does fall
- *     through to that 40px CSS default. Tablet (768px) sits exactly on the media query's
- *     max-width:767px boundary, so it still gets the desktop 80px value.
- *   - WAVE (next-section "into"/triangle silhouette height): TriangleSectionWrapper.tsx defaults
- *     to 200px (section.triangleHeight || 200), but globals.css scales `.triangle-overlay-wrapper`
- *     with a CSS transform per viewport: scale(0.5) below 576px (mobile), scale(0.8) between
- *     768-991.98px (tablet), no transform (1.0) at >=992px (desktop). So the REAL rendered wave
- *     height is 200 on desktop, 160 on tablet (200*0.8), 100 on mobile (200*0.5).
+ *   - PAD_B / "content bottom" line — REMOVED (Fix D1, 2026-09-30). It drew height−80 (or
+ *     height−40 on mobile) as if that were an enforced boundary, but a free-mode section's
+ *     content plate is NOT inside `.section-content-wrapper` at all (it's a separate z-index-12
+ *     layer mounted directly on the <section>, see FlexibleSectionRenderer.tsx's free cover-
+ *     plate doc comment) — nothing on live actually clips or warns at this line for free-mode
+ *     content, so drawing it as if it were a hard boundary was actively misleading.
+ *   - WAVE (next-section "into"/triangle silhouette height) — Fix D1 (2026-09-30): now driven by
+ *     the REAL next section's triangle state (state.nextSectionTriangle, via the new postMessage
+ *     field below) instead of a fixed 200/160/100 desktop/tablet/mobile GUESS — drawn only when
+ *     that section's triangle is actually enabled, sized to ITS authored height. The per-
+ *     breakpoint scale factor itself is unchanged and still correct: globals.css scales
+ *     `.triangle-overlay-wrapper` with a CSS transform per viewport — scale(0.5) below 576px
+ *     (mobile), scale(0.8) between 768-991.98px (tablet), no transform (1.0) at >=992px (desktop).
  *   - GUT (side gutters): Bootstrap's default `.container-fluid` gutter (12px each side,
  *     --bs-gutter-x: 1.5rem halved) is not overridden anywhere in globals.css and Bootstrap does
  *     not vary container-fluid's gutter by breakpoint — reused unchanged everywhere.
- * No new postMessage plumbing in this phase.
+ * postMessage plumbing (Fix D1, 2026-09-30): FlexibleSectionEditorModal.tsx now attaches
+ * `nextSectionTriangle: {enabled, height} | null` to the OUTERMOST FLEXIBLE_DESIGNER_INIT
+ * payload — same pattern as the pre-existing `sectionBackground` field just below in the
+ * message handler — computed from the `allSections` list it already receives (extended with
+ * triangleEnabled/triangleHeight/enabled) by walking to the next non-disabled section after
+ * this one in `order`. null (every OTHER caller, e.g. DesignerPageEditorModal) means "unknown":
+ * the wave band above then draws nothing rather than guessing. This is Designer-canvas-only —
+ * it does not change how the live page renders anything.
  */
 function renderFrameGuides() {
   const layer = document.getElementById('canvas-frame-guides');
@@ -3322,16 +3333,12 @@ function renderFrameGuides() {
     && (state.devicePreview === 'desktop' || state.devicePreview === 'tablet' || state.devicePreview === 'mobile');
   if (!on) { layer.style.display = 'none'; layer.replaceChildren(); return; }
   const W = state.designerCanvasW || defaultCanvasWForBreakpoint(state.devicePreview); // current breakpoint's own canvas width
-  const H = state.designerCanvasH || DESIGN_H;   // design-box height
   // NAV (navbar height): read from the shared FlexibleRenderRules.FRAME_GUIDE_NAV constant
   // (flexible-render-rules.js) instead of a separate hand-copied literal — the live renderer's
   // navbar-guide-drift fix (Fix A, 2026-09-30) reads the SAME constant, so this guide line and
   // the live navbar clearance it represents can never drift apart on this specific number again.
   const NAV = (window.FlexibleRenderRules && window.FlexibleRenderRules.FRAME_GUIDE_NAV) || 100;
   const PAD_T = 80, GUT = 12;
-  // PAD_B and WAVE are the two constants confirmed breakpoint-dependent on the live site (see doc comment above).
-  const PAD_B = state.devicePreview === 'mobile' ? 40 : 80;
-  const WAVE  = state.devicePreview === 'mobile' ? 100 : (state.devicePreview === 'tablet' ? 160 : 200);
   const safeTop = Math.max(PAD_T, NAV);          // content never slides under the fixed navbar
   const kids = [];
   const mk = (cls, styles, text) => {
@@ -3351,16 +3358,28 @@ function renderFrameGuides() {
   // Content-safe top boundary (max(paddingTop, navbar))
   const ptLine = mk('cfg-hline', { top: safeTop + 'px' });
   const ptLbl = document.createElement('span'); ptLbl.className = 'cfg-hlabel'; ptLbl.style.top = safeTop + 'px'; ptLbl.textContent = 'content top';
-  // Content-safe bottom boundary (height − paddingBottom)
-  const pbTop = Math.max(0, H - PAD_B);
-  const pbLine = mk('cfg-hline', { top: pbTop + 'px' });
-  const pbLbl = document.createElement('span'); pbLbl.className = 'cfg-hlabel'; pbLbl.style.top = pbTop + 'px'; pbLbl.textContent = 'content bottom';
   // Side gutters
   const gl = mk('cfg-vline', { left: GUT + 'px' });
   const gr = mk('cfg-vline', { left: (W - GUT) + 'px' });
-  // Next-section into-wave silhouette (bottom ~200px)
-  const wave = mk('cfg-wave', { height: WAVE + 'px' }, 'next section ↴');
-  layer.replaceChildren(...kids, ptLine, ptLbl, pbLine, pbLbl, gl, gr, wave);
+  // Next-section into-wave silhouette — Fix D1 (2026-09-30): drawn from the REAL next
+  // section's triangle state (state.nextSectionTriangle, forwarded by
+  // FlexibleSectionEditorModal — see the FLEXIBLE_DESIGNER_INIT handler's own comment)
+  // instead of a fixed 200/160/100 desktop/tablet/mobile GUESS. Nothing is drawn when that
+  // next section's triangle isn't actually enabled, or the next section is unknown (null —
+  // every OTHER caller, e.g. DesignerPageEditorModal) — a guessed band that doesn't match
+  // what live actually renders is worse than no band.
+  const nst = state.nextSectionTriangle;
+  const waveKids = [];
+  if (nst && nst.enabled) {
+    // Same per-breakpoint scale TriangleSectionWrapper.tsx/globals.css apply to the real
+    // `.triangle-overlay-wrapper`: scale(0.5) mobile (<576px), scale(0.8) tablet
+    // (768-991.98px), no transform (1.0) desktop (>=992px) — see this function's own doc
+    // comment above for the citation.
+    const waveScale = state.devicePreview === 'mobile' ? 0.5 : (state.devicePreview === 'tablet' ? 0.8 : 1);
+    const waveH = Math.max(0, Number(nst.height) > 0 ? Number(nst.height) : 200) * waveScale;
+    waveKids.push(mk('cfg-wave', { height: waveH + 'px' }, 'next section ↴'));
+  }
+  layer.replaceChildren(...kids, ptLine, ptLbl, gl, gr, ...waveKids);
   layer.style.display = 'block';
 }
 
@@ -12130,6 +12149,14 @@ window.addEventListener('message', function(e) {
       // the bg fields inline in the designer payload itself, which for a
       // free-mode page now lives one level down inside `desktop`).
       state.sectionBg = readSectionBgFromPayload(layout) || readSectionBgFromPayload(desktopLayout);
+      // Fix D1 (2026-09-30) — the REAL next section's triangle state, forwarded by
+      // FlexibleSectionEditorModal the same way sectionBackground is (see that comment just
+      // above): { enabled, height } of whichever section actually follows this one, or null
+      // when unknown (every other caller, e.g. DesignerPageEditorModal, which doesn't send
+      // this field — the "next section" band in renderFrameGuides() then draws nothing rather
+      // than falling back to a guess). Always the OUTERMOST payload; this is section-list data,
+      // not per-breakpoint canvas content, so there is no desktopLayout fallback to read here.
+      state.nextSectionTriangle = (layout && typeof layout.nextSectionTriangle === 'object') ? layout.nextSectionTriangle : null;
       applySectionBgToCanvas();
       // Re-render after a paint frame so canvas has settled dimensions.
       // Without this, getCellRect reads offsetHeight=0 on the first render
