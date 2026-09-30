@@ -2728,6 +2728,30 @@ function loadAutoSave() {
   });
 })();
 
+// Ctrl+C/Ctrl+V (and every shortcut in the keydown listener directly below)
+// only fire when THIS document — the Designer, which normally runs embedded
+// in an <iframe> inside the admin page — actually holds the browser's
+// keyboard focus. Several drag-initiation handlers in this file
+// (startBlockMove, startSubElementMove, startGroupMove, etc.) call
+// e.preventDefault() on 'mousedown' to suppress native browser drag-image /
+// text-selection while dragging a block or sub-element on the canvas. That
+// preventDefault() has a side effect: per browser default-action handling,
+// it also suppresses the automatic focus transfer into this iframe that a
+// plain (non-prevented) click would otherwise trigger — so after clicking a
+// block/sub-element to select it, keyboard focus can silently stay in the
+// PARENT admin page instead of moving into this iframe, and the keydown
+// listener below never sees Ctrl+C/Ctrl+V (confirmed via an isolated
+// same-origin nested-iframe reproduction: preventDefault() on a child
+// iframe's mousedown handler causes a subsequent Ctrl+C to be delivered to
+// the PARENT document instead of the child's own keydown listener; the
+// right-click "Copy" context menu is unaffected because it's purely
+// mouse-driven and never depends on keyboard focus). Reclaiming focus here,
+// unconditionally, in the capture phase of every mousedown anywhere in the
+// canvas — before any per-element handler's preventDefault() can suppress
+// the browser's own default focus transfer — fixes this for every current
+// and future drag-initiating interaction without touching any of them.
+document.addEventListener('mousedown', () => window.focus(), true);
+
 document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
     e.preventDefault();
