@@ -8,6 +8,16 @@ const UpdateSchema = z.object({
   description: z.string().max(500).optional().nullable(),
   thumbnail:   z.string().url().optional().nullable(),
   tags:        z.array(z.string()).optional(),
+  // The template's own content (customHtml/customCss/mediaSlots/customCssUrls for a
+  // "block" template, or whatever shape a future template type needs) — a Prisma Json
+  // column, so validated as a plain object here rather than a fixed shape. Without this
+  // field, Zod's default key-stripping silently dropped every `data` update: the request
+  // still validated (the unrecognized key just disappears), the route still returned
+  // {success:true}, and the admin's own "Standalone HTML editor" (app/admin/content/
+  // templates/page.tsx, handleTemplateSave) had been silently failing to save content
+  // edits as a result. Purely additive — no existing caller relied on `data` being
+  // dropped.
+  data:        z.record(z.string(), z.unknown()).optional(),
 });
 
 interface Ctx { params: Promise<{ id: string }> }
