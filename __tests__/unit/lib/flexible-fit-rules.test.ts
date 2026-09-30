@@ -67,6 +67,129 @@ describe('computeStageFit', () => {
 })
 
 /**
+ * Fix A (2026-09-30) — navbar-guide-drift. computeStageFit's opts.navGuide/opts.navCover:
+ * when the natural scale would put navGuide (canvas px) under the live navbar's real bottom
+ * edge (navCover, CSS px), shrink the stage (never grow it) and shift the plate down so the
+ * guide lands exactly on navCover instead.
+ */
+describe('computeStageFit navGuide/navCover (Fix A — navbar-guide-drift)', () => {
+  it('omitting navGuide/navCover is a no-op: output is byte-identical to before this fix existed', () => {
+    const cases = [
+      { cw: 1440, ch: 900, vw: 1366, vh: 657, mode: 'single' as const },
+      { cw: 1440, ch: 900, vw: 1920, vh: 1080, mode: 'single' as const },
+      { cw: 768, ch: 900, vw: 800, vh: 1280, mode: 'single' as const, breakpoint: 'mobile' as const },
+      { cw: 1440, ch: 2700, vw: 1366, vh: 657, mode: 'multi' as const, maxScale: 1.15 },
+    ]
+    for (const base of cases) {
+      const before = R.computeStageFit(base)
+      // Explicit zero/undefined navGuide/navCover must behave identically to omitting them.
+      expect(R.computeStageFit({ ...base, navGuide: 0, navCover: 0 })).toEqual(before)
+      expect(R.computeStageFit({ ...base, navGuide: undefined, navCover: undefined })).toEqual(before)
+      // A navGuide with no navCover (or vice versa) is also inert — both must be > 0 to apply.
+      expect(R.computeStageFit({ ...base, navGuide: 100 })).toEqual(before)
+      expect(R.computeStageFit({ ...base, navCover: 100 })).toEqual(before)
+    }
+  })
+
+  it('reproduces the reported case: 1366x657 laptop, 1440x900 canvas — guide was landing ~27px under the navbar', () => {
+    const cw = 1440, ch = 900, vw = 1366, vh = 657
+    const before = R.computeStageFit({ cw, ch, vw, vh, mode: 'single' })
+    const naturalGuideY = 100 * before.scale
+    expect(naturalGuideY).toBeLessThan(100) // confirms the bug precondition: guide lands above the real navbar edge
+    const after = R.computeStageFit({ cw, ch, vw, vh, mode: 'single', navGuide: 100, navCover: 100 })
+    expect(after.scale).toBeLessThan(before.scale) // shrunk, never grown
+    expect(after.contentTop + 100 * after.scale).toBeCloseTo(100, 6) // guide now lands exactly on the navbar's bottom edge
+    expect(after.contentTop + ch * after.scale).toBeLessThanOrEqual(vh + 1e-6) // bottom never pushed past the box
+  })
+
+  it('multi mode is completely unaffected, even with navGuide/navCover set', () => {
+    const opts = { cw: 1440, ch: 900, vw: 1366, vh: 657, mode: 'multi' as const, maxScale: Infinity }
+    const before = R.computeStageFit(opts)
+    const after = R.computeStageFit({ ...opts, navGuide: 100, navCover: 100 })
+    expect(after).toEqual(before)
+  })
+
+  it('vh <= navCover (guide impossible to satisfy) falls back to the unmodified result', () => {
+    const opts = { cw: 1440, ch: 900, vw: 1366, vh: 90, mode: 'single' as const }
+    const before = R.computeStageFit(opts)
+    const after = R.computeStageFit({ ...opts, navGuide: 100, navCover: 100 })
+    expect(after).toEqual(before)
+  })
+
+  it('a guide already clear of the navbar (tall viewport) needs no adjustment', () => {
+    const opts = { cw: 1440, ch: 900, vw: 1920, vh: 1080, mode: 'single' as const }
+    const before = R.computeStageFit(opts)
+    const after = R.computeStageFit({ ...opts, navGuide: 100, navCover: 100 })
+    expect(after).toEqual(before)
+  })
+
+  it('a section with a CMS Section Header (navCover already 0) is unaffected', () => {
+    // navCover = max(0, navH - headerOffset); a heading tall enough to clear the navbar
+    // entirely means the caller passes navCover: 0 — confirmed inert, same as omitting it.
+    const opts = { cw: 1440, ch: 900, vw: 1366, vh: 657, mode: 'single' as const }
+    const before = R.computeStageFit(opts)
+    const after = R.computeStageFit({ ...opts, navGuide: 100, navCover: 0 })
+    expect(after).toEqual(before)
+  })
+
+  // Deterministic PRNG (mulberry32) so failures are reproducible without a fuzzing dependency.
+  function mulberry32(seed: number) {
+    return function () {
+      seed |= 0; seed = (seed + 0x6d2b79f5) | 0
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+    }
+  }
+
+  it('property test: guide/bottom/scale invariants hold across 500 randomized single-mode stages', () => {
+    const rand = mulberry32(20260930)
+    const between = (lo: number, hi: number) => lo + rand() * (hi - lo)
+    let triggeredCount = 0
+    for (let i = 0; i < 500; i++) {
+      const cw = between(300, 2000)
+      const ch = between(400, 3000)
+      const vw = between(300, 2000)
+      const vh = between(200, 1200)
+      const navGuide = between(40, 200)
+      const navCover = between(40, 200)
+      const opts = { cw, ch, vw, vh, mode: 'single' as const }
+      const before = R.computeStageFit(opts)
+      const after = R.computeStageFit({ ...opts, navGuide, navCover })
+
+      // Invariant: scale never grows.
+      expect(after.scale).toBeLessThanOrEqual(before.scale + 1e-9)
+
+      const applicable = navGuide > 0 && navCover > 0 && navGuide < ch && vh > navCover && navGuide * before.scale < navCover
+      if (applicable) {
+        triggeredCount++
+        // Invariant: guide's on-screen position lands exactly on navCover.
+        expect(after.contentTop + navGuide * after.scale).toBeCloseTo(navCover, 4)
+        // Invariant: resulting bottom never exceeds the box.
+        expect(after.contentTop + ch * after.scale).toBeLessThanOrEqual(vh + 1e-6)
+      } else if (vh <= navCover) {
+        // Invariant: an impossible-to-satisfy guide falls back to the unmodified result.
+        expect(after).toEqual(before)
+      }
+    }
+    // Sanity: the randomized ranges actually exercise the shrink path at least sometimes,
+    // so this test would fail loudly (not vacuously pass) if the trigger condition broke.
+    expect(triggeredCount).toBeGreaterThan(0)
+  })
+
+  it('contentLeft centering uses the FINAL (possibly shrunk) scale, not the pre-shrink scaleY', () => {
+    const cw = 1440, ch = 900, vw = 1366, vh = 657
+    const after = R.computeStageFit({ cw, ch, vw, vh, mode: 'single', navGuide: 100, navCover: 100 })
+    const scaleX = Math.round((vw / cw) * 10000) / 10000
+    if (after.scale < scaleX) {
+      expect(after.contentLeft).toBeCloseTo(Math.max(0, (vw - cw * after.scale) / 2), 6)
+    } else {
+      expect(after.contentLeft).toBe(0)
+    }
+  })
+})
+
+/**
  * Desktop background/content geometry must stay BYTE-IDENTICAL to commit c4535fa (before the stage-fit work).
  * `legacyPlate` is that commit's plate code transcribed from components/sections/FlexibleSectionRenderer.tsx
  * (DesignerBlocksRenderer, the `bgTransform` / `contentTransform` / `contentLeft` block) — independent of

@@ -1014,6 +1014,16 @@
   }
 
   /**
+   * FRAME_GUIDE_NAV — the live navbar's real, unscaled bottom edge, in the same canvas
+   * design-px space the free-mode Designer stage and computeStageFit's cw/ch use. ONE
+   * constant for the value public/flexible-designer.html's own guide-line code (Option C
+   * frame guides) used to hand-copy as a separate hardcoded `NAV = 100` — kept here so the
+   * Designer canvas and the live renderer can never drift apart on this specific number
+   * again (navbar-guide-drift fix, 2026-09-30).
+   */
+  var FRAME_GUIDE_NAV = 100;
+
+  /**
    * computeStageFit(opts) — pure. THE single decision of how a free-mode design canvas (cw x ch design px) is
    * fitted into the box it is shown in (vw x vh CSS px). Consumed by BOTH:
    *   1. components/sections/FlexibleSectionRenderer.tsx  — the live content plate and background plate;
@@ -1049,8 +1059,15 @@
    *   float noise from the vw/cw division, which renders text visibly soft under transform:scale() — same
    *   mitigation both editor canvases apply to their own zoom).
    *
+   * navGuide/navCover (optional, Fix A 2026-09-30 — see FRAME_GUIDE_NAV and the navbar-guide-
+   * drift block inside the function body): when both are > 0 and the single-mode plate would
+   * otherwise place navGuide (canvas px) under the live navbar's real bottom edge (navCover,
+   * CSS px), scale is shrunk (never grown) and contentTop is set so the guide lands exactly on
+   * navCover instead. Omitted, or multi mode, or already clear of the navbar: contentTop stays
+   * 0 and scale is unaffected — byte-identical to before this fix existed.
+   *
    * @param {{cw:number,ch:number,vw:number,vh:number,mode?:"single"|"multi",maxScale?:number,
-   *          breakpoint?:"desktop"|"tablet"|"mobile"}} opts
+   *          breakpoint?:"desktop"|"tablet"|"mobile",navGuide?:number,navCover?:number}} opts
    * @returns {{scale:number,contentLeft:number,contentTop:number,contentW:number,contentH:number,
    *            bg:{left:number,top:number,width:number,height:number,scale:number,scaleX:number,scaleY:number,
    *                transform:string}}}
@@ -1068,8 +1085,45 @@
     var scaleX = round4(Math.min(vw / cw, maxScale));
     var scaleY = round4(Math.min(vh / ch, maxScale));
     var scale = multi ? scaleX : Math.min(scaleX, scaleY);
+
+    // Navbar-guide-drift fix (Fix A, 2026-09-30): on a free-mode SINGLE section, the live
+    // navbar is a fixed, unscaled overlay `navCover` px tall that sits on top of everything
+    // (see FRAME_GUIDE_NAV's own doc comment). At the natural `scale` above, the design's
+    // navGuide line (the navbar's real bottom edge, in canvas px) can land ABOVE that real
+    // navbar's bottom edge — content the Designer shows as clear of the navbar then renders
+    // hidden underneath it live. Fix: shrink the stage further (NEVER grow it — the 100vh
+    // hard boundary this section already sits inside must not be violated) until the guide
+    // lands exactly on the navbar's bottom edge, and shift the plate down by the same
+    // amount so nothing above the guide is cropped off the top.
+    // opts.navGuide/opts.navCover are optional — omitted (or <= 0), `guide`/`cover` are 0,
+    // the condition below is always false, and every line below it is dead: output is
+    // byte-identical to before this fix existed.
+    var guide = isFinite(opts.navGuide) && opts.navGuide > 0 ? Number(opts.navGuide) : 0;
+    var cover = isFinite(opts.navCover) && opts.navCover > 0 ? Number(opts.navCover) : 0;
+    var contentTop = 0;
+    // !multi: multi-mode sections grow the box to fit (no fixed-height contract to protect
+    //   the way single-mode's 100vh boundary is) and were never in scope for this bug.
+    // guide < ch: a guide at/past the design's own bottom edge can't be satisfied sanely.
+    // vh > cover: if the whole stage box is shorter than the navbar cover itself, the guide
+    //   is impossible to satisfy — fall back to the unmodified result rather than producing
+    //   a negative/nonsense scale.
+    // guide * scale < cover: only correct when the natural scale actually puts the guide
+    //   under the navbar — a guide that already clears it needs no adjustment.
+    if (!multi && guide > 0 && cover > 0 && guide < ch && vh > cover && guide * scale < cover) {
+      // Largest scale that keeps the guide's post-shift screen position (cover - guide*scale
+      // + guide*scale = cover) and the plate's bottom (cover + scale*(ch-guide)) inside vh.
+      // Math.min: shrink only, this can never grow scale above what it already was.
+      scale = Math.min(scale, Math.floor(((vh - cover) / (ch - guide)) * 1e4) / 1e4);
+      contentTop = cover - guide * scale; // guide now lands exactly on the navbar's real bottom edge
+    }
+
     var contentW = cw * scale;
-    var contentLeft = (uniformBg || (!multi && scaleY < scaleX)) ? Math.max(0, (vw - contentW) / 2) : 0;
+    // scale < scaleX (equivalent to the pre-fix `scaleY < scaleX` in every case that ever
+    // reached it — scale is already Math.min(scaleX, scaleY) whenever multi is false, the
+    // only branch that guard is read in): centres when the FINAL scale (after the navGuide
+    // shrink above, if it applied) is height-constrained, so contentLeft reflects whatever
+    // scale the plate actually renders at, not a stale pre-shrink value.
+    var contentLeft = (uniformBg || (!multi && scale < scaleX)) ? Math.max(0, (vw - contentW) / 2) : 0;
     var bg = uniformBg
       ? { left: 0, top: 0, width: vw / scale, height: vh / scale, scale: scale, scaleX: scale, scaleY: scale,
           transform: "scale(" + scale + ")" }
@@ -1078,7 +1132,7 @@
     return {
       scale: scale,
       contentLeft: contentLeft,
-      contentTop: 0,
+      contentTop: contentTop,
       contentW: contentW,
       contentH: ch * scale,
       bg: bg,
@@ -1093,6 +1147,7 @@
     ensureGoogleFontLinks: ensureGoogleFontLinks,
     measuredLineCount: measuredLineCount,
     computeStageFit: computeStageFit,
+    FRAME_GUIDE_NAV: FRAME_GUIDE_NAV,
     isBlankBackgroundBundle: isBlankBackgroundBundle,
     resolveLiveBackgroundBundle: resolveLiveBackgroundBundle,
     computeSubElementStyle: computeSubElementStyle,

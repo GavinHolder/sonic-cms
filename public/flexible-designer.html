@@ -3286,7 +3286,11 @@ function renderCanvas() {
  *   - NAV (navbar height): Navbar.tsx STANDARD_HEIGHT=100 (TALL_HEIGHT=140 for the "tall" admin
  *     style, not modeled here) is set once via --navbar-height and floors padding-top identically
  *     in both the desktop and the @media(max-width:767px) mobile rule in globals.css — NOT
- *     viewport-dependent. Same 100 reused for all three breakpoints.
+ *     viewport-dependent. Same 100 reused for all three breakpoints. Since Fix A (2026-09-30,
+ *     navbar-guide-drift), read from the shared FlexibleRenderRules.FRAME_GUIDE_NAV constant
+ *     instead of a second hardcoded literal — the live renderer's own navGuide/navCover fit
+ *     math (flexible-render-rules.js's computeStageFit) reads the same constant, so this guide
+ *     line and the live clearance it represents can never drift apart on this number again.
  *   - PAD_T (content-top boundary): desktop/tablet default --section-pt is 80px (Flexible­
  *     SectionRenderer.tsx paddingTop ?? 80) but is always floored by NAV=100 via
  *     safeTop=max(PAD_T,NAV) below, so the rendered boundary is 100 either way — no per-breakpoint
@@ -3319,7 +3323,12 @@ function renderFrameGuides() {
   if (!on) { layer.style.display = 'none'; layer.replaceChildren(); return; }
   const W = state.designerCanvasW || defaultCanvasWForBreakpoint(state.devicePreview); // current breakpoint's own canvas width
   const H = state.designerCanvasH || DESIGN_H;   // design-box height
-  const NAV = 100, PAD_T = 80, GUT = 12;
+  // NAV (navbar height): read from the shared FlexibleRenderRules.FRAME_GUIDE_NAV constant
+  // (flexible-render-rules.js) instead of a separate hand-copied literal — the live renderer's
+  // navbar-guide-drift fix (Fix A, 2026-09-30) reads the SAME constant, so this guide line and
+  // the live navbar clearance it represents can never drift apart on this specific number again.
+  const NAV = (window.FlexibleRenderRules && window.FlexibleRenderRules.FRAME_GUIDE_NAV) || 100;
+  const PAD_T = 80, GUT = 12;
   // PAD_B and WAVE are the two constants confirmed breakpoint-dependent on the live site (see doc comment above).
   const PAD_B = state.devicePreview === 'mobile' ? 40 : 80;
   const WAVE  = state.devicePreview === 'mobile' ? 100 : (state.devicePreview === 'tablet' ? 160 : 200);
@@ -3337,8 +3346,8 @@ function renderFrameGuides() {
     }
     return el;
   };
-  // Fixed navbar band (top 100px)
-  kids.push(mk('cfg-navband', { height: NAV + 'px' }, 'navbar 100px'));
+  // Fixed navbar band
+  kids.push(mk('cfg-navband', { height: NAV + 'px' }, 'navbar ' + NAV + 'px'));
   // Content-safe top boundary (max(paddingTop, navbar))
   const ptLine = mk('cfg-hline', { top: safeTop + 'px' });
   const ptLbl = document.createElement('span'); ptLbl.className = 'cfg-hlabel'; ptLbl.style.top = safeTop + 'px'; ptLbl.textContent = 'content top';

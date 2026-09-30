@@ -15,7 +15,7 @@ import { createEntranceObserver, isEntranceVisible } from "@/lib/entrance-observ
 // source of truth also consumed by public/flexible-designer.html (see that file's
 // <script src="/flexible-render-rules.js"> and this module's own doc comment for why
 // it exists). Plain JS + hand-written flexible-render-rules.d.ts alongside it.
-import { computeSubElementStyle, computeSubElementPosition, resolveBlockZIndex, computeMultiBgLayers, resolveBgPositionCss, resolveBackgroundPosForBreakpoint, buildGradientCss, resolveLiveBackgroundBundle, computeStageFit, collectFontRequests, ensureGoogleFontLinks } from "../../public/flexible-render-rules.js";
+import { computeSubElementStyle, computeSubElementPosition, resolveBlockZIndex, computeMultiBgLayers, resolveBgPositionCss, resolveBackgroundPosForBreakpoint, buildGradientCss, resolveLiveBackgroundBundle, computeStageFit, collectFontRequests, ensureGoogleFontLinks, FRAME_GUIDE_NAV } from "../../public/flexible-render-rules.js";
 import type { BgBundle, BackgroundByBreakpoint, GradientConfig } from "../../public/flexible-render-rules.js";
 // Per-breakpoint independent layouts (2026-09-11) — shared shape-normalization/variant-
 // selection module (Task 1 of this feature). Companion to flexible-render-rules.js above;
@@ -2193,6 +2193,12 @@ function DesignerBlocksRenderer({
   // stageH is only consumed by the free cover-plate (plateMode) — it measures the SECTION
   // box height so the plate can be COVER-scaled (max of width/height ratios), not width-only.
   const [stageH, setStageH] = useState(0);
+  // navH: the live navbar's real, unscaled height (Fix A, 2026-09-30 — navbar-guide-drift
+  // fix). Read from the `--navbar-height` CSS custom property on <html>, which Navbar.tsx
+  // keeps in sync (and app/layout.tsx sets before first paint) — never hardcoded, so this
+  // stays correct if navbarStyle is ever "tall" (140) instead of "standard" (100). Default
+  // 100 matches every existing `var(--navbar-height, 100px)` fallback already in this file.
+  const [navH, setNavH] = useState(100);
   // useLayoutEffect (not useEffect): the initial clientWidth/clientHeight read must land
   // BEFORE the browser's first paint, not after it. useEffect fires post-paint, so the very
   // first frame renders at the stageW=0 fallback (window.innerWidth/innerHeight) and only
@@ -2206,10 +2212,16 @@ function DesignerBlocksRenderer({
   useLayoutEffect(() => {
     const el = stageRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(() => { setStageW(el.clientWidth); setStageH(el.clientHeight); });
+    const readNavH = () => {
+      if (typeof document === "undefined") return;
+      const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--navbar-height"));
+      if (isFinite(v) && v > 0) setNavH(v);
+    };
+    const ro = new ResizeObserver(() => { setStageW(el.clientWidth); setStageH(el.clientHeight); readNavH(); });
     ro.observe(el);
     setStageW(el.clientWidth);
     setStageH(el.clientHeight);
+    readNavH();
     return () => ro.disconnect();
   }, []);
   // Mount gate — the free-mode mobile reflow (screenW < 768) must only apply AFTER
@@ -2597,7 +2609,22 @@ function DesignerBlocksRenderer({
       const sh = stageH || (isMulti
         ? (sw * chTotal) / cw
         : (typeof window !== "undefined" ? window.innerHeight : ch));
-      const fit = computeStageFit({ cw, ch: chTotal, vw: sw, vh: sh, mode: isMulti ? "multi" : "single", maxScale: plateMaxScale, breakpoint: resolvedActiveBreakpointKey });
+      // Navbar-guide-drift fix (Fix A, 2026-09-30) — scoped to exactly single-mode content,
+      // same as the Designer's own frame guides (never multi, never dynamic): those are the
+      // only modes where a fixed-height 100vh box can genuinely hide content under the
+      // navbar's fixed overlay. Mirrors the same resolvedContentMode-over-variant-data
+      // preference isMulti above already uses (see its own comment) rather than re-deriving
+      // a third copy of that fallback.
+      const navGuideActive = (resolvedContentMode ?? (effectiveData?.contentMode as string | undefined)) === "single";
+      // navCover: how many CSS px of the live navbar's fixed overlay actually reach into this
+      // stage — 0 once headerOffset (a CMS Section Header, already measured above this plate)
+      // pushes the plate's own top past the navbar's bottom edge.
+      const navCover = navGuideActive ? Math.max(0, navH - (headerOffset || 0)) : 0;
+      const fit = computeStageFit({
+        cw, ch: chTotal, vw: sw, vh: sh, mode: isMulti ? "multi" : "single", maxScale: plateMaxScale,
+        breakpoint: resolvedActiveBreakpointKey,
+        ...(navGuideActive ? { navGuide: FRAME_GUIDE_NAV, navCover } : {}),
+      });
       // fit.scale is already rounded to 4dp inside computeStageFit — a real device width divided by
       // an authored canvas width is essentially never a clean number, and an unrounded scale (e.g.
       // matrix(1.06556,0,0,1.06556,0,0)) renders text visibly soft (confirmed in a real browser).
@@ -2678,8 +2705,11 @@ function DesignerBlocksRenderer({
           )}
           <div data-fx-content="" style={{
             // Top-anchored, horizontally centred content plate — always a UNIFORM scale, so every
-            // card/button/text block renders undistorted.
-            position: "absolute", left: contentLeft, top: 0,
+            // card/button/text block renders undistorted. top: fit.contentTop is 0 unless the
+            // navbar-guide-drift fix above shrank the scale and shifted the plate down so its
+            // navGuide line lands on the navbar's real bottom edge (Fix A, 2026-09-30) — see
+            // computeStageFit's own doc comment for the full contract.
+            position: "absolute", left: contentLeft, top: fit.contentTop,
             width: cw, height: chTotal,
             transform: contentTransform,
             transformOrigin: "top left",

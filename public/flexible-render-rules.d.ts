@@ -301,6 +301,15 @@ export interface StageFitOpts {
    * scale(sx, sy)); "tablet"/"mobile" get the uniform cover plate. Does not affect `scale`.
    */
   breakpoint?: "desktop" | "tablet" | "mobile";
+  /**
+   * Navbar-guide-drift fix (Fix A, 2026-09-30). Both optional; omitted (or single mode not
+   * active), behavior is byte-identical to before this fix existed. See FRAME_GUIDE_NAV and
+   * computeStageFit's own doc comment in flexible-render-rules.js for the full contract.
+   */
+  /** The navbar's real bottom edge, in canvas design px — pass FRAME_GUIDE_NAV. */
+  navGuide?: number;
+  /** How many CSS px of the live navbar's fixed overlay actually cover this stage's top. */
+  navCover?: number;
 }
 
 export interface StageFit {
@@ -321,6 +330,9 @@ export interface StageFit {
 
 /** The single shared decision of how a free-mode canvas is fitted into a box — uniform, never stretched. */
 export function computeStageFit(opts: StageFitOpts): StageFit;
+
+/** The live navbar's real, unscaled bottom edge, in canvas design px. See computeStageFit's navGuide param. */
+export const FRAME_GUIDE_NAV: number;
 
 /** Replaces a trailing Google category word (display/handwriting — not valid CSS generics) with a real generic. */
 export function normalizeFontStack<T extends string | undefined | null>(css: T): T;
