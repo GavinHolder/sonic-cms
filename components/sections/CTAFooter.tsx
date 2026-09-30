@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { CTASection, BackgroundColor, ButtonConfig } from "@/types/section";
 import type { FormField } from "@/types/page";
 import VerificationModal from "@/components/VerificationModal";
+import { ENTRANCE_VISIBILITY_THRESHOLD } from "@/lib/anime";
 
 /**
  * CTAFooter Props
@@ -90,6 +91,55 @@ export default function CTAFooter({
 
   const topPad = paddingTop ?? 100;
   const bottomPad = paddingBottom ?? 80;
+
+  /**
+   * Entrance animation for the heading/subheading — scroll-snap-aware.
+   *
+   * ASSUMPTIONS:
+   * 1. This section lives inside #snap-container like every other public
+   *    section, so it jumps from ~0% to ~100% visible in one fast native
+   *    scroll-snap transition rather than a slow continuous scroll.
+   * 2. Only one of the two render branches (contact-form vs standard CTA)
+   *    mounts at a time, so a single ref/state pair can drive whichever
+   *    branch is active.
+   *
+   * FAILURE MODES:
+   * - A low IntersectionObserver threshold would fire the animation while
+   *   the section is still mid-snap-transition, so it finishes (or nearly
+   *   finishes) before the section actually settles in front of the user —
+   *   the same bug this fix's sibling branch (fix/scroll-triggered-animations)
+   *   root-caused and fixed elsewhere. Using the shared
+   *   ENTRANCE_VISIBILITY_THRESHOLD constant instead of a second hardcoded
+   *   threshold avoids reintroducing that bug here (ONE SYSTEM PER CONCERN).
+   * - Observing without disconnecting would re-trigger on every scroll-snap
+   *   pass; disconnect() after first fire keeps it one-shot.
+   */
+  const headingRef = useRef<HTMLDivElement>(null);
+  const [isHeadingVisible, setIsHeadingVisible] = useState(false);
+
+  useEffect(() => {
+    const el = headingRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsHeadingVisible(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: ENTRANCE_VISIBILITY_THRESHOLD }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const headingEntranceStyle: React.CSSProperties = {
+    transition: "opacity 0.8s ease, transform 0.8s ease",
+    opacity: isHeadingVisible ? 1 : 0,
+    transform: isHeadingVisible ? "translateY(0)" : "translateY(24px)",
+  };
 
   // ── Contact form state ──
   const [formValues, setFormValues] = useState<Record<string, string>>({});
@@ -183,14 +233,16 @@ export default function CTAFooter({
           <div className="row align-items-center gy-5">
             {/* Left: heading + subheading + contact info */}
             <div className="col-lg-5">
-              <h2 className={`display-5 fw-bold mb-3 ${isBlueBackground ? "text-white" : "text-dark"}`}>
-                {heading}
-              </h2>
-              {subheading && (
-                <p className={`lead mb-4 ${isBlueBackground ? "text-white opacity-75" : "text-muted"}`}>
-                  {subheading}
-                </p>
-              )}
+              <div ref={headingRef} style={headingEntranceStyle}>
+                <h2 className={`display-5 fw-bold mb-3 ${isBlueBackground ? "text-white" : "text-dark"}`}>
+                  {heading}
+                </h2>
+                {subheading && (
+                  <p className={`lead mb-4 ${isBlueBackground ? "text-white opacity-75" : "text-muted"}`}>
+                    {subheading}
+                  </p>
+                )}
+              </div>
               {contactInfo && (
                 <ul className="list-unstyled mb-0" style={{ marginTop: 8 }}>
                   {contactInfo.phone && (
@@ -343,14 +395,16 @@ export default function CTAFooter({
         ) : (
           /* Standard CTA: centered heading + optional buttons */
           <div className="text-center mb-4">
-            <h2 className={`display-5 fw-bold mb-3 ${isBlueBackground ? "text-white" : "text-dark"}`}>
-              {heading}
-            </h2>
-            {subheading && (
-              <p className={`lead mb-4 ${isBlueBackground ? "text-white opacity-75" : "text-muted"}`}>
-                {subheading}
-              </p>
-            )}
+            <div ref={headingRef} style={headingEntranceStyle}>
+              <h2 className={`display-5 fw-bold mb-3 ${isBlueBackground ? "text-white" : "text-dark"}`}>
+                {heading}
+              </h2>
+              {subheading && (
+                <p className={`lead mb-4 ${isBlueBackground ? "text-white opacity-75" : "text-muted"}`}>
+                  {subheading}
+                </p>
+              )}
+            </div>
             {buttons && buttons.length > 0 && (
               <div className="d-flex flex-wrap justify-content-center gap-3 mb-5">
                 {buttons.map((button, index) => (
