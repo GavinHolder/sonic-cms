@@ -8536,7 +8536,7 @@ function renderSubTypeProps(bId, se) {
  */
 function renderNavSection(targetId, currentVal, kind, blockId) {
   const opts = state.navOptions.map(o =>
-    `<option value="${o.value}" ${currentVal===o.value?'selected':''}>${o.label}</option>`
+    `<option value="${escHtml(o.value)}" ${currentVal===o.value?'selected':''}>${escHtml(o.label)}</option>`
   ).join('');
   // Build the correct updateXxxProp call depending on whether this is a block or sub-element link
   const upFn = kind==='block'
@@ -8589,7 +8589,7 @@ function renderCardTabsCtaUrlRow(blockId, currentVal) {
   const known = builtins.some(o => o.value === val);
   const selVal = known ? val : 'custom';
   const opts = builtins.map(o =>
-    `<option value="${o.value}" ${selVal===o.value?'selected':''}>${o.label}</option>`
+    `<option value="${escHtml(o.value)}" ${selVal===o.value?'selected':''}>${escHtml(o.label)}</option>`
   ).join('');
   const boxId = `ctaurl-${blockId}`;
   return `<div class="props-section">
