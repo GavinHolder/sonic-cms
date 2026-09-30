@@ -67,6 +67,11 @@ export function LinkPicker({
   className = "",
 }: LinkPickerProps) {
   const [catalogGroups, setCatalogGroups] = useState<LinkGroup[]>([]);
+  // Tracks an explicit pick of the "Custom URL / anchor…" sentinel so the
+  // free-text input stays shown while the user is typing a custom value from
+  // scratch (empty or a known option) — see isCustom below for why the
+  // value-based check alone isn't enough here.
+  const [customMode, setCustomMode] = useState(false);
 
   useEffect(() => {
     fetch("/api/link-catalog")
@@ -101,15 +106,20 @@ export function LinkPicker({
     ...groups.flatMap((g) => g.options.map((o) => o.value)),
   ]);
 
-  const isCustom = value !== "" && !knownValues.has(value);
+  // customMode covers the "user just picked the sentinel, value is still
+  // empty/known" gap; the value-based check covers round-tripping an
+  // already-custom value on mount without requiring a re-pick.
+  const isCustom = customMode || (value !== "" && !knownValues.has(value));
 
   const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selected = e.target.value;
     if (selected === CUSTOM_SENTINEL) {
+      setCustomMode(true);
       // Switch into custom mode without clobbering an existing custom value.
       if (!isCustom) onChange("");
       return;
     }
+    setCustomMode(false);
     onChange(selected);
   };
 
