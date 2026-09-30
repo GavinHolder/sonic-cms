@@ -6609,21 +6609,161 @@ function _lyAction(act, kind, blockId, seId){
   }
 }
 
-function _lyDuplicateBlock(blockId){
+/**
+ * Given an ALREADY deep-cloned+re-idded block (`copy` — the caller has run
+ * JSON.parse(JSON.stringify(original)) and minted fresh copy.id/subElement
+ * ids), makes sure a `type:'volt'` block's props.voltId does not keep
+ * pointing at the SAME shared VoltElement row as the block it was copied
+ * from. JSON.parse(JSON.stringify(...)) only severs JS object references —
+ * copy.props.voltId is a STRING (a foreign-key-style reference into the
+ * VoltElement table), so the deep-clone alone leaves both blocks pointing at
+ * one shared row. If the user later edits that row in place (double-click ->
+ * Volt Studio -> PUT /api/volt/<id>, the same save path VOLT_DESIGNER_SAVE
+ * uses below), BOTH blocks change — including the original the user copied
+ * FROM, and any unrelated block/section anywhere on the site that happens to
+ * reference the same voltId. This is the ONE place that severs that
+ * reference, called by every block-duplicating action (_lyDuplicateBlock,
+ * pasteBpClipboard's 'blocks' kind, mttDuplicate) so there is exactly one
+ * implementation of "make a block copy independent" (ONE SYSTEM PER CONCERN
+ * — CLAUDE.md).
+ *
+ * Calls the SAME server endpoint (POST /api/volt/<id>/duplicate) the Volt
+ * Studio library's own "Duplicate" button uses (app/admin/volt/page.tsx
+ * handleDuplicate) rather than constructing a client-side clone — that
+ * endpoint already enforces the correct visibility/ownership rules (EDITOR
+ * role, own volts or any public one) and creates a genuinely independent DB
+ * row; reimplementing that here would risk drifting from those rules.
+ *
+ * ASSUMPTIONS:
+ * 1. `copy.type === 'volt'` implies `copy.props.voltId` is either a real
+ *    VoltElement id or falsy (a placeholder Volt block never saved yet —
+ *    see createNewVoltFromCanvas()). A falsy id has nothing to duplicate:
+ *    both blocks are already independent since neither has a backing row.
+ * 2. Non-volt block types (including 'card-tabs'/'product-grid', which also
+ *    carry a `props.voltId` — but as a SELECTED shared card style/theme
+ *    picked from the Volt library dropdown, the same reuse-by-reference
+ *    relationship as dragging a design out of the Volt Library panel, not an
+ *    in-place-editable "this block IS the design" relationship) must NOT be
+ *    touched here — duplicating a card-tabs/product-grid block choosing the
+ *    same shared card style is correct, expected behaviour, not this bug.
+ * 3. The session cookie carries EDITOR+ role — the Designer already requires
+ *    that to be reached at all, same assumption the existing PUT/POST
+ *    /api/volt/* calls in this file make (see VOLT_DESIGNER_SAVE below).
+ *
+ * FAILURE MODES:
+ * - Network error / non-OK response / malformed body -> resolves false.
+ *   Callers MUST abort the whole duplicate (no history push, no block
+ *   inserted) rather than fall back to the original voltId — falling back
+ *   silently would recreate the exact bug this function exists to prevent.
+ *
+ * @param {object} copy - A deep-cloned block copy, already given fresh ids.
+ *   Mutated in place on success (props.voltId/voltName/voltThumbnail).
+ * @returns {Promise<boolean>} true if `copy` is safe to insert as-is (either
+ *   independent-ified, or had nothing to duplicate); false if the caller
+ *   must abort.
+ */
+async function _lyEnsureIndependentVoltCopy(copy) {
+  if (!copy || copy.type !== 'volt' || !copy.props || !copy.props.voltId) return true;
+  try {
+    const res = await fetch('/api/volt/' + copy.props.voltId + '/duplicate', {
+      method: 'POST',
+      credentials: 'include'
+    });
+    if (!res.ok) {
+      console.warn('[flex-designer] Volt duplicate-on-copy failed:', res.status);
+      return false;
+    }
+    const json = await res.json();
+    const saved = json && json.data && json.data.volt;
+    if (!saved || !saved.id) {
+      console.warn('[flex-designer] Volt duplicate-on-copy returned no volt', json);
+      return false;
+    }
+    // F1 (2026-09-29 review): carry the glass-blur flag over to the new id
+    // BEFORE copy.props.voltId is overwritten below (this lookup needs the
+    // OLD id). window.__voltGlassMap is populated once at Designer load
+    // (loadVoltGlassFlags) keyed by voltId; buildVoltPreviewUrl() reads it to
+    // decide whether a Volt's preview iframe needs the section's real
+    // background forwarded in (only a glass/frosted layer's backdrop-filter
+    // needs that to blur anything). Before this whole fix, a duplicate's
+    // SHARED voltId happened to already be a key in that map, so the
+    // accidental sharing made the blur look right by coincidence. Now that a
+    // duplicate mints a genuinely independent id (the whole point of this
+    // fix), that new id was never in the map, so a duplicated glass Volt fell
+    // through to a flat unblurred tint until the Designer was reloaded.
+    // Guarded on `window` because this function's source is extracted and
+    // run in a Node `vm` sandbox with no `window` by
+    // __tests__/unit/lib/volt-block-duplicate-independence.test.ts.
+    if (typeof window !== 'undefined' && window.__voltGlassMap && copy.props.voltId in window.__voltGlassMap) {
+      window.__voltGlassMap[saved.id] = window.__voltGlassMap[copy.props.voltId];
+    }
+    copy.props = Object.assign({}, copy.props, {
+      voltId: saved.id,
+      voltName: saved.name,
+      voltThumbnail: saved.thumbnail || copy.props.voltThumbnail || null
+    });
+    return true;
+  } catch (err) {
+    console.warn('[flex-designer] Volt duplicate-on-copy error:', err);
+    return false;
+  }
+}
+
+// In-flight guard (F2 point 4, 2026-09-29 review): holding down a
+// duplicate shortcut/button can fire several triggers per second; without
+// this, each one starts its own overlapping POST /api/volt/<id>/duplicate.
+// A call that arrives while an earlier one from this SAME entry point is
+// still awaiting is dropped rather than queued — simplest correct fix,
+// not a general mutex/queue, since there's exactly one caller per entry
+// point (one button / one keyboard shortcut).
+let _lyDuplicateBlockInFlight = false;
+async function _lyDuplicateBlock(blockId){
+  if (_lyDuplicateBlockInFlight) return;
   const b = state.blocks.find(x=>x.id===blockId); if (!b) return;
-  pushHistory();
-  const copy = JSON.parse(JSON.stringify(b));
-  copy.id = 'b' + (++state.nextId);
-  if (Array.isArray(copy.subElements)) copy.subElements.forEach(se => { se.id = 'se-' + (state.nextId++); });
-  copy.x = (copy.x||0)+20; copy.y = (copy.y||0)+20; copy.zIndex = (copy.zIndex||1)+1;
-  const idx = state.blocks.indexOf(b);
-  state.blocks.splice(idx+1, 0, copy);
-  // Reindex zIndex to match array position (same invariant _fcxReorder/_lyHandleDrop
-  // enforce) — otherwise the bumped copy.zIndex above can leave every later block's
-  // stored zIndex stale relative to its true array position.
-  window.FlexibleRenderRules.restampBlockZIndexes(state.blocks);
-  state.selectedBlockId = copy.id; state.selectedSubId = null;
-  renderCanvas(); renderPropsPanel(); autoSave();
+  _lyDuplicateBlockInFlight = true;
+  try {
+    const copy = JSON.parse(JSON.stringify(b));
+    // Race guard (F2, 2026-09-29 review): capture the pre-await breakpoint +
+    // state.blocks IDENTITY. Both a breakpoint switch (setDevicePreview) and
+    // an undo (applySnapshot) REPLACE state.blocks wholesale and rewind
+    // state.nextId while this POST is in flight (see loadFlatVariantIntoState).
+    // If either happens mid-await: inserting into `state.blocks` below would
+    // silently land this duplicate on the WRONG breakpoint's canvas (confirmed
+    // reproducible), and minting copy.id off a stale pre-await state.nextId
+    // could collide with an id minted after an undo rewound the counter
+    // (also confirmed reproducible). Checking identity (`!==`), not a deep
+    // comparison, is deliberate — both replacement paths install a NEW array,
+    // even when its content looks the same.
+    const raceBreakpoint = state.activeBreakpoint;
+    const raceBlocks = state.blocks;
+    const ok = await _lyEnsureIndependentVoltCopy(copy);
+    if (!ok) { designerToast("Couldn't duplicate — failed to create an independent Volt design", 'error'); return; }
+    if (state.activeBreakpoint !== raceBreakpoint || state.blocks !== raceBlocks) {
+      // The already-created VoltElement row on the server becomes an orphan
+      // here — accepted, low-frequency cost (same as the existing failure
+      // paths above), not fixed by this change.
+      designerToast('Duplicate cancelled — the canvas changed while duplicating', 'error');
+      return;
+    }
+    // Ids are minted here, AFTER the await resolves and the race check above
+    // passes — not before the await — so they're drawn from whatever
+    // state.nextId is CURRENT now, closing the undo-mid-POST collision window.
+    copy.id = 'b' + (++state.nextId);
+    if (Array.isArray(copy.subElements)) copy.subElements.forEach(se => { se.id = 'se-' + (state.nextId++); });
+    pushHistory();
+    copy.x = (copy.x||0)+20; copy.y = (copy.y||0)+20; copy.zIndex = (copy.zIndex||1)+1;
+    const idx = state.blocks.indexOf(b);
+    const insertAt = idx === -1 ? state.blocks.length : idx + 1;
+    state.blocks.splice(insertAt, 0, copy);
+    // Reindex zIndex to match array position (same invariant _fcxReorder/_lyHandleDrop
+    // enforce) — otherwise the bumped copy.zIndex above can leave every later block's
+    // stored zIndex stale relative to its true array position.
+    window.FlexibleRenderRules.restampBlockZIndexes(state.blocks);
+    state.selectedBlockId = copy.id; state.selectedSubId = null;
+    renderCanvas(); renderPropsPanel(); autoSave();
+  } finally {
+    _lyDuplicateBlockInFlight = false;
+  }
 }
 
 function _lyDuplicateSub(blockId, seId){
@@ -6781,96 +6921,140 @@ function copyBpClipboard() {
  *   succeeds in one action instead of a dead end. See
  *   _pasteSubElementsIntoParent().
  */
-function pasteBpClipboard() {
+// In-flight guard (F2 point 4, 2026-09-29 review): holding Ctrl+V fires many
+// keydown/paste events per second; without this, each one starts its own
+// overlapping batch of POST /api/volt/<id>/duplicate calls. A call that
+// arrives while an earlier one is still awaiting is dropped rather than
+// queued — see _lyDuplicateBlock's identical guard above for the full
+// reasoning (one entry point, no need for a general mutex/queue).
+let _pasteBpClipboardInFlight = false;
+async function pasteBpClipboard() {
+  if (_pasteBpClipboardInFlight) return;
   if (!_bpClipboard || !_bpClipboard.items || !_bpClipboard.items.length) {
     designerToast('Nothing to paste');
     return;
   }
-  const targetCanvasW = state.designerCanvasW || defaultCanvasWForBreakpoint(state.activeBreakpoint);
-  const targetCanvasH = state.designerCanvasH || DESIGN_H;
-  const ratio = targetCanvasW / (_bpClipboard.sourceCanvasW || targetCanvasW);
-  const rescaled = Math.abs(ratio - 1) > 0.001;
-  const rescaleNote = rescaled ? (', rescaled from ' + Math.round(_bpClipboard.sourceCanvasW) + 'px') : '';
+  _pasteBpClipboardInFlight = true;
+  try {
+    const targetCanvasW = state.designerCanvasW || defaultCanvasWForBreakpoint(state.activeBreakpoint);
+    const targetCanvasH = state.designerCanvasH || DESIGN_H;
+    const ratio = targetCanvasW / (_bpClipboard.sourceCanvasW || targetCanvasW);
+    const rescaled = Math.abs(ratio - 1) > 0.001;
+    const rescaleNote = rescaled ? (', rescaled from ' + Math.round(_bpClipboard.sourceCanvasW) + 'px') : '';
 
-  if (_bpClipboard.kind === 'blocks') {
+    if (_bpClipboard.kind === 'blocks') {
+      // Race guard (F2, 2026-09-29 review): capture pre-await breakpoint +
+      // state.blocks identity ONCE, before the loop — see _lyDuplicateBlock's
+      // header comment for the full explanation of why a breakpoint switch or
+      // an undo mid-POST is dangerous here. Checked again after EVERY await
+      // inside the loop below (not just once at the end), since a multi-item
+      // paste awaits once per block and the race can land in any iteration.
+      const raceBreakpoint = state.activeBreakpoint;
+      const raceBlocks = state.blocks;
+      // Build every copy (and, for a type:'volt' item, mint its independent
+      // VoltElement row — see _lyEnsureIndependentVoltCopy) BEFORE touching
+      // history/state.blocks, so a mid-paste server failure leaves state
+      // completely untouched rather than half-pasted.
+      const copies = [];
+      for (const srcBlock of _bpClipboard.items) {
+        const copy = JSON.parse(JSON.stringify(srcBlock));
+        const ok = await _lyEnsureIndependentVoltCopy(copy);
+        if (!ok) {
+          designerToast("Paste failed — couldn't create an independent Volt design for one of the blocks", 'error');
+          return;
+        }
+        if (state.activeBreakpoint !== raceBreakpoint || state.blocks !== raceBlocks) {
+          // Any already-created VoltElement rows for earlier items in this
+          // loop become orphans on the server — accepted, low-frequency cost,
+          // same as the existing failure path above.
+          designerToast('Paste cancelled — the canvas changed while pasting', 'error');
+          return;
+        }
+        // Ids minted AFTER the await + race check (not before) — see
+        // _lyDuplicateBlock's comment for why this closes the undo-mid-POST
+        // id-collision window.
+        copy.id = 'b' + (++state.nextId);
+        if (Array.isArray(copy.subElements)) copy.subElements.forEach(se => { se.id = 'se-' + (state.nextId++); });
+        copies.push(copy);
+      }
+      pushHistory();
+      let lastId = null;
+      copies.forEach(copy => {
+        copy.w = Math.max(1, Math.round((copy.w || 0) * ratio));
+        copy.h = Math.max(1, Math.round((copy.h || 0) * ratio));
+        const rawX = Math.round((copy.x || 0) * ratio);
+        const rawY = Math.round((copy.y || 0) * ratio);
+        copy.x = Math.max(0, Math.min(targetCanvasW - BP_PASTE_MIN_VISIBLE, rawX));
+        copy.y = Math.max(0, Math.min(targetCanvasH - BP_PASTE_MIN_VISIBLE, rawY));
+        copy.zIndex = (copy.zIndex || 1) + 1;
+        state.blocks.push(copy);
+        lastId = copy.id;
+      });
+      // Reindex zIndex to array position — same invariant _lyDuplicateBlock/
+      // _fcxReorder enforce.
+      window.FlexibleRenderRules.restampBlockZIndexes(state.blocks);
+      state.selectedBlockId = lastId; state.selectedSubId = null;
+      renderCanvas(); renderPropsPanel(); autoSave();
+      const n = _bpClipboard.items.length;
+      designerToast('Pasted ' + n + (n === 1 ? ' block' : ' blocks') + rescaleNote);
+      return;
+    }
+
+    // kind === 'subElements' — needs a target PARENT block on the CURRENT canvas.
+    // Per explicit user feedback (paste must never require hunting for/
+    // selecting a destination first): whenever nothing is selected — canvas
+    // empty OR just no active selection — auto-create a container from the
+    // copied elements' ORIGINAL parent shape (sourceParentBlock, captured at
+    // copy time) rather than refusing. Falls back to a minimal generic block
+    // if the clipboard predates that snapshot.
+    let parent = state.selectedBlockId ? state.blocks.find(x => x.id === state.selectedBlockId) : null;
+
+    // Volt blocks (type 'volt') are not generic subElements containers — their
+    // whole content is owned by Volt Studio (props.voltId + slots) and edited
+    // via openVoltModal() (double-click, line ~3702-3703), not the free-canvas
+    // subElements model at all. renderCanvas()'s 'volt' branch (~line 3702)
+    // never reads subElements, so pushing pasted items onto one would silently
+    // vanish into an unrendered field — refuse instead of touching it.
+    if (parent && parent.type === 'volt') {
+      designerToast("Can't paste elements into a Volt block — edit it in Volt Studio, or select a different block");
+      return;
+    }
+
+    if (!parent) {
+      pushHistory();
+      const srcParent = _bpClipboard.sourceParentBlock;
+      const newBlock = srcParent ? JSON.parse(JSON.stringify(srcParent)) : {
+        type: 'container', section: 0, gridRow: 1, gridCol: 1, colSpan: 1, rowSpan: 1,
+        x: 0, y: 0, w: 300, h: 180, zIndex: 1, props: {}
+      };
+      newBlock.id = 'b' + (++state.nextId);
+      newBlock.subElements = [];
+      newBlock.w = Math.max(1, Math.round((newBlock.w || 300) * ratio));
+      newBlock.h = Math.max(1, Math.round((newBlock.h || 180) * ratio));
+      const rawX = Math.round((newBlock.x || 0) * ratio);
+      const rawY = Math.round((newBlock.y || 0) * ratio);
+      newBlock.x = Math.max(0, Math.min(targetCanvasW - BP_PASTE_MIN_VISIBLE, rawX));
+      newBlock.y = Math.max(0, Math.min(targetCanvasH - BP_PASTE_MIN_VISIBLE, rawY));
+      state.blocks.push(newBlock);
+      // Reindex zIndex to array position — same invariant _lyDuplicateBlock/
+      // _fcxReorder/the 'blocks' branch above enforce.
+      window.FlexibleRenderRules.restampBlockZIndexes(state.blocks);
+      const lastId = _pasteSubElementsIntoParent(newBlock, _bpClipboard.items, ratio, targetCanvasW, targetCanvasH);
+      state.selectedBlockId = newBlock.id; state.selectedSubId = lastId;
+      renderCanvas(); renderPropsPanel(); autoSave();
+      const n = _bpClipboard.items.length;
+      designerToast('Pasted ' + n + (n === 1 ? ' element' : ' elements') + ' (created a container block)' + rescaleNote);
+      return;
+    }
     pushHistory();
-    let lastId = null;
-    _bpClipboard.items.forEach(srcBlock => {
-      const copy = JSON.parse(JSON.stringify(srcBlock));
-      copy.id = 'b' + (++state.nextId);
-      if (Array.isArray(copy.subElements)) copy.subElements.forEach(se => { se.id = 'se-' + (state.nextId++); });
-      copy.w = Math.max(1, Math.round((copy.w || 0) * ratio));
-      copy.h = Math.max(1, Math.round((copy.h || 0) * ratio));
-      const rawX = Math.round((copy.x || 0) * ratio);
-      const rawY = Math.round((copy.y || 0) * ratio);
-      copy.x = Math.max(0, Math.min(targetCanvasW - BP_PASTE_MIN_VISIBLE, rawX));
-      copy.y = Math.max(0, Math.min(targetCanvasH - BP_PASTE_MIN_VISIBLE, rawY));
-      copy.zIndex = (copy.zIndex || 1) + 1;
-      state.blocks.push(copy);
-      lastId = copy.id;
-    });
-    // Reindex zIndex to array position — same invariant _lyDuplicateBlock/
-    // _fcxReorder enforce.
-    window.FlexibleRenderRules.restampBlockZIndexes(state.blocks);
-    state.selectedBlockId = lastId; state.selectedSubId = null;
+    const lastId = _pasteSubElementsIntoParent(parent, _bpClipboard.items, ratio, targetCanvasW, targetCanvasH);
+    state.selectedBlockId = parent.id; state.selectedSubId = lastId;
     renderCanvas(); renderPropsPanel(); autoSave();
     const n = _bpClipboard.items.length;
-    designerToast('Pasted ' + n + (n === 1 ? ' block' : ' blocks') + rescaleNote);
-    return;
+    designerToast('Pasted ' + n + (n === 1 ? ' element' : ' elements') + rescaleNote);
+  } finally {
+    _pasteBpClipboardInFlight = false;
   }
-
-  // kind === 'subElements' — needs a target PARENT block on the CURRENT canvas.
-  // Per explicit user feedback (paste must never require hunting for/
-  // selecting a destination first): whenever nothing is selected — canvas
-  // empty OR just no active selection — auto-create a container from the
-  // copied elements' ORIGINAL parent shape (sourceParentBlock, captured at
-  // copy time) rather than refusing. Falls back to a minimal generic block
-  // if the clipboard predates that snapshot.
-  let parent = state.selectedBlockId ? state.blocks.find(x => x.id === state.selectedBlockId) : null;
-
-  // Volt blocks (type 'volt') are not generic subElements containers — their
-  // whole content is owned by Volt Studio (props.voltId + slots) and edited
-  // via openVoltModal() (double-click, line ~3702-3703), not the free-canvas
-  // subElements model at all. renderCanvas()'s 'volt' branch (~line 3702)
-  // never reads subElements, so pushing pasted items onto one would silently
-  // vanish into an unrendered field — refuse instead of touching it.
-  if (parent && parent.type === 'volt') {
-    designerToast("Can't paste elements into a Volt block — edit it in Volt Studio, or select a different block");
-    return;
-  }
-
-  if (!parent) {
-    pushHistory();
-    const srcParent = _bpClipboard.sourceParentBlock;
-    const newBlock = srcParent ? JSON.parse(JSON.stringify(srcParent)) : {
-      type: 'container', section: 0, gridRow: 1, gridCol: 1, colSpan: 1, rowSpan: 1,
-      x: 0, y: 0, w: 300, h: 180, zIndex: 1, props: {}
-    };
-    newBlock.id = 'b' + (++state.nextId);
-    newBlock.subElements = [];
-    newBlock.w = Math.max(1, Math.round((newBlock.w || 300) * ratio));
-    newBlock.h = Math.max(1, Math.round((newBlock.h || 180) * ratio));
-    const rawX = Math.round((newBlock.x || 0) * ratio);
-    const rawY = Math.round((newBlock.y || 0) * ratio);
-    newBlock.x = Math.max(0, Math.min(targetCanvasW - BP_PASTE_MIN_VISIBLE, rawX));
-    newBlock.y = Math.max(0, Math.min(targetCanvasH - BP_PASTE_MIN_VISIBLE, rawY));
-    state.blocks.push(newBlock);
-    // Reindex zIndex to array position — same invariant _lyDuplicateBlock/
-    // _fcxReorder/the 'blocks' branch above enforce.
-    window.FlexibleRenderRules.restampBlockZIndexes(state.blocks);
-    const lastId = _pasteSubElementsIntoParent(newBlock, _bpClipboard.items, ratio, targetCanvasW, targetCanvasH);
-    state.selectedBlockId = newBlock.id; state.selectedSubId = lastId;
-    renderCanvas(); renderPropsPanel(); autoSave();
-    const n = _bpClipboard.items.length;
-    designerToast('Pasted ' + n + (n === 1 ? ' element' : ' elements') + ' (created a container block)' + rescaleNote);
-    return;
-  }
-  pushHistory();
-  const lastId = _pasteSubElementsIntoParent(parent, _bpClipboard.items, ratio, targetCanvasW, targetCanvasH);
-  state.selectedBlockId = parent.id; state.selectedSubId = lastId;
-  renderCanvas(); renderPropsPanel(); autoSave();
-  const n = _bpClipboard.items.length;
-  designerToast('Pasted ' + n + (n === 1 ? ' element' : ' elements') + rescaleNote);
 }
 
 /**
@@ -12252,26 +12436,55 @@ function mttEdit() {
   enterEditMode(state.selectedBlockId);
 }
 
-function mttDuplicate() {
+// In-flight + race guards: see _lyDuplicateBlock's identical guards above
+// (F2, 2026-09-29 review) — same reasoning applies verbatim to this entry
+// point (mini-toolbar Duplicate button).
+let _mttDuplicateInFlight = false;
+async function mttDuplicate() {
+  if (_mttDuplicateInFlight) return;
   const b = state.blocks.find(b => b.id === state.selectedBlockId);
   if (!b) return;
-  pushHistory();
-  const copy = JSON.parse(JSON.stringify(b));
-  copy.id = 'b' + (++state.nextId);
-  // Deep-clone (above) already severed shared object references. Now assign a
-  // FRESH unique id to every nested sub-element so the copy shares NO ids with
-  // the original — duplicate ids made DOM (data-sub-id) and data lookups resolve
-  // to the original element, producing a "linked" copy that edited both.
-  if (Array.isArray(copy.subElements)) {
-    copy.subElements.forEach(se => { se.id = 'se-' + (state.nextId++); });
+  _mttDuplicateInFlight = true;
+  try {
+    const copy = JSON.parse(JSON.stringify(b));
+    // Race guard (F2): capture pre-await breakpoint + state.blocks identity —
+    // see _lyDuplicateBlock's header comment for the full explanation of why.
+    const raceBreakpoint = state.activeBreakpoint;
+    const raceBlocks = state.blocks;
+    // See _lyEnsureIndependentVoltCopy's header comment: a type:'volt' block's
+    // props.voltId is a shared-row reference the deep-clone above does NOT
+    // sever on its own — must mint an independent VoltElement row before this
+    // copy is allowed into state.blocks.
+    const ok = await _lyEnsureIndependentVoltCopy(copy);
+    if (!ok) { designerToast("Couldn't duplicate — failed to create an independent Volt design", 'error'); return; }
+    if (state.activeBreakpoint !== raceBreakpoint || state.blocks !== raceBlocks) {
+      // Orphaned server-side VoltElement row accepted here, same as the
+      // failure path above — see _lyDuplicateBlock's comment.
+      designerToast('Duplicate cancelled — the canvas changed while duplicating', 'error');
+      return;
+    }
+    // Ids minted AFTER the await + race check (not before) — see
+    // _lyDuplicateBlock's comment for why this closes the undo-mid-POST
+    // id-collision window. Deep-clone (above) already severed shared object
+    // references; assigning a FRESH unique id to every nested sub-element
+    // means the copy shares NO ids with the original — duplicate ids made
+    // DOM (data-sub-id) and data lookups resolve to the original element,
+    // producing a "linked" copy that edited both.
+    copy.id = 'b' + (++state.nextId);
+    if (Array.isArray(copy.subElements)) {
+      copy.subElements.forEach(se => { se.id = 'se-' + (state.nextId++); });
+    }
+    pushHistory();
+    // Offset copy slightly so it's visible
+    copy.x = (copy.x || 0) + 20;
+    copy.y = (copy.y || 0) + 20;
+    copy.zIndex = (copy.zIndex || 1) + 1;
+    state.blocks.push(copy);
+    state.selectedBlockId = copy.id;
+    renderCanvas(); renderPropsPanel(); autoSave();
+  } finally {
+    _mttDuplicateInFlight = false;
   }
-  // Offset copy slightly so it's visible
-  copy.x = (copy.x || 0) + 20;
-  copy.y = (copy.y || 0) + 20;
-  copy.zIndex = (copy.zIndex || 1) + 1;
-  state.blocks.push(copy);
-  state.selectedBlockId = copy.id;
-  renderCanvas(); renderPropsPanel(); autoSave();
 }
 
 function mttDelete() {
