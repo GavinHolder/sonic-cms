@@ -98,6 +98,15 @@ export default function LandingPageManager() {
   // a text-selection drag that starts inside the dialog and ends on the backdrop would
   // otherwise register as a backdrop click and close the modal mid-selection.
   const createModalBackdropMouseDownOnSelf = useRef(false);
+  // Serializes reorder writes so an in-flight PUT /api/sections/reorder can never be
+  // overtaken by a later one. Without this, two drags performed in quick succession fire
+  // two independent full-list reorder requests; if the EARLIER request happens to complete
+  // (round-trip) AFTER the LATER one -- plain network jitter, no special conditions needed --
+  // the stale one silently overwrites the newer order in the DB, both requests reporting
+  // success. Queuing each save behind the previous one guarantees writes land in the user's
+  // intended chronological order. Confirmed live: sending an older reorder body after a
+  // newer one reverted a section to its previous position with no error from either call.
+  const reorderQueueRef = useRef<Promise<void>>(Promise.resolve());
   const [selectedType, setSelectedType] = useState<SectionType>("NORMAL");
   const [editingSection, setEditingSection] = useState<SectionConfig | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -316,24 +325,45 @@ export default function LandingPageManager() {
 
     if (clampedNewIndex === oldIndex) return;
 
-    // Optimistic UI update
-    const reordered = arrayMove(sections, oldIndex, clampedNewIndex);
+    // Optimistic UI update. Re-stamp each section's own `.order` field to match its new
+    // array position -- arrayMove only reorders the ARRAY, it does not touch the `.order`
+    // property carried inside each section object. Leaving that stale caused a second bug:
+    // an editor's onSave spreads the whole section object (`{ ...section, ...changes }`),
+    // so saving an unrelated change after a drag re-sent the section's OLD pre-drag order
+    // and silently reverted the drag (see the `order` stripped from `updates` in each onSave
+    // handler below, which is the other half of this fix).
+    const reordered = arrayMove(sections, oldIndex, clampedNewIndex).map((s, i) => ({ ...s, order: i }));
     setSections(reordered);
+    const orderedIds = reordered.map((s) => s.id);
 
-    // Save to database
-    try {
-      const ok = await reorderSections("/", reordered.map((s) => s.id));
-      if (ok) {
-        setSuccessMessage("Section reordered");
-      } else {
-        // Revert optimistic update on failure
+    // Save to database -- queued behind any still-in-flight reorder save (see
+    // reorderQueueRef above) so this write cannot be overtaken by an earlier one.
+    const previousSave = reorderQueueRef.current;
+    const thisSave = previousSave.then(async () => {
+      try {
+        const ok = await reorderSections("/", orderedIds);
+        if (ok) {
+          setSuccessMessage("Section reordered");
+        } else {
+          // Revert optimistic update on failure
+          setErrorMessage("Failed to save new section order — reverted.");
+          await reloadSections();
+        }
+      } catch (error) {
+        console.error("Failed to reorder sections:", error);
+        // Revert on error
+        setErrorMessage("Failed to save new section order — reverted.");
         await reloadSections();
       }
-    } catch (error) {
-      console.error("Failed to reorder sections:", error);
-      // Revert on error
-      await reloadSections();
-    }
+    });
+    // Store a version that can never reject: the queue is a chain of `.then()`s, so if a
+    // link in it were ever left rejected (e.g. a future edit adds a throwing await inside the
+    // callback above without its own try/catch), every subsequent drag's `.then()` would skip
+    // straight past its handler and the reorder queue would be silently dead for the rest of
+    // the session. The callback above already catches its own errors, so this is a defensive
+    // backstop, not a fix for a currently-reachable path.
+    reorderQueueRef.current = thisSave.catch(() => {});
+    await thisSave;
   };
 
   const handleClearAll = () => {
@@ -647,7 +677,13 @@ export default function LandingPageManager() {
         <HeroCarouselEditor
           section={editingSection as HeroSection}
           onSave={async (updates) => {
-            const ok = await updateSection(editingSection.id, updates);
+            // Strip any `order` carried in from the editor's full-section spread
+            // (`{ ...section, ...changes }`) -- editingSection can hold a stale pre-drag
+            // order if a drag happened earlier this session (see handleDragEnd above), and an
+            // ordinary content save must never be able to move a section. Only
+            // handleDragEnd / moveSectionUp / moveSectionDown are allowed to set order.
+            const { order: _ignoredOrder, ...rest } = updates as any;
+            const ok = await updateSection(editingSection.id, rest);
             if (!ok) { setErrorMessage("Failed to save section — changes were not stored."); return; }
             await reloadSections();
             setSuccessMessage("Hero section updated!");
@@ -660,7 +696,10 @@ export default function LandingPageManager() {
         <FooterSectionEditor
           section={editingSection as FooterSection}
           onSave={async (updates, shouldClose = true) => {
-            const ok = await updateSection(editingSection.id, updates);
+            // See the HERO onSave above -- strips a stale pre-drag `order` so this save can't
+            // silently move the section.
+            const { order: _ignoredOrder, ...rest } = updates as any;
+            const ok = await updateSection(editingSection.id, rest);
             if (!ok) { setErrorMessage("Failed to save section — changes were not stored."); return; }
             await reloadSections();
             if (shouldClose) closeEditor();
@@ -681,7 +720,10 @@ export default function LandingPageManager() {
         <CTASectionEditor
           section={editingSection as CTASection}
           onSave={async (updates, shouldClose = true) => {
-            const ok = await updateSection(editingSection.id, updates);
+            // See the HERO onSave above -- strips a stale pre-drag `order` so this save can't
+            // silently move the section.
+            const { order: _ignoredOrder, ...rest } = updates as any;
+            const ok = await updateSection(editingSection.id, rest);
             if (!ok) { setErrorMessage("Failed to save section — changes were not stored."); return; }
             await reloadSections();
             if (shouldClose) closeEditor();
@@ -696,7 +738,10 @@ export default function LandingPageManager() {
         <NormalSectionEditor
           section={editingSection as NormalSection}
           onSave={async (updates, shouldClose = true) => {
-            const ok = await updateSection(editingSection.id, updates);
+            // See the HERO onSave above -- strips a stale pre-drag `order` so this save can't
+            // silently move the section.
+            const { order: _ignoredOrder, ...rest } = updates as any;
+            const ok = await updateSection(editingSection.id, rest);
             if (!ok) { setErrorMessage("Failed to save section — changes were not stored."); return; }
             await reloadSections();
             if (shouldClose) closeEditor();
@@ -711,7 +756,10 @@ export default function LandingPageManager() {
         <FlexibleSectionEditorModal
           section={editingSection as FlexibleSection}
           onSave={async (updates, shouldClose = true) => {
-            const ok = await updateSection(editingSection.id, updates);
+            // See the HERO onSave above -- strips a stale pre-drag `order` so this save can't
+            // silently move the section.
+            const { order: _ignoredOrder, ...rest } = updates as any;
+            const ok = await updateSection(editingSection.id, rest);
             if (!ok) { setErrorMessage("Failed to save section — changes were not stored."); return; }
             await reloadSections();
             if (shouldClose) closeEditor();
