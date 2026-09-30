@@ -18,7 +18,15 @@
  *    The fallback (layout, background AND "none") exists for FREE-mode Designer sections only: a grid / mosaic /
  *    element-based section renders exactly as it did before the fallback existed at every breakpoint — an
  *    un-configured Tablet/Mobile background stays neutral and content.undesignedBreakpoint is ignored.
- *  - Content plate: UNIFORM scale, top-anchored, horizontally centred.
+ *  - Content plate: UNIFORM scale, horizontally centred. Top-anchored EXCEPT for the navbar-
+ *      guide-drift fix (Fix A, 2026-09-30 — round-2 review follow-up): single-mode ONLY (never
+ *      multi/dynamic), when the natural scale below would put canvas y=100 (NAV_GUIDE_PX, the
+ *      Designer's navbar guide line) above NAV_COVER_PX (100 CSS px — this harness never
+ *      configures a CMS Section Header or a non-"standard" navbarStyle, so that's always the
+ *      live navbar's real, unscaled height here), the scale is shrunk (never grown) just enough
+ *      that the guide lands exactly on NAV_COVER_PX, and the plate is shifted down by the same
+ *      amount so nothing above the guide is cropped off the top. See expectedPlate below for the
+ *      independently-derived formula (not copy-pasted from computeStageFit's own code).
  *      single: s = min(stageW/cw, stageH/ch, maxScale)     multi: s = min(stageW/cw, maxScale)
  *    maxScale = 1.15 for the Mobile breakpoint, unbounded otherwise.
  *  - Background, TABLET/MOBILE: never non-uniformly scaled; a uniform cover plate that fills the stage box.
@@ -60,6 +68,11 @@ export interface Expectation {
   cw: number;
   ch: number;
   multi: boolean;
+  /** contentMode === "single" exactly (NOT simply !multi — "dynamic" is neither multi nor
+   *  single). Fix A's navbar-guide-drift correction (see expectedPlate) is single-mode ONLY,
+   *  same gate FlexibleSectionRenderer.tsx's navGuideActive uses — a "dynamic" section must
+   *  stay unaffected even though it also fails the `multi` check. */
+  isSingleMode: boolean;
   multiLimit: number;
   chTotal: number;
   maxScale: number;
@@ -102,6 +115,7 @@ export function expectationFor(section: FixtureSection, vw: number): Expectation
 
   const contentMode = content.contentMode || "single";
   const multi = contentMode === "multi";
+  const isSingleMode = contentMode === "single";
   const multiLimit = multi ? Number(variant?.multiLimit) || 1 : 1;
   const cw = dim(variant?.designerCanvasW, 1440);
   const ch = dim(variant?.designerCanvasH, 900);
@@ -130,21 +144,60 @@ export function expectationFor(section: FixtureSection, vw: number): Expectation
   return {
     hasContent,
     isFree, bp, authored, fallbackMode, reflow, blank, variant,
-    cw, ch, multi, multiLimit, chTotal: ch * multiLimit,
+    cw, ch, multi, isSingleMode, multiLimit, chTotal: ch * multiLimit,
     maxScale: bp === "mobile" ? MOBILE_MAX_SCALE : Infinity,
     bg,
   };
 }
 
-/** Expected content-plate transform given the measured stage box. */
+/**
+ * Navbar-guide-drift fix (Fix A, 2026-09-30) constants, independently re-declared here (NOT
+ * imported from flexible-render-rules.js — see this file's own top-of-file note on why the
+ * oracle never imports computeStageFit itself).
+ *   NAV_GUIDE_PX: the canvas DESIGN-px y-position of the Designer's navbar guide line. Mirrors
+ *     FRAME_GUIDE_NAV, but stated here as an independent fact about the contract, not copied
+ *     from the constant's own declaration.
+ *   NAV_COVER_PX: the live navbar's real CSS-px height. Mirrors app/globals.css's
+ *     `--navbar-height: 100px` default — this harness's fixtures never configure a CMS Section
+ *     Header or a non-"standard" navbarStyle (grep confirms no fixture sets either), so this is
+ *     the ACTUAL navCover value FlexibleSectionRenderer.tsx computes for every affected
+ *     combination here, not a guess.
+ * Both happen to equal 100, but for two UNRELATED reasons (a canvas guide-line position vs. a
+ * live CSS default) — see FRAME_GUIDE_NAV's own doc comment in flexible-render-rules.js.
+ */
+const NAV_GUIDE_PX = 100;
+const NAV_COVER_PX = 100;
+
+/**
+ * Expected content-plate transform given the measured stage box.
+ *
+ * offsetY is 0 (top-anchored) EXCEPT for the navbar-guide-drift correction, single-mode only:
+ * the requirement (independent of computeStageFit's own implementation) is
+ *   (1) the guide lands exactly on the navbar's edge:  offsetY + NAV_GUIDE_PX*scale = NAV_COVER_PX
+ *   (2) the plate's bottom never leaves the box:        offsetY + ch*scale <= stageH
+ * Combining (1) into (2): scale <= (stageH - NAV_COVER_PX) / (ch - NAV_GUIDE_PX) — the largest
+ * scale that can satisfy both — capped by (never exceeding) the natural contain-fit scale.
+ */
 export function expectedPlate(exp: Expectation, stageW: number, stageH: number) {
   const sx = stageW / exp.cw;
-  const s = exp.multi
+  const sNatural = exp.multi
     ? Math.min(sx, exp.maxScale)
     : Math.min(sx, stageH / exp.ch, exp.maxScale);
-  const scale = Math.round(s * 10000) / 10000;
+  let scale = Math.round(sNatural * 10000) / 10000;
+  let offsetY = 0;
+  const guideApplies =
+    exp.isSingleMode &&
+    NAV_GUIDE_PX > 0 && NAV_COVER_PX > 0 &&
+    NAV_GUIDE_PX < exp.ch &&
+    stageH > NAV_COVER_PX &&
+    NAV_GUIDE_PX * scale < NAV_COVER_PX;
+  if (guideApplies) {
+    const capped = Math.min(scale, (stageH - NAV_COVER_PX) / (exp.ch - NAV_GUIDE_PX));
+    scale = Math.round(capped * 10000) / 10000;
+    offsetY = NAV_COVER_PX - NAV_GUIDE_PX * scale;
+  }
   const offsetX = Math.max(0, (stageW - exp.cw * scale) / 2);
-  return { scale, offsetX, offsetY: 0 };
+  return { scale, offsetX, offsetY };
 }
 
 /** Expected DESKTOP background plate (see CONTRACT): pre-scale CSS size + the (possibly non-uniform) scale. */
