@@ -91,7 +91,12 @@ export default async function RootLayout({
   const isEffectivelyIsolated = isIsolatedRoute || isStandaloneSlug;
 
   // Maintenance mode — check DB for all public routes including standalone (skip admin, api, volt-preview, maintenance-preview)
-  const isPublicRoute = !isAdminRoute && !pathname.startsWith("/api") && !pathname.startsWith("/volt-preview") && !pathname.startsWith("/maintenance-preview");
+  // /preview is excluded for the same reason as middleware.ts: app/preview/landing-page
+  // has its own client-side auth gate that redirects unauthenticated visitors to
+  // /admin/login — rendering <MaintenancePage> here first (for the "plain"/"construction"/
+  // "custom" templates) would mask that redirect behind the Coming-Soon page, same as the
+  // middleware rewrite did for the "page" template before that fix.
+  const isPublicRoute = !isAdminRoute && !pathname.startsWith("/api") && !pathname.startsWith("/volt-preview") && !pathname.startsWith("/maintenance-preview") && !pathname.startsWith("/preview");
   let maintenanceMode = false;
   let maintenanceTheme: import("@/components/MaintenancePage").MaintenanceTheme = {};
   if (isPublicRoute) {
