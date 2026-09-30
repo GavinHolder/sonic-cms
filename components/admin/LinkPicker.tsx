@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { fetchWithRefresh } from "@/lib/fetch-with-refresh";
 
 interface LinkOption {
   value: string;
@@ -53,9 +54,14 @@ function dedupe(options: LinkOption[]): LinkOption[] {
  * this component's pages/sections/forms/documents/features/policies groups
  * previously would have if hand-copied elsewhere.
  *
- * Degrades gracefully to an empty option list when the endpoint is
- * unavailable (non-admin session, offline) — the picker still renders and
- * stays usable via the Custom URL fallback.
+ * The catalog fetch uses fetchWithRefresh (lib/fetch-with-refresh.ts), so an
+ * expired-but-refreshable 8h admin session transparently refreshes and
+ * retries once instead of failing the whole picker. Degrades gracefully to
+ * an empty option list only when that retry also fails (no session, or the
+ * endpoint is genuinely offline) — the picker still renders and stays usable
+ * via the Custom URL fallback. The route itself also degrades per-group (see
+ * app/api/link-catalog/route.ts), so one bad data source there doesn't blank
+ * out every group either.
  *
  * Public props are unchanged and drop-in compatible with prior versions.
  */
@@ -74,7 +80,11 @@ export function LinkPicker({
   const [customMode, setCustomMode] = useState(false);
 
   useEffect(() => {
-    fetch("/api/link-catalog")
+    // fetchWithRefresh (not plain fetch): an expired-but-refreshable 8h admin
+    // session would otherwise 401 this call and silently collapse the picker
+    // to just Home/Custom — see lib/fetch-with-refresh.ts and
+    // components/admin/TokenRefresher.tsx for the same underlying issue.
+    fetchWithRefresh("/api/link-catalog")
       .then((r) => (r.ok ? r.json() : null))
       .then((json) => {
         const groups: Array<{ key: string; label: string; options: LinkOption[] }> =

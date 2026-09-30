@@ -84,6 +84,22 @@ function dedupe(options: LinkOption[]): LinkOption[] {
   return out;
 }
 
+/**
+ * Runs one group's data fetch in isolation: a thrown error (DB/table issue,
+ * bad query, etc.) degrades that single group to `fallback` instead of
+ * rejecting and failing the whole catalog response for every picker on the
+ * page (see module FAILURE MODES above). Still logs server-side so a real
+ * outage remains visible even though the HTTP response stays 200.
+ */
+async function safeFetch<T>(label: string, fn: () => Promise<T>, fallback: NoInfer<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    console.error(`[link-catalog] "${label}" group failed, degrading to empty:`, error);
+    return fallback;
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const user = requireRole(request, "VIEWER");
@@ -94,22 +110,41 @@ export async function GET(request: NextRequest) {
 
     const [pageRows, sectionPage, documentAssets, imageAssets, policiesPlugin] =
       await Promise.all([
-        prisma.page.findMany({
-          select: { slug: true, title: true, type: true, enabled: true, status: true },
-        }),
-        prisma.page.findUnique({ where: { slug: pageSlug }, select: { id: true } }),
-        prisma.mediaAsset.findMany({
-          where: { mimeType: "application/pdf" },
-          select: { url: true, originalName: true, filename: true },
-          orderBy: { createdAt: "desc" },
-          take: 50,
-        }),
-        prisma.mediaAsset.findMany({
-          where: { mimeType: { startsWith: "image/" } },
-          select: { url: true, originalName: true, filename: true, altText: true },
-          orderBy: { createdAt: "desc" },
-          take: 50,
-        }),
+        safeFetch(
+          "pages",
+          () =>
+            prisma.page.findMany({
+              select: { slug: true, title: true, type: true, enabled: true, status: true },
+            }),
+          []
+        ),
+        safeFetch(
+          "sections:pageLookup",
+          () => prisma.page.findUnique({ where: { slug: pageSlug }, select: { id: true } }),
+          null
+        ),
+        safeFetch(
+          "documents",
+          () =>
+            prisma.mediaAsset.findMany({
+              where: { mimeType: "application/pdf" },
+              select: { url: true, originalName: true, filename: true },
+              orderBy: { createdAt: "desc" },
+              take: 50,
+            }),
+          []
+        ),
+        safeFetch(
+          "images",
+          () =>
+            prisma.mediaAsset.findMany({
+              where: { mimeType: { startsWith: "image/" } },
+              select: { url: true, originalName: true, filename: true, altText: true },
+              orderBy: { createdAt: "desc" },
+              take: 50,
+            }),
+          []
+        ),
         getPlugin("policies").catch(() => null),
       ]);
 
@@ -133,11 +168,16 @@ export async function GET(request: NextRequest) {
     // ── Sections (anchors) on the requested page ────────────────────────────
     let sectionOptions: LinkOption[] = [];
     if (sectionPage) {
-      const sections = await prisma.section.findMany({
-        where: { pageId: sectionPage.id, enabled: true },
-        select: { id: true, navLabel: true, displayName: true, type: true },
-        orderBy: { order: "asc" },
-      });
+      const sections = await safeFetch(
+        "sections",
+        () =>
+          prisma.section.findMany({
+            where: { pageId: sectionPage.id, enabled: true },
+            select: { id: true, navLabel: true, displayName: true, type: true },
+            orderBy: { order: "asc" },
+          }),
+        []
+      );
       sectionOptions = sections.map((s) => ({
         value: `#${s.id}`,
         label: s.navLabel || s.displayName || s.type || s.id,
@@ -168,10 +208,15 @@ export async function GET(request: NextRequest) {
     // slug/name (never `config`, which is what the stricter gate on
     // /api/features protects), and GET /api/features/public already exposes
     // that same subset with zero auth. See the module docstring, point 3.
-    const features = await prisma.clientFeature.findMany({
-      where: { enabled: true },
-      select: { slug: true, name: true },
-    });
+    const features = await safeFetch(
+      "features",
+      () =>
+        prisma.clientFeature.findMany({
+          where: { enabled: true },
+          select: { slug: true, name: true },
+        }),
+      []
+    );
     const featureOptions: LinkOption[] = features
       .filter((f) => f.slug)
       .map((f) => {
@@ -183,11 +228,16 @@ export async function GET(request: NextRequest) {
     // ── Policies (only when the Policies plugin is enabled) ────────────────
     let policyOptions: LinkOption[] = [];
     if (policiesPlugin?.enabled) {
-      const policies = await prisma.policy.findMany({
-        where: { enabled: true },
-        select: { slug: true, title: true, navLabel: true },
-        orderBy: { order: "asc" },
-      });
+      const policies = await safeFetch(
+        "policies",
+        () =>
+          prisma.policy.findMany({
+            where: { enabled: true },
+            select: { slug: true, title: true, navLabel: true },
+            orderBy: { order: "asc" },
+          }),
+        []
+      );
       policyOptions = policies.map((p) => ({
         value: `/policies/${p.slug}`,
         label: p.navLabel || p.title,
