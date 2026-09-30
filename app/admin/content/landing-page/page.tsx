@@ -346,11 +346,13 @@ export default function LandingPageManager() {
           setSuccessMessage("Section reordered");
         } else {
           // Revert optimistic update on failure
+          setErrorMessage("Failed to save new section order — reverted.");
           await reloadSections();
         }
       } catch (error) {
         console.error("Failed to reorder sections:", error);
         // Revert on error
+        setErrorMessage("Failed to save new section order — reverted.");
         await reloadSections();
       }
     });
