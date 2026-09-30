@@ -26,11 +26,17 @@
  *    /api/policies?enabled=true are public in isolation, but compositing
  *    them behind the same VIEWER gate as the rest is strictly more
  *    conservative than any individual source, never less.
- * 3. The "Features" group additionally requires SUPER_ADMIN (matching
- *    GET /api/features exactly) — a VIEWER/EDITOR/PUBLISHER caller still
- *    gets every other group, just an empty Features group, identical to how
- *    LinkPicker's fetch("/api/features") silently no-ops today for those
- *    roles.
+ * 3. The "Features" group only requires the same VIEWER floor as the rest of
+ *    this endpoint, NOT the SUPER_ADMIN gate GET /api/features itself uses.
+ *    That gate protects /api/features's full row (including `config`, which
+ *    can hold sensitive per-plugin settings); this group only ever selects
+ *    `slug`/`name`, the exact subset GET /api/features/public already
+ *    exposes with ZERO auth (see that route) for the public Navbar's Tools
+ *    dropdown. Since an unauthenticated visitor can already see every
+ *    enabled feature's slug/name, gating this narrower, admin-only copy of
+ *    the same subset any higher than VIEWER added no real protection — it
+ *    only hid "Coverage Map"-style link options from EDITOR/PUBLISHER admins
+ *    who should be able to link to them.
  * 4. The "Policies" group additionally requires the "policies" Plugin row to
  *    be enabled (matching GET /api/policies?enabled=true's existing gate),
  *    so disabling that plugin removes it from every picker at once.
@@ -51,7 +57,6 @@ import {
   successResponse,
   handleApiError,
 } from "@/lib/api-middleware";
-import { hasRole } from "@/lib/auth";
 import { getPlugin } from "@/lib/plugins/registry";
 import { BUILTIN_MANIFESTS } from "@/lib/plugins/manifests";
 
@@ -158,22 +163,22 @@ export async function GET(request: NextRequest) {
     );
 
     // ── Enabled plugin/feature public pages (Coverage Map, etc.) ────────────
-    // Gated to SUPER_ADMIN, matching GET /api/features exactly — every other
-    // group above is visible to any VIEWER+ caller.
-    let featureOptions: LinkOption[] = [];
-    if (hasRole(user.role, "SUPER_ADMIN")) {
-      const features = await prisma.clientFeature.findMany({
-        where: { enabled: true },
-        select: { slug: true, name: true },
+    // Gated to the endpoint's own VIEWER floor, same as every other group —
+    // NOT SUPER_ADMIN like GET /api/features itself. This only ever selects
+    // slug/name (never `config`, which is what the stricter gate on
+    // /api/features protects), and GET /api/features/public already exposes
+    // that same subset with zero auth. See the module docstring, point 3.
+    const features = await prisma.clientFeature.findMany({
+      where: { enabled: true },
+      select: { slug: true, name: true },
+    });
+    const featureOptions: LinkOption[] = features
+      .filter((f) => f.slug)
+      .map((f) => {
+        const manifest = BUILTIN_MANIFESTS.find((m) => m.id === f.slug);
+        const publicRoute = manifest?.routes?.public?.[0];
+        return { value: publicRoute || `/${f.slug}`, label: f.name || f.slug };
       });
-      featureOptions = features
-        .filter((f) => f.slug)
-        .map((f) => {
-          const manifest = BUILTIN_MANIFESTS.find((m) => m.id === f.slug);
-          const publicRoute = manifest?.routes?.public?.[0];
-          return { value: publicRoute || `/${f.slug}`, label: f.name || f.slug };
-        });
-    }
 
     // ── Policies (only when the Policies plugin is enabled) ────────────────
     let policyOptions: LinkOption[] = [];
