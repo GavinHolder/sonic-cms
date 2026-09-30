@@ -1137,8 +1137,8 @@
        :not(.canvas-area-free) (2026-09-14) keeps the phone/tablet BORDER off free-mode canvases
        specifically: #canvas has no box-sizing:border-box, so a border would add a few px on top
        of the authored designerCanvasW, making canvas.offsetWidth read slightly WIDER than the
-       real canvas width free-mode code treats as ground truth (isVoltFullBleed's coverage check,
-       the Volt-drop clamp) — a discrepancy grid/mosaic never had to worry about (their per-block
+       real canvas width free-mode code treats as ground truth (resolveVoltFullBleed's coverage
+       check in buildVoltPreviewUrl, the Volt-drop clamp) — a discrepancy grid/mosaic never had to worry about (their per-block
        tabletPos/mobilePos math doesn't compare against a measured offsetWidth the same way).
        Centering (align-items) is harmless either way and stays applied to both. */
     .canvas-area.device-mobile:not(.canvas-area-free)  #canvas { border-left: 6px solid #6c757d !important; border-right: 6px solid #6c757d !important; border-radius: 16px !important; }
@@ -8777,28 +8777,16 @@ function loadVoltLayersForBlock(bId) {
 // ── Volt full-bleed (background) detection ─────────────────────────────────────
 // Signal for "render this volt as a full-bleed section background": the block spans
 // the FULL canvas width AND full canvas height (i.e. the user hit both Full Width and
-// Full Height). Works in grid mode (spans the whole grid) and free mode (block box
-// covers the canvas, with a small tolerance). No explicit "background" flag exists yet
-// — this geometric signal is the closest reliable proxy. Returns false safely if the
+// Full Height). Works in grid mode (spans the whole grid — own local check, a
+// different coordinate system, still inline below) and free mode (block box covers
+// the canvas, with a small tolerance — delegated to the shared
+// window.FlexibleRenderRules.resolveVoltFullBleed(), 2026-09-30, so this canvas
+// preview and FlexibleSectionRenderer.tsx's live render can never disagree about it —
+// see that function's own doc comment in flexible-render-rules.js for the full
+// Designer/live-mismatch history it closes. No explicit "background" flag existed
+// before props.fullBleed — this geometric signal is the fallback for blocks saved
+// before that toggle, or never explicitly set either way). Returns false safely if the
 // canvas can't be measured, so the default aspect-locked ("contain") render is kept.
-function isVoltFullBleed(b) {
-  try {
-    if (state.positionMode !== 'free') {
-      return b.gridCol === 1 && b.gridRow === 1
-        && (b.colSpan || 1) >= state.gridCols
-        && (b.rowSpan || 1) >= state.gridRows;
-    }
-    const canvas = document.getElementById('canvas');
-    const cw = canvas ? canvas.offsetWidth  : DESKTOP_CANVAS_W;
-    const ch = canvas ? canvas.offsetHeight : 0;
-    if (!ch) return false;
-    const dp = getDisplayPos(b);
-    const TOL = 3; // px tolerance for rounding
-    const coversW = dp.x <= TOL && (dp.x + dp.w) >= cw - TOL;
-    const coversH = dp.y <= TOL && (dp.y + dp.h) >= ch - TOL;
-    return coversW && coversH;
-  } catch (e) { return false; }
-}
 
 // ── Volt preview URL builder ───────────────────────────────────────────────────
 // 2026-09-23: see buildVoltPreviewUrl — the Designer canvas DOES forward the
@@ -8830,9 +8818,28 @@ function buildVoltPreviewUrl(b) {
   }
   // Full-bleed background block → cover fit (fills the cell edge-to-edge, no letterbox).
   // Explicit toggle is authoritative: true → cover, false → contain (geometry ignored).
-  // When the flag was never set (undefined), fall back to the #82 geometry heuristic.
+  // When the flag was never set (undefined): grid mode falls back to its own local
+  // grid-span heuristic (own coordinate system, not modeled by the shared function);
+  // free mode falls back to the SHARED window.FlexibleRenderRules.resolveVoltFullBleed()
+  // geometry heuristic (2026-09-30) — the same formula FlexibleSectionRenderer.tsx's
+  // live render now uses, so this canvas preview and the live page can never disagree
+  // about an un-flagged full-bleed block again (see that function's own doc comment in
+  // flexible-render-rules.js for the full history).
   const fb = b.props.fullBleed;
-  const isFullBleed = fb === true || (fb === undefined && isVoltFullBleed(b));
+  let isFullBleed;
+  if (state.positionMode !== 'free') {
+    isFullBleed = fb === true || (fb === undefined
+      && b.gridCol === 1 && b.gridRow === 1
+      && (b.colSpan || 1) >= state.gridCols
+      && (b.rowSpan || 1) >= state.gridRows);
+  } else {
+    const canvas = document.getElementById('canvas');
+    const cw = canvas ? canvas.offsetWidth  : DESKTOP_CANVAS_W;
+    const ch = canvas ? canvas.offsetHeight : 0;
+    isFullBleed = ch
+      ? window.FlexibleRenderRules.resolveVoltFullBleed(fb, getDisplayPos(b), cw, ch)
+      : fb === true;
+  }
   if (isFullBleed) sp.set('fit', 'cover');
   // Real section background, forwarded so a "glass"/frosted-blur Volt fill
   // (backdrop-filter: blur(...) in VoltRenderer.tsx) has something authentic
@@ -10521,7 +10528,7 @@ function setDevicePreview(device) {
   // handles, which stay grid/mosaic-only — canvas-area-free (below) scopes
   // those two CSS rules out for free mode: a border would inflate
   // canvas.offsetWidth past the authored designerCanvasW (corrupting
-  // isVoltFullBleed's coverage check and the Volt-drop clamp), and free-mode
+  // resolveVoltFullBleed's coverage check and the Volt-drop clamp), and free-mode
   // blocks are independently manually-sized (not auto-stacked full-width
   // like grid/mosaic mobile), so full drag-resize must stay available.
   canvasArea.classList.toggle('canvas-area-free', state.positionMode === 'free');

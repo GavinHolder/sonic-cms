@@ -15,7 +15,7 @@ import { createEntranceObserver, isEntranceVisible } from "@/lib/entrance-observ
 // source of truth also consumed by public/flexible-designer.html (see that file's
 // <script src="/flexible-render-rules.js"> and this module's own doc comment for why
 // it exists). Plain JS + hand-written flexible-render-rules.d.ts alongside it.
-import { computeSubElementStyle, computeSubElementPosition, resolveBlockZIndex, computeMultiBgLayers, resolveBgPositionCss, resolveBackgroundPosForBreakpoint, buildGradientCss, resolveLiveBackgroundBundle, computeStageFit, collectFontRequests, ensureGoogleFontLinks, FRAME_GUIDE_NAV } from "../../public/flexible-render-rules.js";
+import { computeSubElementStyle, computeSubElementPosition, resolveBlockZIndex, computeMultiBgLayers, resolveBgPositionCss, resolveBackgroundPosForBreakpoint, buildGradientCss, resolveLiveBackgroundBundle, computeStageFit, collectFontRequests, ensureGoogleFontLinks, FRAME_GUIDE_NAV, resolveVoltFullBleed } from "../../public/flexible-render-rules.js";
 import type { BgBundle, BackgroundByBreakpoint, GradientConfig } from "../../public/flexible-render-rules.js";
 // Per-breakpoint independent layouts (2026-09-11) — shared shape-normalization/variant-
 // selection module (Task 1 of this feature). Companion to flexible-render-rules.js above;
@@ -2057,7 +2057,26 @@ function resolveBlockTokens<T extends { props?: Record<string, unknown>; subElem
 // The same predicate is used to (a) collect these blocks in the section body and
 // (b) skip them in DesignerBlocksRenderer, so they render exactly once. voltId is
 // required — a full-bleed volt with no voltId stays in-grid (shows its placeholder).
-function isFullBleedVolt(b: { type?: string; props?: Record<string, unknown> } | undefined): boolean {
+//
+// STRICT, explicit-flag-only — deliberately. This predicate drives PROMOTION out of
+// the normal content plate into the section-level FullBleedVoltLayer (pointer-events:
+// none, aria-hidden, rendered under the section's own background image). The Designer
+// never performs that promotion for a block the author didn't explicitly flag — it
+// only changes an un-flagged block's fit (contain vs cover); the block stays in place,
+// interactive, at its own z-index. A 2026-09-30 branch tried feeding this function a
+// geometry fallback (any block whose box happens to cover its canvas) so it would
+// promote un-flagged blocks too; that broke every ordinary un-flagged full-canvas Volt
+// (e.g. a hero CTA over a background photo) — dead link (pointer-events:none), possible
+// invisibility (painted under the section bg), lost z-order, and drift from content
+// that applies headerOffset/navbar-guide shift which this layer ignores. Reverted same
+// day. The geometry fallback for FIT (cover vs contain) still lives in case "volt" below
+// via resolveVoltFullBleed()/freeGeometry — that part is correct and unrelated to this
+// promotion decision. See flexible-full-bleed-volt.test.ts for the regression test.
+// Exported (2026-09-30, additive-only — every internal call site is unaffected) solely so
+// flexible-full-bleed-volt.test.ts can assert this predicate's own behavior directly,
+// rather than only the pure resolveVoltFullBleed() helper it deliberately does NOT call —
+// see this file's own regression comment above for why the distinction matters.
+export function isFullBleedVolt(b: { type?: string; props?: Record<string, unknown> } | undefined): boolean {
   return !!b && b.type === "volt" && !!b.props?.fullBleed && !!b.props?.voltId;
 }
 
@@ -2798,6 +2817,7 @@ function DesignerBlocksRenderer({
                     block={block}
                     darkBg={darkBg}
                     onContentHeight={isSelfSizing ? reportBlockHeight : undefined}
+                    freeGeometry={{ x: pos.x, y: pos.y, w: pos.w, h: pos.h, canvasW: cw, canvasH: chTotal }}
                   />
                 </div>
               );
@@ -2968,12 +2988,18 @@ function groupSubsByColumn(subs: SubEl[]): SubEl[][] {
     .map(k => buckets.get(k)!.sort((a, b) => (a.y ?? 0) - (b.y ?? 0)));
 }
 
-function DesignerBlock({ block, darkBg, onContentHeight }: {
+function DesignerBlock({ block, darkBg, onContentHeight, freeGeometry }: {
   block: { type: string; props?: Record<string, unknown>; subElements?: SubEl[] };
   darkBg: boolean;
   // Dynamic Content Height Mode only (see FlexibleSectionRenderer/DesignerBlocksRenderer) —
   // undefined for every Single/Multi section, so this block's render is byte-identical there.
   onContentHeight?: (blockId: string, px: number) => void;
+  // 2026-09-30, free-mode plate call site only: this block's resolved on-canvas box + the
+  // design canvas's own size, both in the same px space — lets case "volt" below apply the
+  // shared resolveVoltFullBleed() geometry fallback (see that function's own doc comment in
+  // flexible-render-rules.js). undefined for every grid/mosaic call site (no such box
+  // exists there), which keeps case "volt"'s byte-identical explicit-flag-only check.
+  freeGeometry?: { x: number; y: number; w: number; h: number; canvasW: number; canvasH: number };
 }) {
   const blockRef    = useRef<HTMLDivElement>(null);
   // Stats countUp: ref to the number display element
@@ -3477,7 +3503,16 @@ function DesignerBlock({ block, darkBg, onContentHeight }: {
         };
         // Full-bleed background volt → cover fit + full box (no flex centering) so it
         // fills the cell edge-to-edge, matching the designer preview. Off → unchanged.
-        const voltFullBleed = !!p.fullBleed;
+        // 2026-09-30: freeGeometry (free-mode plate only — undefined for grid/mosaic)
+        // routes this through the shared resolveVoltFullBleed(), which ALSO treats an
+        // un-flagged block as full-bleed when its box geometrically covers the whole
+        // canvas — matching public/flexible-designer.html's buildVoltPreviewUrl() (see
+        // that shared function's own doc comment in flexible-render-rules.js for the
+        // Designer/live-mismatch history this closes). No freeGeometry (grid/mosaic):
+        // byte-identical to the pre-2026-09-30 explicit-flag-only check.
+        const voltFullBleed = freeGeometry
+          ? resolveVoltFullBleed(p.fullBleed as boolean | undefined, freeGeometry, freeGeometry.canvasW, freeGeometry.canvasH)
+          : !!p.fullBleed;
         // Optional data-bound product: VoltBlock fetches the package and auto-populates
         // slots bound to pkg.* field hints. Undefined → manual slot text only (unchanged).
         const voltProductId = (p.productId as string) || undefined;

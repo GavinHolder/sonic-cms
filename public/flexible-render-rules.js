@@ -1148,6 +1148,75 @@
     };
   }
 
+  /**
+   * resolveVoltFullBleed(fullBleed, box, canvasW, canvasH) — pure. THE single decision of
+   * whether a free-mode Volt block renders "full-bleed" (fills its box edge-to-edge,
+   * fit=cover) vs letterboxed ("contain", centred). Consumed by BOTH:
+   *   1. public/flexible-designer.html's buildVoltPreviewUrl()            (free-mode canvas preview)
+   *   2. components/sections/FlexibleSectionRenderer.tsx's case "volt"    (live in-grid render, fit=cover vs contain)
+   *
+   * WHY THIS EXISTS (2026-09-30): the Designer's own (former) isVoltFullBleed() inferred
+   * "full-bleed" from a block's free-mode BOX GEOMETRY (its box covers the full canvas
+   * width+height, within a 3px rounding tolerance) whenever the author never explicitly
+   * ticked "Full Bleed" — so a block visually sized to fill its box previewed correctly
+   * (cover-fit) in the Designer canvas. Live's case "volt" used a STRICT `!!props.fullBleed`
+   * check with NO geometry fallback at all, so the exact same un-flagged-but-visually-full
+   * block rendered small/letterboxed on the live site — Designer and live disagreeing about
+   * a block neither side actually authored differently. Confirmed general (affects any
+   * full-bleed Volt usage sitewide, not Hero-specific) — this function is the ONE shared
+   * formula that closes that fit=cover/contain gap.
+   *
+   * NOT consumed by isFullBleedVolt() (FlexibleSectionRenderer.tsx) — that is a SEPARATE,
+   * deliberately narrower decision: whether a volt block is PROMOTED out of the normal
+   * content plate onto the section-level background layer. Promotion stays gated on the
+   * EXPLICIT `props.fullBleed === true` flag only, with no geometry fallback. A block that
+   * geometrically covers its canvas but was never flagged gets `fit:cover` via this
+   * function and still renders correctly — it just stays in the normal in-grid content
+   * plate instead of being lifted to the background layer. Do not extend isFullBleedVolt()
+   * to consult geometry/canvasSize to "finish" this unification — an earlier version that
+   * did so mis-promoted un-flagged blocks and was reverted (see git history for this file
+   * and FlexibleSectionRenderer.tsx around 2026-09-30).
+   *
+   * Explicit `fullBleed === true` / `=== false` is ALWAYS authoritative — geometry is
+   * never consulted once the author has toggled the checkbox either way. Only
+   * `fullBleed === undefined` (never explicitly set) falls back to geometry: true when
+   * `box` covers the full `canvasW` x `canvasH` (every edge within the 3px tolerance).
+   *
+   * Scope: this is the FREE-MODE geometry heuristic only (a block's absolute on-canvas
+   * px box vs. the design canvas's own px size). The Designer's SEPARATE grid-mode
+   * heuristic (does the block's grid-cell span cover every row/column of the grid) is a
+   * different coordinate system this function does not model — it was never part of the
+   * Designer/live mismatch this function exists to fix, and stays a local, per-caller
+   * check where it is still needed (public/flexible-designer.html's buildVoltPreviewUrl).
+   *
+   * @param {boolean | undefined} fullBleed - props.fullBleed as stored (tri-state:
+   *   true/false/undefined — undefined means "never explicitly set").
+   * @param {{x?:number,y?:number,w?:number,h?:number}|null|undefined} box - the block's
+   *   resolved on-canvas free-mode geometry, in the SAME px space as canvasW/canvasH
+   *   (Designer: getDisplayPos(b); live: block.pixelPos / tabletPos / mobilePos, already
+   *   resolved to the active breakpoint). null/undefined (a grid/mosaic block has no such
+   *   box) safely resolves to "not full-bleed" rather than throwing.
+   * @param {number} canvasW - design canvas width, same px space as `box` (Designer:
+   *   canvas.offsetWidth; live: resolveCanvasDim(designerCanvasW, 1440)).
+   * @param {number} canvasH - design canvas height, same px space (live multi-mode: pass
+   *   the FULL stacked height, ch * multiLimit — the same total the Designer's own multi
+   *   canvas spans at authoring time — not a single 100vh band).
+   * @returns {boolean}
+   */
+  function resolveVoltFullBleed(fullBleed, box, canvasW, canvasH) {
+    if (fullBleed === true) return true;
+    if (fullBleed !== undefined) return false; // explicit false — geometry ignored
+    try {
+      if (!box || !isFinite(canvasW) || !isFinite(canvasH) || canvasW <= 0 || canvasH <= 0) return false;
+      var x = Number(box.x) || 0, y = Number(box.y) || 0;
+      var w = Number(box.w) || 0, h = Number(box.h) || 0;
+      var TOL = 3; // px tolerance for rounding — matches the Designer's original #82 heuristic
+      var coversW = x <= TOL && (x + w) >= canvasW - TOL;
+      var coversH = y <= TOL && (y + h) >= canvasH - TOL;
+      return coversW && coversH;
+    } catch (e) { return false; }
+  }
+
   return {
     normalizeFontStack: normalizeFontStack,
     extractFontFamilyName: extractFontFamilyName,
@@ -1157,6 +1226,7 @@
     measuredLineCount: measuredLineCount,
     computeStageFit: computeStageFit,
     FRAME_GUIDE_NAV: FRAME_GUIDE_NAV,
+    resolveVoltFullBleed: resolveVoltFullBleed,
     isBlankBackgroundBundle: isBlankBackgroundBundle,
     resolveLiveBackgroundBundle: resolveLiveBackgroundBundle,
     computeSubElementStyle: computeSubElementStyle,

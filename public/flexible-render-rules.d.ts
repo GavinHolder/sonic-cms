@@ -334,6 +334,30 @@ export function computeStageFit(opts: StageFitOpts): StageFit;
 /** The live navbar's real, unscaled bottom edge, in canvas design px. See computeStageFit's navGuide param. */
 export const FRAME_GUIDE_NAV: number;
 
+/** A block's resolved free-mode on-canvas box, in design px. See resolveVoltFullBleed. */
+export interface VoltFullBleedBox {
+  x?: number;
+  y?: number;
+  w?: number;
+  h?: number;
+}
+
+/**
+ * THE single decision of whether a free-mode Volt block is "full-bleed" (fit=cover, fills
+ * its box edge-to-edge) vs letterboxed ("contain", centred). `fullBleed === true/false` is
+ * always authoritative; `undefined` (never explicitly set) falls back to geometry — true
+ * when `box` covers the full `canvasW` x `canvasH` within a 3px tolerance. `box` null/
+ * undefined (no free-mode geometry, e.g. a grid/mosaic block) safely resolves to false for
+ * the geometry fallback. See resolveVoltFullBleed's own doc comment in
+ * flexible-render-rules.js for the full Designer/live-mismatch history this closes.
+ */
+export function resolveVoltFullBleed(
+  fullBleed: boolean | undefined,
+  box: VoltFullBleedBox | null | undefined,
+  canvasW: number,
+  canvasH: number
+): boolean;
+
 /** Replaces a trailing Google category word (display/handwriting — not valid CSS generics) with a real generic. */
 export function normalizeFontStack<T extends string | undefined | null>(css: T): T;
 /** First (webfont) family of a stack, or "" for generics/inherit/system stacks. */

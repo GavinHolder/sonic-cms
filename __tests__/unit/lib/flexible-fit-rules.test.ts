@@ -518,3 +518,55 @@ describe('shared font helpers', () => {
       .toBe('https://fonts.googleapis.com/css2?family=Archivo+Black:wght@400;700&display=swap')
   })
 })
+
+describe('resolveVoltFullBleed', () => {
+  const CANVAS_W = 1440
+  const CANVAS_H = 900
+  const coveringBox = { x: 0, y: 0, w: CANVAS_W, h: CANVAS_H }
+  const smallBox = { x: 100, y: 100, w: 300, h: 180 }
+
+  it('explicit fullBleed:true is always true, regardless of geometry (even a tiny/non-covering box)', () => {
+    expect(R.resolveVoltFullBleed(true, smallBox, CANVAS_W, CANVAS_H)).toBe(true)
+    expect(R.resolveVoltFullBleed(true, null, CANVAS_W, CANVAS_H)).toBe(true)
+    expect(R.resolveVoltFullBleed(true, undefined, 0, 0)).toBe(true)
+  })
+
+  it('explicit fullBleed:false is always false, regardless of geometry (even a box that fully covers the canvas)', () => {
+    expect(R.resolveVoltFullBleed(false, coveringBox, CANVAS_W, CANVAS_H)).toBe(false)
+    expect(R.resolveVoltFullBleed(false, smallBox, CANVAS_W, CANVAS_H)).toBe(false)
+  })
+
+  it('fullBleed:undefined with a box that covers the whole canvas falls back to true (the geometry heuristic)', () => {
+    expect(R.resolveVoltFullBleed(undefined, coveringBox, CANVAS_W, CANVAS_H)).toBe(true)
+  })
+
+  it('fullBleed:undefined with a box clearly smaller/inline than the canvas falls back to false', () => {
+    expect(R.resolveVoltFullBleed(undefined, smallBox, CANVAS_W, CANVAS_H)).toBe(false)
+    // Large but NOT edge-to-edge (e.g. a big hero image inset by design) must stay false —
+    // the geometry check requires covering BOTH width and height within tolerance, not just "big".
+    expect(R.resolveVoltFullBleed(undefined, { x: 50, y: 50, w: CANVAS_W - 100, h: CANVAS_H - 100 }, CANVAS_W, CANVAS_H)).toBe(false)
+    // Covers width but not height (or vice versa) must also stay false.
+    expect(R.resolveVoltFullBleed(undefined, { x: 0, y: 0, w: CANVAS_W, h: CANVAS_H / 2 }, CANVAS_W, CANVAS_H)).toBe(false)
+    expect(R.resolveVoltFullBleed(undefined, { x: 0, y: 0, w: CANVAS_W / 2, h: CANVAS_H }, CANVAS_W, CANVAS_H)).toBe(false)
+  })
+
+  it('fullBleed:undefined with no box (grid/mosaic block — no free-mode geometry) safely resolves to false', () => {
+    expect(R.resolveVoltFullBleed(undefined, null, CANVAS_W, CANVAS_H)).toBe(false)
+    expect(R.resolveVoltFullBleed(undefined, undefined, CANVAS_W, CANVAS_H)).toBe(false)
+  })
+
+  it('fullBleed:undefined with an unmeasurable canvas (0/NaN) safely resolves to false, never throws', () => {
+    expect(R.resolveVoltFullBleed(undefined, coveringBox, 0, 0)).toBe(false)
+    expect(R.resolveVoltFullBleed(undefined, coveringBox, NaN, NaN)).toBe(false)
+  })
+
+  it('±3px tolerance boundary: exactly 3px short of covering is still full-bleed; more than 3px short is not', () => {
+    const TOL = 3
+    // Inset by exactly TOL on every edge, sized to land exactly on the tolerance boundary.
+    const atBoundary = { x: TOL, y: TOL, w: CANVAS_W - 2 * TOL, h: CANVAS_H - 2 * TOL }
+    expect(R.resolveVoltFullBleed(undefined, atBoundary, CANVAS_W, CANVAS_H)).toBe(true)
+    // One px past the tolerance on each edge must fail.
+    const pastBoundary = { x: TOL + 1, y: TOL + 1, w: CANVAS_W - 2 * (TOL + 1), h: CANVAS_H - 2 * (TOL + 1) }
+    expect(R.resolveVoltFullBleed(undefined, pastBoundary, CANVAS_W, CANVAS_H)).toBe(false)
+  })
+})
