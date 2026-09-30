@@ -10,6 +10,7 @@ import { DEFAULT_ANIM_BG_CONFIG } from "@/lib/anim-bg/defaults";
 import { designerBlockToElement } from "@/lib/flexible/legacy-to-designer";
 import { resolvePackageTokens, type PackageLike } from "@/lib/packages/tokens";
 import { animate } from "animejs";
+import { ENTRANCE_VISIBILITY_THRESHOLD } from "@/lib/anime";
 // Shared heading/paragraph/button style + free-canvas position formula — the single
 // source of truth also consumed by public/flexible-designer.html (see that file's
 // <script src="/flexible-render-rules.js"> and this module's own doc comment for why
@@ -1926,7 +1927,7 @@ function StatsBlockEnhanced({ c, tc }: { c: FlexibleElement["content"]; tc: stri
         if (t < 1) requestAnimationFrame(step);
       }
       requestAnimationFrame(step);
-    }, { threshold: 0.3 });
+    }, { threshold: ENTRANCE_VISIBILITY_THRESHOLD });
 
     if (numRef.current.parentElement) obs.observe(numRef.current.parentElement);
     return () => obs.disconnect();
@@ -3056,7 +3057,7 @@ function DesignerBlock({ block, darkBg, onContentHeight }: {
         if (t < 1) requestAnimationFrame(step);
       }
       requestAnimationFrame(step);
-    }, { threshold: 0.3 });
+    }, { threshold: ENTRANCE_VISIBILITY_THRESHOLD });
 
     if (blockRef.current) obs.observe(blockRef.current);
     return () => obs.disconnect();
@@ -3088,7 +3089,7 @@ function DesignerBlock({ block, darkBg, onContentHeight }: {
         el.classList.add(`flex-ba-${scrollAnim}`);
         obs.disconnect();
       }
-    }, { threshold: 0.1 });
+    }, { threshold: ENTRANCE_VISIBILITY_THRESHOLD });
     obs.observe(el);
     return () => obs.disconnect();
   }, [scrollAnim]);
@@ -4095,7 +4096,7 @@ function DesignerSubElement({ sub, pkg, mobile, exact, darkBg }: { sub: SubEl; p
       // Respect the per-element delay setting
       if (animDelay > 0) setTimeout(doAnim, animDelay);
       else doAnim();
-    }, { threshold: 0.2 });
+    }, { threshold: ENTRANCE_VISIBILITY_THRESHOLD });
 
     obs.observe(el);
     return () => obs.disconnect();
@@ -4484,7 +4485,7 @@ function ElementRenderer({ element, darkBg }: { element: FlexibleElement; darkBg
           if (entry.isIntersecting) { animateElement(el, element.animation!); observer.disconnect(); }
         });
       },
-      { threshold: 0.08 }
+      { threshold: ENTRANCE_VISIBILITY_THRESHOLD }
     );
     observer.observe(el);
     return () => observer.disconnect();

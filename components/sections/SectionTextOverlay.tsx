@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { AnimationType } from "@/types/section";
+import { ENTRANCE_VISIBILITY_THRESHOLD } from "@/lib/anime";
 
 interface SectionTextOverlayProps {
   heading?: string;
@@ -84,7 +85,7 @@ export default function SectionTextOverlay({
           observer.disconnect();
         }
       },
-      { threshold: 0.2 }
+      { threshold: ENTRANCE_VISIBILITY_THRESHOLD }
     );
 
     observer.observe(el);

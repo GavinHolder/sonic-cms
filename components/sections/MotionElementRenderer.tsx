@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { MotionElement } from "@/types/section";
+import { ENTRANCE_VISIBILITY_THRESHOLD } from "@/lib/anime";
 
 interface MotionElementRendererProps {
   elements: MotionElement[];
@@ -139,7 +140,7 @@ export default function MotionElementRenderer({ elements, sectionId }: MotionEle
               }
             });
           },
-          { threshold: 0.1 }
+          { threshold: ENTRANCE_VISIBILITY_THRESHOLD }
         );
 
         observer.observe(section);
