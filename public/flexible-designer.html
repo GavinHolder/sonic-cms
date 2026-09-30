@@ -7729,7 +7729,12 @@ function renderBlockProps(block) {
   </div>`;
 
   if (block.type==='banner') h+=renderNavSection(block.id,block.props.navTarget,'block','');
-  if (block.type==='hero' && block.props.showBtn!==false) h+=renderNavSection(block.id,block.props.btnNavTarget,'block','');
+  // Hero's button link lives in `btnNavTarget`, not `navTarget` — pass propName explicitly so
+  // edits write to the same field components/sections/FlexibleSectionRenderer.tsx reads (see
+  // renderNavSection's JSDoc). Before this fix the call omitted propName, so it defaulted to
+  // 'navTarget': the dropdown still pre-selected correctly (currentVal already read btnNavTarget)
+  // but every edit silently wrote to the wrong, never-read prop.
+  if (block.type==='hero' && block.props.showBtn!==false) h+=renderNavSection(block.id,block.props.btnNavTarget,'block','','btnNavTarget');
 
   if (block.type !== 'volt') {
     h+=`<div class="props-section">
@@ -8529,19 +8534,27 @@ function renderSubTypeProps(bId, se) {
  * sub-elements. Renders a dropdown of all nav options loaded by loadNavOptions()
  * and reveals a free-text input when "custom", "tel", or "mailto" is selected.
  * @param {string} targetId - Block ID (when kind='block') or sub-element ID (when kind='sub').
- * @param {string} currentVal - The currently stored navTarget value.
+ * @param {string} currentVal - The currently stored value of `propName`.
  * @param {'block'|'sub'} kind - Whether this is a block-level or sub-element-level link.
  * @param {string} blockId - Parent block ID; only used when kind='sub'.
+ * @param {string} [propName='navTarget'] - The prop name to read/write on change. Callers
+ *   MUST pass the exact prop name their live renderer consumes — e.g. the hero block's
+ *   button link lives in `btnNavTarget` (see components/sections/FlexibleSectionRenderer.tsx),
+ *   not the `navTarget` banner/button sub-elements use. Passing the wrong name here means the
+ *   dropdown correctly PRE-SELECTS the current value (since callers read the right field for
+ *   `currentVal`) but every edit silently writes to the wrong prop, which the live renderer
+ *   never reads — the link looks set in the Designer but never works live.
  * @returns {string} HTML string for the navigation section.
  */
-function renderNavSection(targetId, currentVal, kind, blockId) {
+function renderNavSection(targetId, currentVal, kind, blockId, propName) {
+  const prop = propName || 'navTarget';
   const opts = state.navOptions.map(o =>
     `<option value="${escHtml(o.value)}" ${currentVal===o.value?'selected':''}>${escHtml(o.label)}</option>`
   ).join('');
   // Build the correct updateXxxProp call depending on whether this is a block or sub-element link
   const upFn = kind==='block'
-    ? `updateBlockProp('${targetId}','navTarget',this.value)`
-    : `updateSubProp('${blockId}','${targetId}','navTarget',this.value)`;
+    ? `updateBlockProp('${targetId}','${prop}',this.value)`
+    : `updateSubProp('${blockId}','${targetId}','${prop}',this.value)`;
   return `<div class="props-section">
     <div class="props-label" style="color:#856404;"><i class="bi bi-link-45deg"></i> Navigation Target</div>
     <div class="nav-section">
@@ -8551,7 +8564,7 @@ function renderNavSection(targetId, currentVal, kind, blockId) {
       </select>
       <div id="cnav-${targetId}" style="display:none;margin-top:6px;">
         <input class="props-input" type="text" placeholder="Enter URL / tel:... / mailto:..."
-          oninput="${kind==='block'?`updateBlockProp('${targetId}','navTarget',this.value)`:`updateSubProp('${blockId}','${targetId}','navTarget',this.value)`}">
+          oninput="${kind==='block'?`updateBlockProp('${targetId}','${prop}',this.value)`:`updateSubProp('${blockId}','${targetId}','${prop}',this.value)`}">
       </div>
     </div>
   </div>`;
