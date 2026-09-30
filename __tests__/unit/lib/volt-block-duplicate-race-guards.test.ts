@@ -412,3 +412,175 @@ describe('block-duplicate call sites — F2 point 4: in-flight guard drops overl
     expect(log.fetches.length).toBe(2)
   })
 })
+
+/**
+ * 2026-09-30 follow-up: the SAME underlying bug fixed above for
+ * Duplicate/Copy-Paste — a placed block sharing its voltId with another
+ * block, so editing one via Volt Studio silently changes the other — was
+ * also reachable via a different UI path: dragging a design out of the Volt
+ * Library sidebar panel onto the canvas (onCanvasDrop's
+ * `state.dragSource.kind === 'lib-volt'` branch). Every drop from the
+ * Library — including the very FIRST drop of a given library item, since
+ * there is no pre-existing placement to "protect" and the library item is
+ * purely a template source — now mints its own independent VoltElement row
+ * via _lyEnsureIndependentVoltCopy, exactly like the three call sites above,
+ * with the identical breakpoint/undo race guard (onCanvasDrop had to become
+ * `async` for this; its `e.preventDefault()` still runs synchronously as
+ * the function's first statement, before any `await`).
+ *
+ * Extracts the real (now-async) `onCanvasDrop` source and stubs the minimal
+ * DOM surface it touches (a single `#canvas` element) rather than
+ * reimplementing its drop-position/race-guard logic, so these tests break
+ * against the real shipped code, not a copy of it.
+ */
+describe('onCanvasDrop — Volt Library drag-drop independence (2026-09-30)', () => {
+  let dropFnsSrc: string
+
+  beforeAll(() => {
+    const filePath = join(process.cwd(), 'public', 'flexible-designer.html')
+    const fileSrc = readFileSync(filePath, 'utf8')
+    dropFnsSrc = [
+      'async function _lyEnsureIndependentVoltCopy(copy) {',
+      'async function onCanvasDrop(e) {',
+    ]
+      .map((sig) => extractFunctionSource(fileSrc, sig))
+      .join('\n\n')
+
+    // Fail loudly if the drop handler is ever refactored past what these
+    // tests assume, rather than silently testing nothing.
+    expect(dropFnsSrc).toContain("state.dragSource.kind === 'lib-volt'")
+    expect(dropFnsSrc).toContain('raceBreakpoint')
+    expect(dropFnsSrc).toContain('raceBlocks')
+  })
+
+  type DropBlock = { id: string; type: string; props: Record<string, unknown> }
+  type DropState = {
+    blocks: DropBlock[]
+    nextId: number
+    selectedBlockId: string | null
+    activeBreakpoint: string
+    layoutType: string
+    dragSource: {
+      kind: string
+      voltId?: string
+      voltName?: string
+      voltThumbnail?: string | null
+      canvasWidth?: number
+      canvasHeight?: number
+    } | null
+  }
+  type DropLog = { history: number; toasts: [string, string?][]; fetches: string[] }
+  type DropCtx = {
+    console: Console
+    document: { getElementById: (id: string) => unknown }
+    DESKTOP_CANVAS_W: number
+    DESIGN_H: number
+    BLOCK_DEFAULTS: { volt: Record<string, unknown> }
+    getCanvasScale: () => number
+    clearCellHighlights: () => void
+    state: DropState
+    pushHistory: () => void
+    designerToast: (msg: string, kind?: string) => void
+    selectBlock: (id: string) => void
+    renderCanvas: () => void
+    updateBlockCount: () => void
+    autoSave: () => void
+    fetch: typeof fetch
+    onCanvasDrop?: (e: { preventDefault: () => void; clientX: number; clientY: number }) => Promise<void>
+  }
+
+  function makeDropCtx(fetchImpl: (url: string, opts?: RequestInit) => Promise<Response>) {
+    const log: DropLog = { history: 0, toasts: [], fetches: [] }
+    const canvasStub = {
+      classList: { remove: () => {} },
+      getBoundingClientRect: () => ({ left: 0, top: 0 }),
+      offsetWidth: 1440,
+      offsetHeight: 900,
+    }
+    const ctx: DropCtx = {
+      console,
+      document: { getElementById: (id: string) => (id === 'canvas' ? canvasStub : null) },
+      DESKTOP_CANVAS_W: 1440,
+      DESIGN_H: 900,
+      BLOCK_DEFAULTS: { volt: {} },
+      getCanvasScale: () => 1,
+      clearCellHighlights: () => {},
+      state: {
+        blocks: [],
+        nextId: 10,
+        selectedBlockId: null,
+        activeBreakpoint: 'desktop',
+        layoutType: 'free',
+        dragSource: null,
+      },
+      pushHistory: () => {
+        log.history++
+      },
+      designerToast: (m: string, k?: string) => {
+        log.toasts.push([m, k])
+      },
+      selectBlock: (id: string) => {
+        ctx.state.selectedBlockId = id
+      },
+      renderCanvas: () => {},
+      updateBlockCount: () => {},
+      autoSave: () => {},
+      fetch: ((url: string, opts?: RequestInit) => {
+        log.fetches.push(url)
+        return fetchImpl(url, opts)
+      }) as typeof fetch,
+    }
+    vm.createContext(ctx)
+    vm.runInContext(dropFnsSrc + '\nthis.onCanvasDrop = onCanvasDrop;', ctx)
+    return { ctx, log }
+  }
+
+  const dropEvent = (x = 100, y = 100) => ({ preventDefault: () => {}, clientX: x, clientY: y })
+  const libVolt = (voltId: string) => ({ kind: 'lib-volt', voltId, voltName: 'Library Design', voltThumbnail: null, canvasWidth: 1440, canvasHeight: 900 })
+
+  it('valid library drop mints an independent copy and inserts the block (not the shared library voltId)', async () => {
+    const { ctx, log } = makeDropCtx(okFetch())
+    ctx.state.dragSource = libVolt('lib-design-1')
+    await ctx.onCanvasDrop!(dropEvent())
+    expect(ctx.state.blocks.length).toBe(1)
+    expect(ctx.state.blocks[0].type).toBe('volt')
+    expect(ctx.state.blocks[0].props.voltId).not.toBe('lib-design-1')
+    expect(log.history).toBe(1)
+    expect(ctx.state.dragSource).toBeNull()
+  })
+
+  it('failed duplicate-POST aborts cleanly: no block inserted, no history push, error toast', async () => {
+    const { ctx, log } = makeDropCtx(failFetch)
+    ctx.state.dragSource = libVolt('lib-design-2')
+    await ctx.onCanvasDrop!(dropEvent())
+    expect(ctx.state.blocks.length).toBe(0)
+    expect(log.history).toBe(0)
+    expect(log.toasts.some((t) => t[1] === 'error')).toBe(true)
+  })
+
+  it('two sequential drops of the SAME library item each get their own distinct new id — neither the library id nor each other', async () => {
+    const { ctx } = makeDropCtx(okFetch())
+    ctx.state.dragSource = libVolt('lib-design-3')
+    await ctx.onCanvasDrop!(dropEvent())
+    ctx.state.dragSource = libVolt('lib-design-3')
+    await ctx.onCanvasDrop!(dropEvent())
+    expect(ctx.state.blocks.length).toBe(2)
+    const ids = ctx.state.blocks.map((b) => b.props.voltId)
+    expect(new Set(ids).size).toBe(2)
+    expect(ids).not.toContain('lib-design-3')
+  })
+
+  it('breakpoint switch mid-POST aborts the drop — block does not land on the new canvas', async () => {
+    const { ctx, log } = makeDropCtx(okFetch(30))
+    ctx.state.dragSource = libVolt('lib-design-4')
+    const p = ctx.onCanvasDrop!(dropEvent())
+    await tick(5)
+    // Simulate setDevicePreview('mobile'): state.blocks replaced, breakpoint changed.
+    ctx.state.blocks = []
+    ctx.state.activeBreakpoint = 'mobile'
+    await p
+    expect(ctx.state.blocks.length).toBe(0)
+    expect(log.history).toBe(0)
+    expect(log.toasts.some((t) => t[1] === 'error')).toBe(true)
+  })
+})
