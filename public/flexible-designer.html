@@ -3965,7 +3965,7 @@ function createBlockPreview(block) {
       break;
     case 'banner':
       wrap.innerHTML = `<div class="cb-prev-banner" style="background:${p.bgColor}">
-        <div style="font-weight:700;font-size:12px;">${p.heading}</div>
+        <div style="font-weight:700;font-size:12px;">${escHtml(p.heading)}</div>
         <div style="background:rgba(255,255,255,0.2);padding:3px 10px;border-radius:4px;font-size:10px;font-weight:600;">${p.navTarget?'Linked →':'Add Link'}</div>
       </div>`;
       break;
