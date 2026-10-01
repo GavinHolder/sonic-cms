@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { requireRole } from '@/lib/api-middleware';
+import { saveSectionGuarded, parseExpectedUpdatedAt } from '@/lib/section-write-guard';
+
+let warnedNoExpected = false;
 
 // Safely convert a JSON body value to a Prisma-safe Json value.
 // null → Prisma.DbNull (SQL NULL); anything else passes through.
@@ -75,22 +78,18 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
-    // Check if section exists
-    const existingSection = await prisma.section.findUnique({
-      where: { id },
-    });
-
-    if (!existingSection) {
-      return NextResponse.json(
-        { success: false, error: 'Section not found' },
-        { status: 404 }
-      );
+    // Optimistic concurrency: client sends the updatedAt it loaded. Missing = legacy caller (accepted).
+    const expected = parseExpectedUpdatedAt(body.expectedUpdatedAt);
+    if (expected === 'invalid') {
+      return NextResponse.json({ success: false, error: 'Invalid expectedUpdatedAt' }, { status: 400 });
+    }
+    if (!expected && !warnedNoExpected) {
+      warnedNoExpected = true;
+      console.warn('[sections PUT] request without expectedUpdatedAt - concurrency check skipped (legacy caller)');
     }
 
     // Update section - include all schema fields
-    const section = await prisma.section.update({
-      where: { id },
-      data: {
+    const data = {
         ...(body.type && { type: body.type }),
         ...(body.enabled !== undefined && { enabled: body.enabled }),
         ...(body.order !== undefined && { order: body.order }),
@@ -144,12 +143,30 @@ export async function PUT(
         // and explicit nulls are stored correctly (raw JS null breaks Prisma Json?)
         ...(body.lowerThird !== undefined && { lowerThird: toJsonField(body.lowerThird) }),
         ...(body.motionElements !== undefined && { motionElements: toJsonField(body.motionElements) }),
-      },
+    };
+
+    // Conditional write + previous-content snapshot happen atomically in one transaction.
+    const result = await saveSectionGuarded(prisma, {
+      id,
+      data,
+      expectedUpdatedAt: expected,
+      userId: auth.userId,
     });
+    if (result.status === 'not_found') {
+      return NextResponse.json({ success: false, error: 'Section not found' }, { status: 404 });
+    }
+    if (result.status === 'stale') {
+      return NextResponse.json(
+        { error: 'SECTION_STALE', success: false, currentUpdatedAt: result.currentUpdatedAt },
+        { status: 409 }
+      );
+    }
+    const section = result.section;
 
     return NextResponse.json({
       success: true,
       data: section,
+      updatedAt: section.updatedAt,
     });
   } catch (error) {
     console.error('Failed to update section:', error);
