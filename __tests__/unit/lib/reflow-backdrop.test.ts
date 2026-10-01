@@ -30,6 +30,10 @@ describe('isReflowBackdropVolt', () => {
   it('false when props is missing entirely', () => {
     expect(isReflowBackdropVolt({ type: 'volt' })).toBe(false)
   })
+
+  it('false for an UNFLAGGED volt covering the whole canvas (geometry never activates)', () => {
+    expect(isReflowBackdropVolt({ type:'volt', props:{ voltId:'hero' }, pixelPos:{x:0,y:0,w:1440,h:900} } as any)).toBe(false)
+  })
 })
 
 describe('partitionReflowBlocks', () => {
@@ -68,6 +72,14 @@ describe('partitionReflowBlocks', () => {
     ]
     const { leafBlocks, backdropBlocks } = partitionReflowBlocks(blocks)
     expect(leafBlocks).toEqual(blocks)
+    expect(backdropBlocks).toEqual([])
+  })
+
+  it('an unflagged, bounded volt visually overlapped by other blocks (per stored pixelPos) stays a leaf, not a backdrop — overlap/geometry never promotes, only the explicit flag does', () => {
+    const overlappingText = { id: 1, type: 'text', props: {}, pixelPos: { x: 20, y: 20, w: 200, h: 40 } }
+    const boundedVolt = { id: 2, type: 'volt', props: { voltId: 'card-1' }, pixelPos: { x: 0, y: 0, w: 1100, h: 300 } }
+    const { leafBlocks, backdropBlocks } = partitionReflowBlocks([overlappingText, boundedVolt])
+    expect(leafBlocks).toEqual([overlappingText, boundedVolt])
     expect(backdropBlocks).toEqual([])
   })
 })
