@@ -7,9 +7,65 @@
  *    PREVIOUS content in section_versions, so any overwrite is recoverable.
  * 3. At most SECTION_VERSION_LIMIT snapshots are kept per section.
  */
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { summarizeDesignerData } from '@/lib/section-versions';
 
 export const SECTION_VERSION_LIMIT = 30;
+export const SECTION_TX_OPTIONS = { maxWait: 5000, timeout: 15000 } as const;
+
+/** Flat visual columns captured in a snapshot and restored with it (identity/nav/order are NOT). */
+export const SECTION_FLAT_FIELDS = [
+  'paddingTop', 'paddingBottom', 'paddingTopMobile', 'paddingBottomMobile', 'background', 'banner',
+  'triangleEnabled', 'triangleSide', 'triangleShape', 'triangleHeight', 'triangleTargetId',
+  'triangleGradientType', 'triangleColor1', 'triangleColor2', 'triangleAlpha1', 'triangleAlpha2',
+  'triangleAngle', 'triangleImageUrl', 'triangleImageSize', 'triangleImagePos', 'triangleImageOpacity',
+  'hoverTextEnabled', 'hoverText', 'hoverTextStyle', 'hoverFontSize', 'hoverFontFamily',
+  'hoverAnimationType', 'hoverAnimateBehind', 'hoverAlwaysShow', 'hoverOffsetX',
+  'bgImageUrl', 'bgImageSize', 'bgImagePosition', 'bgImageRepeat', 'bgImageOpacity', 'bgParallax',
+  'lowerThird', 'motionElements', 'voltElementId', 'voltSlotMap',
+] as const;
+const JSON_FLAT = new Set(['banner', 'lowerThird', 'motionElements', 'voltSlotMap']);
+
+/** Build a prisma `data` fragment from a snapshot's flat map (null Json -> DbNull). */
+export function flatToData(flat: unknown): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (!flat || typeof flat !== 'object') return out;
+  for (const k of SECTION_FLAT_FIELDS) {
+    if (!(k in (flat as object))) continue;
+    const v = (flat as Record<string, unknown>)[k];
+    out[k] = v === null && JSON_FLAT.has(k) ? Prisma.DbNull : v;
+  }
+  return out;
+}
+
+/** Key-order-independent serialisation (jsonb does not preserve key order). */
+export function stableStringify(v: unknown): string {
+  if (Array.isArray(v)) return '[' + v.map(stableStringify).join(',') + ']';
+  if (v && typeof v === 'object') {
+    const o = v as Record<string, unknown>;
+    return '{' + Object.keys(o).sort().map((k) => JSON.stringify(k) + ':' + stableStringify(o[k])).join(',') + '}';
+  }
+  return JSON.stringify(v) ?? 'null';
+}
+
+/**
+ * Update NON-content fields without moving updatedAt, so reorder / nav / spacing / footer-bump writes
+ * never invalidate an open editor's expectedUpdatedAt. Atomic: conditional on the stamp we read, so a
+ * concurrent content write (which does bump) can never be reverted to an older stamp.
+ */
+export async function updateSectionKeepStamp(
+  db: { section: { findUnique: (a: any) => Promise<any>; updateMany: (a: any) => Promise<{ count: number }> } },
+  id: string,
+  data: Record<string, unknown>
+): Promise<boolean> {
+  for (let i = 0; i < 3; i++) {
+    const row = await db.section.findUnique({ where: { id }, select: { updatedAt: true } });
+    if (!row) return false;
+    const r = await db.section.updateMany({ where: { id, updatedAt: row.updatedAt }, data: { ...data, updatedAt: row.updatedAt } });
+    if (r.count === 1) return true;
+  }
+  throw new Error('Section is being modified concurrently');
+}
 
 // Minimal structural type so tests can supply an in-memory fake.
 type Tx = {
@@ -23,12 +79,21 @@ type Tx = {
     deleteMany: (a: any) => Promise<any>;
   };
 };
-type Db = { $transaction: <T>(fn: (tx: any) => Promise<T>) => Promise<T> };
+type Db = { $transaction: <T>(fn: (tx: any) => Promise<T>, opts?: unknown) => Promise<T> };
 
 export type GuardedSaveResult =
   | { status: 'ok'; section: any }
   | { status: 'not_found' }
   | { status: 'stale'; currentUpdatedAt: string | null };
+
+/** True unless every content/contentDraft/flat field in `data` deep-equals the stored value. */
+function contentActuallyChanged(prev: any, data: Record<string, unknown>): boolean {
+  const keys = ['content', 'contentDraft', ...SECTION_FLAT_FIELDS].filter((k) => k in data);
+  return keys.some((k) => {
+    const incoming = (data[k] as unknown) === Prisma.DbNull ? null : data[k];
+    return stableStringify(incoming ?? null) !== stableStringify(prev[k] ?? null);
+  });
+}
 
 export function parseExpectedUpdatedAt(v: unknown): Date | null | 'invalid' {
   if (v === undefined || v === null || v === '') return null;
@@ -66,7 +131,11 @@ export async function saveSectionGuarded(
         return { status: 'stale', currentUpdatedAt: prevAt.toISOString() } as const;
       }
 
-      const res = await tx.section.updateMany({ where: { id, updatedAt: prevAt }, data });
+      // Non-content writes keep the stamp (atomic via the WHERE) so they never cause false conflicts.
+      const res = await tx.section.updateMany({
+        where: { id, updatedAt: prevAt },
+        data: isContentWrite ? data : { ...data, updatedAt: prevAt },
+      });
       if (res.count !== 1) {
         if (expectedUpdatedAt) {
           const cur = await tx.section.findUnique({ where: { id } });
@@ -76,15 +145,22 @@ export async function saveSectionGuarded(
         continue; // no client base: someone else won the race; re-read and retry
       }
 
-      if (isContentWrite) {
+      if (isContentWrite && contentActuallyChanged(prev, data)) {
         const agg = await tx.sectionVersion.aggregate({ where: { sectionId: id }, _max: { version: true } });
         const next = (agg?._max?.version ?? 0) + 1;
+        const flat: Record<string, unknown> = {};
+        for (const k of SECTION_FLAT_FIELDS) flat[k] = prev[k] ?? null;
         await tx.sectionVersion.create({
           data: {
             sectionId: id,
             version: next,
             createdBy: userId,
-            config: { content: prev.content ?? {}, contentDraft: prev.contentDraft ?? null } as Prisma.InputJsonValue,
+            config: {
+              content: prev.content ?? {},
+              contentDraft: prev.contentDraft ?? null,
+              flat,
+              summary: summarizeDesignerData(prev.content),
+            } as unknown as Prisma.InputJsonValue,
           },
         });
         await tx.sectionVersion.deleteMany({
@@ -95,5 +171,5 @@ export async function saveSectionGuarded(
       return { status: 'ok', section } as const;
     }
     return { status: 'stale', currentUpdatedAt: null } as const;
-  });
+  }, SECTION_TX_OPTIONS);
 }

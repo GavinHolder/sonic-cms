@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { requireRole } from '@/lib/api-middleware';
 import { SECTION_ID_RE } from '@/lib/section-versions';
-import { saveSectionGuarded, parseExpectedUpdatedAt } from '@/lib/section-write-guard';
+import { saveSectionGuarded, parseExpectedUpdatedAt, flatToData } from '@/lib/section-write-guard';
 
 /**
  * POST /api/sections/[id]/versions/[versionId]/restore
@@ -37,7 +37,7 @@ export async function POST(
     if (!version) {
       return NextResponse.json({ success: false, error: 'Version not found' }, { status: 404 });
     }
-    const cfg = version.config as { content?: unknown; contentDraft?: unknown } | null;
+    const cfg = version.config as { content?: unknown; contentDraft?: unknown; flat?: unknown } | null;
     if (!cfg || typeof cfg !== 'object' || cfg.content === undefined || cfg.content === null) {
       return NextResponse.json({ success: false, error: 'Snapshot has no content' }, { status: 422 });
     }
@@ -45,6 +45,7 @@ export async function POST(
     const result = await saveSectionGuarded(prisma, {
       id,
       data: {
+        ...flatToData(cfg.flat),
         content: cfg.content as Prisma.InputJsonValue,
         ...(cfg.contentDraft !== undefined && cfg.contentDraft !== null && {
           contentDraft: cfg.contentDraft as Prisma.InputJsonValue,

@@ -10,8 +10,10 @@ export function makeFakeDb(initial: { id: string; content: any; updatedAt: Date 
       updateMany: async ({ where, data }: any) => {
         if (where.id !== row.id || where.updatedAt.getTime() !== row.updatedAt.getTime()) return { count: 0 };
         Object.assign(row, data);
-        clock += 1000;
-        row.updatedAt = new Date(clock);
+        if (!('updatedAt' in data)) {
+          clock += 1000;
+          row.updatedAt = new Date(clock);
+        }
         return { count: 1 };
       },
     },
@@ -36,6 +38,10 @@ export function makeFakeDb(initial: { id: string; content: any; updatedAt: Date 
       chain = run.catch(() => undefined);
       return run;
     },
+    $queryRaw: async () =>
+      [...versions].sort((a, b) => b.version - a.version).map((v) => ({
+        id: v.id, version: v.version, createdAt: v.createdAt, createdBy: v.createdBy, summary: v.config.summary,
+      })),
     section: tx.section,
     sectionVersion: {
       ...tx.sectionVersion,

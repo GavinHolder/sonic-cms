@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireRole } from '@/lib/api-middleware';
+import { updateSectionKeepStamp } from '@/lib/section-write-guard';
 
 /** Auto-create the landing page if it has been wiped (e.g. after a clean-slate reset) */
 async function ensureLandingPage(slug: string) {
@@ -136,10 +137,8 @@ export async function POST(request: NextRequest) {
 
       if (footerSection) {
         // Bump the footer's order up by 1, then take its old slot
-        await prisma.section.update({
-          where: { id: footerSection.id },
-          data: { order: footerSection.order + 1 },
-        });
+        // Keep updatedAt: a footer order bump must not stale an open footer editor.
+        await updateSectionKeepStamp(prisma, footerSection.id, { order: footerSection.order + 1 });
         newOrder = footerSection.order;
       } else {
         // No footer yet — just go after the last section

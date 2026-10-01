@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import { useToast } from "@/components/admin/ToastProvider";
-import { SECTION_STALE_EVENT, SECTION_STALE_MESSAGE, type SectionStaleDetail } from "@/lib/section-stale-client";
+import { SECTION_STALE_EVENT, SECTION_STALE_MESSAGE, SECTION_STALE_MESSAGE_NO_DRAFT, type SectionStaleDetail } from "@/lib/section-stale-client";
 
 /**
  * Editor-side handling of a 409 SECTION_STALE from PUT /api/sections/[id].
@@ -27,11 +27,12 @@ export function useSectionStaleGuard(sectionId: string, draftKey: string, onStal
     const handler = (e: Event) => {
       const d = (e as CustomEvent<SectionStaleDetail>).detail;
       if (!d || d.sectionId !== sectionId) return;
+      let kept = false;
       if (stash.current) {
-        try { localStorage.setItem(draftKey, stash.current); } catch {}
+        try { localStorage.setItem(draftKey, stash.current); kept = true; } catch {}
       }
       onStaleRef.current();
-      toastRef.current?.error(SECTION_STALE_MESSAGE, 12000);
+      toastRef.current?.error(kept ? SECTION_STALE_MESSAGE : SECTION_STALE_MESSAGE_NO_DRAFT, 12000);
     };
     window.addEventListener(SECTION_STALE_EVENT, handler);
     return () => window.removeEventListener(SECTION_STALE_EVENT, handler);

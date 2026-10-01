@@ -72,3 +72,39 @@ describe('saveSectionGuarded', () => {
     expect((parseExpectedUpdatedAt(T0.toISOString()) as Date).getTime()).toBe(T0.getTime());
   });
 });
+
+import { updateSectionKeepStamp, stableStringify, flatToData } from '@/lib/section-write-guard';
+import { Prisma } from '@prisma/client';
+
+describe('safeguard review fixes', () => {
+  it('non-content PUT-style write keeps updatedAt and takes no snapshot', async () => {
+    const { db, row, versions } = mk();
+    await saveSectionGuarded(db, { id: 's1', data: { order: 4 }, expectedUpdatedAt: T0, userId: 'u' });
+    expect(row.updatedAt.getTime()).toBe(T0.getTime());
+    expect(versions).toHaveLength(0);
+  });
+  it('updateSectionKeepStamp preserves updatedAt', async () => {
+    const { db, row } = mk();
+    expect(await updateSectionKeepStamp(db as any, 's1', { order: 9 })).toBe(true);
+    expect(row.order).toBe(9);
+    expect(row.updatedAt.getTime()).toBe(T0.getTime());
+  });
+  it('unchanged content is not re-snapshotted but still writes', async () => {
+    const { db, versions } = mk();
+    const r = await saveSectionGuarded(db, { id: 's1', data: { content: { designerData: 'v0' } }, expectedUpdatedAt: null, userId: 'u' });
+    expect(r.status).toBe('ok');
+    expect(versions).toHaveLength(0);
+  });
+  it('snapshot stores summary and flat columns', async () => {
+    const { db, row, versions } = mk();
+    row.paddingTop = 33;
+    row.content = { designerData: JSON.stringify({ desktop: [1, 2], tablet: [1], mobile: null }) };
+    await saveSectionGuarded(db, { id: 's1', data: { content: { n: 1 } }, expectedUpdatedAt: null, userId: 'u' });
+    expect(versions[0].config.summary).toEqual({ desktop: 2, tablet: 1, mobile: 0 });
+    expect(versions[0].config.flat.paddingTop).toBe(33);
+  });
+  it('stableStringify ignores key order; flatToData maps null Json to DbNull', () => {
+    expect(stableStringify({ a: 1, b: { c: 2, d: 3 } })).toBe(stableStringify({ b: { d: 3, c: 2 }, a: 1 }));
+    expect(flatToData({ lowerThird: null, paddingTop: 5, bogus: 1 })).toEqual({ lowerThird: Prisma.DbNull, paddingTop: 5 });
+  });
+});

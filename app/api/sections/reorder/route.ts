@@ -7,6 +7,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
+import { updateSectionKeepStamp } from "@/lib/section-write-guard";
 import {
   requireRole,
   successResponse,
@@ -87,14 +88,13 @@ export async function PUT(request: NextRequest) {
     });
 
     // Update all sections in a transaction
-    await prisma.$transaction(
-      pinnedSections.map((section) =>
-        prisma.section.update({
-          where: { id: section.id },
-          data: { order: section.order },
-        })
-      )
-    );
+    // Order changes keep updatedAt (updateSectionKeepStamp) so a reorder never makes an open
+    // editor's expectedUpdatedAt stale (false 409). updatedAt tracks content/visual changes only.
+    await prisma.$transaction(async (tx) => {
+      for (const section of pinnedSections) {
+        await updateSectionKeepStamp(tx, section.id, { order: section.order });
+      }
+    });
 
     // Fetch updated sections
     const updatedSections = await prisma.section.findMany({
@@ -105,6 +105,7 @@ export async function PUT(request: NextRequest) {
         type: true,
         enabled: true,
         order: true,
+        updatedAt: true,
       },
     });
 

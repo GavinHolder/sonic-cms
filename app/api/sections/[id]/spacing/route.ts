@@ -7,6 +7,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
+import { updateSectionKeepStamp } from "@/lib/section-write-guard";
 import {
   requireRole,
   successResponse,
@@ -66,13 +67,13 @@ export async function PUT(
     };
 
     // Update section spacing (paddingTop/paddingBottom are the direct fields)
-    const section = await prisma.section.update({
-      where: { id },
-      data: {
-        paddingTop: updatedSpacing.paddingTop,
-        paddingBottom: updatedSpacing.paddingBottom,
-      },
+    // Padding is a visual write but keeps updatedAt out of the editor conflict token's way
+    // (the content PUT path is the one guarded + snapshotted).
+    await updateSectionKeepStamp(prisma, id, {
+      paddingTop: updatedSpacing.paddingTop,
+      paddingBottom: updatedSpacing.paddingBottom,
     });
+    const section = { ...(existingSection as any), paddingTop: updatedSpacing.paddingTop, paddingBottom: updatedSpacing.paddingBottom };
 
     return successResponse({
       spacing: { paddingTop: section.paddingTop, paddingBottom: section.paddingBottom },

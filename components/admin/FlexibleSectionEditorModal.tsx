@@ -26,6 +26,7 @@ import type { BackgroundPosVariants, BgBundle, GradientConfig } from "../../publ
 import { useConfirm } from "@/components/admin/ConfirmProvider";
 import { useSectionStaleGuard } from "@/components/admin/useSectionStaleGuard";
 import { decideDraftResume } from "@/lib/section-draft-resume";
+import { resolveExpectedUpdatedAt } from "@/lib/section-stale-client";
 import { shouldShowTriangle, isHeroSectionType } from "@/lib/section-rules";
 import {
   PRESET_COLORS,
@@ -907,7 +908,7 @@ export default function FlexibleSectionEditorModal({
       // Persist to draft — as { payload, savedAt } so a later reopen can tell whether
       // this draft is actually newer than the section's last real save — so data
       // survives if modal closes unexpectedly.
-      try { localStorage.setItem(draftKey, JSON.stringify({ payload: e.data.payload, savedAt: Date.now(), baseUpdatedAt: (section as any)?.updatedAt ?? null })); } catch {}
+      try { localStorage.setItem(draftKey, JSON.stringify({ payload: e.data.payload, savedAt: Date.now(), baseUpdatedAt: resolveExpectedUpdatedAt(section.id, (section as any)?.updatedAt) ?? null })); } catch {}
       if (e.data.type === "FLEXIBLE_DESIGNER_DONE") {
         setShowDesigner(false);
       }

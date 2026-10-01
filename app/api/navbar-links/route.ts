@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { updateSectionKeepStamp } from "@/lib/section-write-guard";
 import { requireRole } from "@/lib/api-middleware";
 
 /** Shape returned/stored for a navbar link */
@@ -79,24 +80,28 @@ export async function PUT(request: NextRequest) {
     const sectionIds   = sectionLinks.map((l) => l.id);
     const pageIds      = pageLinks.map((l) => l.id);
 
-    await prisma.$transaction([
-      // Clear all navbar flags
-      prisma.section.updateMany({ where: {}, data: { showOnNavbar: false } }),
-      prisma.page.updateMany({ where: {}, data: { showOnNavbar: false } }),
-      // Set enabled links
-      ...sectionLinks.map((l) =>
-        prisma.section.update({
+    // Section nav fields are written WITHOUT moving updatedAt (updateSectionKeepStamp) so a navbar
+    // edit never makes an open section editor's expectedUpdatedAt stale (false 409).
+    await prisma.$transaction(async (tx) => {
+      const flagged = await tx.section.findMany({ where: { showOnNavbar: true }, select: { id: true } });
+      for (const f of flagged) {
+        if (!sectionIds.includes(f.id)) await updateSectionKeepStamp(tx, f.id, { showOnNavbar: false });
+      }
+      for (const l of sectionLinks) {
+        await updateSectionKeepStamp(tx, l.id, {
+          showOnNavbar: true,
+          navOrder: l.navOrder,
+          navLabel: l.label || undefined,
+        });
+      }
+      await tx.page.updateMany({ where: {}, data: { showOnNavbar: false } });
+      for (const l of pageLinks) {
+        await tx.page.update({
           where: { id: l.id },
           data: { showOnNavbar: true, navOrder: l.navOrder, navLabel: l.label || undefined },
-        })
-      ),
-      ...pageLinks.map((l) =>
-        prisma.page.update({
-          where: { id: l.id },
-          data: { showOnNavbar: true, navOrder: l.navOrder, navLabel: l.label || undefined },
-        })
-      ),
-    ]);
+        });
+      }
+    });
 
     void sectionIds; void pageIds; // used above
     return NextResponse.json({ success: true });

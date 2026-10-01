@@ -13,7 +13,7 @@
 
 import type { SectionConfig, SectionType } from "@/types/section";
 import { fetchWithRefresh } from "@/lib/fetch-with-refresh";
-import { resolveExpectedUpdatedAt, rememberSavedUpdatedAt, announceSectionStale } from "@/lib/section-stale-client";
+import { resolveExpectedUpdatedAt, rememberSavedUpdatedAt, announceSectionStale, runSerialized } from "@/lib/section-stale-client";
 
 /**
  * Get all sections for a page from database API
@@ -90,6 +90,8 @@ export async function updateSection(
     // Optimistic concurrency: editors spread the loaded section (incl. its updatedAt) into `updates`.
     // Send that as expectedUpdatedAt (request level, not inside content); absent = legacy caller.
     const { updatedAt: snapshotAt, ...rest } = updates as Record<string, unknown>;
+    return await runSerialized(sectionId, async () => {
+    // Resolved INSIDE the queue so a queued save sees the previous save's new updatedAt.
     const expectedUpdatedAt = resolveExpectedUpdatedAt(sectionId, snapshotAt);
     const response = await fetchWithRefresh(`/api/sections/${sectionId}`, {
       method: 'PUT',
@@ -110,6 +112,7 @@ export async function updateSection(
     const result = await response.json();
     if (result.success) rememberSavedUpdatedAt(sectionId, result.updatedAt);
     return result.success;
+    });
   } catch (error) {
     console.error("Error updating section:", error);
     return false;

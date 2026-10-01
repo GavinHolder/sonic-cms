@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireRole } from '@/lib/api-middleware';
-import { SECTION_ID_RE, summarizeDesignerData } from '@/lib/section-versions';
+import { SECTION_ID_RE, type BreakpointCounts } from '@/lib/section-versions';
 import { SECTION_VERSION_LIMIT } from '@/lib/section-write-guard';
 
 /**
@@ -21,19 +21,23 @@ export async function GET(
       return NextResponse.json({ success: false, error: 'Invalid section id' }, { status: 400 });
     }
 
-    const rows = await prisma.sectionVersion.findMany({
-      where: { sectionId: id },
-      orderBy: { version: 'desc' },
-      take: SECTION_VERSION_LIMIT,
-    });
+    // Pull only the small stored summary out of the JSON (never the 30 full blobs).
+    const rows = await prisma.$queryRaw<
+      Array<{ id: string; version: number; createdAt: Date; createdBy: string; summary: unknown }>
+    >`SELECT id, version, "createdAt", "createdBy", config->'summary' AS summary
+      FROM section_versions WHERE "sectionId" = ${id}
+      ORDER BY version DESC LIMIT ${SECTION_VERSION_LIMIT}`;
 
-    const data = rows.map((v) => ({
-      id: v.id,
-      version: v.version,
-      createdAt: v.createdAt,
-      createdBy: v.createdBy,
-      counts: summarizeDesignerData((v.config as { content?: unknown } | null)?.content),
-    }));
+    const data = rows.map((v) => {
+      const sm = (v.summary ?? {}) as Partial<BreakpointCounts>;
+      return {
+        id: v.id,
+        version: v.version,
+        createdAt: v.createdAt,
+        createdBy: v.createdBy,
+        counts: { desktop: Number(sm.desktop) || 0, tablet: Number(sm.tablet) || 0, mobile: Number(sm.mobile) || 0 },
+      };
+    });
     return NextResponse.json({ success: true, data });
   } catch (error) {
     console.error('Failed to list section versions:', error);
