@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useAutoSave } from "@/lib/hooks/useAutoSave";
 import type { HeroSection, HeroCarouselSlide, HeroEasing } from "@/types/section";
 import SlideEditor, { EASING_OPTIONS } from "./SlideEditor";
@@ -12,6 +13,17 @@ import HeroCarousel from "@/components/sections/HeroCarousel";
 // to the live page, then transform-scales that down to fit the pane.
 const DEFAULT_VW = 1440;
 const DEFAULT_VH = 900;
+
+// Blank document the Live Preview iframe loads. HeroCarousel is portaled into
+// #root once the iframe fires onLoad. Using a real iframe (not a styled div)
+// gives the preview its own independent browsing context/viewport, so the
+// `clamp(..., Xvw, ...)` font-size rules in HeroCarousel.tsx resolve against
+// THIS iframe's actual rendered width (375px/768px/real window) instead of
+// the admin's real monitor width — `vw` units always resolve against the
+// top-level window and ignore ancestor CSS width or `transform: scale()`,
+// which is what made Tablet/Mobile text render oversized before this fix.
+const PREVIEW_IFRAME_SRC_DOC =
+  '<!DOCTYPE html><html><head></head><body><div id="root"></div></body></html>';
 
 interface HeroCarouselEditorProps {
   section: HeroSection;
@@ -88,6 +100,12 @@ export default function HeroCarouselEditor({
   const [editBreakpoint, setEditBreakpoint] = useState<"desktop" | "tablet" | "mobile">("desktop");
   const previewRef = useRef<HTMLDivElement>(null);
   const [previewWidth, setPreviewWidth] = useState(0);
+  // Live Preview iframe — see PREVIEW_IFRAME_SRC_DOC above. previewIframeRef is the
+  // <iframe> DOM node itself (used only inside the onLoad handler, to reach
+  // contentDocument); iframePortalRoot is the #root div INSIDE that iframe's own
+  // document, set once onLoad fires, and is what HeroCarousel gets portaled into.
+  const previewIframeRef = useRef<HTMLIFrameElement>(null);
+  const [iframePortalRoot, setIframePortalRoot] = useState<HTMLElement | null>(null);
   // Real browser viewport of the admin — the hero fills THIS on the live page,
   // so the preview must render into the same w×h for cover-crop to match 1:1.
   const [viewport, setViewport] = useState({ w: DEFAULT_VW, h: DEFAULT_VH });
@@ -130,6 +148,55 @@ export default function HeroCarouselEditor({
     editBreakpoint === "tablet" ? { w: 768, h: 1024 }
     : editBreakpoint === "mobile" ? { w: 375, h: 812 }
     : viewport;
+
+  // Fires once, when the Live Preview iframe's blank document finishes loading.
+  // Sets up the #root portal target and a one-time base reset, then hands off
+  // to the mirroring effect below to copy in the app's real stylesheets.
+  const handlePreviewIframeLoad = () => {
+    const doc = previewIframeRef.current?.contentDocument;
+    if (!doc) return;
+    let root = doc.getElementById("root");
+    if (!root) {
+      root = doc.createElement("div");
+      root.id = "root";
+      doc.body.appendChild(root);
+    }
+    // Minimal reset so the iframe's own html/body don't add default margin —
+    // kept out of the mirrored-stylesheet set (a distinct id) so the sync
+    // effect below never removes it when it clears/re-clones mirrored nodes.
+    if (!doc.getElementById("preview-base-reset")) {
+      const base = doc.createElement("style");
+      base.id = "preview-base-reset";
+      base.textContent = "html,body{margin:0;padding:0;}";
+      doc.head.appendChild(base);
+    }
+    setIframePortalRoot(root);
+  };
+
+  // Keeps the iframe's stylesheets in sync with the admin app's real <head> for
+  // the lifetime of the preview. Next.js can inject/update <style>/<link> tags
+  // after initial mount (CSS modules, CSS-in-JS, font loading), so a one-time
+  // copy on load isn't sufficient — this clones the CURRENT set on every head
+  // mutation, for as long as the preview iframe is mounted.
+  useEffect(() => {
+    if (!iframePortalRoot) return;
+    const iframeDoc = iframePortalRoot.ownerDocument;
+    if (!iframeDoc) return;
+
+    const syncStyles = () => {
+      iframeDoc.head.querySelectorAll("[data-mirrored-style]").forEach((n) => n.remove());
+      document.head.querySelectorAll('link[rel="stylesheet"], style').forEach((node) => {
+        const clone = node.cloneNode(true) as HTMLElement;
+        clone.setAttribute("data-mirrored-style", "true");
+        iframeDoc.head.appendChild(clone);
+      });
+    };
+
+    syncStyles();
+    const observer = new MutationObserver(syncStyles);
+    observer.observe(document.head, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [iframePortalRoot]);
 
   // Measure the pane so we can scale the virtual hero down to fit.
   useEffect(() => {
@@ -771,7 +838,7 @@ export default function HeroCarouselEditor({
                         transform-scaled to fit — so cover-crop is identical. */}
                     <div
                       ref={previewRef}
-                      className="hero-preview-scope border rounded"
+                      className="border rounded"
                       style={{
                         position: "relative",
                         width: "100%",
@@ -780,30 +847,9 @@ export default function HeroCarouselEditor({
                         backgroundColor: "#000",
                       }}
                     >
-                      {/* Scoped override: beat the global
-                          `.hero-carousel { height:100vh !important }` with a
-                          higher-specificity + !important rule so the hero fills
-                          the virtual viewport (real window height) exactly as on
-                          the page — same cover crop and centering.
-                          Also mirrors HeroCarousel's own heroFullNavbar math
-                          (`calc(100dvh + navbar-height)`) by adding the real
-                          navbar height here, and pins --navbar-height to the
-                          real value (scoped to this preview only) so the
-                          content layer's `top`/`height` calc — which reads that
-                          same var — lines up with the live page instead of the
-                          admin-wide hardcoded 100px fallback. */}
-                      <style>{`
-                        .hero-preview-scope {
-                          --navbar-height: ${navbarHeight}px;
-                        }
-                        .hero-preview-scope .hero-carousel {
-                          height: ${effectiveViewport.h + (heroFullNavbar ? navbarHeight : 0)}px !important;
-                          min-height: ${effectiveViewport.h + (heroFullNavbar ? navbarHeight : 0)}px !important;
-                        }
-                      `}</style>
                       {/* Preview-only play/pause — controls just this thumbnail's autoplay
-                          via forcePaused, sits above the pointerEvents:none scaled wrapper
-                          below so it stays clickable. Never rendered on the live page. */}
+                          via forcePaused, sits above the pointerEvents:none iframe below
+                          so it stays clickable. Never rendered on the live page. */}
                       <button
                         type="button"
                         onClick={() => setPreviewPaused((p) => !p)}
@@ -828,22 +874,68 @@ export default function HeroCarouselEditor({
                       >
                         <i className={`bi ${previewPaused ? "bi-play-fill" : "bi-pause-fill"}`}></i>
                       </button>
+                      {/* Real iframe, NOT a styled div — gives HeroCarousel's `vw`-based
+                          clamp() font sizes an independent browsing context/viewport to
+                          resolve against (see PREVIEW_IFRAME_SRC_DOC comment above). Its
+                          width/height are the actual effectiveViewport layout dimensions
+                          (375/768/real-window) — the visual fit-to-pane shrink is done
+                          purely via `transform: scale()` on the iframe itself, which does
+                          NOT affect the layout size `vw` resolves against. */}
                       {previewScale > 0 && (
-                        <div
+                        <iframe
+                          ref={(node) => {
+                            previewIframeRef.current = node;
+                            // Fires with null on unmount (e.g. previewScale drops to 0, or
+                            // this whole column is hidden) — clears the stale portal target
+                            // immediately so we never portal into a detached document.
+                            if (!node) setIframePortalRoot(null);
+                          }}
+                          title="Hero carousel live preview"
+                          srcDoc={PREVIEW_IFRAME_SRC_DOC}
+                          onLoad={handlePreviewIframeLoad}
+                          width={effectiveViewport.w}
+                          height={effectiveViewport.h}
                           style={{
                             position: "absolute",
                             top: 0,
                             left: 0,
                             width: `${effectiveViewport.w}px`,
                             height: `${effectiveViewport.h}px`,
+                            border: "none",
                             transform: `scale(${previewScale})`,
                             transformOrigin: "top left",
                             pointerEvents: "none",
                           }}
-                        >
-                          <HeroCarousel section={draftSection} forcePaused={previewPaused} forceViewport={editBreakpoint} />
-                        </div>
+                        />
                       )}
+                      {iframePortalRoot &&
+                        createPortal(
+                          <>
+                            {/* Beats the global `.hero-carousel { height:100vh !important }`
+                                with a higher-specificity + !important rule so the hero fills
+                                the virtual viewport (real window height) exactly as on the
+                                page — same cover crop and centering. Also mirrors
+                                HeroCarousel's own heroFullNavbar math
+                                (`calc(100dvh + navbar-height)`) by adding the real navbar
+                                height here, and pins --navbar-height to the real value so
+                                the content layer's `top`/`height` calc — which reads that
+                                same var — lines up with the live page instead of the
+                                admin-wide hardcoded 100px fallback. No scoping class needed:
+                                this portals into the iframe's own isolated document, which
+                                contains nothing else these rules could leak onto. */}
+                            <style>{`
+                              :root {
+                                --navbar-height: ${navbarHeight}px;
+                              }
+                              .hero-carousel {
+                                height: ${effectiveViewport.h + (heroFullNavbar ? navbarHeight : 0)}px !important;
+                                min-height: ${effectiveViewport.h + (heroFullNavbar ? navbarHeight : 0)}px !important;
+                              }
+                            `}</style>
+                            <HeroCarousel section={draftSection} forcePaused={previewPaused} forceViewport={editBreakpoint} />
+                          </>,
+                          iframePortalRoot
+                        )}
                     </div>
                     <div className="form-text mt-2">
                       Scaled-down thumbnail of the live hero. Autoplay and
