@@ -8,9 +8,11 @@ vi.mock('@/lib/prisma', () => ({
   default: {
     page: {
       findUnique: vi.fn(),
-      update: vi.fn(),
+      updateMany: vi.fn(),
     },
+    section: { update: vi.fn(), updateMany: vi.fn() },
     $executeRaw: vi.fn(),
+    $transaction: vi.fn(),
   },
 }))
 
@@ -19,7 +21,11 @@ import prisma from '@/lib/prisma'
 
 const mockPage = prisma.page as {
   findUnique: ReturnType<typeof vi.fn>
+  updateMany: ReturnType<typeof vi.fn>
+}
+const mockSection = prisma.section as unknown as {
   update: ReturnType<typeof vi.fn>
+  updateMany: ReturnType<typeof vi.fn>
 }
 const mockExecuteRaw = prisma.$executeRaw as unknown as ReturnType<typeof vi.fn>
 
@@ -73,6 +79,7 @@ describe('POST /api/pages/[slug]/publish', () => {
   })
 
   it('returns 404 when page does not exist', async () => {
+    mockPage.updateMany.mockResolvedValue({ count: 0 })
     mockPage.findUnique.mockResolvedValue(null)
     const { req, params } = makeRequest('missing-page', UserRole.PUBLISHER)
     const res = await POST(req, { params })
@@ -82,7 +89,8 @@ describe('POST /api/pages/[slug]/publish', () => {
   })
 
   it('returns 400 when page is already published', async () => {
-    mockPage.findUnique.mockResolvedValue({ id: 'p1', status: 'PUBLISHED' })
+    mockPage.updateMany.mockResolvedValue({ count: 0 })
+    mockPage.findUnique.mockResolvedValue({ id: 'p1' })
     const { req, params } = makeRequest('my-page', UserRole.PUBLISHER)
     const res = await POST(req, { params })
     expect(res.status).toBe(400)
@@ -90,10 +98,9 @@ describe('POST /api/pages/[slug]/publish', () => {
     expect(body.error.code).toBe('ALREADY_PUBLISHED')
   })
 
-  it('returns 200, calls $executeRaw and page.update for a draft page', async () => {
-    mockPage.findUnique.mockResolvedValue({ id: 'p1', status: 'DRAFT' })
-    mockExecuteRaw.mockResolvedValue(1)
-    mockPage.update.mockResolvedValue({
+  it('returns 200 and flips status only for a draft page (no raw SQL, no section writes)', async () => {
+    mockPage.updateMany.mockResolvedValue({ count: 1 })
+    mockPage.findUnique.mockResolvedValue({
       id: 'p1',
       slug: 'my-page',
       title: 'My Page',
@@ -106,19 +113,23 @@ describe('POST /api/pages/[slug]/publish', () => {
     const { req, params } = makeRequest('my-page', UserRole.PUBLISHER)
     const res = await POST(req, { params })
     expect(res.status).toBe(200)
-    expect(mockExecuteRaw).toHaveBeenCalled()
-    expect(mockPage.update).toHaveBeenCalledWith(
+    expect(mockPage.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ status: 'PUBLISHED' }),
+        where: expect.objectContaining({ slug: 'my-page' }),
+        data: expect.objectContaining({ status: 'PUBLISHED', publishedBy: 'user-1' }),
       })
     )
+    expect(mockExecuteRaw).not.toHaveBeenCalled()
+    expect(mockSection.update).not.toHaveBeenCalled()
+    expect(mockSection.updateMany).not.toHaveBeenCalled()
     const body = await res.json()
     expect(body.success).toBe(true)
     expect(body.data.page.slug).toBe('my-page')
+    expect(body.data.page.status).toBe('PUBLISHED')
   })
 
   it('returns 500 on unexpected DB error', async () => {
-    mockPage.findUnique.mockRejectedValue(new Error('DB connection lost'))
+    mockPage.updateMany.mockRejectedValue(new Error('DB connection lost'))
     const { req, params } = makeRequest('my-page', UserRole.PUBLISHER)
     const res = await POST(req, { params })
     expect(res.status).toBe(500)
