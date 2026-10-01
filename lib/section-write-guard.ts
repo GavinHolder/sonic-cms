@@ -79,7 +79,7 @@ type Tx = {
     deleteMany: (a: any) => Promise<any>;
   };
 };
-type Db = { $transaction: <T>(fn: (tx: any) => Promise<T>, opts?: unknown) => Promise<T> };
+type Db = { $transaction: (fn: any, opts?: any) => Promise<any> };
 
 export type GuardedSaveResult =
   | { status: 'ok'; section: any }
