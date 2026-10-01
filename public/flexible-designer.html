@@ -7986,6 +7986,20 @@ function renderTypeProps(block) {
         <input class="form-check-input" type="checkbox" role="switch" id="volt-fullbleed-${block.id}" ${p.fullBleed ? 'checked' : ''} onchange="setVoltFullBleed('${block.id}',this.checked)">
         <label class="form-check-label" for="volt-fullbleed-${block.id}" style="color:#6c757d;">Use as background (full-bleed)</label>
       </div>`;
+      // Backdrop-for-mobile-reflow toggle — explicit author flag only (never inferred).
+      // Only affects the LIVE single-column reflow fallback shown on an UNDESIGNED
+      // Tablet/Mobile breakpoint (FlexibleSectionRenderer's FreeReflowStack): a flagged
+      // block is excluded from that fallback's sequential leaves and instead rendered
+      // once as a shared backdrop behind the whole reflowed column, so a decorative card
+      // (e.g. a glass/blur panel) meant to sit behind other overlaid blocks on desktop
+      // doesn't become its own isolated empty box on mobile. Zero effect anywhere else:
+      // this canvas's own preview, every DESIGNED breakpoint plate, and fit/z-index/
+      // geometry are all completely unchanged by this flag — unlike full-bleed above.
+      h+=`<div class="form-check form-switch" style="font-size:12px;margin:0 0 4px;">
+        <input class="form-check-input" type="checkbox" role="switch" id="volt-reflowbackdrop-${block.id}" ${p.reflowBackdrop ? 'checked' : ''} onchange="setVoltReflowBackdrop('${block.id}',this.checked)">
+        <label class="form-check-label" for="volt-reflowbackdrop-${block.id}" style="color:#6c757d;">Backdrop for mobile reflow</label>
+      </div>`;
+      h+=`<div style="font-size:10px;color:#adb5bd;margin:0 0 10px;">When Tablet/Mobile isn't designed, renders behind the reflowed text instead of as its own empty box.</div>`;
       // Slot overrides — only offer the fields for content slots this Volt design
       // actually declares (layers of type 'slot', each tagged with a slotData.slotType
       // of title/body/icon/image/action in Volt Studio — see volt-designer.html's
@@ -8999,6 +9013,19 @@ function setVoltFullBleed(bId, checked) {
       _el.style.width = _dp.w + 'px'; _el.style.height = _dp.h + 'px';
     }
   }
+}
+
+// Persist the explicit "backdrop for mobile reflow" flag on the volt block (see the
+// property-panel toggle above for the full rationale). Unlike setVoltFullBleed, this flag
+// has NO effect on this canvas's own render — no geometry snap, no z-index change, no
+// fit-mode change, no iframe reload — it only changes behaviour in the LIVE single-column
+// reflow fallback (FlexibleSectionRenderer.tsx's FreeReflowStack), which this canvas never
+// simulates. A plain prop write + autoSave is the whole of it.
+function setVoltReflowBackdrop(bId, checked) {
+  const b = state.blocks.find(function(x){return x.id==bId;}); // eslint-disable-line eqeqeq
+  if (!b) return;
+  b.props.reflowBackdrop = !!checked;
+  autoSave();
 }
 
 // ── Volt layer override helpers ────────────────────────────────────────────────

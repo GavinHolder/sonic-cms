@@ -8,6 +8,7 @@ import type { FlexibleSection, FlexibleElement, FlexibleAnimationType } from "@/
 import type { AnimBgConfig } from "@/lib/anim-bg/types";
 import { DEFAULT_ANIM_BG_CONFIG } from "@/lib/anim-bg/defaults";
 import { designerBlockToElement } from "@/lib/flexible/legacy-to-designer";
+import { partitionReflowBlocks } from "@/lib/flexible/reflow-backdrop";
 import { resolvePackageTokens, type PackageLike } from "@/lib/packages/tokens";
 import { animate } from "animejs";
 import { createEntranceObserver, isEntranceVisible } from "@/lib/entrance-observer";
@@ -3886,6 +3887,14 @@ function FreeReflowStack({ blocks, designerCanvasW, containerW, darkBg }: {
 }) {
   const isContainerType = (t: string) => t === "text" || t === "text-block" || t === "card";
 
+  // reflowBackdrop-flagged volts (see lib/flexible/reflow-backdrop.ts for the full
+  // rationale) never become sequential leaves — they're pulled out here and rendered
+  // once, collectively, as a shared backdrop layer behind the whole stack (below).
+  // Non-flagged blocks (the common case, including ordinary/fullBleed volts — fullBleed
+  // ones are already dropped before this component is ever called, see the caller) are
+  // completely unaffected: same leafBlocks array an unflagged `blocks` prop would produce.
+  const { leafBlocks, backdropBlocks } = partitionReflowBlocks(blocks);
+
   // Live content height per self-sizing leaf (keyed by block id), reported by
   // DesignerBlock's own onContentHeight channel (postMessage for "template", a
   // ResizeObserver for "card-tabs"/"product-grid" — same mechanism Dynamic Content
@@ -3898,7 +3907,7 @@ function FreeReflowStack({ blocks, designerCanvasW, containerW, darkBg }: {
   }, []);
 
   const leaves: ReflowLeaf[] = [];
-  for (const block of blocks) {
+  for (const block of leafBlocks) {
     const pos  = block.pixelPos || { x: 0, y: 0, w: 300, h: 180 };
     const subs = (block.subElements || []) as SubEl[];
     if (isContainerType(block.type) && subs.length > 0) {
@@ -3954,39 +3963,93 @@ function FreeReflowStack({ blocks, designerCanvasW, containerW, darkBg }: {
   // 12px/side here (24px/side combined with the gutter) still gives every block real
   // breathing room from the screen edge, just not doubled.
   return (
-    <div style={{ display: "flex", flexDirection: "column", width: "100%", padding: "0 12px" }}>
-      {ordered.map((leaf, i) => {
-        const prev = i > 0 ? ordered[i - 1] : null;
-        let marginTop = 0;
-        if (prev) {
-          const originalGap = leaf.top - (prev.top + prev.height);
-          marginTop = Math.max(4, Math.min(28, originalGap * scaleGuess));
-        }
-        const isBlock = leaf.aspect !== undefined || leaf.minH !== undefined;
+    <div style={{ display: "flex", flexDirection: "column", width: "100%", padding: "0 12px", position: "relative" }}>
+      {/* Backdrop layer (reflowBackdrop-flagged volts) — absolutely positioned behind the
+          WHOLE reflowed column (inset:0 of this relative wrapper, so it inherits the same
+          "0 12px" padding box the leaves column occupies — same width as the text). v1
+          scope: full stack height, not a per-leaf partial-overlap range (see
+          lib/flexible/reflow-backdrop.ts doc comment). Explicit zIndex:0 vs the leaves
+          wrapper's zIndex:1 below — NOT implicit DOM order — because a position:absolute
+          sibling paints ABOVE static/flex in-flow siblings by default regardless of source
+          order; only comparing explicit z-index values between the two positioned
+          siblings reliably keeps the backdrop behind the text. */}
+      {backdropBlocks.length > 0 && (
+        <ReflowBackdropLayer blocks={backdropBlocks} />
+      )}
+      <div style={{ display: "flex", flexDirection: "column", width: "100%", position: "relative", zIndex: 1 }}>
+        {ordered.map((leaf, i) => {
+          const prev = i > 0 ? ordered[i - 1] : null;
+          let marginTop = 0;
+          if (prev) {
+            const originalGap = leaf.top - (prev.top + prev.height);
+            marginTop = Math.max(4, Math.min(28, originalGap * scaleGuess));
+          }
+          const isBlock = leaf.aspect !== undefined || leaf.minH !== undefined;
+          return (
+            <div key={i} style={{ width: "100%", marginTop, textAlign: leaf.textAlign }}>
+              {isBlock ? (
+                <div style={{
+                  position: "relative", width: "100%",
+                  // selfSizing leaves need overflow:visible, not hidden — the height below
+                  // is a live-reported value (or a starting placeholder before the first
+                  // report lands), and clipping to it would silently hide real content on
+                  // any undershoot instead of the brief, self-correcting visual overlap
+                  // visible gives instead. Every other leaf keeps the original hidden
+                  // (their box is the design's own aspect ratio, never underestimated).
+                  overflow: leaf.selfSizing ? "visible" : "hidden",
+                  ...(leaf.aspect ? { aspectRatio: `${leaf.aspect}` } : {}),
+                  // selfSizing: an explicit `height` (not minHeight) — a percentage height
+                  // on the "template" leaf's own <iframe> (height:100%, see TemplateBlock)
+                  // only resolves against a DEFINITE containing-block height; minHeight
+                  // alone leaves the computed height 'auto' (indeterminate), so the iframe
+                  // would fall back to its 300×150 UA default — the exact bug already fixed
+                  // once for grid-mode template blocks (see FILL_TYPES above).
+                  ...(leaf.selfSizing ? { height: leaf.minH } : leaf.minH != null ? { minHeight: leaf.minH } : {}),
+                }}>
+                  {leaf.node}
+                </div>
+              ) : leaf.node}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Renders reflowBackdrop-flagged volt blocks (see lib/flexible/reflow-backdrop.ts)
+// collectively as ONE shared decorative layer filling FreeReflowStack's relative wrapper
+// (inset:0 — the whole reflowed column's box). Deliberately NOT FullBleedVoltLayer: that
+// component means "cover the whole SECTION edge to edge", which is the wrong contract for
+// a bounded decorative card stretched to section size (the exact over-promotion mistake
+// made and reverted elsewhere in this file today) — this is a separate, narrower layer
+// scoped to the reflow column only. Multiple flagged blocks stack in array order (same
+// convention fullBleedVolts.map already uses for multiple full-bleed layers). Slot-
+// building mirrors FullBleedVoltLayer's own inline copy (kept inline rather than shared —
+// these two paths are reviewed independently, same precedent as that layer's own doc
+// comment re: the in-grid volt case).
+function ReflowBackdropLayer({ blocks }: { blocks: ReflowBlock[] }) {
+  return (
+    <div aria-hidden="true" style={{ position: "absolute", inset: 0, zIndex: 0, overflow: "hidden", pointerEvents: "none" }}>
+      {blocks.map((b) => {
+        const p = b.props || {};
+        const voltId = p.voltId as string | undefined;
+        if (!voltId) return null;
+        const nested = (p.slots && typeof p.slots === "object" ? p.slots : {}) as Record<string, string>;
+        const voltSlots = {
+          title:       (p.slotTitle as string)       || nested.title       || undefined,
+          body:        (p.slotBody as string)        || nested.body        || undefined,
+          imageUrl:    (p.slotImageUrl as string)    || nested.imageUrl    || undefined,
+          imageAlt:    (p.slotImageAlt as string)    || nested.imageAlt    || undefined,
+          actionLabel: (p.slotActionLabel as string) || nested.actionLabel || undefined,
+          actionHref:  (p.slotActionHref as string)  || nested.actionHref  || undefined,
+          badge:       (p.slotBadge as string)       || nested.badge       || undefined,
+          icon:        (p.slotIcon as string)        || nested.icon        || undefined,
+        };
+        const productId = (p.productId as string) || undefined;
         return (
-          <div key={i} style={{ width: "100%", marginTop, textAlign: leaf.textAlign }}>
-            {isBlock ? (
-              <div style={{
-                position: "relative", width: "100%",
-                // selfSizing leaves need overflow:visible, not hidden — the height below
-                // is a live-reported value (or a starting placeholder before the first
-                // report lands), and clipping to it would silently hide real content on
-                // any undershoot instead of the brief, self-correcting visual overlap
-                // visible gives instead. Every other leaf keeps the original hidden
-                // (their box is the design's own aspect ratio, never underestimated).
-                overflow: leaf.selfSizing ? "visible" : "hidden",
-                ...(leaf.aspect ? { aspectRatio: `${leaf.aspect}` } : {}),
-                // selfSizing: an explicit `height` (not minHeight) — a percentage height
-                // on the "template" leaf's own <iframe> (height:100%, see TemplateBlock)
-                // only resolves against a DEFINITE containing-block height; minHeight
-                // alone leaves the computed height 'auto' (indeterminate), so the iframe
-                // would fall back to its 300×150 UA default — the exact bug already fixed
-                // once for grid-mode template blocks (see FILL_TYPES above).
-                ...(leaf.selfSizing ? { height: leaf.minH } : leaf.minH != null ? { minHeight: leaf.minH } : {}),
-              }}>
-                {leaf.node}
-              </div>
-            ) : leaf.node}
+          <div key={b.id} style={{ position: "absolute", inset: 0 }}>
+            <VoltBlock voltId={voltId} slots={voltSlots} fitMode="cover" productId={productId} />
           </div>
         );
       })}
