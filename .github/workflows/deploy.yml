@@ -162,6 +162,9 @@ jobs:
       - name: Generate Prisma Client
         run: npx prisma generate
 
+      - name: Type check
+        run: npx tsc -p tsconfig.ci.json --noEmit
+
       - name: Run tests
         run: npm test
         env:
