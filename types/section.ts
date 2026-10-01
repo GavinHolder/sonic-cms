@@ -990,7 +990,7 @@ export interface FlexibleSection extends Omit<BaseSectionConfig, "contentMode"> 
  */
 export interface FlexibleElement {
   id: string;
-  type: "hero" | "text" | "image" | "video" | "banner" | "button" | "card" | "stats" | "divider" | "html" | "isp-price-card" | "steps" | "photo-strip" | "marquee" | "packages";
+  type: "hero" | "text" | "image" | "video" | "banner" | "button" | "card" | "stats" | "divider" | "html" | "isp-price-card" | "steps" | "photo-strip" | "marquee" | "packages" | "pricing-tabs";
   // Position (grid-based OR absolute)
   position: {
     mode: "grid" | "absolute";

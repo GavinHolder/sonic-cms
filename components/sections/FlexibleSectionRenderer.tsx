@@ -1625,14 +1625,14 @@ function StepsBlock({ c, tc }: { c: FlexibleElement["content"]; tc: string }) {
   const hasLastDiv  = c.stepsLastDivider !== false;
   // "rich" (Sonic service-row) layout activates when any step carries a tag or chips.
   const rich = steps.some((s) => {
-    const x = s as Record<string, unknown>;
+    const x = s as unknown as Record<string, unknown>;
     return !!x.tag || (Array.isArray(x.chips) && x.chips.length > 0);
   });
 
   return (
     <div className="flex-steps-block" style={{ color: tc }}>
       {steps.map((step, i) => {
-        const x = step as Record<string, unknown>;
+        const x = step as unknown as Record<string, unknown>;
         const chips = Array.isArray(x.chips) ? (x.chips as string[]) : [];
         return (
           <div

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { requireRole } from "@/lib/api-middleware";
 
@@ -40,10 +41,14 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid data", details: parsed.error.flatten() }, { status: 400 });
   }
-  const { tags, ...rest } = parsed.data;
+  const { tags, data, ...rest } = parsed.data;
   const t = await prisma.cmsTemplate.update({
     where: { id },
-    data: { ...rest, ...(tags !== undefined ? { tags: JSON.stringify(tags) } : {}) },
+    data: {
+      ...rest,
+      ...(data !== undefined ? { data: data as Prisma.InputJsonObject } : {}),
+      ...(tags !== undefined ? { tags: JSON.stringify(tags) } : {}),
+    },
   });
   return NextResponse.json({ success: true, data: { ...t, tags: JSON.parse(t.tags as string) } });
 }
