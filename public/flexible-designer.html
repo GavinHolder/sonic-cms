@@ -524,6 +524,20 @@
     .container-block.bg-repositioning .resize-handle { display: none; }
 
     .cb-header {
+      /* Overlay the content instead of participating in the .container-block
+         flex-column flow (promoted 2026-10-01 from the cb-fullbleed-only
+         pattern below — see .container-block.cb-fullbleed > .cb-header).
+         Previously this was a real flex child, so toggling its hover/selected/
+         editing max-height (0 -> 26px) physically moved .cb-content's top edge
+         by ~26px, shifting the absolute-positioned-relative-to-.cb-content
+         coordinate origin for every sub-element on selection/hover/deselect.
+         Overlaying removes it from flow entirely so .cb-content (flex:1) always
+         fills the full block height and sub-element coordinates never shift. */
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 3;
       flex-shrink: 0;
       width: 100%;
       background: rgba(13,110,253,0.92);
@@ -568,10 +582,11 @@
     .container-block.cb-fullbleed:hover,
     .container-block.cb-fullbleed.selected,
     .container-block.cb-fullbleed.editing { box-shadow: none; }
-    /* Header chrome overlays the top edge (absolute) instead of consuming flex-column
-       height, so the volt content starts at the very top canvas edge (no top gap).
-       It still appears on hover/selection as the drag handle + remove button. */
-    .container-block.cb-fullbleed > .cb-header { position: absolute; top: 0; left: 0; right: 0; width: 100%; z-index: 3; }
+    /* NOTE: .cb-header is absolute-positioned (overlay, not flex-column flow) in the
+       base .cb-header rule above as of 2026-10-01 — this used to be a cb-fullbleed-only
+       override (position/top/left/right/z-index duplicated here) but is now redundant
+       since the base rule covers every block type identically. Left documented rather
+       than silently dropped in case a future reviewer goes looking for it. */
     /* + add sub-element button in header */
     .cb-add-sub {
       margin-left: auto;
