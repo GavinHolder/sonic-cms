@@ -9,6 +9,7 @@ import type { AnimBgConfig } from "@/lib/anim-bg/types";
 import { DEFAULT_ANIM_BG_CONFIG } from "@/lib/anim-bg/defaults";
 import { designerBlockToElement } from "@/lib/flexible/legacy-to-designer";
 import { partitionReflowBlocks } from "@/lib/flexible/reflow-backdrop";
+import { VOLT_SLOT_KEYS, slotPropKey } from "../../public/volt-slots-rules.js";
 import { resolvePackageTokens, type PackageLike } from "@/lib/packages/tokens";
 import { animate } from "animejs";
 import { createEntranceObserver, isEntranceVisible } from "@/lib/entrance-observer";
@@ -3955,6 +3956,25 @@ function FreeReflowStack({ blocks, designerCanvasW, containerW, darkBg }: {
   // scaleGuess ≈ how much the design is compressed horizontally into the phone column.
   const scaleGuess = designerCanvasW > 0 ? containerW / designerCanvasW : 0.26;
 
+  // Backdrop-only section (every block got excluded as a reflowBackdrop leaf, so
+  // leafBlocks is empty): this flex column's only in-flow content is the (now-empty)
+  // leaves wrapper below, which naturally sizes to 0px — and since ReflowBackdropLayer
+  // is position:absolute (inset:0, doesn't contribute to flow height), the WHOLE wrapper,
+  // backdrop included, would silently collapse to 0px and vanish. That directly
+  // contradicts this feature's own "never silently vanish" rule (the voltId safety check
+  // in isReflowBackdropVolt exists for exactly this reason — see
+  // lib/flexible/reflow-backdrop.ts). Give the wrapper a real minHeight in that one case
+  // only, derived from the backdrop blocks' own authored pixelPos.h (so it reflects the
+  // designed card's size) clamped to the same "sensible mobile box" range already used
+  // for an ordinary non-aspect leaf elsewhere in this component (Math.max(80, Math.min(
+  // pos.h||0, 420)) above) — floored at 240 (the same SELF_SIZING placeholder height used
+  // above) so even a tiny/zero authored height still renders a visible box. Every other
+  // (leaves-present) case is untouched: leafBlocks.length is 0 only when every block in
+  // the section was backdrop-flagged, which is this new, narrow edge case exactly.
+  const backdropOnlyMinHeight = leafBlocks.length === 0 && backdropBlocks.length > 0
+    ? Math.max(240, Math.min(420, Math.max(...backdropBlocks.map((b) => b.pixelPos?.h || 0))))
+    : undefined;
+
   // 12px, not the original 20px — this sits inside the shared `.container-fluid`
   // wrapper (FlexibleSectionRenderer.tsx), which already contributes its own default
   // Bootstrap gutter (12px/side). The two were stacking to 32px/side (64px total on a
@@ -3963,7 +3983,10 @@ function FreeReflowStack({ blocks, designerCanvasW, containerW, darkBg }: {
   // 12px/side here (24px/side combined with the gutter) still gives every block real
   // breathing room from the screen edge, just not doubled.
   return (
-    <div style={{ display: "flex", flexDirection: "column", width: "100%", padding: "0 12px", position: "relative" }}>
+    <div style={{
+      display: "flex", flexDirection: "column", width: "100%", padding: "0 12px", position: "relative",
+      ...(backdropOnlyMinHeight ? { minHeight: backdropOnlyMinHeight } : {}),
+    }}>
       {/* Backdrop layer (reflowBackdrop-flagged volts) — absolutely positioned behind the
           WHOLE reflowed column (inset:0 of this relative wrapper, so it inherits the same
           "0 12px" padding box the leaves column occupies — same width as the text). v1
@@ -4024,10 +4047,34 @@ function FreeReflowStack({ blocks, designerCanvasW, containerW, darkBg }: {
 // a bounded decorative card stretched to section size (the exact over-promotion mistake
 // made and reverted elsewhere in this file today) — this is a separate, narrower layer
 // scoped to the reflow column only. Multiple flagged blocks stack in array order (same
-// convention fullBleedVolts.map already uses for multiple full-bleed layers). Slot-
-// building mirrors FullBleedVoltLayer's own inline copy (kept inline rather than shared —
-// these two paths are reviewed independently, same precedent as that layer's own doc
-// comment re: the in-grid volt case).
+// convention fullBleedVolts.map already uses for multiple full-bleed layers). Slot-building
+// uses buildReflowBackdropVoltSlots() below, derived from the shared VOLT_SLOT_KEYS/
+// slotPropKey (public/volt-slots-rules.js) — this is NEW code (2026-10), so unlike the two
+// EXISTING inline slot-builders (FullBleedVoltLayer above, DesignerBlocksRenderer's 'volt'
+// case — both untouched, "kept inline to leave that case byte-for-byte unchanged" is a
+// precedent for already-reviewed working code, not for new code) CLAUDE.md's "ONE SYSTEM
+// PER CONCERN" applies with no override: "None for new code in the Flexible Designer/
+// renderer system".
+//
+// fitMode="fill", NOT "cover": at a typical reflow column width (~351px, per a 500×400-
+// authored card) the backdrop's inset:0 box is as tall as the WHOLE reflowed leaf stack
+// (v1 scope — see lib/flexible/reflow-backdrop.ts), often several hundred/thousand px —
+// nothing like the card's own 500:400 aspect. VoltRenderer's "cover" path (fitMode==='cover'
+// branch) scales the design stage by coverScale = max(1, coverBox.h / baseH) and CROPS
+// everything outside the box via the wrapper's overflow:hidden; a tall/narrow box forces a
+// large coverScale (5x+), so only a thin center sliver of the card's width survives the
+// crop — its rounded corners, border and shadow (all near the edges) are cut away entirely,
+// leaving an unrecognizable tinted rectangle. VoltRenderer's "fill" path instead renders the
+// stage at exactly width:100%/height:100% of the box with no scale/crop (its layers are
+// %-based, so they stretch non-uniformly to fill it) — every layer, including the corners/
+// border/shadow, stays fully on-screen; the card reads as (a stretched) itself rather than
+// a cropped fragment of itself, which is the actual intent here ("render the card as
+// designed, just smaller/narrower").
+function buildReflowBackdropVoltSlots(p: Record<string, unknown>): Record<string, string | undefined> {
+  const nested = (p.slots && typeof p.slots === "object" ? p.slots : {}) as Record<string, string>;
+  return Object.fromEntries(VOLT_SLOT_KEYS.map((k) => [k, (p[slotPropKey(k)] as string) || nested[k] || undefined]));
+}
+
 function ReflowBackdropLayer({ blocks }: { blocks: ReflowBlock[] }) {
   return (
     <div aria-hidden="true" style={{ position: "absolute", inset: 0, zIndex: 0, overflow: "hidden", pointerEvents: "none" }}>
@@ -4035,21 +4082,11 @@ function ReflowBackdropLayer({ blocks }: { blocks: ReflowBlock[] }) {
         const p = b.props || {};
         const voltId = p.voltId as string | undefined;
         if (!voltId) return null;
-        const nested = (p.slots && typeof p.slots === "object" ? p.slots : {}) as Record<string, string>;
-        const voltSlots = {
-          title:       (p.slotTitle as string)       || nested.title       || undefined,
-          body:        (p.slotBody as string)        || nested.body        || undefined,
-          imageUrl:    (p.slotImageUrl as string)    || nested.imageUrl    || undefined,
-          imageAlt:    (p.slotImageAlt as string)    || nested.imageAlt    || undefined,
-          actionLabel: (p.slotActionLabel as string) || nested.actionLabel || undefined,
-          actionHref:  (p.slotActionHref as string)  || nested.actionHref  || undefined,
-          badge:       (p.slotBadge as string)       || nested.badge       || undefined,
-          icon:        (p.slotIcon as string)        || nested.icon        || undefined,
-        };
+        const voltSlots = buildReflowBackdropVoltSlots(p);
         const productId = (p.productId as string) || undefined;
         return (
           <div key={b.id} style={{ position: "absolute", inset: 0 }}>
-            <VoltBlock voltId={voltId} slots={voltSlots} fitMode="cover" productId={productId} />
+            <VoltBlock voltId={voltId} slots={voltSlots} fitMode="fill" productId={productId} />
           </div>
         );
       })}
