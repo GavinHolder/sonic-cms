@@ -11,46 +11,23 @@ import { POST } from '@/app/api/pages/[slug]/publish/route';
 function makeDb(sections: any[], status = 'DRAFT') {
   const page: any = { id: 'p1', slug: 'home', title: 'Home', status, publishedAt: null, publishedBy: null };
   const rows = sections.map((s) => ({ pageId: 'p1', type: 'FLEXIBLE', enabled: true, contentDraft: null, updatedAt: T0, ...s }));
-  const versions: any[] = [];
-  let clock = T0.getTime();
-  let failVersionCreate = false;
-  const tx = {
+  const sectionWrites = vi.fn();
+  const db = {
     page: {
-      findUnique: async ({ where }: any) => (where.slug === page.slug ? { ...page } : null),
-      update: async ({ data }: any) => {
-        Object.assign(page, data);
-        return { ...page, createdByUser: { username: 'u' }, sections: rows.map((r) => ({ id: r.id, type: r.type, enabled: r.enabled })) };
-      },
-    },
-    section: {
-      findMany: async ({ where }: any) => rows.filter((r) => r.pageId === where.pageId).map((r) => ({ id: r.id, contentDraft: r.contentDraft })),
-      findUnique: async ({ where }: any) => { const r = rows.find((x) => x.id === where.id); return r ? { ...r } : null; },
+      findUnique: async ({ where }: any) =>
+        where.slug === page.slug ? { ...page, createdByUser: { username: 'u' }, sections: rows.map((r) => ({ id: r.id, type: r.type, enabled: r.enabled })) } : null,
       updateMany: async ({ where, data }: any) => {
-        const r = rows.find((x) => x.id === where.id);
-        if (!r || r.updatedAt.getTime() !== where.updatedAt.getTime()) return { count: 0 };
-        Object.assign(r, data);
-        if (!('updatedAt' in data)) { clock += 1000; r.updatedAt = new Date(clock); }
+        if (where.slug !== page.slug || page.status === where.status.not) return { count: 0 };
+        Object.assign(page, data);
         return { count: 1 };
       },
     },
-    sectionVersion: {
-      aggregate: async ({ where }: any) => ({ _max: { version: Math.max(0, ...versions.filter((v) => v.sectionId === where.sectionId).map((v) => v.version)) || null } }),
-      create: async ({ data }: any) => { if (failVersionCreate) throw new Error('boom'); versions.push(data); },
-      deleteMany: async () => ({}),
-    },
+    section: { update: sectionWrites, updateMany: sectionWrites, findMany: sectionWrites },
+    sectionVersion: { create: sectionWrites },
+    $transaction: sectionWrites,
+    $executeRaw: sectionWrites,
   };
-  const db = {
-    ...tx,
-    $transaction: async (fn: any) => {
-      const snap = JSON.stringify({ page, rows }); const vlen = versions.length;
-      try { return await fn(tx); } catch (e) {
-        const s = JSON.parse(snap);
-        Object.assign(page, s.page); rows.forEach((r, i) => { Object.assign(r, s.rows[i], { updatedAt: new Date(s.rows[i].updatedAt) }); });
-        versions.length = vlen; throw e;
-      }
-    },
-  };
-  return { db, page, rows, versions, failNext: () => { failVersionCreate = true; } };
+  return { db, page, rows, sectionWrites };
 }
 
 function req(role?: UserRole) {
@@ -85,37 +62,25 @@ describe('POST /api/pages/[slug]/publish', () => {
     expect(r.status).toBe(400);
     expect(JSON.stringify(await r.json())).toContain('ALREADY_PUBLISHED');
   });
-  it('copies draft to content with snapshot + bumped updatedAt; leaves others alone', async () => {
+  it('flips status and never touches sections (content, contentDraft, updatedAt, versions)', async () => {
+    const before = JSON.stringify(f.rows);
     const r = await POST(req(UserRole.PUBLISHER), p('home'));
     expect(r.status).toBe(200);
     const j = await r.json();
-    expect(JSON.stringify(j)).toContain('"sectionsPublished":2');
-    const [a, b, c, d] = f.rows;
-    expect(a.content).toEqual({ new: 1 });
-    expect(a.contentDraft).toEqual({ new: 1 });
-    expect(a.updatedAt.getTime()).toBeGreaterThan(T0.getTime());
-    expect(f.versions.filter((v) => v.sectionId === 'a')).toHaveLength(1);
-    expect(f.versions[0].config.content).toEqual({ old: 1 });
-    expect(b.content).toEqual({ keep: 1 });
-    expect(b.updatedAt).toEqual(T0);
-    expect(c.updatedAt).toEqual(T0); // unchanged -> stamp kept, no snapshot
-    expect(f.versions.filter((v) => v.sectionId === 'c')).toHaveLength(0);
-    expect(d.content).toEqual({ live: 1 }); // non-object draft skipped
-    expect(JSON.stringify(j)).toContain('"skippedSectionIds":["d"]');
-    expect(f.page.status).toBe('PUBLISHED');
+    expect(j.data.page.status).toBe('PUBLISHED');
+    expect(j.data.page.sectionCount).toBe(4);
+    expect(f.page.publishedBy).toBe('u1');
+    expect(f.page.publishedAt).toBeInstanceOf(Date);
+    expect(JSON.stringify(f.rows)).toBe(before);
+    expect(f.sectionWrites).not.toHaveBeenCalled();
   });
-  it('rolls back everything (page stays DRAFT) when a snapshot write fails', async () => {
-    f.failNext();
-    const r = await POST(req(UserRole.PUBLISHER), p('home'));
-    expect(r.status).toBeGreaterThanOrEqual(500);
-    expect(f.page.status).toBe('DRAFT');
+  it('regression: a stale contentDraft does not overwrite live content', async () => {
+    await POST(req(UserRole.PUBLISHER), p('home'));
     expect(f.rows[0].content).toEqual({ old: 1 });
+    expect(f.rows[0].contentDraft).toEqual({ new: 1 });
   });
-  it('is idempotent: re-running after revert to DRAFT creates no extra snapshots', async () => {
-    await POST(req(UserRole.PUBLISHER), p('home'));
-    const n = f.versions.length;
-    f.page.status = 'DRAFT';
-    await POST(req(UserRole.PUBLISHER), p('home'));
-    expect(f.versions.length).toBe(n);
+  it('concurrent double-publish: exactly one wins', async () => {
+    const rs = await Promise.all([POST(req(UserRole.PUBLISHER), p('home')), POST(req(UserRole.PUBLISHER), p('home'))]);
+    expect(rs.map((r) => r.status).sort()).toEqual([200, 400]);
   });
 });

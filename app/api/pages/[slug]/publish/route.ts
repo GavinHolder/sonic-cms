@@ -1,18 +1,12 @@
 /**
  * POST /api/pages/[slug]/publish - Publish a draft page
  *
- * Real schema: table "sections" (Section @@map), columns content / contentDraft (Json). The previous raw
- * SQL targeted "Section"."config"/"configDraft", which do not exist -> every publish failed.
+ * Publishing is a STATUS CHANGE ONLY (DRAFT -> PUBLISHED + publishedAt/publishedBy). It never touches
+ * section content: nothing in the app writes Section.contentDraft any more (only legacy values or
+ * restored snapshots), so copying it over live content would silently revert live edits.
+ * (The old raw SQL targeted nonexistent "Section"."config"/"configDraft" and always failed.)
  *
- * ASSUMPTIONS:
- * 1. Semantics: contentDraft (when a non-null JSON object) is copied to content; contentDraft is left
- *    as is (the editors keep drafts in localStorage; the column is a server-side mirror).
- * 2. Sections with null contentDraft keep their live content untouched.
- *
- * FAILURE MODES:
- * - Any failure (snapshot, section write, page update) rolls back everything: status stays DRAFT.
- * - Non-object draft -> skipped and reported in skippedSectionIds, never written.
- * - Overwrite is recoverable: each changed section gets a section_versions snapshot.
+ * FAILURE MODES: double publish -> atomic updateMany, one winner, loser gets ALREADY_PUBLISHED.
  */
 
 import { NextRequest } from "next/server";
@@ -23,9 +17,7 @@ import {
   errorResponse,
   handleApiError,
 } from "@/lib/api-middleware";
-import { PageStatus, Prisma } from "@prisma/client";
-import { isPlainJsonObject } from "@/lib/section-content-validation";
-import { saveSectionGuarded, SECTION_TX_OPTIONS } from "@/lib/section-write-guard";
+import { PageStatus } from "@prisma/client";
 
 export async function POST(
   request: NextRequest,
@@ -44,66 +36,34 @@ export async function POST(
       return errorResponse("INVALID_SLUG", "Invalid page slug", 400);
     }
 
-    // Check if page exists
-    const page = await prisma.page.findUnique({
-      where: { slug },
+    // Atomic: only flips a page that is not already PUBLISHED, so a double-publish has exactly one winner.
+    const flipped = await prisma.page.updateMany({
+      where: { slug, status: { not: PageStatus.PUBLISHED } },
+      data: {
+        status: PageStatus.PUBLISHED,
+        publishedAt: new Date(),
+        publishedBy: user.userId,
+      },
     });
 
-    if (!page) {
+    if (flipped.count === 0) {
+      const existing = await prisma.page.findUnique({ where: { slug }, select: { id: true } });
+      if (!existing) {
+        return errorResponse("PAGE_NOT_FOUND", "Page not found", 404);
+      }
+      return errorResponse("ALREADY_PUBLISHED", "Page is already published", 400);
+    }
+
+    const publishedPage = await prisma.page.findUnique({
+      where: { slug },
+      include: {
+        createdByUser: { select: { username: true } },
+        sections: { select: { id: true, type: true, enabled: true } },
+      },
+    });
+    if (!publishedPage) {
       return errorResponse("PAGE_NOT_FOUND", "Page not found", 404);
     }
-
-    // Check if already published
-    if (page.status === PageStatus.PUBLISHED) {
-      return errorResponse(
-        "ALREADY_PUBLISHED",
-        "Page is already published",
-        400
-      );
-    }
-
-    // Publish = copy contentDraft -> content per section, snapshot, and flip status, ALL in one tx.
-    const { publishedPage, sectionsPublished, skipped } = await prisma.$transaction(async (tx) => {
-      const sections = await tx.section.findMany({
-        where: { pageId: page.id },
-        select: { id: true, contentDraft: true },
-      });
-      let published = 0;
-      const skippedIds: string[] = [];
-      for (const s of sections) {
-        if (s.contentDraft === null || s.contentDraft === undefined) continue; // nothing to publish
-        if (!isPlainJsonObject(s.contentDraft)) {
-          skippedIds.push(s.id); // never write a non-object into content
-          continue;
-        }
-        // Reuse the guarded writer inside THIS transaction: snapshots previous content, bumps updatedAt
-        // only if content actually differs (stale open editors then get 409), keeps stamp otherwise.
-        const r = await saveSectionGuarded(
-          { $transaction: (fn: any) => fn(tx) },
-          {
-            id: s.id,
-            data: { content: s.contentDraft as Prisma.InputJsonValue },
-            expectedUpdatedAt: null,
-            userId: user.userId,
-          }
-        );
-        if (r.status === "ok") published++;
-      }
-
-      const updated = await tx.page.update({
-        where: { slug },
-        data: {
-          status: PageStatus.PUBLISHED,
-          publishedAt: new Date(),
-          publishedBy: user.userId,
-        },
-        include: {
-          createdByUser: { select: { username: true } },
-          sections: { select: { id: true, type: true, enabled: true } },
-        },
-      });
-      return { publishedPage: updated, sectionsPublished: published, skipped: skippedIds };
-    }, SECTION_TX_OPTIONS);
 
     return successResponse({
       message: "Page published successfully",
@@ -114,8 +74,6 @@ export async function POST(
         status: publishedPage.status,
         publishedAt: publishedPage.publishedAt,
         sectionCount: publishedPage.sections.length,
-        sectionsPublished,
-        skippedSectionIds: skipped,
       },
     });
   } catch (error) {
