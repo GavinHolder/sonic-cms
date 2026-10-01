@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
+import { validateSectionContentFields } from '@/lib/section-content-validation';
 import prisma from '@/lib/prisma';
 import { requireRole } from '@/lib/api-middleware';
 import { saveSectionGuarded, parseExpectedUpdatedAt } from '@/lib/section-write-guard';
@@ -77,6 +78,15 @@ export async function PUT(
     if (auth instanceof NextResponse) return auth;
     const { id } = await params;
     const body = await request.json();
+
+    // Reject stringified/array content BEFORE any write or snapshot (incident 2026-10-01).
+    const contentError = validateSectionContentFields(body);
+    if (contentError) {
+      return NextResponse.json(
+        { success: false, error: 'INVALID_CONTENT_TYPE', message: contentError },
+        { status: 400 }
+      );
+    }
 
     // Optimistic concurrency: client sends the updatedAt it loaded. Missing = legacy caller (accepted).
     const expected = parseExpectedUpdatedAt(body.expectedUpdatedAt);

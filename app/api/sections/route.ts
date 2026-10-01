@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { validateSectionContentFields } from '@/lib/section-content-validation';
 import prisma from '@/lib/prisma';
 import { requireRole } from '@/lib/api-middleware';
 import { updateSectionKeepStamp } from '@/lib/section-write-guard';
@@ -96,6 +97,13 @@ export async function POST(request: NextRequest) {
     if (auth instanceof NextResponse) return auth;
     const body = await request.json();
     const { pageSlug = '/', type, displayName, content, ...rest } = body;
+    const contentError = validateSectionContentFields({ content: content ?? undefined });
+    if (contentError) {
+      return NextResponse.json(
+        { success: false, error: 'INVALID_CONTENT_TYPE', message: contentError },
+        { status: 400 }
+      );
+    }
 
     // Find the page — auto-create landing page if missing
     let page = await prisma.page.findUnique({

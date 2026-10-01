@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
+import { validateSectionContentFields } from '@/lib/section-content-validation';
 import prisma from '@/lib/prisma';
 import { requireRole } from '@/lib/api-middleware';
 import { SECTION_ID_RE } from '@/lib/section-versions';
@@ -40,6 +41,10 @@ export async function POST(
     const cfg = version.config as { content?: unknown; contentDraft?: unknown; flat?: unknown } | null;
     if (!cfg || typeof cfg !== 'object' || cfg.content === undefined || cfg.content === null) {
       return NextResponse.json({ success: false, error: 'Snapshot has no content' }, { status: 422 });
+    }
+
+    if (validateSectionContentFields({ content: cfg.content, contentDraft: cfg.contentDraft })) {
+      return NextResponse.json({ success: false, error: 'Snapshot content is not a JSON object' }, { status: 422 });
     }
 
     // The snapshot's volt reference may point at a since-deleted VoltElement (FK) -> write null instead.
