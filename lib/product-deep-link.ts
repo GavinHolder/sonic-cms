@@ -5,13 +5,13 @@
  * binding (app/api/link-catalog/route.ts).
  *
  * Lets an admin pick a link that deep-links into a specific product category
- * (Level 1, e.g. Fibre/Voice/Fixed Wireless) and, where applicable, a more
- * specific sub-type under it (Level 2, e.g. "Kuluntu Connect" under Fixed
- * Wireless) inside a FLEXIBLE section's `type: "template"` block that's bound
- * to live package data — WITHOUT this (white-label, shared) codebase ever
- * hardcoding a specific template id or section name. Detection is purely
- * structural: a block with `type === "template"` and a non-empty
- * `productTypeSlugs` and/or `networkSlug` prop.
+ * (Level 1, e.g. Category A/Category B) and, where applicable, a more
+ * specific sub-type under it (Level 2, e.g. "Specific Offering Under
+ * Category A" under Category A) inside a FLEXIBLE section's `type: "template"`
+ * block that's bound to live package data — WITHOUT this (white-label,
+ * shared) codebase ever hardcoding a specific template id or section name.
+ * Detection is purely structural: a block with `type === "template"` and a
+ * non-empty `productTypeSlugs` and/or `networkSlug` prop.
  *
  * The stored link value format is intentionally a SINGLE slug identifier
  * appended to the section's own anchor link, not multiple separate params:
@@ -167,6 +167,60 @@ export function composeProductLinkValue(base: string, slug: string | null): stri
   const path = base.slice(0, hashIndex);
   const anchor = base.slice(hashIndex);
   return `${path}?product=${encodeURIComponent(slug)}${anchor}`;
+}
+
+/**
+ * Extracts the section-id portion from a Sections link/catalog value, which
+ * is either a bare `#{id}` (the only format that existed before cross-page
+ * Sections links, and still what a caller-supplied `sectionOptions` prop
+ * uses — see components/admin/LinkPicker.tsx) or the current
+ * `{pagePath}#{id}` catalog format (see app/api/link-catalog/route.ts).
+ * Returns "" when `value` carries no "#" at all.
+ */
+export function sectionIdFromValue(value: string): string {
+  const hashIndex = value.indexOf("#");
+  return hashIndex === -1 ? "" : value.slice(hashIndex + 1);
+}
+
+/**
+ * Resolves a pre-existing bare `#{id}` Sections value against a list of
+ * catalog Sections values that may now be path-prefixed (`{pagePath}#{id}`),
+ * so a value stored before cross-page Sections links existed (the only
+ * format that ever existed previously) is still recognized as its catalog
+ * counterpart once the catalog starts returning `{pagePath}#{id}` instead of
+ * a bare `#{id}` (see app/api/link-catalog/route.ts).
+ *
+ * Matches by SECTION ID ONLY, never by page path — a bare value never
+ * carried a path to compare in the first place.
+ *
+ * Recognition-only: this never mutates or implies rewriting `value` itself.
+ * A caller (LinkPicker) uses the returned match purely to decide how to
+ * DISPLAY the current selection (so the dropdown shows the known Sections
+ * option instead of "Custom URL"); the stored value is only ever rewritten
+ * when the admin explicitly changes the selection, same as before this
+ * fallback existed.
+ *
+ * ASSUMPTIONS:
+ * 1. `value` is only treated as a candidate bare section id when it starts
+ *    with "#" — any other shape (a plain path, a full custom URL, "") is not
+ *    a bare Sections value and always returns null here.
+ * 2. Section ids are unique across all enabled pages in `catalogValues`; if
+ *    they weren't, the first match wins (same "first occurrence" convention
+ *    used elsewhere in this module, e.g. groupProductPackages).
+ *
+ * FAILURE MODES:
+ * - `value` is "#" alone (empty id) → returns null rather than matching the
+ *   first catalog entry, since an empty id is not a meaningful section ref.
+ */
+export function resolveBareSectionIdMatch(
+  value: string,
+  catalogValues: string[]
+): string | null {
+  if (!value.startsWith("#")) return null;
+  const bareId = value.slice(1);
+  if (!bareId) return null;
+  const match = catalogValues.find((v) => sectionIdFromValue(v) === bareId);
+  return match ?? null;
 }
 
 /**

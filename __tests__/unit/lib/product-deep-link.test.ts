@@ -5,6 +5,8 @@ import {
   parseProductLinkValue,
   composeProductLinkValue,
   findProductTemplateScope,
+  sectionIdFromValue,
+  resolveBareSectionIdMatch,
   type DeepLinkPackage,
 } from '@/lib/product-deep-link'
 
@@ -21,8 +23,8 @@ function pkg(overrides: Partial<DeepLinkPackage>): DeepLinkPackage {
 describe('groupProductPackages', () => {
   it('groups by serviceCategorySlug (Level 1) then productTypeSlug (Level 2)', () => {
     const packages = [
-      pkg({ serviceCategorySlug: 'wireless', serviceCategoryName: 'Fixed Wireless', productTypeSlug: 'kuluntu-connect', productTypeName: 'Kuluntu Connect' }),
-      pkg({ serviceCategorySlug: 'wireless', serviceCategoryName: 'Fixed Wireless', productTypeSlug: 'kuluntu-connect', productTypeName: 'Kuluntu Connect' }),
+      pkg({ serviceCategorySlug: 'wireless', serviceCategoryName: 'Fixed Wireless', productTypeSlug: 'sub-offering-a', productTypeName: 'Sub Offering A' }),
+      pkg({ serviceCategorySlug: 'wireless', serviceCategoryName: 'Fixed Wireless', productTypeSlug: 'sub-offering-a', productTypeName: 'Sub Offering A' }),
       pkg({ serviceCategorySlug: 'wireless', serviceCategoryName: 'Fixed Wireless', productTypeSlug: 'standard-wireless', productTypeName: 'Standard Wireless' }),
       pkg({ serviceCategorySlug: 'fibre', serviceCategoryName: 'Fibre', productTypeSlug: 'fibre-home', productTypeName: 'Fibre Home' }),
     ]
@@ -34,7 +36,7 @@ describe('groupProductPackages', () => {
       key: 'wireless',
       name: 'Fixed Wireless',
       subTypes: [
-        { key: 'kuluntu-connect', name: 'Kuluntu Connect' },
+        { key: 'sub-offering-a', name: 'Sub Offering A' },
         { key: 'standard-wireless', name: 'Standard Wireless' },
       ],
     })
@@ -65,13 +67,13 @@ describe('groupProductPackages', () => {
 
 describe('resolveDeepLinkSelection', () => {
   const groups = groupProductPackages([
-    pkg({ serviceCategorySlug: 'wireless', serviceCategoryName: 'Fixed Wireless', productTypeSlug: 'kuluntu-connect', productTypeName: 'Kuluntu Connect' }),
+    pkg({ serviceCategorySlug: 'wireless', serviceCategoryName: 'Fixed Wireless', productTypeSlug: 'sub-offering-a', productTypeName: 'Sub Offering A' }),
     pkg({ serviceCategorySlug: 'wireless', serviceCategoryName: 'Fixed Wireless', productTypeSlug: 'standard-wireless', productTypeName: 'Standard Wireless' }),
     pkg({ serviceCategorySlug: 'fibre', serviceCategoryName: 'Fibre', productTypeSlug: 'fibre-home', productTypeName: 'Fibre Home' }),
   ])
 
   it('matches Level 2 (sub-type) first when the slug identifies one, opening its parent category too', () => {
-    expect(resolveDeepLinkSelection(groups, 'kuluntu-connect')).toEqual({ top: 'wireless', type: 'kuluntu-connect' })
+    expect(resolveDeepLinkSelection(groups, 'sub-offering-a')).toEqual({ top: 'wireless', type: 'sub-offering-a' })
   })
 
   it('falls back to Level 1 when the slug only identifies a top category', () => {
@@ -95,9 +97,9 @@ describe('parseProductLinkValue / composeProductLinkValue round-trip', () => {
   })
 
   it('parses a composed value back into base + product', () => {
-    expect(parseProductLinkValue('/products?product=kuluntu-connect#pricing-1')).toEqual({
+    expect(parseProductLinkValue('/products?product=sub-offering-a#pricing-1')).toEqual({
       base: '/products#pricing-1',
-      product: 'kuluntu-connect',
+      product: 'sub-offering-a',
     })
   })
 
@@ -181,5 +183,66 @@ describe('findProductTemplateScope', () => {
       },
     }
     expect(findProductTemplateScope(content)).toEqual({ productTypeSlugs: ['fibre'] })
+  })
+})
+
+describe('sectionIdFromValue', () => {
+  it('extracts the id portion from a bare "#id" value', () => {
+    expect(sectionIdFromValue('#pricing-1')).toBe('pricing-1')
+  })
+
+  it('extracts the id portion from a path-prefixed "{path}#id" catalog value', () => {
+    expect(sectionIdFromValue('/products#pricing-1')).toBe('pricing-1')
+  })
+
+  it('extracts the id portion from a home-page "/#id" catalog value', () => {
+    expect(sectionIdFromValue('/#hero-1')).toBe('hero-1')
+  })
+
+  it('returns "" for a value with no "#" at all', () => {
+    expect(sectionIdFromValue('/products')).toBe('')
+    expect(sectionIdFromValue('https://example.com')).toBe('')
+    expect(sectionIdFromValue('')).toBe('')
+  })
+})
+
+describe('resolveBareSectionIdMatch (LinkPicker bare-#id recognition fallback)', () => {
+  // Regression coverage: app/api/link-catalog/route.ts's Sections group
+  // changed from emitting bare `#{id}` values to `{pagePath}#{id}` (needed
+  // for this feature's cross-page deep links). A link stored BEFORE that
+  // change — the only format that ever existed previously — is still a bare
+  // `#{id}`. Without this fallback, LinkPicker's exact-string catalog match
+  // fails for that pre-existing value and the admin UI misidentifies it as
+  // "Custom URL" instead of the known Sections option it actually is, for
+  // every LinkPicker call site that doesn't pass its own sectionOptions prop
+  // (SlideEditor, SectionEditorModal, FlexibleSectionEditorModal).
+  it('resolves a pre-existing bare "#id" value to its path-prefixed catalog counterpart', () => {
+    const catalogValues = ['/products#pricing-1', '/#hero-1', '/about#team-1']
+    expect(resolveBareSectionIdMatch('#pricing-1', catalogValues)).toBe('/products#pricing-1')
+  })
+
+  it('matches by section id only, independent of which page the catalog entry belongs to', () => {
+    const catalogValues = ['/#hero-1', '/contact#form-1']
+    expect(resolveBareSectionIdMatch('#form-1', catalogValues)).toBe('/contact#form-1')
+  })
+
+  it('returns null when no catalog entry shares the bare value\'s section id', () => {
+    const catalogValues = ['/products#pricing-1']
+    expect(resolveBareSectionIdMatch('#nonexistent', catalogValues)).toBeNull()
+  })
+
+  it('returns null for a value that is not a bare "#id" (already path-prefixed or a plain URL)', () => {
+    const catalogValues = ['/products#pricing-1']
+    expect(resolveBareSectionIdMatch('/products#pricing-1', catalogValues)).toBeNull()
+    expect(resolveBareSectionIdMatch('https://example.com', catalogValues)).toBeNull()
+    expect(resolveBareSectionIdMatch('', catalogValues)).toBeNull()
+  })
+
+  it('returns null for a bare "#" with an empty id', () => {
+    expect(resolveBareSectionIdMatch('#', ['/products#pricing-1'])).toBeNull()
+  })
+
+  it('returns null against an empty catalog', () => {
+    expect(resolveBareSectionIdMatch('#pricing-1', [])).toBeNull()
   })
 })

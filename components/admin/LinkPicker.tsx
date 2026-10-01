@@ -3,7 +3,12 @@
 import { useState, useEffect } from "react";
 import { fetchWithRefresh } from "@/lib/fetch-with-refresh";
 import ProductDeepLinkFields from "@/components/admin/ProductDeepLinkFields";
-import { parseProductLinkValue, type ProductScope } from "@/lib/product-deep-link";
+import {
+  parseProductLinkValue,
+  sectionIdFromValue,
+  resolveBareSectionIdMatch,
+  type ProductScope,
+} from "@/lib/product-deep-link";
 
 interface LinkOption {
   value: string;
@@ -134,25 +139,25 @@ export function LinkPicker({
   // cross-page reach without duplicating this page's own entries twice under
   // two different value strings (bare `#id` AND `/path#id` for the same
   // section would otherwise both appear — see this feature's handoff notes).
-  const sectionIdOf = (optValue: string) => {
-    const i = optValue.indexOf("#");
-    return i === -1 ? "" : optValue.slice(i + 1);
-  };
-  const parentSectionIds = new Set(sectionOptions.map((o) => sectionIdOf(o.value)).filter(Boolean));
+  const parentSectionIds = new Set(
+    sectionOptions.map((o) => sectionIdFromValue(o.value)).filter(Boolean)
+  );
 
   const groups: LinkGroup[] = catalogGroups
     .map((g) => {
       if (g.label !== "Sections") return g;
       const catalogById = new Map<string, LinkOption>();
       for (const o of g.options) {
-        const id = sectionIdOf(o.value);
+        const id = sectionIdFromValue(o.value);
         if (id) catalogById.set(id, o);
       }
       const enrichedParentOptions = sectionOptions.map((o) => {
-        const match = catalogById.get(sectionIdOf(o.value));
+        const match = catalogById.get(sectionIdFromValue(o.value));
         return match?.productScope ? { ...o, productScope: match.productScope } : o;
       });
-      const otherPageOptions = g.options.filter((o) => !parentSectionIds.has(sectionIdOf(o.value)));
+      const otherPageOptions = g.options.filter(
+        (o) => !parentSectionIds.has(sectionIdFromValue(o.value))
+      );
       return { ...g, options: dedupe([...enrichedParentOptions, ...otherPageOptions]) };
     })
     .filter((g) => g.options.length > 0);
@@ -169,13 +174,34 @@ export function LinkPicker({
     ...groups.flatMap((g) => g.options.map((o) => o.value)),
   ]);
 
+  // Fallback recognition for a pre-existing bare `#id` Sections value (the
+  // only format that ever existed before cross-page Sections links) against
+  // a catalog whose Sections options are now path-prefixed (`{pagePath}#id`
+  // — see app/api/link-catalog/route.ts and
+  // lib/product-deep-link.ts#resolveBareSectionIdMatch). Only needed here:
+  // CTASectionEditor/FooterSectionEditor pass their own `sectionOptions`
+  // (still bare `#id`, merged into `groups` above), so their bare values
+  // already match `knownValues` directly — this fallback only rescues the
+  // other 3 call sites (SlideEditor, SectionEditorModal,
+  // FlexibleSectionEditorModal), which have no sectionOptions prop and rely
+  // solely on the catalog. Display-only: never calls onChange on its own, so
+  // the stored `value` is only ever rewritten by an explicit admin re-pick.
+  const sectionsCatalogValues =
+    groups.find((g) => g.label === "Sections")?.options.map((o) => o.value) ?? [];
+  const fallbackSectionMatch = knownValues.has(baseValue)
+    ? null
+    : resolveBareSectionIdMatch(baseValue, sectionsCatalogValues);
+
   // customMode covers the "user just picked the sentinel, value is still
   // empty/known" gap; the value-based check covers round-tripping an
   // already-custom value on mount without requiring a re-pick. Checked
   // against baseValue (not the raw, possibly product-deep-link-composed
   // value) so a `{base}?product=<slug>` value still resolves to its
   // underlying Sections option instead of falling through to Custom mode.
-  const isCustom = customMode || (baseValue !== "" && !knownValues.has(baseValue));
+  // fallbackSectionMatch additionally recognizes a bare `#id` value whose
+  // catalog counterpart is now path-prefixed (see above).
+  const isCustom =
+    customMode || (baseValue !== "" && !knownValues.has(baseValue) && !fallbackSectionMatch);
 
   const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selected = e.target.value;
@@ -189,12 +215,19 @@ export function LinkPicker({
     onChange(selected);
   };
 
-  const selectValue = isCustom ? CUSTOM_SENTINEL : baseValue || "";
+  // The value actually used to drive the <select>'s selection and look up
+  // selectedOption below: baseValue as-is when directly known, or the
+  // matched catalog value when only recognized via the bare-id fallback —
+  // never written back via onChange, purely so the <select> shows a real,
+  // known option instead of falling back to the unselected placeholder.
+  const resolvedValue = knownValues.has(baseValue) ? baseValue : fallbackSectionMatch || undefined;
+
+  const selectValue = isCustom ? CUSTOM_SENTINEL : resolvedValue || "";
 
   // The currently-selected option's own metadata (if any) — drives whether
   // ProductDeepLinkFields renders below the main <select>.
   const selectedOption = !isCustom
-    ? groups.flatMap((g) => g.options).find((o) => o.value === baseValue)
+    ? groups.flatMap((g) => g.options).find((o) => o.value === resolvedValue)
     : undefined;
 
   return (
