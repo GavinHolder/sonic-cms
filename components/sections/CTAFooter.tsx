@@ -6,6 +6,7 @@ import type { CTASection, BackgroundColor, ButtonConfig } from "@/types/section"
 import type { FormField } from "@/types/page";
 import VerificationModal from "@/components/VerificationModal";
 import { readRateLimitMessage } from "@/lib/form-rate-limit-message";
+import { resolveCtaFormFields, sectionBgImageLayerStyle, type SectionBgImageProps } from "@/lib/cta-defaults";
 import { createEntranceObserver, isEntranceVisible } from "@/lib/entrance-observer";
 
 /**
@@ -31,6 +32,9 @@ interface CTAFooterProps {
   submitText?: string;
   formSuccessMessage?: string;
   sectionName?: string;
+  /** Section background image (real bgImage* columns, or content.backgroundImage as fallback) */
+  bgImage?: SectionBgImageProps;
+  fallbackBgImageUrl?: string;
 }
 
 const backgroundClasses: Record<BackgroundColor, string> = {
@@ -61,12 +65,16 @@ export default function CTAFooter({
   fullScreen = false,
   snapThreshold = 100,
   style,
-  formFields,
+  formFields: formFieldsProp,
   formTitle,
   submitText,
   formSuccessMessage,
   sectionName,
+  bgImage,
+  fallbackBgImageUrl,
 }: CTAFooterProps) {
+  const formFields = style === "contact-form" ? resolveCtaFormFields(formFieldsProp) : formFieldsProp;
+  const bgLayer = sectionBgImageLayerStyle(bgImage ?? {}, fallbackBgImageUrl);
   const bgClass = backgroundClasses[background] || "";
   const isHexDark = (hex?: string) => {
     if (!hex?.startsWith("#") || hex.length < 7) return false;
@@ -75,7 +83,7 @@ export default function CTAFooter({
     const b = parseInt(hex.slice(5, 7), 16);
     return (r * 299 + g * 587 + b * 114) / 1000 < 128;
   };
-  const isBlueBackground = background === "blue" || background === "lightblue" || isHexDark(background);
+  const isBlueBackground = background === "blue" || background === "lightblue" || isHexDark(background) || (!!bgLayer && style === "contact-form");
 
   const bgColorValue =
     (background?.startsWith("#") || background?.startsWith("rgb"))
@@ -227,6 +235,8 @@ export default function CTAFooter({
         "--section-pb": `${bottomPad}px`,
       } as React.CSSProperties}
     >
+      {bgLayer && <div aria-hidden="true" style={bgLayer} />}
+      {bgLayer && style === "contact-form" && <div aria-hidden="true" style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", pointerEvents: "none" }} />}
       <div className="section-content-wrapper" style={{ justifyContent: "center", overflowY: "auto" }}>
         <div
           className="container-fluid px-4"

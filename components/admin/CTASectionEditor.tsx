@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { resolveCtaFormFields } from "@/lib/cta-defaults";
 import { useConfirm, useAlert } from "@/components/admin/ConfirmProvider";
 import { useAutoSave } from "@/lib/hooks/useAutoSave";
 import type { CTASection, ButtonConfig, GradientOverlay, LowerThirdConfig } from "@/types/section";
@@ -115,7 +116,9 @@ export default function CTASectionEditor({
 
   // Contact form mode state
   const [formFields, setFormFields] = useState<FormField[]>(
-    (section.content as any).formFields || []
+    (section.content as any).style === "contact-form"
+      ? resolveCtaFormFields((section.content as any).formFields)
+      : (section.content as any).formFields || []
   );
   const [formTitle, setFormTitle] = useState(
     (section.content as any).formTitle || "Get in Touch"

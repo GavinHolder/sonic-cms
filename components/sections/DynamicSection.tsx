@@ -13,6 +13,7 @@ import TextImageSection from "./TextImageSection";
 import StatsGrid from "./StatsGrid";
 import CardGrid from "./CardGrid";
 import CTAFooter from "./CTAFooter";
+import { sectionBgImageLayerStyle } from "@/lib/cta-defaults";
 import FlexibleSectionRenderer from "./FlexibleSectionRenderer";
 import TriangleSectionWrapper from "./TriangleSectionWrapper";
 import LowerThirdRenderer from "./LowerThirdRenderer";
@@ -883,6 +884,8 @@ function CTARenderer({ section }: { section: CTASection }) {
         contactInfo={(content as any).contactInfo}
         formSuccessMessage={content.formSuccessMessage}
         sectionName={section.displayName}
+        bgImage={section as any}
+        fallbackBgImageUrl={(content as any).backgroundImage}
       />
     );
   }
@@ -899,7 +902,8 @@ function CTARenderer({ section }: { section: CTASection }) {
       : background === "transparent"
       ? "transparent"
       : "#ffffff";
-  const isBlue = background === "blue";
+  const ctaBgLayer = sectionBgImageLayerStyle(section as any, (content as any).backgroundImage);
+  const isBlue = background === "blue" || !!ctaBgLayer;
   const textClass = isBlue ? "text-white" : "";
   const mutedClass = isBlue ? "text-white-50" : "text-muted";
 
@@ -915,6 +919,8 @@ function CTARenderer({ section }: { section: CTASection }) {
         ...(paddingBottomMobile != null && { "--section-pb-mobile": `${paddingBottomMobile}px` }),
       } as React.CSSProperties}
     >
+      {ctaBgLayer && <div aria-hidden="true" style={ctaBgLayer} />}
+      {ctaBgLayer && <div aria-hidden="true" style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", pointerEvents: "none" }} />}
       <div className="section-content-wrapper" style={{ justifyContent: "center" }}>
         <div className="container text-center">
           {content.heading && (
