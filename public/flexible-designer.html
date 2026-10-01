@@ -7445,8 +7445,31 @@ function renderSectionPanel() {
     </div>`;
 
   if (hasImage) {
+    // Preview-box aspect ratio (2026-10-01): match the REAL cw:ch the live DESKTOP page
+    // renders this background at — computeStageFit()'s desktop plate (flexible-render-rules.js
+    // ~line 1079) is a canvas-sized cw x ch plate scaled(sx,sy) to fill the section, so
+    // background-size:cover resolving against a DIFFERENT ratio here (the old fixed 258x140 ≈
+    // 1.84:1 box) actively lied about which axis dragging has slack on. cw/ch below are the
+    // SAME state.designerCanvasW/H (+ the SAME fallbacks: defaultCanvasWForBreakpoint, DESIGN_H)
+    // this file already uses to size the real canvas itself (buildFlatPayload(),
+    // getCanvasScale(), etc.) — ONE SYSTEM PER CONCERN, no second copy of these fallbacks.
+    // Only FREE-positioning sections actually render that fixed cw:ch plate live — a grid/
+    // preset/mosaic section's background is a plain cover-fit div against the real on-screen
+    // section box instead (FlexibleSectionRenderer.tsx's "non-plate" bg layer, gated on
+    // !freePlateDesktop), which has no fixed design-canvas concept at all. designerCanvasW/H is
+    // still the best available stand-in there too (closer to a real desktop viewport than the
+    // old 1.84:1 box) and keeps this one source of truth regardless of positionMode.
+    const bgCw = state.designerCanvasW || defaultCanvasWForBreakpoint(state.devicePreview);
+    const bgCh = state.designerCanvasH || DESIGN_H;
+    // Clamp (trade-off, documented per task spec): an extreme ratio (very tall/narrow canvas)
+    // would make the sidebar box impractically tall. Height is capped/floored rather than
+    // scaling the box's width down — the box stays the sidebar's full width like every other
+    // control here. Outside [80, 220]px the box is no longer pixel-exact to the live ratio;
+    // accepted over an unusably tall (or sliver-thin) sidebar box.
+    const bgBoxStyle = `position:relative;width:100%;aspect-ratio:${bgCw} / ${bgCh};` +
+      `max-height:220px;min-height:80px;border-radius:6px;border:1px solid #dee2e6;`;
     h += `<div id="section-bg-drag-box" onmousedown="startSectionBgReposition(event)"
-        style="position:relative;width:100%;height:140px;border-radius:6px;border:1px solid #dee2e6;
+        style="${bgBoxStyle}
                background-color:#f8f9fa;background-image:url('${cssUrl(bg.bgImageUrl)}');
                background-size:${bg.bgImageSize||'cover'};background-position:${posCss};
                background-repeat:no-repeat;cursor:grab;user-select:none;"
