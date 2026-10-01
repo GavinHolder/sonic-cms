@@ -501,12 +501,12 @@ export function customCodeAnimator(
   }
 
   // anime v3 → v4 compatibility shim:  anime({ targets, ...props }) → animate(targets, props)
-  const animeShim = (opts: Record<string, unknown>): ReturnType<typeof animate> => {
+  const animeShim = (opts: Record<string, unknown>): ReturnType<typeof animeAnimate> => {
     const { targets, easing, ...rest } = opts;
-    return animate(targets as Parameters<typeof animate>[0], {
+    return animeAnimate(targets as Parameters<typeof animeAnimate>[0], {
       ...rest,
       ...(easing ? { ease: easing } : {}),
-    } as Parameters<typeof animate>[1]);
+    } as Parameters<typeof animeAnimate>[1]);
   };
   (animeShim as any).random = (min: number, max: number) =>
     Math.floor(Math.random() * (max - min + 1)) + min;
@@ -515,7 +515,7 @@ export function customCodeAnimator(
     // Admin sandbox: uses Function constructor via globalThis (intentional, admin-only).
     const AdminFn = (globalThis as any).Function as typeof Function;
     const fn = new AdminFn("anime", "animate", "container", code);
-    const handle = fn(animeShim, animate, container) as Partial<AnimatorHandle> | null | undefined;
+    const handle = fn(animeShim, animeAnimate, container) as Partial<AnimatorHandle> | null | undefined;
     if (handle && typeof handle.pause === "function" && typeof handle.destroy === "function") {
       return {
         pause:   () => handle.pause!(),
