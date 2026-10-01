@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useAutoSave } from "@/lib/hooks/useAutoSave";
 import type { HeroSection, HeroCarouselSlide, HeroEasing } from "@/types/section";
@@ -172,6 +172,25 @@ export default function HeroCarouselEditor({
     }
     setIframePortalRoot(root);
   };
+
+  // Ref callback for the preview iframe. useCallback keeps this function's
+  // IDENTITY stable across re-renders so React does NOT run its detach(null)/
+  // reattach(node) ref cycle on every render — React treats a new inline
+  // ref-callback function literal as "a different ref" on every render, even
+  // when the underlying DOM node hasn't actually changed, and runs detach+
+  // reattach for it. That was the root cause of the preview going permanently
+  // blank after the very first re-render: the old inline callback got
+  // "detached" (nulling the portal target via the `if (!node)` branch below)
+  // on every keystroke/state change anywhere in this editor, and nothing ever
+  // set it again since onLoad only fires once per real iframe document load,
+  // not on ref reattachment.
+  const setPreviewIframeNode = useCallback((node: HTMLIFrameElement | null) => {
+    previewIframeRef.current = node;
+    // Fires with null on genuine unmount (e.g. previewScale drops to 0, or
+    // this whole column is hidden) — clears the stale portal target
+    // immediately so we never portal into a detached document.
+    if (!node) setIframePortalRoot(null);
+  }, []);
 
   // Keeps the iframe's stylesheets in sync with the admin app's real <head> for
   // the lifetime of the preview. Next.js can inject/update <style>/<link> tags
@@ -883,13 +902,7 @@ export default function HeroCarouselEditor({
                           NOT affect the layout size `vw` resolves against. */}
                       {previewScale > 0 && (
                         <iframe
-                          ref={(node) => {
-                            previewIframeRef.current = node;
-                            // Fires with null on unmount (e.g. previewScale drops to 0, or
-                            // this whole column is hidden) — clears the stale portal target
-                            // immediately so we never portal into a detached document.
-                            if (!node) setIframePortalRoot(null);
-                          }}
+                          ref={setPreviewIframeNode}
                           title="Hero carousel live preview"
                           srcDoc={PREVIEW_IFRAME_SRC_DOC}
                           onLoad={handlePreviewIframeLoad}
