@@ -9,6 +9,9 @@ import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/api-middleware";
+import { renderEmailLayout, paragraph, kvRows, buildEmailTheme } from "@/lib/email/layout";
+import { resolveEmailLogo } from "@/lib/email/assets";
+import { getEmailSettings } from "@/lib/email-settings";
 
 export async function POST(req: NextRequest) {
   const auth = requireAuth(req);
@@ -45,15 +48,33 @@ export async function POST(req: NextRequest) {
 
     await transporter.verify();
 
+    const appearance = await getEmailSettings();
+    const theme = buildEmailTheme({ brand: appearance.brandColor, headerBg: appearance.headerBg, pageBg: appearance.pageBg });
+    const logo = resolveEmailLogo();
+    const html = renderEmailLayout({
+      title: "SMTP connection verified",
+      preheader: "Your CMS email settings are working correctly.",
+      theme,
+      logoSrc: logo.src,
+      showLogo: appearance.showLogo,
+      showCompanyName: appearance.showCompanyName,
+      bodyHtml:
+        paragraph("Your CMS email settings are working correctly.", theme) +
+        kvRows(
+          [
+            { label: "Host", value: `${smtp_host}:${smtp_port || 587}` },
+            { label: "From", value: String(smtp_from || smtp_user) },
+          ],
+          theme
+        ),
+    });
+
     await transporter.sendMail({
       from: smtp_from || smtp_user,
       to: admin_email,
       subject: "CMS — SMTP test successful",
-      html: `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;border:1px solid #e5e7eb;border-radius:8px;">
-        <h2 style="color:#15803d;margin-top:0;">SMTP connection verified ✓</h2>
-        <p>Your CMS email settings are working correctly.</p>
-        <p style="color:#6b7280;font-size:13px;">Host: <strong>${smtp_host}:${smtp_port || 587}</strong><br>From: <strong>${smtp_from || smtp_user}</strong></p>
-      </div>`,
+      html,
+      attachments: appearance.showLogo && logo.attachment ? [logo.attachment] : [],
     });
 
     return NextResponse.json({ ok: true });

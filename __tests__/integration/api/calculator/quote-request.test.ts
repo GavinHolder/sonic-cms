@@ -10,6 +10,11 @@ vi.mock('@/lib/email', () => ({
   getEmailConfig: vi.fn().mockResolvedValue({ admin_email: 'admin@example.com', smtp_from: 'noreply@example.com' }),
 }))
 
+vi.mock('@/lib/email-settings', () => ({
+  DEFAULT_EMAIL_SETTINGS: { showLogo: true, showCompanyName: true, brandColor: '#e31e24', headerBg: '#ffffff', pageBg: '#eef0f3' },
+  getEmailSettings: vi.fn().mockResolvedValue({ showLogo: true, showCompanyName: true, brandColor: '#e31e24', headerBg: '#ffffff', pageBg: '#eef0f3' }),
+}))
+
 import { POST } from '@/app/api/calculator/quote-request/route'
 
 function makeRequest(body: Record<string, unknown>): NextRequest {
