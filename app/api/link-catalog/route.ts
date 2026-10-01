@@ -45,9 +45,30 @@
  * - A source table query throws → caught per-section so one bad group
  *   (e.g. a plugin table issue) degrades to an empty group instead of
  *   failing the whole catalog for every picker on the page.
- * - Unknown/missing pageSlug → sections group is simply empty, not an error
- *   (mirrors /api/sections's own "page not found" tolerance for callers that
- *   don't care about the page row itself).
+ *
+ * SECTIONS GROUP — cross-page + product deep-links (2026-10):
+ * Previously scoped to a single `pageSlug` query param (default "/"), which
+ * meant a button on page A could never target a section on page B through
+ * this catalog — each picker's OWN page had to separately supply its own
+ * section list as the `sectionOptions` prop (see LinkPicker.tsx). Every
+ * enabled page's own sections now appear in one flat "Sections" group, each
+ * option's value carrying that section's OWNING page path
+ * (`{pagePath}#{id}`) so the stored href is portable: a visitor on any page
+ * following a `{pagePath}#{id}` link gets a normal cross-page navigation that
+ * lands with the anchor already in the URL, and the SAME value still
+ * resolves identically when the visitor is already on that page (a native
+ * same-page anchor jump — `/#id` and `#id` behave the same once the
+ * pathname already matches). `pageSlug` is no longer read; every consumer
+ * gets the full cross-page list and merges/dedupes locally (see
+ * LinkPicker.tsx).
+ *
+ * Each section option is additionally annotated with `productScope` when
+ * that section's content contains a `type: "template"` block bound to live
+ * package data (see lib/product-deep-link.ts's findProductTemplateScope) —
+ * detected structurally (block type + bound props), never by a hardcoded
+ * template id/section name, per this white-label CMS's "no client-specific
+ * references" rule. LinkPicker uses that annotation to offer cascading
+ * Category/Sub-type pickers for a deep link into that section.
  */
 
 import { NextRequest } from "next/server";
@@ -59,10 +80,15 @@ import {
 } from "@/lib/api-middleware";
 import { getPlugin } from "@/lib/plugins/registry";
 import { BUILTIN_MANIFESTS } from "@/lib/plugins/manifests";
+import { findProductTemplateScope, type ProductScope } from "@/lib/product-deep-link";
 
 interface LinkOption {
   value: string;
   label: string;
+  /** Present only on a "Sections" option whose section contains a live
+   * product-bound `type: "template"` block — see findProductTemplateScope.
+   * Other groups/options never set this. */
+  productScope?: ProductScope;
 }
 
 interface LinkGroup {
@@ -105,10 +131,7 @@ export async function GET(request: NextRequest) {
     const user = requireRole(request, "VIEWER");
     if (user instanceof Response) return user;
 
-    const { searchParams } = new URL(request.url);
-    const pageSlug = searchParams.get("pageSlug") || "/";
-
-    const [pageRows, sectionPage, documentAssets, imageAssets, policiesPlugin] =
+    const [pageRows, pagesWithSections, documentAssets, imageAssets, policiesPlugin] =
       await Promise.all([
         safeFetch(
           "pages",
@@ -119,9 +142,21 @@ export async function GET(request: NextRequest) {
           []
         ),
         safeFetch(
-          "sections:pageLookup",
-          () => prisma.page.findUnique({ where: { slug: pageSlug }, select: { id: true } }),
-          null
+          "sections",
+          () =>
+            prisma.page.findMany({
+              where: { enabled: true },
+              select: {
+                slug: true,
+                title: true,
+                sections: {
+                  where: { enabled: true },
+                  select: { id: true, navLabel: true, displayName: true, type: true, content: true },
+                  orderBy: { order: "asc" },
+                },
+              },
+            }),
+          []
         ),
         safeFetch(
           "documents",
@@ -165,24 +200,21 @@ export async function GET(request: NextRequest) {
       .filter((p) => p.type === "PDF")
       .map((p) => ({ value: `/${p.slug}`, label: p.title || p.slug }));
 
-    // ── Sections (anchors) on the requested page ────────────────────────────
-    let sectionOptions: LinkOption[] = [];
-    if (sectionPage) {
-      const sections = await safeFetch(
-        "sections",
-        () =>
-          prisma.section.findMany({
-            where: { pageId: sectionPage.id, enabled: true },
-            select: { id: true, navLabel: true, displayName: true, type: true },
-            orderBy: { order: "asc" },
-          }),
-        []
-      );
-      sectionOptions = sections.map((s) => ({
-        value: `#${s.id}`,
-        label: s.navLabel || s.displayName || s.type || s.id,
-      }));
-    }
+    // ── Sections (anchors), across ALL enabled pages ────────────────────────
+    // See the module doc comment's "SECTIONS GROUP" section for why this
+    // spans every page (not just one `pageSlug`) and how productScope is
+    // derived.
+    const sectionOptions: LinkOption[] = pagesWithSections.flatMap((page) => {
+      const pagePath = page.slug === "/" ? "/" : `/${page.slug}`;
+      return page.sections.map((s) => {
+        const productScope = findProductTemplateScope(s.content);
+        return {
+          value: `${pagePath}#${s.id}`,
+          label: `${page.title || pagePath}: ${s.navLabel || s.displayName || s.type || s.id}`,
+          ...(productScope ? { productScope } : {}),
+        };
+      });
+    });
 
     // ── Documents & PDFs (media library PDFs + PDF-type pages) ─────────────
     const documentOptions = dedupe([

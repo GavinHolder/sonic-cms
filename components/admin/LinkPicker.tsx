@@ -2,10 +2,17 @@
 
 import { useState, useEffect } from "react";
 import { fetchWithRefresh } from "@/lib/fetch-with-refresh";
+import ProductDeepLinkFields from "@/components/admin/ProductDeepLinkFields";
+import { parseProductLinkValue, type ProductScope } from "@/lib/product-deep-link";
 
 interface LinkOption {
   value: string;
   label: string;
+  /** Present only on a "Sections" option whose section carries a live
+   * product-bound template block — see app/api/link-catalog/route.ts and
+   * lib/product-deep-link.ts. Drives the cascading Category/Sub-type
+   * pickers rendered below the main <select> (ProductDeepLinkFields). */
+  productScope?: ProductScope;
 }
 
 interface LinkGroup {
@@ -64,6 +71,18 @@ function dedupe(options: LinkOption[]): LinkOption[] {
  * out every group either.
  *
  * Public props are unchanged and drop-in compatible with prior versions.
+ *
+ * Product deep-links (2026-10): when the selected Sections option carries a
+ * `productScope` (the catalog's structural detection of a live product-bound
+ * `type: "template"` block — see app/api/link-catalog/route.ts), this
+ * component additionally renders cascading Category/Sub-type pickers
+ * (ProductDeepLinkFields) and composes the final value as
+ * `{pagePath}?product=<slug>#{sectionId}` via lib/product-deep-link.ts's
+ * compose/parse helpers — see that module's doc comment for the full format
+ * rationale. The native <select>'s own value/options always use the PLAIN
+ * `{pagePath}#{sectionId}` base (parsed back out of a composed `value` via
+ * parseProductLinkValue), so a composed deep-link still round-trips to the
+ * correct Sections selection instead of falling through to Custom URL mode.
  */
 export function LinkPicker({
   value,
@@ -78,6 +97,14 @@ export function LinkPicker({
   // scratch (empty or a known option) — see isCustom below for why the
   // value-based check alone isn't enough here.
   const [customMode, setCustomMode] = useState(false);
+
+  // A product deep-link value is `{base}?product=<slug>`, where `base` is the
+  // plain Sections value (`{pagePath}#{sectionId}`) every <option> actually
+  // carries. Parsing it back out here — rather than matching `value` as-is —
+  // is what lets the <select> still show the right Sections option selected
+  // (and ProductDeepLinkFields show the right pre-selected category) for an
+  // already-composed deep-link value.
+  const { base: baseValue, product: initialProduct } = parseProductLinkValue(value);
 
   useEffect(() => {
     // fetchWithRefresh (not plain fetch): an expired-but-refreshable 8h admin
@@ -94,14 +121,40 @@ export function LinkPicker({
       .catch(() => {});
   }, []);
 
-  // Sections: parent-supplied options first, then catalog anchors (merged into the
-  // "Sections" group returned by the API, if present).
+  // Sections: parent-supplied options (this picker's own page, bare `#id`
+  // values — see the sectionOptions prop doc comment) take priority over the
+  // catalog's cross-page equivalents for the SAME section, so an existing
+  // same-page link value keeps resolving to the exact option it always has.
+  // A parent-supplied option is enriched with the catalog's `productScope`
+  // when the catalog has a matching entry for the same section id — this is
+  // what lets a same-page product-bound section (the common case: a CTA
+  // button linking to a Products section on its own page) get the cascading
+  // Category/Sub-type pickers too, not just a cross-page one. Catalog entries
+  // for every OTHER page's sections are added as-is (path-prefixed), giving
+  // cross-page reach without duplicating this page's own entries twice under
+  // two different value strings (bare `#id` AND `/path#id` for the same
+  // section would otherwise both appear — see this feature's handoff notes).
+  const sectionIdOf = (optValue: string) => {
+    const i = optValue.indexOf("#");
+    return i === -1 ? "" : optValue.slice(i + 1);
+  };
+  const parentSectionIds = new Set(sectionOptions.map((o) => sectionIdOf(o.value)).filter(Boolean));
+
   const groups: LinkGroup[] = catalogGroups
-    .map((g) =>
-      g.label === "Sections"
-        ? { ...g, options: dedupe([...sectionOptions, ...g.options]) }
-        : g
-    )
+    .map((g) => {
+      if (g.label !== "Sections") return g;
+      const catalogById = new Map<string, LinkOption>();
+      for (const o of g.options) {
+        const id = sectionIdOf(o.value);
+        if (id) catalogById.set(id, o);
+      }
+      const enrichedParentOptions = sectionOptions.map((o) => {
+        const match = catalogById.get(sectionIdOf(o.value));
+        return match?.productScope ? { ...o, productScope: match.productScope } : o;
+      });
+      const otherPageOptions = g.options.filter((o) => !parentSectionIds.has(sectionIdOf(o.value)));
+      return { ...g, options: dedupe([...enrichedParentOptions, ...otherPageOptions]) };
+    })
     .filter((g) => g.options.length > 0);
 
   // If the catalog hasn't loaded a Sections group yet (or none exists) but the
@@ -118,8 +171,11 @@ export function LinkPicker({
 
   // customMode covers the "user just picked the sentinel, value is still
   // empty/known" gap; the value-based check covers round-tripping an
-  // already-custom value on mount without requiring a re-pick.
-  const isCustom = customMode || (value !== "" && !knownValues.has(value));
+  // already-custom value on mount without requiring a re-pick. Checked
+  // against baseValue (not the raw, possibly product-deep-link-composed
+  // value) so a `{base}?product=<slug>` value still resolves to its
+  // underlying Sections option instead of falling through to Custom mode.
+  const isCustom = customMode || (baseValue !== "" && !knownValues.has(baseValue));
 
   const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selected = e.target.value;
@@ -133,7 +189,13 @@ export function LinkPicker({
     onChange(selected);
   };
 
-  const selectValue = isCustom ? CUSTOM_SENTINEL : value || "";
+  const selectValue = isCustom ? CUSTOM_SENTINEL : baseValue || "";
+
+  // The currently-selected option's own metadata (if any) — drives whether
+  // ProductDeepLinkFields renders below the main <select>.
+  const selectedOption = !isCustom
+    ? groups.flatMap((g) => g.options).find((o) => o.value === baseValue)
+    : undefined;
 
   return (
     <div className={className}>
@@ -163,6 +225,14 @@ export function LinkPicker({
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           autoFocus
+        />
+      )}
+      {!isCustom && selectedOption?.productScope && (
+        <ProductDeepLinkFields
+          scope={selectedOption.productScope}
+          baseValue={baseValue}
+          initialProduct={initialProduct}
+          onChange={onChange}
         />
       )}
     </div>

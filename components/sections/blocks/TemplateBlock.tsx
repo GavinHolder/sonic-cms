@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { packageSlotValues, type PackageLike } from "@/lib/packages/format";
 
 interface Props {
@@ -171,6 +172,15 @@ export default function TemplateBlock({ html, css, productId, networkSlug, netwo
   const [pkgSlots, setPkgSlots] = useState<Record<string, string>>({});
   const [scopedPackages, setScopedPackages] = useState<ScopedPackage[]>([]);
   const slugsKey = (productTypeSlugs || []).join(",");
+  // Product deep-link target (?product=<slug>) — see LinkPicker's cascading Category/
+  // Sub-type pickers (components/admin/ProductDeepLinkFields.tsx) for how an admin sets
+  // this on a button/link. Read here (not forwarded as a prop) because it comes from the
+  // PAGE's own URL, not from anything admin-authored on the block itself — this component
+  // already runs client-side only (dynamic(..., { ssr: false }) in FlexibleSectionRenderer),
+  // so reading it via useSearchParams needs no new Suspense boundary beyond what next/dynamic
+  // already provides for an ssr:false import.
+  const searchParams = useSearchParams();
+  const deepLinkProduct = searchParams.get("product");
   // Ref to THIS instance's own iframe — a page can hold more than one TemplateBlock (a
   // section can have >1 block), and the message listener below must only react to a
   // height report from its own iframe, never one bubbling up from an unrelated iframe
@@ -270,6 +280,12 @@ export default function TemplateBlock({ html, css, productId, networkSlug, netwo
     networkName: networkName || null,
     productTypeSlugs: productTypeSlugs && productTypeSlugs.length ? productTypeSlugs : null,
     packages: scopedPackages,
+    // Consumed by a template's own boot() to pre-select the matching Level 1 category
+    // (and Level 2 sub-type, if the slug identifies one) on load — see this feature's
+    // required boot() patch, applied directly to the live CmsTemplate content (not this
+    // codebase). null when the page URL carries no ?product= param, matching every other
+    // optional field here.
+    deepLinkProduct: deepLinkProduct || null,
   };
   const contextScript = `<script>window.CMS_TEMPLATE=${JSON.stringify(templateContext).replace(/</g, "\\u003c")};</script>`;
 
@@ -304,7 +320,11 @@ export default function TemplateBlock({ html, css, productId, networkSlug, netwo
   // raw html/css) so a same-length edit — e.g. "opacity: 0" -> "opacity: 1", an
   // ordinary CSS tweak, not an edge case — still changes the key; string.length alone
   // would miss it and silently reproduce this exact bug.
-  const iframeKey = `${productId ?? ""}:${Object.keys(pkgSlots).length}:${scopedPackages.length}:${JSON.stringify(tplOptions)}:${fnv1aHash(html + css)}`;
+  // deepLinkProduct included for the same reason: a client-side navigation that changes
+  // only the page's ?product= query (no full reload) re-renders this component with a
+  // new value, and the iframe must remount to re-run boot() against the new target —
+  // otherwise an already-loaded template would stay on whatever category it booted with.
+  const iframeKey = `${productId ?? ""}:${Object.keys(pkgSlots).length}:${scopedPackages.length}:${JSON.stringify(tplOptions)}:${deepLinkProduct ?? ""}:${fnv1aHash(html + css)}`;
 
   return (
     <iframe
