@@ -16,6 +16,7 @@ import {
 } from "@/lib/cms-settings";
 import BrandTokenEditor from "@/components/admin/BrandTokenEditor";
 import BackupRestore from "@/components/admin/BackupRestore";
+import EmailAppearanceSettings, { DEFAULT_EMAIL_COLORS } from "@/components/admin/EmailAppearanceSettings";
 import GoogleSettingsTab from "@/components/admin/GoogleSettingsTab";
 
 type SettingsCategory =
@@ -161,6 +162,7 @@ export default function SettingsPage() {
     footerText: 'Reply directly to this email to respond to the enquirer.',
     showLogo: true,
     showCompanyName: true,
+    ...DEFAULT_EMAIL_COLORS,
   })
   const [showEmailPreview, setShowEmailPreview] = useState(false)
   const [previewHtml, setPreviewHtml] = useState('')
@@ -1458,6 +1460,10 @@ export default function SettingsPage() {
                       onChange={(e) => setEmailAppearance({ ...emailAppearance, footerText: e.target.value })}
                     />
                   </div>
+                  <EmailAppearanceSettings
+                    value={emailAppearance}
+                    onChange={(c) => setEmailAppearance({ ...emailAppearance, ...c })}
+                  />
                   <button
                     type="button"
                     className="btn btn-sm btn-outline-secondary"
