@@ -77,7 +77,10 @@ function seedHarmlessDb() {
   db.section.delete.mockResolvedValue({ id: 'sec-1' })
   db.siteConfig.upsert.mockResolvedValue({ id: 'singleton' })
   db.user.findFirst.mockResolvedValue({ id: 'user-1' })
-  db.$transaction.mockResolvedValue([])
+  // Array form (batch writes) resolves []; callback form (PUT /api/sections/[id] guarded save) resolves ok.
+  db.$transaction.mockImplementation(async (arg: unknown) =>
+    typeof arg === 'function' ? { status: 'ok', section: { id: 'sec-1', updatedAt: new Date() } } : []
+  )
 }
 
 function cookieFor(role: UserRole): string {

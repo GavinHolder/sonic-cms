@@ -13,6 +13,7 @@
 
 import type { SectionConfig, SectionType } from "@/types/section";
 import { fetchWithRefresh } from "@/lib/fetch-with-refresh";
+import { resolveExpectedUpdatedAt, rememberSavedUpdatedAt, announceSectionStale } from "@/lib/section-stale-client";
 
 /**
  * Get all sections for a page from database API
@@ -86,18 +87,28 @@ export async function updateSection(
   updates: Partial<SectionConfig>
 ): Promise<boolean> {
   try {
+    // Optimistic concurrency: editors spread the loaded section (incl. its updatedAt) into `updates`.
+    // Send that as expectedUpdatedAt (request level, not inside content); absent = legacy caller.
+    const { updatedAt: snapshotAt, ...rest } = updates as Record<string, unknown>;
+    const expectedUpdatedAt = resolveExpectedUpdatedAt(sectionId, snapshotAt);
     const response = await fetchWithRefresh(`/api/sections/${sectionId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates),
+      body: JSON.stringify({ ...rest, ...(expectedUpdatedAt && { expectedUpdatedAt }) }),
     });
 
+    if (response.status === 409) {
+      const j = await response.json().catch(() => ({}));
+      announceSectionStale({ sectionId, currentUpdatedAt: j?.currentUpdatedAt ?? null });
+      return false;
+    }
     if (!response.ok) {
       console.error('Failed to update section:', response.statusText);
       return false;
     }
 
     const result = await response.json();
+    if (result.success) rememberSavedUpdatedAt(sectionId, result.updatedAt);
     return result.success;
   } catch (error) {
     console.error("Error updating section:", error);

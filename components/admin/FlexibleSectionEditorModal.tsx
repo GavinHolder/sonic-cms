@@ -24,6 +24,8 @@ import { resolveVariants, serializeVariants, isVariantAuthored } from "../../pub
 import { resolveBgPositionCss, resolveBackgroundPosForBreakpoint, resolveBgZoomLayer, getUnsetBackgroundBundle, resolveBackgroundBundleForBreakpoint } from "../../public/flexible-render-rules.js";
 import type { BackgroundPosVariants, BgBundle, GradientConfig } from "../../public/flexible-render-rules.js";
 import { useConfirm } from "@/components/admin/ConfirmProvider";
+import { useSectionStaleGuard } from "@/components/admin/useSectionStaleGuard";
+import { decideDraftResume } from "@/lib/section-draft-resume";
 import { shouldShowTriangle, isHeroSectionType } from "@/lib/section-rules";
 import {
   PRESET_COLORS,
@@ -230,6 +232,8 @@ export default function FlexibleSectionEditorModal({
   const [sectionDirty, setSectionDirty] = useState(false);
   // Draft key — persists unsaved designer work to localStorage so it survives unexpected closes
   const draftKey = `cms_flexible_draft_${section.id}`;
+  // 409 SECTION_STALE handling: restores the draft + re-marks dirty + toasts (see hook).
+  const { stashDraft } = useSectionStaleGuard(section.id, draftKey, () => setSectionDirty(true));
   // Track which designer blocks are expanded in the accordion
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string | number>>(new Set());
 
@@ -632,6 +636,7 @@ export default function FlexibleSectionEditorModal({
   };
 
   const handleSave = (shouldClose = true) => {
+    stashDraft(); // so a stale (409) rejection can restore it
     // Clear draft — data is now properly committed to section storage
     try { localStorage.removeItem(draftKey); } catch {}
     setSectionDirty(false);   // section persisted — no longer dirty
@@ -791,6 +796,7 @@ export default function FlexibleSectionEditorModal({
         // as maximally stale (savedAt=0) rather than trusting it outright.
         let draftPayload: string | null = null;
         let draftSavedAt = 0;
+        let draftBaseUpdatedAt: string | null = null;
         try {
           const raw = localStorage.getItem(draftKey);
           if (raw) {
@@ -799,6 +805,7 @@ export default function FlexibleSectionEditorModal({
               if (parsed && typeof parsed === "object" && typeof parsed.payload === "string") {
                 draftPayload = parsed.payload;
                 draftSavedAt = typeof parsed.savedAt === "number" ? parsed.savedAt : 0;
+                draftBaseUpdatedAt = typeof parsed.baseUpdatedAt === "string" ? parsed.baseUpdatedAt : null;
               } else {
                 draftPayload = raw; // legacy envelope-less draft
               }
@@ -818,7 +825,7 @@ export default function FlexibleSectionEditorModal({
 
         let useDraft = false;
         if (draftPayload) {
-          if (draftSavedAt >= sectionUpdatedAt) {
+          if (decideDraftResume({ draftSavedAt, draftBaseUpdatedAt, sectionUpdatedAt: (section as any)?.updatedAt ?? null }) === "resume") {
             // Draft is at least as new as the section's last real save — genuine
             // unsaved work that nothing has since superseded. Safe to resume as-is.
             useDraft = true;
@@ -900,7 +907,7 @@ export default function FlexibleSectionEditorModal({
       // Persist to draft — as { payload, savedAt } so a later reopen can tell whether
       // this draft is actually newer than the section's last real save — so data
       // survives if modal closes unexpectedly.
-      try { localStorage.setItem(draftKey, JSON.stringify({ payload: e.data.payload, savedAt: Date.now() })); } catch {}
+      try { localStorage.setItem(draftKey, JSON.stringify({ payload: e.data.payload, savedAt: Date.now(), baseUpdatedAt: (section as any)?.updatedAt ?? null })); } catch {}
       if (e.data.type === "FLEXIBLE_DESIGNER_DONE") {
         setShowDesigner(false);
       }
