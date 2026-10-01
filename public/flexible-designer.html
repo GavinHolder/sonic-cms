@@ -2922,26 +2922,28 @@ document.addEventListener('keydown', e => {
 });
 
 // ═══════════════════════════════════════════════════════════
-//  NAV OPTIONS (from localStorage)
+//  NAV OPTIONS (from the link-catalog endpoint)
 // ═══════════════════════════════════════════════════════════
 /**
  * Populates state.navOptions with navigation targets for link pickers.
- * Reads enabled sections and pages from localStorage, then appends
- * special entries for custom URL, phone, and email links.
- * Errors are silently swallowed so a corrupt localStorage entry
- * does not break the whole designer.
+ * Starts with the built-in Home entry and free-text sentinels (Custom URL,
+ * Email Address), then fetches every other target from the shared
+ * link-catalog endpoint. Errors are silently swallowed so a catalog fetch
+ * failure does not break the whole designer.
+ *
+ * "Back to Top" and "Phone Number" were intentionally removed from this list
+ * (owner: they don't make sense as link destinations here) — Custom URL
+ * still accepts a hand-typed tel: link for the rare case one is needed.
  */
 function loadNavOptions() {
   // Start with built-in destinations that are always available, and the
   // free-text sentinels (kept last so dynamic options land between them and
-  // the static Home/Back-to-Top entries).
+  // the static Home entry).
   const builtins = [
-    { value:'/', label:'🏠 Home (/)' },
-    { value:'#top', label:'⬆️ Back to Top' }
+    { value:'/', label:'🏠 Home (/)' }
   ];
   const sentinels = [
     { value:'custom',  label:'✏️ Custom URL...' },
-    { value:'tel',     label:'📞 Phone Number...' },
     { value:'mailto',  label:'✉️ Email Address...' }
   ];
   state.navOptions = builtins.concat(sentinels);
@@ -8719,7 +8721,7 @@ function renderSubTypeProps(bId, se) {
  * Builds and returns an HTML string for the Navigation Target section that
  * appears in the properties panel for blocks (banner, hero button) and button
  * sub-elements. Renders a dropdown of all nav options loaded by loadNavOptions()
- * and reveals a free-text input when "custom", "tel", or "mailto" is selected.
+ * and reveals a free-text input when "custom" or "mailto" is selected.
  * @param {string} targetId - Block ID (when kind='block') or sub-element ID (when kind='sub').
  * @param {string} currentVal - The currently stored value of `propName`.
  * @param {'block'|'sub'} kind - Whether this is a block-level or sub-element-level link.
@@ -8759,13 +8761,13 @@ function renderNavSection(targetId, currentVal, kind, blockId, propName) {
 
 /**
  * Shows or hides the free-text URL input beneath the navigation dropdown.
- * The input is shown only when the selected option is 'custom', 'tel', or 'mailto'.
+ * The input is shown only when the selected option is 'custom' or 'mailto'.
  * @param {HTMLSelectElement} el - The nav dropdown that changed.
  * @param {string} id - The targetId used to build the custom nav div's element ID.
  */
 function showCustomNav(el, id) {
   const div=document.getElementById(`cnav-${id}`);
-  if (div) div.style.display=['custom','tel','mailto'].includes(el.value)?'block':'none';
+  if (div) div.style.display=['custom','mailto'].includes(el.value)?'block':'none';
 }
 
 /**
