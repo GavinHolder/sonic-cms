@@ -1,5 +1,18 @@
 /**
  * POST /api/pages/[slug]/publish - Publish a draft page
+ *
+ * Real schema: table "sections" (Section @@map), columns content / contentDraft (Json). The previous raw
+ * SQL targeted "Section"."config"/"configDraft", which do not exist -> every publish failed.
+ *
+ * ASSUMPTIONS:
+ * 1. Semantics: contentDraft (when a non-null JSON object) is copied to content; contentDraft is left
+ *    as is (the editors keep drafts in localStorage; the column is a server-side mirror).
+ * 2. Sections with null contentDraft keep their live content untouched.
+ *
+ * FAILURE MODES:
+ * - Any failure (snapshot, section write, page update) rolls back everything: status stays DRAFT.
+ * - Non-object draft -> skipped and reported in skippedSectionIds, never written.
+ * - Overwrite is recoverable: each changed section gets a section_versions snapshot.
  */
 
 import { NextRequest } from "next/server";
@@ -10,7 +23,9 @@ import {
   errorResponse,
   handleApiError,
 } from "@/lib/api-middleware";
-import { PageStatus } from "@prisma/client";
+import { PageStatus, Prisma } from "@prisma/client";
+import { isPlainJsonObject } from "@/lib/section-content-validation";
+import { saveSectionGuarded, SECTION_TX_OPTIONS } from "@/lib/section-write-guard";
 
 export async function POST(
   request: NextRequest,
@@ -47,33 +62,48 @@ export async function POST(
       );
     }
 
-    // Copy draft configs to published configs for all sections
-    // Using raw SQL since Prisma doesn't support column-to-column copy in updateMany
-    await prisma.$executeRaw`UPDATE "Section" SET "config" = "configDraft" WHERE "pageId" = ${page.id}`;
+    // Publish = copy contentDraft -> content per section, snapshot, and flip status, ALL in one tx.
+    const { publishedPage, sectionsPublished, skipped } = await prisma.$transaction(async (tx) => {
+      const sections = await tx.section.findMany({
+        where: { pageId: page.id },
+        select: { id: true, contentDraft: true },
+      });
+      let published = 0;
+      const skippedIds: string[] = [];
+      for (const s of sections) {
+        if (s.contentDraft === null || s.contentDraft === undefined) continue; // nothing to publish
+        if (!isPlainJsonObject(s.contentDraft)) {
+          skippedIds.push(s.id); // never write a non-object into content
+          continue;
+        }
+        // Reuse the guarded writer inside THIS transaction: snapshots previous content, bumps updatedAt
+        // only if content actually differs (stale open editors then get 409), keeps stamp otherwise.
+        const r = await saveSectionGuarded(
+          { $transaction: (fn: any) => fn(tx) },
+          {
+            id: s.id,
+            data: { content: s.contentDraft as Prisma.InputJsonValue },
+            expectedUpdatedAt: null,
+            userId: user.userId,
+          }
+        );
+        if (r.status === "ok") published++;
+      }
 
-    // Update page status to PUBLISHED
-    const publishedPage = await prisma.page.update({
-      where: { slug },
-      data: {
-        status: PageStatus.PUBLISHED,
-        publishedAt: new Date(),
-        publishedBy: user.userId,
-      },
-      include: {
-        createdByUser: {
-          select: {
-            username: true,
-          },
+      const updated = await tx.page.update({
+        where: { slug },
+        data: {
+          status: PageStatus.PUBLISHED,
+          publishedAt: new Date(),
+          publishedBy: user.userId,
         },
-        sections: {
-          select: {
-            id: true,
-            type: true,
-            enabled: true,
-          },
+        include: {
+          createdByUser: { select: { username: true } },
+          sections: { select: { id: true, type: true, enabled: true } },
         },
-      },
-    });
+      });
+      return { publishedPage: updated, sectionsPublished: published, skipped: skippedIds };
+    }, SECTION_TX_OPTIONS);
 
     return successResponse({
       message: "Page published successfully",
@@ -84,6 +114,8 @@ export async function POST(
         status: publishedPage.status,
         publishedAt: publishedPage.publishedAt,
         sectionCount: publishedPage.sections.length,
+        sectionsPublished,
+        skippedSectionIds: skipped,
       },
     });
   } catch (error) {
