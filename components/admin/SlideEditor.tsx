@@ -173,7 +173,7 @@ export default function SlideEditor({
       chips.push({
         id: `btn-${i}`, kind: "button", text: b.text || "Button",
         fontSize: b.fontSize, fontFamily: b.fontFamily,
-        btnBg: b.backgroundColor, btnColor: b.textColor, variant: b.variant,
+        btnBg: b.backgroundColor, btnColor: b.textColor, variant: b.variant, btnWidth: b.width,
         pos: resolveFreeformPos(editBreakpoint, b.pos, b.posTablet, b.posMobile) ?? defaultFreeformPos("button", i),
         onMove: (p) => setButtonPos(i, posField, p),
         hasOverride: editBreakpoint !== "desktop" && own != null,
@@ -2066,6 +2066,76 @@ export default function SlideEditor({
                     </div>
                   </div>
 
+                  <div className="row mb-2">
+                    <div className="col-12">
+                      <label className="form-label fw-semibold d-flex align-items-center gap-1 mb-1">
+                        Width{editBreakpoint !== "desktop" && <span className="text-uppercase" style={{ fontSize: 9, opacity: 0.7 }}> ({editBreakpoint})</span>}
+                      </label>
+                      {(() => {
+                        // Unlike OverlayImage (whose width is always a required number), a
+                        // button's width is optional at every level — no existing button has
+                        // ever had one set, so "no value" must mean "natural sizing" (shrink-
+                        // to-fit on desktop/tablet; forced full-width capped at 360px on mobile
+                        // in freeform layout only — preset layout always shrinks-to-fit), never
+                        // an auto-populated number. The switch sets/clears only THIS
+                        // breakpoint's own field (same semantics as the image width control's
+                        // "Clear override" button), so a resolved/inherited value from a wider
+                        // breakpoint is never silently overwritten by toggling a narrower one.
+                        const widthField = editBreakpoint === "mobile" ? "widthMobile" : editBreakpoint === "tablet" ? "widthTablet" : "width";
+                        const ownWidth = editBreakpoint === "mobile" ? button.widthMobile : editBreakpoint === "tablet" ? button.widthTablet : button.width;
+                        const inheritedWidth = editBreakpoint === "mobile" ? (button.widthTablet ?? button.width)
+                          : editBreakpoint === "tablet" ? button.width
+                          : undefined;
+                        const hasOwnWidth = ownWidth != null;
+                        const isFreeform = slide.overlay?.layoutMode === "freeform";
+                        return (
+                          <div className="d-flex align-items-center gap-2">
+                            <div className="form-check form-switch mb-0 flex-shrink-0">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                role="switch"
+                                title={hasOwnWidth ? "Disable explicit width — revert to natural sizing" : "Enable an explicit width"}
+                                checked={hasOwnWidth}
+                                onChange={(e) => {
+                                  const updatedButtons = [...(slide.overlay?.buttons ?? [])];
+                                  updatedButtons[index] = { ...button, [widthField]: e.target.checked ? (inheritedWidth ?? 160) : undefined };
+                                  updateOverlay({ buttons: updatedButtons });
+                                }}
+                              />
+                            </div>
+                            {hasOwnWidth ? (
+                              <>
+                                <input
+                                  type="range"
+                                  min={60}
+                                  max={500}
+                                  step={10}
+                                  value={ownWidth}
+                                  onChange={(e) => {
+                                    const updatedButtons = [...(slide.overlay?.buttons ?? [])];
+                                    updatedButtons[index] = { ...button, [widthField]: Number(e.target.value) };
+                                    updateOverlay({ buttons: updatedButtons });
+                                  }}
+                                  className="form-range"
+                                />
+                                <span className="small text-muted" style={{ minWidth: 44 }}>{ownWidth}px</span>
+                              </>
+                            ) : (
+                              <span className="small text-muted fst-italic">
+                                {inheritedWidth != null
+                                  ? `Inherits ${inheritedWidth}px`
+                                  : editBreakpoint === "mobile" && isFreeform
+                                  ? "Natural (full-width, capped 360px)"
+                                  : "Natural (shrink-to-fit)"}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+
                   <div className="row">
                     <div className="col-md-3">
                       <label className="form-label fw-semibold">Animation</label>
@@ -2678,6 +2748,10 @@ interface FreeformChip {
   btnBg?: string;
   btnColor?: string;
   variant?: "filled" | "outline" | "ghost";
+  /** Explicit width (px, design canvas, 1440 reference width) — same desktop-only
+   *  simplification as imageWidth below (not resolved per-breakpoint here; this chip is a
+   *  design-canvas hint, not a full live preview). Undefined = shrink-to-fit, unchanged. */
+  btnWidth?: number;
   // Image styling
   imageSrc?: string;
   imageWidth?: number;    // px (design canvas, 1440 reference width)
@@ -3219,12 +3293,15 @@ function renderFreeformChip(chip: FreeformChip, scale: number, vpW: number) {
   const filled = chip.variant !== "ghost" && chip.variant !== "outline";
   return (
     <div style={{
-      display: "inline-block",
+      display: chip.btnWidth ? "block" : "inline-block",
       fontFamily: heroFontStack(chip.fontFamily || "inherit"),
       fontSize: px(chip.fontSize || 15), fontWeight: 600, padding: `${6 * scale}px ${16 * scale}px`, borderRadius: `${6 * scale}px`,
       background: filled ? (chip.btnBg || "#0d6efd") : "transparent",
       color: filled ? (chip.btnColor || "#fff") : (chip.btnBg || "#fff"),
       border: chip.variant === "outline" ? `${Math.max(1, 2 * scale)}px solid ${chip.btnBg || "#fff"}` : "none",
+      // An explicit width makes the chip reflect its actual resolved size on canvas,
+      // same intent as the image chip's imageWidth below.
+      ...(chip.btnWidth ? { width: px(chip.btnWidth), textAlign: "center" as const, boxSizing: "border-box" as const } : {}),
     }}>{chip.text}</div>
   );
 }

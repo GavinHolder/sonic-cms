@@ -628,6 +628,15 @@ export interface TextOverlayElement {
     fontSize?: number;
     /** Button label font family. Undefined = "inherit" (current look). */
     fontFamily?: string;
+    /** Explicit rendered width in px (resolved via resolveFreeformSize, same mobile->tablet->
+     *  desktop fallback chain as OverlayImage's width/widthTablet/widthMobile). Undefined means
+     *  "no explicit width" — the button keeps its current default sizing: shrink-to-fit on
+     *  desktop/tablet, forced `width:100%, maxWidth:360` on mobile (freeform layout only; the
+     *  preset layout always shrinks to fit, even on mobile). Unlike OverlayImage's `width`, this
+     *  is optional at every level since no existing button has ever had a width set. */
+    width?: number;
+    widthTablet?: number;
+    widthMobile?: number;
     /** Freeform placement (only used when overlay.layoutMode === "freeform"). */
     pos?: FreeformPos;
     /** Per-breakpoint position overrides — see resolveFreeformPos / HeadingRow's posTablet/posMobile. */

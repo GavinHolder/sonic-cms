@@ -879,46 +879,57 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                       (slide.overlay.position || "").toLowerCase().includes("right") ? "justify-content-end" :
                       "justify-content-center"
                     }`} style={{ marginTop: `${slide.overlay.spacing.betweenSubheadingButtons}px` }}>
-                      {slide.overlay.buttons.map((button, index) => (
-                        <motion.a
-                          key={index}
-                          href={button.href}
-                          {...getAnimationVariants(button.animation)}
-                          transition={{
-                            duration: (button.animationDuration ?? 800) / 1000,
-                            delay: (button.animationDelay ?? 0) / 1000,
-                            ease: resolveFramerEasing(button.animationEasing),
-                          }}
-                          className={`btn ${
-                            button.variant === "filled"
-                              ? ""
-                              : button.variant === "outline"
-                              ? "btn-outline"
-                              : "btn-ghost"
-                          }`}
-                          style={{
-                            backgroundColor: button.variant === "filled" ? button.backgroundColor : "transparent",
-                            color: button.textColor,
-                            borderColor: button.variant === "outline" ? button.backgroundColor : "transparent",
-                            padding: "10px 24px",
-                            fontSize: `clamp(14px, 3.5vw, ${button.fontSize ?? 18}px)`,
-                            fontFamily: heroFontStack(button.fontFamily || "inherit"),
-                            fontWeight: 600,
-                            textDecoration: "none",
-                            borderRadius: "8px",
-                            border: button.variant === "outline" ? `2px solid ${button.backgroundColor}` : "none",
-                            marginRight: index < (slide.overlay?.buttons?.length ?? 0) - 1 ? `${slide.overlay?.spacing?.betweenButtons ?? 0}px` : "0",
-                            boxShadow: `
-                              0 2px 8px rgba(0, 0, 0, 0.2),
-                              0 4px 16px rgba(0, 0, 0, 0.15),
-                              0 1px 0 rgba(255, 255, 255, 0.1) inset
-                            `,
-                            textShadow: `0 1px 2px rgba(0, 0, 0, 0.3)`,
-                          }}
-                        >
-                          {button.text}
-                        </motion.a>
-                      ))}
+                      {slide.overlay.buttons.map((button, index) => {
+                        // Preset layout has no mobile width forcing at any breakpoint today —
+                        // buttons always shrink-to-fit. An explicit width (resolveFreeformSize's
+                        // mobile->tablet->desktop fallback, same as OverlayImage) is new: it
+                        // fixes the width and wraps the label instead of letting it overflow.
+                        const presetBreakpoint = isMobile ? "mobile" : isTablet ? "tablet" : "desktop";
+                        const presetButtonWidth = resolveFreeformSize(presetBreakpoint, button.width, button.widthTablet, button.widthMobile);
+                        return (
+                          <motion.a
+                            key={index}
+                            href={button.href}
+                            {...getAnimationVariants(button.animation)}
+                            transition={{
+                              duration: (button.animationDuration ?? 800) / 1000,
+                              delay: (button.animationDelay ?? 0) / 1000,
+                              ease: resolveFramerEasing(button.animationEasing),
+                            }}
+                            className={`btn ${
+                              button.variant === "filled"
+                                ? ""
+                                : button.variant === "outline"
+                                ? "btn-outline"
+                                : "btn-ghost"
+                            }`}
+                            style={{
+                              backgroundColor: button.variant === "filled" ? button.backgroundColor : "transparent",
+                              color: button.textColor,
+                              borderColor: button.variant === "outline" ? button.backgroundColor : "transparent",
+                              padding: "10px 24px",
+                              fontSize: `clamp(14px, 3.5vw, ${button.fontSize ?? 18}px)`,
+                              fontFamily: heroFontStack(button.fontFamily || "inherit"),
+                              fontWeight: 600,
+                              textDecoration: "none",
+                              borderRadius: "8px",
+                              border: button.variant === "outline" ? `2px solid ${button.backgroundColor}` : "none",
+                              marginRight: index < (slide.overlay?.buttons?.length ?? 0) - 1 ? `${slide.overlay?.spacing?.betweenButtons ?? 0}px` : "0",
+                              ...(presetButtonWidth != null
+                                ? { width: `${presetButtonWidth}px`, maxWidth: "92%", whiteSpace: "normal" as const }
+                                : {}),
+                              boxShadow: `
+                                0 2px 8px rgba(0, 0, 0, 0.2),
+                                0 4px 16px rgba(0, 0, 0, 0.15),
+                                0 1px 0 rgba(255, 255, 255, 0.1) inset
+                              `,
+                              textShadow: `0 1px 2px rgba(0, 0, 0, 0.3)`,
+                            }}
+                          >
+                            {button.text}
+                          </motion.a>
+                        );
+                      })}
                     </div>
                   )}
                 </AnimatePresence>
@@ -1080,7 +1091,15 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                 )}
 
                 {/* Buttons — each placed independently */}
-                {slide.overlay.buttons.map((button, index) => (
+                {slide.overlay.buttons.map((button, index) => {
+                  // An explicit width/widthTablet/widthMobile (admin-set, via resolveFreeformSize's
+                  // same mobile->tablet->desktop fallback chain as OverlayImage) always wins over
+                  // the mobile "full-width tap target" default below (#72) — that default exists
+                  // only so a button authored with no sizing opinion stays tappable on a phone; an
+                  // admin who has explicitly picked a width already solved that themselves.
+                  const btnBreakpoint = isMobile ? "mobile" : isTablet ? "tablet" : "desktop";
+                  const effectiveButtonWidth = resolveFreeformSize(btnBreakpoint, button.width, button.widthTablet, button.widthMobile);
+                  return (
                   <div key={`ff-btn-${index}-${currentSlide}`} style={ffStyle(button.pos, defaultFreeformPos("button", index), button.posTablet, button.posMobile, `btn-${index}`)}>
                     <motion.a
                       href={button.href}
@@ -1104,9 +1123,14 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                         textDecoration: "none",
                         borderRadius: "8px",
                         border: button.variant === "outline" ? `2px solid ${button.backgroundColor}` : "none",
-                        // Mobile: full-width tap target (capped), centred. (#72)
-                        ...(isMobile ? { width: "100%", maxWidth: 360, textAlign: "center" as const, justifyContent: "center" } : {}),
-                        whiteSpace: isMobile ? "normal" : "nowrap",
+                        // Explicit width (any breakpoint) wins over the mobile full-width default;
+                        // with neither set, behavior is byte-identical to before this change.
+                        ...(effectiveButtonWidth != null
+                          ? { width: `${effectiveButtonWidth}px`, maxWidth: "92%", textAlign: "center" as const, justifyContent: "center" }
+                          : isMobile
+                          ? { width: "100%", maxWidth: 360, textAlign: "center" as const, justifyContent: "center" } // Mobile: full-width tap target (capped), centred. (#72)
+                          : {}),
+                        whiteSpace: (effectiveButtonWidth != null || isMobile) ? "normal" : "nowrap",
                         boxShadow: `
                           0 2px 8px rgba(0, 0, 0, 0.2),
                           0 4px 16px rgba(0, 0, 0, 0.15),
@@ -1118,7 +1142,8 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                       {button.text}
                     </motion.a>
                   </div>
-                ))}
+                  );
+                })}
 
                 {/* Secondary images — each placed independently, like text elements (#68) */}
                 {(slide.overlay.images ?? []).map((img, index) => {
