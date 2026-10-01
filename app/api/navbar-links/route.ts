@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { updateSectionKeepStamp } from "@/lib/section-write-guard";
+import { updateSectionKeepStamp, SECTION_TX_OPTIONS } from "@/lib/section-write-guard";
 import { requireRole } from "@/lib/api-middleware";
 
 /** Shape returned/stored for a navbar link */
@@ -101,7 +101,7 @@ export async function PUT(request: NextRequest) {
           data: { showOnNavbar: true, navOrder: l.navOrder, navLabel: l.label || undefined },
         });
       }
-    });
+    }, SECTION_TX_OPTIONS);
 
     void sectionIds; void pageIds; // used above
     return NextResponse.json({ success: true });

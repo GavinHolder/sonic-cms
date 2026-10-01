@@ -42,10 +42,17 @@ export async function POST(
       return NextResponse.json({ success: false, error: 'Snapshot has no content' }, { status: 422 });
     }
 
+    // The snapshot's volt reference may point at a since-deleted VoltElement (FK) -> write null instead.
+    const flat = flatToData(cfg.flat);
+    if (typeof flat.voltElementId === 'string') {
+      const volt = await prisma.voltElement.findUnique({ where: { id: flat.voltElementId }, select: { id: true } });
+      if (!volt) flat.voltElementId = null;
+    }
+
     const result = await saveSectionGuarded(prisma, {
       id,
       data: {
-        ...flatToData(cfg.flat),
+        ...flat,
         content: cfg.content as Prisma.InputJsonValue,
         ...(cfg.contentDraft !== undefined && cfg.contentDraft !== null && {
           contentDraft: cfg.contentDraft as Prisma.InputJsonValue,

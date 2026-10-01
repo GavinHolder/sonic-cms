@@ -79,6 +79,15 @@ export async function createSection(
   }
 }
 
+const PLACEMENT_FIELDS = ['order', 'enabled', 'showOnNavbar', 'navOrder', 'navLabel'] as const;
+
+/** Drops placement/visibility fields from an editor save payload (see updateSection). */
+export function stripPlacementFields(payload: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...payload };
+  for (const k of PLACEMENT_FIELDS) delete out[k];
+  return out;
+}
+
 /**
  * Update a section
  */
@@ -89,7 +98,11 @@ export async function updateSection(
   try {
     // Optimistic concurrency: editors spread the loaded section (incl. its updatedAt) into `updates`.
     // Send that as expectedUpdatedAt (request level, not inside content); absent = legacy caller.
-    const { updatedAt: snapshotAt, ...rest } = updates as Record<string, unknown>;
+    const { updatedAt: snapshotAt, ...restAll } = updates as Record<string, unknown>;
+    // An editor save (carries the loaded section's updatedAt) spreads the WHOLE possibly-stale section.
+    // Placement/visibility fields are owned by reorder/toggle/nav screens, so never let an editor save
+    // overwrite them. Callers that intentionally send them (no updatedAt) are unaffected.
+    const rest = snapshotAt === undefined ? restAll : stripPlacementFields(restAll);
     return await runSerialized(sectionId, async () => {
     // Resolved INSIDE the queue so a queued save sees the previous save's new updatedAt.
     const expectedUpdatedAt = resolveExpectedUpdatedAt(sectionId, snapshotAt);

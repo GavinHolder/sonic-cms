@@ -24,6 +24,10 @@ export const SECTION_FLAT_FIELDS = [
   'bgImageUrl', 'bgImageSize', 'bgImagePosition', 'bgImageRepeat', 'bgImageOpacity', 'bgParallax',
   'lowerThird', 'motionElements', 'voltElementId', 'voltSlotMap',
 ] as const;
+/** Keys that never affect the stamp on their own (identity/placement), plus content/visual keys (which
+ *  keep it only when deep-equal to the stored value). */
+const IDENTITY_KEYS = ['order', 'enabled', 'showOnNavbar', 'navOrder', 'navLabel', 'displayName', 'type'];
+const KEEP_STAMP_KEYS = new Set<string>([...IDENTITY_KEYS, 'content', 'contentDraft', ...SECTION_FLAT_FIELDS]);
 const JSON_FLAT = new Set(['banner', 'lowerThird', 'motionElements', 'voltSlotMap']);
 
 /** Build a prisma `data` fragment from a snapshot's flat map (null Json -> DbNull). */
@@ -120,7 +124,7 @@ export async function saveSectionGuarded(
   args: { id: string; data: Record<string, unknown>; expectedUpdatedAt: Date | null; userId: string }
 ): Promise<GuardedSaveResult> {
   const { id, data, expectedUpdatedAt, userId } = args;
-  const isContentWrite = 'content' in data || 'contentDraft' in data;
+  const dataKeys = Object.keys(data);
 
   return db.$transaction(async (tx: Tx) => {
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -131,10 +135,14 @@ export async function saveSectionGuarded(
         return { status: 'stale', currentUpdatedAt: prevAt.toISOString() } as const;
       }
 
-      // Non-content writes keep the stamp (atomic via the WHERE) so they never cause false conflicts.
+      // Keep the stamp (atomic via the WHERE) ONLY when nothing content/visual actually changes and
+      // every key is a known identity/content/visual key: pure order/enabled/nav/name writes, or a
+      // save that re-sends identical values. Any real content/visual change (or unknown key) bumps it.
+      const changed = contentActuallyChanged(prev, data);
+      const keepStamp = !changed && dataKeys.every((k) => KEEP_STAMP_KEYS.has(k));
       const res = await tx.section.updateMany({
         where: { id, updatedAt: prevAt },
-        data: isContentWrite ? data : { ...data, updatedAt: prevAt },
+        data: keepStamp ? { ...data, updatedAt: prevAt } : data,
       });
       if (res.count !== 1) {
         if (expectedUpdatedAt) {
@@ -145,7 +153,7 @@ export async function saveSectionGuarded(
         continue; // no client base: someone else won the race; re-read and retry
       }
 
-      if (isContentWrite && contentActuallyChanged(prev, data)) {
+      if (changed) {
         const agg = await tx.sectionVersion.aggregate({ where: { sectionId: id }, _max: { version: true } });
         const next = (agg?._max?.version ?? 0) + 1;
         const flat: Record<string, unknown> = {};

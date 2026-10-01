@@ -108,3 +108,29 @@ describe('safeguard review fixes', () => {
     expect(flatToData({ lowerThird: null, paddingTop: 5, bogus: 1 })).toEqual({ lowerThird: Prisma.DbNull, paddingTop: 5 });
   });
 });
+
+import { stripPlacementFields } from '@/lib/section-manager';
+
+describe('round-2 fixes', () => {
+  it('content-less visual change (padding) bumps the stamp and snapshots', async () => {
+    const { db, row, versions } = mk();
+    row.paddingTop = 80;
+    await saveSectionGuarded(db, { id: 's1', data: { paddingTop: 10 }, expectedUpdatedAt: T0, userId: 'u' });
+    expect(row.updatedAt.getTime()).toBeGreaterThan(T0.getTime());
+    expect(versions).toHaveLength(1);
+  });
+  it('identical content re-save keeps the stamp (no phantom conflict for other tabs)', async () => {
+    const { db, row } = mk();
+    await saveSectionGuarded(db, { id: 's1', data: { content: { designerData: 'v0' } }, expectedUpdatedAt: T0, userId: 'u' });
+    expect(row.updatedAt.getTime()).toBe(T0.getTime());
+  });
+  it('unknown key bumps the stamp', async () => {
+    const { db, row } = mk();
+    await saveSectionGuarded(db, { id: 's1', data: { somethingNew: 1 }, expectedUpdatedAt: T0, userId: 'u' });
+    expect(row.updatedAt.getTime()).toBeGreaterThan(T0.getTime());
+  });
+  it('stripPlacementFields drops order/enabled/nav fields, keeps the rest', () => {
+    expect(stripPlacementFields({ order: 1, enabled: false, showOnNavbar: true, navOrder: 2, navLabel: 'x', content: { a: 1 } }))
+      .toEqual({ content: { a: 1 } });
+  });
+});

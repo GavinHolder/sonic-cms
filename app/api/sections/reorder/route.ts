@@ -7,7 +7,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
-import { updateSectionKeepStamp } from "@/lib/section-write-guard";
+import { updateSectionKeepStamp, SECTION_TX_OPTIONS } from "@/lib/section-write-guard";
 import {
   requireRole,
   successResponse,
@@ -94,7 +94,7 @@ export async function PUT(request: NextRequest) {
       for (const section of pinnedSections) {
         await updateSectionKeepStamp(tx, section.id, { order: section.order });
       }
-    });
+    }, SECTION_TX_OPTIONS);
 
     // Fetch updated sections
     const updatedSections = await prisma.section.findMany({

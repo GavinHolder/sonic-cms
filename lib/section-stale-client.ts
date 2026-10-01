@@ -19,7 +19,12 @@ export function rememberSavedUpdatedAt(sectionId: string, updatedAt: unknown): v
   if (!prev || new Date(updatedAt).getTime() >= new Date(prev).getTime()) lastSavedAt.set(sectionId, updatedAt);
 }
 
-/** Returns the ISO updatedAt to send as expectedUpdatedAt, or undefined when the caller has no base. */
+/**
+ * Returns the ISO updatedAt to send as expectedUpdatedAt, or undefined when the caller has no base.
+ * BY DESIGN: if this tab itself saved the section more recently than the editor's snapshot, the stale
+ * snapshot is advanced to the tab's latest save (chained saves must not conflict with themselves).
+ * Only another tab/device can make a base stale, which is exactly what the server check catches.
+ */
 export function resolveExpectedUpdatedAt(sectionId: string, snapshotAt: unknown): string | undefined {
   if (snapshotAt === undefined || snapshotAt === null || snapshotAt === '') return undefined;
   const snap = new Date(snapshotAt as string);
