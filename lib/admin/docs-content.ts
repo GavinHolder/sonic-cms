@@ -109,6 +109,8 @@ Sections are ordered by the **order** field (a float, which allows fractional or
 const SECTION_TYPES = `
 # Section Types
 
+> **Save safeguard.** Saving a section now checks that nobody changed it since you opened it. If the same section was saved from another tab or device, your save is refused with a toast (nothing is overwritten) and your unsaved designer work stays in the local draft. Every content save also keeps a snapshot of the previous version (last 30 per section; list via `GET /api/sections/[id]/versions`, restore via `POST /api/sections/[id]/versions/[versionId]/restore`). A saved draft is only auto-resumed when it was based on the current saved version; otherwise you are asked.
+
 There are **5 section types** in the CMS:
 
 ---
