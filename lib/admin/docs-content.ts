@@ -138,6 +138,8 @@ A dedicated call-to-action section. Supports a contact form with human verificat
 
 > **Contact Form:** In contact-form style the CTA **embeds the form itself** (there is no "Get Started" navigation button). If no form fields are configured it uses 4 defaults (from \`lib/cta-defaults.ts\`): **Full name\***, **Email\*** (the OTP verification field), **Phone**, **Message**. The visitor verifies their email with a **6-digit OTP code**, then the enquiry is emailed to the configured admin recipient.
 
+> **Email look:** OTP, enquiry, calculator-quote, SEO-alert and SMTP-test emails all share one email-safe layout (light card, Sonic-red top rule, logo header). The logo is the bundled PNG attached inline, so it shows even when the mail client blocks remote images. Colours come from the email appearance settings (\`brandColor\`, \`headerBg\`, \`pageBg\`); the header/footer text and logo toggles are unchanged.
+
 > **Background image:** The section background image (\`bgImageUrl\` plus size / position / repeat / opacity) renders behind the CTA with a **45% dark overlay** and light text. Parallax is not supported on CTA. The section stays exactly 100vh; overflowing content scrolls internally.
 
 ---
