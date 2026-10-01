@@ -23,10 +23,12 @@ export async function GET(
 
     // Pull only the small stored summary out of the JSON (never the 30 full blobs).
     const rows = await prisma.$queryRaw<
-      Array<{ id: string; version: number; createdAt: Date; createdBy: string; summary: unknown }>
-    >`SELECT id, version, "createdAt", "createdBy", config->'summary' AS summary
-      FROM section_versions WHERE "sectionId" = ${id}
-      ORDER BY version DESC LIMIT ${SECTION_VERSION_LIMIT}`;
+      Array<{ id: string; version: number; createdAt: Date; createdBy: string; createdByName: string | null; summary: unknown }>
+    >`SELECT sv.id, sv.version, sv."createdAt", sv."createdBy", u.username AS "createdByName",
+        sv.config->'summary' AS summary
+      FROM section_versions sv LEFT JOIN users u ON u.id = sv."createdBy"
+      WHERE sv."sectionId" = ${id}
+      ORDER BY sv.version DESC LIMIT ${SECTION_VERSION_LIMIT}`;
 
     const data = rows.map((v) => {
       const sm = (v.summary ?? {}) as Partial<BreakpointCounts>;
@@ -35,6 +37,7 @@ export async function GET(
         version: v.version,
         createdAt: v.createdAt,
         createdBy: v.createdBy,
+        createdByName: v.createdByName ?? null,
         counts: { desktop: Number(sm.desktop) || 0, tablet: Number(sm.tablet) || 0, mobile: Number(sm.mobile) || 0 },
       };
     });

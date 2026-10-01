@@ -1,5 +1,6 @@
 "use client";
 
+import SectionVersionHistoryModal from "@/components/admin/SectionVersionHistoryModal";
 import { useState, useEffect, use, useRef } from "react";
 import { useRouter } from "next/navigation";
 import AdminLayout from "@/components/admin/AdminLayout";
@@ -51,6 +52,7 @@ export default function PageEditor({ params }: { params: Promise<{ slug: string 
   const createModalBackdropMouseDownOnSelf = useRef(false);
   const [selectedType, setSelectedType] = useState<SectionType>("NORMAL");
   const [editingSection, setEditingSection] = useState<SectionConfig | null>(null);
+  const [historySection, setHistorySection] = useState<SectionConfig | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterCategory>("all");
@@ -418,6 +420,14 @@ export default function PageEditor({ params }: { params: Promise<{ slug: string 
                       </button>
 
                       <button
+                        className="btn btn-sm btn-outline-secondary"
+                        title="Version history"
+                        onClick={() => setHistorySection(section)}
+                      >
+                        <i className="bi bi-clock-history"></i>
+                      </button>
+
+                      <button
                         className="btn btn-sm btn-outline-danger"
                         onClick={() => handleDeleteSection(section.id)}
                         title="Delete Section"
@@ -590,6 +600,16 @@ export default function PageEditor({ params }: { params: Promise<{ slug: string 
           setConfirmDialog({ ...confirmDialog, isOpen: false })
         }
       />
+      {historySection && (
+        <SectionVersionHistoryModal
+          sectionId={historySection.id}
+          sectionName={historySection.displayName || historySection.type}
+          sectionUpdatedAt={(historySection as { updatedAt?: string }).updatedAt}
+          open
+          onClose={() => setHistorySection(null)}
+          onRestored={() => { reloadSections(); }}
+        />
+      )}
     </AdminLayout>
   );
 }

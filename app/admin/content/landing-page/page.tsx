@@ -1,5 +1,6 @@
 "use client";
 
+import SectionVersionHistoryModal from "@/components/admin/SectionVersionHistoryModal";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AdminLayout from "@/components/admin/AdminLayout";
@@ -109,6 +110,7 @@ export default function LandingPageManager() {
   const reorderQueueRef = useRef<Promise<void>>(Promise.resolve());
   const [selectedType, setSelectedType] = useState<SectionType>("NORMAL");
   const [editingSection, setEditingSection] = useState<SectionConfig | null>(null);
+  const [historySection, setHistorySection] = useState<SectionConfig | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterCategory>("all");
@@ -646,6 +648,14 @@ export default function LandingPageManager() {
 
                       <button
                         className="btn btn-sm btn-outline-secondary"
+                        title="Version history"
+                        onClick={() => setHistorySection(section)}
+                      >
+                        <i className="bi bi-clock-history"></i>
+                      </button>
+
+                      <button
+                        className="btn btn-sm btn-outline-secondary"
                         title="Save as Template"
                         onClick={() => setTemplateSection(section)}
                       >
@@ -931,6 +941,16 @@ export default function LandingPageManager() {
             else setErrorMessage(`Failed to apply template "${t.name}" — changes were not stored.`);
           }}
           onCancel={() => setShowTemplatePickerFor(null)}
+        />
+      )}
+      {historySection && (
+        <SectionVersionHistoryModal
+          sectionId={historySection.id}
+          sectionName={historySection.displayName || historySection.type}
+          sectionUpdatedAt={(historySection as { updatedAt?: string }).updatedAt}
+          open
+          onClose={() => setHistorySection(null)}
+          onRestored={() => { reloadSections(); }}
         />
       )}
     </AdminLayout>
