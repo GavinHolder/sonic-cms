@@ -136,7 +136,9 @@ A structured layout section. Supports a variety of preset layouts combining text
 
 A dedicated call-to-action section. Supports a contact form with human verification, hero-style heading + subheading, and multiple CTA buttons.
 
-> **Contact Form:** When form mode is enabled, CTA renders a custom contact form with **human verification via a shuffled keypad** and emails submissions to the configured recipient address.
+> **Contact Form:** In contact-form style the CTA **embeds the form itself** (there is no "Get Started" navigation button). If no form fields are configured it uses 4 defaults (from \`lib/cta-defaults.ts\`): **Full name\***, **Email\*** (the OTP verification field), **Phone**, **Message**. The visitor verifies their email with a **6-digit OTP code**, then the enquiry is emailed to the configured admin recipient.
+
+> **Background image:** The section background image (\`bgImageUrl\` plus size / position / repeat / opacity) renders behind the CTA with a **45% dark overlay** and light text. Parallax is not supported on CTA. The section stays exactly 100vh; overflowing content scrolls internally.
 
 ---
 
