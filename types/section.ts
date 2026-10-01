@@ -624,6 +624,10 @@ export interface TextOverlayElement {
     animationDelay: number;
     /** Easing curve — undefined means unchanged (Framer's own default). See HeroEasing. */
     animationEasing?: HeroEasing;
+    /** Button label font size (px), used as the clamp() ceiling. Undefined = current hardcoded 18px look. */
+    fontSize?: number;
+    /** Button label font family. Undefined = "inherit" (current look). */
+    fontFamily?: string;
     /** Freeform placement (only used when overlay.layoutMode === "freeform"). */
     pos?: FreeformPos;
     /** Per-breakpoint position overrides — see resolveFreeformPos / HeadingRow's posTablet/posMobile. */

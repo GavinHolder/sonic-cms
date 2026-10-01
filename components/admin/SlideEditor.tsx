@@ -172,6 +172,7 @@ export default function SlideEditor({
       const own = editBreakpoint === "mobile" ? b.posMobile : editBreakpoint === "tablet" ? b.posTablet : b.pos;
       chips.push({
         id: `btn-${i}`, kind: "button", text: b.text || "Button",
+        fontSize: b.fontSize, fontFamily: b.fontFamily,
         btnBg: b.backgroundColor, btnColor: b.textColor, variant: b.variant,
         pos: resolveFreeformPos(editBreakpoint, b.pos, b.posTablet, b.posMobile) ?? defaultFreeformPos("button", i),
         onMove: (p) => setButtonPos(i, posField, p),
@@ -1928,6 +1929,8 @@ export default function SlideEditor({
                         animation: "slideUp",
                         animationDuration: 800,
                         animationDelay: 600,
+                        fontSize: 18,
+                        fontFamily: "inherit",
                       },
                     ],
                   })
@@ -2028,6 +2031,35 @@ export default function SlideEditor({
                         onChange={(e) => {
                           const updatedButtons = [...(slide.overlay?.buttons ?? [])];
                           updatedButtons[index] = { ...button, textColor: e.target.value };
+                          updateOverlay({ buttons: updatedButtons });
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="row mb-2">
+                    <div className="col-md-6">
+                      <label className="form-label fw-semibold">Font Size (px)</label>
+                      <input
+                        type="number"
+                        className="form-control form-control-sm"
+                        value={button.fontSize ?? 18}
+                        onChange={(e) => {
+                          const updatedButtons = [...(slide.overlay?.buttons ?? [])];
+                          updatedButtons[index] = { ...button, fontSize: parseInt(e.target.value) };
+                          updateOverlay({ buttons: updatedButtons });
+                        }}
+                        min="12"
+                        max="48"
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label fw-semibold">Font Family</label>
+                      <GoogleFontPicker
+                        value={button.fontFamily ?? "inherit"}
+                        onChange={(f) => {
+                          const updatedButtons = [...(slide.overlay?.buttons ?? [])];
+                          updatedButtons[index] = { ...button, fontFamily: f };
                           updateOverlay({ buttons: updatedButtons });
                         }}
                       />
@@ -3188,7 +3220,8 @@ function renderFreeformChip(chip: FreeformChip, scale: number, vpW: number) {
   return (
     <div style={{
       display: "inline-block",
-      fontSize: px(15), fontWeight: 600, padding: `${6 * scale}px ${16 * scale}px`, borderRadius: `${6 * scale}px`,
+      fontFamily: heroFontStack(chip.fontFamily || "inherit"),
+      fontSize: px(chip.fontSize || 15), fontWeight: 600, padding: `${6 * scale}px ${16 * scale}px`, borderRadius: `${6 * scale}px`,
       background: filled ? (chip.btnBg || "#0d6efd") : "transparent",
       color: filled ? (chip.btnColor || "#fff") : (chip.btnBg || "#fff"),
       border: chip.variant === "outline" ? `${Math.max(1, 2 * scale)}px solid ${chip.btnBg || "#fff"}` : "none",
