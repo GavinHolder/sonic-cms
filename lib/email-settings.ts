@@ -7,6 +7,10 @@ export interface EmailSettings {
   footerText: string
   showLogo: boolean
   showCompanyName: boolean
+  /** Hex colours (#rrggbb). Invalid values fall back to the Sonic defaults in lib/email/layout.ts. */
+  brandColor: string
+  headerBg: string
+  pageBg: string
 }
 
 export const DEFAULT_EMAIL_SETTINGS: EmailSettings = {
@@ -15,6 +19,9 @@ export const DEFAULT_EMAIL_SETTINGS: EmailSettings = {
   footerText: 'Reply directly to this email to respond to the enquirer.',
   showLogo: true,
   showCompanyName: true,
+  brandColor: '#e31e24',
+  headerBg: '#ffffff',
+  pageBg: '#eef0f3',
 }
 
 const SETTINGS_KEY = 'email_settings'

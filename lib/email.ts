@@ -7,20 +7,13 @@ import nodemailer from "nodemailer";
 import prisma from "@/lib/prisma";
 import { getBrandTokens, type BrandTokens } from '@/lib/brand-tokens'
 import { getEmailSettings, type EmailSettings } from '@/lib/email-settings'
+import { renderEmailLayout, buildEmailTheme, kvRows, otpBox, paragraph, mutedNote, bulletList } from '@/lib/email/layout'
+import { resolveEmailLogo } from '@/lib/email/assets'
 
 interface SiteInfo {
   companyName: string
   logoUrl: string
   copyrightText: string
-}
-
-function escapeHtml(value: unknown): string {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
 }
 
 const EMAIL_ADDR_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -64,171 +57,71 @@ export function sanitizeRecipientList(value: unknown): string {
   return valid.join(', ')
 }
 
-function safeLogoUrl(url: string): string {
-  if (!url) return ''
-  // Resolve relative paths to absolute using the site base URL
-  if (url.startsWith('/')) {
-    const base = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ?? ''
-    url = base + url
+/** Theme + header options shared by every email, driven by EmailSettings. */
+function chrome(settings: EmailSettings, site: SiteInfo, logoSrc?: string) {
+  return {
+    theme: buildEmailTheme({ brand: settings.brandColor, headerBg: settings.headerBg, pageBg: settings.pageBg }),
+    companyName: site.companyName,
+    logoSrc,
+    showLogo: settings.showLogo,
+    showCompanyName: settings.showCompanyName,
+    copyrightText: site.copyrightText || `© ${site.companyName}`,
   }
-  try {
-    const parsed = new URL(url)
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? url : ''
-  } catch {
-    return ''
-  }
+}
+
+/** Inline (cid) logo attachment list; empty when the logo is hidden or the file is unavailable. */
+export function logoAttachments(logo: ReturnType<typeof resolveEmailLogo>, settings: EmailSettings) {
+  return settings.showLogo && logo.attachment ? [logo.attachment] : []
+}
+
+/** Absolute logo URL for previews (cid: does not render outside a mail client). */
+export function previewLogoSrc(): string {
+  return resolveEmailLogo().url
 }
 
 export function buildSubmissionEmailHtml(
   fields: Array<{ label: string; value: string }>,
   userEmail: string,
   source: string,
-  tokens: BrandTokens,
+  _tokens: BrandTokens,
   settings: EmailSettings,
-  site: SiteInfo
+  site: SiteInfo,
+  logoSrc: string = previewLogoSrc()
 ): string {
-  const { primary, surface, text, textMuted } = tokens.colors
-  const { showLogo, showCompanyName, headerTagline, footerText } = settings
-  const { companyName, logoUrl, copyrightText } = site
-
-  const logoHtml =
-    showLogo && logoUrl
-      ? `<img src="${safeLogoUrl(logoUrl)}" alt="${escapeHtml(companyName)}" style="max-width:120px;max-height:48px;display:block;margin:0 auto 10px;">`
-      : ''
-
-  const nameHtml = showCompanyName
-    ? `<div style="color:#ffffff;font-size:16px;font-weight:600;${headerTagline ? 'margin-bottom:4px;' : ''}">${escapeHtml(companyName)}</div>`
-    : ''
-
-  const taglineHtml = headerTagline
-    ? `<div style="color:#94a3b8;font-size:12px;">${escapeHtml(headerTagline)}</div>`
-    : ''
-
-  const now = new Date()
-  const dateStr = now.toLocaleDateString('en-ZA', {
+  const c = chrome(settings, site, logoSrc)
+  const dateStr = new Date().toLocaleDateString('en-ZA', {
     day: 'numeric', month: 'short', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   })
-
-  const fieldRows = fields
-    .map(
-      (f) => `<tr>
-        <td style="padding-bottom:12px;vertical-align:top;">
-          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:${textMuted};margin-bottom:2px;">${escapeHtml(f.label)}</div>
-          <div style="font-size:14px;color:${text};font-weight:500;">${escapeHtml(f.value)}</div>
-        </td>
-      </tr>`
-    )
-    .join('')
-
-  const copyright = escapeHtml(copyrightText || `© ${companyName}`)
-
-  const footerHtml = footerText
-    ? `<div style="font-size:12px;color:${textMuted};text-align:center;padding:14px 0 4px;">${escapeHtml(footerText)}</div>`
-    : ''
-
-  return `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f1f5f9;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 16px;">
-  <tr><td align="center">
-  <table cellpadding="0" cellspacing="0" style="max-width:500px;width:100%;font-family:Arial,Helvetica,sans-serif;">
-    <tr>
-      <td style="background:#0f172a;padding:28px 32px;text-align:center;border-radius:8px 8px 0 0;">
-        ${logoHtml}
-        ${nameHtml}
-        ${taglineHtml}
-      </td>
-    </tr>
-    <tr>
-      <td style="background:${surface};padding:24px 28px;border-radius:0 0 8px 8px;">
-        <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;">
-          <tr>
-            <td style="padding:20px 24px;">
-              <div style="font-size:18px;font-weight:700;color:${text};margin-bottom:4px;">New Website Enquiry</div>
-              <div style="font-size:11px;color:${textMuted};margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid #f1f5f9;">Form: ${escapeHtml(source)} · ${dateStr}</div>
-              <table width="100%" cellpadding="0" cellspacing="0">
-                ${fieldRows}
-              </table>
-              <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;">
-                <tr>
-                  <td style="text-align:center;">
-                    <a href="mailto:${escapeHtml(userEmail)}" style="display:inline-block;background:${primary};color:#ffffff;padding:10px 28px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;">Reply to Enquirer</a>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-        </table>
-        ${footerHtml}
-        <div style="font-size:11px;color:#94a3b8;text-align:center;padding-top:8px;">${copyright}</div>
-      </td>
-    </tr>
-  </table>
-  </td></tr>
-</table>
-</body>
-</html>`
+  return renderEmailLayout({
+    ...c,
+    title: 'New Website Enquiry',
+    preheader: `New enquiry from ${source}`,
+    tagline: settings.headerTagline,
+    footerText: settings.footerText,
+    bodyHtml:
+      paragraph(`Form: ${source} · ${dateStr}`, c.theme) + kvRows(fields, c.theme),
+    cta: { label: 'Reply to Enquirer', href: `mailto:${userEmail}` },
+  })
 }
 
 export function buildOtpEmailHtml(
   otp: string,
-  tokens: BrandTokens,
+  _tokens: BrandTokens,
   settings: EmailSettings,
-  site: SiteInfo
+  site: SiteInfo,
+  logoSrc: string = previewLogoSrc()
 ): string {
-  const { primary, surface, text, textMuted } = tokens.colors
-  const { showLogo, showCompanyName } = settings
-  const { companyName, logoUrl, copyrightText } = site
-
-  const logoHtml =
-    showLogo && logoUrl
-      ? `<img src="${safeLogoUrl(logoUrl)}" alt="${escapeHtml(companyName)}" style="max-width:120px;max-height:48px;display:block;margin:0 auto 10px;">`
-      : ''
-
-  const nameHtml = showCompanyName
-    ? `<div style="color:#ffffff;font-size:16px;font-weight:600;">${escapeHtml(companyName)}</div>`
-    : ''
-
-  const copyright = escapeHtml(copyrightText || `© ${companyName}`)
-
-  return `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f1f5f9;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 16px;">
-  <tr><td align="center">
-  <table cellpadding="0" cellspacing="0" style="max-width:500px;width:100%;font-family:Arial,Helvetica,sans-serif;">
-    <tr>
-      <td style="background:#0f172a;padding:28px 32px;text-align:center;border-radius:8px 8px 0 0;">
-        ${logoHtml}
-        ${nameHtml}
-        <div style="color:#94a3b8;font-size:12px;margin-top:4px;">Verify your email</div>
-      </td>
-    </tr>
-    <tr>
-      <td style="background:${surface};padding:24px 28px;border-radius:0 0 8px 8px;">
-        <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;">
-          <tr>
-            <td style="padding:28px 24px;text-align:center;">
-              <div style="font-size:18px;font-weight:700;color:${text};margin-bottom:8px;">Verify Your Email</div>
-              <div style="font-size:13px;color:${textMuted};margin-bottom:20px;">Use this code to complete your submission to ${escapeHtml(companyName)}:</div>
-              <div style="display:inline-block;background:#f8fafc;border:2px solid ${primary};border-radius:8px;padding:16px 32px;margin-bottom:16px;">
-                <span style="font-size:32px;font-weight:800;letter-spacing:8px;color:${text};font-family:'Courier New',Courier,monospace;">${escapeHtml(otp)}</span>
-              </div>
-              <div style="font-size:12px;color:${textMuted};margin-top:4px;">This code expires in <strong>10 minutes</strong>. Do not share it with anyone.</div>
-            </td>
-          </tr>
-        </table>
-        <div style="font-size:11px;color:#94a3b8;text-align:center;padding-top:12px;">${copyright}</div>
-      </td>
-    </tr>
-  </table>
-  </td></tr>
-</table>
-</body>
-</html>`
+  const c = chrome(settings, site, logoSrc)
+  return renderEmailLayout({
+    ...c,
+    title: 'Verify Your Email',
+    preheader: `Your verification code for ${site.companyName}`,
+    bodyHtml:
+      paragraph(`Use this code to complete your submission to ${site.companyName}:`, c.theme) +
+      otpBox(otp, c.theme) +
+      mutedNote('This code expires in 10 minutes. Do not share it with anyone.', c.theme),
+  })
 }
 
 /** Fetch all email-related settings from system_settings table as a key-value map */
@@ -288,11 +181,13 @@ export async function sendOtpEmail(
     copyrightText: siteRow?.copyrightText ?? '',
   }
   const transporter = await createTransporter()
+  const logo = resolveEmailLogo()
   await transporter.sendMail({
     from: cfg.smtp_from || cfg.smtp_user,
     to: toEmail,
     subject: `Verify your email — ${site.companyName}`,
-    html: buildOtpEmailHtml(otp, tokens, emailSettings, site),
+    html: buildOtpEmailHtml(otp, tokens, emailSettings, site, logo.src),
+    attachments: logoAttachments(logo, emailSettings),
   })
 }
 
@@ -329,12 +224,14 @@ export async function sendSubmissionEmail(
     copyrightText: siteRow?.copyrightText ?? '',
   }
   const transporter = await createTransporter()
+  const logo = resolveEmailLogo()
   await transporter.sendMail({
     from: cfg.smtp_from || cfg.smtp_user,
     to: recipient,
     replyTo: sanitizeRecipient(userEmail) || undefined,
     subject: `${emailSettings.subjectPrefix} ${source}`.replace(/[\r\n]+/g, ' '),
-    html: buildSubmissionEmailHtml(fields, userEmail, source, tokens, emailSettings, site),
+    html: buildSubmissionEmailHtml(fields, userEmail, source, tokens, emailSettings, site, logo.src),
+    attachments: logoAttachments(logo, emailSettings),
   })
 }
 
@@ -354,20 +251,24 @@ export async function sendSeoAlertEmail(
   const recipient = (cfg.seo_alert_email || "").trim() || cfg.admin_email
   if (!recipient || reasons.length === 0) return
 
-  const siteRow = await prisma.siteConfig.findFirst()
+  const [siteRow, emailSettings] = await Promise.all([prisma.siteConfig.findFirst(), getEmailSettings()])
   const companyName = siteRow?.companyName ?? 'Your site'
-
-  const items = reasons
-    .map((r) => `<li style="margin:6px 0;color:#b91c1c;">${escapeHtml(r)}</li>`)
-    .join('')
-  const html = `<!doctype html><html><body style="font-family:Arial,Helvetica,sans-serif;background:#f3f4f6;padding:24px;">
-    <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:8px;padding:24px;border:1px solid #e5e7eb;">
-      <h2 style="margin:0 0 4px;color:#111827;">SEO Alert — ${escapeHtml(companyName)}</h2>
-      <p style="margin:0 0 16px;color:#6b7280;">Your scheduled SEO audit flagged a regression:</p>
-      <ul style="padding-left:20px;margin:0 0 16px;">${items}</ul>
-      <p style="margin:0;color:#6b7280;font-size:13px;">Review details in Admin → Content → SEO → Score.</p>
-    </div>
-  </body></html>`
+  const site: SiteInfo = {
+    companyName,
+    logoUrl: siteRow?.logoUrl ?? '',
+    copyrightText: siteRow?.copyrightText ?? '',
+  }
+  const logo = resolveEmailLogo()
+  const c = chrome(emailSettings, site, logo.src)
+  const html = renderEmailLayout({
+    ...c,
+    title: `SEO Alert — ${companyName}`,
+    preheader: 'Your scheduled SEO audit flagged a regression',
+    bodyHtml:
+      paragraph('Your scheduled SEO audit flagged a regression:', c.theme) +
+      bulletList(reasons, c.theme) +
+      mutedNote('Review details in Admin → Content → SEO → Score.', c.theme),
+  })
 
   const transporter = await createTransporter()
   await transporter.sendMail({
@@ -375,5 +276,6 @@ export async function sendSeoAlertEmail(
     to: recipient,
     subject: `[SEO] ${subject} — ${companyName}`,
     html,
+    attachments: logoAttachments(logo, emailSettings),
   })
 }
