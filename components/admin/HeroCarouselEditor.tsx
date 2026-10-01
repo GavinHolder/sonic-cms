@@ -266,8 +266,20 @@ export default function HeroCarouselEditor({
   // height preserves that viewport's aspect ratio so the crop matches what that
   // breakpoint actually shows (real window for Desktop, fixed device size otherwise).
   const previewScale = previewWidth > 0 ? previewWidth / effectiveViewport.w : 0;
-  const previewBoxHeight =
+  const naturalPreviewBoxHeight =
     previewWidth > 0 ? previewWidth * (effectiveViewport.h / effectiveViewport.w) : 360;
+  // Tablet (768x1024) and especially Mobile (375x812) scaled up to a typical pane width
+  // produce a box taller than most laptop browser windows (~1080-1130px for Mobile at a
+  // ~500-520px pane). The box sits inside a `position: sticky` wrapper, so content below
+  // the sticky element's own bottom edge is permanently unreachable by scrolling the page
+  // (standard sticky behavior — not a bug). Cap the box at a budget that comfortably fits
+  // alongside the rest of the modal's chrome (header, tabs, footer buttons) and let the
+  // admin scroll WITHIN the box instead, so the full virtual viewport stays reachable.
+  // `window` is guarded for SSR; previewWidth stays 0 until after mount, so the fallback
+  // 360 branch above (unaffected by this cap) is what actually renders server-side.
+  const maxPreviewBoxHeight = typeof window !== "undefined" ? window.innerHeight * 0.6 : 500;
+  const isPreviewBoxCapped = naturalPreviewBoxHeight > maxPreviewBoxHeight;
+  const previewBoxHeight = isPreviewBoxCapped ? maxPreviewBoxHeight : naturalPreviewBoxHeight;
 
   const startEditingName = (index: number, current: string) => {
     setNameDraft(current);
@@ -862,7 +874,19 @@ export default function HeroCarouselEditor({
                         position: "relative",
                         width: "100%",
                         height: `${previewBoxHeight}px`,
-                        overflow: "hidden",
+                        // When the natural (aspect-ratio-driven) height is capped — tall
+                        // Mobile/Tablet viewports — switch to a vertical scrollbar so the
+                        // rest of the preview is reachable within the box. The iframe below
+                        // is `position: absolute` inside this `position: relative` box, so
+                        // it contributes to this box's scrollable overflow and the browser's
+                        // native wheel/trackpad scroll works on it like any scroll container
+                        // (the outer `position: sticky` ancestor doesn't change that — it
+                        // only pins this box's own top edge, it doesn't intercept scroll
+                        // events bound for a nested overflow:auto descendant). Desktop never
+                        // hits this branch (isPreviewBoxCapped stays false), so its existing
+                        // overflow:hidden behavior is unchanged.
+                        overflowX: "hidden",
+                        overflowY: isPreviewBoxCapped ? "auto" : "hidden",
                         backgroundColor: "#000",
                       }}
                     >
