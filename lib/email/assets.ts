@@ -5,7 +5,7 @@
  * 1. Mail clients cannot reach localhost or relative paths, so the logo URL must be an absolute
  *    public https URL. NEXT_PUBLIC_* values are build-time/dev values (often http://localhost:3000)
  *    and are deliberately never used here.
- * 2. Outlook desktop does not render webp, so the logo is a bundled PNG (public/email/sonic-logo.png,
+ * 2. Outlook desktop does not render webp, so the logo is a bundled PNG (public/images/email/sonic-logo.png,
  *    derived from public/images/sonic-logo.png - the coloured, transparent-background brand logo).
  * FAILURE MODES:
  * - Remote images blocked (Outlook default) -> the same PNG is also attached inline via cid.
@@ -15,7 +15,7 @@ import fs from 'fs'
 import path from 'path'
 
 export const DEFAULT_EMAIL_BASE_URL = 'https://www.sonic.co.za'
-export const EMAIL_LOGO_PATH = '/email/sonic-logo.png'
+export const EMAIL_LOGO_PATH = '/images/email/sonic-logo.png'
 export const EMAIL_LOGO_CID = 'sonic-logo@email'
 
 const LOCAL_HOST_RE = /^(localhost|127\.|0\.0\.0\.0|\[?::1\]?)/i
