@@ -21,7 +21,7 @@ import type { ScrollStageConfig, ScrollStageZoneConfig, ScrollStageZoneImageConf
 import { DEFAULT_LOWER_THIRD } from "@/lib/lower-third-presets";
 import { legacyToDesignerData } from "@/lib/flexible/legacy-to-designer";
 import { resolveVariants, serializeVariants, isVariantAuthored } from "../../public/flexible-breakpoint-rules.js";
-import { resolveBgPositionCss, resolveBackgroundPosForBreakpoint, getUnsetBackgroundBundle, resolveBackgroundBundleForBreakpoint } from "../../public/flexible-render-rules.js";
+import { resolveBgPositionCss, resolveBackgroundPosForBreakpoint, resolveBgZoomLayer, getUnsetBackgroundBundle, resolveBackgroundBundleForBreakpoint } from "../../public/flexible-render-rules.js";
 import type { BackgroundPosVariants, BgBundle, GradientConfig } from "../../public/flexible-render-rules.js";
 import { useConfirm } from "@/components/admin/ConfirmProvider";
 import { shouldShowTriangle, isHeroSectionType } from "@/lib/section-rules";
@@ -580,6 +580,11 @@ export default function FlexibleSectionEditorModal({
       bgImageOpacity: bundle.bgImageOpacity,
       backgroundPosX: pos.x,
       backgroundPosY: pos.y,
+      // Zoom percentage (Phase 2, 2026-10-01) — lives inside the SAME per-breakpoint point
+      // as x/y (see backgroundPos's own state declaration), resolved with the identical
+      // inherit-from-Desktop chain, so an un-customized breakpoint's zoom is already
+      // correctly inherited here, same as x/y just above.
+      backgroundZoom: pos.zoom,
       bgMultiRepeat,
       gradient: bundle.gradient,
     };
@@ -923,9 +928,16 @@ export default function FlexibleSectionEditorModal({
     // which of the two UIs (in-canvas panel or Background tab) originated the drag. No new
     // write path, no new API call — this rides the modal's existing handleSave persistence.
     if (e.data.type === "FLEXIBLE_DESIGNER_BG_DRAG") {
-      const { breakpoint: bp, x, y } = e.data.payload || {};
+      // zoom (Phase 2, 2026-10-01): the canvas always sends the FULLY RESOLVED (inherit-
+      // from-Desktop aware) triple currently in effect for this breakpoint — see
+      // flexible-designer.html's startSectionBgReposition()/the zoom-slider handler's own
+      // comments — so whichever of {x,y}/zoom the admin did NOT just change is preserved
+      // exactly as it was (inherited or own), not reset to a default. Missing/non-numeric
+      // zoom (an older canvas build, belt-and-suspenders) falls back to null — "100%/no
+      // zoom", the same default as an un-customized point.
+      const { breakpoint: bp, x, y, zoom } = e.data.payload || {};
       if ((bp === "desktop" || bp === "tablet" || bp === "mobile") && typeof x === "number" && typeof y === "number") {
-        setBackgroundPos((prev) => ({ ...prev, [bp]: { x, y } }));
+        setBackgroundPos((prev) => ({ ...prev, [bp]: { x, y, zoom: typeof zoom === "number" ? zoom : null } }));
       }
     }
     // Canvas -> parent: "Full background settings →" link in the Section panel. Closes the
@@ -1686,18 +1698,39 @@ export default function FlexibleSectionEditorModal({
                               </span>
                             )}
                           </label>
-                          <BackgroundRepositionPreview
-                            imageUrl={bgImageUrl}
-                            size={bgImageSize}
-                            x={resolveBackgroundPosForBreakpoint(backgroundPos, previewViewport, legacyBackgroundPosX, legacyBackgroundPosY).x}
-                            y={resolveBackgroundPosForBreakpoint(backgroundPos, previewViewport, legacyBackgroundPosX, legacyBackgroundPosY).y}
-                            onChange={(nx, ny) =>
-                              setBackgroundPos((prev) => ({ ...prev, [previewViewport]: { x: nx, y: ny } }))
-                            }
-                          />
+                          {(() => {
+                            // Resolved ONCE (was 2 separate calls, one per axis) — now also
+                            // carries zoom (Phase 2, 2026-10-01), same inherit-from-Desktop
+                            // chain for all three fields.
+                            const currentPos = resolveBackgroundPosForBreakpoint(
+                              backgroundPos, previewViewport, legacyBackgroundPosX, legacyBackgroundPosY
+                            );
+                            return (
+                              <BackgroundRepositionPreview
+                                imageUrl={bgImageUrl}
+                                size={bgImageSize}
+                                x={currentPos.x}
+                                y={currentPos.y}
+                                zoom={currentPos.zoom}
+                                onChange={(nx, ny) =>
+                                  setBackgroundPos((prev) => ({
+                                    ...prev,
+                                    [previewViewport]: { x: nx, y: ny, zoom: currentPos.zoom },
+                                  }))
+                                }
+                                onZoomChange={(nz) =>
+                                  setBackgroundPos((prev) => ({
+                                    ...prev,
+                                    [previewViewport]: { x: currentPos.x ?? 50, y: currentPos.y ?? 50, zoom: nz },
+                                  }))
+                                }
+                              />
+                            );
+                          })()}
                           <small className="text-muted d-block mt-1">
                             Switch &quot;Preview as&quot; in the live preview pane to set a different crop position for
-                            Desktop, Tablet, and Mobile independently.
+                            Desktop, Tablet, and Mobile independently. Zoom manufactures extra drag room on both axes
+                            when the image&apos;s own crop has little or none.
                           </small>
                           {backgroundPos[previewViewport] != null && (
                             <button
@@ -2683,6 +2716,9 @@ const SUB_ELEMENT_SCHEMAS: Record<string, FieldDef[]> = {
  *    caller (this file's handleSave / FLEXIBLE_DESIGNER_INIT payload) treats null as
  *    "fall back to the legacy free-text Background Position field", exactly mirroring
  *    resolveBgPositionCss's own "unset -> center" default one level up.
+ * 2. zoom (Phase 2, 2026-10-01) is a percentage, 100 = no extra zoom, or null meaning
+ *    "no zoom override set yet" (same null convention as x/y). See resolveBgZoomLayer's
+ *    doc comment in flexible-render-rules.js for the geometry this preview mirrors.
  * FAILURE MODES:
  * - No imageUrl -> renders an empty placeholder box; drag is a no-op (nothing to
  *   position), matching startBgReposition's own "target element not found -> no-op".
@@ -2692,18 +2728,26 @@ function BackgroundRepositionPreview({
   size,
   x,
   y,
+  zoom,
   onChange,
+  onZoomChange,
 }: {
   imageUrl: string;
   size: string;
   x: number | null;
   y: number | null;
+  zoom: number | null;
   onChange: (x: number, y: number) => void;
+  onZoomChange: (zoom: number) => void;
 }) {
   const boxRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState(false);
   const displayX = x ?? 50;
   const displayY = y ?? 50;
+  const displayZoom = zoom ?? 100;
+  // null/<=100 -> same single-layer preview as before this feature (byte-identical);
+  // >100 -> the same manufactured zoom layer the live page/Designer canvas render.
+  const zoomLayer = resolveBgZoomLayer(x, y, zoom);
 
   const applyAt = (clientX: number, clientY: number) => {
     if (!imageUrl) return;
@@ -2747,33 +2791,60 @@ function BackgroundRepositionPreview({
           borderRadius: 6,
           border: "1px solid #dee2e6",
           backgroundColor: "#f8f9fa",
-          backgroundImage: imageUrl ? `url(${imageUrl})` : undefined,
-          backgroundSize: size || "cover",
-          backgroundPosition: resolveBgPositionCss(x ?? undefined, y ?? undefined),
-          backgroundRepeat: "no-repeat",
+          overflow: zoomLayer ? "hidden" : "visible",
+          // Legacy single-layer rendering (zoomLayer null, zoom absent/<=100) — byte-identical
+          // to before this feature. When zoomLayer is set, the image is painted by the nested
+          // child below instead, and this box becomes its clip container.
+          ...(zoomLayer
+            ? {}
+            : {
+                backgroundImage: imageUrl ? `url(${imageUrl})` : undefined,
+                backgroundSize: size || "cover",
+                backgroundPosition: resolveBgPositionCss(x ?? undefined, y ?? undefined),
+                backgroundRepeat: "no-repeat",
+              }),
           cursor: imageUrl ? (dragging ? "grabbing" : "grab") : "default",
           userSelect: "none",
         }}
         title={imageUrl ? "Drag to reposition the background image" : "Add an image above to enable repositioning"}
       >
         {imageUrl ? (
-          <div
-            aria-hidden="true"
-            style={{
-              position: "absolute",
-              left: `${displayX}%`,
-              top: `${displayY}%`,
-              width: 14,
-              height: 14,
-              marginLeft: -7,
-              marginTop: -7,
-              borderRadius: "50%",
-              border: "2px solid #fff",
-              background: "#0d6efd",
-              boxShadow: "0 0 0 1px rgba(0,0,0,0.35)",
-              pointerEvents: "none",
-            }}
-          />
+          <>
+            {zoomLayer && (
+              <div
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  width: `${zoomLayer.widthPct}%`,
+                  height: `${zoomLayer.heightPct}%`,
+                  left: `${zoomLayer.leftPct}%`,
+                  top: `${zoomLayer.topPct}%`,
+                  backgroundImage: `url(${imageUrl})`,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                  backgroundRepeat: "no-repeat",
+                  pointerEvents: "none",
+                }}
+              />
+            )}
+            <div
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                left: `${displayX}%`,
+                top: `${displayY}%`,
+                width: 14,
+                height: 14,
+                marginLeft: -7,
+                marginTop: -7,
+                borderRadius: "50%",
+                border: "2px solid #fff",
+                background: "#0d6efd",
+                boxShadow: "0 0 0 1px rgba(0,0,0,0.35)",
+                pointerEvents: "none",
+              }}
+            />
+          </>
         ) : (
           <div className="d-flex align-items-center justify-content-center h-100 text-muted small">
             No image set
@@ -2783,6 +2854,23 @@ function BackgroundRepositionPreview({
       <small className="text-muted d-block mt-1">
         {imageUrl ? `Drag on the preview to reposition (${displayX}%, ${displayY}%).` : "Set a Section Background Image above to enable repositioning."}
       </small>
+      {imageUrl && (
+        <div className="mt-2">
+          <label className="form-label mb-1 small">Zoom: {displayZoom}%</label>
+          <input
+            type="range"
+            className="form-range"
+            min={100}
+            max={300}
+            step={5}
+            value={displayZoom}
+            onChange={(e) => onZoomChange(Number(e.target.value))}
+          />
+          <small className="text-muted d-block">
+            Zoom beyond 100% manufactures extra drag room on both axes, independent of the image&apos;s own crop.
+          </small>
+        </div>
+      )}
     </div>
   );
 }

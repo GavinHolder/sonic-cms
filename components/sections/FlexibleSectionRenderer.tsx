@@ -17,7 +17,7 @@ import { createEntranceObserver, isEntranceVisible } from "@/lib/entrance-observ
 // source of truth also consumed by public/flexible-designer.html (see that file's
 // <script src="/flexible-render-rules.js"> and this module's own doc comment for why
 // it exists). Plain JS + hand-written flexible-render-rules.d.ts alongside it.
-import { computeSubElementStyle, computeSubElementPosition, resolveBlockZIndex, computeMultiBgLayers, resolveBgPositionCss, resolveBackgroundPosForBreakpoint, buildGradientCss, resolveLiveBackgroundBundle, computeStageFit, collectFontRequests, ensureGoogleFontLinks, FRAME_GUIDE_NAV, resolveVoltFullBleed } from "../../public/flexible-render-rules.js";
+import { computeSubElementStyle, computeSubElementPosition, resolveBlockZIndex, computeMultiBgLayers, resolveBgPositionCss, resolveBackgroundPosForBreakpoint, resolveBgZoomLayer, buildGradientCss, resolveLiveBackgroundBundle, computeStageFit, collectFontRequests, ensureGoogleFontLinks, FRAME_GUIDE_NAV, resolveVoltFullBleed } from "../../public/flexible-render-rules.js";
 import type { BgBundle, BackgroundByBreakpoint, GradientConfig } from "../../public/flexible-render-rules.js";
 // Per-breakpoint independent layouts (2026-09-11) — shared shape-normalization/variant-
 // selection module (Task 1 of this feature). Companion to flexible-render-rules.js above;
@@ -793,6 +793,19 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
     resolvedBackgroundPos.x != null && resolvedBackgroundPos.y != null
       ? resolveBgPositionCss(resolvedBackgroundPos.x, resolvedBackgroundPos.y)
       : bgImagePosition;
+  // Phase 2 (2026-10-01) of this feature — manufactured pan-zoom child layer,
+  // independent of the image's native aspect ratio. null (zoom absent/<=100,
+  // i.e. every section saved before this phase) means "render the plain
+  // single-layer background above exactly as before" — see
+  // resolveBgZoomLayer's own doc comment in flexible-render-rules.js for the
+  // full geometry + backward-compat contract. Resolved ONCE here (same
+  // pattern as effectiveBgImagePosition above) and fed into every section-bg
+  // render site below so they can never disagree.
+  const effectiveBgZoomLayer = resolveBgZoomLayer(
+    resolvedBackgroundPos.x,
+    resolvedBackgroundPos.y,
+    resolvedBackgroundPos.zoom
+  );
   // "Repeat per section" (opt-in, default false — free+multi/dynamic sections only).
   // Unlike its bgImage* siblings above (real Section columns), this one is NOT a
   // schema column — it round-trips inside `content` JSONB, the same pattern already
@@ -1146,21 +1159,57 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
           plain data-driven freePlateActive is the fix: skipped exactly when — and only
           when — the plate itself is the thing drawing the background. */}
       {effectiveBgImageUrl && !freePlateDesktop && (
-        <div
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            inset: 0,
-            zIndex: 0,
-            backgroundImage: `url(${effectiveBgImageUrl})`,
-            backgroundSize: bgImageSize || "cover",
-            backgroundPosition: effectiveBgImagePosition || "center",
-            backgroundRepeat: bgImageRepeat || "no-repeat",
-            opacity: (bgImageOpacity ?? 100) / 100,
-            ...(bgMaskCss ? { maskImage: bgMaskCss, WebkitMaskImage: bgMaskCss } : {}),
-            pointerEvents: "none",
-          }}
-        />
+        effectiveBgZoomLayer ? (
+          // Zoom > 100 (see resolveBgZoomLayer's doc comment) — the box below becomes a
+          // CLIP container (overflow:hidden) for an oversized CHILD layer that manufactures
+          // real pan slack on both axes. opacity/mask stay on this outer wrapper (they
+          // describe how the whole image block appears, not the internal pan/zoom
+          // mechanics) so they still apply to the composited result exactly as before.
+          <div
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              inset: 0,
+              zIndex: 0,
+              overflow: "hidden",
+              opacity: (bgImageOpacity ?? 100) / 100,
+              ...(bgMaskCss ? { maskImage: bgMaskCss, WebkitMaskImage: bgMaskCss } : {}),
+              pointerEvents: "none",
+            }}
+          >
+            <div
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                width: `${effectiveBgZoomLayer.widthPct}%`,
+                height: `${effectiveBgZoomLayer.heightPct}%`,
+                left: `${effectiveBgZoomLayer.leftPct}%`,
+                top: `${effectiveBgZoomLayer.topPct}%`,
+                backgroundImage: `url(${effectiveBgImageUrl})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+                backgroundRepeat: bgImageRepeat || "no-repeat",
+                pointerEvents: "none",
+              }}
+            />
+          </div>
+        ) : (
+          <div
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              inset: 0,
+              zIndex: 0,
+              backgroundImage: `url(${effectiveBgImageUrl})`,
+              backgroundSize: bgImageSize || "cover",
+              backgroundPosition: effectiveBgImagePosition || "center",
+              backgroundRepeat: bgImageRepeat || "no-repeat",
+              opacity: (bgImageOpacity ?? 100) / 100,
+              ...(bgMaskCss ? { maskImage: bgMaskCss, WebkitMaskImage: bgMaskCss } : {}),
+              pointerEvents: "none",
+            }}
+          />
+        )
       )}
 
       {/* Free-mode COVER PLATE (Option C) — section-level layer holding the bg image +
@@ -1205,6 +1254,7 @@ export default function FlexibleSectionRenderer({ section }: FlexibleSectionRend
             opacity: bgImageOpacity,
             maskCss: bgMaskCss,
             multiRepeat: bgMultiRepeat,
+            zoomLayer: effectiveBgZoomLayer,
           }}
         />
       )}
@@ -2188,7 +2238,11 @@ function DesignerBlocksRenderer({
   // desktop free, mobile reading-stack on mobile. Together they never double-render.
   plateMode?: boolean;
   // bgImage: section background image fields, drawn INSIDE the plate (free cover-plate only).
-  bgImage?: { url?: string; size?: string; position?: string; repeat?: string; opacity?: number; maskCss?: string | null; multiRepeat?: boolean };
+  // zoomLayer (2026-10-01, Phase 2 of "Reposition Background" — see resolveBgZoomLayer in
+  // flexible-render-rules.js): non-null only when zoom > 100 for this breakpoint; null means
+  // "render the plain cover background below exactly as before this feature" (byte-identical).
+  // NOT applied to the multiRepeat tiling branch below — see that branch's own comment.
+  bgImage?: { url?: string; size?: string; position?: string; repeat?: string; opacity?: number; maskCss?: string | null; multiRepeat?: boolean; zoomLayer?: { widthPct: number; heightPct: number; leftPct: number; topPct: number } | null };
   // headerOffset: px height of this section's separate CMS "Section Header" (measured live
   // by the caller), single content-mode only. The plate is a z-index-12 layer painted ABOVE
   // the z-index-11 .section-content-wrapper that holds that header, with no innate awareness
@@ -2677,6 +2731,14 @@ function DesignerBlocksRenderer({
               // repeatBgTransform is applied ONCE, to this OUTER wrapper only — never per-band
               // — so each band's top offset scales correctly instead of the scale
               // compounding a second time on top of an already-scaled offset.
+              //
+              // NOTE (2026-10-01): bgImage.zoomLayer is deliberately NOT consulted in this
+              // branch — the zoom slider has no effect while "Repeat per section" is active.
+              // Wiring zoom into per-band tiling needs computeMultiBgLayers' return shape
+              // (and this branch's AND flexible-designer.html's matching repeat branch) to
+              // support a nested wrapper per band, not just flat CSS props — a larger,
+              // separately-scoped change (see this feature's PR description). Safe no-op:
+              // the stored zoom value round-trips fine, it's simply inert here.
               <div aria-hidden="true" data-fx-bg="" style={{
                 position: "absolute", left: 0, top: 0,
                 width: cw, height: chTotal,
@@ -2706,6 +2768,38 @@ function DesignerBlocksRenderer({
                     pointerEvents: "none",
                   }} />
                 ))}
+              </div>
+            ) : bgImage.zoomLayer ? (
+              // Zoom > 100 (resolveBgZoomLayer) — this box keeps the EXACT same left/top/
+              // width/height/transform as the plain branch below (so the anisotropic
+              // scale(sx,sy)/uniform-cover transform this box already carries is completely
+              // unaffected), but becomes a CLIP container for an oversized CHILD layer
+              // instead of painting the image itself. The child's width/height/left/top are
+              // CSS PERCENTAGES of this box's own (pre-transform) layout size, so they stay
+              // correct under the anisotropic transform without any pixel math here.
+              <div aria-hidden="true" data-fx-bg="" style={{
+                position: "absolute", left: fit.bg.left, top: fit.bg.top,
+                width: fit.bg.width, height: fit.bg.height,
+                transform: fit.bg.transform,
+                transformOrigin: "top left",
+                zIndex: 0,
+                overflow: "hidden",
+                opacity: (bgImage.opacity ?? 100) / 100,
+                ...(bgImage.maskCss ? { maskImage: bgImage.maskCss, WebkitMaskImage: bgImage.maskCss } : {}),
+                pointerEvents: "none",
+              }}>
+                <div aria-hidden="true" style={{
+                  position: "absolute",
+                  width: `${bgImage.zoomLayer.widthPct}%`,
+                  height: `${bgImage.zoomLayer.heightPct}%`,
+                  left: `${bgImage.zoomLayer.leftPct}%`,
+                  top: `${bgImage.zoomLayer.topPct}%`,
+                  backgroundImage: `url(${bgImage.url})`,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                  backgroundRepeat: bgImage.repeat || "no-repeat",
+                  pointerEvents: "none",
+                }} />
               </div>
             ) : (
               <div aria-hidden="true" data-fx-bg="" style={{

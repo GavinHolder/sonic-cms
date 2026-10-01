@@ -570,3 +570,127 @@ describe('resolveVoltFullBleed', () => {
     expect(R.resolveVoltFullBleed(undefined, pastBoundary, CANVAS_W, CANVAS_H)).toBe(false)
   })
 })
+
+/**
+ * Phase 2 (2026-10-01) of the section-level "Reposition Background" feature —
+ * resolveBgZoomLayer (manufactured pan-zoom child layer geometry) and the
+ * `zoom` extension to resolveBackgroundPosForBreakpoint. See both functions'
+ * doc comments in flexible-render-rules.js for the full geometry derivation
+ * and backward-compat contract this suite guards.
+ */
+describe('resolveBgZoomLayer', () => {
+  it('zoom absent/null/undefined -> null (caller keeps the plain single-layer background, byte-identical)', () => {
+    expect(R.resolveBgZoomLayer(30, 70, null)).toBeNull()
+    expect(R.resolveBgZoomLayer(30, 70, undefined)).toBeNull()
+    expect(R.resolveBgZoomLayer(30, 70)).toBeNull()
+  })
+
+  it('zoom <= 100 -> null (100 is "no extra zoom"; below 100 is nonsensical but still a no-op, never inverted)', () => {
+    expect(R.resolveBgZoomLayer(30, 70, 100)).toBeNull()
+    expect(R.resolveBgZoomLayer(30, 70, 50)).toBeNull()
+    expect(R.resolveBgZoomLayer(30, 70, 0)).toBeNull()
+    expect(R.resolveBgZoomLayer(30, 70, -20)).toBeNull()
+  })
+
+  it('zoom non-finite (NaN/string) -> null, never throws or emits NaN into the layer', () => {
+    expect(R.resolveBgZoomLayer(30, 70, NaN)).toBeNull()
+    expect(R.resolveBgZoomLayer(30, 70, 'not-a-number' as unknown as number)).toBeNull()
+  })
+
+  it('zoom > 100 -> width/height are both exactly zoom% (uniform on both axes, preserves box aspect ratio)', () => {
+    const layer = R.resolveBgZoomLayer(50, 50, 150)
+    expect(layer).not.toBeNull()
+    expect(layer!.widthPct).toBe(150)
+    expect(layer!.heightPct).toBe(150)
+  })
+
+  it('x=0,y=0 (top-left anchor) -> zero offset on both axes, regardless of zoom', () => {
+    for (const zoom of [110, 150, 300]) {
+      const layer = R.resolveBgZoomLayer(0, 0, zoom)!
+      expect(layer.leftPct).toBe(0)
+      expect(layer.topPct).toBe(0)
+    }
+  })
+
+  it('x=100,y=100 (bottom-right anchor) -> offset is exactly -(zoomFraction-1)*100, the maximal shift', () => {
+    const layer = R.resolveBgZoomLayer(100, 100, 200)!
+    // zoomFraction = 2 -> offsetPct = -(2-1)*100 = -100
+    expect(layer.leftPct).toBe(-100)
+    expect(layer.topPct).toBe(-100)
+  })
+
+  it('x=50,y=50 (center) at zoom=200 -> offset is exactly -50 on both axes (half the overflow)', () => {
+    const layer = R.resolveBgZoomLayer(50, 50, 200)!
+    expect(layer.leftPct).toBe(-50)
+    expect(layer.topPct).toBe(-50)
+  })
+
+  it('independent, possibly asymmetric x/y -> independent leftPct/topPct (real 2-axis pan, not coupled)', () => {
+    const layer = R.resolveBgZoomLayer(20, 90, 200)!
+    expect(layer.leftPct).toBeCloseTo(-(2 - 1) * 20, 4)
+    expect(layer.topPct).toBeCloseTo(-(2 - 1) * 90, 4)
+    expect(layer.leftPct).not.toBe(layer.topPct)
+  })
+
+  it('x/y null/non-finite -> treated as 50 (center), matching resolveBgPositionCss\'s own default', () => {
+    const layer = R.resolveBgZoomLayer(null, null, 200)!
+    expect(layer.leftPct).toBe(-50)
+    expect(layer.topPct).toBe(-50)
+  })
+
+  it('x/y out of [0,100] range are clamped before the offset formula is applied', () => {
+    const over = R.resolveBgZoomLayer(150, -50, 200)!
+    const atBounds = R.resolveBgZoomLayer(100, 0, 200)!
+    expect(over.leftPct).toBe(atBounds.leftPct)
+    expect(over.topPct).toBe(atBounds.topPct)
+  })
+
+  it('zoom above the clamp ceiling is capped, never produces an inverted/runaway offset', () => {
+    const atCeiling = R.resolveBgZoomLayer(100, 100, 400)!
+    const wayAbove = R.resolveBgZoomLayer(100, 100, 999999)!
+    expect(wayAbove).toEqual(atCeiling)
+    // Sanity: still a real, finite, non-inverted shift at the ceiling.
+    expect(atCeiling.leftPct).toBeLessThan(0)
+    expect(Number.isFinite(atCeiling.leftPct)).toBe(true)
+  })
+})
+
+describe('resolveBackgroundPosForBreakpoint — zoom extension (Phase 2, 2026-10-01)', () => {
+  it('a point with no zoom field at all (every point saved before this feature) resolves zoom: null — byte-identical', () => {
+    const backgroundPos = { desktop: { x: 30, y: 70 }, tablet: null, mobile: null }
+    const resolved = R.resolveBackgroundPosForBreakpoint(backgroundPos, 'desktop', null, null)
+    expect(resolved).toEqual({ x: 30, y: 70, zoom: null })
+  })
+
+  it('a section with no backgroundPos object at all (fully legacy) resolves zoom: null at every breakpoint', () => {
+    for (const bp of ['desktop', 'tablet', 'mobile'] as const) {
+      expect(R.resolveBackgroundPosForBreakpoint(null, bp, null, null)).toEqual({ x: null, y: null, zoom: null })
+      expect(R.resolveBackgroundPosForBreakpoint(undefined, bp, 40, 60).zoom).toBeNull()
+    }
+  })
+
+  it('own breakpoint\'s explicit zoom wins (carried along with its own x/y, same "own breakpoint wins entirely" rule as x/y)', () => {
+    const backgroundPos = {
+      desktop: { x: 30, y: 70, zoom: 150 },
+      tablet: { x: 10, y: 20, zoom: 250 },
+      mobile: null,
+    }
+    expect(R.resolveBackgroundPosForBreakpoint(backgroundPos, 'tablet', null, null)).toEqual({ x: 10, y: 20, zoom: 250 })
+  })
+
+  it('tablet/mobile with no own override inherit Desktop\'s zoom along with Desktop\'s x/y (one atomic fallback, not per-field)', () => {
+    const backgroundPos = { desktop: { x: 30, y: 70, zoom: 180 }, tablet: null, mobile: null }
+    expect(R.resolveBackgroundPosForBreakpoint(backgroundPos, 'tablet', null, null)).toEqual({ x: 30, y: 70, zoom: 180 })
+    expect(R.resolveBackgroundPosForBreakpoint(backgroundPos, 'mobile', null, null)).toEqual({ x: 30, y: 70, zoom: 180 })
+  })
+
+  it('a point with zoom present but non-numeric/garbage is treated as zoom: null, not propagated as garbage', () => {
+    const backgroundPos = { desktop: { x: 30, y: 70, zoom: 'lots' as unknown as number }, tablet: null, mobile: null }
+    expect(R.resolveBackgroundPosForBreakpoint(backgroundPos, 'desktop', null, null)).toEqual({ x: 30, y: 70, zoom: null })
+  })
+
+  it('the legacy flat x/y fallback (pre-backgroundPos sections) never has a zoom — resolves zoom: null', () => {
+    const resolved = R.resolveBackgroundPosForBreakpoint(null, 'desktop', 40, 60)
+    expect(resolved).toEqual({ x: 40, y: 60, zoom: null })
+  })
+})

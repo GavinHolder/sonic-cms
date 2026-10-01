@@ -327,6 +327,13 @@
       inset: 0;
       pointer-events: none;
     }
+    /* Phase 2 (2026-10-01) — manufactured pan-zoom child layer (resolveBgZoomLayer).
+       Nested inside a .csb-image that has become a plain overflow:hidden clip container
+       (no inset:0 here — width/height/left/top are PERCENTAGES set inline per-section). */
+    #canvas-section-bg .csb-zoom-layer {
+      position: absolute;
+      pointer-events: none;
+    }
 
     /* Option C — FRAME GUIDES. Non-interactive overlay that shows the real live-page frame
        around the free-mode cover plate: the fixed navbar band, the padding-safe boundaries,
@@ -7436,7 +7443,12 @@ function renderSectionPanel() {
   const hasImage = !!(bg && bg.bgImageUrl);
   const xVal = hasImage && typeof bg.backgroundPosX === 'number' ? bg.backgroundPosX : 50;
   const yVal = hasImage && typeof bg.backgroundPosY === 'number' ? bg.backgroundPosY : 50;
+  const zoomVal = hasImage && typeof bg.backgroundZoom === 'number' ? bg.backgroundZoom : 100;
   const posCss = hasImage ? window.FlexibleRenderRules.resolveBgPositionCss(bg.backgroundPosX, bg.backgroundPosY) : 'center';
+  // Phase 2 (2026-10-01) — manufactured pan-zoom child layer, null when zoomVal<=100
+  // (the common case) -> this box keeps its OWN backgroundImage/Size/Position below,
+  // byte-identical to before this feature.
+  const zoomLayer = hasImage ? window.FlexibleRenderRules.resolveBgZoomLayer(bg.backgroundPosX, bg.backgroundPosY, bg.backgroundZoom) : null;
 
   let h = `<div class="props-section">
     <div class="props-label"><i class="bi bi-image"></i> Section Background</div>
@@ -7468,17 +7480,40 @@ function renderSectionPanel() {
     // accepted over an unusably tall (or sliver-thin) sidebar box.
     const bgBoxStyle = `position:relative;width:100%;aspect-ratio:${bgCw} / ${bgCh};` +
       `max-height:220px;min-height:80px;border-radius:6px;border:1px solid #dee2e6;`;
+    // Phase 2 (2026-10-01): zoomLayer null (zoomVal<=100, the common case) -> the box
+    // paints its OWN background-image/size/position directly, byte-identical to before
+    // this feature. zoomLayer set -> the box becomes a plain clip container and a nested
+    // #section-bg-zoom-layer child (percentages of this box) paints the oversized image
+    // instead — same two-branch split as FlexibleSectionRenderer.tsx's render sites and
+    // applySectionBgToCanvas() below (ONE SYSTEM PER CONCERN).
+    const dragBoxBg = zoomLayer
+      ? `background-color:#f8f9fa;overflow:hidden;`
+      : `background-color:#f8f9fa;background-image:url('${cssUrl(bg.bgImageUrl)}');` +
+        `background-size:${bg.bgImageSize||'cover'};background-position:${posCss};background-repeat:no-repeat;`;
+    const zoomLayerHtml = zoomLayer
+      ? `<div id="section-bg-zoom-layer" style="position:absolute;
+             width:${zoomLayer.widthPct}%;height:${zoomLayer.heightPct}%;
+             left:${zoomLayer.leftPct}%;top:${zoomLayer.topPct}%;
+             background-image:url('${cssUrl(bg.bgImageUrl)}');background-size:cover;
+             background-position:center;background-repeat:no-repeat;pointer-events:none;"></div>`
+      : '';
     h += `<div id="section-bg-drag-box" onmousedown="startSectionBgReposition(event)"
         style="${bgBoxStyle}
-               background-color:#f8f9fa;background-image:url('${cssUrl(bg.bgImageUrl)}');
-               background-size:${bg.bgImageSize||'cover'};background-position:${posCss};
-               background-repeat:no-repeat;cursor:grab;user-select:none;"
+               ${dragBoxBg}
+               cursor:grab;user-select:none;"
         title="Drag to reposition the background image">
+        ${zoomLayerHtml}
         <div id="section-bg-drag-dot" style="position:absolute;left:${xVal}%;top:${yVal}%;width:14px;height:14px;
              margin-left:-7px;margin-top:-7px;border-radius:50%;border:2px solid #fff;background:#0d6efd;
              box-shadow:0 0 0 1px rgba(0,0,0,0.35);pointer-events:none;"></div>
       </div>
-      <small class="text-muted d-block mt-1" id="section-bg-drag-readout">Drag on the preview to reposition (${xVal}%, ${yVal}%).</small>`;
+      <small class="text-muted d-block mt-1" id="section-bg-drag-readout">Drag on the preview to reposition (${xVal}%, ${yVal}%).</small>
+      <div class="mt-2">
+        <label class="form-label mb-1 small">Zoom: <span id="section-bg-zoom-readout">${zoomVal}</span>%</label>
+        <input type="range" class="form-range" min="100" max="300" step="5" value="${zoomVal}"
+               oninput="onSectionBgZoomChange(this.value)">
+        <small class="text-muted d-block">Zoom beyond 100% manufactures extra drag room on both axes.</small>
+      </div>`;
   } else {
     h += `<div class="text-muted small" style="padding:10px;background:#f8f9fa;border:1px dashed #dee2e6;border-radius:6px;">
         No background image set for ${label} — set one in the Background tab.
@@ -7550,16 +7585,38 @@ function startSectionBgReposition(e) {
     const y = Math.round(Math.max(0, Math.min(100, relY)));
     bg.backgroundPosX = x;
     bg.backgroundPosY = y;
-    const css = window.FlexibleRenderRules.resolveBgPositionCss(x, y);
-    box.style.backgroundPosition = css;
+    // zoom (Phase 2, 2026-10-01): a position-only drag never touches zoom — re-resolve
+    // the zoom layer at the NEW x/y against the UNCHANGED bg.backgroundZoom, same
+    // resolveBgZoomLayer() both live render sites use, so the box's own live preview
+    // (and the real canvas's mirror just below) never disagree with the eventual live page.
+    const zoomLayer = window.FlexibleRenderRules.resolveBgZoomLayer(x, y, bg.backgroundZoom);
+    if (zoomLayer) {
+      const zoomEl = document.getElementById('section-bg-zoom-layer');
+      if (zoomEl) {
+        zoomEl.style.width = zoomLayer.widthPct + '%';
+        zoomEl.style.height = zoomLayer.heightPct + '%';
+        zoomEl.style.left = zoomLayer.leftPct + '%';
+        zoomEl.style.top = zoomLayer.topPct + '%';
+      }
+      const canvasZoomEl = document.querySelector('#canvas-section-bg .csb-zoom-layer');
+      if (canvasZoomEl) {
+        canvasZoomEl.style.width = zoomLayer.widthPct + '%';
+        canvasZoomEl.style.height = zoomLayer.heightPct + '%';
+        canvasZoomEl.style.left = zoomLayer.leftPct + '%';
+        canvasZoomEl.style.top = zoomLayer.topPct + '%';
+      }
+    } else {
+      const css = window.FlexibleRenderRules.resolveBgPositionCss(x, y);
+      box.style.backgroundPosition = css;
+      // Mirror onto the REAL canvas's own background layer too — "see the result in the
+      // canvas" (the user's own wording) — same element applySectionBgToCanvas() paints.
+      const canvasImg = document.querySelector('#canvas-section-bg .csb-image');
+      if (canvasImg) canvasImg.style.backgroundPosition = css;
+    }
     if (dot) { dot.style.left = x + '%'; dot.style.top = y + '%'; }
     if (readout) readout.textContent = 'Drag on the preview to reposition (' + x + '%, ' + y + '%).';
-    // Mirror onto the REAL canvas's own background layer too — "see the result in the
-    // canvas" (the user's own wording) — same element applySectionBgToCanvas() paints.
-    const canvasImg = document.querySelector('#canvas-section-bg .csb-image');
-    if (canvasImg) canvasImg.style.backgroundPosition = css;
     if (window.parent && window.parent !== window) {
-      window.parent.postMessage({ type: 'FLEXIBLE_DESIGNER_BG_DRAG', payload: { breakpoint: breakpoint, x: x, y: y } }, '*');
+      window.parent.postMessage({ type: 'FLEXIBLE_DESIGNER_BG_DRAG', payload: { breakpoint: breakpoint, x: x, y: y, zoom: bg.backgroundZoom } }, '*');
     }
   }
 
@@ -7574,6 +7631,84 @@ function startSectionBgReposition(e) {
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
+}
+
+/**
+ * Zoom-slider counterpart to startSectionBgReposition() above (Phase 2, 2026-10-01) —
+ * same "compute locally for zero-lag feedback, parent owns the write" pattern, same
+ * FLEXIBLE_DESIGNER_BG_DRAG message (this file does not persist content.backgroundPos
+ * itself — see startSectionBgReposition's own doc comment). Sends the CURRENT resolved
+ * x/y alongside the new zoom so the admin's existing position (own override or
+ * inherited from Desktop) is preserved exactly — never reset to a default — mirroring
+ * how a position-only drag preserves the current zoom.
+ *
+ * Deliberately does NOT call renderPropsPanel() on every tick (unlike most other
+ * live-edit handlers in this file) — this fires on the range input's OWN `oninput`
+ * while the browser has that exact DOM node under native pointer capture; replacing
+ * #props-content's innerHTML out from under it (the same "detached drag target" hazard
+ * documented on state._sectionBgDragActive above, here for a native control instead of
+ * a custom mousedown/mousemove drag) would orphan the slider mid-gesture and silently
+ * stop it from tracking further pointer movement. Updates the drag box + its zoom
+ * layer directly instead (creating/removing #section-bg-zoom-layer only at the exact
+ * moment zoom crosses the 100 threshold, when the box's rendering MODE itself flips).
+ * @param {string|number} value - the range input's new value (100-300).
+ */
+function onSectionBgZoomChange(value) {
+  const bg = state.sectionBg;
+  if (!bg || !bg.bgImageUrl) return;
+  const breakpoint = state.devicePreview;
+  const zoom = Math.max(100, Math.min(300, Math.round(Number(value) || 100)));
+  bg.backgroundZoom = zoom;
+  const x = typeof bg.backgroundPosX === 'number' ? bg.backgroundPosX : 50;
+  const y = typeof bg.backgroundPosY === 'number' ? bg.backgroundPosY : 50;
+
+  const readout = document.getElementById('section-bg-zoom-readout');
+  if (readout) readout.textContent = String(zoom);
+
+  const box = document.getElementById('section-bg-drag-box');
+  const zoomLayer = window.FlexibleRenderRules.resolveBgZoomLayer(x, y, zoom);
+  if (box) {
+    let zoomEl = document.getElementById('section-bg-zoom-layer');
+    if (zoomLayer) {
+      // Entering (or staying in) zoomed mode: the box becomes a plain clip container —
+      // the image paints on the (possibly newly-created) nested child instead.
+      box.style.overflow = 'hidden';
+      box.style.backgroundImage = '';
+      box.style.backgroundPosition = '';
+      box.style.backgroundSize = '';
+      if (!zoomEl) {
+        zoomEl = document.createElement('div');
+        zoomEl.id = 'section-bg-zoom-layer';
+        zoomEl.style.position = 'absolute';
+        zoomEl.style.backgroundImage = "url('" + cssUrl(bg.bgImageUrl) + "')";
+        zoomEl.style.backgroundSize = 'cover';
+        zoomEl.style.backgroundPosition = 'center';
+        zoomEl.style.backgroundRepeat = 'no-repeat';
+        zoomEl.style.pointerEvents = 'none';
+        box.insertBefore(zoomEl, box.firstChild);
+      }
+      zoomEl.style.width = zoomLayer.widthPct + '%';
+      zoomEl.style.height = zoomLayer.heightPct + '%';
+      zoomEl.style.left = zoomLayer.leftPct + '%';
+      zoomEl.style.top = zoomLayer.topPct + '%';
+    } else {
+      // Leaving zoomed mode (back to zoom<=100): drop the nested child, the box paints
+      // its own background-image/position directly again — byte-identical to pre-feature.
+      if (zoomEl) zoomEl.remove();
+      box.style.overflow = '';
+      box.style.backgroundImage = "url('" + cssUrl(bg.bgImageUrl) + "')";
+      box.style.backgroundSize = bg.bgImageSize || 'cover';
+      box.style.backgroundPosition = window.FlexibleRenderRules.resolveBgPositionCss(x, y);
+    }
+  }
+
+  // The real canvas's own #canvas-section-bg layer has no native-input drag in progress
+  // on it — a full rebuild is safe here, same as every other section-bg field change.
+  applySectionBgToCanvas();
+
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage({ type: 'FLEXIBLE_DESIGNER_BG_DRAG', payload: { breakpoint: breakpoint, x: x, y: y, zoom: zoom } }, '*');
+  }
 }
 
 /**
@@ -11958,7 +12093,7 @@ function readSectionBgFromPayload(layout) {
   if (!layout || typeof layout !== 'object') return null;
   const src = (layout.sectionBackground && typeof layout.sectionBackground === 'object')
     ? layout.sectionBackground : layout;
-  const KEYS = ['background','bgImageUrl','bgImageSize','bgImagePosition','bgImageRepeat','bgImageOpacity','backgroundPosX','backgroundPosY','bgMultiRepeat','gradient'];
+  const KEYS = ['background','bgImageUrl','bgImageSize','bgImagePosition','bgImageRepeat','bgImageOpacity','backgroundPosX','backgroundPosY','backgroundZoom','bgMultiRepeat','gradient'];
   const has = KEYS.some(k => src[k] !== undefined && src[k] !== null && src[k] !== '');
   if (!has) return null;
   return {
@@ -11971,9 +12106,14 @@ function readSectionBgFromPayload(layout) {
     // Drag-to-reposition anchor (2026-09-21), 0-100 or null — see
     // FlexibleSectionEditorModal.tsx's backgroundPosX state declaration. View-only
     // here (see this block's own header comment); the real editable drag control
-    // lives in that file's Background tab (BackgroundRepositionPreview).
+    // lives in that file's Background tab (BackgroundRepositionPreview) AND this
+    // file's own Section panel (renderSectionPanel()/startSectionBgReposition()).
     backgroundPosX:  typeof src.backgroundPosX === 'number' ? src.backgroundPosX : null,
     backgroundPosY:  typeof src.backgroundPosY === 'number' ? src.backgroundPosY : null,
+    // Zoom percentage (Phase 2, 2026-10-01), 100 = no extra zoom, or null — see
+    // resolveBgZoomLayer's doc comment in flexible-render-rules.js. Same
+    // fully-resolved-with-inheritance convention as backgroundPosX/Y above.
+    backgroundZoom:  typeof src.backgroundZoom === 'number' ? src.backgroundZoom : null,
     // "Repeat per section" (opt-in, default false) — tile the bg image once per
     // 100vh band instead of stretching one copy across the whole multi-band
     // design. View-only here (see this block's own header comment); the real
@@ -12063,13 +12203,34 @@ function applySectionBgToCanvas() {
       const rep  = bg.bgImageRepeat || 'no-repeat';
       const opN  = Number(bg.bgImageOpacity);
       const op   = (bg.bgImageOpacity == null || !Number.isFinite(opN)) ? 1 : opN / 100;
+      // Phase 2 (2026-10-01) — null (zoom absent/<=100, the common case) -> this div
+      // paints its own background-image/size/position directly below, byte-identical
+      // to before this feature. Non-null -> it becomes a plain clip container instead
+      // and a nested .csb-zoom-layer child paints the oversized image (same split as
+      // FlexibleSectionRenderer.tsx's render sites — ONE SYSTEM PER CONCERN).
+      const zoomLayer = window.FlexibleRenderRules.resolveBgZoomLayer(bg.backgroundPosX, bg.backgroundPosY, bg.backgroundZoom);
       const img = document.createElement('div');
       img.className = 'csb-image';
-      img.style.backgroundImage    = "url('" + cssUrl(bg.bgImageUrl) + "')";
-      img.style.backgroundSize     = String(size);
-      img.style.backgroundPosition = String(pos);
-      img.style.backgroundRepeat   = String(rep);
-      img.style.opacity            = String(op);
+      img.style.opacity = String(op);
+      if (zoomLayer) {
+        img.style.overflow = 'hidden';
+        const zoomEl = document.createElement('div');
+        zoomEl.className = 'csb-zoom-layer';
+        zoomEl.style.width  = zoomLayer.widthPct + '%';
+        zoomEl.style.height = zoomLayer.heightPct + '%';
+        zoomEl.style.left   = zoomLayer.leftPct + '%';
+        zoomEl.style.top    = zoomLayer.topPct + '%';
+        zoomEl.style.backgroundImage    = "url('" + cssUrl(bg.bgImageUrl) + "')";
+        zoomEl.style.backgroundSize     = 'cover';
+        zoomEl.style.backgroundPosition = 'center';
+        zoomEl.style.backgroundRepeat   = String(rep);
+        img.appendChild(zoomEl);
+      } else {
+        img.style.backgroundImage    = "url('" + cssUrl(bg.bgImageUrl) + "')";
+        img.style.backgroundSize     = String(size);
+        img.style.backgroundPosition = String(pos);
+        img.style.backgroundRepeat   = String(rep);
+      }
       children.push(img);
     }
   }

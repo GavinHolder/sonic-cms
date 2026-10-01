@@ -148,6 +148,13 @@ export function resolveBgPositionCss(
 export interface BackgroundPosPoint {
   x: number;
   y: number;
+  /**
+   * Zoom percentage (100 = no extra zoom), Phase 2 (2026-10-01) of this
+   * feature. Optional/absent on every point saved before this field existed
+   * — treated as 100/no-zoom, byte-identical to before. See
+   * resolveBgZoomLayer's doc comment in flexible-render-rules.js.
+   */
+  zoom?: number | null;
 }
 
 /**
@@ -178,7 +185,35 @@ export function resolveBackgroundPosForBreakpoint(
   breakpoint: "desktop" | "tablet" | "mobile",
   legacyX: number | null | undefined,
   legacyY: number | null | undefined
-): { x: number | null; y: number | null };
+): { x: number | null; y: number | null; zoom: number | null };
+
+/**
+ * One manufactured-zoom background child layer's geometry, as CSS
+ * percentages of the EXISTING (now clipping) box — see resolveBgZoomLayer's
+ * doc comment in flexible-render-rules.js for the full derivation.
+ */
+export interface BgZoomLayer {
+  widthPct: number;
+  heightPct: number;
+  leftPct: number;
+  topPct: number;
+}
+
+/**
+ * Phase 2 (2026-10-01) of the section-level "Reposition Background" feature:
+ * manufactures real pan slack on BOTH axes, independent of the image's
+ * native aspect ratio, by describing an oversized CHILD layer to nest inside
+ * the existing background box. Returns null when zoom is absent/<=100 — the
+ * caller MUST keep rendering today's plain single-layer background in that
+ * case (byte-identical to before this feature). See the doc comment in
+ * flexible-render-rules.js for the full geometry derivation and the
+ * position+zoom interaction reasoning.
+ */
+export function resolveBgZoomLayer(
+  x: number | null | undefined,
+  y: number | null | undefined,
+  zoom: number | null | undefined
+): BgZoomLayer | null;
 
 /**
  * One FLEXIBLE section's colour-gradient OVERLAY config (content.gradient /

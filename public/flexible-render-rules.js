@@ -759,21 +759,33 @@
    *
    * ASSUMPTIONS:
    * 1. backgroundPos, when present, is a plain object with up to 3 keys
-   *    (desktop/tablet/mobile), each either {x:number,y:number} or
-   *    null/undefined/absent — the exact shape FlexibleSectionEditorModal.tsx
+   *    (desktop/tablet/mobile), each either {x:number,y:number,zoom?:number}
+   *    or null/undefined/absent — the exact shape FlexibleSectionEditorModal.tsx
    *    writes on save. A malformed entry (missing axis, non-numeric) is
    *    treated as absent (falls through to the next resolution step) rather
    *    than emitting a partial/garbage position.
    * 2. breakpoint is always one of "desktop" | "tablet" | "mobile" (the same
    *    3-value domain as pickBreakpointForWidth/previewViewport elsewhere in
    *    this codebase).
+   * 3. (2026-10-01, Phase 2 of the "Reposition Background" feature —
+   *    resolveBgZoomLayer below) `zoom` lives INSIDE the same per-breakpoint
+   *    point object as x/y, not as a sibling field — a breakpoint's explicit
+   *    override always carries its OWN zoom along with its OWN x/y (no
+   *    independent per-axis fallback chain for zoom alone), so "own
+   *    breakpoint wins entirely" stays a single, simple rule. A point missing
+   *    `zoom` (every point saved before this feature existed) resolves
+   *    zoom:null — see FAILURE MODES.
    *
    * FAILURE MODES:
    * - backgroundPos is null/undefined/not an object (every section that
    *   predates this feature) → step 1/2 both no-op, step 3 (legacy flat
    *   fallback) applies — matches the pre-feature behavior exactly.
    * - Desktop's own resolution also has no explicit override AND no legacy
-   *   value → {x: null, y: null}, i.e. "center", same as today.
+   *   value → {x: null, y: null, zoom: null}, i.e. "center, no zoom", same as today.
+   * - A valid {x,y} point with no/non-numeric `zoom` key (every point saved
+   *   before 2026-10-01) → zoom: null, meaning "100%/no zoom" to every
+   *   caller (resolveBgZoomLayer(x, y, null) returns null) — byte-identical
+   *   rendering to before this feature existed.
    */
   function resolveBackgroundPosForBreakpoint(backgroundPos, breakpoint, legacyX, legacyY) {
     function validPoint(p) {
@@ -782,7 +794,9 @@
       var xN = Number(p.x);
       var yN = Number(p.y);
       if (!isFinite(xN) || !isFinite(yN)) return null;
-      return { x: xN, y: yN };
+      var zN = Number(p.zoom);
+      var zoom = (p.zoom != null && isFinite(zN)) ? zN : null;
+      return { x: xN, y: yN, zoom: zoom };
     }
 
     var bp = backgroundPos && typeof backgroundPos === "object" ? backgroundPos : null;
@@ -798,7 +812,97 @@
     var legacy = validPoint({ x: legacyX, y: legacyY });
     if (legacy) return legacy;
 
-    return { x: null, y: null };
+    return { x: null, y: null, zoom: null };
+  }
+
+  /**
+   * resolveBgZoomLayer(x, y, zoom) — pure function. Phase 2 (2026-10-01) of the
+   * section-level "Reposition Background" feature. `background-size:cover`
+   * resolves against the ELEMENT'S OWN layout box (the free-mode plate's cw x
+   * ch stage, or the live non-plate section's own rendered box) — the pan
+   * slack `background-position` has on each axis is purely a function of the
+   * IMAGE's native aspect ratio vs THAT box's aspect ratio, so an image whose
+   * AR happens to match the box has ZERO slack on one axis no matter what x/y
+   * is set to (root-caused this session: no matter where the dot is dragged,
+   * only vertical — or only horizontal — movement ever shows up). This
+   * function manufactures REAL pan slack on BOTH axes, independent of the
+   * image's native AR, by describing a CHILD layer `zoom`% the size of the
+   * existing box on BOTH axes (never just one — this is why it fixes the bug
+   * regardless of which axis was starved).
+   *
+   * GEOMETRY: because the child is scaled up UNIFORMLY (both axes by the same
+   * `zoom` factor) it keeps EXACTLY the box's own aspect ratio, so
+   * `background-size:cover` + `background-position:center` on the child crops
+   * the identical fraction of the source image as it would at zoom=100 —
+   * just rendered `zoom`-times larger. The returned left/top then place that
+   * oversized child inside the ORIGINAL (now clipping) box using the exact
+   * same formula native CSS `background-position` itself uses to place an
+   * oversized image inside its box — offset = (outerSize - childSize) *
+   * (pct/100) — expressed purely as PERCENTAGES OF THE OUTER BOX so no pixel
+   * value or natural-image-size lookup is ever needed (this codebase does not
+   * track natural image dimensions — see this feature's own design notes):
+   * childSize = outerSize * (zoom/100), so offsetPct = -(zoom/100 - 1) * pct.
+   * At zoom=100 every offset is 0 and the child exactly fills the outer box —
+   * this function is NEVER called for that case (see FAILURE MODES); callers
+   * keep today's simpler single-layer rendering untouched for zoom<=100, so
+   * this is strictly ADDITIVE, never a replacement for it.
+   *
+   * `background-position` on the CHILD is deliberately fixed to "center" by
+   * every caller (not x%/y%) — the outer-box offset above already supplies
+   * the full 2-axis pan range the zoom manufactures; additionally applying
+   * x/y to the child's OWN background-position would double-apply the same
+   * drag value through two independent mechanisms (compounding, and still
+   * bounded by the image's native AR for whatever tiny amount it would add)
+   * for no real benefit. See this feature's PR description for the full
+   * position+zoom interaction reasoning (both options considered on paper
+   * before implementation, since this project's rules disallow browser
+   * verification).
+   *
+   * ASSUMPTIONS:
+   * 1. x/y are 0-100 percentages, or null/non-numeric → treated as 50
+   *    ("center"), matching resolveBgPositionCss's own default.
+   * 2. zoom is a percentage, 100 = no extra zoom. null/undefined/non-finite/
+   *    <=100 → this function returns null (see FAILURE MODES) rather than a
+   *    zero-sized or inverted layer.
+   * 3. The caller renders the returned {widthPct,heightPct,leftPct,topPct} on
+   *    a CHILD element absolutely positioned inside the SAME box that holds
+   *    today's single bg div — which must additionally gain
+   *    `overflow:hidden` (the child is intentionally larger than it on both
+   *    axes whenever this function returns non-null).
+   *
+   * FAILURE MODES:
+   * - zoom null/undefined/non-finite/<=100 → returns null. Callers MUST treat
+   *   null as "render today's plain single-layer background exactly as
+   *   before this feature" (byte-identical, no wrapper) — the explicit
+   *   backward-compatibility contract for every section saved before this
+   *   feature existed (no `zoom` field at all).
+   * - zoom above the clamp ceiling (e.g. a corrupt/hand-edited Template
+   *   import value) → clamped, never produces an inverted/nonsensical offset.
+   * - Non-numeric x or y → 50 (center), same default as resolveBgPositionCss.
+   *
+   * @param {number|null|undefined} x
+   * @param {number|null|undefined} y
+   * @param {number|null|undefined} zoom
+   * @returns {{widthPct:number,heightPct:number,leftPct:number,topPct:number}|null}
+   */
+  function resolveBgZoomLayer(x, y, zoom) {
+    var zN = Number(zoom);
+    if (zoom == null || !isFinite(zN) || zN <= 100) return null;
+    var ZOOM_MAX = 400; // 4x — generous pan range without rendering an absurdly oversized layer
+    var z = Math.min(zN, ZOOM_MAX) / 100;
+    var xN = Number(x);
+    var yN = Number(y);
+    var xP = (x != null && isFinite(xN)) ? Math.max(0, Math.min(100, xN)) : 50;
+    var yP = (y != null && isFinite(yN)) ? Math.max(0, Math.min(100, yN)) : 50;
+    // + 0 normalizes a -0 result (e.g. x=0 -> -(z-1)*0 = -0) to +0 — CSS renders either
+    // identically ("0%"), but a clean +0 keeps equality checks/serialization predictable.
+    var round4 = function (n) { return (Math.round(n * 10000) / 10000) + 0; };
+    return {
+      widthPct: round4(z * 100),
+      heightPct: round4(z * 100),
+      leftPct: round4(-(z - 1) * xP),
+      topPct: round4(-(z - 1) * yP),
+    };
   }
 
   /**
@@ -1237,6 +1341,7 @@
     computeMultiBgLayers: computeMultiBgLayers,
     resolveBgPositionCss: resolveBgPositionCss,
     resolveBackgroundPosForBreakpoint: resolveBackgroundPosForBreakpoint,
+    resolveBgZoomLayer: resolveBgZoomLayer,
     buildGradientCss: buildGradientCss,
     getUnsetBackgroundBundle: getUnsetBackgroundBundle,
     resolveBackgroundBundleForBreakpoint: resolveBackgroundBundleForBreakpoint,
