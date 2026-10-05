@@ -939,7 +939,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
 
           {/* Text Overlay (FREEFORM) — each element absolutely placed via its own pos% */}
           {slide.overlay && slide.showTextOverlay !== false && slide.overlay.layoutMode === "freeform" && (
-            <div className="position-absolute top-0 start-0 w-100 h-100" style={{
+            <div className="position-absolute top-0 start-0 w-100 h-100" data-ff-layer="" style={{
               overflow: "hidden",
               // Mobile: stack the freeform elements in a centered column that clears the fixed nav,
               // instead of honouring their desktop absolute coords (which clip off-edge). (#72)
@@ -963,6 +963,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                   return (
                     <div
                       key={`ff-eyebrow-${currentSlide}`}
+                      data-ff-id="eyebrow"
                       style={{
                         ...ffStyle(slide.overlay.eyebrowPos, defaultFreeformPos("eyebrow"), slide.overlay.eyebrowPosTablet, slide.overlay.eyebrowPosMobile, "eyebrow"),
                         // eyebrowAlign's edge-anchor shift is a desktop-only refinement — on
@@ -995,7 +996,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                 {/* Headings — stacked rows (each independently placed) or legacy single heading */}
                 {slide.overlay.headingRows && slide.overlay.headingRows.length > 0
                   ? slide.overlay.headingRows.map((row: HeadingRow, i: number) => (
-                      <div key={`ff-row-${i}-${currentSlide}`} style={ffStyle(row.pos, defaultFreeformPos("heading", i), row.posTablet, row.posMobile, `row-${i}`)}>
+                      <div key={`ff-row-${i}-${currentSlide}`} data-ff-id={`row-${i}`} style={ffStyle(row.pos, defaultFreeformPos("heading", i), row.posTablet, row.posMobile, `row-${i}`)}>
                         <motion.h1
                           className="hero-heading"
                           {...getAnimationVariants(row.animation)}
@@ -1030,7 +1031,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                       </div>
                     ))
                   : (
-                      <div key={`ff-heading-${currentSlide}`} style={ffStyle(slide.overlay.headingPos, defaultFreeformPos("heading"), slide.overlay.headingPosTablet, slide.overlay.headingPosMobile, "heading")}>
+                      <div key={`ff-heading-${currentSlide}`} data-ff-id="heading" style={ffStyle(slide.overlay.headingPos, defaultFreeformPos("heading"), slide.overlay.headingPosTablet, slide.overlay.headingPosMobile, "heading")}>
                         <motion.h1
                           {...getAnimationVariants(slide.overlay.heading.animation)}
                           transition={{
@@ -1065,7 +1066,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
 
                 {/* Subheading */}
                 {slide.overlay.subheading && (
-                  <div key={`ff-sub-${currentSlide}`} style={ffStyle(slide.overlay.subheadingPos, defaultFreeformPos("subheading"), slide.overlay.subheadingPosTablet, slide.overlay.subheadingPosMobile, "subheading")}>
+                  <div key={`ff-sub-${currentSlide}`} data-ff-id="subheading" style={ffStyle(slide.overlay.subheadingPos, defaultFreeformPos("subheading"), slide.overlay.subheadingPosTablet, slide.overlay.subheadingPosMobile, "subheading")}>
                     <motion.p
                       {...getAnimationVariants(slide.overlay.subheading.animation)}
                       transition={{
@@ -1100,7 +1101,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                   const btnBreakpoint = isMobile ? "mobile" : isTablet ? "tablet" : "desktop";
                   const effectiveButtonWidth = resolveFreeformSize(btnBreakpoint, button.width, button.widthTablet, button.widthMobile);
                   return (
-                  <div key={`ff-btn-${index}-${currentSlide}`} style={ffStyle(button.pos, defaultFreeformPos("button", index), button.posTablet, button.posMobile, `btn-${index}`)}>
+                  <div key={`ff-btn-${index}-${currentSlide}`} data-ff-id={`btn-${index}`} style={ffStyle(button.pos, defaultFreeformPos("button", index), button.posTablet, button.posMobile, `btn-${index}`)}>
                     <motion.a
                       href={button.href}
                       {...getAnimationVariants(button.animation)}
@@ -1160,6 +1161,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                   return (
                     <div
                       key={`ff-img-${index}-${currentSlide}`}
+                      data-ff-id={`img-${index}`}
                       style={{
                         ...ffStyle(img.pos, defaultFreeformPos("image", index), img.posTablet, img.posMobile, `img-${index}`),
                         // Desktop's freeform wrapper is `position:absolute; left:X%` with no

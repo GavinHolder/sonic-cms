@@ -120,21 +120,18 @@ export default function HeroCarouselEditor({
     return () => window.removeEventListener("resize", readViewport);
   }, []);
 
-  // Real "full navbar over hero" + navbar height, fetched the same way HeroCarousel
-  // itself does — needed so the preview's forced .hero-carousel height below can
-  // mirror HeroCarousel's own `calc(100dvh + navbar-height)` math byte-for-byte. Admin
-  // routes' root layout hardcodes --navbar-height to 100px (app/layout.tsx skips the DB
-  // lookup on /admin), so without this the preview silently uses the wrong navbar
-  // height whenever the real site uses the "tall" (140px) navbar style, and always
-  // ignores heroFullNavbar's extra reserved space — which is what made freeform
-  // positions drift between the preview and the live page.
-  const [heroFullNavbar, setHeroFullNavbar] = useState(false);
+  // Real navbar height, fetched the same way HeroCarousel itself does. Admin routes' root
+  // layout hardcodes --navbar-height to 100px (app/layout.tsx skips the DB lookup on
+  // /admin), so without this the preview silently uses the wrong navbar height whenever
+  // the real site uses the "tall" (140px) navbar style — the preview pins --navbar-height
+  // to this value below so the hero's content layer (whose `top` reads that var) lines
+  // up with the live page. (heroFullNavbar is NOT needed here: the real page's hero is
+  // exactly one viewport tall either way — see the .hero-carousel override below.)
   const [navbarHeight, setNavbarHeight] = useState(100);
   useEffect(() => {
     fetch("/api/site-config")
       .then((r) => (r.ok ? r.json() : null))
       .then((json) => {
-        if (typeof json?.data?.heroFullNavbar === "boolean") setHeroFullNavbar(json.data.heroFullNavbar);
         if (json?.data?.navbarStyle === "tall") setNavbarHeight(140);
       })
       .catch(() => {});
@@ -996,25 +993,27 @@ export default function HeroCarouselEditor({
                       {iframePortalRoot &&
                         createPortal(
                           <>
-                            {/* Beats the global `.hero-carousel { height:100vh !important }`
-                                with a higher-specificity + !important rule so the hero fills
-                                the virtual viewport (real window height) exactly as on the
-                                page — same cover crop and centering. Also mirrors
-                                HeroCarousel's own heroFullNavbar math
-                                (`calc(100dvh + navbar-height)`) by adding the real navbar
-                                height here, and pins --navbar-height to the real value so
-                                the content layer's `top`/`height` calc — which reads that
-                                same var — lines up with the live page instead of the
-                                admin-wide hardcoded 100px fallback. No scoping class needed:
-                                this portals into the iframe's own isolated document, which
-                                contains nothing else these rules could leak onto. */}
+                            {/* Pins the hero to EXACTLY the virtual viewport height (real window
+                                height / device height) — the same height the live page gives
+                                it: app/globals.css forces `.hero-carousel { height / min-height /
+                                max-height: 100vh !important }`, which beats HeroCarousel's own
+                                inline `calc(100dvh + navbar-height)` min-height (even with
+                                heroFullNavbar on). This preview used to ADD the navbar height
+                                on top (H + navbar), which made its hero 100px taller than the
+                                real page's and so scaled y% positions and the cover crop
+                                differently. Also pins --navbar-height to the real value so the
+                                content layer's `top` — which reads that same var — lines up
+                                with the live page instead of the admin-wide hardcoded 100px
+                                fallback. No scoping class needed: this portals into the
+                                iframe's own isolated document, which contains nothing else
+                                these rules could leak onto. */}
                             <style>{`
                               :root {
                                 --navbar-height: ${navbarHeight}px;
                               }
                               .hero-carousel {
-                                height: ${effectiveViewport.h + (heroFullNavbar ? navbarHeight : 0)}px !important;
-                                min-height: ${effectiveViewport.h + (heroFullNavbar ? navbarHeight : 0)}px !important;
+                                height: ${effectiveViewport.h}px !important;
+                                min-height: ${effectiveViewport.h}px !important;
                               }
                             `}</style>
                             <HeroCarousel section={draftSection} forcePaused={previewPaused} forceViewport={editBreakpoint} />
