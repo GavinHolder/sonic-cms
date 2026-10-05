@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useLayoutEffect } from "react";
-import type { HeroCarouselSlide, AnimationType, HeroEasing, HeadingRow, HeadingWord, FreeformPos, OverlayImage } from "@/types/section";
+import type { HeroCarouselSlide, HeroSection, AnimationType, HeroEasing, HeadingRow, HeadingWord, FreeformPos, OverlayImage } from "@/types/section";
 import { defaultFreeformPos, resolveFreeformPos } from "@/types/section";
 import MediaUploader from "./MediaUploader";
 import MediaPickerModal from "./MediaPickerModal";
@@ -9,6 +9,9 @@ import { LinkPicker } from "./LinkPicker";
 import GoogleFontPicker from "./GoogleFontPicker";
 import { heroFontStack } from "@/lib/hero/hero-fonts";
 import { deviceViewportFor, fitForBreakpoint, isDeviceFitBreakpoint } from "@/lib/hero/hero-device-fit";
+import HeroRealCanvas from "./hero/HeroRealCanvas";
+import FreeformAlignToolbar from "./hero/FreeformAlignToolbar";
+import { ALIGN_H, ALIGN_V, DRAG_THRESHOLD_PX, SNAP_PX } from "@/lib/hero/hero-canvas-measure";
 
 /** Shared across every entrance-animation field below (heading, subheading, eyebrow,
  *  buttons, headingRows, overlay images) and the slide transition itself. Value ""
@@ -40,6 +43,12 @@ interface SlideEditorProps {
    * standalone instance (falls back to internal state, defaulting to desktop). */
   editBreakpoint?: "desktop" | "tablet" | "mobile";
   onEditBreakpointChange?: (bp: "desktop" | "tablet" | "mobile") => void;
+  /** Tablet/Mobile canvas context (HeroCarouselEditor passes it). When present, the Tablet and
+   * Mobile freeform canvas renders the REAL hero (HeroRealCanvas) from this live draft section
+   * instead of the hand-drawn chip surface, so it always matches the Live Preview and the page.
+   * `navbarHeight` only draws the hatched "navbar" band. Omit for a standalone SlideEditor
+   * (falls back to FreeformDragSurface for every breakpoint). */
+  canvasContext?: { section: HeroSection; navbarHeight: number };
 }
 
 export default function SlideEditor({
@@ -52,6 +61,7 @@ export default function SlideEditor({
   onMoveDown,
   editBreakpoint: controlledEditBreakpoint,
   onEditBreakpointChange,
+  canvasContext,
 }: SlideEditorProps) {
   const [activeTab, setActiveTab] = useState<"media" | "gradient" | "overlay" | "position">("media");
   const [dragRow, setDragRow] = useState<number | null>(null);
@@ -866,7 +876,17 @@ export default function SlideEditor({
                       <>Editing the <strong>mobile</strong> (&lt;768px) layout. An element you haven&apos;t dragged here goes into the automatic centered stack. Elements you positioned on Desktop are stacked in your Desktop top-to-bottom order; an element you never dragged stays with the highest-positioned dragged element before it (eyebrow, headings, subheading, buttons, images), not just the nearest one, and moves with it. Drag an element here to give it a real position on mobile instead.</>
                     )}
                   </div>
-                  <FreeformDragSurface chips={buildFreeformChips()} slide={slide} editBreakpoint={editBreakpoint} />
+                  {canvasContext && (editBreakpoint === "tablet" || editBreakpoint === "mobile") ? (
+                    <HeroRealCanvas
+                      chips={buildFreeformChips()}
+                      slide={slide}
+                      section={canvasContext.section}
+                      editBreakpoint={editBreakpoint}
+                      navbarHeight={canvasContext.navbarHeight}
+                    />
+                  ) : (
+                    <FreeformDragSurface chips={buildFreeformChips()} slide={slide} editBreakpoint={editBreakpoint} />
+                  )}
                   <div className="form-text mt-1">
                     Preset position controls in the <strong>Position</strong> tab are ignored while freeform is on.
                   </div>
@@ -2863,17 +2883,13 @@ function ShadowDirectionDial({
   );
 }
 
-// Snap threshold in px (screen space) — converted to a %-of-box value per axis at drag time,
-// since the box's px size changes with the admin's viewport/zoom but the stored pos is a %.
-const SNAP_PX = 8;
-// Minimum pointer travel (px) before a pointerdown-on-a-chip counts as a drag rather than
-// a select click. See dragStartRef comment in FreeformDragSurface.
-const DRAG_THRESHOLD_PX = 3;
-// Alignment targets as % of the box. Not 0/50/100 — chips are centre-anchored
-// (translate(-50%,-50%)), so 0/100 would push half the chip off-canvas. These margins
-// mirror the padding used elsewhere in the freeform surface.
-const ALIGN_H = { left: 6, center: 50, right: 94 } as const;
-const ALIGN_V = { top: 8, middle: 50, bottom: 92 } as const;
+// SNAP_PX (snap threshold, screen px — converted to a %-of-box value per axis at drag time,
+// since the box's px size changes with the admin's viewport/zoom but the stored pos is a %),
+// DRAG_THRESHOLD_PX (minimum pointer travel before a pointerdown-on-a-chip counts as a drag
+// rather than a select click — see dragStartRef comment in FreeformDragSurface) and the
+// ALIGN_H / ALIGN_V alignment targets (% of the box; not 0/100 because chips are
+// centre-anchored) are shared with the Tablet/Mobile canvas — imported from
+// lib/hero/hero-canvas-measure.ts (same values this file used to declare inline).
 
 function FreeformDragSurface({ chips, slide, editBreakpoint }: { chips: FreeformChip[]; slide: HeroCarouselSlide; editBreakpoint: "desktop" | "tablet" | "mobile" }) {
   const boxRef = useRef<HTMLDivElement>(null);
@@ -3052,49 +3068,15 @@ function FreeformDragSurface({ chips, slide, editBreakpoint }: { chips: Freeform
     <div ref={wrapRef}>
       {/* Alignment + snap toolbar — acts on every selected chip. Click a chip to select just
           it; shift/ctrl+click to add/remove it from a multi-selection. */}
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, flexWrap: "wrap" }}>
-        <div className="btn-group btn-group-sm" role="group" aria-label="Horizontal alignment">
-          <button type="button" className="btn btn-outline-secondary" disabled={selectedChips.length === 0} title="Align left" onClick={() => alignH(ALIGN_H.left)}>
-            <i className="bi bi-align-start"></i>
-          </button>
-          <button type="button" className="btn btn-outline-secondary" disabled={selectedChips.length === 0} title="Align centre" onClick={() => alignH(ALIGN_H.center)}>
-            <i className="bi bi-align-center"></i>
-          </button>
-          <button type="button" className="btn btn-outline-secondary" disabled={selectedChips.length === 0} title="Align right" onClick={() => alignH(ALIGN_H.right)}>
-            <i className="bi bi-align-end"></i>
-          </button>
-        </div>
-        <div className="btn-group btn-group-sm" role="group" aria-label="Vertical alignment">
-          <button type="button" className="btn btn-outline-secondary" disabled={selectedChips.length === 0} title="Align top" onClick={() => alignV(ALIGN_V.top)}>
-            <i className="bi bi-align-top"></i>
-          </button>
-          <button type="button" className="btn btn-outline-secondary" disabled={selectedChips.length === 0} title="Align middle" onClick={() => alignV(ALIGN_V.middle)}>
-            <i className="bi bi-align-middle"></i>
-          </button>
-          <button type="button" className="btn btn-outline-secondary" disabled={selectedChips.length === 0} title="Align bottom" onClick={() => alignV(ALIGN_V.bottom)}>
-            <i className="bi bi-align-bottom"></i>
-          </button>
-        </div>
-        <div className="btn-group btn-group-sm" role="group" aria-label="Distribute spacing">
-          <button type="button" className="btn btn-outline-secondary" disabled={selectedChips.length < 3} title="Distribute horizontally (select 3+)" onClick={distributeH}>
-            <i className="bi bi-distribute-horizontal"></i>
-          </button>
-          <button type="button" className="btn btn-outline-secondary" disabled={selectedChips.length < 3} title="Distribute vertically (select 3+)" onClick={distributeV}>
-            <i className="bi bi-distribute-vertical"></i>
-          </button>
-        </div>
-        <button
-          type="button"
-          className={`btn btn-sm ${snapEnabled ? "btn-secondary" : "btn-outline-secondary"}`}
-          title={snapEnabled ? "Snapping on — click to disable" : "Snapping off — click to enable"}
-          onClick={() => { setSnapEnabled((v) => !v); setGuides(noGuides); }}
-        >
-          <i className="bi bi-magnet me-1"></i>Snap
-        </button>
-        {selectedChips.length === 0 && <span style={{ fontSize: 11, color: "#94a3b8" }}>Click an element to align it (shift-click for multiple)</span>}
-        {selectedChips.length === 1 && <span style={{ fontSize: 11, color: "#94a3b8" }}>1 selected</span>}
-        {selectedChips.length > 1 && <span style={{ fontSize: 11, color: "#94a3b8" }}>{selectedChips.length} selected</span>}
-      </div>
+      <FreeformAlignToolbar
+        selectedCount={selectedChips.length}
+        snapEnabled={snapEnabled}
+        onAlignH={(which) => alignH(ALIGN_H[which])}
+        onAlignV={(which) => alignV(ALIGN_V[which])}
+        onDistributeH={distributeH}
+        onDistributeV={distributeV}
+        onToggleSnap={() => { setSnapEnabled((v) => !v); setGuides(noGuides); }}
+      />
       <div
         ref={boxRef}
         onPointerDown={(e) => {
