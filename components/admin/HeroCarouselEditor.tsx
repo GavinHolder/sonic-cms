@@ -6,6 +6,7 @@ import { useAutoSave } from "@/lib/hooks/useAutoSave";
 import type { HeroSection, HeroCarouselSlide, HeroEasing } from "@/types/section";
 import SlideEditor, { EASING_OPTIONS } from "./SlideEditor";
 import HeroCarousel from "@/components/sections/HeroCarousel";
+import { fitMobilePhone } from "@/lib/hero/hero-mobile-fit";
 
 // SSR-safe default for the admin's viewport before the client measures it.
 // The preview renders the hero into a virtual viewport matching the REAL
@@ -230,6 +231,24 @@ export default function HeroCarouselEditor({
     return () => ro.disconnect();
   }, [showPreview]);
 
+  // MOBILE ONLY: measure the preview column (NOT the preview box — the box is sized from
+  // this, so measuring the box would be circular) so the whole 375x812 phone can be fitted
+  // inside it via the shared fitMobilePhone rule (lib/hero/hero-mobile-fit.ts, also used by
+  // SlideEditor's drag canvas). Desktop/Tablet never observe this.
+  const previewColumnRef = useRef<HTMLDivElement>(null);
+  const [previewColumnWidth, setPreviewColumnWidth] = useState(0);
+  useEffect(() => {
+    if (!showPreview || editBreakpoint !== "mobile") return;
+    const el = previewColumnRef.current;
+    if (!el) return;
+    setPreviewColumnWidth(el.clientWidth);
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) setPreviewColumnWidth(entry.contentRect.width);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [showPreview, editBreakpoint]);
+
   // Synthesized draft section fed to <HeroCarousel>. Rebuilds on every edit so
   // the preview re-renders live (React state change) — no manual refresh.
   const draftSection = useMemo<HeroSection>(
@@ -265,7 +284,13 @@ export default function HeroCarouselEditor({
   // Scale the effective-viewport-sized hero down to the measured pane width. Box
   // height preserves that viewport's aspect ratio so the crop matches what that
   // breakpoint actually shows (real window for Desktop, fixed device size otherwise).
-  const previewScale = previewWidth > 0 ? previewWidth / effectiveViewport.w : 0;
+  // MOBILE overrides all of the below: the whole phone is fitted into the column (width AND
+  // window height) with one uniform scale <= 1, so there is no zoom-in and no inner scroll.
+  // `viewport.h` is the reactive window.innerHeight state above, so this re-fits on resize.
+  const mobileFit = editBreakpoint === "mobile" ? fitMobilePhone(previewColumnWidth, viewport.h) : null;
+  const previewScale = mobileFit
+    ? mobileFit.scale
+    : previewWidth > 0 ? previewWidth / effectiveViewport.w : 0;
   const naturalPreviewBoxHeight =
     previewWidth > 0 ? previewWidth * (effectiveViewport.h / effectiveViewport.w) : 360;
   // Tablet (768x1024) and especially Mobile (375x812) scaled up to a typical pane width
@@ -278,8 +303,10 @@ export default function HeroCarouselEditor({
   // `window` is guarded for SSR; previewWidth stays 0 until after mount, so the fallback
   // 360 branch above (unaffected by this cap) is what actually renders server-side.
   const maxPreviewBoxHeight = typeof window !== "undefined" ? window.innerHeight * 0.6 : 500;
-  const isPreviewBoxCapped = naturalPreviewBoxHeight > maxPreviewBoxHeight;
-  const previewBoxHeight = isPreviewBoxCapped ? maxPreviewBoxHeight : naturalPreviewBoxHeight;
+  const isPreviewBoxCapped = !mobileFit && naturalPreviewBoxHeight > maxPreviewBoxHeight;
+  const previewBoxHeight = mobileFit
+    ? mobileFit.height
+    : isPreviewBoxCapped ? maxPreviewBoxHeight : naturalPreviewBoxHeight;
 
   const startEditingName = (index: number, current: string) => {
     setNameDraft(current);
@@ -844,7 +871,7 @@ export default function HeroCarouselEditor({
               {/* ===== LIVE PREVIEW COLUMN ===== */}
               {showPreview && (
                 <div className="col-12 col-lg-5">
-                  <div style={{ position: "sticky", top: 0 }}>
+                  <div ref={previewColumnRef} style={{ position: "sticky", top: 0 }}>
                     <div className="d-flex align-items-center gap-2 mb-2">
                       <span
                         className="badge bg-danger d-inline-flex align-items-center gap-1"
@@ -869,11 +896,20 @@ export default function HeroCarouselEditor({
                         transform-scaled to fit — so cover-crop is identical. */}
                     <div
                       ref={previewRef}
-                      className="border rounded"
+                      className={mobileFit ? undefined : "border rounded"}
                       style={{
                         position: "relative",
-                        width: "100%",
+                        width: mobileFit ? `${mobileFit.width}px` : "100%",
                         height: `${previewBoxHeight}px`,
+                        // Mobile only: centered phone-style frame. The bezel is a box-shadow
+                        // (outside the box) so it doesn't eat into the 375*scale content area.
+                        ...(mobileFit
+                          ? {
+                              margin: "6px auto",
+                              borderRadius: 18,
+                              boxShadow: "0 0 0 5px #111827, 0 0 0 6px #475569",
+                            }
+                          : {}),
                         // When the natural (aspect-ratio-driven) height is capped — tall
                         // Mobile/Tablet viewports — switch to a vertical scrollbar so the
                         // rest of the preview is reachable within the box. The iframe below

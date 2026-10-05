@@ -8,6 +8,7 @@ import MediaPickerModal from "./MediaPickerModal";
 import { LinkPicker } from "./LinkPicker";
 import GoogleFontPicker from "./GoogleFontPicker";
 import { heroFontStack } from "@/lib/hero/hero-fonts";
+import { fitMobilePhone } from "@/lib/hero/hero-mobile-fit";
 
 /** Shared across every entrance-animation field below (heading, subheading, eyebrow,
  *  buttons, headingRows, overlay images) and the slide transition itself. Value ""
@@ -2928,6 +2929,28 @@ function FreeformDragSurface({ chips, slide, editBreakpoint }: { chips: Freeform
     window.addEventListener("resize", readViewport);
     return () => window.removeEventListener("resize", readViewport);
   }, [editBreakpoint]);
+  // MOBILE ONLY: fit the WHOLE 375x812 phone on screen (instead of stretching it to the full
+  // column width => ~692x1500px, 1.85x zoom, clipped chips). Uses the same shared rule as the
+  // Live Preview panel (lib/hero/hero-mobile-fit.ts) so both surfaces draw the phone at the
+  // same scale. The column width is measured on the OUTER wrapper (wrapRef), not on boxRef —
+  // boxRef's width is derived from it, so measuring the box would be circular. Re-measures on
+  // column resize (ResizeObserver) and window resize (height budget). Desktop/Tablet skip this.
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [wrapWidth, setWrapWidth] = useState(0);
+  const [winH, setWinH] = useState(DEFAULT_VH);
+  useEffect(() => {
+    if (editBreakpoint !== "mobile") return;
+    const readH = () => setWinH(window.innerHeight);
+    readH();
+    window.addEventListener("resize", readH);
+    const el = wrapRef.current;
+    const measureWrap = () => { if (el) setWrapWidth(el.clientWidth); };
+    measureWrap();
+    const ro = el && typeof ResizeObserver !== "undefined" ? new ResizeObserver(measureWrap) : null;
+    if (ro && el) ro.observe(el);
+    return () => { window.removeEventListener("resize", readH); ro?.disconnect(); };
+  }, [editBreakpoint]);
+  const mobileFit = editBreakpoint === "mobile" ? fitMobilePhone(wrapWidth, winH) : null;
   useEffect(() => {
     const measure = () => {
       const el = boxRef.current;
@@ -3017,7 +3040,7 @@ function FreeformDragSurface({ chips, slide, editBreakpoint }: { chips: Freeform
   };
 
   return (
-    <div>
+    <div ref={wrapRef}>
       {/* Alignment + snap toolbar — acts on every selected chip. Click a chip to select just
           it; shift/ctrl+click to add/remove it from a multi-selection. */}
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, flexWrap: "wrap" }}>
@@ -3104,6 +3127,17 @@ function FreeformDragSurface({ chips, slide, editBreakpoint }: { chips: Freeform
           border: "1px solid #334155",
           touchAction: "none",
           userSelect: "none",
+          // Mobile only: explicit phone-fit box, centered. No border (frame is a box-shadow)
+          // so clientWidth === fit.width and the chip `scale` below equals fit.scale exactly.
+          ...(mobileFit
+            ? {
+                width: `${mobileFit.width}px`,
+                height: `${mobileFit.height}px`,
+                margin: "0 auto",
+                border: "none",
+                boxShadow: "0 0 0 1px #334155",
+              }
+            : {}),
         }}
       >
         {/* Slide media background so text is placed against the real image/video */}
