@@ -446,7 +446,11 @@ export interface HeadingRow {
   text: string;
   /** Optional per-word styling (outline/fill). Takes precedence over `text` when non-empty. */
   words?: HeadingWord[];
-  fontSize: number;        // px — rendered with clamp(28px, 7vw, Xpx)
+  fontSize: number;        // px — freeform CSS comes from lib/hero/hero-font-size.ts (resolveFreeformFontSizeCss)
+  /** Per-breakpoint size (px) — absent = today's behaviour exactly. When set, it is the real size at
+   *  that breakpoint's reference device (Tablet 768 / Mobile 375). See lib/hero/hero-font-size.ts. */
+  fontSizeTablet?: number;
+  fontSizeMobile?: number;
   fontWeight: number;      // 100–900
   fontFamily: string;
   color: string;
@@ -574,6 +578,9 @@ export interface TextOverlayElement {
   heading: {
     text: string;
     fontSize: number; // px
+    /** Per-breakpoint size (px) for the freeform layout — see HeadingRow.fontSizeTablet. */
+    fontSizeTablet?: number;
+    fontSizeMobile?: number;
     fontWeight: number; // 100-900
     fontFamily: string;
     color: string;
@@ -604,6 +611,9 @@ export interface TextOverlayElement {
   subheading?: {
     text: string;
     fontSize: number;
+    /** Per-breakpoint size (px) for the freeform layout — see HeadingRow.fontSizeTablet. */
+    fontSizeTablet?: number;
+    fontSizeMobile?: number;
     fontWeight: number;
     fontFamily: string;
     color: string;
@@ -626,6 +636,9 @@ export interface TextOverlayElement {
     animationEasing?: HeroEasing;
     /** Button label font size (px), used as the clamp() ceiling. Undefined = current hardcoded 18px look. */
     fontSize?: number;
+    /** Per-breakpoint label size (px) for the freeform layout — see HeadingRow.fontSizeTablet. */
+    fontSizeTablet?: number;
+    fontSizeMobile?: number;
     /** Button label font family. Undefined = "inherit" (current look). */
     fontFamily?: string;
     /** Explicit rendered width in px (resolved via resolveFreeformSize, same mobile->tablet->

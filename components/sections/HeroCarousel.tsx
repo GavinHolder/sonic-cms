@@ -6,6 +6,7 @@ import type { HeroSection, AnimationType, HeroEasing, HeadingRow, TextShadowConf
 import { defaultFreeformPos, resolveFreeformPos, resolveFreeformSize, freeformStackOrders } from "@/types/section";
 import { preconnect, preinit } from "react-dom";
 import { HERO_FONT_ORIGINS, heroFontHref, heroFontStack } from "@/lib/hero/hero-fonts";
+import { resolveFreeformFontSizeCss } from "@/lib/hero/hero-font-size";
 
 /**
  * SSR-safe layout effect: runs synchronously before paint on the client (so we
@@ -493,6 +494,10 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
     if (!tx && !ty) return undefined;
     return `translate(${tx}px, ${ty}px)`;
   };
+
+  // Breakpoint the freeform text-size resolver (lib/hero/hero-font-size.ts) keys off — the same
+  // mobile < 768 / tablet 768-991 / desktop split as every other breakpoint check in this file.
+  const fontBreakpoint = isMobile ? "mobile" : isTablet ? "tablet" : "desktop";
 
   // Freeform: absolute-position wrapper for a single overlay element.
   // Anchor is the element CENTER (translate -50%,-50%); pos falls back to a
@@ -1008,10 +1013,10 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                           style={{
                             margin: 0,
                             padding: 0,
-                            // Mobile: lower floor + cap ceiling so the freeform display heading fits. (mobile-gated)
-                            fontSize: isMobile
-                              ? `clamp(20px, 7.5vw, ${Math.min(row.fontSize, 44)}px)`
-                              : `clamp(32px, 8vw, ${row.fontSize}px)`,
+                            // Size comes from the shared resolver (lib/hero/hero-font-size.ts): the authored
+                            // value (or its Tablet/Mobile override) is honoured per breakpoint; with no
+                            // override the output equals the old clamp()s (incl. the mobile fit rule).
+                            fontSize: resolveFreeformFontSizeCss({ kind: "heading", breakpoint: fontBreakpoint, size: row.fontSize, sizeTablet: row.fontSizeTablet, sizeMobile: row.fontSizeMobile }),
                             fontWeight: row.fontWeight,
                             fontFamily: heroFontStack(row.fontFamily || "inherit"),
                             color: row.color,
@@ -1042,10 +1047,8 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                           className="hero-heading"
                           style={{
                             margin: 0,
-                            // Mobile: cap the freeform legacy heading so it fits a phone. (mobile-gated)
-                            fontSize: isMobile
-                              ? `clamp(20px, 7vw, ${Math.min(slide.overlay.heading.fontSize, 44)}px)`
-                              : `clamp(28px, 7vw, ${slide.overlay.heading.fontSize}px)`,
+                            // Shared resolver — see the heading-rows comment above.
+                            fontSize: resolveFreeformFontSizeCss({ kind: "legacyHeading", breakpoint: fontBreakpoint, size: slide.overlay.heading.fontSize, sizeTablet: slide.overlay.heading.fontSizeTablet, sizeMobile: slide.overlay.heading.fontSizeMobile }),
                             fontWeight: slide.overlay.heading.fontWeight,
                             fontFamily: heroFontStack(slide.overlay.heading.fontFamily),
                             color: slide.overlay.heading.color,
@@ -1077,7 +1080,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                       className="hero-subheading"
                       style={{
                         margin: 0,
-                        fontSize: `clamp(16px, 4vw, ${slide.overlay.subheading.fontSize}px)`,
+                        fontSize: resolveFreeformFontSizeCss({ kind: "subheading", breakpoint: fontBreakpoint, size: slide.overlay.subheading.fontSize, sizeTablet: slide.overlay.subheading.fontSizeTablet, sizeMobile: slide.overlay.subheading.fontSizeMobile }),
                         fontWeight: slide.overlay.subheading.fontWeight,
                         fontFamily: heroFontStack(slide.overlay.subheading.fontFamily),
                         color: slide.overlay.subheading.color,
@@ -1118,7 +1121,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                         color: button.textColor,
                         borderColor: button.variant === "outline" ? button.backgroundColor : "transparent",
                         padding: "10px 24px",
-                        fontSize: `clamp(14px, 3.5vw, ${button.fontSize ?? 18}px)`,
+                        fontSize: resolveFreeformFontSizeCss({ kind: "button", breakpoint: fontBreakpoint, size: button.fontSize, sizeTablet: button.fontSizeTablet, sizeMobile: button.fontSizeMobile }),
                         fontFamily: heroFontStack(button.fontFamily || "inherit"),
                         fontWeight: 600,
                         textDecoration: "none",
