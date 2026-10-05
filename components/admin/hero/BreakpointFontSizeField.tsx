@@ -78,7 +78,8 @@ export default function BreakpointFontSizeField({
   const isDesktop = bp === "desktop";
   const legacySize = size ?? desktopDefault;
   const own = presetMode ? legacySize : bp === "tablet" ? sizeTablet : bp === "mobile" ? sizeMobile : sizeDesktop;
-  const hasOwn = isUsableFontSize(own);
+  // The preset layout's legacy `fontSize` is a required value that is shown as-is (no 1000 cap applies to it).
+  const hasOwn = presetMode ? typeof own === "number" && Number.isFinite(own) && own > 0 : isUsableFontSize(own);
   const committedText = hasOwn ? String(own) : "";
 
   // While the field has focus it shows the local `draft` (what is being typed, possibly not yet valid); otherwise it
@@ -111,17 +112,18 @@ export default function BreakpointFontSizeField({
   const bpName = bp.charAt(0).toUpperCase() + bp.slice(1);
   const showReset = !presetMode && hasOwn;
   const fmt = (n: number) => String(roundPx(n));
+  // Grey placeholder = what the legacy rule actually RENDERS at the device (so a base of 400 shows 153.6 on Desktop).
   const placeholder = presetMode || hasOwn
     ? undefined
     : isDesktop
-      ? (isUsableFontSize(legacySize) ? String(legacySize) : undefined)
+      ? (legacyPx !== undefined ? fmt(legacyPx) : undefined)
       : `Auto${legacyPx !== undefined ? ` (${fmt(legacyPx)})` : ""}`;
 
   return (
     <>
       <label htmlFor={inputId} className={labelClassName ?? (small ? "form-label form-label-sm mb-1" : "form-label fw-semibold")}>
         {label}
-        {!presetMode && !isDesktop && ` — ${bpName}`}
+        {!presetMode && ` — ${bpName}`}
       </label>
       <div className={`input-group${small ? " input-group-sm" : ""}`}>
         <input

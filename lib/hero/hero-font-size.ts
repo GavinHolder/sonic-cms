@@ -26,19 +26,21 @@
  *   LEGACY (no own field for the breakpoint, from `fontSize`):
  *       desktop / tablet:  clamp(FLOOR px, VW vw, S px)
  *       mobile, headings:  clamp(20px, 7.5vw | 7vw, min(S, 44) px)       mobile, subheading / button: as desktop
- *   Desktop OWN (S = fontSizeDesktop):
- *       S <= VW * 1920 / 100  ->  the legacy string with S (identical, nothing to honour beyond it)
- *       S >  VW * 1920 / 100  ->  clamp(FLOOR px, max(VW vw, S/1920*100 vw), S px)
- *                                 i.e. S is honoured above the old cap, proportional to 1920px, never above S.
+ *   Desktop OWN (S = fontSizeDesktop, F = min(FLOOR, S)):
+ *       S <= VW * 1920 / 100  ->  clamp(F px, VW vw, S px)   (the legacy string with S whenever S >= FLOOR)
+ *       S >  VW * 1920 / 100  ->  clamp(F px, max(VW vw, S/1920*100 vw), S px)
+ *                                 i.e. S is honoured above the old cap, proportional to 1920px, never above S;
+ *                                 and a value BELOW the kind's floor is honoured exactly (F = S => S at every width).
  *   Tablet / Mobile OWN (X = fontSizeTablet | fontSizeMobile, REF = 768 | 375):
- *       clamp(10px, X/REF*100 vw, X*1.25 px)       exactly X at the reference device, proportional on
- *                                                  other widths, never above 1.25*X.
+ *       clamp(min(10, X) px, X/REF*100 vw, X*1.25 px)   exactly X at the reference device, proportional on
+ *                                                       other widths, never above 1.25*X, never below min(10, X).
  *
  * ASSUMPTIONS:
  *  1. `breakpoint` is what HeroCarousel resolves from the window (mobile < 768, tablet 768-991, else
  *     desktop) or from `forceViewport`; the mobile heading rule keys off it (no separate flag).
- *  2. An own value is honoured only when it is a finite number > 0; anything else counts as "not set",
- *     so a corrupted or hand-edited value can never break the render - it falls back to legacy(`fontSize`).
+ *  2. An own value is honoured only when it is a finite number in (0, 1000); anything else counts as "not
+ *     set", so a corrupted or hand-edited value can never break the render or emit absurd / exponent CSS -
+ *     it falls back to legacy(`fontSize`).
  *  3. When the legacy `size` itself is not a finite number the legacy output is the old string built from
  *     the raw value (invalid CSS the browser drops, exactly as before) - never "fixed up".
  *
@@ -96,8 +98,12 @@ type Plan =
   /** clamp(10px, size/refW*100 vw, size*1.25 px) */
   | { mode: "own"; size: number; refW: number };
 
+/** An own size at or above this many px is treated as corrupt / hand-edited (the editor caps at FONT_SIZE_MAX_PX). */
+export const FONT_SIZE_OWN_ABS_MAX_PX = 1000;
+
+/** A usable own size: a finite number in (0, 1000). Anything else (0, negative, NaN, Infinity, 1e9, a string...) is "not set". */
 export function isUsableFontSize(n: unknown): n is number {
-  return typeof n === "number" && Number.isFinite(n) && n > 0;
+  return typeof n === "number" && Number.isFinite(n) && n > 0 && n < FONT_SIZE_OWN_ABS_MAX_PX;
 }
 
 /** Window width at which a breakpoint's own value is "exact" (1920 / 768 / 375). */
@@ -130,9 +136,13 @@ function planFor(input: FreeformFontSizeInput): Plan {
 
   if (!isUsableFontSize(own)) return legacyPlan(kind, breakpoint, legacySize);
   if (breakpoint === "desktop") {
+    // OWN path only: the floor is min(FLOOR, S), so a typed value below the kind's floor is honoured exactly
+    // (S=20 on a heading -> clamp(20px, 8vw, 20px) = 20px at every width) instead of being lifted to the floor.
+    // For S >= FLOOR this is the unchanged FLOOR. (The LEGACY path above keeps its original floor untouched.)
+    const floor = Math.min(spec.floor, own);
     return own <= legacyFontSizeThreshold(kind)
-      ? { mode: "legacy", floor: spec.floor, vw: spec.vw, cap: own }
-      : { mode: "scaled", floor: spec.floor, vw: spec.vw, size: own };
+      ? { mode: "legacy", floor, vw: spec.vw, cap: own }
+      : { mode: "scaled", floor, vw: spec.vw, size: own };
   }
   return { mode: "own", size: own, refW: referenceViewportW(breakpoint) };
 }
@@ -149,7 +159,7 @@ export function resolveFreeformFontSizeCss(input: FreeformFontSizeInput): string
   if (plan.mode === "scaled") {
     return `clamp(${plan.floor}px, max(${plan.vw}vw, ${num((plan.size / DESKTOP_REF_W) * 100)}vw), ${plan.size}px)`;
   }
-  return `clamp(${OWN_SIZE_MIN_PX}px, ${num((plan.size / plan.refW) * 100)}vw, ${num(plan.size * OWN_SIZE_CAP_RATIO)}px)`;
+  return `clamp(${num(Math.min(OWN_SIZE_MIN_PX, plan.size))}px, ${num((plan.size / plan.refW) * 100)}vw, ${num(plan.size * OWN_SIZE_CAP_RATIO)}px)`;
 }
 
 /**
@@ -165,7 +175,7 @@ export function resolveFreeformFontSizePx(input: FreeformFontSizeInput, viewport
     const scaledVw = Math.max((plan.vw / 100) * viewportW, (plan.size / DESKTOP_REF_W) * viewportW);
     return clampPx(plan.floor, scaledVw, plan.size);
   }
-  return clampPx(OWN_SIZE_MIN_PX, (plan.size / plan.refW) * viewportW, plan.size * OWN_SIZE_CAP_RATIO);
+  return clampPx(Math.min(OWN_SIZE_MIN_PX, plan.size), (plan.size / plan.refW) * viewportW, plan.size * OWN_SIZE_CAP_RATIO);
 }
 
 /** Rounds to 0.1px - the precision of every stored per-breakpoint size. */

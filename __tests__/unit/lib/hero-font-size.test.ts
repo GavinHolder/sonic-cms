@@ -85,7 +85,7 @@ const WIDTHS = [320, 360, 375, 414, 500, 600, 700, 767, 768, 800, 900, 991, 992,
 const GRID = Array.from({ length: 113 }, (_, i) => 320 + i * 20) // 320..2560
 // every legacy size the reviewer's identity sweep used, incl. non-numbers a JSON column can hold
 const LEGACY_SIZES: unknown[] = [undefined, null, NaN, 0, -5, 6, 10, 18, 22, 56, 100, 130, 150, 153.6, 153.7, 200, 400, 1e9, '100']
-const UNUSABLE_OWN: unknown[] = [undefined, null, NaN, 0, -5, Infinity, '77']
+const UNUSABLE_OWN: unknown[] = [undefined, null, NaN, 0, -5, Infinity, '77', 1000, 1e4, 1e9, 1e21]
 
 const input = (kind: FreeformFontKind, breakpoint: HeroEditBreakpoint, size: unknown, extra: Partial<FreeformFontSizeInput> = {}): FreeformFontSizeInput =>
   ({ kind, breakpoint, size: size as number | undefined, ...extra })
@@ -232,9 +232,54 @@ describe('(2) OWN fields are exact at the reference widths', () => {
     expect(off).toEqual([])
   })
 
-  it('an own Tablet/Mobile value never goes below 10px', () => {
-    expect(px(input('subheading', 'mobile', 22, { sizeMobile: 8 }), 320)).toBe(10)
-    expect(px(input('subheading', 'mobile', 22, { sizeMobile: 3 }), 375)).toBe(10)
+  it('an own Tablet/Mobile value is never below min(10, X): X >= 10 floors at 10, X < 10 is honoured', () => {
+    expect(px(input('subheading', 'mobile', 22, { sizeMobile: 10 }), 320)).toBe(10)
+    expect(px(input('subheading', 'mobile', 22, { sizeMobile: 8 }), 320)).toBe(8)
+    expect(px(input('subheading', 'mobile', 22, { sizeMobile: 3 }), 375)).toBeCloseTo(3, 9)
+    expect(resolveFreeformFontSizeCss(input('subheading', 'mobile', 22, { sizeMobile: 8 }))).toBe('clamp(8px, 2.133333vw, 10px)')
+    expect(resolveFreeformFontSizeCss(input('subheading', 'mobile', 22, { sizeMobile: 30 }))).toBe('clamp(10px, 8vw, 37.5px)')
+  })
+
+  it('an own value BELOW the floor of its kind is honoured exactly (typing 20 on a Desktop heading is 20px, not the 32px floor)', () => {
+    // Desktop: floor = min(FLOOR, S) = S and cap = S => S at every width
+    expect(resolveFreeformFontSizeCss(input('heading', 'desktop', 56, { sizeDesktop: 20 }))).toBe('clamp(20px, 8vw, 20px)')
+    const sub: string[] = []
+    for (const kind of KINDS) {
+      const floor = { heading: 32, legacyHeading: 28, subheading: 16, button: 14 }[kind]
+      for (const s of [8, 9.5, floor - 1, floor, floor + 1, 40]) {
+        for (const w of WIDTHS) {
+          const got = px(input(kind, 'desktop', 56, { sizeDesktop: s }), w)
+          // below the floor: exactly S at every width. At/above the floor: unchanged legacy behaviour (>= FLOOR, <= S)
+          if (s < floor ? got !== s : !(got >= floor - 1e-9 && got <= s + 1e-9)) sub.push(`${kind}/desktop/${s}@${w}=${got}`)
+        }
+      }
+      // Tablet / Mobile: exact at the reference width for values below the floor too, and never under min(10, X)
+      for (const x of [8, 9.5, 10, 12, 20]) {
+        const t = px(input(kind, 'tablet', 56, { sizeTablet: x }), 768)
+        const m = px(input(kind, 'mobile', 56, { sizeMobile: x }), 375)
+        if (Math.abs(t - x) > 1e-6 || Math.abs(m - x) > 1e-6) sub.push(`${kind}/own ${x}: tablet@768=${t} mobile@375=${m}`)
+        for (const w of GRID) if (px(input(kind, 'tablet', 56, { sizeTablet: x }), w) < Math.min(10, x) - 1e-9) sub.push(`${kind}/tablet ${x} under floor @${w}`)
+      }
+      // every own value is exact at its reference width, for every kind and breakpoint
+      for (const x of [8, 20, 30, 56, 100]) {
+        if (Math.abs(px(input(kind, 'desktop', 56, { sizeDesktop: x }), 1920) - x) > 1e-6) sub.push(`${kind}/desktop/${x}@1920`)
+      }
+    }
+    expect(sub).toEqual([])
+  })
+
+  it('an own value >= 1000 (or non-finite / >= 1e21) is treated as unusable: it falls back to legacy(fontSize), never absurd or exponent CSS', () => {
+    for (const kind of KINDS) {
+      for (const bp of BPS) {
+        for (const bad of [1000, 1e4, 1e9, 1e21, Infinity, NaN]) {
+          const css = resolveFreeformFontSizeCss(input(kind, bp, 56, { [FIELD[bp]]: bad }))
+          expect(css).toBe(oldString(kind, bp, 56))
+          expect(css).not.toMatch(/e+|Infinity|NaN/)
+        }
+        // just under the cap is still honoured
+        expect(resolveFreeformFontSizeCss(input(kind, bp, 56, { [FIELD[bp]]: 999 }))).not.toBe(oldString(kind, bp, 56))
+      }
+    }
   })
 
   it('representative editor reference renders (Desktop 1920 / Tablet 768 / Mobile 375)', () => {
@@ -278,7 +323,7 @@ describe('(3) ISOLATION - setting/clearing ONE breakpoint\'s own field changes O
           const before: FreeformFontSizeInput = input(kind, 'desktop', s)
           BPS.forEach((b, idx) => { if (mask & (1 << idx)) (before as unknown as Record<string, number>)[FIELD[b]] = stateValue[b] })
           for (const edited of BPS) {
-            for (const op of [55.5, 133.3, null] as const) {
+            for (const op of [55.5, 133.3, 6.5, null] as const) {
               const after = { ...before } as unknown as Record<string, unknown>
               if (op === null) delete after[FIELD[edited]]
               else after[FIELD[edited]] = op
