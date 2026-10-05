@@ -447,10 +447,15 @@ export interface HeadingRow {
   /** Optional per-word styling (outline/fill). Takes precedence over `text` when non-empty. */
   words?: HeadingWord[];
   fontSize: number;        // px — freeform CSS comes from lib/hero/hero-font-size.ts (resolveFreeformFontSizeCss)
-  /** Per-breakpoint size (px) — absent = today's behaviour exactly. When set, it is the real size at
-   *  that breakpoint's reference device (Tablet 768 / Mobile 375). See lib/hero/hero-font-size.ts. */
+  /** Per-breakpoint sizes (px), honoured ONLY when `fontSizeIndependent` is true: then each is the real
+   *  size at that breakpoint's reference device (Tablet 768 / Mobile 375) and nothing is shared between
+   *  breakpoints. Flag absent/false = LEGACY: the single `fontSize` renders with the old clamp() rules and
+   *  these two fields are ignored. The editor sets the flag (and snapshots all three values) the first time
+   *  any size field of the element is edited. See lib/hero/hero-font-size.ts. */
   fontSizeTablet?: number;
   fontSizeMobile?: number;
+  /** True once the element's Desktop/Tablet/Mobile sizes are independent (see above). Absent = legacy. */
+  fontSizeIndependent?: boolean;
   fontWeight: number;      // 100–900
   fontFamily: string;
   color: string;
@@ -581,6 +586,7 @@ export interface TextOverlayElement {
     /** Per-breakpoint size (px) for the freeform layout — see HeadingRow.fontSizeTablet. */
     fontSizeTablet?: number;
     fontSizeMobile?: number;
+    fontSizeIndependent?: boolean;
     fontWeight: number; // 100-900
     fontFamily: string;
     color: string;
@@ -614,6 +620,7 @@ export interface TextOverlayElement {
     /** Per-breakpoint size (px) for the freeform layout — see HeadingRow.fontSizeTablet. */
     fontSizeTablet?: number;
     fontSizeMobile?: number;
+    fontSizeIndependent?: boolean;
     fontWeight: number;
     fontFamily: string;
     color: string;
@@ -639,6 +646,7 @@ export interface TextOverlayElement {
     /** Per-breakpoint label size (px) for the freeform layout — see HeadingRow.fontSizeTablet. */
     fontSizeTablet?: number;
     fontSizeMobile?: number;
+    fontSizeIndependent?: boolean;
     /** Button label font family. Undefined = "inherit" (current look). */
     fontFamily?: string;
     /** Explicit rendered width in px (resolved via resolveFreeformSize, same mobile->tablet->
