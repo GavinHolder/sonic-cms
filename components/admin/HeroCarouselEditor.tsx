@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useAutoSave } from "@/lib/hooks/useAutoSave";
 import type { HeroSection, HeroCarouselSlide, HeroEasing } from "@/types/section";
 import SlideEditor, { EASING_OPTIONS } from "./SlideEditor";
 import HeroCarousel from "@/components/sections/HeroCarousel";
-import { fitMobilePhone } from "@/lib/hero/hero-mobile-fit";
+import { deviceViewportFor, fitForBreakpoint, isDeviceFitBreakpoint } from "@/lib/hero/hero-device-fit";
 
 // SSR-safe default for the admin's viewport before the client measures it.
 // The preview renders the hero into a virtual viewport matching the REAL
@@ -142,13 +142,11 @@ export default function HeroCarouselEditor({
 
   // Effective preview box — real-window size for Desktop (unchanged), or a fixed
   // reference size for Tablet/Mobile so the box shape actually matches that device
-  // instead of showing mobile-layout content inside a desktop-shaped box. Same
-  // reference sizes SlideEditor's own FreeformDragSurface uses for its drag canvas,
-  // so what you positioned things against and what the preview shows agree.
-  const effectiveViewport =
-    editBreakpoint === "tablet" ? { w: 768, h: 1024 }
-    : editBreakpoint === "mobile" ? { w: 375, h: 812 }
-    : viewport;
+  // instead of showing mobile-layout content inside a desktop-shaped box. The reference
+  // sizes come from lib/hero/hero-device-fit.ts — the same module SlideEditor's own
+  // FreeformDragSurface imports for its drag canvas, so what you positioned things
+  // against and what the preview shows agree. Desktop (null) keeps the real window.
+  const effectiveViewport = deviceViewportFor(editBreakpoint) ?? viewport;
 
   // Fires once, when the Live Preview iframe's blank document finishes loading.
   // Sets up the #root portal target and a one-time base reset, then hands off
@@ -218,9 +216,16 @@ export default function HeroCarouselEditor({
     return () => observer.disconnect();
   }, [iframePortalRoot]);
 
-  // Measure the pane so we can scale the virtual hero down to fit.
+  // True on the breakpoints that fit the WHOLE device into the preview (Mobile, Tablet).
+  const deviceFitMode = isDeviceFitBreakpoint(editBreakpoint);
+
+  // Measure the pane so we can scale the virtual hero down to fit. While a device-fit mode
+  // is active the preview box is deliberately NARROWER than the column and the fit path
+  // never reads previewWidth, so this stays unsubscribed and keeps the last full-width
+  // reading: on returning to Desktop the very first frame then still has a sane width
+  // (instead of the narrow fit-box width) until the effect below re-measures the box.
   useEffect(() => {
-    if (!showPreview) return;
+    if (!showPreview || deviceFitMode) return;
     const el = previewRef.current;
     if (!el) return;
     setPreviewWidth(el.clientWidth);
@@ -229,16 +234,18 @@ export default function HeroCarouselEditor({
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [showPreview]);
+  }, [showPreview, deviceFitMode]);
 
-  // MOBILE ONLY: measure the preview column (NOT the preview box — the box is sized from
-  // this, so measuring the box would be circular) so the whole 375x812 phone can be fitted
-  // inside it via the shared fitMobilePhone rule (lib/hero/hero-mobile-fit.ts, also used by
-  // SlideEditor's drag canvas). Desktop/Tablet never observe this.
+  // MOBILE / TABLET: measure the preview column (NOT the preview box — the box is sized from
+  // this, so measuring the box would be circular) so the whole device can be fitted inside
+  // it via the shared fitForBreakpoint rule (lib/hero/hero-device-fit.ts, also used by
+  // SlideEditor's drag canvas). Desktop never observes this. useLayoutEffect so the first
+  // painted frame after entering a fit mode already uses the measured width (React 19 does
+  // not warn about layout effects during SSR, and effects never run on the server anyway).
   const previewColumnRef = useRef<HTMLDivElement>(null);
   const [previewColumnWidth, setPreviewColumnWidth] = useState(0);
-  useEffect(() => {
-    if (!showPreview || editBreakpoint !== "mobile") return;
+  useLayoutEffect(() => {
+    if (!showPreview || !deviceFitMode) return;
     const el = previewColumnRef.current;
     if (!el) return;
     setPreviewColumnWidth(el.clientWidth);
@@ -247,7 +254,7 @@ export default function HeroCarouselEditor({
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [showPreview, editBreakpoint]);
+  }, [showPreview, deviceFitMode]);
 
   // Synthesized draft section fed to <HeroCarousel>. Rebuilds on every edit so
   // the preview re-renders live (React state change) — no manual refresh.
@@ -284,18 +291,20 @@ export default function HeroCarouselEditor({
   // Scale the effective-viewport-sized hero down to the measured pane width. Box
   // height preserves that viewport's aspect ratio so the crop matches what that
   // breakpoint actually shows (real window for Desktop, fixed device size otherwise).
-  // MOBILE overrides all of the below: the whole phone is fitted into the column (width AND
-  // window height) with one uniform scale <= 1, so there is no zoom-in and no inner scroll.
-  // `viewport.h` is the reactive window.innerHeight state above, so this re-fits on resize.
-  const mobileFit = editBreakpoint === "mobile" ? fitMobilePhone(previewColumnWidth, viewport.h) : null;
-  const previewScale = mobileFit
-    ? mobileFit.scale
+  // MOBILE and TABLET override all of the below: the whole device is fitted into the column
+  // (width AND window height) with one uniform scale <= 1, so there is no zoom-in and no
+  // inner scroll. `viewport.h` is the reactive window.innerHeight state above, so this
+  // re-fits on resize. Desktop gets null here and keeps the existing path untouched.
+  const deviceFit = fitForBreakpoint(editBreakpoint, previewColumnWidth, viewport.h);
+  const previewScale = deviceFit
+    ? deviceFit.scale
     : previewWidth > 0 ? previewWidth / effectiveViewport.w : 0;
   const naturalPreviewBoxHeight =
     previewWidth > 0 ? previewWidth * (effectiveViewport.h / effectiveViewport.w) : 360;
-  // Tablet (768x1024) and especially Mobile (375x812) scaled up to a typical pane width
-  // produce a box taller than most laptop browser windows (~1080-1130px for Mobile at a
-  // ~500-520px pane). The box sits inside a `position: sticky` wrapper, so content below
+  // (Mobile and Tablet no longer reach this cap — deviceFit above sizes them to fit.)
+  // A tall box scaled up to a typical pane width can be taller than most laptop browser
+  // windows (~1080-1130px for Mobile at a ~500-520px pane, which is why the fit exists).
+  // The box sits inside a `position: sticky` wrapper, so content below
   // the sticky element's own bottom edge is permanently unreachable by scrolling the page
   // (standard sticky behavior — not a bug). Cap the box at a budget that comfortably fits
   // alongside the rest of the modal's chrome (header, tabs, footer buttons) and let the
@@ -303,9 +312,9 @@ export default function HeroCarouselEditor({
   // `window` is guarded for SSR; previewWidth stays 0 until after mount, so the fallback
   // 360 branch above (unaffected by this cap) is what actually renders server-side.
   const maxPreviewBoxHeight = typeof window !== "undefined" ? window.innerHeight * 0.6 : 500;
-  const isPreviewBoxCapped = !mobileFit && naturalPreviewBoxHeight > maxPreviewBoxHeight;
-  const previewBoxHeight = mobileFit
-    ? mobileFit.height
+  const isPreviewBoxCapped = !deviceFit && naturalPreviewBoxHeight > maxPreviewBoxHeight;
+  const previewBoxHeight = deviceFit
+    ? deviceFit.height
     : isPreviewBoxCapped ? maxPreviewBoxHeight : naturalPreviewBoxHeight;
 
   const startEditingName = (index: number, current: string) => {
@@ -896,31 +905,34 @@ export default function HeroCarouselEditor({
                         transform-scaled to fit — so cover-crop is identical. */}
                     <div
                       ref={previewRef}
-                      className={mobileFit ? undefined : "border rounded"}
+                      className={deviceFit ? undefined : "border rounded"}
                       style={{
                         position: "relative",
-                        width: mobileFit ? `${mobileFit.width}px` : "100%",
+                        width: deviceFit ? `${deviceFit.width}px` : "100%",
                         height: `${previewBoxHeight}px`,
-                        // Mobile only: centered phone-style frame. The bezel is a box-shadow
-                        // (outside the box) so it doesn't eat into the 375*scale content area.
-                        ...(mobileFit
+                        // Mobile/Tablet only: centered device-style frame. The bezel is a
+                        // box-shadow (outside the box) so it doesn't eat into the
+                        // viewport.w*scale content area.
+                        ...(deviceFit
                           ? {
                               margin: "6px auto",
                               borderRadius: 18,
                               boxShadow: "0 0 0 5px #111827, 0 0 0 6px #475569",
                             }
                           : {}),
-                        // When the natural (aspect-ratio-driven) height is capped — tall
-                        // Mobile/Tablet viewports — switch to a vertical scrollbar so the
+                        // When the natural (aspect-ratio-driven) height is capped — only the
+                        // non-fit (Desktop) path can be; Mobile/Tablet size via deviceFit and
+                        // never cap — switch to a vertical scrollbar so the
                         // rest of the preview is reachable within the box. The iframe below
                         // is `position: absolute` inside this `position: relative` box, so
                         // it contributes to this box's scrollable overflow and the browser's
                         // native wheel/trackpad scroll works on it like any scroll container
                         // (the outer `position: sticky` ancestor doesn't change that — it
                         // only pins this box's own top edge, it doesn't intercept scroll
-                        // events bound for a nested overflow:auto descendant). Desktop never
-                        // hits this branch (isPreviewBoxCapped stays false), so its existing
-                        // overflow:hidden behavior is unchanged.
+                        // events bound for a nested overflow:auto descendant). Whenever
+                        // isPreviewBoxCapped is false (all Mobile/Tablet fits, and Desktop at
+                        // typical window shapes) the existing overflow:hidden behavior is
+                        // unchanged.
                         overflowX: "hidden",
                         overflowY: isPreviewBoxCapped ? "auto" : "hidden",
                         backgroundColor: "#000",

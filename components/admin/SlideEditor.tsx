@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import type { HeroCarouselSlide, AnimationType, HeroEasing, HeadingRow, HeadingWord, FreeformPos, OverlayImage } from "@/types/section";
 import { defaultFreeformPos, resolveFreeformPos } from "@/types/section";
 import MediaUploader from "./MediaUploader";
@@ -8,7 +8,7 @@ import MediaPickerModal from "./MediaPickerModal";
 import { LinkPicker } from "./LinkPicker";
 import GoogleFontPicker from "./GoogleFontPicker";
 import { heroFontStack } from "@/lib/hero/hero-fonts";
-import { fitMobilePhone } from "@/lib/hero/hero-mobile-fit";
+import { deviceViewportFor, fitForBreakpoint, isDeviceFitBreakpoint } from "@/lib/hero/hero-device-fit";
 
 /** Shared across every entrance-animation field below (heading, subheading, eyebrow,
  *  buttons, headingRows, overlay images) and the slide transition itself. Value ""
@@ -2910,36 +2910,45 @@ function FreeformDragSurface({ chips, slide, editBreakpoint }: { chips: Freeform
   // dragged "centered" on a wide monitor would land off-center on a real 375px phone.
   const DEFAULT_VW = 1440;
   const DEFAULT_VH = 900;
-  // Matches SectionLivePreview's PREVIEW_VIEWPORTS (768/375) — same breakpoint widths
-  // used everywhere else an admin picks "tablet"/"mobile" in this CMS. Heights are real
-  // single-screen device heights (not the 1500px scroll-room SectionLivePreview gives
-  // mobile for its stacking preview) since this surface positions elements freely within
-  // one screen, it doesn't render a scrollable stack.
-  const TABLET_VW = 768, TABLET_VH = 1024;
-  const MOBILE_VW = 375, MOBILE_VH = 812;
+  // The tablet/mobile reference sizes (768x1024 / 375x812) live in ONE place,
+  // lib/hero/hero-device-fit.ts (imported above) — shared with HeroCarouselEditor's Live
+  // Preview. They match SectionLivePreview's PREVIEW_VIEWPORTS widths (768/375) — the same
+  // breakpoint widths used everywhere else an admin picks "tablet"/"mobile" in this CMS.
+  // Heights are real single-screen device heights (not the 1500px scroll-room
+  // SectionLivePreview gives mobile for its stacking preview) since this surface positions
+  // elements freely within one screen, it doesn't render a scrollable stack.
   const [viewport, setViewport] = useState({ w: DEFAULT_VW, h: DEFAULT_VH });
   const [scale, setScale] = useState(0.35);
   const vpW = viewport.w;
   const aspect = `${viewport.w} / ${viewport.h}`;
   useEffect(() => {
-    if (editBreakpoint === "tablet") { setViewport({ w: TABLET_VW, h: TABLET_VH }); return; }
-    if (editBreakpoint === "mobile") { setViewport({ w: MOBILE_VW, h: MOBILE_VH }); return; }
+    const device = deviceViewportFor(editBreakpoint);
+    if (device) { setViewport({ w: device.w, h: device.h }); return; }
     const readViewport = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
     readViewport();
     window.addEventListener("resize", readViewport);
     return () => window.removeEventListener("resize", readViewport);
   }, [editBreakpoint]);
-  // MOBILE ONLY: fit the WHOLE 375x812 phone on screen (instead of stretching it to the full
-  // column width => ~692x1500px, 1.85x zoom, clipped chips). Uses the same shared rule as the
-  // Live Preview panel (lib/hero/hero-mobile-fit.ts) so both surfaces draw the phone at the
-  // same scale. The column width is measured on the OUTER wrapper (wrapRef), not on boxRef —
-  // boxRef's width is derived from it, so measuring the box would be circular. Re-measures on
-  // column resize (ResizeObserver) and window resize (height budget). Desktop/Tablet skip this.
+  // MOBILE and TABLET: fit the WHOLE device (375x812 phone / 768x1024 tablet) on screen
+  // instead of stretching it to the full column width (~692x1500px, 1.85x zoom, clipped
+  // chips for Mobile). Uses the same shared rule and device constants as the Live Preview
+  // panel (lib/hero/hero-device-fit.ts). Both surfaces apply it to the same window height,
+  // so they draw the device at the same scale whenever height is the limiting dimension; each
+  // column has its own width, so a width-limited surface scales to its own column. The column
+  // width is measured on the OUTER wrapper (wrapRef), not on boxRef — boxRef's width is
+  // derived from it, so measuring the box would be circular. Re-measures on column resize
+  // (ResizeObserver) and window resize (height budget). Desktop skips this entirely.
   const wrapRef = useRef<HTMLDivElement>(null);
   const [wrapWidth, setWrapWidth] = useState(0);
-  const [winH, setWinH] = useState(DEFAULT_VH);
-  useEffect(() => {
-    if (editBreakpoint !== "mobile") return;
+  // Lazy (SSR-guarded) so a fit mode's first frame budgets against the real window height
+  // instead of a hard-coded 900 until the layout effect below re-reads it.
+  const [winH, setWinH] = useState(() => (typeof window !== "undefined" ? window.innerHeight : DEFAULT_VH));
+  const deviceFitMode = isDeviceFitBreakpoint(editBreakpoint);
+  // useLayoutEffect: the wrapper's width is measured synchronously after commit and before
+  // paint, so the first painted frame in a fit mode already has the right box size (React 19
+  // does not warn about layout effects during SSR, and effects never run on the server).
+  useLayoutEffect(() => {
+    if (!deviceFitMode) return;
     const readH = () => setWinH(window.innerHeight);
     readH();
     window.addEventListener("resize", readH);
@@ -2949,8 +2958,8 @@ function FreeformDragSurface({ chips, slide, editBreakpoint }: { chips: Freeform
     const ro = el && typeof ResizeObserver !== "undefined" ? new ResizeObserver(measureWrap) : null;
     if (ro && el) ro.observe(el);
     return () => { window.removeEventListener("resize", readH); ro?.disconnect(); };
-  }, [editBreakpoint]);
-  const mobileFit = editBreakpoint === "mobile" ? fitMobilePhone(wrapWidth, winH) : null;
+  }, [deviceFitMode]);
+  const deviceFit = fitForBreakpoint(editBreakpoint, wrapWidth, winH);
   useEffect(() => {
     const measure = () => {
       const el = boxRef.current;
@@ -3127,12 +3136,13 @@ function FreeformDragSurface({ chips, slide, editBreakpoint }: { chips: Freeform
           border: "1px solid #334155",
           touchAction: "none",
           userSelect: "none",
-          // Mobile only: explicit phone-fit box, centered. No border (frame is a box-shadow)
-          // so clientWidth === fit.width and the chip `scale` below equals fit.scale exactly.
-          ...(mobileFit
+          // Mobile/Tablet only: explicit device-fit box, centered. No border (frame is a
+          // box-shadow) so clientWidth is fit.width to within integer rounding (<1px) and the
+          // chip `scale` (clientWidth / viewport.w) tracks fit.scale to within that rounding.
+          ...(deviceFit
             ? {
-                width: `${mobileFit.width}px`,
-                height: `${mobileFit.height}px`,
+                width: `${deviceFit.width}px`,
+                height: `${deviceFit.height}px`,
                 margin: "0 auto",
                 border: "none",
                 boxShadow: "0 0 0 1px #334155",
