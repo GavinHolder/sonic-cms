@@ -147,6 +147,68 @@ export function handleRect(frameRect: Rect, scale: number, minPx = MIN_HANDLE_PX
   return { x: r.x - (w - r.w) / 2, y: r.y - (h - r.h) / 2, w, h };
 }
 
+/** Fixed outer-px size of the stand-in handle for an element with no measurable size. */
+export const PLACEHOLDER_HANDLE_PX = 28;
+
+const isFiniteRect = (r: Rect): boolean =>
+  isFiniteNumber(r.x) && isFiniteNumber(r.y) && isFiniteNumber(r.w) && isFiniteNumber(r.h);
+
+/**
+ * Whether less than `minPx` of an outer-px handle rect is visible inside the (0,0,box.w,box.h)
+ * canvas box (which clips its children). Such a handle can't be seen or grabbed. The threshold
+ * is capped by the box itself so a tiny box doesn't flag every handle. A non-finite handle
+ * counts as off-screen; an unusable box can't clip anything, so it never does.
+ */
+export function isHandleOffscreen(r: Rect, box: Size, minPx = MIN_HANDLE_PX): boolean {
+  if (!(box.w > 0) || !(box.h > 0) || !isFiniteNumber(box.w) || !isFiniteNumber(box.h)) return false;
+  if (!isFiniteRect(r)) return true;
+  const visW = Math.min(r.x + r.w, box.w) - Math.max(r.x, 0);
+  const visH = Math.min(r.y + r.h, box.h) - Math.max(r.y, 0);
+  const need = Math.min(minPx, box.w, box.h);
+  return visW < need || visH < need;
+}
+
+/**
+ * Pins a handle rect INSIDE the canvas box (position only - its size is kept), so an element
+ * whose real position is outside the visible hero (e.g. an inherited Desktop "align bottom"
+ * 92% lands below the clipped bottom edge) stays selectable, draggable and clearable. A
+ * handle larger than the box is pinned to its top-left. A non-finite rect becomes a minimum-size
+ * handle at the box origin. An unusable box returns the rect unchanged.
+ */
+export function clampHandleIntoBox(r: Rect, box: Size): Rect {
+  if (!(box.w > 0) || !(box.h > 0) || !isFiniteNumber(box.w) || !isFiniteNumber(box.h)) return r;
+  const safe: Rect = isFiniteRect(r) ? r : { x: 0, y: 0, w: MIN_HANDLE_PX, h: MIN_HANDLE_PX };
+  return {
+    x: clampNum(safe.x, 0, Math.max(0, box.w - safe.w)),
+    y: clampNum(safe.y, 0, Math.max(0, box.h - safe.h)),
+    w: safe.w,
+    h: safe.h,
+  };
+}
+
+/**
+ * The handle to draw for a measured element: the scaled rect when it is visible, otherwise
+ * the same rect pinned into the box and flagged `offscreen` (drawn differently so the author
+ * knows it is hidden on the real page).
+ */
+export function fitHandleToBox(frameRect: Rect, scale: number, box: Size): { rect: Rect; offscreen: boolean } {
+  const raw = handleRect(frameRect, scale);
+  const offscreen = isHandleOffscreen(raw, box);
+  return { rect: offscreen ? clampHandleIntoBox(raw, box) : raw, offscreen };
+}
+
+/**
+ * Stand-in frame-px rect for an element with NO measurable size (image not loaded / broken
+ * src / display:none): a fixed `sizePx` (outer px) square centred where its stored position
+ * puts it, so it can still be selected, dragged and cleared. Null when the layer is unusable.
+ */
+export function placeholderRect(pos: Pct, layer: Rect | null | undefined, scale: number, sizePx = PLACEHOLDER_HANDLE_PX): Rect | null {
+  const c = pctToPx(pos, layer);
+  if (!c || !(scale > 0) || !isFiniteNumber(scale)) return null;
+  const side = sizePx / scale;
+  return { x: c.x - side / 2, y: c.y - side / 2, w: side, h: side };
+}
+
 /**
  * The range of layer % whose centre stays inside the visible device viewport. With the
  * navbar offset the layer is taller than what the hero shows (its top starts below the
@@ -207,6 +269,34 @@ function boundedPos(startPos: number, startCentre: number, centre: number, min: 
   const lo = Math.max(0, Math.ceil(startPos + (min - startCentre)));
   const hi = Math.min(100, Math.max(lo, Math.floor(startPos + (max - startCentre))));
   return clampPct(startPos + (centre - startCentre), lo, hi);
+}
+
+/**
+ * Where a drag should START from. An element whose real centre is outside the visible hero
+ * (so its handle was pinned into the box) is treated as already sitting at the nearest visible
+ * point: the start centre, stored pos and start rect all shift by the same clamped delta, so
+ * the pinned handle stays under the pointer and the first move brings the element into view.
+ * For an element already inside the visible area this returns the inputs unchanged.
+ */
+export function startDragInView(args: {
+  startPos: Pct;
+  centre: Pct;
+  rect: Rect;
+  layer: Rect;
+  view: Size;
+}): { startPos: Pct; startCentre: Pct; startRect: Rect } {
+  const { startPos, centre, rect, layer, view } = args;
+  const range = visibleRangePct(layer, view);
+  const cx = clampNum(centre.x, range.min.x, range.max.x);
+  const cy = clampNum(centre.y, range.min.y, range.max.y);
+  const dx = cx - centre.x;
+  const dy = cy - centre.y;
+  if (dx === 0 && dy === 0) return { startPos, startCentre: centre, startRect: rect };
+  return {
+    startPos: { x: startPos.x + dx, y: startPos.y + dy },
+    startCentre: { x: cx, y: cy },
+    startRect: translateRect(rect, (dx / 100) * layer.w, (dy / 100) * layer.h),
+  };
 }
 
 export interface DragStart {

@@ -12,17 +12,23 @@ import {
   alignTargets,
   centreOf,
   centrePct,
+  clampHandleIntoBox,
   clampPct,
   computeDragStep,
   distributeValues,
   effectivePos,
+  fitHandleToBox,
   handleRect,
+  isHandleOffscreen,
   isUsableRect,
   makeRect,
+  PLACEHOLDER_HANDLE_PX,
   pctToPx,
+  placeholderRect,
   pxToPct,
   rectsEqual,
   scaleRect,
+  startDragInView,
   translateRect,
   visibleRangePct,
   type DragStart,
@@ -338,6 +344,149 @@ describe('distributeValues', () => {
   })
 })
 
+describe('off-screen handles (isHandleOffscreen / clampHandleIntoBox / fitHandleToBox)', () => {
+  // tablet at scale 0.5 -> a 384 x 512 canvas box
+  const BOX = { w: 384, h: 512 }
+  const inside = { x: 100, y: 100, w: 80, h: 30 }
+
+  it('fully inside: visible, left exactly as is', () => {
+    expect(isHandleOffscreen(inside, BOX)).toBe(false)
+    expect(clampHandleIntoBox(inside, BOX)).toEqual(inside)
+  })
+
+  it('partly clipped but with >= MIN_HANDLE_PX still visible: still grabbable, not moved', () => {
+    const r = { x: 360, y: 100, w: 80, h: 30 } // 24px visible
+    expect(isHandleOffscreen(r, BOX)).toBe(false)
+    expect(fitHandleToBox({ x: 720, y: 200, w: 160, h: 60 }, 0.5, BOX)).toEqual({ rect: r, offscreen: false })
+  })
+
+  it('less than MIN_HANDLE_PX visible counts as off-screen', () => {
+    expect(isHandleOffscreen({ x: 370, y: 100, w: 80, h: 30 }, BOX)).toBe(true) // 14px visible
+    expect(isHandleOffscreen({ x: 100, y: 505, w: 80, h: 30 }, BOX)).toBe(true) // 7px visible
+  })
+
+  it('fully below the box: pinned to the bottom edge, size kept', () => {
+    const r = { x: 100, y: 600, w: 80, h: 30 }
+    expect(isHandleOffscreen(r, BOX)).toBe(true)
+    expect(clampHandleIntoBox(r, BOX)).toEqual({ x: 100, y: 482, w: 80, h: 30 })
+  })
+
+  it('fully above / left / right of the box: pinned to the matching edge', () => {
+    expect(clampHandleIntoBox({ x: 100, y: -100, w: 80, h: 30 }, BOX)).toEqual({ x: 100, y: 0, w: 80, h: 30 })
+    expect(clampHandleIntoBox({ x: -200, y: 100, w: 80, h: 30 }, BOX)).toEqual({ x: 0, y: 100, w: 80, h: 30 })
+    expect(clampHandleIntoBox({ x: 500, y: 100, w: 80, h: 30 }, BOX)).toEqual({ x: 304, y: 100, w: 80, h: 30 })
+    expect(isHandleOffscreen({ x: 100, y: -100, w: 80, h: 30 }, BOX)).toBe(true)
+    expect(isHandleOffscreen({ x: -200, y: 100, w: 80, h: 30 }, BOX)).toBe(true)
+    expect(isHandleOffscreen({ x: 500, y: 100, w: 80, h: 30 }, BOX)).toBe(true)
+  })
+
+  it('a pinned handle is always fully inside the box afterwards', () => {
+    for (const r of [
+      { x: 100, y: 600, w: 80, h: 30 },
+      { x: -200, y: -200, w: 80, h: 30 },
+      { x: 9999, y: 9999, w: 80, h: 30 },
+    ]) {
+      const p = clampHandleIntoBox(r, BOX)
+      expect(p.x).toBeGreaterThanOrEqual(0)
+      expect(p.y).toBeGreaterThanOrEqual(0)
+      expect(p.x + p.w).toBeLessThanOrEqual(BOX.w)
+      expect(p.y + p.h).toBeLessThanOrEqual(BOX.h)
+    }
+  })
+
+  it('tiny box: the visibility threshold is capped by the box, and a handle bigger than the box pins to its top-left', () => {
+    const tiny = { w: 10, h: 10 }
+    expect(isHandleOffscreen({ x: 0, y: 0, w: 16, h: 16 }, tiny)).toBe(false) // all 10px of the box covered
+    expect(clampHandleIntoBox({ x: 5, y: 5, w: 16, h: 16 }, tiny)).toEqual({ x: 0, y: 0, w: 16, h: 16 })
+    expect(isHandleOffscreen({ x: 50, y: 50, w: 16, h: 16 }, tiny)).toBe(true)
+  })
+
+  it('NaN / non-finite handle is off-screen and pins to a minimum-size handle at the origin; an unusable box never clips', () => {
+    const bad = { x: NaN, y: 10, w: 20, h: 20 }
+    expect(isHandleOffscreen(bad, BOX)).toBe(true)
+    expect(clampHandleIntoBox(bad, BOX)).toEqual({ x: 0, y: 0, w: MIN_HANDLE_PX, h: MIN_HANDLE_PX })
+    expect(isHandleOffscreen(inside, { w: 0, h: 0 })).toBe(false)
+    expect(isHandleOffscreen(inside, { w: NaN, h: 100 })).toBe(false)
+    expect(clampHandleIntoBox(inside, { w: 0, h: 512 })).toEqual(inside)
+  })
+
+  it('the real case: an inherited Desktop "align bottom" 92% on tablet (centre y 1042 > 1024) is pinned just inside, flagged', () => {
+    // element 300x58 frame px centred at (384, 1042); layer 0,100,768,1024; box = 768x1024 at scale 0.5
+    const frameRect = { x: 234, y: 1042 - 29, w: 300, h: 58 }
+    const { rect, offscreen } = fitHandleToBox(frameRect, 0.5, BOX)
+    expect(offscreen).toBe(true)
+    expect(rect.y + rect.h).toBeLessThanOrEqual(BOX.h)
+    expect(rect.y).toBeGreaterThan(BOX.h - 40)
+    expect(rect.x).toBeCloseTo(117, 6) // x untouched (scaled)
+  })
+
+  it('a visible element is drawn at its true scaled position, not pinned', () => {
+    const { rect, offscreen } = fitHandleToBox({ x: 234, y: 306, w: 300, h: 58 }, 0.5, BOX)
+    expect(offscreen).toBe(false)
+    expect(rect).toEqual({ x: 117, y: 153, w: 150, h: 29 })
+  })
+})
+
+describe('startDragInView - dragging a pinned (off-screen) element brings it back', () => {
+  const view = TABLET_VIEW
+  const maxY = ((1024 - 100) / 1024) * 100 // 90.23
+
+  it('an element already in view starts exactly as measured', () => {
+    const rect = { x: 234, y: 306, w: 300, h: 58 }
+    const centre = { x: 50, y: 22.949 }
+    const s = startDragInView({ startPos: { x: 50, y: 23 }, centre, rect, layer: TABLET_LAYER, view })
+    expect(s).toEqual({ startPos: { x: 50, y: 23 }, startCentre: centre, startRect: rect })
+  })
+
+  it('an element below the visible area starts from the nearest visible point (pos, centre and rect shift together)', () => {
+    const centre = { x: 50, y: 92 } // inherited 92% -> y px 1042
+    const rect = { x: 234, y: 1013, w: 300, h: 58 }
+    const s = startDragInView({ startPos: { x: 50, y: 92 }, centre, rect, layer: TABLET_LAYER, view })
+    expect(s.startCentre.y).toBeCloseTo(maxY, 6)
+    expect(s.startPos.y).toBeCloseTo(maxY, 6)
+    expect(s.startRect.y).toBeCloseTo(1013 + ((maxY - 92) / 100) * 1024, 6)
+  })
+
+  it('computeDragStep then moves it back into view on the very first move (even a tiny one)', () => {
+    const centre = { x: 50, y: 92 }
+    const rect = { x: 234, y: 1013, w: 300, h: 58 }
+    const begin = startDragInView({ startPos: { x: 50, y: 92 }, centre, rect, layer: TABLET_LAYER, view })
+    const start: DragStart = { pointer: { x: 100, y: 500 }, startPos: begin.startPos, startCentre: begin.startCentre }
+    const tiny = computeDragStep({ start, pointer: { x: 100, y: 503 }, scale: 0.5, layer: TABLET_LAYER, view, snapEnabled: false, others: [] })
+    expect(tiny.centre.y).toBeLessThanOrEqual(maxY + 1e-9)
+    expect(tiny.pos.y).toBeLessThan(92)
+    const up = computeDragStep({ start, pointer: { x: 100, y: 400 }, scale: 0.5, layer: TABLET_LAYER, view, snapEnabled: false, others: [] })
+    expect(up.pos.y).toBeLessThan(tiny.pos.y) // follows the pointer upward from there
+  })
+
+  it('even WITHOUT the start adjustment the first step clamps the centre into view (defence in depth)', () => {
+    const start: DragStart = { pointer: { x: 100, y: 500 }, startPos: { x: 50, y: 92 }, startCentre: { x: 50, y: 92 } }
+    const r = computeDragStep({ start, pointer: { x: 100, y: 504 }, scale: 0.5, layer: TABLET_LAYER, view, snapEnabled: false, others: [] })
+    expect(r.centre.y).toBeLessThanOrEqual(maxY + 1e-9)
+  })
+})
+
+describe('placeholderRect - stand-in handle for an element with no measurable size', () => {
+  it('is a fixed-size (outer px) square centred at the stored position', () => {
+    const r = placeholderRect({ x: 50, y: 23 }, TABLET_LAYER, 0.5)!
+    const side = PLACEHOLDER_HANDLE_PX / 0.5
+    expect(r.w).toBe(side)
+    expect(r.h).toBe(side)
+    expect(r.x + r.w / 2).toBeCloseTo(384, 6)
+    expect(r.y + r.h / 2).toBeCloseTo(100 + 0.23 * 1024, 6)
+    // scaled back to outer px it is exactly PLACEHOLDER_HANDLE_PX
+    expect(scaleRect(r, 0.5).w).toBe(PLACEHOLDER_HANDLE_PX)
+  })
+
+  it('is null for an unusable layer or a bad scale (never NaN)', () => {
+    expect(placeholderRect({ x: 50, y: 50 }, null, 0.5)).toBeNull()
+    expect(placeholderRect({ x: 50, y: 50 }, { x: 0, y: 0, w: 0, h: 0 }, 0.5)).toBeNull()
+    expect(placeholderRect({ x: 50, y: 50 }, TABLET_LAYER, 0)).toBeNull()
+    expect(placeholderRect({ x: 50, y: 50 }, TABLET_LAYER, NaN)).toBeNull()
+    expect(placeholderRect({ x: NaN, y: 50 }, TABLET_LAYER, 0.5)).toBeNull()
+  })
+})
+
 describe('heroFrameCss - the frame is EXACTLY the real page (hero = H, never H + navbar)', () => {
   it('pins height and min-height to the viewport height, with no navbar term', () => {
     const css = heroFrameCss(812, 100)
@@ -381,6 +530,26 @@ describe('one-system wiring (source contracts)', () => {
     for (const id of ['id: "eyebrow"', 'id: `row-${i}`', 'id: "heading"', 'id: "subheading"', 'id: `btn-${i}`', 'id: `img-${i}`']) {
       expect(slide).toContain(id)
     }
+  })
+
+  it('HeroRealRenderFrame keeps the stable-identity iframe ref callback and the portal-root state (blank-preview regression guard)', () => {
+    const frame = read('components/admin/hero/HeroRealRenderFrame.tsx')
+    expect(frame).toMatch(/const \[portalRoot, setPortalRoot\] = useState<HTMLElement \| null>\(null\)/)
+    // useCallback with an EMPTY dependency array - a new function each render makes React detach(null)/re-attach
+    // the ref every render, which clears the portal target and leaves the frame permanently blank
+    expect(frame).toMatch(
+      /const setIframeNode = useCallback\(\(node: HTMLIFrameElement \| null\) => \{[\s\S]*?if \(!node\) setPortalRoot\(null\);[\s\S]*?\}, \[\]\)/
+    )
+    expect(frame).toContain('ref={setIframeNode}')
+    expect(frame).not.toMatch(/ref=\{\s*\(/) // no inline ref-callback literal
+    expect(frame).toContain('onLoad={handleLoad}')
+  })
+
+  it('the measurer listens for load events on the iframe DOCUMENT (captures re-cloned stylesheet <link>s) and removes it on cleanup', () => {
+    const hook = read('components/admin/hero/useHeroFrameMeasure.ts')
+    expect(hook).toContain('doc.addEventListener("load", schedule, true)')
+    expect(hook).toContain('doc.removeEventListener("load", schedule, true)')
+    expect(hook).not.toContain('root.addEventListener("load"')
   })
 
   it('Live Preview and canvas both render through the ONE shared frame (no second iframe/mirroring copy)', () => {

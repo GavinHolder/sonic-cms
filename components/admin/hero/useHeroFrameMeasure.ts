@@ -18,7 +18,7 @@ import { isUsableRect, makeRect, rectsEqual, type Rect } from "@/lib/hero/hero-c
  *    so its first child is measured instead (the visible element).
  *
  * Re-measures (rAF-throttled) on: DOM mutation, element resize, iframe <head> changes
- * (mirrored stylesheets landing), image loads, and web-font loads. The owner can also call
+ * (mirrored stylesheets landing), image / stylesheet loads, and web-font loads. The owner can also call
  * `remeasure()` for a synchronous read (e.g. right after a drag ends).
  *
  * ASSUMPTIONS:
@@ -143,8 +143,10 @@ export function useHeroFrameMeasure(root: HTMLElement | null): {
     // without mutating anything under #root.
     const headObserver = new frameWin.MutationObserver(schedule);
     headObserver.observe(doc.head, { childList: true, subtree: true, attributes: true });
-    // <img> load events don't bubble - listen in the capture phase.
-    root.addEventListener("load", schedule, true);
+    // `load` doesn't bubble (<img>, and the mirrored <link rel=stylesheet> clones the frame
+    // re-inserts into <head>, which are NOT under #root) - listen on the whole iframe
+    // document in the capture phase.
+    doc.addEventListener("load", schedule, true);
     const fonts = doc.fonts;
     fonts?.addEventListener?.("loadingdone", schedule);
     void fonts?.ready.then(schedule);
@@ -162,7 +164,7 @@ export function useHeroFrameMeasure(root: HTMLElement | null): {
       resizeObserver.disconnect();
       mutationObserver.disconnect();
       headObserver.disconnect();
-      root.removeEventListener("load", schedule, true);
+      doc.removeEventListener("load", schedule, true);
       fonts?.removeEventListener?.("loadingdone", schedule);
     };
   }, [root]);

@@ -5,7 +5,7 @@ import type { FreeformPos, HeroCarouselSlide, HeroSection } from "@/types/sectio
 import HeroCarousel from "@/components/sections/HeroCarousel";
 import HeroRealRenderFrame from "./HeroRealRenderFrame";
 import FreeformAlignToolbar from "./FreeformAlignToolbar";
-import { useHeroFrameMeasure } from "./useHeroFrameMeasure";
+import { useHeroFrameMeasure, type MeasuredItem } from "./useHeroFrameMeasure";
 import { deviceViewportFor, fitDevice, MOBILE_VIEWPORT } from "@/lib/hero/hero-device-fit";
 import { HERO_CANVAS_FREEZE_CSS } from "@/lib/hero/hero-frame";
 import {
@@ -17,8 +17,10 @@ import {
   computeDragStep,
   distributeValues,
   effectivePos,
-  handleRect,
+  fitHandleToBox,
   isUsableRect,
+  placeholderRect,
+  startDragInView,
   translateRect,
   type DragStart,
   type Guides,
@@ -304,11 +306,21 @@ export default function HeroRealCanvas({ chips, slide, section, editBreakpoint, 
           // each handle re-enables them.
           <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 3 }}>
             {chips.map((chip) => {
-              const m = items[chip.id];
+              const measured = items[chip.id];
+              // An element with no measurable size (image not loaded / broken src) still gets a
+              // small stand-in handle where its stored position puts it, so it stays selectable
+              // and clearable.
+              const standIn = measured ? null : placeholderRect(chip.pos, layer, scale);
+              const m: MeasuredItem | null = measured ?? (standIn ? { rect: standIn, stacked: false } : null);
               if (!m) return null;
               const selected = selectedIds.has(chip.id);
               const frameRect = dragId === chip.id && dragRect ? dragRect : m.rect;
-              const hr = handleRect(frameRect, scale);
+              // An element whose real position is outside the visible hero (inherited Desktop
+              // "align bottom", a tall mobile stack, ...) would get a handle outside the clipped
+              // box: pin it just inside instead, flagged, so it can still be grabbed / cleared.
+              const { rect: hr, offscreen } = fitHandleToBox(frameRect, scale, { w: fit.width, h: fit.height });
+              // Keep the clear-override x inside the box when the handle sits on an edge.
+              const badgeInside = offscreen || hr.y < 8 || hr.x + hr.w > fit.width - 8;
               return (
                 <div
                   key={chip.id}
@@ -328,16 +340,24 @@ export default function HeroRealCanvas({ chips, slide, section, editBreakpoint, 
                     const centre = centrePct(m.rect, layer);
                     if (!centre || !isUsableRect(layer)) return; // can't drag what isn't measured
                     boxRef.current?.setPointerCapture?.(e.pointerId);
+                    // A stacked element has no meaningful stored pos - it starts from its exact
+                    // measured centre, and is rounded once, when written. An element outside
+                    // the visible hero (pinned handle) starts from its nearest visible point.
+                    const begin = startDragInView({
+                      startPos: m.stacked ? centre : chip.pos,
+                      centre,
+                      rect: m.rect,
+                      layer,
+                      view: device,
+                    });
                     dragRef.current = {
                       chipId: chip.id,
                       start: {
                         pointer: { x: e.clientX, y: e.clientY },
-                        // A stacked element has no meaningful stored pos - it starts from its exact
-                        // measured centre, and is rounded once, when written.
-                        startPos: m.stacked ? centre : chip.pos,
-                        startCentre: centre,
+                        startPos: begin.startPos,
+                        startCentre: begin.startCentre,
                       },
-                      startRect: m.rect,
+                      startRect: begin.startRect,
                       layer,
                       onMove: chip.onMove,
                       moved: false,
@@ -348,6 +368,8 @@ export default function HeroRealCanvas({ chips, slide, section, editBreakpoint, 
                   }}
                   title={`${chip.kind} — ${chip.pos.x}%, ${chip.pos.y}%${
                     chip.hasOverride ? " (own position at this breakpoint)" : m.stacked ? " (automatic stack — drag to give it a position)" : ""
+                  }${offscreen ? " (off-screen on the real page — drag to bring it back)" : ""}${
+                    standIn ? " (no visible size yet — e.g. its image has not loaded)" : ""
                   }`}
                   style={{
                     position: "absolute",
@@ -361,7 +383,12 @@ export default function HeroRealCanvas({ chips, slide, section, editBreakpoint, 
                     // A handle with its own override at this breakpoint gets a solid amber
                     // outline instead of the usual dashed one - at a glance, which elements
                     // have actually been re-authored vs. still inheriting.
-                    outline: selected ? "1.5px solid #38bdf8" : chip.hasOverride ? "1.5px solid #f59e0b" : "1px dashed rgba(255,255,255,0.35)",
+                    // An off-screen (pinned) handle gets a red dashed outline so it is obvious the
+                    // element is hidden on the real page.
+                    outline: offscreen
+                      ? "1.5px dashed #ef4444"
+                      : selected ? "1.5px solid #38bdf8" : chip.hasOverride ? "1.5px solid #f59e0b" : "1px dashed rgba(255,255,255,0.35)",
+                    background: standIn ? "rgba(255,255,255,0.10)" : undefined,
                     outlineOffset: 2,
                     borderRadius: 3,
                     zIndex: selected ? 2 : 1,
@@ -378,8 +405,8 @@ export default function HeroRealCanvas({ chips, slide, section, editBreakpoint, 
                       }}
                       style={{
                         position: "absolute",
-                        top: -8,
-                        right: -8,
+                        top: badgeInside ? 2 : -8,
+                        right: badgeInside ? 2 : -8,
                         width: 16,
                         height: 16,
                         borderRadius: "50%",
