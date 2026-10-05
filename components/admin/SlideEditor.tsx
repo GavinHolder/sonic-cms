@@ -88,10 +88,9 @@ export default function SlideEditor({
 
   const isFreeform = slide.overlay?.layoutMode === "freeform";
 
-  // Breakpoint the Size (px) / Font Size controls edit: follows the "Position for" toggle, but only while
-  // Freeform Layout is on — the preset layout has no per-breakpoint sizes, so its controls stay on Desktop's
-  // `fontSize` even if the toggle was left on Tablet/Mobile.
-  const sizeBp = isFreeform ? editBreakpoint : "desktop";
+  // Breakpoint the Size (px) / Font Size controls edit: follows the "Position for" toggle. With Freeform Layout
+  // OFF (presetMode) the controls ignore it and edit only the legacy `fontSize`, exactly as before.
+  const sizeBp = editBreakpoint;
 
   // Update a single button's freeform pos (buttons live in an array on the overlay).
   // `field` selects which of pos/posTablet/posMobile this write targets — driven by
@@ -157,7 +156,7 @@ export default function SlideEditor({
         const own = editBreakpoint === "mobile" ? row.posMobile : editBreakpoint === "tablet" ? row.posTablet : row.pos;
         chips.push({
           id: `row-${i}`, kind: "heading", text: row.text, words: row.words, isRow: true,
-          fontSize: row.fontSize, fontSizeTablet: row.fontSizeTablet, fontSizeMobile: row.fontSizeMobile, fontSizeIndependent: row.fontSizeIndependent, fontWeight: row.fontWeight, fontFamily: row.fontFamily, color: row.color,
+          fontSize: row.fontSize, fontSizeDesktop: row.fontSizeDesktop, fontSizeTablet: row.fontSizeTablet, fontSizeMobile: row.fontSizeMobile, fontWeight: row.fontWeight, fontFamily: row.fontFamily, color: row.color,
           pos: resolveFreeformPos(editBreakpoint, row.pos, row.posTablet, row.posMobile) ?? defaultFreeformPos("heading", i),
           onMove: (p) => updateHeadingRow(i, { [posField]: p }),
           hasOverride: editBreakpoint !== "desktop" && own != null,
@@ -168,7 +167,7 @@ export default function SlideEditor({
       const own = editBreakpoint === "mobile" ? ov.headingPosMobile : editBreakpoint === "tablet" ? ov.headingPosTablet : ov.headingPos;
       chips.push({
         id: "heading", kind: "heading", text: ov.heading.text,
-        fontSize: ov.heading.fontSize, fontSizeTablet: ov.heading.fontSizeTablet, fontSizeMobile: ov.heading.fontSizeMobile, fontSizeIndependent: ov.heading.fontSizeIndependent, fontWeight: ov.heading.fontWeight, fontFamily: ov.heading.fontFamily, color: ov.heading.color,
+        fontSize: ov.heading.fontSize, fontSizeDesktop: ov.heading.fontSizeDesktop, fontSizeTablet: ov.heading.fontSizeTablet, fontSizeMobile: ov.heading.fontSizeMobile, fontWeight: ov.heading.fontWeight, fontFamily: ov.heading.fontFamily, color: ov.heading.color,
         pos: resolveFreeformPos(editBreakpoint, ov.headingPos, ov.headingPosTablet, ov.headingPosMobile) ?? defaultFreeformPos("heading"),
         onMove: (p) => updateOverlay({ [editBreakpoint === "mobile" ? "headingPosMobile" : editBreakpoint === "tablet" ? "headingPosTablet" : "headingPos"]: p }),
         hasOverride: editBreakpoint !== "desktop" && own != null,
@@ -179,7 +178,7 @@ export default function SlideEditor({
       const own = editBreakpoint === "mobile" ? ov.subheadingPosMobile : editBreakpoint === "tablet" ? ov.subheadingPosTablet : ov.subheadingPos;
       chips.push({
         id: "subheading", kind: "subheading", text: ov.subheading.text,
-        fontSize: ov.subheading.fontSize, fontSizeTablet: ov.subheading.fontSizeTablet, fontSizeMobile: ov.subheading.fontSizeMobile, fontSizeIndependent: ov.subheading.fontSizeIndependent, fontWeight: ov.subheading.fontWeight, fontFamily: ov.subheading.fontFamily, color: ov.subheading.color,
+        fontSize: ov.subheading.fontSize, fontSizeDesktop: ov.subheading.fontSizeDesktop, fontSizeTablet: ov.subheading.fontSizeTablet, fontSizeMobile: ov.subheading.fontSizeMobile, fontWeight: ov.subheading.fontWeight, fontFamily: ov.subheading.fontFamily, color: ov.subheading.color,
         pos: resolveFreeformPos(editBreakpoint, ov.subheadingPos, ov.subheadingPosTablet, ov.subheadingPosMobile) ?? defaultFreeformPos("subheading"),
         onMove: (p) => updateOverlay({ [editBreakpoint === "mobile" ? "subheadingPosMobile" : editBreakpoint === "tablet" ? "subheadingPosTablet" : "subheadingPos"]: p }),
         hasOverride: editBreakpoint !== "desktop" && own != null,
@@ -190,7 +189,7 @@ export default function SlideEditor({
       const own = editBreakpoint === "mobile" ? b.posMobile : editBreakpoint === "tablet" ? b.posTablet : b.pos;
       chips.push({
         id: `btn-${i}`, kind: "button", text: b.text || "Button",
-        fontSize: b.fontSize, fontSizeTablet: b.fontSizeTablet, fontSizeMobile: b.fontSizeMobile, fontSizeIndependent: b.fontSizeIndependent, fontFamily: b.fontFamily,
+        fontSize: b.fontSize, fontSizeDesktop: b.fontSizeDesktop, fontSizeTablet: b.fontSizeTablet, fontSizeMobile: b.fontSizeMobile, fontFamily: b.fontFamily,
         btnBg: b.backgroundColor, btnColor: b.textColor, variant: b.variant, btnWidth: b.width,
         pos: resolveFreeformPos(editBreakpoint, b.pos, b.posTablet, b.posMobile) ?? defaultFreeformPos("button", i),
         onMove: (p) => setButtonPos(i, posField, p),
@@ -223,7 +222,7 @@ export default function SlideEditor({
       animation: existing?.animation ?? "slideUp",
       animationDuration: existing?.animationDuration ?? 800,
       animationDelay: existing?.animationDelay ?? 200,
-      // Carry the per-breakpoint sizes + independence flag (adds no keys to a legacy heading).
+      // Carry the own per-breakpoint sizes (adds no keys to a heading that has none).
       ...pickFontSizeFields(existing),
     };
     updateOverlay({ headingRows: [firstRow] });
@@ -1121,9 +1120,10 @@ export default function SlideEditor({
                       breakpoint={sizeBp}
                       label="Font Size (px)"
                       size={slide.overlay?.heading.fontSize ?? 56}
+                      sizeDesktop={slide.overlay?.heading.fontSizeDesktop}
                       sizeTablet={slide.overlay?.heading.fontSizeTablet}
                       sizeMobile={slide.overlay?.heading.fontSizeMobile}
-                      independent={slide.overlay?.heading.fontSizeIndependent}
+                      presetMode={!isFreeform}
                       onPatch={(patch) =>
                         updateOverlay({
                           heading: {
@@ -1516,9 +1516,10 @@ export default function SlideEditor({
                               label="Size (px)"
                               small
                               size={row.fontSize}
+                              sizeDesktop={row.fontSizeDesktop}
                               sizeTablet={row.fontSizeTablet}
                               sizeMobile={row.fontSizeMobile}
-                              independent={row.fontSizeIndependent}
+                              presetMode={!isFreeform}
                               onPatch={(patch) => updateHeadingRow(idx, patch)}
                             />
                           </div>
@@ -1700,9 +1701,10 @@ export default function SlideEditor({
                       breakpoint={sizeBp}
                       label="Font Size (px)"
                       size={slide.overlay.subheading.fontSize}
+                      sizeDesktop={slide.overlay.subheading.fontSizeDesktop}
                       sizeTablet={slide.overlay.subheading.fontSizeTablet}
                       sizeMobile={slide.overlay.subheading.fontSizeMobile}
-                      independent={slide.overlay.subheading.fontSizeIndependent}
+                      presetMode={!isFreeform}
                       onPatch={(patch) =>
                         updateOverlay({
                           subheading: {
@@ -2088,9 +2090,10 @@ export default function SlideEditor({
                         labelClassName="form-label fw-semibold"
                         size={button.fontSize}
                         desktopDefault={18}
+                        sizeDesktop={button.fontSizeDesktop}
                         sizeTablet={button.fontSizeTablet}
                         sizeMobile={button.fontSizeMobile}
-                        independent={button.fontSizeIndependent}
+                        presetMode={!isFreeform}
                         onPatch={(patch) => {
                           const updatedButtons = [...(slide.overlay?.buttons ?? [])];
                           updatedButtons[index] = { ...button, ...patch };
@@ -2786,10 +2789,10 @@ interface FreeformChip {
   /** True for stacked headingRows (tighter line-height/letter-spacing than the legacy single heading). */
   isRow?: boolean;
   fontSize?: number;      // px (design canvas)
-  /** Per-breakpoint sizes + independence flag — only read by renderFreeformChip's shared size resolver (lib/hero/hero-font-size.ts). */
+  /** Own per-breakpoint sizes — only read by renderFreeformChip's shared size resolver (lib/hero/hero-font-size.ts). */
+  fontSizeDesktop?: number;
   fontSizeTablet?: number;
   fontSizeMobile?: number;
-  fontSizeIndependent?: boolean;
   fontWeight?: number;
   fontFamily?: string;
   color?: string;         // text / fill colour
@@ -3281,7 +3284,7 @@ function renderFreeformChip(chip: FreeformChip, scale: number, vpW: number, brea
   // page (lib/hero/hero-font-size.ts), evaluated at this surface's viewport width, so this chip, the Live
   // Preview and the page agree. Lines/letter-spacing below mirror HeroCarousel's freeform styles.
   const fontPx = (kind: "heading" | "legacyHeading" | "subheading" | "button", size: number | undefined) =>
-    `${Math.max(1, resolveFreeformFontSizePx({ kind, breakpoint, size, sizeTablet: chip.fontSizeTablet, sizeMobile: chip.fontSizeMobile, independent: chip.fontSizeIndependent }, vpW) * scale)}px`;
+    `${Math.max(1, resolveFreeformFontSizePx({ kind, breakpoint, size, sizeDesktop: chip.fontSizeDesktop, sizeTablet: chip.fontSizeTablet, sizeMobile: chip.fontSizeMobile }, vpW) * scale)}px`;
   if (chip.kind === "heading") {
     const words = chip.words;
     // Stacked headingRows use lineHeight 0.95 and letterSpacing -0.02em; the legacy single heading

@@ -1013,10 +1013,10 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                           style={{
                             margin: 0,
                             padding: 0,
-                            // Size comes from the shared resolver (lib/hero/hero-font-size.ts): an element that
-                            // has never had its sizes edited (no fontSizeIndependent flag) gets the old
-                            // clamp()s byte-for-byte; a flagged one renders each breakpoint from its own value.
-                            fontSize: resolveFreeformFontSizeCss({ kind: "heading", breakpoint: fontBreakpoint, size: row.fontSize, sizeTablet: row.fontSizeTablet, sizeMobile: row.fontSizeMobile, independent: row.fontSizeIndependent }),
+                            // Size comes from the shared resolver (lib/hero/hero-font-size.ts): a breakpoint with
+                            // its own fontSizeDesktop/Tablet/Mobile renders that exact size; a breakpoint without
+                            // one gets the old clamp() computed from `fontSize`, byte-for-byte as before.
+                            fontSize: resolveFreeformFontSizeCss({ kind: "heading", breakpoint: fontBreakpoint, size: row.fontSize, sizeDesktop: row.fontSizeDesktop, sizeTablet: row.fontSizeTablet, sizeMobile: row.fontSizeMobile }),
                             fontWeight: row.fontWeight,
                             fontFamily: heroFontStack(row.fontFamily || "inherit"),
                             color: row.color,
@@ -1048,7 +1048,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                           style={{
                             margin: 0,
                             // Shared resolver — see the heading-rows comment above.
-                            fontSize: resolveFreeformFontSizeCss({ kind: "legacyHeading", breakpoint: fontBreakpoint, size: slide.overlay.heading.fontSize, sizeTablet: slide.overlay.heading.fontSizeTablet, sizeMobile: slide.overlay.heading.fontSizeMobile, independent: slide.overlay.heading.fontSizeIndependent }),
+                            fontSize: resolveFreeformFontSizeCss({ kind: "legacyHeading", breakpoint: fontBreakpoint, size: slide.overlay.heading.fontSize, sizeDesktop: slide.overlay.heading.fontSizeDesktop, sizeTablet: slide.overlay.heading.fontSizeTablet, sizeMobile: slide.overlay.heading.fontSizeMobile }),
                             fontWeight: slide.overlay.heading.fontWeight,
                             fontFamily: heroFontStack(slide.overlay.heading.fontFamily),
                             color: slide.overlay.heading.color,
@@ -1080,7 +1080,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                       className="hero-subheading"
                       style={{
                         margin: 0,
-                        fontSize: resolveFreeformFontSizeCss({ kind: "subheading", breakpoint: fontBreakpoint, size: slide.overlay.subheading.fontSize, sizeTablet: slide.overlay.subheading.fontSizeTablet, sizeMobile: slide.overlay.subheading.fontSizeMobile, independent: slide.overlay.subheading.fontSizeIndependent }),
+                        fontSize: resolveFreeformFontSizeCss({ kind: "subheading", breakpoint: fontBreakpoint, size: slide.overlay.subheading.fontSize, sizeDesktop: slide.overlay.subheading.fontSizeDesktop, sizeTablet: slide.overlay.subheading.fontSizeTablet, sizeMobile: slide.overlay.subheading.fontSizeMobile }),
                         fontWeight: slide.overlay.subheading.fontWeight,
                         fontFamily: heroFontStack(slide.overlay.subheading.fontFamily),
                         color: slide.overlay.subheading.color,
@@ -1121,7 +1121,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                         color: button.textColor,
                         borderColor: button.variant === "outline" ? button.backgroundColor : "transparent",
                         padding: "10px 24px",
-                        fontSize: resolveFreeformFontSizeCss({ kind: "button", breakpoint: fontBreakpoint, size: button.fontSize, sizeTablet: button.fontSizeTablet, sizeMobile: button.fontSizeMobile, independent: button.fontSizeIndependent }),
+                        fontSize: resolveFreeformFontSizeCss({ kind: "button", breakpoint: fontBreakpoint, size: button.fontSize, sizeDesktop: button.fontSizeDesktop, sizeTablet: button.fontSizeTablet, sizeMobile: button.fontSizeMobile }),
                         fontFamily: heroFontStack(button.fontFamily || "inherit"),
                         fontWeight: 600,
                         textDecoration: "none",

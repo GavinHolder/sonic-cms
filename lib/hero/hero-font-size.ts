@@ -11,45 +11,38 @@
  * Tablet (768px) and Mobile (375px) the vw term is smaller still, so the field was inert there.
  * Worse, one shared `fontSize` fed all three breakpoints, so they were not independent.
  *
- * "LEGACY UNTIL FIRST EDIT, THEN MATERIALIZE AND ISOLATE":
- *   An element is LEGACY unless its `fontSizeIndependent` flag is exactly true. A legacy element renders
- *   with the OLD strings byte-for-byte for every size (also S above the old cap, also if stray
- *   fontSizeTablet/fontSizeMobile values exist), so every slide saved before this feature renders exactly
- *   as it always did. The first time the owner edits any size field of a legacy element, the editor
- *   calls `materializeFontSizes` - it snapshots what the element renders at the reference widths (Desktop
- *   1920, Tablet 768, Mobile 375) into fontSize / fontSizeTablet / fontSizeMobile and sets the flag - and
- *   then applies the typed value to the edited breakpoint only. From then on the three breakpoints are
- *   fully independent: nothing a breakpoint renders ever reads another breakpoint's value.
+ * MODEL - per-breakpoint OWN fields over a frozen legacy base:
+ *   `fontSize` is the LEGACY base. It is the only size the preset layout uses and freeform size edits NEVER
+ *   write it. Each breakpoint may carry its OWN explicit field: `fontSizeDesktop`, `fontSizeTablet`,
+ *   `fontSizeMobile`. For a breakpoint BP:
+ *     - own field usable (finite number > 0) -> the exact formula below, computed from that field alone;
+ *     - otherwise                            -> the EXACT LEGACY string for BP computed from `fontSize`
+ *                                               (byte-identical to what every slide rendered before this feature).
+ *   Each breakpoint therefore reads only its own field or the frozen legacy `fontSize` - never another
+ *   breakpoint's own field - so editing one breakpoint cannot change another at ANY viewport width, and an
+ *   element with no own fields renders byte-for-byte as it always did.
  *
- * FORMULAS (S = authored desktop size, X = an authored per-breakpoint size):
- *   LEGACY element, every breakpoint:
+ * FORMULAS (S = size, X = a Tablet/Mobile own value):
+ *   LEGACY (no own field for the breakpoint, from `fontSize`):
  *       desktop / tablet:  clamp(FLOOR px, VW vw, S px)
  *       mobile, headings:  clamp(20px, 7.5vw | 7vw, min(S, 44) px)       mobile, subheading / button: as desktop
- *   FLAGGED (independent) element:
- *       Desktop:  S <= vw * 1920 / 100  ->  the legacy string (identical, nothing to honour beyond it)
- *                 S >  vw * 1920 / 100  ->  clamp(FLOOR px, max(VW vw, S/1920*100 vw), S px)
- *                 i.e. S is honoured above the old cap, proportional to a 1920px reference, never above S.
- *       Tablet:   own X (REF 768) -> clamp(10px, X/REF*100 vw, X*1.25 px); exact at the reference device,
- *       Mobile:   own X (REF 375)    proportional on other widths, never above 1.25*X. Tablet reads ONLY
- *                 fontSizeTablet and Mobile ONLY fontSizeMobile - never Desktop's or each other's value.
- *       A flagged element whose own value is missing/unusable falls back to the LEGACY string for that
- *       breakpoint (never to another breakpoint's value).
+ *   Desktop OWN (S = fontSizeDesktop):
+ *       S <= VW * 1920 / 100  ->  the legacy string with S (identical, nothing to honour beyond it)
+ *       S >  VW * 1920 / 100  ->  clamp(FLOOR px, max(VW vw, S/1920*100 vw), S px)
+ *                                 i.e. S is honoured above the old cap, proportional to 1920px, never above S.
+ *   Tablet / Mobile OWN (X = fontSizeTablet | fontSizeMobile, REF = 768 | 375):
+ *       clamp(10px, X/REF*100 vw, X*1.25 px)       exactly X at the reference device, proportional on
+ *                                                  other widths, never above 1.25*X.
  *
  * ASSUMPTIONS:
  *  1. `breakpoint` is what HeroCarousel resolves from the window (mobile < 768, tablet 768-991, else
  *     desktop) or from `forceViewport`; the mobile heading rule keys off it (no separate flag).
- *  2. A per-breakpoint value is honoured only when it is a finite number > 0; anything else is
- *     treated as "not set" so a corrupted saved value can never break the render.
- *  3. When the authored desktop `size` itself is not a finite number the output is the old string
- *     built from the raw value (invalid CSS the browser drops, exactly as before) - never "fixed up".
- *  4. `independent` is honoured only when it is exactly `true`.
+ *  2. An own value is honoured only when it is a finite number > 0; anything else counts as "not set",
+ *     so a corrupted or hand-edited value can never break the render - it falls back to legacy(`fontSize`).
+ *  3. When the legacy `size` itself is not a finite number the legacy output is the old string built from
+ *     the raw value (invalid CSS the browser drops, exactly as before) - never "fixed up".
  *
  * FAILURE MODES / VALIDATION: see `parseFontSizeInput` for the editor-side input guard (never NaN).
- * Known, accepted limits of materialization: it reproduces the legacy size EXACTLY at the three reference
- * widths (to 0.1px) and on Desktop at every width <= 1920; away from the Tablet/Mobile reference width the
- * per-breakpoint value scales proportionally (<= 1.25x) where the legacy rule was flat, and a legacy
- * Desktop size above the old cap (S > 153.6 for headings) materializes to the cap, so it no longer
- * keeps growing on windows wider than 1920px.
  */
 import { MOBILE_VIEWPORT, TABLET_VIEWPORT, type HeroEditBreakpoint } from "./hero-device-fit";
 
@@ -58,16 +51,15 @@ export type FreeformFontKind = "heading" | "legacyHeading" | "subheading" | "but
 export interface FreeformFontSizeInput {
   kind: FreeformFontKind;
   breakpoint: HeroEditBreakpoint;
-  /** The authored desktop size (px). Buttons default to 18 when undefined (the old `?? 18`). */
+  /** The legacy base `fontSize` (px). Buttons default to 18 when undefined (the old `?? 18`). */
   size: number | undefined;
-  /** Optional per-breakpoint sizes (px). Ignored unless `independent` is true. */
+  /** The element's OWN per-breakpoint sizes (px). Each is read only for its own breakpoint. */
+  sizeDesktop?: number;
   sizeTablet?: number;
   sizeMobile?: number;
-  /** The element's `fontSizeIndependent` flag. Absent / not exactly true = LEGACY rendering (old strings). */
-  independent?: boolean;
 }
 
-/** Desktop reference width: an authored desktop size is honoured exactly at this window width. */
+/** Desktop reference width: an own desktop size is honoured exactly at this window width. */
 export const DESKTOP_REF_W = 1920;
 /** Per-breakpoint value never renders above this multiple of itself (reached on wider windows). */
 export const OWN_SIZE_CAP_RATIO = 1.25;
@@ -108,7 +100,7 @@ export function isUsableFontSize(n: unknown): n is number {
   return typeof n === "number" && Number.isFinite(n) && n > 0;
 }
 
-/** Window width at which a breakpoint's authored value is "exact" (1920 / 768 / 375). */
+/** Window width at which a breakpoint's own value is "exact" (1920 / 768 / 375). */
 export function referenceViewportW(breakpoint: HeroEditBreakpoint): number {
   return breakpoint === "mobile" ? MOBILE_VIEWPORT.w : breakpoint === "tablet" ? TABLET_VIEWPORT.w : DESKTOP_REF_W;
 }
@@ -130,21 +122,19 @@ function legacyPlan(kind: FreeformFontKind, breakpoint: HeroEditBreakpoint, size
 
 function planFor(input: FreeformFontSizeInput): Plan {
   const { kind, breakpoint } = input;
+  const spec = SPECS[kind];
   // `?? 18` for buttons (covers undefined AND a null that JSON round-tripped from an old NaN), as before.
-  const size = kind === "button" ? (input.size ?? BUTTON_DEFAULT_PX) : input.size;
+  const legacySize = kind === "button" ? (input.size ?? BUTTON_DEFAULT_PX) : input.size;
+  // ONLY this breakpoint's own field is ever read - never another breakpoint's.
+  const own = breakpoint === "desktop" ? input.sizeDesktop : breakpoint === "tablet" ? input.sizeTablet : input.sizeMobile;
 
-  // LEGACY element (flag absent / false / anything but true): the old strings for every size and breakpoint.
-  if (input.independent !== true) return legacyPlan(kind, breakpoint, size);
-
+  if (!isUsableFontSize(own)) return legacyPlan(kind, breakpoint, legacySize);
   if (breakpoint === "desktop") {
-    if (!isUsableFontSize(size) || size <= legacyFontSizeThreshold(kind)) return legacyPlan(kind, breakpoint, size);
-    return { mode: "scaled", floor: SPECS[kind].floor, vw: SPECS[kind].vw, size };
+    return own <= legacyFontSizeThreshold(kind)
+      ? { mode: "legacy", floor: spec.floor, vw: spec.vw, cap: own }
+      : { mode: "scaled", floor: spec.floor, vw: spec.vw, size: own };
   }
-
-  // Tablet / Mobile: ONLY this breakpoint's own value, else the legacy string (never another breakpoint's value).
-  const own = breakpoint === "tablet" ? input.sizeTablet : input.sizeMobile;
-  if (isUsableFontSize(own)) return { mode: "own", size: own, refW: referenceViewportW(breakpoint) };
-  return legacyPlan(kind, breakpoint, size);
+  return { mode: "own", size: own, refW: referenceViewportW(breakpoint) };
 }
 
 /** Rounds to 6 decimals and drops trailing zeros: 10.416667, 8, 53.333333 (keeps the string short, error < 0.00002px). */
@@ -165,7 +155,7 @@ export function resolveFreeformFontSizeCss(input: FreeformFontSizeInput): string
 /**
  * Numeric twin of `resolveFreeformFontSizeCss`: the px that CSS resolves to at a given viewport
  * width. clamp(MIN, VAL, MAX) = max(MIN, min(VAL, MAX)), exactly as CSS defines it (MIN wins).
- * Returns NaN where the CSS string would be invalid (non-numeric authored size).
+ * Returns NaN where the CSS string would be invalid (non-numeric legacy size).
  */
 export function resolveFreeformFontSizePx(input: FreeformFontSizeInput, viewportW: number): number {
   const plan = planFor(input);
@@ -184,101 +174,79 @@ export function roundPx(n: number): number {
 }
 
 /**
- * What a LEGACY (unflagged) element renders at the breakpoint's reference device (Desktop 1920,
- * Tablet 768, Mobile 375) - the "legacy size" the editor shows. Undefined when it cannot be computed
- * (non-numeric authored size).
+ * What the LEGACY rule (from `fontSize`) renders at the breakpoint's reference device (Desktop 1920,
+ * Tablet 768, Mobile 375) - the "Auto" / "Legacy" size the editor shows for a breakpoint with no own value.
+ * Undefined when it cannot be computed (non-numeric legacy size).
  */
 export function legacyFontSizePx(kind: FreeformFontKind, breakpoint: HeroEditBreakpoint, size: number | undefined): number | undefined {
-  const px = resolveFreeformFontSizePx({ kind, breakpoint, size, independent: false }, referenceViewportW(breakpoint));
+  const px = resolveFreeformFontSizePx({ kind, breakpoint, size }, referenceViewportW(breakpoint));
   return Number.isFinite(px) ? px : undefined;
 }
 
-/** Size assumed when an element has no usable desktop size (the editor's own defaults for a fresh element). */
-const FALLBACK_SIZE_PX: Record<FreeformFontKind, number> = { heading: 56, legacyHeading: 56, subheading: 24, button: BUTTON_DEFAULT_PX };
-
-export interface MaterializedFontSizes {
-  fontSize: number;
-  fontSizeTablet: number;
-  fontSizeMobile: number;
-  fontSizeIndependent: true;
-}
-
-/**
- * Snapshot of a LEGACY element's effective sizes at the reference widths, rounded to 0.1px, plus the flag.
- * Spread it into the element BEFORE applying the typed value (one immutable update):
- *   { ...element, ...materializeFontSizes(kind, element.fontSize), [editedField]: typed }
- * Desktop is measured at 1920, so e.g. a legacy heading with S=400 materializes Desktop=153.6, which
- * renders exactly as it did at every width <= 1920.
- */
-export function materializeFontSizes(kind: FreeformFontKind, size: number | undefined): MaterializedFontSizes {
-  const s = isUsableFontSize(size) ? size : FALLBACK_SIZE_PX[kind];
-  const at = (bp: HeroEditBreakpoint) => roundPx(legacyFontSizePx(kind, bp, s) ?? FALLBACK_SIZE_PX[kind]);
-  return { fontSize: at("desktop"), fontSizeTablet: at("tablet"), fontSizeMobile: at("mobile"), fontSizeIndependent: true };
-}
-
-/** The size fields an edit may write onto a heading row / heading / subheading / button. */
-export interface FontSizePatch {
-  fontSize?: number;
+/** The three OWN size fields an element may carry (all optional; absent = legacy for that breakpoint). */
+export interface FontSizeOwnFields {
+  fontSizeDesktop?: number;
   fontSizeTablet?: number;
   fontSizeMobile?: number;
-  fontSizeIndependent?: boolean;
 }
 
-/** What the editor needs to know about the element being edited. */
-export interface FontSizeEditTarget {
-  /** The element's authored desktop size (buttons: pass `fontSize ?? 18`). */
-  size: number | undefined;
-  /** The element's `fontSizeIndependent` flag. */
-  independent?: boolean;
-}
+/** Any size patch the editor writes: an own field (freeform) or the legacy `fontSize` (preset layout). */
+export type FontSizePatch = FontSizeOwnFields & { fontSize?: number };
 
-/**
- * The ONE immutable patch for typing `value` into the `breakpoint` field. A LEGACY element is materialized in
- * the same patch (snapshot of all three breakpoints + flag, then the typed value on top), so the first edit of
- * any breakpoint never changes how another looks. A flagged element writes ONLY its own breakpoint's field.
- */
-export function fontSizeEditPatch(kind: FreeformFontKind, breakpoint: HeroEditBreakpoint, target: FontSizeEditTarget, value: number): FontSizePatch {
-  const base: FontSizePatch = target.independent === true ? {} : materializeFontSizes(kind, target.size);
-  if (breakpoint === "tablet") return { ...base, fontSizeTablet: value };
-  if (breakpoint === "mobile") return { ...base, fontSizeMobile: value };
-  return { ...base, fontSize: value };
+export type FontSizeOwnFieldName = keyof FontSizeOwnFields;
+
+/** The own field a breakpoint reads and writes. */
+export function fontSizeOwnFieldName(breakpoint: HeroEditBreakpoint): FontSizeOwnFieldName {
+  return breakpoint === "mobile" ? "fontSizeMobile" : breakpoint === "tablet" ? "fontSizeTablet" : "fontSizeDesktop";
 }
 
 /**
- * Patch for the reset (x) on a flagged element's Tablet/Mobile field: re-snapshot the legacy-equivalent px for
- * that breakpoint from the CURRENT desktop number (a copied value, not a live link). Undefined when there is
- * nothing to reset (Desktop, a legacy element, or an uncomputable size).
+ * The patch for typing `value` into a breakpoint: ONLY that breakpoint's own field. A fresh object each
+ * call; nothing else (not `fontSize`, not another breakpoint) is ever part of it.
  */
-export function fontSizeResetPatch(kind: FreeformFontKind, breakpoint: HeroEditBreakpoint, target: FontSizeEditTarget): FontSizePatch | undefined {
-  if (breakpoint === "desktop" || target.independent !== true) return undefined;
-  const px = legacyFontSizePx(kind, breakpoint, target.size);
-  if (px === undefined) return undefined;
-  return breakpoint === "tablet" ? { fontSizeTablet: roundPx(px) } : { fontSizeMobile: roundPx(px) };
+export function fontSizeEditPatch(breakpoint: HeroEditBreakpoint, value: number): FontSizePatch {
+  if (breakpoint === "mobile") return { fontSizeMobile: value };
+  if (breakpoint === "tablet") return { fontSizeTablet: value };
+  return { fontSizeDesktop: value };
 }
 
 /**
- * Only the per-breakpoint size fields an element actually carries, for code that rebuilds an element
- * field-by-field (e.g. classic heading -> stacked row): spreading this keeps the flag and values, and adds NO
- * keys to a legacy element.
+ * The patch for the reset (x): the breakpoint's own field set to `undefined`, so after JSON serialisation
+ * the key is gone and that breakpoint is back on the legacy rule.
  */
-export function pickFontSizeFields(el: FontSizePatch | undefined): FontSizePatch {
-  const out: FontSizePatch = {};
-  if (el?.fontSizeIndependent !== undefined) out.fontSizeIndependent = el.fontSizeIndependent;
+export function fontSizeResetPatch(breakpoint: HeroEditBreakpoint): FontSizePatch {
+  if (breakpoint === "mobile") return { fontSizeMobile: undefined };
+  if (breakpoint === "tablet") return { fontSizeTablet: undefined };
+  return { fontSizeDesktop: undefined };
+}
+
+/**
+ * Only the own size fields an element actually carries, for code that rebuilds an element field-by-field
+ * (e.g. classic heading -> stacked row): spreading this keeps them and adds NO keys to an element
+ * that has none.
+ */
+export function pickFontSizeFields(el: FontSizeOwnFields | undefined): FontSizeOwnFields {
+  const out: FontSizeOwnFields = {};
+  if (el?.fontSizeDesktop !== undefined) out.fontSizeDesktop = el.fontSizeDesktop;
   if (el?.fontSizeTablet !== undefined) out.fontSizeTablet = el.fontSizeTablet;
   if (el?.fontSizeMobile !== undefined) out.fontSizeMobile = el.fontSizeMobile;
   return out;
 }
 
 /**
- * Editor-side input guard for a Size / Font Size field. Returns the px to store (0.1px precision), or
- * undefined for "nothing to store" (empty, non-numeric, NaN, Infinity). Out-of-range values are
- * clamped into [FONT_SIZE_MIN_PX, FONT_SIZE_MAX_PX]. NEVER returns NaN - a prior bug let a cleared
- * Font Size input write NaN into saved content.
+ * THE editor-side input guard for a Size / Font Size field (the only one; the component calls it).
+ * Returns the px to store (0.1px precision), or undefined for "nothing to store" (empty, non-numeric,
+ * NaN, Infinity). NEVER returns NaN - a prior bug let a cleared Font Size input write NaN into saved content.
+ *  - "clamp" (default, used on blur): out-of-range values are clamped into [FONT_SIZE_MIN_PX, FONT_SIZE_MAX_PX].
+ *  - "strict" (used while typing): out-of-range values return undefined, so a half-typed "1" on the way to
+ *    "100" is not committed as a size.
  */
-export function parseFontSizeInput(raw: string): number | undefined {
+export function parseFontSizeInput(raw: string, mode: "clamp" | "strict" = "clamp"): number | undefined {
   const text = raw.trim();
   if (text === "") return undefined;
   const n = Number(text);
   if (!Number.isFinite(n)) return undefined;
-  return Math.min(FONT_SIZE_MAX_PX, Math.max(FONT_SIZE_MIN_PX, roundPx(n)));
+  const rounded = roundPx(n);
+  if (mode === "strict") return rounded >= FONT_SIZE_MIN_PX && rounded <= FONT_SIZE_MAX_PX ? rounded : undefined;
+  return Math.min(FONT_SIZE_MAX_PX, Math.max(FONT_SIZE_MIN_PX, rounded));
 }

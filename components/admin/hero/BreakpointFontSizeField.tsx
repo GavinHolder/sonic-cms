@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { HeroEditBreakpoint } from "@/lib/hero/hero-device-fit";
 import {
   FONT_SIZE_MAX_PX,
@@ -9,6 +9,7 @@ import {
   fontSizeResetPatch,
   isUsableFontSize,
   legacyFontSizePx,
+  parseFontSizeInput,
   referenceViewportW,
   roundPx,
   type FontSizePatch,
@@ -19,16 +20,19 @@ export type { FontSizePatch };
 
 interface BreakpointFontSizeFieldProps {
   kind: FreeformFontKind;
-  /** Breakpoint being edited. SlideEditor passes "desktop" whenever Freeform Layout is off (the preset layout has no per-breakpoint size). */
+  /** Breakpoint being edited (the "Position for" toggle). Ignored in `presetMode`. */
   breakpoint: HeroEditBreakpoint;
-  /** Authored desktop size. */
+  /** The legacy base `fontSize` (what the preset layout uses; never written by a freeform edit). */
   size: number | undefined;
+  /** The element's OWN per-breakpoint sizes. */
+  sizeDesktop?: number;
   sizeTablet?: number;
   sizeMobile?: number;
-  /** The element's `fontSizeIndependent` flag. Absent/false = LEGACY element (old rendering, shared size). */
-  independent?: boolean;
-  /** What Desktop shows (and the renderer uses) when `size` is undefined - buttons default to 18. */
+  /** What the legacy base is when `size` is undefined - buttons default to 18. */
   desktopDefault?: number;
+  /** Freeform Layout is OFF: the control edits ONLY the legacy `fontSize`, exactly as before this feature
+   *  (no per-breakpoint fields written, no freeform "Legacy" note, no reset). */
+  presetMode?: boolean;
   label: string;
   /** Compact variant (form-control-sm), used inside the heading-row and button cards. */
   small?: boolean;
@@ -39,44 +43,43 @@ interface BreakpointFontSizeFieldProps {
 
 /**
  * One Size (px) / Font Size (px) control that follows the editor's "Position for: Desktop | Tablet | Mobile"
- * toggle. The render rules live in lib/hero/hero-font-size.ts; the model is "legacy until first edit, then
- * materialize and isolate":
- *  - LEGACY element (no `fontSizeIndependent` flag): renders exactly as it always did. Desktop shows its single
- *    size; Tablet/Mobile show a grey "Auto (N)" placeholder (what the legacy rule renders at that device) and
- *    a "legacy" note. The FIRST edit of ANY breakpoint's field calls `materializeFontSizes` (snapshot of what
- *    the element renders at 1920 / 768 / 375 + the flag) in the SAME single patch as the typed value, so
- *    touching one breakpoint never changes how another looks.
- *  - FLAGGED element: Desktop/Tablet/Mobile are three independent numbers; editing one writes ONLY its field.
- *    The reset (x) on Tablet/Mobile re-snapshots the legacy-equivalent px from the CURRENT Desktop number
- *    (a copied value, not a live link).
+ * toggle while Freeform Layout is on. The render rules live in lib/hero/hero-font-size.ts; the model is
+ * per-breakpoint OWN fields over a frozen legacy base:
+ *  - Desktop shows `fontSizeDesktop`, Tablet `fontSizeTablet`, Mobile `fontSizeMobile`. A breakpoint with no
+ *    own value shows a grey placeholder (Desktop: the legacy `fontSize`; Tablet/Mobile: "Auto (N)" = the legacy
+ *    size at that device) and a "Legacy - renders N px" note, and keeps rendering exactly as it always did.
+ *  - Typing writes ONLY that breakpoint's own field; `fontSize` and the other two breakpoints are never touched,
+ *    so they cannot change at any viewport width. Reset (x) deletes the own field (back to legacy).
+ *  - Freeform OFF (`presetMode`): edits only `fontSize`, as before.
  *
  * ASSUMPTIONS: `onPatch` merges (never replaces) the patch into the owning object, immutably.
- * FAILURE MODES / VALIDATION: the typed text is kept as a local draft and only a finite number inside
- * [FONT_SIZE_MIN_PX, FONT_SIZE_MAX_PX] is committed while typing, so a half-typed or cleared field can never
- * write NaN (a prior bug) nor a stray tiny size. Focus + blur without typing commits nothing (so merely
- * clicking into a legacy field never materializes it). Blur clamps a finite value into range; an emptied
- * flagged Tablet/Mobile field resets to its snapshot; an emptied Desktop (required) field reverts.
+ * FAILURE MODES / VALIDATION: the typed text is kept as a local draft and committed only when `parseFontSizeInput`
+ * (strict) accepts it, so a half-typed or cleared field can never write NaN (a prior bug) nor a stray tiny
+ * size. Focus + blur without typing commits nothing. Blur clamps a finite value into [8, 400]; an emptied own
+ * field is reset to legacy; an emptied required field (preset mode) reverts. The mouse wheel blurs the field so a
+ * scroll over a focused number input can never silently change (and commit) its value.
  */
 export default function BreakpointFontSizeField({
   kind,
   breakpoint,
   size,
+  sizeDesktop,
   sizeTablet,
   sizeMobile,
-  independent,
   desktopDefault,
+  presetMode = false,
   label,
   small = false,
   labelClassName,
   onPatch,
 }: BreakpointFontSizeFieldProps) {
-  const isDesktop = breakpoint === "desktop";
-  const flagged = independent === true;
-  const desktopSize = size ?? desktopDefault;
-  const stored = breakpoint === "tablet" ? sizeTablet : breakpoint === "mobile" ? sizeMobile : desktopSize;
-  // Legacy elements ignore stray Tablet/Mobile values (the renderer does), so the field shows them as unset.
-  const hasValue = isUsableFontSize(stored) && (isDesktop || flagged);
-  const committedText = hasValue ? String(stored) : "";
+  const inputId = useId();
+  const bp: HeroEditBreakpoint = presetMode ? "desktop" : breakpoint;
+  const isDesktop = bp === "desktop";
+  const legacySize = size ?? desktopDefault;
+  const own = presetMode ? legacySize : bp === "tablet" ? sizeTablet : bp === "mobile" ? sizeMobile : sizeDesktop;
+  const hasOwn = isUsableFontSize(own);
+  const committedText = hasOwn ? String(own) : "";
 
   // While the field has focus it shows the local `draft` (what is being typed, possibly not yet valid); otherwise it
   // always shows the committed value, so a breakpoint toggle, reset or undo is reflected with no sync effect, and
@@ -84,84 +87,80 @@ export default function BreakpointFontSizeField({
   const [draft, setDraft] = useState<string>(committedText);
   const [focused, setFocused] = useState(false);
 
-  const target = { size: desktopSize, independent: flagged };
-  // First edit of a legacy element materializes it (snapshot of all three breakpoints + flag) in the SAME patch.
-  const patchFor = (value: number): FontSizePatch => fontSizeEditPatch(kind, breakpoint, target, value);
-  // Tablet/Mobile reset of a flagged element: the legacy-equivalent of the CURRENT Desktop number (a copy).
-  const resetPatch = (): FontSizePatch | undefined => fontSizeResetPatch(kind, breakpoint, target);
+  const commit = (value: number) => onPatch(presetMode ? { fontSize: value } : fontSizeEditPatch(bp, value));
 
   const handleChange = (raw: string) => {
     setDraft(raw);
-    const n = Number(raw);
-    if (raw.trim() !== "" && Number.isFinite(n) && n >= FONT_SIZE_MIN_PX && n <= FONT_SIZE_MAX_PX) {
-      onPatch(patchFor(roundPx(n)));
-    }
+    const value = parseFontSizeInput(raw, "strict");
+    if (value !== undefined) commit(value);
   };
 
   const handleBlur = () => {
     setFocused(false);
     if (draft === committedText) return; // focus + blur only: nothing was typed, so nothing to commit
-    const n = Number(draft);
-    if (draft.trim() === "" || !Number.isFinite(n)) {
-      const reset = hasValue ? resetPatch() : undefined; // emptied a flagged Tablet/Mobile field -> back to its snapshot
-      if (reset) onPatch(reset);
+    const value = parseFontSizeInput(draft);
+    if (value === undefined) {
+      // Emptied / not a number: an own value goes back to legacy; the preset's required value just reverts.
+      if (!presetMode && hasOwn) onPatch(fontSizeResetPatch(bp));
       return;
     }
-    const clamped = Math.min(FONT_SIZE_MAX_PX, Math.max(FONT_SIZE_MIN_PX, roundPx(n)));
-    if (clamped !== stored) onPatch(patchFor(clamped));
+    if (value !== own) commit(value);
   };
 
-  const legacyPx = isDesktop || !flagged || !hasValue ? legacyFontSizePx(kind, breakpoint, desktopSize) : undefined;
-  const bpName = breakpoint.charAt(0).toUpperCase() + breakpoint.slice(1);
-  const showReset = !isDesktop && flagged && hasValue;
-  const showAuto = !isDesktop && !hasValue;
+  const legacyPx = !presetMode && !hasOwn ? legacyFontSizePx(kind, bp, legacySize) : undefined;
+  const bpName = bp.charAt(0).toUpperCase() + bp.slice(1);
+  const showReset = !presetMode && hasOwn;
   const fmt = (n: number) => String(roundPx(n));
+  const placeholder = presetMode || hasOwn
+    ? undefined
+    : isDesktop
+      ? (isUsableFontSize(legacySize) ? String(legacySize) : undefined)
+      : `Auto${legacyPx !== undefined ? ` (${fmt(legacyPx)})` : ""}`;
 
   return (
     <>
-      <label className={labelClassName ?? (small ? "form-label form-label-sm mb-1" : "form-label fw-semibold")}>
+      <label htmlFor={inputId} className={labelClassName ?? (small ? "form-label form-label-sm mb-1" : "form-label fw-semibold")}>
         {label}
-        {!isDesktop && ` — ${bpName}`}
+        {!presetMode && !isDesktop && ` — ${bpName}`}
       </label>
       <div className={`input-group${small ? " input-group-sm" : ""}`}>
         <input
+          id={inputId}
           type="number"
           step="any"
           className="form-control"
           value={focused ? draft : committedText}
           min={FONT_SIZE_MIN_PX}
           max={FONT_SIZE_MAX_PX}
-          placeholder={showAuto ? `Auto${legacyPx !== undefined ? ` (${fmt(legacyPx)})` : ""}` : undefined}
+          placeholder={placeholder}
           onFocus={() => {
             setDraft(committedText);
             setFocused(true);
           }}
           onChange={(e) => handleChange(e.target.value)}
           onBlur={handleBlur}
+          onWheel={(e) => e.currentTarget.blur()}
         />
         {showReset && (
           <button
             type="button"
             className="btn btn-outline-secondary"
-            title={`Reset the ${breakpoint} size to match the current Desktop size (a copied value, not a link)`}
-            aria-label={`Reset the ${breakpoint} size`}
+            title={`Clear the ${bp} size - back to the legacy size`}
+            aria-label={`Clear the ${bp} size`}
             // Keep the input from blurring first (its blur would otherwise race the click).
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => {
-              const reset = resetPatch();
-              if (!reset) return;
-              // the input keeps focus (mousedown is prevented), so it is showing `draft`
-              setDraft(String(reset.fontSizeTablet ?? reset.fontSizeMobile ?? ""));
-              onPatch(reset);
+              setDraft(""); // the input keeps focus (mousedown is prevented), so it is showing `draft`
+              onPatch(fontSizeResetPatch(bp));
             }}
           >
             <i className="bi bi-x-lg" />
           </button>
         )}
       </div>
-      {!flagged && (
+      {!presetMode && !hasOwn && (
         <div className="form-text mt-1" style={{ fontSize: 10, lineHeight: 1.25 }}>
-          Legacy{legacyPx !== undefined ? ` — renders ${fmt(legacyPx)}px at ${referenceViewportW(breakpoint)}px` : ""}. Editing switches this element to per-breakpoint sizes.
+          Legacy{legacyPx !== undefined ? ` — renders ${fmt(legacyPx)}px at ${referenceViewportW(bp)}px` : ""}. Typing sets a {bp}-only size.
         </div>
       )}
     </>

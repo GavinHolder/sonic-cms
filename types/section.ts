@@ -447,15 +447,14 @@ export interface HeadingRow {
   /** Optional per-word styling (outline/fill). Takes precedence over `text` when non-empty. */
   words?: HeadingWord[];
   fontSize: number;        // px — freeform CSS comes from lib/hero/hero-font-size.ts (resolveFreeformFontSizeCss)
-  /** Per-breakpoint sizes (px), honoured ONLY when `fontSizeIndependent` is true: then each is the real
-   *  size at that breakpoint's reference device (Tablet 768 / Mobile 375) and nothing is shared between
-   *  breakpoints. Flag absent/false = LEGACY: the single `fontSize` renders with the old clamp() rules and
-   *  these two fields are ignored. The editor sets the flag (and snapshots all three values) the first time
-   *  any size field of the element is edited. See lib/hero/hero-font-size.ts. */
+  /** OWN per-breakpoint sizes (px) for the freeform layout. Each breakpoint reads only its own field: usable
+   *  (finite > 0) => that exact size (Tablet 768 / Mobile 375 reference device, Desktop 1920); absent => the
+   *  LEGACY rule computed from `fontSize`, byte-identical to before these fields existed. `fontSize` is the
+   *  frozen legacy base (and the only size the preset layout uses): freeform size edits never write it. The
+   *  editor writes ONLY the edited breakpoint's field. See lib/hero/hero-font-size.ts. */
+  fontSizeDesktop?: number;
   fontSizeTablet?: number;
   fontSizeMobile?: number;
-  /** True once the element's Desktop/Tablet/Mobile sizes are independent (see above). Absent = legacy. */
-  fontSizeIndependent?: boolean;
   fontWeight: number;      // 100–900
   fontFamily: string;
   color: string;
@@ -583,10 +582,10 @@ export interface TextOverlayElement {
   heading: {
     text: string;
     fontSize: number; // px
-    /** Per-breakpoint size (px) for the freeform layout — see HeadingRow.fontSizeTablet. */
+    /** Own per-breakpoint sizes (px) for the freeform layout — see HeadingRow.fontSizeDesktop. */
+    fontSizeDesktop?: number;
     fontSizeTablet?: number;
     fontSizeMobile?: number;
-    fontSizeIndependent?: boolean;
     fontWeight: number; // 100-900
     fontFamily: string;
     color: string;
@@ -617,10 +616,10 @@ export interface TextOverlayElement {
   subheading?: {
     text: string;
     fontSize: number;
-    /** Per-breakpoint size (px) for the freeform layout — see HeadingRow.fontSizeTablet. */
+    /** Own per-breakpoint sizes (px) for the freeform layout — see HeadingRow.fontSizeDesktop. */
+    fontSizeDesktop?: number;
     fontSizeTablet?: number;
     fontSizeMobile?: number;
-    fontSizeIndependent?: boolean;
     fontWeight: number;
     fontFamily: string;
     color: string;
@@ -643,10 +642,10 @@ export interface TextOverlayElement {
     animationEasing?: HeroEasing;
     /** Button label font size (px), used as the clamp() ceiling. Undefined = current hardcoded 18px look. */
     fontSize?: number;
-    /** Per-breakpoint label size (px) for the freeform layout — see HeadingRow.fontSizeTablet. */
+    /** Own per-breakpoint label sizes (px) for the freeform layout — see HeadingRow.fontSizeDesktop. */
+    fontSizeDesktop?: number;
     fontSizeTablet?: number;
     fontSizeMobile?: number;
-    fontSizeIndependent?: boolean;
     /** Button label font family. Undefined = "inherit" (current look). */
     fontFamily?: string;
     /** Explicit rendered width in px (resolved via resolveFreeformSize, same mobile->tablet->
