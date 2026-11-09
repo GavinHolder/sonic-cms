@@ -1,14 +1,23 @@
 {
-  "version": "1.71.0",
-  "date": "2026-09-21",
+  "version": "1.72.0",
+  "date": "2026-11-09",
   "changelog": {
     "features": [
-      "smoky/matte glass fill — shared volt-glass-rules builder + presets",
-      "CTA background image/video uses Media Library picker + upload",
-      "dedicated seo_alert_email recipient for SEO regression alerts"
+      "globals.css rules for Dynamic Content Height mode",
+      "background reposition (block + per-breakpoint section), reset-to-desktop, breakpoints independent after one-time seed",
+      "independent per-breakpoint layouts for free-mode sections (Tablet/Mobile real canvases)",
+      "shared render rules module, stale-draft guard, multi/dynamic canvas height, repeat bg, eyebrow live render",
+      "guide-snap toggle, image-block canvas preview, slot-aware Volt panel, live zIndex parity, brand-token canvas font",
+      "Section Template / Card Tabs / Product Grid blocks, Template Options, Dynamic Content Height, free-mode tablet reflow",
+      "marquee select, tablet spacing, 768 boundary, in-front-of-Lower-Third, canvas pan + wheel zoom",
+      "media-library upload, full-bleed Volt background, right-click menu, width-scaled 1:1 plate, text shadow, single-mode 100vh fit",
+      "format toolbar, guides + multi-select, outlined text, section background on canvas, breakpoint canvas scaling",
+      "layers panel, organisational parent + free children, eyebrow sub-element, 1:1 scaled stage",
+      "open legacy FLEXIBLE sections in the Designer + ConfirmProvider"
     ],
     "bugfixes": [
-      "volt block preview iframe fully transparent"
+      "restrict public template content endpoint to block templates",
+      "free-canvas plate/single-mode fixes, self-sizing blocks, live template content, background override, card-tabs CTA"
     ],
     "breaking": []
   }
