@@ -13,7 +13,11 @@ vi.mock('@/lib/prisma', () => ({
   },
 }))
 
-type LocalVersionFile = { version: string; upstreamVersion?: string }
+// Every scenario re-imports the route with a fresh module registry; the first (cold)
+// import can exceed the default 5s when the whole suite runs in parallel.
+vi.setConfig({ testTimeout: 30_000 })
+
+type LocalVersionFile ={ version: string; upstreamVersion?: string }
 
 type CheckResponse = {
   localVersion: string
