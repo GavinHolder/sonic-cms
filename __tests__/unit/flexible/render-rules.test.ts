@@ -20,26 +20,27 @@ describe('resolveBgPositionCss', () => {
 })
 
 describe('resolveBackgroundPosForBreakpoint (per-breakpoint section background, #209)', () => {
+  // sonic-cms: the resolved point always carries `zoom` (Reposition Background Phase 2); null = no zoom.
   const bp = { desktop: { x: 22, y: 39 }, tablet: { x: 60, y: 10 }, mobile: null }
   it('a breakpoint own override wins', () => {
-    expect(RR.resolveBackgroundPosForBreakpoint(bp, 'tablet', 1, 2)).toEqual({ x: 60, y: 10 })
-    expect(RR.resolveBackgroundPosForBreakpoint(bp, 'desktop', 1, 2)).toEqual({ x: 22, y: 39 })
+    expect(RR.resolveBackgroundPosForBreakpoint(bp, 'tablet', 1, 2)).toEqual({ x: 60, y: 10, zoom: null })
+    expect(RR.resolveBackgroundPosForBreakpoint(bp, 'desktop', 1, 2)).toEqual({ x: 22, y: 39, zoom: null })
   })
   it('tablet/mobile without an override inherit Desktop own override', () => {
-    expect(RR.resolveBackgroundPosForBreakpoint(bp, 'mobile', 1, 2)).toEqual({ x: 22, y: 39 })
-    expect(RR.resolveBackgroundPosForBreakpoint({ desktop: { x: 5, y: 6 }, tablet: null, mobile: null }, 'tablet', null, null)).toEqual({ x: 5, y: 6 })
+    expect(RR.resolveBackgroundPosForBreakpoint(bp, 'mobile', 1, 2)).toEqual({ x: 22, y: 39, zoom: null })
+    expect(RR.resolveBackgroundPosForBreakpoint({ desktop: { x: 5, y: 6 }, tablet: null, mobile: null }, 'tablet', null, null)).toEqual({ x: 5, y: 6, zoom: null })
   })
   it('desktop never inherits from tablet/mobile', () => {
-    expect(RR.resolveBackgroundPosForBreakpoint({ desktop: null, tablet: { x: 1, y: 1 }, mobile: { x: 2, y: 2 } }, 'desktop', null, null)).toEqual({ x: null, y: null })
+    expect(RR.resolveBackgroundPosForBreakpoint({ desktop: null, tablet: { x: 1, y: 1 }, mobile: { x: 2, y: 2 } }, 'desktop', null, null)).toEqual({ x: null, y: null, zoom: null })
   })
   it('legacy flat pair applies to every breakpoint when no backgroundPos exists (pre-#209 sections unchanged)', () => {
     for (const b of ['desktop', 'tablet', 'mobile']) {
-      expect(RR.resolveBackgroundPosForBreakpoint(undefined, b, 30, 70)).toEqual({ x: 30, y: 70 })
+      expect(RR.resolveBackgroundPosForBreakpoint(undefined, b, 30, 70)).toEqual({ x: 30, y: 70, zoom: null })
     }
   })
   it('nothing set -> null pair (renders center); invalid points are ignored', () => {
-    expect(RR.resolveBackgroundPosForBreakpoint(null, 'mobile', null, null)).toEqual({ x: null, y: null })
-    expect(RR.resolveBackgroundPosForBreakpoint({ desktop: { x: NaN, y: 1 } }, 'desktop', 3, 4)).toEqual({ x: 3, y: 4 })
+    expect(RR.resolveBackgroundPosForBreakpoint(null, 'mobile', null, null)).toEqual({ x: null, y: null, zoom: null })
+    expect(RR.resolveBackgroundPosForBreakpoint({ desktop: { x: NaN, y: 1 } }, 'desktop', 3, 4)).toEqual({ x: 3, y: 4, zoom: null })
   })
 })
 

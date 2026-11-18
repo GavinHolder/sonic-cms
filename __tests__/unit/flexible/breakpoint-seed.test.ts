@@ -138,12 +138,13 @@ describe('#208 guard: no ambient cross-breakpoint reconcile anywhere in the cons
       .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
       .reduce((n, l) => n + (l.match(new RegExp(name + '\\s*\\(', 'g')) || []).length, 0)
 
-  it('reconcileVariantBlocks( has exactly ONE caller: the one-time seed in setDevicePreview', () => {
-    expect(calls(designer, 'FlexibleBreakpointRules\\.reconcileVariantBlocks')).toBe(1)
-    const idx = designer.indexOf('FlexibleBreakpointRules.reconcileVariantBlocks(')
-    const seedStart = designer.lastIndexOf('if (!state.variants[device])', idx)
+  // sonic-cms: breakpoint canvases are fully isolated. A freshly-opened Tablet/Mobile is seeded
+  // EMPTY (emptyVariantBlob), never copied from Desktop, so reconcileVariantBlocks has NO caller.
+  it('reconcileVariantBlocks( has NO caller: setDevicePreview seeds a new breakpoint as an empty variant', () => {
+    expect(calls(designer, 'reconcileVariantBlocks')).toBe(0)
+    const seedStart = designer.indexOf('if (!state.variants[device])')
     expect(seedStart).toBeGreaterThan(-1)
-    expect(idx - seedStart).toBeLessThan(6000)
+    expect(designer.slice(seedStart, seedStart + 200)).toMatch(/state\.variants\[device\] = emptyVariantBlob\(device\);/)
     expect(renderer).not.toMatch(/reconcileVariantBlocks/)
     expect(modal).not.toMatch(/reconcileVariantBlocks/)
   })
