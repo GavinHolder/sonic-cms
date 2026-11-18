@@ -13,6 +13,8 @@ type BreakingChangeItem = string | BreakingChangeObj;
 
 interface UpdateInfo {
   localVersion: string;
+  /** Core CMS release already merged — what the upstream version is compared against. */
+  mergedVersion?: string;
   upstreamVersion: string | null;
   upstreamDate?: string;
   updateAvailable: boolean;
@@ -184,7 +186,7 @@ export default function UpdateModal({ show, info, onClose }: Props) {
                 </h5>
                 <p className="text-muted mb-0 small">
                   {phase === "idle" || phase === "triggering"
-                    ? `Current: v${localVersion}${upstreamVersion ? ` → v${upstreamVersion}` : ""}${upstreamDate ? ` (${upstreamDate})` : ""}`
+                    ? `Current: v${info.mergedVersion ?? localVersion}${upstreamVersion ? ` → v${upstreamVersion}` : ""}${upstreamDate ? ` (${upstreamDate})` : ""}`
                     : ""}
                 </p>
               </div>
@@ -293,7 +295,7 @@ export default function UpdateModal({ show, info, onClose }: Props) {
                   {info.largeJump && (
                     <div className="alert alert-warning mb-2 small">
                       <i className="bi bi-exclamation-triangle-fill me-1" />
-                      <strong>Large version jump detected</strong> ({info.localVersion} → {info.upstreamVersion}).
+                      <strong>Large version jump detected</strong> ({info.mergedVersion ?? info.localVersion} → {info.upstreamVersion}).
                       {(info.versionGap?.major ?? 0) > 0
                         ? " This includes a major version change — review the breaking changes above carefully."
                         : ` Jumping ${info.versionGap?.minor ?? 0} minor versions — all Prisma migrations will run in sequence automatically.`}

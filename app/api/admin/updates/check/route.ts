@@ -1,6 +1,9 @@
 /**
  * GET /api/admin/updates/check
  * Compare local cms-version.json against upstream master version URL.
+ * The comparison uses `upstreamVersion` (the core CMS release last merged into this
+ * install) when present, falling back to `version` — so an install that carries its
+ * own `version` number is still offered exactly the core releases it has not merged.
  * Returns update availability, changelog, and current update status.
  * Any authenticated admin user (read-only check — trigger routes remain SUPER_ADMIN only).
  */
@@ -11,6 +14,10 @@ import prisma from "@/lib/prisma";
 import localVersion from "@/public/cms-version.json";
 
 export const dynamic = "force-dynamic";
+
+const local: { version: string; upstreamVersion?: string } = localVersion;
+/** Core CMS release this install has merged; equals its own version when not tracked separately. */
+const mergedVersion = local.upstreamVersion || local.version;
 
 function semverGt(a: string, b: string): boolean {
   const pa = a.split(".").map(Number);
@@ -52,6 +59,7 @@ export async function GET(req: NextRequest) {
   if (!upstreamUrl) {
     return NextResponse.json({
       localVersion: localVersion.version,
+      mergedVersion,
       upstreamVersion: null,
       updateAvailable: false,
       changelog: null,
@@ -77,8 +85,8 @@ export async function GET(req: NextRequest) {
       changelog: { features: string[]; bugfixes: string[]; breaking: string[] };
     };
 
-    const updateAvailable = semverGt(upstream.version, localVersion.version);
-    const gap = semverDistance(localVersion.version, upstream.version);
+    const updateAvailable = semverGt(upstream.version, mergedVersion);
+    const gap = semverDistance(mergedVersion, upstream.version);
     const largeJump = gap.major > 0 || gap.minor >= 2;
 
     // If scheduled time has passed and status is still "scheduled", auto-trigger
@@ -99,6 +107,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       localVersion: localVersion.version,
+      mergedVersion,
       upstreamVersion: upstream.version,
       upstreamDate: upstream.date,
       updateAvailable,
@@ -113,6 +122,7 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     return NextResponse.json({
       localVersion: localVersion.version,
+      mergedVersion,
       upstreamVersion: null,
       updateAvailable: false,
       changelog: null,

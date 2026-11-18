@@ -115,19 +115,23 @@ jobs:
             git commit -m "chore: remove main-repo-only workflows from client"
           fi
 
-          # Sync cms-version.json version number from upstream (keeps our changelog content)
-          UPSTREAM_VER=$(git show upstream/main:public/cms-version.json 2>/dev/null | jq -r '.version' 2>/dev/null || echo "")
+          # Record which core CMS version is now merged, in .upstreamVersion only.
+          # .version / .date / .changelog belong to this repo and are never taken from
+          # upstream: the file is rebuilt from the pre-merge copy (origin/main), so neither
+          # a clean merge nor conflict resolution can swap in upstream's file.
+          UPSTREAM_VER=$(git show upstream/main:public/cms-version.json 2>/dev/null | jq -r '.version // empty' 2>/dev/null || echo "")
           if [ -n "$UPSTREAM_VER" ]; then
-            CURRENT_VER=$(jq -r '.version' public/cms-version.json 2>/dev/null || echo "")
-            if [ "$UPSTREAM_VER" != "$CURRENT_VER" ]; then
-              TODAY=$(date -u +%Y-%m-%d)
-              jq --arg v "$UPSTREAM_VER" --arg d "$TODAY" '.version = $v | .date = $d' public/cms-version.json > /tmp/cms-ver-new.json
-              mv /tmp/cms-ver-new.json public/cms-version.json
-              echo "Bumped cms-version.json: $CURRENT_VER -> $UPSTREAM_VER"
-              git add public/cms-version.json
-              git commit -m "chore: sync cms version to v$UPSTREAM_VER from upstream"
+            if ! git show origin/main:public/cms-version.json > /tmp/cms-ver-base.json 2>/dev/null || ! jq -e 'type == "object"' /tmp/cms-ver-base.json >/dev/null 2>&1; then
+              cp public/cms-version.json /tmp/cms-ver-base.json
+            fi
+            jq --arg v "$UPSTREAM_VER" '.upstreamVersion = $v' /tmp/cms-ver-base.json > /tmp/cms-ver-new.json
+            mv /tmp/cms-ver-new.json public/cms-version.json
+            git add public/cms-version.json
+            if ! git diff --cached --quiet -- public/cms-version.json; then
+              git commit -m "chore: record merged cms core version v$UPSTREAM_VER"
+              echo "Recorded merged cms core version v$UPSTREAM_VER (own version untouched)"
             else
-              echo "cms-version.json already at v$UPSTREAM_VER — no bump needed"
+              echo "cms-version.json already records merged core version v$UPSTREAM_VER — no change"
             fi
           fi
 

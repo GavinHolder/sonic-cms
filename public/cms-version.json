@@ -1,11 +1,19 @@
 {
-  "version": "1.72.0",
-  "date": "2026-11-09",
+  "version": "1.75.0",
+  "upstreamVersion": "1.72.0",
+  "date": "2026-11-18",
   "changelog": {
-    "features": [],
+    "features": [
+      "Section version history: a History button on each section lists earlier saves and restores any of them",
+      "Hero editor: the Tablet and Mobile canvases now show the real hero, with drag handles on top",
+      "Hero Carousel slide buttons: font size, font family and width controls",
+      "Buttons can link straight to a product category or sub-type, and to a section on another page",
+      "Email branding: logo, header and page colours are editable in admin and shared by every email"
+    ],
     "bugfixes": [
-      "Pricing cards: the \"Mbps\"/\"Minutes\" unit no longer jumps position depending on digit count — it now always renders on a fixed line below the number, independent of the typed value's width",
-      "Mobile admin sidebar drawer was unusable — a backdrop overlay with a higher z-index than the drawer was intercepting every tap"
+      "Saving a section can no longer silently overwrite a newer save made in another tab or by another user",
+      "Publishing a page only changes its status and never alters section content",
+      "Hero size controls change the rendered size on Desktop, Tablet and Mobile independently"
     ],
     "breaking": []
   }
