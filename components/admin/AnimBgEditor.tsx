@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { AnimBgConfig, AnimBgLayer, AnimBgType, AnimBgEngine, BlendMode, SequenceEntry } from "@/lib/anim-bg/types";
 import { DEFAULT_CONFIGS, DEFAULT_ANIM_BG_CONFIG } from "@/lib/anim-bg/defaults";
+import { LINE_ART_PRESETS, createLineArtPresetLayer, type LineArtPresetId } from "@/lib/anim-bg/presets";
 import AnimBgCustomCodeEditor from "./AnimBgCustomCodeEditor";
 import MediaPickerModal from "./MediaPickerModal";
 import MediaUploadModal from "./MediaUploadModal";
@@ -648,6 +649,15 @@ export default function AnimBgEditor({ config, onChange, colorPalette, sectionBa
     setShowAddMenu(false);
   };
 
+  // Line-art presets resolve to an ordinary svg-animation layer (lib/anim-bg/presets.ts).
+  const addPresetLayer = (presetId: LineArtPresetId) => {
+    if (cfg.layers.length >= 3) return;
+    const layer = createLineArtPresetLayer(presetId, { layerId: genId() });
+    update({ layers: [...cfg.layers, layer] });
+    setExpandedLayer(layer.id);
+    setShowAddMenu(false);
+  };
+
   const removeLayer = (id: string) => {
     update({ layers: cfg.layers.filter(l => l.id !== id) });
     if (expandedLayer === id) setExpandedLayer(null);
@@ -744,7 +754,7 @@ export default function AnimBgEditor({ config, onChange, colorPalette, sectionBa
                   Add Layer
                 </button>
                 {showAddMenu && (
-                  <div className="dropdown-menu show" style={{ position: "absolute", right: 0, top: "110%", zIndex: 200, minWidth: "220px" }}>
+                  <div className="dropdown-menu show" style={{ position: "absolute", right: 0, top: "110%", zIndex: 200, minWidth: "220px", maxHeight: "60vh", overflowY: "auto" }}>
                     {(Object.entries(TYPE_LABELS) as [AnimBgType, typeof TYPE_LABELS[AnimBgType]][]).map(([t, info]) => (
                       <button key={t} className="dropdown-item d-flex align-items-center gap-2"
                         onClick={() => addLayer(t)}
@@ -753,6 +763,19 @@ export default function AnimBgEditor({ config, onChange, colorPalette, sectionBa
                         <div>
                           <div className="fw-semibold small">{info.label}</div>
                           <div className="text-muted" style={{ fontSize: "0.72rem" }}>{info.desc}</div>
+                        </div>
+                      </button>
+                    ))}
+                    <div className="dropdown-divider" />
+                    <h6 className="dropdown-header">Subtle line-art presets</h6>
+                    {LINE_ART_PRESETS.map((p) => (
+                      <button key={p.id} type="button" className="dropdown-item d-flex align-items-center gap-2"
+                        onClick={() => addPresetLayer(p.id)}
+                      >
+                        <i className={`bi ${p.icon} text-primary`} style={{ width: 18 }} />
+                        <div>
+                          <div className="fw-semibold small">{p.label}</div>
+                          <div className="text-muted" style={{ fontSize: "0.72rem" }}>{p.desc}</div>
                         </div>
                       </button>
                     ))}

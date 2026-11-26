@@ -7,6 +7,8 @@ import MediaUploader from "./MediaUploader";
 import MediaPickerModal from "./MediaPickerModal";
 import { LinkPicker } from "./LinkPicker";
 import GoogleFontPicker from "./GoogleFontPicker";
+import AnimBgEditor from "./AnimBgEditor";
+import { DEFAULT_ANIM_BG_CONFIG } from "@/lib/anim-bg/defaults";
 import { heroFontStack } from "@/lib/hero/hero-fonts";
 import { deviceViewportFor, fitForBreakpoint, isDeviceFitBreakpoint } from "@/lib/hero/hero-device-fit";
 import HeroRealCanvas from "./hero/HeroRealCanvas";
@@ -65,7 +67,7 @@ export default function SlideEditor({
   onEditBreakpointChange,
   canvasContext,
 }: SlideEditorProps) {
-  const [activeTab, setActiveTab] = useState<"media" | "gradient" | "overlay" | "position">("media");
+  const [activeTab, setActiveTab] = useState<"media" | "gradient" | "animbg" | "overlay" | "position">("media");
   const [dragRow, setDragRow] = useState<number | null>(null);
   // Which breakpoint the freeform drag surface is currently authoring positions for.
   // "desktop" is the pre-existing pos/headingPos/etc. fields; tablet/mobile write to
@@ -358,6 +360,15 @@ export default function SlideEditor({
             >
               <i className="bi bi-palette me-1"></i>
               Gradient
+            </button>
+          </li>
+          <li className="nav-item">
+            <button
+              className={`nav-link ${activeTab === "animbg" ? "active" : ""}`}
+              onClick={() => setActiveTab("animbg")}
+            >
+              <i className="bi bi-stars me-1"></i>
+              Animated background
             </button>
           </li>
           <li className="nav-item">
@@ -816,6 +827,21 @@ export default function SlideEditor({
                 )}
               </>
             )}
+          </div>
+        )}
+
+        {/* Animated Background Tab — the shared section Animated Background editor, stored on
+            the slide. Sits above this slide's image/video/colour + gradient, below its text. */}
+        {activeTab === "animbg" && (
+          <div>
+            <p className="text-muted small mb-3">
+              Adds gentle motion over this slide&apos;s image, video or colour and behind its text.
+              Only the slide on screen animates. Leave it off to keep the slide exactly as it is.
+            </p>
+            <AnimBgEditor
+              config={slide.animBg || DEFAULT_ANIM_BG_CONFIG}
+              onChange={(animBg) => onChange({ animBg })}
+            />
           </div>
         )}
 

@@ -12,6 +12,9 @@ interface AnimBgRendererProps {
   sectionId?: string;
   /** Section background value (hex, preset name, or "gradient") — used to auto-correct bad blend modes */
   sectionBackground?: string;
+  /** Opt-in (default off = unchanged behaviour): when the visitor prefers reduced motion,
+   *  layers are still mounted but never resumed, so they hold a static frame. */
+  respectReducedMotion?: boolean;
 }
 
 type BgLuminance = "light" | "dark" | "mid" | "gradient" | "unknown";
@@ -46,7 +49,7 @@ function getEffectiveBlendMode(mode: string, bgLum: BgLuminance): string {
   return mode;
 }
 
-export default function AnimBgRenderer({ config, colorPalette, sectionRef, sectionId, sectionBackground }: AnimBgRendererProps) {
+export default function AnimBgRenderer({ config, colorPalette, sectionRef, sectionId, sectionBackground, respectReducedMotion }: AnimBgRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const handlesRef   = useRef<AnimatorHandle[]>([]);
   const [showSkip, setShowSkip] = useState(false);
@@ -83,6 +86,12 @@ export default function AnimBgRenderer({ config, colorPalette, sectionRef, secti
       l => l.type === "text-effects" && (l.config as { mode?: string })?.mode === "intro"
     );
     if (introLayers.length > 0) setShowSkip(true);
+
+    // Opt-in reduced motion: layers mount but are never resumed (static frame).
+    const reduceMotion =
+      !!respectReducedMotion &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     // Track current visibility — used after async imports resolve to decide start/pause
     let sectionVisible = false;
@@ -164,7 +173,7 @@ export default function AnimBgRenderer({ config, colorPalette, sectionRef, secti
             if (h) {
               handles.push(h);
               h.pause();
-              if (sectionVisible) h.resume();
+              if (sectionVisible && !reduceMotion) h.resume();
             }
           }
           return; // all sub-handles already pushed — skip the single-handle block below
@@ -186,7 +195,7 @@ export default function AnimBgRenderer({ config, colorPalette, sectionRef, secti
         // This prevents animations from firing off-screen on page load and
         // completing/looping before the user scrolls to the section.
         handle.pause();
-        if (sectionVisible) handle.resume();
+        if (sectionVisible && !reduceMotion) handle.resume();
       }
     };
 
@@ -206,7 +215,7 @@ export default function AnimBgRenderer({ config, colorPalette, sectionRef, secti
           entries.forEach((entry) => {
             sectionVisible = entry.isIntersecting;
             if (entry.isIntersecting) {
-              handles.forEach(h => h.resume());
+              if (!reduceMotion) handles.forEach(h => h.resume());
             } else {
               handles.forEach(h => h.pause());
             }
@@ -248,7 +257,7 @@ export default function AnimBgRenderer({ config, colorPalette, sectionRef, secti
       handlesRef.current = [];
       setShowSkip(false);
     };
-  }, [config, colorPalette, sectionRef, sectionId, sectionBackground]);
+  }, [config, colorPalette, sectionRef, sectionId, sectionBackground, respectReducedMotion]);
 
   if (!config?.enabled) return null;
 

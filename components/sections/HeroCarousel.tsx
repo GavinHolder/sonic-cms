@@ -7,6 +7,12 @@ import { defaultFreeformPos, resolveFreeformPos, resolveFreeformSize, freeformSt
 import { preconnect, preinit } from "react-dom";
 import { HERO_FONT_ORIGINS, heroFontHref, heroFontStack } from "@/lib/hero/hero-fonts";
 import { resolveFreeformFontSizeCss } from "@/lib/hero/hero-font-size";
+import dynamic from "next/dynamic";
+import { resolveSlideAnimBg } from "@/lib/hero/hero-anim-bg";
+
+// The shared Animated Background renderer (the same one sections mount). Client-only and
+// lazy, so a hero whose slides carry no animated background never downloads it.
+const AnimBgRenderer = dynamic(() => import("./AnimBgRenderer"), { ssr: false });
 
 /**
  * SSR-safe layout effect: runs synchronously before paint on the client (so we
@@ -687,6 +693,15 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
           aria-hidden={i !== currentSlide}
         >
           {renderSlideBackground(s, i)}
+          {/* Optional animated background (shared anim-bg system). Mounted for the ACTIVE
+              slide only, after the media + gradient (so above them) and inside this
+              zIndex-0 stack (so below the zIndex-1 text/overlay layer). Absolutely
+              positioned inside this box — it cannot affect the hero's size or layout.
+              No animBg / disabled → null → this slide's markup is unchanged. */}
+          {(() => {
+            const slideAnimBg = resolveSlideAnimBg(s, i === currentSlide);
+            return slideAnimBg ? <AnimBgRenderer config={slideAnimBg} respectReducedMotion /> : null;
+          })()}
         </div>
       ))}
 

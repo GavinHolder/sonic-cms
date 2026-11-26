@@ -721,6 +721,10 @@ export interface HeroCarouselSlide {
   mobileBgColor?: string; // Solid background color for mobile (overrides image)
   /** Small uppercase eyebrow label above the heading (e.g. "Overberg · Western Cape") */
   eyebrow?: string;
+  /** Optional animated background for this slide — the SAME shared system sections use
+   *  (lib/anim-bg). Drawn above the slide's image/video/colour + gradient and below all
+   *  overlay content. Absent or `enabled: false` = the slide renders exactly as before. */
+  animBg?: AnimBgConfig;
 }
 
 /**
