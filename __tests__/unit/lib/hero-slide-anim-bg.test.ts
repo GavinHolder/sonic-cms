@@ -147,7 +147,9 @@ describe("line-art presets — configurable neutral line colour", () => {
     // the default is only ever the var() fallback — never a hard-coded stroke/fill
     expect(svg.split(LINE_ART_LINE_LIGHT).length - 1).toBe(svg.split(`var(--anim-bg-color-2,${LINE_ART_LINE_LIGHT})`).length - 1);
     // pausable when the hero/section is off-screen
-    expect(svg).toContain("[data-anim-paused] *{animation-play-state:paused!important}");
+    // ...and scoped to the presets' own abp- classes, so it can never freeze another section's SVG
+    expect(svg).toContain('[data-anim-paused] [class^="abp-"]{animation-play-state:paused!important}');
+    expect(svg).not.toContain("[data-anim-paused] *{");
   });
 
   it.each(ids)("%s never interpolates the chosen line colour into the markup", (id) => {

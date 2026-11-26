@@ -61,7 +61,11 @@ export const LINE_ART_LINE_DARK = "#1f2937";
  *  second colour when it has one, else the near-white default. */
 const INK = `var(--anim-bg-color-2,${LINE_ART_LINE_LIGHT})`;
 
-const PAUSED = "[data-anim-paused] *{animation-play-state:paused!important}";
+// Scoped to the presets' own `abp-` classes: a <style> inside inline SVG applies to the whole
+// page, and every svg-animation layer carries data-anim-paused while paused, so an unscoped
+// `[data-anim-paused] *` would also freeze the CSS keyframes of an unrelated custom SVG layer
+// in any other section on the same page.
+const PAUSED = '[data-anim-paused] [class^="abp-"]{animation-play-state:paused!important}';
 
 const REDUCED = "@media (prefers-reduced-motion: reduce)";
 
