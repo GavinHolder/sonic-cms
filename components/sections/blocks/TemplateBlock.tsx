@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { scrollToSection } from "@/lib/navigation-utils";
 import { packageSlotValues, type PackageLike } from "@/lib/packages/format";
 
 interface Props {
@@ -204,6 +205,7 @@ export default function TemplateBlock({ html, css, productId, networkSlug, netwo
   // already provides for an ssr:false import.
   const searchParams = useSearchParams();
   const deepLinkProduct = searchParams.get("product");
+  const router = useRouter();
   // Ref to THIS instance's own iframe — a page can hold more than one TemplateBlock (a
   // section can have >1 block), and the message listener below must only react to a
   // height report from its own iframe, never one bubbling up from an unrelated iframe
@@ -295,11 +297,28 @@ export default function TemplateBlock({ html, css, productId, networkSlug, netwo
       if (url.protocol !== "http:" && url.protocol !== "https:") return; // javascript:, data:, …
       const sameSite = url.origin === window.location.origin;
       if (!sameSite || msg.newTab === true) { window.open(url.href, "_blank", "noopener,noreferrer"); return; }
+      // Link to THIS page (only the query and/or #section differ): no reload. A reload lands
+      // back on the hero, because the browser's own #hash scroll does not move the
+      // #snap-container the sections live in. The query is applied through the router (this
+      // block reads ?product= via useSearchParams and remounts its iframe on change) and the
+      // section is reached with the same scrollToSection() the navbar uses.
+      if (url.pathname === window.location.pathname) {
+        const target = url.pathname + url.search + url.hash;
+        if (target !== window.location.pathname + window.location.search + window.location.hash) {
+          router.push(target, { scroll: false });
+        }
+        if (url.hash.length > 1) {
+          let id = "";
+          try { id = decodeURIComponent(url.hash.slice(1)); } catch { id = ""; }
+          if (id) scrollToSection(id);
+        }
+        return;
+      }
       window.location.assign(url.href);
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (!productId) { setPkgSlots({}); return; }
