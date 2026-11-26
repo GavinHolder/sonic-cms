@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useState, ReactNode } from "react";
 
 export interface Toast {
   id: string;
@@ -10,7 +10,6 @@ export interface Toast {
 }
 
 interface ToastContextType {
-  toasts: Toast[];
   addToast: (message: string, variant: Toast["variant"], duration?: number) => void;
   removeToast: (id: string) => void;
   success: (message: string, duration?: number) => void;
@@ -32,30 +31,47 @@ export function useToast() {
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const addToast = (message: string, variant: Toast["variant"], duration = 5000) => {
-    const id = `toast-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-    const newToast: Toast = { id, message, variant, duration };
-
-    setToasts((prev) => [...prev, newToast]);
-
-    if (duration > 0) {
-      setTimeout(() => {
-        removeToast(id);
-      }, duration);
-    }
-  };
-
-  const removeToast = (id: string) => {
+  const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
-  };
+  }, []);
 
-  const success = (message: string, duration?: number) => addToast(message, "success", duration);
-  const error = (message: string, duration?: number) => addToast(message, "error", duration);
-  const info = (message: string, duration?: number) => addToast(message, "info", duration);
-  const warning = (message: string, duration?: number) => addToast(message, "warning", duration);
+  const addToast = useCallback(
+    (message: string, variant: Toast["variant"], duration = 5000) => {
+      const id = `toast-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+      const newToast: Toast = { id, message, variant, duration };
+
+      setToasts((prev) => [...prev, newToast]);
+
+      // Each toast owns its own timer, so toasts close independently of one another.
+      if (duration > 0) {
+        setTimeout(() => {
+          removeToast(id);
+        }, duration);
+      }
+    },
+    [removeToast],
+  );
+
+  // The context value keeps ONE identity for the whole lifetime of the provider. Pages
+  // list `toast` in effect/callback dependency arrays (their data-loading effects, for
+  // example); a value rebuilt on every toast add/close re-ran those effects, which
+  // refetched and visibly "refreshed" the page each time a toast appeared or closed.
+  // The toast list itself is deliberately NOT part of this value: only ToastContainer
+  // below reads it.
+  const value = useMemo<ToastContextType>(
+    () => ({
+      addToast,
+      removeToast,
+      success: (message, duration) => addToast(message, "success", duration),
+      error: (message, duration) => addToast(message, "error", duration),
+      info: (message, duration) => addToast(message, "info", duration),
+      warning: (message, duration) => addToast(message, "warning", duration),
+    }),
+    [addToast, removeToast],
+  );
 
   return (
-    <ToastContext.Provider value={{ toasts, addToast, removeToast, success, error, info, warning }}>
+    <ToastContext.Provider value={value}>
       {children}
       <ToastContainer toasts={toasts} onClose={removeToast} />
     </ToastContext.Provider>
@@ -124,6 +140,8 @@ function ToastContainer({ toasts, onClose }: { toasts: Toast[]; onClose: (id: st
               {toast.message}
             </div>
             <button
+              type="button"
+              aria-label="Close notification"
               onClick={() => onClose(toast.id)}
               style={{
                 background: "none",
