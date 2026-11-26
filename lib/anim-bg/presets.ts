@@ -15,9 +15,16 @@
  * 3. With `colorize: true` the animator sets the root's CSS `color` to the layer's
  *    first colour — the accent is `currentColor`, editable in the layer's colours.
  *
+ * 4. With `colorize: true` the animator also exposes the layer's SECOND colour (already
+ *    sanitised by its safeColor) as the CSS variable `--anim-bg-color-2`. The neutral
+ *    lines read it with the near-white default as fallback, so a one-colour layer keeps
+ *    the original look and the colour never gets interpolated into markup.
+ * 5. The animator marks the root `data-anim-paused` while paused (off-screen); the CSS
+ *    below pauses the keyframes on that attribute.
+ *
  * FAILURE MODES:
- * - Light backgrounds: the neutral "ink" lines are a fixed near-white and fade out.
- *   The accent-coloured parts remain; pick a darker accent or another preset.
+ * - Light backgrounds: the neutral lines default to near-white and fade out. Give the
+ *   layer a second colour (LINE_ART_LINE_DARK) — see ASSUMPTIONS #4.
  * - prefers-reduced-motion: every preset stops its own keyframes (static art).
  */
 import type { AnimBgLayer, SVGAnimationConfig } from "./types";
@@ -45,8 +52,16 @@ export const LINE_ART_PRESETS: LineArtPreset[] = [
   { id: "voice-waveform",  label: "Voice waveform",  icon: "bi-soundwave",    desc: "A row of soft bars rising and falling" },
 ];
 
-/** Neutral line colour for the non-accent strokes (near-white, used at low opacity). */
-const INK = "#f4f5f8";
+/** Default neutral line colour — near-white, for dark slides/sections. */
+export const LINE_ART_LINE_LIGHT = "#f4f5f8";
+/** Neutral line colour for LIGHT slides/sections (dark lines on a pale background). */
+export const LINE_ART_LINE_DARK = "#1f2937";
+
+/** Neutral line colour for the non-accent strokes (used at low opacity): the layer's
+ *  second colour when it has one, else the near-white default. */
+const INK = `var(--anim-bg-color-2,${LINE_ART_LINE_LIGHT})`;
+
+const PAUSED = "[data-anim-paused] *{animation-play-state:paused!important}";
 
 const REDUCED = "@media (prefers-reduced-motion: reduce)";
 
@@ -56,7 +71,7 @@ type Pt = [number, number];
 function wrap(css: string, body: string): string {
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true">` +
-    `<style>${css}</style>` +
+    `<style>${css}${PAUSED}</style>` +
     `<svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" width="100%" height="100%">${body}</svg>` +
     `</svg>`
   );
@@ -187,12 +202,13 @@ export function lineArtPresetSvg(id: LineArtPresetId): string {
 
 /**
  * Resolve a preset to a ready-to-use `svg-animation` layer.
- * `accent` (hex) becomes the layer's single custom colour — editable afterwards
- * in the layer's "Custom Colors".
+ * `accent` (hex) becomes the layer's first custom colour. `lineColor` (hex), when given,
+ * becomes the second = the neutral lines; omitted → one colour → near-white default lines.
+ * Both stay editable in the layer's "Custom Colors".
  */
 export function createLineArtPresetLayer(
   id: LineArtPresetId,
-  opts: { layerId?: string; accent?: string } = {}
+  opts: { layerId?: string; accent?: string; lineColor?: string } = {}
 ): AnimBgLayer {
   const config: SVGAnimationConfig = {
     svgCode: lineArtPresetSvg(id),
@@ -211,7 +227,27 @@ export function createLineArtPresetLayer(
     opacity: 100, // subtlety is baked into the art's own low opacities
     blendMode: "normal",
     useColorPalette: false,
-    colors: [opts.accent || DEFAULT_FALLBACK_COLORS[0]],
+    colors: opts.lineColor
+      ? [opts.accent || DEFAULT_FALLBACK_COLORS[0], opts.lineColor]
+      : [opts.accent || DEFAULT_FALLBACK_COLORS[0]],
     config,
   };
+}
+
+/** True for a layer whose SVG reads the configurable neutral line colour (the presets above). */
+export function layerUsesLineColor(layer: Pick<AnimBgLayer, "type" | "config">): boolean {
+  if (layer.type !== "svg-animation") return false;
+  const code = (layer.config as Partial<SVGAnimationConfig> | undefined)?.svgCode;
+  return typeof code === "string" && code.includes("--anim-bg-color-2");
+}
+
+/** The layer's current neutral line colour (its second custom colour, else the default). */
+export function getLineArtLineColor(layer: Pick<AnimBgLayer, "colors">): string {
+  return layer.colors?.[1] || LINE_ART_LINE_LIGHT;
+}
+
+/** New layer with the neutral line colour set (second custom colour). Never mutates. */
+export function withLineArtLineColor(layer: AnimBgLayer, lineColor: string): AnimBgLayer {
+  const accent = layer.colors?.[0] || DEFAULT_FALLBACK_COLORS[0];
+  return { ...layer, useColorPalette: false, colors: [accent, lineColor, ...(layer.colors || []).slice(2)] };
 }

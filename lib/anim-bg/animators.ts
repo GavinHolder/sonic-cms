@@ -593,6 +593,9 @@ export function svgAnimationAnimator(
       if (!f || f === "currentColor") el.setAttribute("fill", tintColor);
     });
     svgEl.style.color = tintColor; // currentColor fallback
+    // Second palette colour, for SVGs that opt in with var(--anim-bg-color-2, <fallback>)
+    // (the line-art presets' neutral lines). Unused by SVGs that do not reference it.
+    if (pool.length > 1) svgEl.style.setProperty("--anim-bg-color-2", pool[1]);
   }
 
   let anims: AnimInstance[] = [];
@@ -664,8 +667,10 @@ export function svgAnimationAnimator(
   obs.observe(container);
 
   return {
-    pause:   () => { running = false; anims.forEach(a => a.pause()); },
-    resume:  () => { running = true;  anims.forEach(a => a.play()); },
+    // data-anim-paused lets an SVG that animates with its own CSS keyframes stop them too
+    // (opt-in from the SVG's stylesheet — see lib/anim-bg/presets.ts). No effect otherwise.
+    pause:   () => { running = false; anims.forEach(a => a.pause()); svgEl.setAttribute("data-anim-paused", ""); },
+    resume:  () => { running = true;  anims.forEach(a => a.play()); svgEl.removeAttribute("data-anim-paused"); },
     destroy: () => {
       running = false;
       anims.forEach(a => a.pause());

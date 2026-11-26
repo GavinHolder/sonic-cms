@@ -15,6 +15,9 @@ interface AnimBgRendererProps {
   /** Opt-in (default off = unchanged behaviour): when the visitor prefers reduced motion,
    *  layers are still mounted but never resumed, so they hold a static frame. */
   respectReducedMotion?: boolean;
+  /** Share of the observed element that must be visible before layers play (default 0.9 =
+   *  a snapped section). Only used when sectionRef / sectionId resolves to an element. */
+  visibilityThreshold?: number;
 }
 
 type BgLuminance = "light" | "dark" | "mid" | "gradient" | "unknown";
@@ -49,7 +52,7 @@ function getEffectiveBlendMode(mode: string, bgLum: BgLuminance): string {
   return mode;
 }
 
-export default function AnimBgRenderer({ config, colorPalette, sectionRef, sectionId, sectionBackground, respectReducedMotion }: AnimBgRendererProps) {
+export default function AnimBgRenderer({ config, colorPalette, sectionRef, sectionId, sectionBackground, respectReducedMotion, visibilityThreshold = 0.9 }: AnimBgRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const handlesRef   = useRef<AnimatorHandle[]>([]);
   const [showSkip, setShowSkip] = useState(false);
@@ -92,6 +95,10 @@ export default function AnimBgRenderer({ config, colorPalette, sectionRef, secti
       !!respectReducedMotion &&
       typeof window.matchMedia === "function" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    // Set by the cleanup below. An animator chunk can finish loading AFTER this effect was
+    // torn down (unmount / config change); its handle is then destroyed at once, not leaked.
+    let cancelled = false;
 
     // Track current visibility — used after async imports resolve to decide start/pause
     let sectionVisible = false;
@@ -170,6 +177,7 @@ export default function AnimBgRenderer({ config, colorPalette, sectionRef, secti
               loopDelay:     item.loopDelay     ?? 800,
             };
             const h = textEffectsAnimator(layerEl, itemConfig as Parameters<typeof textEffectsAnimator>[1], colors, sectionEl, undefined, layer.engine);
+            if (h && cancelled) { h.destroy(); continue; }
             if (h) {
               handles.push(h);
               h.pause();
@@ -189,6 +197,7 @@ export default function AnimBgRenderer({ config, colorPalette, sectionRef, secti
         );
       }
 
+      if (handle && cancelled) { handle.destroy(); return; }
       if (handle) {
         handles.push(handle);
         // ALWAYS start paused — only resume if section is currently visible.
@@ -222,7 +231,7 @@ export default function AnimBgRenderer({ config, colorPalette, sectionRef, secti
           });
         },
         // 90% visible = section has snapped fully into view (not just partially scrolled in)
-        { threshold: 0.9 }
+        { threshold: visibilityThreshold }
       );
       observer.observe(observeTarget);
     } else {
@@ -251,13 +260,14 @@ export default function AnimBgRenderer({ config, colorPalette, sectionRef, secti
     });
 
     return () => {
+      cancelled = true;
       handles.forEach(h => h.destroy());
       layerEls.forEach(el => el.remove());
       observer?.disconnect();
       handlesRef.current = [];
       setShowSkip(false);
     };
-  }, [config, colorPalette, sectionRef, sectionId, sectionBackground, respectReducedMotion]);
+  }, [config, colorPalette, sectionRef, sectionId, sectionBackground, respectReducedMotion, visibilityThreshold]);
 
   if (!config?.enabled) return null;
 

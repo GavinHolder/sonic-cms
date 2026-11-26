@@ -697,10 +697,12 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
               slide only, after the media + gradient (so above them) and inside this
               zIndex-0 stack (so below the zIndex-1 text/overlay layer). Absolutely
               positioned inside this box — it cannot affect the hero's size or layout.
+              Paused while the hero is scrolled out of view (the renderer's own observer,
+              pointed at this hero's root by id).
               No animBg / disabled → null → this slide's markup is unchanged. */}
           {(() => {
             const slideAnimBg = resolveSlideAnimBg(s, i === currentSlide);
-            return slideAnimBg ? <AnimBgRenderer config={slideAnimBg} respectReducedMotion /> : null;
+            return slideAnimBg ? <AnimBgRenderer config={slideAnimBg} respectReducedMotion sectionId={section.id} visibilityThreshold={0} /> : null;
           })()}
         </div>
       ))}

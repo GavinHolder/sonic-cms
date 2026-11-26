@@ -3,7 +3,10 @@
 import { useState } from "react";
 import type { AnimBgConfig, AnimBgLayer, AnimBgType, AnimBgEngine, BlendMode, SequenceEntry } from "@/lib/anim-bg/types";
 import { DEFAULT_CONFIGS, DEFAULT_ANIM_BG_CONFIG } from "@/lib/anim-bg/defaults";
-import { LINE_ART_PRESETS, createLineArtPresetLayer, type LineArtPresetId } from "@/lib/anim-bg/presets";
+import {
+  LINE_ART_PRESETS, createLineArtPresetLayer, type LineArtPresetId,
+  LINE_ART_LINE_LIGHT, LINE_ART_LINE_DARK, layerUsesLineColor, getLineArtLineColor, withLineArtLineColor,
+} from "@/lib/anim-bg/presets";
 import AnimBgCustomCodeEditor from "./AnimBgCustomCodeEditor";
 import MediaPickerModal from "./MediaPickerModal";
 import MediaUploadModal from "./MediaUploadModal";
@@ -944,6 +947,28 @@ export default function AnimBgEditor({ config, onChange, colorPalette, sectionBa
                                   </button>
                                 )}
                               </div>
+                            </div>
+                          )}
+                          {/* Line-art presets: neutral line colour = the layer's 2nd custom colour */}
+                          {layerUsesLineColor(layer) && (
+                            <div className="mt-2">
+                              <div className="small fw-semibold mb-1" id={`line-${layer.id}`}>Line colour</div>
+                              <div className="btn-group btn-group-sm" role="group" aria-labelledby={`line-${layer.id}`}>
+                                {[
+                                  { value: LINE_ART_LINE_LIGHT, label: "Light lines (dark background)" },
+                                  { value: LINE_ART_LINE_DARK,  label: "Dark lines (light background)" },
+                                ].map((opt) => {
+                                  const active = !layer.useColorPalette && getLineArtLineColor(layer).toLowerCase() === opt.value;
+                                  return (
+                                    <button key={opt.value} type="button" aria-pressed={active}
+                                      className={`btn ${active ? "btn-primary" : "btn-outline-secondary"}`}
+                                      onClick={() => updateLayer(layer.id, withLineArtLineColor(layer, opt.value))}>
+                                      {opt.label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              <div className="form-text">First custom colour = accent, second = lines. Both can be changed above.</div>
                             </div>
                           )}
                         </div>
