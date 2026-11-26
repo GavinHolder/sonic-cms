@@ -142,6 +142,29 @@ function applyTplTokens(input: string, options: Record<string, string>): string 
  * placed AFTER the template's own <style> in the srcDoc so it wins on equal :root
  * specificity (last-declared rule wins for identical selectors/specificity).
  */
+/**
+ * Injected into every template iframe. Hands link clicks to the host page (see the
+ * "navigate" listener in TemplateBlock) instead of letting the sandboxed frame navigate
+ * itself. Registered on window in the bubble phase, so it runs AFTER any handler the
+ * template puts on an element or on document, and yields to the template when:
+ * - the template already handled the click (event.defaultPrevented),
+ * - the link is an in-template anchor ("#id" whose target exists inside the frame, or a bare "#"),
+ * - the link has no href, is a download link, or the click is not the primary button.
+ * Ctrl/Cmd/Shift-clicks and target="_blank" links are reported with newTab:true.
+ * Static text with no interpolation, so nothing admin-entered can alter it.
+ */
+const TEMPLATE_NAV_SCRIPT = `<script>(function(){window.addEventListener("click",function(e){
+if(e.defaultPrevented||e.button!==0)return;
+var t=e.target;if(!t||!t.closest)return;
+var a=t.closest("a[href]");if(!a||a.hasAttribute("download"))return;
+var h=(a.getAttribute("href")||"").trim();
+if(!h||h==="#")return;
+if(h.charAt(0)==="#"){try{if(document.getElementById(decodeURIComponent(h.slice(1))))return;}catch(_){return;}}
+e.preventDefault();
+var nt=!!(e.ctrlKey||e.metaKey||e.shiftKey||a.getAttribute("target")==="_blank");
+window.parent.postMessage({source:"sonic-cms-template",type:"navigate",href:h,newTab:nt},"*");
+});})();</script>`;
+
 function buildTplVarsStyle(options: Record<string, string>): string {
   const entries = Object.entries(options).filter(([k, v]) => k.startsWith("--tpl-") && v !== undefined && v !== "");
   if (entries.length === 0) return "";
@@ -229,6 +252,55 @@ export default function TemplateBlock({ html, css, productId, networkSlug, netwo
     return () => window.removeEventListener("message", onMessage);
   }, [onContentHeight]);
 
+  // ── Link navigation out of the sandboxed iframe ───────────────────────────────────────
+  // A plain <a href="/coverage?package=…"> inside the template navigates the IFRAME ITSELF,
+  // not the page: the destination loads inside the card-sized sandboxed frame, from an
+  // opaque origin, so the visitor's cookies are not sent (a logged-in admin got the
+  // maintenance page; any visitor got the target page crammed into the block). The
+  // injected TEMPLATE_NAV_SCRIPT (below) intercepts link clicks in the frame and posts
+  //   { source: 'sonic-cms-template', type: 'navigate', href: '<the link's href attribute>' }
+  // and this listener performs the navigation on the real page.
+  //
+  // ASSUMPTIONS:
+  // 1. Template content is admin-authored but still untrusted here: the href is parsed with
+  //    URL(); same-origin http(s) navigates this page, any other http(s) origin opens in a new
+  //    tab (noopener), mailto:/tel: are passed through, everything else is dropped.
+  // 2. Inside /admin (Designer/preview surfaces) navigating away could lose unsaved work, so
+  //    the message is ignored there.
+  // FAILURE MODES:
+  // - Message from another frame/extension → ignored (event.source must be THIS iframe).
+  // - Malformed/oversized href → ignored, never thrown.
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      const data = event.data as unknown;
+      if (!data || typeof data !== "object") return;
+      const msg = data as { source?: unknown; type?: unknown; href?: unknown; newTab?: unknown };
+      if (msg.source !== "sonic-cms-template" || msg.type !== "navigate") return;
+      if (event.source !== iframeRef.current?.contentWindow) return;
+      if (typeof msg.href !== "string") return;
+      const href = msg.href.trim();
+      if (!href || href.length > 2048) return;
+      if (window.location.pathname.startsWith("/admin")) return;
+      // Only ever act on a real click. A click inside the frame activates this (ancestor)
+      // window too; a template script posting "navigate" on load has no activation, so it
+      // can never redirect a visitor by itself.
+      const activation = (navigator as Navigator & { userActivation?: { isActive: boolean } }).userActivation;
+      if (activation && !activation.isActive) return;
+      if (/^(mailto|tel):/i.test(href)) { window.location.href = href; return; }
+      // Resolve with the URL parser rather than string prefixes: "/\evil.com" and
+      // "/<tab>/evil.com" look like local paths to startsWith("/") but browsers normalise
+      // them to another host. Comparing the PARSED origin is the only reliable same-site test.
+      let url: URL;
+      try { url = new URL(href, window.location.href); } catch { return; }
+      if (url.protocol !== "http:" && url.protocol !== "https:") return; // javascript:, data:, …
+      const sameSite = url.origin === window.location.origin;
+      if (!sameSite || msg.newTab === true) { window.open(url.href, "_blank", "noopener,noreferrer"); return; }
+      window.location.assign(url.href);
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+
   useEffect(() => {
     if (!productId) { setPkgSlots({}); return; }
     let active = true;
@@ -304,7 +376,7 @@ export default function TemplateBlock({ html, css, productId, networkSlug, netwo
   // encountered, which is what the comment on buildTplVarsStyle above has always assumed.
   const srcDoc = `<!doctype html><html><head><meta charset="utf-8">${
     finalCss ? `<style>${finalCss}</style>` : ""
-  }${contextScript}</head><body style="margin:0">${finalHtml}${tplVarsStyle}</body></html>`;
+  }${contextScript}${TEMPLATE_NAV_SCRIPT}</head><body style="margin:0">${finalHtml}${tplVarsStyle}</body></html>`;
 
   // Keyed on the live-data readiness AND the template's own content, not just a
   // static block id: mutating an already-loaded iframe's srcdoc attribute in place
