@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useConfirm } from "@/components/admin/ConfirmProvider";
+import { csvRow } from "@/lib/csv";
 
 interface FieldEntry {
   label?: string;
@@ -121,7 +122,7 @@ export default function FormsInboxPage() {
         return fields[k] ?? "";
       });
     });
-    const csv = [keys.join(","), ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(","))].join("\n");
+    const csv = [keys.join(","), ...rows.map(r => csvRow(r))].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = "form-submissions.csv"; a.click();
