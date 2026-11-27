@@ -108,6 +108,87 @@ export const stripSectionHash = (
 };
 
 /**
+ * The admin preview of the landing page. It renders the sections of page slug "/", so a
+ * link to "/" clicked there means "this page".
+ */
+export const LANDING_PAGE_PREVIEW_PATH = "/preview/landing-page";
+
+export type TemplateLinkResult =
+  /** Nothing to do. */
+  | { kind: "ignore" }
+  /** mailto:/tel: — hand `url` (the href as written) to the browser. */
+  | { kind: "protocol"; url: string }
+  /** Another origin — open `url` in a new tab. */
+  | { kind: "external"; url: string }
+  /** Same site, but the template asked for a new tab — open `url` in a new tab. */
+  | { kind: "new-tab"; url: string }
+  /**
+   * Link to the page being viewed. `target` is the URL to hand to the router when `push`
+   * is true (it differs from the current one); `sectionId` is the element to scroll to.
+   */
+  | { kind: "same-page"; target: string; push: boolean; sectionId?: string }
+  /** Same site, another page — full load of `url`. */
+  | { kind: "navigate"; url: string };
+
+/**
+ * Decide what a link clicked inside a sandboxed section template should do in the parent
+ * page. Pure: it only reads its arguments (and the DOM, through `isSection`), so the
+ * caller performs the side effect.
+ *
+ * ASSUMPTIONS:
+ * 1. `href` is untrusted (template markup). It is only ever parsed, never executed.
+ * 2. `loc` is the parent window's location; `loc.href` is the base for relative links.
+ * 3. The caller has already checked the message source and the user activation.
+ *
+ * FAILURE MODES:
+ * - "/\evil.com", "//evil.com", "/<tab>/evil.com" look local to a string-prefix test but
+ *   browsers normalise them to another host → the PARSED origin is compared, never a prefix.
+ * - javascript:, data:, any non-http(s) scheme other than mailto:/tel: → ignored.
+ * - Malformed or oversized href → ignored, never thrown.
+ * - Inside /admin navigating away could lose unsaved work → ignored.
+ * - "/#section" on the landing-page preview would load the host root (the admin login on
+ *   the admin host) → treated as this page, and the target is built from the CURRENT path.
+ */
+export const resolveTemplateLink = (
+  rawHref: string,
+  loc: Pick<Location, "href" | "origin" | "pathname" | "search" | "hash">,
+  {
+    newTab = false,
+    isSection = (hash: string): boolean => findHashSection(hash) !== null,
+  }: { newTab?: boolean; isSection?: (hash: string) => boolean } = {},
+): TemplateLinkResult => {
+  const href = rawHref.trim();
+  if (!href || href.length > 2048) return { kind: "ignore" };
+  if (loc.pathname.startsWith("/admin")) return { kind: "ignore" };
+  if (/^(mailto|tel):/i.test(href)) return { kind: "protocol", url: href };
+  let url: URL;
+  try {
+    url = new URL(href, loc.href);
+  } catch {
+    return { kind: "ignore" };
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return { kind: "ignore" };
+  if (url.origin !== loc.origin) return { kind: "external", url: url.href };
+  if (newTab) return { kind: "new-tab", url: url.href };
+  const samePage =
+    url.pathname === loc.pathname || (loc.pathname === LANDING_PAGE_PREVIEW_PATH && url.pathname === "/");
+  if (!samePage) return { kind: "navigate", url: url.href };
+  // A #hash that names a section is only a scroll target: it is kept out of the pushed URL,
+  // so a reload starts at the top instead of jumping back.
+  const target = loc.pathname + url.search + (isSection(url.hash) ? "" : url.hash);
+  const push = target !== loc.pathname + loc.search + loc.hash;
+  let sectionId = "";
+  if (url.hash.length > 1) {
+    try {
+      sectionId = decodeURIComponent(url.hash.slice(1));
+    } catch {
+      sectionId = "";
+    }
+  }
+  return sectionId ? { kind: "same-page", target, push, sectionId } : { kind: "same-page", target, push };
+};
+
+/**
  * Scroll to the section named by a URL "#hash" once it exists in the DOM.
  *
  * Needed because a page that LOADS with a #section hash stays on the hero: the

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { findHashSection, scrollToSection } from "@/lib/navigation-utils";
+import { resolveTemplateLink, scrollToSection } from "@/lib/navigation-utils";
 import { packageSlotValues, type PackageLike } from "@/lib/packages/format";
 
 interface Props {
@@ -280,45 +280,40 @@ export default function TemplateBlock({ html, css, productId, networkSlug, netwo
       if (msg.source !== "sonic-cms-template" || msg.type !== "navigate") return;
       if (event.source !== iframeRef.current?.contentWindow) return;
       if (typeof msg.href !== "string") return;
-      const href = msg.href.trim();
-      if (!href || href.length > 2048) return;
-      if (window.location.pathname.startsWith("/admin")) return;
       // Only ever act on a real click. A click inside the frame activates this (ancestor)
       // window too; a template script posting "navigate" on load has no activation, so it
       // can never redirect a visitor by itself.
       const activation = (navigator as Navigator & { userActivation?: { isActive: boolean } }).userActivation;
       if (activation && !activation.isActive) return;
-      if (/^(mailto|tel):/i.test(href)) { window.location.href = href; return; }
-      // Resolve with the URL parser rather than string prefixes: "/\evil.com" and
-      // "/<tab>/evil.com" look like local paths to startsWith("/") but browsers normalise
-      // them to another host. Comparing the PARSED origin is the only reliable same-site test.
-      let url: URL;
-      try { url = new URL(href, window.location.href); } catch { return; }
-      if (url.protocol !== "http:" && url.protocol !== "https:") return; // javascript:, data:, …
-      const sameSite = url.origin === window.location.origin;
-      if (!sameSite || msg.newTab === true) { window.open(url.href, "_blank", "noopener,noreferrer"); return; }
-      // Link to THIS page (only the query and/or #section differ): no reload. A reload lands
-      // back on the hero, because the browser's own #hash scroll does not move the
-      // #snap-container the sections live in. The query is applied through the router (this
-      // block reads ?product= via useSearchParams and remounts its iframe on change) and the
-      // section is reached with the same scrollToSection() the navbar uses.
-      if (url.pathname === window.location.pathname) {
-        // A #hash that names a section is only a scroll target (scrollToSection below): it is
-        // kept out of the address bar, so a reload starts at the top instead of jumping back.
-        // router.push changes the URL with pushState, which fires no hashchange, so the
-        // address-bar cleanup in ScrollRestoration would never see it.
-        const target = url.pathname + url.search + (findHashSection(url.hash) ? "" : url.hash);
-        if (target !== window.location.pathname + window.location.search + window.location.hash) {
-          router.push(target, { scroll: false });
-        }
-        if (url.hash.length > 1) {
-          let id = "";
-          try { id = decodeURIComponent(url.hash.slice(1)); } catch { id = ""; }
-          if (id) scrollToSection(id);
-        }
-        return;
+      // Every decision (rejected schemes, parsed-origin same-site test, same-page vs full
+      // load, the landing-page preview standing in for "/") lives in resolveTemplateLink.
+      const link = resolveTemplateLink(msg.href, window.location, { newTab: msg.newTab === true });
+      switch (link.kind) {
+        case "ignore":
+          return;
+        case "protocol":
+          window.location.href = link.url;
+          return;
+        case "external":
+        case "new-tab":
+          window.open(link.url, "_blank", "noopener,noreferrer");
+          return;
+        case "same-page":
+          // Link to THIS page (only the query and/or #section differ): no reload. A reload
+          // lands back on the hero, because the browser's own #hash scroll does not move the
+          // #snap-container the sections live in. The query is applied through the router
+          // (this block reads ?product= via useSearchParams and remounts its iframe on
+          // change) and the section is reached with the same scrollToSection() the navbar
+          // uses. router.push changes the URL with pushState, which fires no hashchange, so
+          // the address-bar cleanup in ScrollRestoration would never see a section hash —
+          // which is why the resolver leaves it out of the target.
+          if (link.push) router.push(link.target, { scroll: false });
+          if (link.sectionId) scrollToSection(link.sectionId);
+          return;
+        case "navigate":
+          window.location.assign(link.url);
+          return;
       }
-      window.location.assign(url.href);
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
