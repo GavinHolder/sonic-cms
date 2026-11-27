@@ -119,6 +119,11 @@ describe("csvRow", () => {
   it("joins escaped cells with commas", () => {
     expect(csvRow(["Jane", "a,b", null, 7, "=1+1"])).toBe('"Jane","a,b","","7","\'=1+1"');
   });
+  it("escapes a header row, neutralising a formula-like column key", () => {
+    expect(csvRow(["Name", "Email", "=HYPERLINK(\"http://evil\",\"x\")", "Notes, extra", "@cmd"])).toBe(
+      '"Name","Email","\'=HYPERLINK(""http://evil"",""x"")","Notes, extra","\'@cmd"',
+    );
+  });
   it("an empty row is an empty string", () => {
     expect(csvRow([])).toBe("");
   });

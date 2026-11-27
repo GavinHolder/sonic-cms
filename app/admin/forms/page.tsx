@@ -122,7 +122,7 @@ export default function FormsInboxPage() {
         return fields[k] ?? "";
       });
     });
-    const csv = [keys.join(","), ...rows.map(r => csvRow(r))].join("\n");
+    const csv = [csvRow(keys),...rows.map(r => csvRow(r))].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = "form-submissions.csv"; a.click();
