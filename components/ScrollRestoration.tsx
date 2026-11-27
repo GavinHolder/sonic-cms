@@ -2,18 +2,35 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { scrollToHashSectionWhenReady } from "@/lib/navigation-utils";
+import { scrollToHashSectionWhenReady, stripSectionHash } from "@/lib/navigation-utils";
 
 export default function ScrollRestoration() {
   const pathname = usePathname();
 
   // Deep link to a section (/page#<sectionId>): after the scroll-to-top resets on load /
   // route change, bring the section named by the hash into view. Public + /preview only.
-  // Deliberately no hashchange listener: same-page #links already scroll natively.
+  // Deliberately no hashchange listener that SCROLLS: same-page #links already scroll natively.
+  // Once the section hash has done its job it is removed from the address bar (replaceState:
+  // no navigation, no scroll, no new history entry) so a reload starts at the top. Also when
+  // the visitor's own input cancelled the pending scroll, otherwise the next reload jumps again.
   useEffect(() => {
     if (!pathname || pathname.startsWith("/admin")) return;
-    return scrollToHashSectionWhenReady(window.location.hash);
+    return scrollToHashSectionWhenReady(window.location.hash, {
+      onScrolled: () => stripSectionHash(),
+      onUserCancel: () => stripSectionHash(),
+    });
   }, [pathname]);
+
+  // Same-page #section link (hero buttons are plain anchors): the browser has already
+  // started its own scroll when hashchange fires. This listener only cleans the address
+  // bar; it must never scroll (a scrolling hashchange listener was removed in 5b65183).
+  useEffect(() => {
+    const onHashChange = (): void => {
+      stripSectionHash();
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
 
 
   useEffect(() => {

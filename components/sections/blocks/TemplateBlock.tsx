@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { scrollToSection } from "@/lib/navigation-utils";
+import { findHashSection, scrollToSection } from "@/lib/navigation-utils";
 import { packageSlotValues, type PackageLike } from "@/lib/packages/format";
 
 interface Props {
@@ -303,7 +303,11 @@ export default function TemplateBlock({ html, css, productId, networkSlug, netwo
       // block reads ?product= via useSearchParams and remounts its iframe on change) and the
       // section is reached with the same scrollToSection() the navbar uses.
       if (url.pathname === window.location.pathname) {
-        const target = url.pathname + url.search + url.hash;
+        // A #hash that names a section is only a scroll target (scrollToSection below): it is
+        // kept out of the address bar, so a reload starts at the top instead of jumping back.
+        // router.push changes the URL with pushState, which fires no hashchange, so the
+        // address-bar cleanup in ScrollRestoration would never see it.
+        const target = url.pathname + url.search + (findHashSection(url.hash) ? "" : url.hash);
         if (target !== window.location.pathname + window.location.search + window.location.hash) {
           router.push(target, { scroll: false });
         }

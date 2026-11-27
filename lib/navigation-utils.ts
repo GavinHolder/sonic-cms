@@ -69,6 +69,45 @@ export const findHashSection = (hash: string): HTMLElement | null => {
 };
 
 /**
+ * Remove a "#<section id>" from the address bar once it has done its job, so a reload
+ * starts at the top of the page instead of jumping back to that section.
+ *
+ * ASSUMPTIONS:
+ * 1. Called AFTER the scroll to the section was started (by the browser, by
+ *    scrollToSection, or by scrollToHashSectionWhenReady). It never scrolls itself.
+ * 2. history.replaceState changes only the URL of the CURRENT entry: no new entry, no
+ *    navigation, no hashchange/popstate event, no scroll.
+ * 3. Pathname and search are untouched, so usePathname/useSearchParams consumers
+ *    (ClientLayout's scroll-to-top reset, TemplateBlock's ?product=) see no change.
+ *
+ * FAILURE MODES:
+ * - Hash is not a section root (form field, unknown id, malformed encoding) → left alone.
+ * - /admin → left alone, same as the scroll helper's caller.
+ * - Next's App Router marks its own history entries with `__NA` and IGNORES a
+ *   replaceState that carries it; its router would then still hold the old URL and write
+ *   the hash back on its next update. So the marker is left out of the state handed over:
+ *   Next's history patch then records the new URL and re-adds its own fields. Every other
+ *   key of history.state is passed through unchanged.
+ *
+ * Returns true when the hash was removed.
+ */
+export const stripSectionHash = (
+  loc: Pick<Location, "hash" | "pathname" | "search"> = window.location,
+  hist: Pick<History, "state" | "replaceState"> = window.history,
+): boolean => {
+  if (loc.pathname.startsWith("/admin")) return false;
+  if (!findHashSection(loc.hash)) return false;
+  let state: unknown = hist.state;
+  if (state !== null && typeof state === "object" && "__NA" in state) {
+    const copy: Record<string, unknown> = { ...state };
+    delete copy.__NA;
+    state = copy;
+  }
+  hist.replaceState(state, "", loc.pathname + loc.search);
+  return true;
+};
+
+/**
  * Scroll to the section named by a URL "#hash" once it exists in the DOM.
  *
  * Needed because a page that LOADS with a #section hash stays on the hero: the
@@ -87,10 +126,19 @@ export const findHashSection = (hash: string): HTMLElement | null => {
  *   ScrollStageWrapper) → offsetTop would be wrapper-relative, so the target is
  *   measured against the container with getBoundingClientRect instead.
  * - Scrolls at most once per call; the returned function cancels a pending attempt.
+ *
+ * Callbacks (both optional, at most one fires, neither fires on timeout or when the
+ * returned cancel function is used): `onScrolled` right after the scroll was issued,
+ * `onUserCancel` when the visitor's own input cancelled the pending scroll.
  */
 export const scrollToHashSectionWhenReady = (
   hash: string,
-  { intervalMs = 100, timeoutMs = 8000 }: { intervalMs?: number; timeoutMs?: number } = {},
+  {
+    intervalMs = 100,
+    timeoutMs = 8000,
+    onScrolled,
+    onUserCancel,
+  }: { intervalMs?: number; timeoutMs?: number; onScrolled?: () => void; onUserCancel?: () => void } = {},
 ): (() => void) => {
   if (hash.length < 2) return () => {};
 
@@ -103,7 +151,13 @@ export const scrollToHashSectionWhenReady = (
     if (stopped) return;
     stopped = true;
     if (timer !== undefined) clearTimeout(timer);
-    userEvents.forEach((type) => window.removeEventListener(type, stop));
+    userEvents.forEach((type) => window.removeEventListener(type, onUserInput));
+  };
+
+  const onUserInput = (): void => {
+    if (stopped) return;
+    stop();
+    onUserCancel?.();
   };
 
   const attempt = (): void => {
@@ -120,6 +174,7 @@ export const scrollToHashSectionWhenReady = (
       setTimeout(() => {
         isNavigating = false;
       }, 1000);
+      onScrolled?.();
       return;
     }
     if (waited >= timeoutMs) {
@@ -130,7 +185,7 @@ export const scrollToHashSectionWhenReady = (
     timer = setTimeout(attempt, intervalMs);
   };
 
-  userEvents.forEach((type) => window.addEventListener(type, stop, { passive: true }));
+  userEvents.forEach((type) => window.addEventListener(type, onUserInput, { passive: true }));
   timer = setTimeout(attempt, 0);
   return stop;
 };
