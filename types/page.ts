@@ -86,4 +86,6 @@ export interface FormField {
   required: boolean;
   placeholder?: string;
   options?: Array<string | { value: string; label: string }>;
+  /** Embedded CTA contact form only: "half" puts two fields side by side. */
+  fieldWidth?: 'half' | 'full';
 }

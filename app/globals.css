@@ -1094,3 +1094,162 @@ input[type="checkbox"] {
   pointer-events: none;
   user-select: none;
 }
+
+/* ── Contact-form CTA: optional design settings ───────────────────────────────
+   Every value comes from the --cta-* variables emitted by lib/cta-design.ts
+   (resolveCtaDesign) from the section's own content.design. This block holds NO
+   site colours: fallbacks are Bootstrap's own variables. The .cta-d-* classes are
+   only rendered when a section opts in, so classic CTA sections are untouched.
+   Height contract: the card scrolls INSIDE the fixed 100vh section, never grows it. */
+.cta-d-eyebrow {
+  margin: 0 0 16px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.cta-d-accent { display: block; }
+.cta-d-hint { margin: 0 0 20px; font-size: 14px; }
+
+.cta-d-card {
+  width: min(var(--cta-card-max, 1120px), 100%);
+  margin: 0 auto;
+  max-height: calc(100vh - max(var(--section-pt, 100px), var(--navbar-height, 100px)) - var(--section-pb, 80px));
+  overflow-y: auto;
+  border-radius: var(--cta-card-radius, 0px);
+  padding: var(--cta-card-pad, 48px);
+}
+.cta-d-grid {
+  display: grid;
+  grid-template-columns: 5fr 6fr;
+  gap: 56px;
+  align-items: center;
+}
+.cta-d-col { min-width: 0; }
+.cta-d-panel {
+  padding: var(--cta-panel-pad, 1.5rem);
+  border-radius: var(--cta-panel-radius, 0.5rem);
+}
+
+/* Contact rows as tiles */
+.cta-designed .cta-d-ways { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.cta-designed .cta-d-tile {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 56px;
+  padding: 8px 16px 8px 8px;
+  background: var(--cta-tile-bg, var(--bs-body-bg));
+  border-radius: var(--cta-tile-radius, 0.5rem);
+  color: var(--cta-tile-color, var(--bs-body-color));
+  text-decoration: none;
+}
+.cta-designed a.cta-d-tile:hover { box-shadow: inset 0 0 0 1.5px currentColor; }
+.cta-designed a.cta-d-tile:focus-visible { outline: 3px solid var(--cta-focus, currentColor); outline-offset: 2px; }
+.cta-designed .cta-d-ico {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  line-height: 1;
+  background: var(--cta-ico-bg, var(--bs-primary));
+  color: var(--cta-ico-color, var(--bs-white));
+}
+.cta-designed .cta-d-tile-text { min-width: 0; }
+.cta-designed .cta-d-tile-label {
+  display: block;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cta-muted, var(--bs-secondary-color));
+}
+.cta-designed .cta-d-tile-value {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* Fields */
+.cta-designed .cta-d-label { font-weight: 600; }
+.cta-designed .cta-d-field {
+  background-color: var(--cta-field-bg, var(--bs-body-bg));
+  border-color: var(--cta-field-border, var(--bs-border-color));
+  border-width: var(--cta-field-bw, var(--bs-border-width));
+  border-radius: var(--cta-field-radius, var(--bs-border-radius));
+  color: var(--cta-field-color, var(--bs-body-color));
+  min-height: var(--cta-field-h, 0px);
+}
+.cta-designed .cta-d-field::placeholder { color: var(--cta-field-ph, var(--bs-secondary-color)); }
+.cta-designed .cta-d-field:hover { border-color: var(--cta-field-hover, var(--cta-field-border, var(--bs-border-color))); }
+.cta-designed .cta-d-field.is-invalid { border-color: var(--cta-error, var(--bs-form-invalid-border-color)); }
+.cta-designed .invalid-feedback { color: var(--cta-error, var(--bs-form-invalid-color)); }
+
+/* Focus ring — only when the section sets a focus colour (Bootstrap's ring otherwise) */
+.cta-has-focus .form-control:focus-visible,
+.cta-has-focus .form-select:focus-visible {
+  border-color: var(--cta-focus);
+  box-shadow: none;
+  outline: 3px solid color-mix(in srgb, var(--cta-focus) 40%, transparent);
+  outline-offset: 1px;
+}
+.cta-has-focus .form-check-input:focus-visible,
+.cta-has-focus .btn:focus-visible {
+  box-shadow: none;
+  outline: 3px solid var(--cta-focus);
+  outline-offset: 3px;
+}
+
+/* Button */
+.cta-designed .cta-d-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  transition: transform 140ms ease-out;
+}
+.cta-designed .cta-d-btn:active { transform: translateY(1px); }
+
+/* Tablet: one column, contact tiles two-up with the address full width */
+@media (max-width: 991px) {
+  .cta-d-card { padding: min(var(--cta-card-pad, 48px), 32px); }
+  .cta-d-grid { grid-template-columns: 1fr; gap: 28px; }
+  .cta-designed .cta-d-ways { grid-template-columns: 1fr 1fr; }
+  .cta-designed .cta-d-way-addr { grid-column: 1 / -1; }
+}
+@media (max-width: 767px) {
+  .cta-d-card {
+    max-height: calc(100vh - max(var(--section-pt-mobile, 100px), var(--navbar-height, 100px)) - var(--section-pb-mobile, 80px));
+  }
+}
+/* Phone */
+@media (max-width: 575px) {
+  .cta-d-card {
+    padding: var(--cta-card-pad-m, min(var(--cta-card-pad, 48px), 20px));
+    border-radius: var(--cta-card-radius-m, var(--cta-card-radius, 0px));
+  }
+  .cta-d-grid { gap: 20px; }
+  .cta-d-panel {
+    padding: var(--cta-panel-pad-m, var(--cta-panel-pad, 1.5rem));
+    border-radius: var(--cta-panel-radius-m, var(--cta-panel-radius, 0.5rem));
+  }
+  .cta-designed .cta-d-ways { grid-template-columns: 1fr; gap: 6px; }
+  .cta-designed .cta-d-ways--hide-addr .cta-d-way-addr { display: none; }
+  .cta-designed .cta-d-tile { min-height: 48px; }
+  .cta-designed .cta-d-ico { width: 34px; height: 34px; }
+  /* Half-width fields stack (the half width itself is an inline style, hence !important) */
+  .cta-designed .cta-d-stack {
+    display: block !important;
+    width: 100% !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cta-designed .cta-d-btn { transition: none; }
+  .cta-designed .cta-d-btn:active { transform: none; }
+}

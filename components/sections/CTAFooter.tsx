@@ -8,6 +8,9 @@ import VerificationModal from "@/components/VerificationModal";
 import { readRateLimitMessage } from "@/lib/form-rate-limit-message";
 import { resolveCtaFormFields, sectionBgImageLayerStyle, type SectionBgImageProps } from "@/lib/cta-defaults";
 import { createEntranceObserver, isEntranceVisible } from "@/lib/entrance-observer";
+import { preconnect, preinit } from "react-dom";
+import { resolveCtaDesign, ctaFontHref } from "@/lib/cta-design";
+import { HERO_FONT_ORIGINS } from "@/lib/hero/hero-fonts";
 
 /**
  * CTAFooter Props
@@ -35,6 +38,16 @@ interface CTAFooterProps {
   /** Section background image (real bgImage* columns, or content.backgroundImage as fallback) */
   bgImage?: SectionBgImageProps;
   fallbackBgImageUrl?: string;
+  /** DOM id for the section root, so #<section id> links and the Section Into overlay can find it. */
+  sectionId?: string;
+  // Optional contact-form presentation (all resolved by lib/cta-design.ts; absent = the classic look)
+  design?: unknown;
+  eyebrow?: string;
+  headingAccent?: string;
+  formHint?: string;
+  contactLabels?: { phone?: string; email?: string; address?: string };
+  paddingTopMobile?: number | null;
+  paddingBottomMobile?: number | null;
 }
 
 const backgroundClasses: Record<BackgroundColor, string> = {
@@ -72,18 +85,41 @@ export default function CTAFooter({
   sectionName,
   bgImage,
   fallbackBgImageUrl,
+  sectionId,
+  design,
+  eyebrow,
+  headingAccent,
+  formHint,
+  contactLabels,
+  paddingTopMobile,
+  paddingBottomMobile,
 }: CTAFooterProps) {
   const formFields = style === "contact-form" ? resolveCtaFormFields(formFieldsProp) : formFieldsProp;
   const bgLayer = sectionBgImageLayerStyle(bgImage ?? {}, fallbackBgImageUrl);
   const bgClass = backgroundClasses[background] || "";
-  const isHexDark = (hex?: string) => {
-    if (!hex?.startsWith("#") || hex.length < 7) return false;
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    return (r * 299 + g * 587 + b * 114) / 1000 < 128;
-  };
-  const isBlueBackground = background === "blue" || background === "lightblue" || isHexDark(background) || (!!bgLayer && style === "contact-form");
+  // Presentation: ONE resolver (lib/cta-design.ts). Without `design` it returns the classic literals.
+  const isContactForm = style === "contact-form";
+  const cta = resolveCtaDesign(isContactForm ? design : undefined, {
+    background,
+    hasBgImage: !!bgLayer,
+    style,
+    hasFormHint: isContactForm && !!formHint,
+  });
+  const isBlueBackground = cta.dark;
+  const controlClass = cta.control ? ` ${cta.control}` : "";
+  const wrapCard = (el: React.ReactElement) =>
+    cta.card ? <div className={cta.card.className} style={cta.card.style}>{el}</div> : el;
+
+  // Design fonts: same non-blocking render-time hint the Hero uses (deduped by href).
+  if (cta.fonts.length > 0) {
+    try {
+      preconnect(HERO_FONT_ORIGINS.css);
+      preconnect(HERO_FONT_ORIGINS.files, { crossOrigin: "anonymous" });
+      for (const family of cta.fonts) preinit(ctaFontHref(family), { as: "style", precedence: "default" });
+    } catch {
+      /* a resource hint must never break the page */
+    }
+  }
 
   const bgColorValue =
     (background?.startsWith("#") || background?.startsWith("rgb"))
@@ -227,67 +263,119 @@ export default function CTAFooter({
 
   return (
     <section
-      className={`cms-section ${bgClass}`}
+      id={sectionId}
+      className={`cms-section ${bgClass}${cta.root.className ? ` ${cta.root.className}` : ""}`}
       data-snap-threshold={snapThreshold}
       style={{
         "--section-bg": bgColorValue,
         "--section-pt": `${topPad}px`,
         "--section-pb": `${bottomPad}px`,
+        // Mobile padding is honoured only for designed sections, so classic sections render as before.
+        ...(cta.designed && paddingTopMobile != null && { "--section-pt-mobile": `${paddingTopMobile}px` }),
+        ...(cta.designed && paddingBottomMobile != null && { "--section-pb-mobile": `${paddingBottomMobile}px` }),
+        ...cta.root.vars,
       } as React.CSSProperties}
     >
       {bgLayer && <div aria-hidden="true" style={bgLayer} />}
-      {bgLayer && style === "contact-form" && <div aria-hidden="true" style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", pointerEvents: "none" }} />}
+      {cta.overlay && <div aria-hidden="true" style={cta.overlay} />}
       <div className="section-content-wrapper" style={{ justifyContent: "center", overflowY: "auto" }}>
         <div
           className="container-fluid px-4"
-          style={{
-            maxWidth: "1320px",
-            margin: "0 auto",
-          }}
+          style={cta.container.style}
         >
         {/* Contact Form: 2-column layout (text left, form right) */}
-        {style === "contact-form" && formFields && formFields.length > 0 ? (
-          <div className="row align-items-center gy-5">
+        {style === "contact-form" && formFields && formFields.length > 0 ? wrapCard(
+          <div className={cta.layout.row}>
             {/* Left: heading + subheading + contact info */}
-            <div className="col-lg-5">
+            <div className={cta.layout.left}>
               <div ref={headingRef} style={headingEntranceStyle}>
-                <h2 className={`display-5 fw-bold mb-3 ${isBlueBackground ? "text-white" : "text-dark"}`}>
+                {eyebrow && (
+                  <p className={cta.eyebrow.className} style={cta.eyebrow.style}>
+                    {eyebrow}
+                  </p>
+                )}
+                <h2 className={cta.heading.className} style={cta.heading.style}>
                   {heading}
+                  {headingAccent && (
+                    <>
+                      {" "}
+                      <span className={cta.accent.className} style={cta.accent.style}>{headingAccent}</span>
+                    </>
+                  )}
                 </h2>
                 {subheading && (
-                  <p className={`lead mb-4 ${isBlueBackground ? "text-white opacity-75" : "text-muted"}`}>
+                  <p className={cta.body.className} style={cta.body.style}>
                     {subheading}
                   </p>
                 )}
               </div>
-              {contactInfo && (
-                <ul className="list-unstyled mb-0" style={{ marginTop: 8 }}>
+              {contactInfo && cta.contact.mode === "tiles" && (
+                <ul className={cta.contact.list.className}>
                   {contactInfo.phone && (
-                    <li className="mb-3 d-flex align-items-center gap-2">
-                      <i className={`bi bi-telephone-fill fs-5 ${isBlueBackground ? "text-white opacity-75" : "text-muted"}`} />
+                    <li>
+                      <a className="cta-d-tile" href={`tel:${contactInfo.phone.replace(/\s/g, "")}`}>
+                        <span className="cta-d-ico" aria-hidden="true"><i className="bi bi-telephone-fill" /></span>
+                        <span className="cta-d-tile-text">
+                          <span className="cta-d-tile-label">{contactLabels?.phone || "Call us"}</span>
+                          <span className="cta-d-tile-value">{contactInfo.phone}</span>
+                        </span>
+                      </a>
+                    </li>
+                  )}
+                  {contactInfo.email && (
+                    <li>
+                      <a className="cta-d-tile" href={`mailto:${contactInfo.email}`}>
+                        <span className="cta-d-ico" aria-hidden="true"><i className="bi bi-envelope-fill" /></span>
+                        <span className="cta-d-tile-text">
+                          <span className="cta-d-tile-label">{contactLabels?.email || "Email"}</span>
+                          <span className="cta-d-tile-value">{contactInfo.email}</span>
+                        </span>
+                      </a>
+                    </li>
+                  )}
+                  {contactInfo.address && (
+                    <li className="cta-d-way-addr">
+                      <div className="cta-d-tile">
+                        <span className="cta-d-ico" aria-hidden="true"><i className="bi bi-geo-alt-fill" /></span>
+                        <span className="cta-d-tile-text">
+                          <span className="cta-d-tile-label">{contactLabels?.address || "Visit"}</span>
+                          <span className="cta-d-tile-value">{contactInfo.address}</span>
+                        </span>
+                      </div>
+                    </li>
+                  )}
+                </ul>
+              )}
+              {contactInfo && cta.contact.mode === "plain" && (
+                <ul className={cta.contact.list.className} style={cta.contact.list.style}>
+                  {contactInfo.phone && (
+                    <li className={cta.contact.item}>
+                      <i className={`bi bi-telephone-fill ${cta.contact.icon.className}`} style={cta.contact.icon.style} />
                       <a
                         href={`tel:${contactInfo.phone.replace(/\s/g, "")}`}
-                        className={`${isBlueBackground ? "text-white text-decoration-none" : "text-dark text-decoration-none"} fw-semibold`}
+                        className={cta.contact.phoneLink.className}
+                        style={cta.contact.phoneLink.style}
                       >
                         {contactInfo.phone}
                       </a>
                     </li>
                   )}
                   {contactInfo.email && (
-                    <li className="mb-3 d-flex align-items-center gap-2">
-                      <i className={`bi bi-envelope-fill fs-5 ${isBlueBackground ? "text-white opacity-75" : "text-muted"}`} />
+                    <li className={cta.contact.item}>
+                      <i className={`bi bi-envelope-fill ${cta.contact.icon.className}`} style={cta.contact.icon.style} />
                       <a
                         href={`mailto:${contactInfo.email}`}
-                        className={`${isBlueBackground ? "text-white text-decoration-none" : "text-dark text-decoration-none"}`}
+                        className={cta.contact.emailLink.className}
+                        style={cta.contact.emailLink.style}
                       >
                         {contactInfo.email}
                       </a>
                     </li>
                   )}
                   {contactInfo.address && (
-                    <li className="d-flex align-items-center gap-2">
-                      <i className={`bi bi-geo-alt-fill fs-5 ${isBlueBackground ? "text-white opacity-75" : "text-muted"}`} />
-                      <span className={`${isBlueBackground ? "text-white opacity-75" : "text-muted"}`}>
+                    <li className={cta.contact.itemLast}>
+                      <i className={`bi bi-geo-alt-fill ${cta.contact.icon.className}`} style={cta.contact.icon.style} />
+                      <span className={cta.contact.address.className} style={cta.contact.address.style}>
                         {contactInfo.address}
                       </span>
                     </li>
@@ -297,28 +385,27 @@ export default function CTAFooter({
             </div>
 
             {/* Right: form card */}
-            <div className="col-lg-6 ms-lg-auto">
+            <div className={cta.layout.right}>
               <div
-                className="p-4 rounded-3"
-                style={{
-                  background: isBlueBackground ? "rgba(255,255,255,0.1)" : "#ffffff",
-                  backdropFilter: isBlueBackground ? "blur(10px)" : undefined,
-                  border: isBlueBackground ? "1px solid rgba(255,255,255,0.2)" : "1px solid #dee2e6",
-                  maxHeight: "calc(100vh - 200px)",
-                  overflowY: "auto",
-                }}
+                className={cta.formCard.className}
+                style={cta.formCard.style}
               >
                 {submitted ? (
-                  <div className={`alert ${isBlueBackground ? "alert-light" : "alert-success"} text-center mb-0`}>
+                  <div className={cta.success.className} style={cta.success.style}>
                     <i className="bi bi-check-circle-fill me-2"></i>
                     {formSuccessMessage || "Thank you! We'll be in touch shortly."}
                   </div>
                 ) : (
                   <form onSubmit={handleFormSubmit} noValidate>
                     {formTitle && (
-                      <h5 className={`fw-semibold mb-3 ${isBlueBackground ? "text-white" : "text-dark"}`}>
+                      <h5 className={cta.title.className} style={cta.title.style}>
                         {formTitle}
                       </h5>
+                    )}
+                    {formHint && (
+                      <p className={cta.hint.className} style={cta.hint.style}>
+                        {formHint}
+                      </p>
                     )}
                     {formFields.map((field, fi) => {
                       const isHalf = (field as any).fieldWidth === 'half';
@@ -328,10 +415,10 @@ export default function CTAFooter({
                         ? { display: 'inline-block', width: '50%', verticalAlign: 'top', paddingRight: nextHalf && !prevHalf ? '8px' : '0', paddingLeft: prevHalf ? '8px' : '0' }
                         : { display: 'block' };
                       return (
-                      <div className="mb-3" key={field.id} style={wrapperStyle}>
+                      <div className={cta.fieldWrap} key={field.id} style={wrapperStyle}>
                         <label
-                          className={`form-label ${isBlueBackground ? "text-white" : ""}`}
-                          style={{ fontSize: 14 }}
+                          className={cta.label.className}
+                          style={cta.label.style}
                         >
                           {field.label}
                           {field.required && <span className="text-danger ms-1">*</span>}
@@ -339,7 +426,7 @@ export default function CTAFooter({
 
                         {field.type === "textarea" ? (
                           <textarea
-                            className={`form-control ${formErrors[field.id] ? "is-invalid" : ""}`}
+                            className={`form-control ${formErrors[field.id] ? "is-invalid" : ""}${controlClass}`}
                             rows={3}
                             placeholder={field.placeholder}
                             value={formValues[field.id] || ""}
@@ -347,7 +434,7 @@ export default function CTAFooter({
                           />
                         ) : field.type === "select" ? (
                           <select
-                            className={`form-select ${formErrors[field.id] ? "is-invalid" : ""}`}
+                            className={`form-select ${formErrors[field.id] ? "is-invalid" : ""}${controlClass}`}
                             value={formValues[field.id] || ""}
                             onChange={(e) => handleFieldChange(field.id, e.target.value)}
                           >
@@ -368,7 +455,8 @@ export default function CTAFooter({
                               onChange={(e) => handleFieldChange(field.id, e.target.checked ? "true" : "")}
                             />
                             <label
-                              className={`form-check-label ${isBlueBackground ? "text-white" : ""}`}
+                              className={cta.checkLabel.className}
+                              style={cta.checkLabel.style}
                               htmlFor={`cta-field-${field.id}`}
                             >
                               {field.placeholder || field.label}
@@ -377,7 +465,7 @@ export default function CTAFooter({
                         ) : (
                           <input
                             type={field.type === "email" ? "email" : field.type === "phone" ? "tel" : "text"}
-                            className={`form-control ${formErrors[field.id] ? "is-invalid" : ""}`}
+                            className={`form-control ${formErrors[field.id] ? "is-invalid" : ""}${controlClass}`}
                             placeholder={field.placeholder}
                             value={formValues[field.id] || ""}
                             onChange={(e) => handleFieldChange(field.id, e.target.value)}
@@ -394,20 +482,25 @@ export default function CTAFooter({
                     })}
 
                     {submitError && (
-                      <div className="alert alert-warning py-2 mb-3" role="alert" style={{ fontSize: 13 }}>
+                      <div className={cta.error.className} role="alert" style={cta.error.style}>
                         {submitError}
                       </div>
                     )}
 
                     <button
                       type="submit"
-                      className={`btn w-100 ${isBlueBackground ? "btn-light text-primary" : "btn-primary"}`}
+                      className={cta.button.className}
+                      style={cta.button.style}
                       disabled={submitting}
                     >
                       {submitting ? (
                         <><span className="spinner-border spinner-border-sm me-2" />Submitting…</>
                       ) : (
-                        <><i className="bi bi-send me-2" />{submitText || "Submit Request"}</>
+                        <>
+                          {cta.button.iconClassName && cta.button.iconPosition === "before" && <i className={cta.button.iconClassName} />}
+                          {submitText || "Submit Request"}
+                          {cta.button.iconClassName && cta.button.iconPosition === "after" && <i className={cta.button.iconClassName} />}
+                        </>
                       )}
                     </button>
                   </form>

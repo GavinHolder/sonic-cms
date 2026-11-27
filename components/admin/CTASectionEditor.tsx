@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { resolveCtaFormFields } from "@/lib/cta-defaults";
-import { buildCtaContent } from "@/lib/cta-content";
+import { buildCtaContent, blankToUndefined, compactStringRecord } from "@/lib/cta-content";
+import type { CtaDesign } from "@/lib/cta-design";
+import CtaDesignTab from "./CtaDesignTab";
 import { useConfirm, useAlert } from "@/components/admin/ConfirmProvider";
 import { useAutoSave } from "@/lib/hooks/useAutoSave";
 import type { CTASection, ButtonConfig, GradientOverlay, LowerThirdConfig } from "@/types/section";
@@ -110,7 +112,7 @@ export default function CTASectionEditor({
   const [bgImageOpacity, setBgImageOpacity] = useState(section.bgImageOpacity || 100);
   const [bgParallax, setBgParallax] = useState(section.bgParallax || false);
 
-  const [activeTab, setActiveTab] = useState<"content" | "background" | "spacing" | "triangle" | "lower-third">("content");
+  const [activeTab, setActiveTab] = useState<"content" | "design" | "background" | "spacing" | "triangle" | "lower-third">("content");
   const [lowerThird, setLowerThird] = useState<LowerThirdConfig>(
     (section as any).lowerThird ?? DEFAULT_LOWER_THIRD
   );
@@ -130,6 +132,25 @@ export default function CTASectionEditor({
   );
   const [showFieldEditor, setShowFieldEditor] = useState(false);
   const [editingField, setEditingField] = useState<FormField | null>(null);
+
+  // Contact-form extras (all optional; saved only while style === "contact-form")
+  const [eyebrow, setEyebrow] = useState(section.content.eyebrow || "");
+  const [headingAccent, setHeadingAccent] = useState(section.content.headingAccent || "");
+  const [formHint, setFormHint] = useState(section.content.formHint || "");
+  const [submitText, setSubmitText] = useState(section.content.submitText || "");
+  const [contactInfo, setContactInfo] = useState({
+    phone: section.content.contactInfo?.phone || "",
+    email: section.content.contactInfo?.email || "",
+    address: section.content.contactInfo?.address || "",
+  });
+  const [contactLabels, setContactLabels] = useState({
+    phone: section.content.contactLabels?.phone || "",
+    email: section.content.contactLabels?.email || "",
+    address: section.content.contactLabels?.address || "",
+  });
+  const [design, setDesign] = useState<CtaDesign | undefined>(section.content.design);
+  const [paddingTopMobile, setPaddingTopMobile] = useState<number | null>(section.paddingTopMobile ?? null);
+  const [paddingBottomMobile, setPaddingBottomMobile] = useState<number | null>(section.paddingBottomMobile ?? null);
 
   const handleAddButton = () => {
     setButtons([...buttons, { text: "New Button", href: "#", variant: "primary" }]);
@@ -167,12 +188,18 @@ export default function CTASectionEditor({
   /** Save a contact form field (add new or update existing) */
   const handleSaveFormField = (field: FormField) => {
     if (formFields.find((f) => f.id === field.id)) {
-      setFormFields(formFields.map((f) => (f.id === field.id ? field : f)));
+      // Keep keys the field dialog does not edit (e.g. fieldWidth).
+      setFormFields(formFields.map((f) => (f.id === field.id ? { ...f, ...field } : f)));
     } else {
       setFormFields([...formFields, field]);
     }
     setShowFieldEditor(false);
     setEditingField(null);
+  };
+
+  /** Set a field to half or full width (two half-width fields in a row sit side by side) */
+  const handleFieldWidthChange = (id: string, width: "half" | "full") => {
+    setFormFields(formFields.map((f) => (f.id === id ? { ...f, fieldWidth: width } : f)));
   };
 
   /** Delete a contact form field by id */
@@ -222,6 +249,8 @@ export default function CTASectionEditor({
       background: backgroundType === "solid" ? (background as any) : "transparent",
       paddingTop,
       paddingBottom,
+      // Phone spacing: only this editor's contact-form design UI edits it; otherwise left as stored.
+      ...(style === "contact-form" && design ? { paddingTopMobile, paddingBottomMobile } : {}),
       // Triangle overlay fields
       triangleEnabled,
       triangleSide,
@@ -272,6 +301,18 @@ export default function CTASectionEditor({
         formFields: style === "contact-form" ? formFields : undefined,
         formTitle: style === "contact-form" ? formTitle : undefined,
         formSuccessMessage: style === "contact-form" ? formSuccessMessage : undefined,
+        // Contact-form extras: owned only in contact-form style, so switching style never destroys them.
+        ...(style === "contact-form"
+          ? {
+              eyebrow: blankToUndefined(eyebrow),
+              headingAccent: blankToUndefined(headingAccent),
+              formHint: blankToUndefined(formHint),
+              submitText: blankToUndefined(submitText),
+              contactInfo: compactStringRecord(contactInfo),
+              contactLabels: compactStringRecord(contactLabels),
+              design,
+            }
+          : {}),
       }) as unknown as CTASection["content"],
     };
 
@@ -324,6 +365,17 @@ export default function CTASectionEditor({
                   Content
                 </button>
               </li>
+              {style === "contact-form" && (
+                <li className="nav-item">
+                  <button
+                    className={`nav-link ${activeTab === "design" ? "active" : ""}`}
+                    onClick={() => setActiveTab("design")}
+                  >
+                    <i className="bi bi-palette me-2"></i>
+                    Design
+                  </button>
+                </li>
+              )}
               <li className="nav-item">
                 <button
                   className={`nav-link ${activeTab === "background" ? "active" : ""}`}
@@ -680,6 +732,66 @@ export default function CTASectionEditor({
                 {/* Contact Form Fields — only shown when style === "contact-form" */}
                 {style === "contact-form" && (
                   <div className="mt-4 pt-4 border-top">
+                    <div className="row g-3 mb-3">
+                      <div className="col-md-6">
+                        <label className="form-label fw-semibold" htmlFor="cta-eyebrow">Eyebrow</label>
+                        <input
+                          id="cta-eyebrow"
+                          type="text"
+                          className="form-control"
+                          value={eyebrow}
+                          onChange={(e) => setEyebrow(e.target.value)}
+                          placeholder="Optional small line above the heading"
+                        />
+                      </div>
+                      <div className="col-md-6">
+                        <label className="form-label fw-semibold" htmlFor="cta-heading-accent">Heading accent line</label>
+                        <input
+                          id="cta-heading-accent"
+                          type="text"
+                          className="form-control"
+                          value={headingAccent}
+                          onChange={(e) => setHeadingAccent(e.target.value)}
+                          placeholder="Optional second heading line"
+                        />
+                      </div>
+                    </div>
+
+                    <fieldset className="mb-3">
+                      <legend className="form-label fw-semibold fs-6 mb-1">Contact details</legend>
+                      <div className="form-text mt-0 mb-2">Shown beside the form. Leave a row empty to hide it. Labels appear on the tile style only.</div>
+                      {([
+                        { key: "phone", name: "Phone", type: "tel", placeholder: "Phone number", labelPlaceholder: "Call us" },
+                        { key: "email", name: "Email", type: "email", placeholder: "Email address", labelPlaceholder: "Email" },
+                        { key: "address", name: "Address", type: "text", placeholder: "Street address", labelPlaceholder: "Visit" },
+                      ] as const).map((row) => (
+                        <div className="row g-2 mb-2" key={row.key}>
+                          <div className="col-md-8">
+                            <label className="form-label small mb-1" htmlFor={`cta-contact-${row.key}`}>{row.name}</label>
+                            <input
+                              id={`cta-contact-${row.key}`}
+                              type={row.type}
+                              className="form-control"
+                              value={contactInfo[row.key]}
+                              onChange={(e) => setContactInfo({ ...contactInfo, [row.key]: e.target.value })}
+                              placeholder={row.placeholder}
+                            />
+                          </div>
+                          <div className="col-md-4">
+                            <label className="form-label small mb-1" htmlFor={`cta-contact-label-${row.key}`}>{row.name} label</label>
+                            <input
+                              id={`cta-contact-label-${row.key}`}
+                              type="text"
+                              className="form-control"
+                              value={contactLabels[row.key]}
+                              onChange={(e) => setContactLabels({ ...contactLabels, [row.key]: e.target.value })}
+                              placeholder={row.labelPlaceholder}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </fieldset>
+
                     <div className="mb-3">
                       <label className="form-label fw-semibold">Form Title</label>
                       <input
@@ -689,6 +801,31 @@ export default function CTASectionEditor({
                         onChange={(e) => setFormTitle(e.target.value)}
                         placeholder="Get in Touch"
                       />
+                    </div>
+
+                    <div className="row g-3 mb-3">
+                      <div className="col-md-6">
+                        <label className="form-label fw-semibold" htmlFor="cta-form-hint">Form hint</label>
+                        <input
+                          id="cta-form-hint"
+                          type="text"
+                          className="form-control"
+                          value={formHint}
+                          onChange={(e) => setFormHint(e.target.value)}
+                          placeholder="Optional small line under the form title"
+                        />
+                      </div>
+                      <div className="col-md-6">
+                        <label className="form-label fw-semibold" htmlFor="cta-submit-text">Button text</label>
+                        <input
+                          id="cta-submit-text"
+                          type="text"
+                          className="form-control"
+                          value={submitText}
+                          onChange={(e) => setSubmitText(e.target.value)}
+                          placeholder="Submit Request"
+                        />
+                      </div>
                     </div>
 
                     <div className="mb-3">
@@ -739,6 +876,15 @@ export default function CTASectionEditor({
                               </div>
                               <small className="text-muted">name: {field.name}</small>
                             </div>
+                            <select
+                              className="form-select form-select-sm w-auto"
+                              aria-label={`Width of ${field.label}`}
+                              value={field.fieldWidth === "half" ? "half" : "full"}
+                              onChange={(e) => handleFieldWidthChange(field.id, e.target.value === "half" ? "half" : "full")}
+                            >
+                              <option value="full">Full width</option>
+                              <option value="half">Half width</option>
+                            </select>
                             <div className="d-flex gap-1">
                               <button
                                 className="btn btn-sm btn-outline-secondary"
@@ -776,6 +922,53 @@ export default function CTASectionEditor({
                       </div>
                     )}
                   </div>
+                )}
+              </>
+            )}
+
+            {/* Design Tab — contact-form style only */}
+            {activeTab === "design" && style === "contact-form" && (
+              <>
+                <CtaDesignTab design={design} onChange={setDesign} />
+                {design && (
+                  <fieldset className="border rounded p-3 mb-3">
+                    <legend className="float-none w-auto px-2 fs-6 fw-semibold mb-0">Phone spacing</legend>
+                    <div className="row g-3">
+                      <div className="col-md-4 col-sm-6">
+                        <label className="form-label small mb-1" htmlFor="cta-pt-mobile">Space above (phone)</label>
+                        <div className="input-group input-group-sm">
+                          <input
+                            id="cta-pt-mobile"
+                            type="number"
+                            className="form-control"
+                            min={0}
+                            max={200}
+                            value={paddingTopMobile ?? ""}
+                            onChange={(e) => setPaddingTopMobile(e.target.value === "" ? null : Math.min(200, Math.max(0, Number(e.target.value) || 0)))}
+                            placeholder="Default (100)"
+                          />
+                          <span className="input-group-text">px</span>
+                        </div>
+                      </div>
+                      <div className="col-md-4 col-sm-6">
+                        <label className="form-label small mb-1" htmlFor="cta-pb-mobile">Space below (phone)</label>
+                        <div className="input-group input-group-sm">
+                          <input
+                            id="cta-pb-mobile"
+                            type="number"
+                            className="form-control"
+                            min={0}
+                            max={200}
+                            value={paddingBottomMobile ?? ""}
+                            onChange={(e) => setPaddingBottomMobile(e.target.value === "" ? null : Math.min(200, Math.max(0, Number(e.target.value) || 0)))}
+                            placeholder="Default (80)"
+                          />
+                          <span className="input-group-text">px</span>
+                        </div>
+                      </div>
+                      <div className="col-12 form-text mt-1">The top never goes above the navigation bar. Desktop spacing is on the Spacing tab.</div>
+                    </div>
+                  </fieldset>
                 )}
               </>
             )}

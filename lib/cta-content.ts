@@ -17,8 +17,7 @@ export function buildCtaContent<T extends Record<string, unknown>>(
   return Object.entries(owned).reduce<Record<string, unknown>>(
     (acc, [key, value]) => {
       if (value === undefined) {
-        const { [key]: _removed, ...rest } = acc;
-        return rest;
+        return Object.fromEntries(Object.entries(acc).filter(([k]) => k !== key));
       }
       return { ...acc, [key]: value };
     },

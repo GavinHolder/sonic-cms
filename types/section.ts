@@ -1,5 +1,6 @@
 import type { AnimBgConfig } from "@/lib/anim-bg/types";
 import type { FormField } from "@/types/page";
+import type { CtaDesign } from "@/lib/cta-design";
 
 /**
  * Section Configuration Types for Backend-Controlled Landing Pages
@@ -892,6 +893,20 @@ export interface CTASection extends BaseSectionConfig {
     formFields?: FormField[];
     formTitle?: string;
     formSuccessMessage?: string;
+    /** Submit button label (default "Submit Request"). */
+    submitText?: string;
+    /** Contact details shown beside the form. */
+    contactInfo?: { phone?: string; email?: string; address?: string };
+    /** Small labels on the contact tiles (defaults: "Call us" / "Email" / "Visit"). */
+    contactLabels?: { phone?: string; email?: string; address?: string };
+    /** Small line above the heading. */
+    eyebrow?: string;
+    /** Second heading line, drawn in the accent colour. */
+    headingAccent?: string;
+    /** Small line under the form title. */
+    formHint?: string;
+    /** Optional look of the contact-form style. Absent = the classic look. See lib/cta-design.ts. */
+    design?: CtaDesign;
   };
 }
 

@@ -341,6 +341,7 @@ export default function DynamicSection({ section, isFirstAfterHero = false }: Dy
           paddingBottom={s.paddingBottom}
           fullScreen={s.fullScreen}
           snapThreshold={s.snapThreshold}
+          sectionId={section.id}
         />
       );
       const wrapped = wrapSection(section, el);
@@ -886,6 +887,14 @@ function CTARenderer({ section }: { section: CTASection }) {
         sectionName={section.displayName}
         bgImage={section as any}
         fallbackBgImageUrl={(content as any).backgroundImage}
+        sectionId={section.id}
+        design={content.design}
+        eyebrow={content.eyebrow}
+        headingAccent={content.headingAccent}
+        formHint={content.formHint}
+        contactLabels={content.contactLabels}
+        paddingTopMobile={paddingTopMobile}
+        paddingBottomMobile={paddingBottomMobile}
       />
     );
   }
