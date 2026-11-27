@@ -469,6 +469,20 @@ footer .footer-text-link { color: inherit; }
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
 }
 
+/* Light hero slide (opt-in per slide, HeroCarouselSlide.tone = "light"): while such a slide
+   is the ACTIVE one, HeroCarousel sets data-hero-tone="light" on <html> and removes it on
+   slide change / unmount. Only the transparent-over-hero bar is affected (.navbar-transparent
+   is never present once scrolled, on non-hero pages, or with "Full navbar over hero"), and
+   only the elements Navbar.tsx marks data-hero-ink — the ones hard-coded white. The mobile
+   dropdown, Tools menu, CTA button, logo image and social icons are not marked.
+   !important is required: the white is an inline style. */
+html[data-hero-tone="light"] .navbar.navbar-transparent [data-hero-ink] {
+  color: #0e1326 !important;
+}
+html[data-hero-tone="light"] .navbar.navbar-transparent [data-hero-ink="soft"] {
+  color: #3b4358 !important;
+}
+
 /* Sonic-red primary buttons in the navbar + public sections (admin keeps Bootstrap blue). */
 .navbar .btn-primary,
 .cms-section .btn-primary,

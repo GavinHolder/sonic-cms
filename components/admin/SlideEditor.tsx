@@ -13,6 +13,8 @@ import { heroFontStack } from "@/lib/hero/hero-fonts";
 import { deviceViewportFor, fitForBreakpoint, isDeviceFitBreakpoint } from "@/lib/hero/hero-device-fit";
 import HeroRealCanvas from "./hero/HeroRealCanvas";
 import FreeformAlignToolbar from "./hero/FreeformAlignToolbar";
+import HeroFactsEditor from "./hero/HeroFactsEditor";
+import HeroSlideExtrasFields from "./hero/HeroSlideExtrasFields";
 import BreakpointFontSizeField from "./hero/BreakpointFontSizeField";
 import { pickFontSizeFields, resolveFreeformFontSizePx } from "@/lib/hero/hero-font-size";
 import { ALIGN_H, ALIGN_V, DRAG_THRESHOLD_PX, SNAP_PX } from "@/lib/hero/hero-canvas-measure";
@@ -394,6 +396,8 @@ export default function SlideEditor({
         {/* Media Tab */}
         {activeTab === "media" && (
           <div>
+            {/* Light-slide switch + tab label (both optional; absent = unchanged slide) */}
+            <HeroSlideExtrasFields slide={slide} slideNumber={slideNumber} onChange={onChange} />
             <h6 className="mb-3">Media Type</h6>
             <div className="btn-group w-100 mb-3" role="group">
               <input
@@ -2296,6 +2300,9 @@ export default function SlideEditor({
               </div>
             ))}
             </div>
+
+            {/* Facts row (optional) — shown under the buttons in the non-freeform layout */}
+            <HeroFactsEditor idPrefix={slide.id} overlay={slide.overlay} onChange={updateOverlay} />
           </div>
         )}
 

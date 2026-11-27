@@ -62,6 +62,13 @@ export default function HeroCarouselEditor({
   const [statsStrip, setStatsStrip] = useState<NonNullable<HeroSection["content"]["statsStrip"]>>(
     section.content.statsStrip ?? { enabled: false, items: [] }
   );
+  // Slide tabs (optional, default off) — a labelled tab bar along the bottom of the hero in
+  // place of the dots. Only written to the saved content when set, so a hero that never
+  // turns it on saves exactly the keys it always did.
+  const [showTabs, setShowTabs] = useState(section.content.showTabs === true);
+  const [tabsAccentColor, setTabsAccentColor] = useState(
+    typeof section.content.tabsAccentColor === "string" ? section.content.tabsAccentColor : ""
+  );
   const [deleteConfirmSlideIndex, setDeleteConfirmSlideIndex] = useState<number | null>(null);
   const [showLastSlideError, setShowLastSlideError] = useState(false);
   // Tracks whether mousedown started directly on each confirmation modal's backdrop — a
@@ -186,6 +193,8 @@ export default function HeroCarouselEditor({
         transitionDuration,
         transitionEasing,
         statsStrip,
+        showTabs,
+        tabsAccentColor: tabsAccentColor || undefined,
       },
     }),
     [
@@ -199,6 +208,8 @@ export default function HeroCarouselEditor({
       transitionDuration,
       transitionEasing,
       statsStrip,
+      showTabs,
+      tabsAccentColor,
     ]
   );
 
@@ -347,6 +358,8 @@ export default function HeroCarouselEditor({
         transitionDuration,
         transitionEasing,
         statsStrip,
+        ...(showTabs ? { showTabs: true } : {}),
+        ...(tabsAccentColor ? { tabsAccentColor } : {}),
       },
     };
     onSave(updates);
@@ -417,6 +430,7 @@ export default function HeroCarouselEditor({
                 { label: "Auto Play", value: autoPlay, onChange: setAutoPlay, id: "autoPlay" },
                 { label: "Show Navigation Dots", value: showDots, onChange: setShowDots, id: "showDots" },
                 { label: "Show Navigation Arrows", value: showArrows, onChange: setShowArrows, id: "showArrows" },
+                { label: "Show slide tabs", value: showTabs, onChange: setShowTabs, id: "showTabs" },
               ] as const).map(({ label, value, onChange, id }) => (
                 <div key={id} className="col-md-6">
                   <div className="d-flex align-items-center gap-2" style={{ cursor: "pointer" }} onClick={() => onChange(!value)}>
@@ -443,6 +457,38 @@ export default function HeroCarouselEditor({
                 </div>
               ))}
             </div>
+
+            {showTabs && (
+              <div className="row g-3 mb-4">
+                <div className="col-md-6">
+                  <label htmlFor="tabsAccentColor" className="form-label fw-semibold">Tab progress line colour</label>
+                  <div className="d-flex align-items-center gap-2">
+                    <input
+                      type="color"
+                      id="tabsAccentColor"
+                      className="form-control form-control-color"
+                      value={/^#[0-9a-fA-F]{6}$/.test(tabsAccentColor) ? tabsAccentColor : "#22c55e"}
+                      onChange={(e) => setTabsAccentColor(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-secondary"
+                      disabled={!tabsAccentColor}
+                      onClick={() => setTabsAccentColor("")}
+                    >
+                      Use default
+                    </button>
+                  </div>
+                </div>
+                <div className="col-12">
+                  <small className="text-muted">
+                    Slide tabs run along the bottom of the hero and replace the navigation dots. Each tab shows the
+                    slide&apos;s <strong>Tab label</strong> (set per slide, falls back to the slide name); on small screens
+                    only the slide number shows. The bar covers the stats strip, so use one or the other.
+                  </small>
+                </div>
+              </div>
+            )}
 
             {/* Number Inputs Row */}
             <div className="row g-3 mb-4">

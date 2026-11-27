@@ -455,7 +455,7 @@ export default function Navbar() {
                     visibility: effectiveScrolled || mobileOpen ? "hidden" : "visible",
                     transition: `opacity ${navTransition}, visibility ${navTransition}`,
                     pointerEvents: effectiveScrolled || mobileOpen ? "none" : "auto" }}>
-                  <svg style={{ width: 28, height: 28, color: "#fff" }}
+                  <svg data-hero-ink="" style={{ width: 28, height: 28, color: "#fff" }}
                     fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
                   </svg>
@@ -466,7 +466,7 @@ export default function Navbar() {
                     visibility: mobileOpen && !effectiveScrolled ? "visible" : "hidden",
                     transition: `opacity ${navTransition}, visibility ${navTransition}`,
                     pointerEvents: mobileOpen && !effectiveScrolled ? "auto" : "none" }}>
-                  <svg style={{ width: 28, height: 28, color: "#fff" }}
+                  <svg data-hero-ink="" style={{ width: 28, height: 28, color: "#fff" }}
                     fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                   </svg>
@@ -498,7 +498,7 @@ export default function Navbar() {
               <div className="d-md-none">
                 <button className="p-0 bg-transparent border-0" onClick={() => setMobileOpen(!mobileOpen)}
                   style={{ outline: "none", cursor: "pointer" }} aria-label="Open menu">
-                  <svg style={{ width: 28, height: 28, color: effectiveScrolled ? "var(--theme-text)" : "#fff", transition: `color ${navTransition}` }}
+                  <svg data-hero-ink="" style={{ width: 28, height: 28, color: effectiveScrolled ? "var(--theme-text)" : "#fff", transition: `color ${navTransition}` }}
                     fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
                   </svg>
@@ -525,7 +525,7 @@ export default function Navbar() {
                   <img src={navLogoSrc || logoUrl} alt={navLogoAlt || companyName}
                     style={{ height: navLogoHeight, width: navLogoWidth > 0 ? navLogoWidth : "auto", maxWidth: navLogoWidth > 0 ? undefined : 180, objectFit: "contain" }} />
                 ) : (
-                  <span style={{ fontWeight: 700, fontSize: "1.25rem", color: "#fff" }}>
+                  <span data-hero-ink="" style={{ fontWeight: 700, fontSize: "1.25rem", color: "#fff" }}>
                     {companyName}
                   </span>
                 )}
@@ -536,7 +536,7 @@ export default function Navbar() {
             <div className="d-none d-md-flex align-items-center gap-4" style={{ position: "absolute", left: "50%", transform: "translateX(-50%)" }}>
               {navLinks.map((link) =>
                 link.href ? (
-                  <Link key={link.id} href={link.href} className="text-decoration-none fw-medium"
+                  <Link key={link.id} href={link.href} className="text-decoration-none fw-medium" data-hero-ink=""
                     style={{ cursor: "pointer", color: "#fff", fontSize: "0.95rem", whiteSpace: "nowrap" }}
                     onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.7")}
                     onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}>
@@ -545,7 +545,7 @@ export default function Navbar() {
                 ) : (
                   <button key={link.id}
                     onClick={() => scrollToSection(link.id)}
-                    className="border-0 bg-transparent p-0 fw-medium"
+                    className="border-0 bg-transparent p-0 fw-medium" data-hero-ink=""
                     style={{ cursor: "pointer", color: "#fff", fontSize: "0.95rem", whiteSpace: "nowrap" }}
                     onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.7")}
                     onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}>
@@ -559,10 +559,10 @@ export default function Navbar() {
             <div className="d-none d-md-flex flex-column align-items-end justify-content-center gap-1" style={{ zIndex: 100 }}>
               {phone && (
                 <>
-                  <span style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.7)", letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                  <span data-hero-ink="soft" style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.7)", letterSpacing: "0.05em", textTransform: "uppercase" }}>
                     Call Us
                   </span>
-                  <a href={`tel:${phone.replace(/\s/g, "")}`}
+                  <a href={`tel:${phone.replace(/\s/g, "")}`} data-hero-ink=""
                     style={{ fontSize: "1.15rem", fontWeight: 700, color: "#fff", textDecoration: "none", letterSpacing: "-0.01em" }}>
                     {phone}
                   </a>
@@ -587,7 +587,7 @@ export default function Navbar() {
             <div className="d-md-none">
               <button className="p-0 bg-transparent border-0" onClick={() => setMobileOpen(!mobileOpen)}
                 style={{ outline: "none", cursor: "pointer" }} aria-label="Open menu">
-                <svg style={{ width: 28, height: 28, color: effectiveScrolled ? "var(--theme-text)" : "#fff", transition: `color ${navTransition}` }}
+                <svg data-hero-ink="" style={{ width: 28, height: 28, color: effectiveScrolled ? "var(--theme-text)" : "#fff", transition: `color ${navTransition}` }}
                   fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
@@ -725,7 +725,7 @@ function LogoBlock({ logoUrl, companyName, effectiveScrolled, mobileOpen, isDark
               filter: "none",
               transition: "filter 600ms cubic-bezier(0.4,0,0.2,1)" }} />
         ) : (
-          <span style={{ height: 44, display: "flex", alignItems: "center", fontWeight: 700, fontSize: "1.2rem",
+          <span data-hero-ink="" style={{ height: 44, display: "flex", alignItems: "center", fontWeight: 700, fontSize: "1.2rem",
             color: matchTextColor || "#fff" }}>
             {companyName}
           </span>
@@ -756,7 +756,7 @@ function NavLinks({ navLinks, effectiveScrolled, mobileOpen, navTransition, scro
       {navLinks.map((link) =>
         link.href ? (
           <Link key={link.id} href={link.href}
-            className="text-decoration-none fw-medium position-relative"
+            className="text-decoration-none fw-medium position-relative" data-hero-ink=""
             style={linkStyle}
             onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.7")}
             onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
@@ -766,7 +766,7 @@ function NavLinks({ navLinks, effectiveScrolled, mobileOpen, navTransition, scro
         ) : (
           <button key={link.id}
             onClick={() => { scrollToSection(link.id); setMobileOpen(false); }}
-            className="text-decoration-none fw-medium border-0 bg-transparent p-0 position-relative"
+            className="text-decoration-none fw-medium border-0 bg-transparent p-0 position-relative" data-hero-ink=""
             style={linkStyle}
             onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.7")}
             onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}>
@@ -789,7 +789,7 @@ function ToolsDropdown({ enabledFeatures, effectiveScrolled, mobileOpen, navTran
       style={{ opacity: effectiveScrolled || mobileOpen ? 1 : 0,
         visibility: effectiveScrolled || mobileOpen ? "visible" : "hidden",
         transition: `opacity ${navTransition}, visibility ${navTransition}` }}>
-      <button className="text-decoration-none fw-medium border-0 bg-transparent p-0 d-flex align-items-center gap-1"
+      <button className="text-decoration-none fw-medium border-0 bg-transparent p-0 d-flex align-items-center gap-1" data-hero-ink=""
         style={{ cursor: "pointer", color: effectiveScrolled || mobileOpen ? "var(--theme-text)" : "#fff", fontSize: "0.95rem",
           letterSpacing: "0.01em", transition: `color ${navTransition}`, whiteSpace: "nowrap" }}
         onClick={() => setToolsOpen((o) => !o)}

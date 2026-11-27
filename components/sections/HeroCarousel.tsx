@@ -9,6 +9,11 @@ import { HERO_FONT_ORIGINS, heroFontHref, heroFontStack } from "@/lib/hero/hero-
 import { resolveFreeformFontSizeCss } from "@/lib/hero/hero-font-size";
 import dynamic from "next/dynamic";
 import { resolveSlideAnimBg } from "@/lib/hero/hero-anim-bg";
+import {
+  HERO_LIGHT_INK, HERO_TONE_ATTR, heroDotsVisible, heroTabsEnabled, resolveFactsColors, resolveHeroControlColors,
+  resolveHeroTabsAccent, resolveHeroTabsPalette, resolveSlideFacts, resolveSlideTone, resolveTabLabel,
+} from "@/lib/hero/hero-slide-extras";
+import HeroSlideTabs, { HERO_TABS_HEIGHT, HERO_TABS_HEIGHT_NARROW } from "./hero/HeroSlideTabs";
 
 // The shared Animated Background renderer (the same one sections mount). Client-only and
 // lazy, so a hero whose slides carry no animated background never downloads it.
@@ -254,7 +259,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
   const {
     slides = [], autoPlay, autoPlayInterval, showDots, showArrows, transitionDuration, transitionEasing,
     showSlideCounter, showScrollIndicator, metaLine, controlsPosition = "bottom-left",
-    statsStrip,
+    statsStrip, showTabs, tabsAccentColor,
   } = section.content;
 
   // Overlay font-family values are authored as CSS shorthand (e.g. `'Poppins', sans-serif`)
@@ -326,6 +331,30 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
     return () => window.removeEventListener("resize", checkMobile);
   }, [forceViewport]);
 
+  // Slide tone (additive). "light" only when the ACTIVE slide stores tone: "light"; every
+  // existing slide resolves to "dark", for which controlColors are the literal values this
+  // file always used. While a light slide is active on a real page, <html> carries
+  // data-hero-tone="light" so the transparent-over-hero navbar can switch to dark ink
+  // (scoped CSS in app/globals.css). Never set from the admin's canvas / preview mounts
+  // (forcePaused / forceViewport are only passed there), and removed on unmount.
+  const activeTone = resolveSlideTone(slides[currentSlide]);
+  const controlColors = resolveHeroControlColors(activeTone);
+  const announceLightTone = activeTone === "light" && forcePaused === undefined && forceViewport === undefined;
+  useEffect(() => {
+    if (!announceLightTone) return;
+    const root = document.documentElement;
+    root.setAttribute(HERO_TONE_ATTR, "light");
+    return () => root.removeAttribute(HERO_TONE_ATTR);
+  }, [announceLightTone]);
+
+  // Slide tabs (additive, section-level, default off). When on they replace the dots, the
+  // flow text block and bottom controls keep clear of the bar, and the autoplay timer
+  // restarts on every slide change so the active tab's progress line stays in step with it.
+  // Off: tabsOn is false and autoPlaySyncKey is a constant 0 — the timer behaves as before.
+  const tabsOn = heroTabsEnabled(showTabs, slides.length);
+  const tabsReserve = isMobile ? HERO_TABS_HEIGHT_NARROW : HERO_TABS_HEIGHT;
+  const autoPlaySyncKey = tabsOn ? currentSlide : 0;
+
   // If no slides, show placeholder
   if (!slides || slides.length === 0) {
     return (
@@ -349,7 +378,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
     }, autoPlayInterval);
 
     return () => clearInterval(interval);
-  }, [autoPlay, paused, forcePaused, autoPlayInterval, slides.length]);
+  }, [autoPlay, paused, forcePaused, autoPlayInterval, slides.length, autoPlaySyncKey]);
 
   // Mirror forcePaused onto any mounted background videos — see videoRefs comment above.
   useEffect(() => {
@@ -642,6 +671,9 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
     delay: (img.animationDelay ?? 50) / 1000,
     ease: resolveFramerEasing(img.animationEasing),
   });
+  // Facts row (additive): flow layout only, [] for every slide that stores none.
+  const slideFacts = resolveSlideFacts(slide);
+  const factsColors = resolveFactsColors(slide?.overlay);
   if (!slide) {
     return (
       <div className="min-vh-100 d-flex align-items-center justify-content-center bg-light">
@@ -733,7 +765,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
           {slide.overlay && slide.showTextOverlay !== false && slide.overlay.layoutMode !== "freeform" && (
             <div
               className={`position-absolute top-0 start-0 w-100 h-100 d-flex ${getPositionClasses(slide.overlay.position)}`}
-              style={getOverlayOuterStyle(slide.overlay)}
+              style={tabsOn ? { ...getOverlayOuterStyle(slide.overlay), paddingBottom: `${tabsReserve}px` } : getOverlayOuterStyle(slide.overlay)}
             >
               <div
                 className={
@@ -761,7 +793,7 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                   // subheading + buttons) would otherwise overflow the fixed 100dvh hero and
                   // clip at top/bottom. Short content stays centered (block shorter than the
                   // cap, so no scrollbar). Desktop is untouched. (mobile-gated)
-                  maxHeight: isMobile ? "calc(100dvh - 160px)" : undefined,
+                  maxHeight: isMobile ? (tabsOn ? `calc(100dvh - ${160 + tabsReserve}px)` : "calc(100dvh - 160px)") : undefined,
                   overflowY: isMobile ? "auto" : undefined,
                   WebkitOverflowScrolling: isMobile ? "touch" : undefined,
                 }}
@@ -953,6 +985,55 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
                         );
                       })}
                     </div>
+                  )}
+
+                  {/* Facts row (optional, flow layout only) — top hairline, bold title over
+                      smaller text, wraps. Colours follow the slide's own heading / subheading
+                      colours. Not rendered on mobile and hidden by CSS at <= 860px, so it never
+                      adds height where the block is height-capped. */}
+                  {slideFacts.length > 0 && !isMobile && (
+                    <motion.div
+                      key={`facts-${currentSlide}`}
+                      className="hero-facts"
+                      {...getAnimationVariants(slide.overlay.factsAnimation ?? "fade")}
+                      transition={{
+                        duration: (slide.overlay.factsAnimationDuration ?? 800) / 1000,
+                        delay: (slide.overlay.factsAnimationDelay ?? 0) / 1000,
+                        ease: resolveFramerEasing(slide.overlay.factsAnimationEasing),
+                      }}
+                      style={{
+                        position: "relative",
+                        maxWidth: "760px",
+                        marginTop: "40px",
+                        marginLeft: (slide.overlay.position || "").toLowerCase().includes("left") ? undefined : "auto",
+                        marginRight: (slide.overlay.position || "").toLowerCase().includes("right") ? undefined : "auto",
+                        paddingTop: "20px",
+                        color: factsColors.title,
+                        textShadow: buildTextShadow(slide.overlay.textShadow, BAKED_SUBHEADING_SHADOW),
+                      }}
+                    >
+                      <style>{`@media (max-width: 860px) { .hero-facts { display: none; } }`}</style>
+                      <div aria-hidden="true" style={{ position: "absolute", top: 0, left: 0, right: 0, height: "1px", background: "currentColor", opacity: 0.14 }} />
+                      <ul
+                        className={`d-flex flex-wrap ${
+                          (slide.overlay.position || "").toLowerCase().includes("left") ? "justify-content-start" :
+                          (slide.overlay.position || "").toLowerCase().includes("right") ? "justify-content-end" :
+                          "justify-content-center"
+                        }`}
+                        style={{ gap: "8px 28px", listStyle: "none", margin: 0, padding: 0 }}
+                      >
+                        {slideFacts.map((fact, i) => (
+                          <li key={i} style={{ fontSize: "14px", lineHeight: 1.4, color: factsColors.text }}>
+                            {fact.title && (
+                              <b style={{ display: "block", fontSize: "17px", fontWeight: 600, color: factsColors.title, fontVariantNumeric: "tabular-nums" }}>
+                                {fact.title}
+                              </b>
+                            )}
+                            {fact.text}
+                          </li>
+                        ))}
+                      </ul>
+                    </motion.div>
                   )}
                 </AnimatePresence>
               </div>
@@ -1220,14 +1301,14 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
       {/* Bottom controls — dots, slide counter, meta lines */}
       <div
         className="position-absolute bottom-0 w-100 d-flex align-items-end justify-content-between"
-        style={{ zIndex: 20, padding: `0 32px ${statsStrip?.enabled && statsStrip.items.length > 0 ? "68px" : "28px"}` }}
+        style={{ zIndex: 20, padding: `0 32px ${tabsOn ? `${tabsReserve + 16}px` : statsStrip?.enabled && statsStrip.items.length > 0 ? "68px" : "28px"}` }}
       >
         {/* Left side: dots + slide counter */}
         <div className="d-flex flex-column align-items-start gap-2">
           {metaLine && metaLine.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: "2px", marginBottom: "6px" }}>
               {metaLine.map((line, i) => (
-                <span key={i} style={{ fontSize: "10px", fontWeight: 600, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(255,255,255,0.55)", lineHeight: 1.3 }}>
+                <span key={i} style={{ fontSize: "10px", fontWeight: 600, letterSpacing: "0.14em", textTransform: "uppercase", color: controlColors.meta, lineHeight: 1.3 }}>
                   {line}
                 </span>
               ))}
@@ -1235,21 +1316,21 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
           )}
           <div className="d-flex align-items-center gap-3">
             {showSlideCounter && slides.length > 1 && (
-              <span style={{ fontSize: "12px", fontWeight: 600, letterSpacing: "0.08em", color: "rgba(255,255,255,0.7)", fontVariantNumeric: "tabular-nums", minWidth: "40px" }}>
+              <span style={{ fontSize: "12px", fontWeight: 600, letterSpacing: "0.08em", color: controlColors.counter, fontVariantNumeric: "tabular-nums", minWidth: "40px" }}>
                 {String(currentSlide + 1).padStart(2, "0")} / {String(slides.length).padStart(2, "0")}
               </span>
             )}
-            {showDots && slides.length > 1 && (
+            {heroDotsVisible(showDots, slides.length, tabsOn) && (
               <div className="d-flex gap-2 align-items-center">
                 {slides.map((_, index) => (
                   <button
                     key={index}
-                    className="border-0 p-0"
+                    className={activeTone === "light" ? "border-0 p-0 hero-ctl-ink" : "border-0 p-0"}
                     style={{
                       width: index === currentSlide ? "28px" : "6px",
                       height: "2px",
                       borderRadius: "2px",
-                      background: index === currentSlide ? "#fff" : "rgba(255,255,255,0.4)",
+                      background: index === currentSlide ? controlColors.dotActive : controlColors.dotIdle,
                       transition: "all 0.3s ease",
                       cursor: "pointer",
                     }}
@@ -1265,12 +1346,12 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
             {autoPlay && slides.length > 1 && (
               <button
                 type="button"
-                className="border-0 p-0 d-flex align-items-center justify-content-center"
+                className={activeTone === "light" ? "border-0 p-0 d-flex align-items-center justify-content-center hero-ctl-ink" : "border-0 p-0 d-flex align-items-center justify-content-center"}
                 style={{
                   width: "20px",
                   height: "20px",
                   background: "transparent",
-                  color: "rgba(255,255,255,0.7)",
+                  color: controlColors.control,
                   cursor: "pointer",
                   lineHeight: 1,
                   transition: "color 0.3s ease",
@@ -1291,10 +1372,10 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
         {/* Right side: scroll indicator */}
         {showScrollIndicator && (
           <div className="d-flex flex-column align-items-end gap-1" style={{ paddingBottom: "2px" }}>
-            <span style={{ fontSize: "10px", fontWeight: 600, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(255,255,255,0.5)" }}>
+            <span style={{ fontSize: "10px", fontWeight: 600, letterSpacing: "0.2em", textTransform: "uppercase", color: controlColors.scrollLabel }}>
               Scroll
             </span>
-            <div style={{ width: "60px", height: "2px", background: "rgba(255,255,255,0.15)", overflow: "hidden", borderRadius: "2px" }}>
+            <div style={{ width: "60px", height: "2px", background: controlColors.scrollTrack, overflow: "hidden", borderRadius: "2px" }}>
               <div style={{
                 width: "40%",
                 height: "100%",
@@ -1305,6 +1386,11 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
           </div>
         )}
       </div>
+
+      {/* Light slide only: a visible ink focus ring for the dots / pause button. */}
+      {activeTone === "light" && (
+        <style>{`.hero-ctl-ink:focus-visible { outline: 2px solid ${HERO_LIGHT_INK.strong}; outline-offset: 4px; }`}</style>
+      )}
 
       {/* Scroll indicator keyframes — injected once */}
       {showScrollIndicator && (
@@ -1344,6 +1430,20 @@ export default function HeroCarousel({ section, forcePaused, forceViewport }: He
             </div>
           ))}
         </div>
+      )}
+
+      {/* Slide tabs (optional, default off) — full-width bar along the bottom, in place of the dots. */}
+      {tabsOn && (
+        <HeroSlideTabs
+          labels={slides.map((s, i) => resolveTabLabel(s, i))}
+          current={currentSlide}
+          onSelect={goToSlide}
+          palette={resolveHeroTabsPalette(activeTone)}
+          accent={resolveHeroTabsAccent(tabsAccentColor)}
+          running={!!autoPlay && !paused && !forcePaused}
+          durationMs={autoPlayInterval}
+          narrow={isMobile}
+        />
       )}
     </div>
   );

@@ -567,6 +567,12 @@ export function freeformStackOrders(
   return changed ? out : null;
 }
 
+/** One item of a hero slide's facts row (see TextOverlayElement.facts). */
+export interface HeroFact {
+  title: string;
+  text: string;
+}
+
 /**
  * Text overlay element (per slide)
  *
@@ -663,6 +669,16 @@ export interface TextOverlayElement {
     posTablet?: FreeformPos;
     posMobile?: FreeformPos;
   }>;
+  /** Facts row under the buttons — up to 4 "bold title over smaller text" items. Flow
+   *  (non-freeform) layout only; hidden on small screens. Absent/empty = no row at all.
+   *  Stored data is cleaned by normalizeHeroFacts (lib/hero/hero-slide-extras.ts). */
+  facts?: HeroFact[];
+  /** Facts row entrance animation. Defaults: "fade", 800ms, 0ms delay. */
+  factsAnimation?: AnimationType;
+  factsAnimationDuration?: number; // ms
+  factsAnimationDelay?: number;    // ms
+  /** Easing curve — undefined means unchanged (Framer's own default). See HeroEasing. */
+  factsAnimationEasing?: HeroEasing;
   /**
    * Overlay layout mode.
    *  - "preset" (default / undefined): current behaviour — a single positioned text block.
@@ -725,6 +741,12 @@ export interface HeroCarouselSlide {
    *  (lib/anim-bg). Drawn above the slide's image/video/colour + gradient and below all
    *  overlay content. Absent or `enabled: false` = the slide renders exactly as before. */
   animBg?: AnimBgConfig;
+  /** "light" = this slide has a light background, so while it is the active slide the
+   *  carousel controls and the navbar over the hero render in dark ink. Absent or "dark" =
+   *  the existing white controls, unchanged. */
+  tone?: "light" | "dark";
+  /** Text for this slide's tab when the section's `showTabs` is on. Falls back to `name`. */
+  tabLabel?: string;
 }
 
 /**
@@ -756,6 +778,10 @@ export interface HeroSection extends BaseSectionConfig {
       enabled: boolean;
       items: Array<{ icon: string; text: string }>;
     };
+    /** Full-width slide tab bar along the bottom of the hero (replaces the dots). Default off. */
+    showTabs?: boolean;
+    /** Colour of the active tab's progress line (any CSS colour). Default: the hero accent. */
+    tabsAccentColor?: string;
   };
 }
 
