@@ -1111,6 +1111,12 @@ input[type="checkbox"] {
 .cta-d-accent { display: block; }
 .cta-d-hint { margin: 0 0 20px; font-size: 14px; }
 
+/* The section's background image layer is position:absolute with z-index:auto, so it paints
+   OVER non-positioned content. The classic look only showed through by accident (the glass form
+   card's backdrop-filter and the heading's transform each create a stacking context). Designed
+   mode has neither, so lift the whole content wrapper above the background layer. */
+.cta-designed > .section-content-wrapper { position: relative; z-index: 1; }
+
 .cta-d-card {
   width: min(var(--cta-card-max, 1120px), 100%);
   margin: 0 auto;
