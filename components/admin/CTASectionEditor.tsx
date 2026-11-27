@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { resolveCtaFormFields } from "@/lib/cta-defaults";
+import { buildCtaContent } from "@/lib/cta-content";
 import { useConfirm, useAlert } from "@/components/admin/ConfirmProvider";
 import { useAutoSave } from "@/lib/hooks/useAutoSave";
 import type { CTASection, ButtonConfig, GradientOverlay, LowerThirdConfig } from "@/types/section";
@@ -256,7 +257,9 @@ export default function CTASectionEditor({
       bgImageOpacity,
       bgParallax,
       lowerThird,
-      content: {
+      // Start from the stored content so keys this editor does not own survive a save/autosave.
+      // An owned key set to undefined is removed (same as before); see lib/cta-content.ts.
+      content: buildCtaContent(section.content as unknown as Record<string, unknown>, {
         heading,
         subheading: subheading || undefined,
         buttons,
@@ -269,7 +272,7 @@ export default function CTASectionEditor({
         formFields: style === "contact-form" ? formFields : undefined,
         formTitle: style === "contact-form" ? formTitle : undefined,
         formSuccessMessage: style === "contact-form" ? formSuccessMessage : undefined,
-      },
+      }) as unknown as CTASection["content"],
     };
 
     onSave(updatedSection, shouldClose);
