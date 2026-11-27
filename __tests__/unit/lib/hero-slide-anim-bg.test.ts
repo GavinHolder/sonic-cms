@@ -136,6 +136,102 @@ describe("line-art presets", () => {
   });
 });
 
+describe("line-art presets — fibre network and mast-with-dishes art", () => {
+  const count = (svg: string, cls: string) => (svg.match(new RegExp(`class="[^"]*\\b${cls}\\b[^"]*"`, "g")) || []).length;
+  const pathData = (svg: string) => [...svg.matchAll(/<path[^>]*\sd="([^"]*)"/g)].map((m) => m[1]);
+
+  it.each(["fibre-strands", "signal-rings"] as const)("%s is deterministic and uses both colours", (id) => {
+    const svg = lineArtPresetSvg(id);
+    expect(lineArtPresetSvg(id)).toBe(svg);
+    expect(svg).toContain("--anim-bg-color-2");
+    expect(svg).toContain("currentColor");
+    // no page-background colour baked in: the only hex is the neutral-line var() fallback
+    expect(svg.match(/#[0-9a-f]{3,8}\b/gi) ?? []).toEqual(
+      svg.match(new RegExp(`var\\(--anim-bg-color-2,${LINE_ART_LINE_LIGHT}\\)`, "g"))?.map(() => LINE_ART_LINE_LIGHT)
+    );
+  });
+
+  it.each(["fibre-strands", "signal-rings"] as const)("%s puts an abp- class first on every element", (id) => {
+    const values = [...lineArtPresetSvg(id).matchAll(/class="([^"]*)"/g)].map((m) => m[1]);
+    expect(values.length).toBeGreaterThan(0);
+    for (const v of values) expect(v.startsWith("abp-")).toBe(true); // [class^="abp-"] pause rule
+  });
+
+  it.each(["fibre-strands", "signal-rings"] as const)("%s path data is only M/L/H/V/Q/Z/A/a with finite numbers", (id) => {
+    const paths = pathData(lineArtPresetSvg(id));
+    expect(paths.length).toBeGreaterThan(0);
+    for (const d of paths) {
+      expect(d).toMatch(/^[MLHVQZAa0-9 .,-]+$/);
+      const nums = d.split(/[MLHVQZAa ,]+/).filter(Boolean);
+      expect(nums.length).toBeGreaterThan(0);
+      for (const n of nums) {
+        expect(n).toMatch(/^-?\d+(\.\d+)?$/);
+        expect(Number.isFinite(Number(n))).toBe(true);
+      }
+    }
+  });
+
+  it.each(["fibre-strands", "signal-rings"] as const)("%s stops every keyframe under reduced motion", (id) => {
+    const svg = lineArtPresetSvg(id);
+    const css = svg.slice(svg.indexOf("<style>") + 7, svg.indexOf("</style>"));
+    const reducedAt = css.indexOf("@media (prefers-reduced-motion: reduce){");
+    expect(reducedAt).toBeGreaterThan(-1);
+    const base = css.slice(0, reducedAt);
+    const reduced = css.slice(reducedAt);
+    const keyframes = [...css.matchAll(/@keyframes ([\w-]+)/g)].map((m) => m[1]);
+    expect(keyframes.length).toBeGreaterThan(0);
+    for (const k of keyframes) {
+      // every class animated by this keyframe is listed in a reduced-motion rule that sets animation:none
+      const users = [...base.matchAll(/([^{}]+)\{[^}]*animation:([\w-]+) /g)].filter((m) => m[2] === k);
+      expect(users.length).toBeGreaterThan(0);
+      for (const u of users) {
+        for (const sel of u[1].split(",")) {
+          expect(reduced).toMatch(new RegExp(`${sel.replace(".", "\\.")}[,{][^}]*animation:none`));
+        }
+      }
+    }
+  });
+
+  it("fibre-strands is a straight-segment network: trunk, cabinets, drops, premises, streaks", () => {
+    const svg = lineArtPresetSvg("fibre-strands");
+    for (const d of pathData(svg)) expect(d).toMatch(/^[ML0-9 .-]+$/); // no curves at all
+    expect(count(svg, "abp-fs-trunk")).toBe(1);
+    expect(count(svg, "abp-fs-faint")).toBe(8); // trunk + 7 drops
+    expect(count(svg, "abp-fs-streak")).toBe(7);
+    expect(count(svg, "abp-fs-premise")).toBe(7);
+    expect(count(svg, "abp-fs-cab")).toBe(3);
+    expect(count(svg, "abp-fs-src")).toBe(1);
+    expect(svg).toContain('d="M800 470 L1600 470"'); // the trunk runs from the source to the right edge
+    // every streak runs the full route: source → cabinet on the trunk → premises
+    const streaks = [...svg.matchAll(/<path class="abp-fs-streak"[^>]*\sd="([^"]*)"/g)].map((m) => m[1]);
+    expect(streaks).toHaveLength(7);
+    for (const d of streaks) expect(d).toMatch(/^M800 470 L(900|1160|1400) 470 L/);
+    // each premises square sits on the end of its streak's route
+    const ends = streaks.map((d) => d.split(" L").pop());
+    const squares = [...svg.matchAll(/<rect class="abp-fs-premise" x="([\d.]+)" y="([\d.]+)" width="12" height="12"/g)]
+      .map((m) => `${Number(m[1]) + 6} ${Number(m[2]) + 6}`);
+    expect(squares).toEqual(ends);
+  });
+
+  it("signal-rings is a mast with two sector panels, three dishes and three rings from the mast top", () => {
+    const svg = lineArtPresetSvg("signal-rings");
+    expect(count(svg, "abp-sr-panel")).toBe(2);
+    expect(count(svg, "abp-sr-dish")).toBe(3);
+    expect(count(svg, "abp-sr-feed")).toBe(3);
+    expect(count(svg, "abp-sr-ring")).toBe(3);
+    expect(count(svg, "abp-sr-dot")).toBe(1);
+    expect((svg.match(/<rect class="abp-sr-mast abp-sr-panel"/g) || []).length).toBe(2); // rectangular panels
+    expect(svg).not.toMatch(/<ellipse/);
+    // dishes are bowls (a quadratic curve closed by a straight chord), not circles
+    const dishes = [...svg.matchAll(/<path class="abp-sr-mast abp-sr-dish" d="([^"]*)"/g)].map((m) => m[1]);
+    expect(dishes).toHaveLength(3);
+    for (const d of dishes) expect(d).toMatch(/^M[\d.]+ [\d.]+ Q[\d.]+ [\d.]+ [\d.]+ [\d.]+ Z$/);
+    // rings are centred on, and scale from, the top of the mast
+    expect((svg.match(/<circle class="abp-sr-ring abp-sr-r\d" cx="1180" cy="250" r="420"/g) || []).length).toBe(3);
+    expect(svg).toContain("transform-origin:1180px 250px");
+  });
+});
+
 describe("line-art presets — configurable neutral line colour", () => {
   const ids = LINE_ART_PRESETS.map((p) => p.id);
 
