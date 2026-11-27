@@ -1,19 +1,22 @@
 {
-  "version": "1.75.0",
+  "version": "1.76.0",
   "upstreamVersion": "1.72.0",
-  "date": "2026-11-18",
+  "date": "2026-11-27",
   "changelog": {
     "features": [
-      "Section version history: a History button on each section lists earlier saves and restores any of them",
-      "Hero editor: the Tablet and Mobile canvases now show the real hero, with drag handles on top",
-      "Hero Carousel slide buttons: font size, font family and width controls",
-      "Buttons can link straight to a product category or sub-type, and to a section on another page",
-      "Email branding: logo, header and page colours are editable in admin and shared by every email"
+      "Hero Carousel: light slides (dark navbar and controls), a per-slide facts row, and slide tabs with a progress line",
+      "Contact section (CTA, Contact Form style): optional Design tab for card, colours, fonts, contact tiles, form panel, fields and button",
+      "Contact section: eyebrow, heading accent line, contact details, form hint, button text and half-width fields are editable",
+      "Animated backgrounds: Fibre network and Signal mast line-art presets"
     ],
     "bugfixes": [
-      "Saving a section can no longer silently overwrite a newer save made in another tab or by another user",
-      "Publishing a page only changes its status and never alters section content",
-      "Hero size controls change the rendered size on Desktop, Tablet and Mobile independently"
+      "Coverage map: the Get connected form shows errors beside the button, requires name, email and phone, and is rate-limited",
+      "Reloading a page after using a section link now starts at the top instead of jumping to that section",
+      "Section template links to a home-page section scroll within the landing-page preview",
+      "Saving the contact section no longer removes its phone, email and address",
+      "Form Inbox CSV export neutralises spreadsheet formulas in headers and cells",
+      "Pricing cards no longer show one card per page after the section remounts",
+      "Email logo is sharp in mail clients"
     ],
     "breaking": []
   }

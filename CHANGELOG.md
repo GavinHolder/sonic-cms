@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2026-11-27] v1.76.0 — Hero light slides and tabs, contact section design settings, coverage lead form
+
+### Added
+- Hero Carousel: light slides (dark navbar and controls), a per-slide facts row, and slide tabs with a progress line.
+- Contact section (CTA, Contact Form style): optional Design tab for card, colours, fonts, contact tiles, form panel, fields and button.
+- Contact section: eyebrow, heading accent line, contact details, form hint, button text and half-width fields are editable.
+- Animated backgrounds: Fibre network and Signal mast line-art presets.
+
+### Fixed
+- Coverage map: the Get connected form shows errors beside the button, requires name, email and phone, and is rate-limited.
+- Reloading a page after using a section link now starts at the top instead of jumping to that section.
+- Section template links to a home-page section scroll within the landing-page preview.
+- Saving the contact section no longer removes its phone, email and address.
+- Form Inbox CSV export neutralises spreadsheet formulas in headers and cells.
+- Pricing cards no longer show one card per page after the section remounts.
+- Email logo is sharp in mail clients.
+
+### Notes
+- Contact-form CTA and cta-footer sections now carry their section id as a DOM id. A Section Into (triangle) overlay or motion elements saved on such a section attach where they previously could not; check for these before updating a site.
+
+---
+
 ## [2026-09-14] v1.74.1 — Pricing card unit positioning + mobile sidebar fixes
 
 ### Fixed
