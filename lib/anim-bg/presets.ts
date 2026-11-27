@@ -94,14 +94,14 @@ function segment(a: Pt, b: Pt, gap: number): string {
 
 function fibreStrands(): string {
   const css =
-    `.abp-fs-faint{fill:none;stroke:${INK};stroke-width:1;opacity:.12}` +
-    `.abp-fs-trunk{stroke-width:1.5;opacity:.3}` +
-    `.abp-fs-streak{fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:90 1100;opacity:.8;animation:abp-fs-run 9s linear infinite}` +
-    `.abp-fs-premise,.abp-fs-cab{fill:${INK};opacity:.3;animation:abp-fs-blink 6s ease-in-out infinite}` +
-    `.abp-fs-src{fill:none;stroke:${INK};stroke-width:1.5;opacity:.35}` +
-    `@keyframes abp-fs-run{from{stroke-dashoffset:1170}to{stroke-dashoffset:0}}` +
-    `@keyframes abp-fs-blink{0%,100%{opacity:.3}50%{opacity:.6}}` +
-    `${REDUCED}{.abp-fs-streak,.abp-fs-premise,.abp-fs-cab{animation:none}}`;
+    `.abp-fn-faint{fill:none;stroke:${INK};stroke-width:1;opacity:.12}` +
+    `.abp-fn-trunk{stroke-width:1.5;opacity:.3}` +
+    `.abp-fn-streak{fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:90 1080;opacity:.8;animation:abp-fn-run 9s linear infinite}` +
+    `.abp-fn-premise,.abp-fn-cab{fill:${INK};opacity:.3;animation:abp-fn-blink 6s ease-in-out infinite}` +
+    `.abp-fn-src{fill:none;stroke:${INK};stroke-width:1.5;opacity:.35}` +
+    `@keyframes abp-fn-run{from{stroke-dashoffset:1170}to{stroke-dashoffset:0}}` +
+    `@keyframes abp-fn-blink{0%,100%{opacity:.3}50%{opacity:.6}}` +
+    `${REDUCED}{.abp-fn-streak,.abp-fn-premise,.abp-fn-cab{animation:none}}`;
   const src: Pt = [800, 470];                                  // where the trunk comes in
   const cabs: Pt[] = [[900, 470], [1160, 470], [1400, 470]];   // street cabinets on the trunk
   // [cabinet index, route from the cabinet to the premises] — straight runs, 45° chamfered corners
@@ -115,22 +115,22 @@ function fibreStrands(): string {
     [2, [[1600, 470]]],
   ];
   const line = (pts: Pt[]) => "M" + pts.map((p) => p.join(" ")).join(" L");
-  let body = `<path class="abp-fs-faint abp-fs-trunk" d="${line([src, [1600, 470]])}"/>`;
+  let body = `<path class="abp-fn-faint abp-fn-trunk" d="${line([src, [1600, 470]])}"/>`;
   drops.forEach(([c, pts]) => {
-    body += `<path class="abp-fs-faint" d="${line([cabs[c], ...pts])}"/>`;
+    body += `<path class="abp-fn-faint" d="${line([cabs[c], ...pts])}"/>`;
   });
   drops.forEach(([c, pts], i) => {
     // light leaves the source and runs the whole route to the premises
     const delay = -((i * 1.9) % 9);
     const dur = 8 + (i % 3); // 8–10s
-    body += `<path class="abp-fs-streak" pathLength="1170" d="${line([src, cabs[c], ...pts])}" style="animation-delay:${delay.toFixed(1)}s;animation-duration:${dur}s"/>`;
+    body += `<path class="abp-fn-streak" pathLength="1170" d="${line([src, cabs[c], ...pts])}" style="animation-delay:${delay.toFixed(1)}s;animation-duration:${dur}s"/>`;
     const [x, y] = pts[pts.length - 1];
-    body += `<rect class="abp-fs-premise" x="${x - 6}" y="${y - 6}" width="12" height="12" rx="2" style="animation-delay:${(i * 0.5).toFixed(1)}s"/>`;
+    body += `<rect class="abp-fn-premise" x="${x - 6}" y="${y - 6}" width="12" height="12" rx="2" style="animation-delay:${(i * 0.5).toFixed(1)}s"/>`;
   });
   cabs.forEach(([x, y], i) => {
-    body += `<circle class="abp-fs-cab" cx="${x}" cy="${y}" r="5" style="animation-delay:${((i + 2) * 0.5).toFixed(1)}s"/>`;
+    body += `<circle class="abp-fn-cab" cx="${x}" cy="${y}" r="5" style="animation-delay:${((i + 2) * 0.5).toFixed(1)}s"/>`;
   });
-  body += `<circle class="abp-fs-src" cx="${src[0]}" cy="${src[1]}" r="9"/>`;
+  body += `<circle class="abp-fn-src" cx="${src[0]}" cy="${src[1]}" r="9"/>`;
   return wrap(css, body);
 }
 
@@ -194,16 +194,16 @@ function signalRings(): string {
   const half = (y: number) => halfTop + (halfBase - halfTop) * ((y - cy) / (base - cy));
   const r = (n: number) => Math.round(n * 10) / 10;
   const css =
-    `.abp-sr-ring{fill:none;stroke:currentColor;stroke-width:1;opacity:0;transform-origin:${cx}px ${cy}px;animation:abp-sr-ping 7s ease-out infinite}` +
-    `.abp-sr-mast{fill:none;stroke:${INK};stroke-width:1.5;stroke-linejoin:round;opacity:.35}` +
+    `.abp-sm-ring{fill:none;stroke:currentColor;stroke-width:1;opacity:0;transform-origin:${cx}px ${cy}px;animation:abp-sm-ping 7s ease-out infinite}` +
+    `.abp-sm-mast{fill:none;stroke:${INK};stroke-width:1.5;stroke-linejoin:round;opacity:.35}` +
     // No slide background colour is available here, so solid parts get a faint tint of the line colour.
-    `.abp-sr-panel,.abp-sr-dish,.abp-sr-feed{fill:${INK};fill-opacity:.3}` +
-    `.abp-sr-dot{fill:currentColor;opacity:.6}` +
-    `@keyframes abp-sr-ping{0%{transform:scale(.15);opacity:.4}100%{transform:scale(1);opacity:0}}` +
-    `${REDUCED}{.abp-sr-ring{animation:none;opacity:.25}.abp-sr-r1{transform:scale(.35)}.abp-sr-r2{transform:scale(.65)}}`;
+    `.abp-sm-panel,.abp-sm-dish,.abp-sm-feed{fill:${INK};fill-opacity:.3}` +
+    `.abp-sm-dot{fill:currentColor;opacity:.6}` +
+    `@keyframes abp-sm-ping{0%{transform:scale(.15);opacity:.4}100%{transform:scale(1);opacity:0}}` +
+    `${REDUCED}{.abp-sm-ring{animation:none;opacity:.25}.abp-sm-r1{transform:scale(.35)}.abp-sm-r2{transform:scale(.65)}}`;
   let body = "";
   for (let i = 0; i < 3; i++) {
-    body += `<circle class="abp-sr-ring abp-sr-r${i + 1}" cx="${cx}" cy="${cy}" r="420" style="animation-delay:${(i * 2.3).toFixed(1)}s"/>`;
+    body += `<circle class="abp-sm-ring abp-sm-r${i + 1}" cx="${cx}" cy="${cy}" r="420" style="animation-delay:${(i * 2.3).toFixed(1)}s"/>`;
   }
   let d = `M${cx - halfTop} ${cy} L${cx - halfBase} ${base} M${cx + halfTop} ${cy} L${cx + halfBase} ${base}`;
   for (let i = 0; i <= bays; i++) {
@@ -217,26 +217,26 @@ function signalRings(): string {
     }
   }
   d += ` M${cx} ${cy} V${cy - 46}`; // top spike
-  body += `<path class="abp-sr-mast" d="${d}"/>`;
+  body += `<path class="abp-sm-mast" d="${d}"/>`;
   // Sector antennas: tall rectangular panels on stand-off brackets near the top.
   // Lines stop at each shape's edge (the shapes are not opaque, so nothing may run through them).
   const sectors: Array<[number, number]> = [[-1, 304], [1, 304]];
   sectors.forEach(([side, y]) => {
     const px = cx + side * (half(y) + 18);
     const edge = r(px - side * 4.5);
-    body += `<path class="abp-sr-mast" d="M${r(cx + side * half(y - 15))} ${y - 15} H${edge} M${r(cx + side * half(y + 15))} ${y + 15} H${edge}"/>`;
-    body += `<rect class="abp-sr-mast abp-sr-panel" x="${r(px - 4.5)}" y="${y - 28}" width="9" height="56" rx="3"/>`;
+    body += `<path class="abp-sm-mast" d="M${r(cx + side * half(y - 15))} ${y - 15} H${edge} M${r(cx + side * half(y + 15))} ${y + 15} H${edge}"/>`;
+    body += `<rect class="abp-sm-mast abp-sm-panel" x="${r(px - 4.5)}" y="${y - 28}" width="9" height="56" rx="3"/>`;
   });
   // Microwave dishes, seen side-on: bowl, mount arm and feed.
   const dishes: Array<[number, number, number]> = [[1, 420, 20], [-1, 500, 16], [1, 590, 13]];
   dishes.forEach(([side, y, rad]) => {
     const X = cx + side * (half(y) + rad + 12); // the bowl's rim (straight chord)
     const feed = X + side * rad * 0.55;
-    body += `<path class="abp-sr-mast" d="M${r(cx + side * half(y))} ${y} H${r(X - side * rad * 0.5)} M${r(X)} ${y} H${r(feed - side * 2.2)}"/>`;
-    body += `<path class="abp-sr-mast abp-sr-dish" d="M${r(X)} ${y - rad} Q${r(X - side * rad)} ${y} ${r(X)} ${y + rad} Z"/>`;
-    body += `<circle class="abp-sr-mast abp-sr-feed" cx="${r(feed)}" cy="${y}" r="2.2"/>`;
+    body += `<path class="abp-sm-mast" d="M${r(cx + side * half(y))} ${y} H${r(X - side * rad * 0.5)} M${r(X)} ${y} H${r(feed - side * 2.2)}"/>`;
+    body += `<path class="abp-sm-mast abp-sm-dish" d="M${r(X)} ${y - rad} Q${r(X - side * rad)} ${y} ${r(X)} ${y + rad} Z"/>`;
+    body += `<circle class="abp-sm-mast abp-sm-feed" cx="${r(feed)}" cy="${y}" r="2.2"/>`;
   });
-  body += `<circle class="abp-sr-dot" cx="${cx}" cy="${cy - 46}" r="5"/>`;
+  body += `<circle class="abp-sm-dot" cx="${cx}" cy="${cy - 46}" r="5"/>`;
   return wrap(css, body);
 }
 
