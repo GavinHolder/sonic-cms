@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import type { CoverageCheckResult, CoverageNetworkResult, CoveragePackage } from "@/lib/coverage-utils";
+import { validateLeadContact, describeLeadFailure, LEAD_FIELD_ORDER, LEAD_NOT_RECEIVED_MESSAGE, type LeadField, type LeadFieldErrors } from "@/lib/coverage/lead-validation";
 import "leaflet/dist/leaflet.css";
 
 const CoverageMapViewer = dynamic(() => import("@/components/coverage/CoverageMapViewer"), {
@@ -62,6 +63,28 @@ export default function CoveragePageClient({ initialMaps, networkRadii }: Props)
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<LeadFieldErrors>({});
+  // Bumped only by a package-pick event (click or ?package= deep link) — never by a plain re-render.
+  const [focusTick, setFocusTick] = useState(0);
+  const panelBodyRef = useRef<HTMLDivElement | null>(null);
+  const fieldRefs = useRef<Record<LeadField, HTMLInputElement | null>>({ name: null, email: null, phone: null });
+  const submittingRef = useRef(false);
+
+  // Scroll ONLY the panel's own scroll container (scrollIntoView would also scroll the
+  // overflow-hidden page root while the panel is still sliding in), then focus the field.
+  function revealField(field: LeadField) {
+    const el = fieldRefs.current[field];
+    const box = panelBodyRef.current;
+    if (!el || !box) return;
+    const reduced = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const top = el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - 72;
+    box.scrollTo({ top: Math.max(0, top), behavior: reduced ? "auto" : "smooth" });
+    el.focus({ preventScroll: true });
+  }
+
+  useEffect(() => {
+    if (focusTick > 0) revealField("name");
+  }, [focusTick]);
 
   const activeMap = maps.find((m) => m.id === activeMapId) ?? null;
   const networks: CoverageNetworkResult[] = result?.networks ?? [];
@@ -106,8 +129,9 @@ export default function CoveragePageClient({ initialMaps, networkRadii }: Props)
     setDataTerm(targetPkg?.term ?? firstTerms[0] ?? null);
     setPickedData(targetPkg && (targetPkg.kind ?? "DATA") !== "VAS" ? targetPkg.id : null);
     setAddons(new Set(targetPkg && targetPkg.kind === "VAS" ? [targetPkg.id] : []));
-    setName(""); setEmail(""); setPhone(""); setError(""); setSubmitted(false);
+    setName(""); setEmail(""); setPhone(""); setError(""); setFieldErrors({}); setSubmitted(false);
     setOpen(true);
+    if (targetPkg && (targetPkg.kind ?? "DATA") !== "VAS") setFocusTick((t) => t + 1);
   }
 
   function selectNetwork(id: string) {
@@ -122,14 +146,34 @@ export default function CoveragePageClient({ initialMaps, networkRadii }: Props)
 
   const canSubmit = isMiss || !!pickedData || (!isMiss && !hasAnyPackage);
 
+  function pickData(id: string) {
+    setPickedData(id);
+    setFocusTick((t) => t + 1);
+  }
+
+  function changeField(field: LeadField, value: string) {
+    if (field === "name") setName(value);
+    else if (field === "email") setEmail(value);
+    else setPhone(value);
+    if (fieldErrors[field]) setFieldErrors((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== field)));
+  }
+
   async function submitLead() {
-    if (!name.trim() || !email.trim()) { setError("Name and email are required."); return; }
-    setSubmitting(true); setError("");
+    if (submittingRef.current) return;
+    const checked = validateLeadContact({ name, email, phone });
+    if (!checked.ok) {
+      setFieldErrors(checked.errors);
+      setError(checked.message);
+      revealField(checked.firstInvalid);
+      return;
+    }
+    submittingRef.current = true;
+    setSubmitting(true); setError(""); setFieldErrors({});
     try {
       const res = await fetch("/api/coverage/lead", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: name.trim(), email: email.trim(), phone: phone.trim(),
+          ...checked.value,
           address, mapSlug: activeMap?.slug,
           networkId: net?.id ?? null,
           packageId: pickedData,
@@ -137,17 +181,27 @@ export default function CoveragePageClient({ initialMaps, networkRadii }: Props)
           miss: isMiss,
         }),
       });
-      if (res.ok) setSubmitted(true);
-      else setError("Something went wrong — please try again.");
-    } catch { setError("Connection error — please try again."); }
-    finally { setSubmitting(false); }
+      if (res.ok) { setSubmitted(true); return; }
+      const payload = (await res.json().catch(() => null)) as { error?: unknown; field?: unknown } | null;
+      const serverError = typeof payload?.error === "string" && payload.error ? payload.error : null;
+      setError(describeLeadFailure(res.status, serverError, res.headers.get("Retry-After")));
+      const field = LEAD_FIELD_ORDER.find((f) => f === payload?.field);
+      if (res.status === 400 && serverError && field) {
+        setFieldErrors({ [field]: serverError });
+        revealField(field);
+      }
+    } catch { setError(LEAD_NOT_RECEIVED_MESSAGE); }
+    finally { submittingRef.current = false; setSubmitting(false); }
   }
+
+  const leadFormProps = { values: { name, email, phone }, onChange: changeField, errors: fieldErrors, error, fieldRefs };
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100dvh", background: "#0a0d18", overflow: "hidden" }}>
       {/* kill any focus ring / flash on the map container */}
       <style>{`.leaflet-container, .leaflet-container:focus, .leaflet-container *:focus { outline: none !important; }
-        @keyframes popularGlow { 0%, 100% { box-shadow: 0 0 6px 0px rgba(227,30,36,0.45); } 50% { box-shadow: 0 0 22px 7px rgba(227,30,36,0.55); } }`}</style>
+        @keyframes popularGlow { 0%, 100% { box-shadow: 0 0 6px 0px rgba(227,30,36,0.45); } 50% { box-shadow: 0 0 22px 7px rgba(227,30,36,0.55); } }
+        .cov-lead-input:focus-visible { outline: 2px solid #b91c1c; outline-offset: 2px; }`}</style>
 
       <a href="/" style={{ position: "absolute", top: 16, left: 16, zIndex: 901, display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 16px", borderRadius: 8, background: "rgba(6,8,15,0.85)", color: "#fff", textDecoration: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", border: "1px solid rgba(255,255,255,0.12)", backdropFilter: "blur(8px)" }}>
         <i className="bi bi-arrow-left" /> Back to site
@@ -188,7 +242,7 @@ export default function CoveragePageClient({ initialMaps, networkRadii }: Props)
         </div>
 
         {/* Body */}
-        <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
+        <div ref={panelBodyRef} style={{ flex: 1, overflowY: "auto", padding: 20 }}>
           {submitted ? (
             <div style={{ textAlign: "center", padding: "30px 0" }}>
               <i className="bi bi-check-circle-fill" style={{ fontSize: 44, color: "#22c55e" }} />
@@ -199,12 +253,12 @@ export default function CoveragePageClient({ initialMaps, networkRadii }: Props)
           ) : isMiss ? (
             <>
               <p style={{ color: "#475569", fontSize: 14, lineHeight: 1.6, marginTop: 0 }}>We don&apos;t reach this address yet — but we&apos;re expanding fast. Leave your details and we&apos;ll let you know the moment coverage arrives.</p>
-              <LeadForm {...{ name, setName, email, setEmail, phone, setPhone, error }} />
+              <LeadForm {...leadFormProps} />
             </>
           ) : !hasAnyPackage ? (
             <>
               <p style={{ color: "#475569", fontSize: 14, lineHeight: 1.6, marginTop: 0 }}>Good news — coverage is available here{networks.length ? ` via ${networks.map((n) => n.name).join(", ")}` : ""}. Leave your details and our team will sort out the right package.</p>
-              <LeadForm {...{ name, setName, email, setEmail, phone, setPhone, error }} />
+              <LeadForm {...leadFormProps} />
             </>
           ) : (
             <>
@@ -243,7 +297,7 @@ export default function CoveragePageClient({ initialMaps, networkRadii }: Props)
                 <div style={{ marginBottom: 20 }}>
                   <SectionLabel>{net?.packages.some((p) => p.kind === "VAS") ? "Data" : "Packages"}</SectionLabel>
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {shownData.map((p) => <PriceCard key={p.id} p={p} selected={pickedData === p.id} onClick={() => setPickedData(p.id)} mode="radio" />)}
+                    {shownData.map((p) => <PriceCard key={p.id} p={p} selected={pickedData === p.id} onClick={() => pickData(p.id)} mode="radio" />)}
                   </div>
                 </div>
               )}
@@ -267,7 +321,7 @@ export default function CoveragePageClient({ initialMaps, networkRadii }: Props)
               {pickedData && (
                 <div style={{ marginTop: 6, paddingTop: 16, borderTop: "1px solid rgba(0,0,0,0.08)" }}>
                   <p style={{ margin: "0 0 10px", fontSize: 13, color: "#475569" }}>Get connected — enter your details:</p>
-                  <LeadForm {...{ name, setName, email, setEmail, phone, setPhone, error }} />
+                  <LeadForm {...leadFormProps} />
                 </div>
               )}
             </>
@@ -277,11 +331,14 @@ export default function CoveragePageClient({ initialMaps, networkRadii }: Props)
         {/* Footer */}
         {!submitted && (
           <div style={{ padding: "14px 20px", borderTop: "1px solid rgba(0,0,0,0.08)" }}>
+            <div role="alert" style={{ color: "#b91c1c", fontSize: 13, fontWeight: 600, lineHeight: 1.4, marginBottom: error ? 10 : 0 }}>
+              {error && <><i className="bi bi-exclamation-triangle-fill" aria-hidden="true" /> {error}</>}
+            </div>
             <button onClick={submitLead} disabled={!canSubmit || submitting}
               style={{ width: "100%", padding: "13px 18px", borderRadius: 9, border: "none", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, background: (!canSubmit || submitting) ? "rgba(0,0,0,0.12)" : RED, color: "#fff", fontWeight: 700, fontSize: 14, cursor: (!canSubmit || submitting) ? "not-allowed" : "pointer" }}>
               {submitting ? "Sending…" : <><i className="bi bi-telephone" /> {isMiss ? "Notify me" : "Get connected"}</>}
             </button>
-            {!isMiss && hasAnyPackage && !pickedData && <div style={{ fontSize: 11.5, color: "#94a3b8", textAlign: "center", marginTop: 8 }}>Pick a data package to continue</div>}
+            {!isMiss && hasAnyPackage && !pickedData && <div style={{ fontSize: 13, color: "#475569", textAlign: "center", marginTop: 8 }}>Pick a data package to continue</div>}
           </div>
         )}
       </div>
@@ -333,17 +390,42 @@ function PriceCard({ p, selected, onClick, mode }: { p: CoveragePackage; selecte
   );
 }
 
-function LeadForm({ name, setName, email, setEmail, phone, setPhone, error }: {
-  name: string; setName: (v: string) => void; email: string; setEmail: (v: string) => void;
-  phone: string; setPhone: (v: string) => void; error: string;
+const LEAD_INPUTS: ReadonlyArray<{ field: LeadField; label: string; type: string; autoComplete: string; inputMode: "text" | "email" | "tel" }> = [
+  { field: "name", label: "Your name", type: "text", autoComplete: "name", inputMode: "text" },
+  { field: "email", label: "Email address", type: "email", autoComplete: "email", inputMode: "email" },
+  { field: "phone", label: "Phone number", type: "tel", autoComplete: "tel", inputMode: "tel" },
+];
+
+function LeadForm({ values, onChange, errors, error, fieldRefs }: {
+  values: Record<LeadField, string>;
+  onChange: (field: LeadField, value: string) => void;
+  errors: LeadFieldErrors;
+  error: string;
+  fieldRefs: React.MutableRefObject<Record<LeadField, HTMLInputElement | null>>;
 }) {
-  const inputStyle: React.CSSProperties = { width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid rgba(0,0,0,0.15)", background: "rgba(0,0,0,0.02)", color: "#0f1322", fontSize: 14, marginBottom: 8, outline: "none" };
+  const uid = useId();
+  const inputStyle: React.CSSProperties = { width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid rgba(0,0,0,0.15)", background: "rgba(0,0,0,0.02)", color: "#0f1322", fontSize: 14 };
+  const hasFieldError = LEAD_INPUTS.some((i) => errors[i.field]);
   return (
     <div>
-      <input style={inputStyle} placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
-      <input style={inputStyle} type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-      <input style={{ ...inputStyle, marginBottom: 0 }} placeholder="Phone (optional)" value={phone} onChange={(e) => setPhone(e.target.value)} />
-      {error && <div style={{ color: "#f87171", fontSize: 12.5, marginTop: 8 }}>{error}</div>}
+      {LEAD_INPUTS.map(({ field, label, type, autoComplete, inputMode }) => {
+        const id = `${uid}-${field}`;
+        const message = errors[field];
+        return (
+          <div key={field} style={{ marginBottom: 10 }}>
+            <label htmlFor={id} style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#334155", marginBottom: 4 }}>{label}</label>
+            <input
+              id={id} ref={(el) => { fieldRefs.current[field] = el; }} className="cov-lead-input"
+              type={type} autoComplete={autoComplete} inputMode={inputMode} required
+              aria-invalid={message ? true : undefined} aria-describedby={message ? `${id}-error` : undefined}
+              style={message ? { ...inputStyle, border: "1.5px solid #b91c1c" } : inputStyle}
+              value={values[field]} onChange={(e) => onChange(field, e.target.value)}
+            />
+            {message && <div id={`${id}-error`} style={{ color: "#b91c1c", fontSize: 13, marginTop: 4 }}><i className="bi bi-exclamation-circle" aria-hidden="true" /> {message}</div>}
+          </div>
+        );
+      })}
+      {error && !hasFieldError && <div style={{ color: "#b91c1c", fontSize: 13, marginTop: 8 }}>{error}</div>}
     </div>
   );
 }

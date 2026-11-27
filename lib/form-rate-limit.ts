@@ -17,7 +17,7 @@ import { NextResponse } from 'next/server'
 import { checkRateLimit, resolveClientIp } from '@/lib/rate-limit'
 import { FORM_RATE_LIMITED_MESSAGE } from '@/lib/form-rate-limit-message'
 
-export type FormEndpoint = 'forms-submit' | 'contact' | 'otp-send'
+export type FormEndpoint = 'forms-submit' | 'contact' | 'otp-send' | 'coverage-lead'
 
 let warnedNoIp = false
 
