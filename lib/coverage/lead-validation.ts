@@ -5,8 +5,10 @@
  *
  * INVARIANTS:
  *   1. name, email and phone are always required, on every path (package, no-package, miss).
- *   2. A value containing CR or LF is never accepted for name/email/phone (the email lands
- *      in a Reply-To header; the others are rejected for uniformity).
+ *   2. A value containing CR, LF or NUL is never accepted for name/email/phone (the email
+ *      lands in a Reply-To header and a mailto: link; Postgres JSON cannot store NUL).
+ *   2b. The email is restricted to plain address characters — never ? & = < > " or spaces,
+ *      so it cannot smuggle mailto: parameters (e.g. ?bcc=) into the admin's reply button.
  *   3. Inputs are never mutated; results are new objects.
  */
 
@@ -21,7 +23,7 @@ export const LEAD_LIMITS = {
   nameMax: 100,
   emailMax: 254,
   phoneMin: 7,
-  phoneMax: 20,
+  phoneMax: 30,
   addressMax: 300,
   addonMax: 20,
   idMax: 64,
@@ -31,11 +33,13 @@ export const LEAD_LIMITS = {
 export const LEAD_NOT_RECEIVED_MESSAGE =
   "Sorry, your request was not received. Please try again, or phone us instead.";
 
-/** Single address, no list separators or whitespace (header-injection guard). */
-const EMAIL_RE = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
-/** Loose phone: digits, spaces, +, -, ( and ) only. */
-const PHONE_RE = /^[0-9 +\-()]+$/;
-const CRLF_RE = /[\r\n]/;
+/** Single plain address: no separators, whitespace, quotes or URL/mailto metacharacters. */
+const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+/** Loose phone: digits, spaces, + - ( ) . / and an optional extension (x12, ext 12, ext. 12). */
+const PHONE_RE = /^[0-9 +\-()./]+(?: ?(?:x|ext\.?) ?[0-9]{1,6})?$/i;
+/** CR, LF, NUL or a Unicode line/paragraph separator (tested on the raw value: trim() would hide a trailing one). */
+const CRLF_RE = /[\r\n\u0000\u2028\u2029]/;
+const NUL_RE = /\u0000/;
 
 export interface LeadContact {
   name: string;
@@ -116,7 +120,7 @@ const INVALID_REQUEST = "Invalid request.";
 /** undefined / null / "" = not supplied; otherwise must be a string of 1–idMax characters. */
 function optionalId(raw: unknown): { ok: true; value: string | null } | { ok: false } {
   if (raw === undefined || raw === null || raw === "") return { ok: true, value: null };
-  if (typeof raw !== "string" || raw.length > LEAD_LIMITS.idMax) return { ok: false };
+  if (typeof raw !== "string" || raw.length > LEAD_LIMITS.idMax || NUL_RE.test(raw)) return { ok: false };
   return { ok: true, value: raw };
 }
 
@@ -140,7 +144,7 @@ export function validateLeadPayload(body: unknown): LeadPayloadResult {
 
   let address = "";
   if (b.address !== undefined && b.address !== null) {
-    if (typeof b.address !== "string") return { ok: false, error: INVALID_REQUEST };
+    if (typeof b.address !== "string" || NUL_RE.test(b.address)) return { ok: false, error: INVALID_REQUEST };
     address = b.address.trim();
     if (address.length > LEAD_LIMITS.addressMax) {
       return { ok: false, error: `The address must be ${LEAD_LIMITS.addressMax} characters or fewer.` };
@@ -157,7 +161,7 @@ export function validateLeadPayload(body: unknown): LeadPayloadResult {
     if (b.addonIds.length > LEAD_LIMITS.addonMax) {
       return { ok: false, error: `You can choose at most ${LEAD_LIMITS.addonMax} add-ons.` };
     }
-    const allValid = b.addonIds.every((x) => typeof x === "string" && x.length > 0 && x.length <= LEAD_LIMITS.idMax);
+    const allValid = b.addonIds.every((x) => typeof x === "string" && x.length > 0 && x.length <= LEAD_LIMITS.idMax && !NUL_RE.test(x));
     if (!allValid) return { ok: false, error: INVALID_REQUEST };
     addonIds = [...(b.addonIds as string[])];
   }

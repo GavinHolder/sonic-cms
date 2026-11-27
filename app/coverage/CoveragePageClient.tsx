@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import type { CoverageCheckResult, CoverageNetworkResult, CoveragePackage } from "@/lib/coverage-utils";
@@ -64,14 +64,13 @@ export default function CoveragePageClient({ initialMaps, networkRadii }: Props)
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<LeadFieldErrors>({});
-  // Bumped only by a package-pick event (click or ?package= deep link) — never by a plain re-render.
-  const [focusTick, setFocusTick] = useState(0);
   const panelBodyRef = useRef<HTMLDivElement | null>(null);
   const fieldRefs = useRef<Record<LeadField, HTMLInputElement | null>>({ name: null, email: null, phone: null });
   const submittingRef = useRef(false);
 
-  // Scroll ONLY the panel's own scroll container (scrollIntoView would also scroll the
-  // overflow-hidden page root while the panel is still sliding in), then focus the field.
+  // Used ONLY after a failed submit (client validation or a server field error) — never on
+  // a package pick. Scrolls the panel's own scroll container (scrollIntoView would also
+  // scroll the overflow-hidden page root), then focuses the field.
   function revealField(field: LeadField) {
     const el = fieldRefs.current[field];
     const box = panelBodyRef.current;
@@ -81,10 +80,6 @@ export default function CoveragePageClient({ initialMaps, networkRadii }: Props)
     box.scrollTo({ top: Math.max(0, top), behavior: reduced ? "auto" : "smooth" });
     el.focus({ preventScroll: true });
   }
-
-  useEffect(() => {
-    if (focusTick > 0) revealField("name");
-  }, [focusTick]);
 
   const activeMap = maps.find((m) => m.id === activeMapId) ?? null;
   const networks: CoverageNetworkResult[] = result?.networks ?? [];
@@ -131,7 +126,6 @@ export default function CoveragePageClient({ initialMaps, networkRadii }: Props)
     setAddons(new Set(targetPkg && targetPkg.kind === "VAS" ? [targetPkg.id] : []));
     setName(""); setEmail(""); setPhone(""); setError(""); setFieldErrors({}); setSubmitted(false);
     setOpen(true);
-    if (targetPkg && (targetPkg.kind ?? "DATA") !== "VAS") setFocusTick((t) => t + 1);
   }
 
   function selectNetwork(id: string) {
@@ -140,6 +134,7 @@ export default function CoveragePageClient({ initialMaps, networkRadii }: Props)
     const terms = [...new Set(((n?.packages ?? []).filter((p) => (p.kind ?? "DATA") !== "VAS").map((p) => p.term).filter(Boolean)) as string[])];
     setDataTerm(terms[0] ?? null);
     setPickedData(null); setAddons(new Set());
+    setError(""); setFieldErrors({});
   }
 
   const toggleAddon = (id: string) => setAddons((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -148,14 +143,20 @@ export default function CoveragePageClient({ initialMaps, networkRadii }: Props)
 
   function pickData(id: string) {
     setPickedData(id);
-    setFocusTick((t) => t + 1);
+    setError(""); setFieldErrors({});
   }
 
   function changeField(field: LeadField, value: string) {
     if (field === "name") setName(value);
     else if (field === "email") setEmail(value);
     else setPhone(value);
-    if (fieldErrors[field]) setFieldErrors((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== field)));
+    if (!fieldErrors[field]) return;
+    // The footer message mirrors the field errors: once this field is edited, show the
+    // next outstanding one (or nothing) instead of a stale message.
+    const remaining: LeadFieldErrors = Object.fromEntries(Object.entries(fieldErrors).filter(([k]) => k !== field));
+    setFieldErrors(remaining);
+    const next = LEAD_FIELD_ORDER.find((f) => remaining[f]);
+    setError(next ? remaining[next] ?? "" : "");
   }
 
   async function submitLead() {

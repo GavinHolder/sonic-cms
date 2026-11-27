@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { getEmailConfig, sendSubmissionEmail } from "@/lib/email";
+import { getEmailConfig, sendSubmissionEmail, sanitizeRecipientList } from "@/lib/email";
 import { enforceFormRateLimit } from "@/lib/form-rate-limit";
 import { validateLeadPayload, LEAD_NOT_RECEIVED_MESSAGE } from "@/lib/coverage/lead-validation";
 
 const SERVICE_TYPE: Record<string, string> = { FNO: "Fibre", WISP: "Wireless ISP", WIRELESS: "Fixed Wireless", VOICE: "Voice" };
+
+/** Largest request body accepted (characters). A real lead is well under 2 KB. */
+const MAX_BODY_CHARS = 16384;
+const BODY_TOO_LARGE = "That request is too large.";
 
 const NETWORK_UNAVAILABLE = "That network is no longer available. Please check your address again.";
 const PACKAGE_UNAVAILABLE = "That package is no longer available. Please check your address again.";
@@ -34,11 +38,16 @@ function logFailure(step: "lookup" | "store" | "email", err: unknown): void {
  *      (rules live in lib/coverage/lead-validation.ts, shared with the form).
  *   2. Requests arrive through the proxy, so the per-IP form limit can identify the visitor.
  *   3. sendSubmissionEmail escapes every value and returns without sending when no admin
- *      recipient is configured — so "emailed" is only claimed when admin_email is set.
+ *      recipient survives sanitizeRecipientList — so "emailed" is only claimed when
+ *      that same check passes for admin_email.
+ *   4. The public coverage check offers packages of a network without checking the
+ *      network's own isActive flag, so this route must not reject on it either.
  *
  * FAILURE MODES:
  *   - Spam / flooding -> 429 from enforceFormRateLimit before the body is read.
- *   - Tampered ids (unknown, inactive, package from another network) -> 400, nothing stored.
+ *   - Oversized body (Content-Length or actual text > 16 KB) -> 413 before parsing.
+ *   - Tampered ids (unknown network, unknown/inactive package, package from another
+ *     network) -> 400, nothing stored.
  *   - DB down during the network/package check -> 500, nothing stored or sent.
  *   - Store fails, email sent -> 200 (admin has the lead), logged.
  *   - Email fails, store OK -> 200 (lead is in the Form Inbox), logged.
@@ -51,8 +60,17 @@ export async function POST(req: NextRequest) {
   const limited = enforceFormRateLimit(req, "coverage-lead");
   if (limited) return limited;
 
+  // Size cap: the declared length first, then the text actually read (chunked / no header).
+  const declared = Number(req.headers.get("content-length") ?? "");
+  if (Number.isFinite(declared) && declared > MAX_BODY_CHARS) {
+    return NextResponse.json({ error: BODY_TOO_LARGE }, { status: 413 });
+  }
   let body: unknown;
-  try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
+  try {
+    const text = await req.text();
+    if (text.length > MAX_BODY_CHARS) return NextResponse.json({ error: BODY_TOO_LARGE }, { status: 413 });
+    body = JSON.parse(text);
+  } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
   const parsed = validateLeadPayload(body);
   if (!parsed.ok) {
@@ -74,8 +92,8 @@ export async function POST(req: NextRequest) {
     if (packageId && !networkId) return NextResponse.json({ error: PACKAGE_UNAVAILABLE }, { status: 400 });
     if (networkId) {
       try {
-        const net = await prisma.network.findUnique({ where: { id: networkId }, select: { name: true, category: true, isActive: true } });
-        if (!net || !net.isActive) return NextResponse.json({ error: NETWORK_UNAVAILABLE }, { status: 400 });
+        const net = await prisma.network.findUnique({ where: { id: networkId }, select: { name: true, category: true } });
+        if (!net) return NextResponse.json({ error: NETWORK_UNAVAILABLE }, { status: 400 });
         networkName = net.name;
         leadCategory = net.category;
         serviceType = SERVICE_TYPE[net.category] ?? net.category;
@@ -149,8 +167,9 @@ export async function POST(req: NextRequest) {
   try {
     const cfg = await getEmailConfig();
     await sendSubmissionEmail(data, email, cfg, miss ? "Coverage Miss — Notify Request" : "Coverage Lead");
-    // sendSubmissionEmail returns without sending when there is no admin recipient.
-    emailed = Boolean(cfg.admin_email?.trim());
+    // sendSubmissionEmail returns without sending when no admin recipient survives
+    // sanitization — apply the same check so a no-op is never counted as "emailed".
+    emailed = Boolean(sanitizeRecipientList(cfg.admin_email));
   } catch (err) {
     logFailure("email", err);
   }

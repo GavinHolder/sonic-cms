@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest'
 import { NextRequest } from 'next/server'
 import { kvRows } from '@/lib/email/layout'
 
@@ -7,7 +7,12 @@ import { kvRows } from '@/lib/email/layout'
 // network/package authority, and that store/email failures are logged (without personal
 // data) and only reported as success when the lead actually landed somewhere.
 
+// Real sanitizeRecipientList (the route uses it to decide whether an email was really sent).
+// Loaded ONCE in beforeAll: re-importing the real email module after every resetModules is slow.
+const real = vi.hoisted(() => ({ sanitizeRecipientList: (_value: unknown): string => '' }))
+
 vi.mock('@/lib/email', () => ({
+  sanitizeRecipientList: (value: unknown) => real.sanitizeRecipientList(value),
   getEmailConfig: vi.fn(async () => ({ admin_email: 'admin@example.com' })),
   sendSubmissionEmail: vi.fn(async () => undefined),
 }))
@@ -76,6 +81,10 @@ const valueOf = (fields: Field[], label: string) => fields.find((f) => f.label =
 
 describe('POST /api/coverage/lead', () => {
   let errorSpy: ReturnType<typeof vi.spyOn>
+
+  beforeAll(async () => {
+    real.sanitizeRecipientList = (await vi.importActual<typeof import('@/lib/email')>('@/lib/email')).sanitizeRecipientList
+  }, 60_000)
 
   beforeEach(() => {
     vi.stubEnv('NODE_ENV', 'production')
@@ -169,7 +178,6 @@ describe('POST /api/coverage/lead', () => {
 
   it.each([
     ['unknown network', (db: Db) => db.network.findUnique.mockResolvedValue(null)],
-    ['inactive network', (db: Db) => db.network.findUnique.mockResolvedValue({ ...NET, isActive: false })],
     ['unknown package', (db: Db) => db.package.findUnique.mockResolvedValue(null)],
     ['inactive package', (db: Db) => db.package.findUnique.mockResolvedValue({ ...PKG, isActive: false })],
     ['package from another network', (db: Db) => db.package.findUnique.mockResolvedValue({ ...PKG, networkId: 'other' })],
@@ -180,6 +188,66 @@ describe('POST /api/coverage/lead', () => {
     expect(res.status).toBe(400)
     expect(m.db.formSubmission.create).not.toHaveBeenCalled()
     expect(m.email.sendSubmissionEmail).not.toHaveBeenCalled()
+  })
+
+  it('accepts an inactive network with an active package (the public check still offers it)', async () => {
+    const m = await load()
+    m.db.network.findUnique.mockResolvedValue({ ...NET, isActive: false })
+    const res = await m.POST(post(base))
+    expect(res.status).toBe(200)
+    expect(m.db.formSubmission.create).toHaveBeenCalledTimes(1)
+    expect(m.db.formSubmission.create.mock.calls[0][0].data).toMatchObject({ networkName: 'Openserve', packageName: 'Fibre 50' })
+  })
+
+  it('malformed admin_email plus a store failure is an error, not a 200', async () => {
+    const m = await load()
+    m.db.formSubmission.create.mockRejectedValue(new Error('db down'))
+    m.email.getEmailConfig.mockResolvedValue({ admin_email: 'not an address' })
+    const res = await m.POST(post(base))
+    expect(res.status).toBeGreaterThanOrEqual(500)
+  })
+
+  it('rejects a body whose Content-Length is over 16 KB with 413, before reading it', async () => {
+    const m = await load()
+    const req = new NextRequest('http://localhost/api/coverage/lead', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': nextIp(), 'content-length': '16385' },
+      body: JSON.stringify(base),
+    })
+    const res = await m.POST(req)
+    expect(res.status).toBe(413)
+    expect(m.db.formSubmission.create).not.toHaveBeenCalled()
+  })
+
+  it('rejects an oversized body with no Content-Length header with 413', async () => {
+    const m = await load()
+    const req = post({ ...base, padding: 'x'.repeat(17000) })
+    expect(req.headers.get('content-length')).toBeNull()
+    const res = await m.POST(req)
+    expect(res.status).toBe(413)
+    expect(m.db.formSubmission.create).not.toHaveBeenCalled()
+    expect(m.email.sendSubmissionEmail).not.toHaveBeenCalled()
+  })
+
+  it.each(['?bcc=attacker%40evil.com', '&subject=x', '<x>', '"q"'])('rejects an email carrying mailto metacharacters (%s)', async (suffix) => {
+    const m = await load()
+    const res = await m.POST(post({ ...base, email: `x@y.co${suffix}` }))
+    expect(res.status).toBe(400)
+    expect(m.email.sendSubmissionEmail).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['name', { name: 'Jane\u0000Doe' }],
+    ['email', { email: 'jane\u0000@example.com' }],
+    ['phone', { phone: '082123\u00004567' }],
+    ['address', { address: '1 Main\u0000 Rd' }],
+    ['package id', { packageId: 'pkg\u00001' }],
+    ['add-on id', { addonIds: ['a\u0000'] }],
+  ])('rejects a NUL character in %s with 400', async (_label, patch) => {
+    const m = await load()
+    const res = await m.POST(post({ ...base, ...patch }))
+    expect(res.status).toBe(400)
+    expect(m.db.formSubmission.create).not.toHaveBeenCalled()
   })
 
   it('rejects a package sent without a network', async () => {

@@ -52,6 +52,14 @@ describe('validateLeadContact', () => {
     ['CR/LF', 'jane@example.com\r\nBcc: x@evil.test'],
     ['over 254 characters', `${'a'.repeat(250)}@b.co`],
     ['non-string', null],
+    ['carrying ?', 'x@y.co?bcc=attacker%40evil.com'],
+    ['carrying &', 'x@y.co&a'],
+    ['carrying =', 'x=1@y.co'],
+    ['carrying <', '<x@y.co'],
+    ['carrying >', 'x@y.co>'],
+    ['carrying a quote', '"x"@y.co'],
+    ['carrying U+2028', 'jane@example.com\u2028'],
+    ['carrying NUL', 'jane\u0000@example.com'],
   ])('rejects an email that is %s', (_label, email) => {
     const r = validateLeadContact({ ...good, email })
     expect(r.ok).toBe(false)
@@ -62,7 +70,10 @@ describe('validateLeadContact', () => {
     ['empty', ''],
     ['too short', '12345'],
     ['letters', '082 CALL ME'],
-    ['over 20 characters', '0'.repeat(21)],
+    ['over 30 characters', '0'.repeat(31)],
+    ['extension without digits', '028 123 4567 ext'],
+    ['fewer than 7 digits with extension', '028 x12'],
+    ['NUL', '082123\u00004567'],
     ['only punctuation', '(((((((('],
     ['CR/LF', '0821234567\n0821234567'],
     ['non-string', undefined],
@@ -70,6 +81,21 @@ describe('validateLeadContact', () => {
     const r = validateLeadContact({ ...good, phone })
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.firstInvalid).toBe('phone')
+  })
+
+  it.each(['028 123 4567', '+27 82 123 4567', '082.123.4567', '+27 (0)82 123 4567', '028 123 4567 x12', '028 123 4567 ext 12', '028 123 4567 ext. 12', '028/123/4567'])(
+    'accepts the phone number %s',
+    (phone) => {
+      expect(validateLeadContact({ ...good, phone }).ok).toBe(true)
+    }
+  )
+
+  it('accepts first.last+tag@sub.example.co.za', () => {
+    expect(validateLeadContact({ ...good, email: 'first.last+tag@sub.example.co.za' }).ok).toBe(true)
+  })
+
+  it('rejects NUL in the name', () => {
+    expect(validateLeadContact({ ...good, name: 'Jane\u0000Doe' }).ok).toBe(false)
   })
 
   it('does not mutate its input', () => {
@@ -114,6 +140,9 @@ describe('validateLeadPayload', () => {
     ['non-string network id', { ...body, networkId: 7 }],
     ['package id over 64', { ...body, packageId: 'p'.repeat(65) }],
     ['non-string package id', { ...body, packageId: { id: 'x' } }],
+    ['NUL in address', { ...body, address: '1 Main\u0000 Rd' }],
+    ['NUL in network id', { ...body, networkId: 'net\u00001' }],
+    ['NUL in add-on id', { ...body, addonIds: ['a\u0000'] }],
   ])('rejects %s', (_label, input) => {
     const r = validateLeadPayload(input)
     expect(r.ok).toBe(false)
