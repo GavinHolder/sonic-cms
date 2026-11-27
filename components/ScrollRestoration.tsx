@@ -1,8 +1,29 @@
 "use client";
 
 import { useEffect } from "react";
+import { usePathname } from "next/navigation";
+import { scrollToHashSectionWhenReady } from "@/lib/navigation-utils";
 
 export default function ScrollRestoration() {
+  const pathname = usePathname();
+
+  // Deep link to a section (/page#<sectionId>): after the scroll-to-top resets on load /
+  // route change, bring the section named by the hash into view. Public + /preview only.
+  useEffect(() => {
+    if (!pathname || pathname.startsWith("/admin")) return;
+    let cancel = scrollToHashSectionWhenReady(window.location.hash);
+    const onHashChange = () => {
+      cancel();
+      cancel = scrollToHashSectionWhenReady(window.location.hash);
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => {
+      window.removeEventListener("hashchange", onHashChange);
+      cancel();
+    };
+  }, [pathname]);
+
+
   useEffect(() => {
     if ("scrollRestoration" in history) {
       history.scrollRestoration = "manual";
