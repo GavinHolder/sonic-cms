@@ -40,9 +40,14 @@ export const scrollToSection = (sectionId: string): void => {
 };
 
 /**
- * Resolve a URL "#hash" to an element inside #snap-container, or null.
+ * Resolve a URL "#hash" to a SECTION ROOT inside #snap-container, or null.
  * The hash is untrusted input: it is only ever used as an id lookup
  * (getElementById), never as a selector string.
+ *
+ * Only section roots qualify, not any element that happens to carry an id
+ * (form fields, motion elements, ...). There is no single marker shared by every
+ * root, so the three real shapes are accepted: `.cms-section` (all content
+ * sections), `.hero-carousel` (HeroCarousel root) and the `<footer>` section root.
  */
 export const findHashSection = (hash: string): HTMLElement | null => {
   if (hash.length < 2 || hash[0] !== "#") return null;
@@ -56,7 +61,11 @@ export const findHashSection = (hash: string): HTMLElement | null => {
   const container = document.getElementById("snap-container");
   const element = document.getElementById(id);
   if (!container || !element || element === container || !container.contains(element)) return null;
-  return element;
+  const isSectionRoot =
+    element.classList.contains("cms-section") ||
+    element.classList.contains("hero-carousel") ||
+    element.tagName === "FOOTER";
+  return isSectionRoot ? element : null;
 };
 
 /**
@@ -67,25 +76,28 @@ export const findHashSection = (hash: string): HTMLElement | null => {
  * can mount after the browser's own fragment scroll has already run.
  *
  * ASSUMPTIONS:
- * 1. Sections carry id={section.id} and live inside #snap-container.
+ * 1. Section roots carry id={section.id} and live inside #snap-container.
  * 2. Called from an effect, so the first attempt (next task) runs after the
  *    layout's own scroll-to-top resets.
  *
  * FAILURE MODES:
- * - No hash / malformed hash / no matching element → nothing happens (gives up after timeoutMs).
- * - User starts scrolling while we wait → cancelled, so it never fights the user.
+ * - No hash / malformed hash / no matching section → nothing happens (gives up after timeoutMs).
+ * - User starts interacting while we wait → cancelled, so it never fights the user.
+ * - Section inside a positioned wrapper (Lower Third / Motion Elements wrapSection,
+ *   ScrollStageWrapper) → offsetTop would be wrapper-relative, so the target is
+ *   measured against the container with getBoundingClientRect instead.
  * - Scrolls at most once per call; the returned function cancels a pending attempt.
  */
 export const scrollToHashSectionWhenReady = (
   hash: string,
-  { intervalMs = 100, timeoutMs = 2000 }: { intervalMs?: number; timeoutMs?: number } = {},
+  { intervalMs = 100, timeoutMs = 8000 }: { intervalMs?: number; timeoutMs?: number } = {},
 ): (() => void) => {
   if (hash.length < 2) return () => {};
 
   let timer: ReturnType<typeof setTimeout> | undefined;
   let waited = 0;
   let stopped = false;
-  const userEvents = ["wheel", "touchstart", "keydown"] as const;
+  const userEvents = ["wheel", "touchstart", "pointerdown", "keydown"] as const;
 
   const stop = (): void => {
     if (stopped) return;
@@ -97,9 +109,17 @@ export const scrollToHashSectionWhenReady = (
   const attempt = (): void => {
     if (stopped) return;
     const element = findHashSection(hash);
-    if (element) {
+    const container = document.getElementById("snap-container");
+    if (element && container) {
       stop();
-      scrollToSection(element.id);
+      const top =
+        container.scrollTop + element.getBoundingClientRect().top - container.getBoundingClientRect().top;
+      // Same navigation guard scrollToSection() raises, so useScrollSnap stays out of the way.
+      isNavigating = true;
+      container.scrollTo({ top, behavior: "smooth" });
+      setTimeout(() => {
+        isNavigating = false;
+      }, 1000);
       return;
     }
     if (waited >= timeoutMs) {

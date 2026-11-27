@@ -9,18 +9,10 @@ export default function ScrollRestoration() {
 
   // Deep link to a section (/page#<sectionId>): after the scroll-to-top resets on load /
   // route change, bring the section named by the hash into view. Public + /preview only.
+  // Deliberately no hashchange listener: same-page #links already scroll natively.
   useEffect(() => {
     if (!pathname || pathname.startsWith("/admin")) return;
-    let cancel = scrollToHashSectionWhenReady(window.location.hash);
-    const onHashChange = () => {
-      cancel();
-      cancel = scrollToHashSectionWhenReady(window.location.hash);
-    };
-    window.addEventListener("hashchange", onHashChange);
-    return () => {
-      window.removeEventListener("hashchange", onHashChange);
-      cancel();
-    };
+    return scrollToHashSectionWhenReady(window.location.hash);
   }, [pathname]);
 
 
